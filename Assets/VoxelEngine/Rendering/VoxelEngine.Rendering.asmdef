@@ -1,0 +1,14 @@
+{
+  "name": "VoxelEngine.Rendering",
+  "rootNamespace": "VoxelEngine.Rendering",
+  "references": ["VoxelEngine.Core", "Unity.Burst", "Unity.Collections", "Unity.Mathematics", "VoxelEngine.Tiering", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Core.Runtime"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "noEngineReferences": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": []
+}

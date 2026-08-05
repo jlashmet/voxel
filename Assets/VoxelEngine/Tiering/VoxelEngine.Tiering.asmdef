@@ -1,0 +1,14 @@
+{
+  "name": "VoxelEngine.Tiering",
+  "rootNamespace": "VoxelEngine.Tiering",
+  "references": ["VoxelEngine.Core", "Unity.Burst", "Unity.Collections", "Unity.Mathematics"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "noEngineReferences": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": []
+}

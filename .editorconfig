@@ -1,0 +1,47 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.cs]
+indent_size = 4
+csharp_new_line_before_open_brace = all
+dotnet_sort_system_directives_first = true
+
+# ---------------------------------------------------------------------------
+# Constitution Principle I — Determinism is integer and CPU-side.
+#
+# Core/ contains every computation that participates in cross-client agreement:
+# edit expansion, connectivity, support propagation. Floating-point arithmetic is
+# not reproducible across platforms, and the client population spans PC, console,
+# and mobile. A single float in an expansion path causes silent divergence between
+# hardware classes that no individual client can detect.
+#
+# CA1721/CS-level rules cannot express "no float type", so this is enforced by
+# VoxelEngine.Analyzers (see Assets/VoxelEngine/Analyzers) and by the CI guard in
+# Assets/Tests/EditMode/ConstitutionGuardTests.cs. The severity below is the
+# editor-facing half of that enforcement.
+# ---------------------------------------------------------------------------
+[Assets/VoxelEngine/Core/**.cs]
+dotnet_diagnostic.VOX001.severity = error   # float/double/decimal declaration in Core
+dotnet_diagnostic.VOX002.severity = error   # UnityEngine reference in Core
+dotnet_diagnostic.VOX003.severity = error   # System.Random or non-seeded RNG in Core
+
+[Assets/Tests/**.cs]
+dotnet_diagnostic.VOX001.severity = none
+
+[*.{json,asmdef,asmref}]
+indent_size = 2
+
+[*.{compute,shader,hlsl,cginc}]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.sh]
+indent_size = 2

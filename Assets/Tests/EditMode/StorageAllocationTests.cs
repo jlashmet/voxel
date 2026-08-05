@@ -1,0 +1,198 @@
+using NUnit.Framework;
+using Unity.Collections;
+using Unity.Mathematics;
+using VoxelEngine.Core.Storage;
+
+namespace VoxelEngine.Tests.EditMode
+{
+    /// <summary>
+    /// Guards the allocation argument the whole engine rests on: pool slots are spent
+    /// on *surfaces*, never on volume. If these fail, a kilometre-scale world no longer
+    /// fits a capped memory budget and SC-005 is unreachable.
+    /// </summary>
+    public sealed class StorageAllocationTests
+    {
+        private const int PoolCapacity = 4096;
+
+        private BrickPool _pool;
+        private RegionTable _table;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _pool = new BrickPool(PoolCapacity, Allocator.Persistent);
+            _table = new RegionTable(16, Allocator.Persistent);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            _table.Dispose();
+            _pool.Dispose();
+        }
+
+        [Test]
+        public void EmptyWorldAllocatesNothing()
+        {
+            _table.LoadRegion(int3.zero);
+            Assert.AreEqual(0, _pool.AllocatedCount,
+                "A resident but untouched region must hold zero pool slots.");
+        }
+
+        [Test]
+        public void ReadingUnloadedRegionReturnsEmptyAndAllocatesNothing()
+        {
+            var material = VoxelAccess.GetVoxel(ref _table, in _pool, new int3(9999, 9999, 9999));
+
+            Assert.AreEqual(VoxelDimensions.MaterialEmpty, material);
+            Assert.AreEqual(0, _pool.AllocatedCount,
+                "Probing outside the resident set must not materialise storage — " +
+                "raycasts and support propagation do this constantly.");
+        }
+
+        [Test]
+        public void FirstEditToUniformBrickAllocatesExactlyOneSlot()
+        {
+            Assert.IsTrue(VoxelAccess.SetVoxel(ref _table, ref _pool, new int3(4, 4, 4), 1));
+            Assert.AreEqual(1, _pool.AllocatedCount);
+        }
+
+        [Test]
+        public void WritingSameMaterialIsNoOpAndAllocatesNothing()
+        {
+            // The brick is uniformly empty; writing empty must not allocate a slot to
+            // represent "still empty".
+            Assert.IsFalse(VoxelAccess.SetVoxel(ref _table, ref _pool, new int3(4, 4, 4),
+                                                VoxelDimensions.MaterialEmpty));
+            Assert.AreEqual(0, _pool.AllocatedCount);
+        }
+
+        [Test]
+        public void BrickBecomingUniformAgainReturnsItsSlot()
+        {
+            var p = new int3(4, 4, 4);
+
+            VoxelAccess.SetVoxel(ref _table, ref _pool, p, 1);
+            Assert.AreEqual(1, _pool.AllocatedCount, "Edit should have materialised a brick.");
+
+            // Undo it. The brick is uniformly empty once more and must collapse.
+            VoxelAccess.SetVoxel(ref _table, ref _pool, p, VoxelDimensions.MaterialEmpty);
+
+            Assert.AreEqual(0, _pool.AllocatedCount,
+                "Collapse-to-uniform is the invariant preventing unbounded pool growth. " +
+                "Without it nothing breaks visibly — memory just climbs across a long " +
+                "session until the pool holds bricks containing no surface.");
+        }
+
+        [Test]
+        public void FillingBrickCompletelyCollapsesToUniform()
+        {
+            for (var z = 0; z < VoxelDimensions.BrickEdge; z++)
+            for (var y = 0; y < VoxelDimensions.BrickEdge; y++)
+            for (var x = 0; x < VoxelDimensions.BrickEdge; x++)
+                VoxelAccess.SetVoxel(ref _table, ref _pool, new int3(x, y, z), 3);
+
+            Assert.AreEqual(0, _pool.AllocatedCount,
+                "A brick filled entirely with one material holds no surface and must " +
+                "cost nothing — this is why solid rock underground is free at any volume.");
+
+            Assert.AreEqual(3, VoxelAccess.GetVoxel(ref _table, in _pool, new int3(3, 3, 3)),
+                "Collapsing to uniform must preserve the material.");
+        }
+
+        [Test]
+        public void SlotsAreRecycledRatherThanLeaked()
+        {
+            var p = new int3(4, 4, 4);
+
+            for (var i = 0; i < 200; i++)
+            {
+                VoxelAccess.SetVoxel(ref _table, ref _pool, p, 1);
+                VoxelAccess.SetVoxel(ref _table, ref _pool, p, VoxelDimensions.MaterialEmpty);
+            }
+
+            Assert.AreEqual(0, _pool.AllocatedCount);
+            Assert.Less(_pool.AllocatedCount, PoolCapacity,
+                "Repeated build/destroy on one voxel must not consume the pool.");
+        }
+
+        [Test]
+        public void PartiallyEditedBrickStaysMixed()
+        {
+            VoxelAccess.SetVoxel(ref _table, ref _pool, new int3(0, 0, 0), 1);
+            VoxelAccess.SetVoxel(ref _table, ref _pool, new int3(1, 0, 0), 2);
+
+            Assert.AreEqual(1, _pool.AllocatedCount,
+                "Two differing materials in one brick is a surface; it must stay mixed.");
+        }
+
+        [Test]
+        public void EvictingRegionReturnsAllItsSlots()
+        {
+            for (var i = 0; i < 32; i++)
+                VoxelAccess.SetVoxel(ref _table, ref _pool,
+                                     new int3(i * VoxelDimensions.BrickEdge, 0, 0), 1);
+
+            Assert.Greater(_pool.AllocatedCount, 0);
+
+            _table.EvictRegion(int3.zero, ref _pool);
+
+            Assert.AreEqual(0, _pool.AllocatedCount,
+                "Eviction must return every mixed brick the region held.");
+            Assert.AreEqual(0, _table.ResidentCount);
+        }
+
+        [Test]
+        public void RoundTripPreservesMaterialAcrossRegionBoundaries()
+        {
+            // Straddle a region boundary: region 0 and region 1 on x.
+            var a = new int3(511, 0, 0);
+            var b = new int3(512, 0, 0);
+
+            VoxelAccess.SetVoxel(ref _table, ref _pool, a, 7);
+            VoxelAccess.SetVoxel(ref _table, ref _pool, b, 9);
+
+            Assert.AreEqual(7, VoxelAccess.GetVoxel(ref _table, in _pool, a));
+            Assert.AreEqual(9, VoxelAccess.GetVoxel(ref _table, in _pool, b));
+            Assert.AreEqual(2, _table.ResidentCount, "Should have materialised two regions.");
+        }
+
+        [Test]
+        public void NegativeCoordinatesFloorCorrectly()
+        {
+            // Truncation toward zero would collapse -1 and 0 into the same region and
+            // produce a visible seam at the origin.
+            var p = new int3(-1, -1, -1);
+
+            VoxelAccess.SetVoxel(ref _table, ref _pool, p, 5);
+
+            Assert.AreEqual(5, VoxelAccess.GetVoxel(ref _table, in _pool, p));
+            Assert.AreEqual(0, VoxelAccess.GetVoxel(ref _table, in _pool, int3.zero),
+                "Voxel at the origin must be unaffected by a write at (-1,-1,-1).");
+
+            VoxelAccess.Decompose(p, out var regionCoord, out _, out var voxelInBrick);
+            Assert.AreEqual(new int3(-1, -1, -1), regionCoord);
+            Assert.AreEqual(new int3(7, 7, 7), voxelInBrick);
+        }
+
+        [Test]
+        public void BrickRefEncodingRoundTrips()
+        {
+            Assert.IsTrue(BrickRef.Empty.IsEmpty);
+            Assert.IsTrue(BrickRef.Empty.IsUniform);
+            Assert.IsFalse(BrickRef.Empty.IsMixed);
+            Assert.AreEqual(VoxelDimensions.MaterialEmpty, BrickRef.Empty.UniformMaterial);
+
+            for (var m = 0; m < 256; m++)
+            {
+                var r = BrickRef.Uniform((byte)m);
+                Assert.IsTrue(r.IsUniform);
+                Assert.AreEqual((byte)m, r.UniformMaterial, $"Uniform material {m} round-trip.");
+            }
+
+            var mixed = BrickRef.FromPoolIndex(12345);
+            Assert.IsTrue(mixed.IsMixed);
+            Assert.AreEqual(12345, mixed.PoolIndex);
+        }
+    }
+}

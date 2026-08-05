@@ -1,0 +1,61 @@
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Never commit the artifact cache
+Assets/AssetStoreTools*
+.vsconfig
+
+# Generated IDE and solution files
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.idea/
+.vs/
+.vscode/
+
+# Builds
+*.apk
+*.aab
+*.unitypackage
+*.app
+ExportedObj/
+crashlytics-build.properties
+
+# Profiling and capture output from M0 / soak runs
+*.raw
+*.data
+Spikes/**/Captures/
+Server/Soak/results/
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# Secrets — a dedicated server config holds connection strings
+*.env
+.env*
+Server/secrets/
+
+# Machine-local agent state, not shared project config
+.claude/settings.local.json
+.claude/.autonomous_loop_exit

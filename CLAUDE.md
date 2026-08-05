@@ -1,0 +1,38 @@
+# voxel
+
+A destructible and buildable multiplayer voxel world, built in Unity.
+
+## Active feature
+
+<!-- SPECKIT START -->
+**Plan**: [specs/001-destructible-voxel-engine/plan.md](specs/001-destructible-voxel-engine/plan.md)
+
+Supporting artifacts:
+
+- [spec.md](specs/001-destructible-voxel-engine/spec.md) — requirements and success criteria
+- [research.md](specs/001-destructible-voxel-engine/research.md) — Phase 0 decisions
+- [data-model.md](specs/001-destructible-voxel-engine/data-model.md) — structures and invariants
+- [contracts/](specs/001-destructible-voxel-engine/contracts/) — wire protocol and module interfaces
+- [quickstart.md](specs/001-destructible-voxel-engine/quickstart.md) — orientation
+- [architecture-notes.md](specs/001-destructible-voxel-engine/architecture-notes.md) — technical reasoning in depth
+<!-- SPECKIT END -->
+
+**Numeric budgets**: [device-matrix.md](specs/001-destructible-voxel-engine/device-matrix.md) is authoritative for every frame, memory, latency, and bandwidth target. Do not invent numbers elsewhere.
+
+**Constitution**: [.specify/memory/constitution.md](.specify/memory/constitution.md) — six non-negotiable principles. The standing constraints below are their feature-level expression.
+
+## Standing constraints
+
+These are architectural commitments, not preferences. Violating one is a defect.
+
+- **Determinism**: no authoritative state may derive from GPU output or floating-point arithmetic. Cross-client agreement is integer Burst jobs on the CPU.
+- **Single source of truth**: visual and collision representations derive from the same brickmap. One DDA traversal, two callers.
+- **Server authority**: client prediction is presentation, never truth.
+- **Tiering boundary**: device class affects presentation parameters only — never interest radius, tick rate, collision, world state, or any `Core` job.
+- **Platform scope**: PC, console, and **high-end mobile only**. Mid-tier and low-tier phones are out of scope.
+- **No `com.unity.entities`**: Burst, Collections, and Jobs only. The world is not entity-shaped.
+- **No Netcode for GameObjects**: world replication is custom over Unity Transport.
+
+## Superseded
+
+`📘 Decoupled Voxel Rendering & Multiplayer Synchron.txt` (CTBS + CGVAVS v1.0) is retained for reference only and was reviewed and rejected. See `architecture-notes.md` §9. Do not use its performance claims or schedule estimates.
