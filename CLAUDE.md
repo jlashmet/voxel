@@ -33,6 +33,30 @@ These are architectural commitments, not preferences. Violating one is a defect.
 - **No `com.unity.entities`**: Burst, Collections, and Jobs only. The world is not entity-shaped.
 - **No Netcode for GameObjects**: world replication is custom over Unity Transport.
 
+## Running Unity
+
+**Never invoke the Unity binary directly. Always use `tools/unity-run.sh`.**
+
+Unguarded headless runs froze this machine repeatedly. The cause each time was a second
+Unity editor started against a project copy — real graphics device, hundreds of megabytes of
+ComputeBuffer — while the developer's own editor was open. Unified memory, two editors, no
+limit anywhere in Unity.
+
+The wrapper refuses to start when another editor is running or when the machine is short on
+memory, and it kills the process tree if it crosses a memory ceiling or a time limit. Its
+defaults (6 GB, 20 minutes, 4 GB free required) are ceilings, not targets.
+
+Two further rules that no script can enforce:
+
+- **Ask before running Unity at all if the developer's editor might be open.** The wrapper
+  will refuse, but the polite order is to ask first.
+- **Batchmode play-mode tests do not exercise the editor lifecycle.** They run once, in a
+  fresh domain. They cannot see `ExecuteAlways` work, repeated `OnEnable`, repeated
+  `ScriptableRendererFeature.Create`, or anything that happens on a domain reload. Every
+  memory failure in this project so far lived in exactly that blind spot and passed a green
+  suite. Editor-lifecycle behaviour needs EditMode tests that loop the lifecycle — see
+  `Assets/Tests/EditMode/RenderResourceLifetimeTests.cs`.
+
 ## Superseded
 
 `📘 Decoupled Voxel Rendering & Multiplayer Synchron.txt` (CTBS + CGVAVS v1.0) is retained for reference only and was reviewed and rejected. See `architecture-notes.md` §9. Do not use its performance claims or schedule estimates.
