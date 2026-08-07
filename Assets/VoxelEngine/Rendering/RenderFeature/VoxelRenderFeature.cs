@@ -74,5 +74,8 @@ namespace VoxelEngine.Rendering
 
         /// <summary>Region slots currently mirrored on the GPU.</summary>
         public int ResidentSlots => m_Pass?.ResidentSlots ?? 0;
+
+        /// <summary>The current pass. Public so a lifecycle test can watch what Create() does.</summary>
+        public VoxelRenderPass Pass => m_Pass;
     }
 }

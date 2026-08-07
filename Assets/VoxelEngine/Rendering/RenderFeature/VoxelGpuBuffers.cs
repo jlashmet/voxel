@@ -23,6 +23,35 @@ namespace VoxelEngine.Rendering
     /// </summary>
     public sealed class VoxelGpuBuffers : IDisposable
     {
+        /// <summary>
+        /// ComputeBuffers alive right now, across every instance.
+        ///
+        /// A ledger rather than a memory measurement, because memory measurement does not work
+        /// here: Profiler.GetAllocatedMemoryForGraphicsDriver never decreases when a buffer is
+        /// released, and process RSS does not move at all for GPU allocations in a headless
+        /// editor. Both report a flat line for a real leak or a leak for correct code, depending
+        /// which one you pick. Counting create against release tests the actual contract — every
+        /// buffer this type allocates is handed back — and it can fail, which is the property
+        /// that matters.
+        /// </summary>
+        public static int LiveBuffers { get; private set; }
+
+        private static ComputeBuffer Allocate(int count, int stride, ComputeBufferType type)
+        {
+            var buffer = new ComputeBuffer(count, stride, type);
+            LiveBuffers++;
+            return buffer;
+        }
+
+        private static void ReleaseTracked(ref ComputeBuffer buffer)
+        {
+            if (buffer == null) return;
+
+            buffer.Release();
+            buffer = null;
+            LiveBuffers--;
+        }
+
         /// <summary>Region slots along each window axis. Terrain is thin in y, so the window is too.</summary>
         public const int WindowX = 16;
 
@@ -92,11 +121,11 @@ namespace VoxelEngine.Rendering
             Dispose();
             _poolCapacity = poolCapacity;
 
-            _windowBuffer = new ComputeBuffer(WindowCells, sizeof(int), ComputeBufferType.Structured);
-            _brickRefBuffer = new ComputeBuffer(MaxSlots * VoxelDimensions.BricksPerRegion, sizeof(int),
-                                                ComputeBufferType.Structured);
-            _voxelBuffer = new ComputeBuffer(poolCapacity * UintsPerBrick, sizeof(uint),
-                                             ComputeBufferType.Structured);
+            _windowBuffer = Allocate(WindowCells, sizeof(int), ComputeBufferType.Structured);
+            _brickRefBuffer = Allocate(MaxSlots * VoxelDimensions.BricksPerRegion, sizeof(int),
+                                       ComputeBufferType.Structured);
+            _voxelBuffer = Allocate(poolCapacity * UintsPerBrick, sizeof(uint),
+                                    ComputeBufferType.Structured);
 
             _brickRefScratch = new NativeArray<int>(VoxelDimensions.BricksPerRegion, Allocator.Persistent,
                                                     NativeArrayOptions.UninitializedMemory);
@@ -285,12 +314,9 @@ namespace VoxelEngine.Rendering
 
         public void Dispose()
         {
-            _windowBuffer?.Release();
-            _brickRefBuffer?.Release();
-            _voxelBuffer?.Release();
-            _windowBuffer = null;
-            _brickRefBuffer = null;
-            _voxelBuffer = null;
+            ReleaseTracked(ref _windowBuffer);
+            ReleaseTracked(ref _brickRefBuffer);
+            ReleaseTracked(ref _voxelBuffer);
 
             if (_brickRefScratch.IsCreated) _brickRefScratch.Dispose();
             if (_voxelScratch.IsCreated) _voxelScratch.Dispose();

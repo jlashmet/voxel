@@ -55,6 +55,12 @@ namespace VoxelEngine.Rendering
 
         public int ResidentSlots => _buffers.ResidentSlots;
 
+        /// <summary>
+        /// The GPU mirror this pass owns. Public so a test can force allocation and then assert
+        /// the memory comes back — the leak that took a machine down was invisible from outside.
+        /// </summary>
+        public VoxelGpuBuffers Buffers => _buffers;
+
         public void Setup(ComputeShader raymarch)
         {
             _raymarch = raymarch;
