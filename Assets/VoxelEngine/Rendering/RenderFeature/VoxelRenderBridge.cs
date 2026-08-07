@@ -39,6 +39,13 @@ namespace VoxelEngine.Rendering
         /// <summary>Regions whose brick pointers changed and need re-uploading.</summary>
         public static System.Collections.Generic.HashSet<int3> RegionsNeedingUpload;
 
+        /// <summary>
+        /// 0 shades normally; 1 and 2 emit traversal state as colour. Kept out of the asset so a
+        /// test can flip it at runtime — locating a traversal failure by staring at the shaded
+        /// image does not work, as several wrong guesses established.
+        /// </summary>
+        public static int DebugMode;
+
         /// <summary>Direction light points *from* the surface toward the sun.</summary>
         public static Vector3 SunDirection = new Vector3(0.45f, 0.78f, 0.43f).normalized;
 

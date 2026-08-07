@@ -39,6 +39,7 @@ namespace VoxelEngine.Rendering
         private static readonly int s_WindowY = Shader.PropertyToID("g_WindowY");
         private static readonly int s_WindowZ = Shader.PropertyToID("g_WindowZ");
         private static readonly int s_MaterialColours = Shader.PropertyToID("g_MaterialColours");
+        private static readonly int s_DebugMode = Shader.PropertyToID("g_DebugMode");
 
         private readonly VoxelGpuBuffers _buffers = new();
         private ComputeShader _raymarch;
@@ -161,6 +162,7 @@ namespace VoxelEngine.Rendering
                 cmd.SetComputeIntParam(data.Raymarch, s_WindowX, VoxelGpuBuffers.WindowX);
                 cmd.SetComputeIntParam(data.Raymarch, s_WindowY, VoxelGpuBuffers.WindowY);
                 cmd.SetComputeIntParam(data.Raymarch, s_WindowZ, VoxelGpuBuffers.WindowZ);
+                cmd.SetComputeIntParam(data.Raymarch, s_DebugMode, VoxelRenderBridge.DebugMode);
                 cmd.SetComputeVectorArrayParam(data.Raymarch, s_MaterialColours, VoxelRenderBridge.MaterialColours);
 
                 cmd.DispatchCompute(data.Raymarch, data.Kernel, data.GroupsX, data.GroupsY, 1);

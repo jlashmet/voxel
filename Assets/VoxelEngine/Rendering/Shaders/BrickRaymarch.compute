@@ -37,6 +37,10 @@ uint     g_WindowX;
 uint     g_WindowY;
 uint     g_WindowZ;
 
+// 0 = shade normally. Non-zero modes emit traversal state instead of colour, so a failure
+// can be located in one frame rather than inferred from what the picture looks like.
+uint     g_DebugMode;
+
 // Material colours, indexed by material id. Slot 0 is empty and never shaded.
 float4 g_MaterialColours[16];
 
@@ -187,15 +191,27 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
 
     float3 colour = SkyColour(dir);
 
+    // Traversal telemetry, reported by the debug modes below.
+    float sawSlot = 0.0;      // the ray entered a region that is mirrored on the GPU
+    float sawRef = 0.0;       // it found a non-empty brick pointer there
+    float sawMixed = 0.0;     // that pointer referenced pool storage
+    float sawVoxel = 0.0;     // and that storage held a non-empty voxel
+    float steps = 0.0;
+
     [loop]
     for (uint i = 0; i < g_MaxSteps; i++)
     {
         if (t > maxT) break;
 
+        steps += 1.0;
+
+        if (RegionSlot(brick >> k_RegionEdgeLog2) >= 0) sawSlot = 1.0;
+
         int brickRef = BrickRefAt(brick);
 
         if (brickRef != -1)
         {
+            sawRef = 1.0;
             float3 normal = float3(axis == 0 ? -step.x : 0, axis == 1 ? -step.y : 0, axis == 2 ? -step.z : 0);
 
             if (brickRef < -1)
@@ -209,9 +225,13 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
             float3 entry = (origin + dir * (t + 1e-4)) - float3(brick);
             float3 entryVoxel = clamp(entry * k_BrickEdge, 0.0, k_BrickEdge - 1e-3);
 
+            sawMixed = 1.0;
+
             float3 hitNormal;
             float tInner;
             uint material = MarchBrick(brickRef, entryVoxel, dir, hitNormal, tInner);
+
+            if (material != 0u) sawVoxel = 1.0;
 
             if (material != 0u)
             {
@@ -224,6 +244,9 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
         else if (tMax.y < tMax.z)                    { brick.y += step.y; t = tMax.y; tMax.y += tDelta.y; axis = 1; }
         else                                         { brick.z += step.z; t = tMax.z; tMax.z += tDelta.z; axis = 2; }
     }
+
+    if (g_DebugMode == 1u) colour = float3(sawSlot, sawRef, sawMixed);
+    else if (g_DebugMode == 2u) colour = float3(sawVoxel, steps / max(1.0, (float)g_MaxSteps), 0.0);
 
     // Write flipped vertically rather than building the ray from a flipped uv: the rays are
     // correct as constructed, it is the target's row order that disagrees with the blit. Doing
