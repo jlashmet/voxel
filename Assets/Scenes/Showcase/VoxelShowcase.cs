@@ -6,15 +6,18 @@ using VoxelEngine.Core.Storage;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Driver for the showcase scene: owns a <see cref="ShowcaseWorld"/>, streams regions
-    /// around the camera, turns clicks into edits, and reports what the engine is doing.
+    /// Driver for the showcase scene: owns a <see cref="ShowcaseWorld"/>, walks a character over
+    /// it, streams regions around them, turns clicks into edits, and reports what the engine is
+    /// doing underneath.
     ///
     /// What the scene demonstrates, in the order it becomes visible:
     ///
-    ///   Streaming         — fly in any direction and regions generate ahead of you and evict
-    ///                       behind. The HUD's resident count and generate time are the show.
+    ///   Collision         — the character stands on voxels through <see cref="CharacterMotor"/>,
+    ///                       which reads the same storage the surface mesh is built from.
+    ///   Streaming         — walk in any direction and regions generate ahead and evict behind.
+    ///                       Generation and meshing are time-budgeted, so the cost is a slice
+    ///                       per frame rather than a stall per region.
     ///   Sparse storage    — the mixed-brick count tracks surface area, not world volume.
-    ///                       Underground rock and open sky both cost zero pool slots.
     ///   Shared traversal  — picking runs through <see cref="VoxelRaycast"/> and
     ///                       <see cref="DdaTraversal"/>, the same walk the renderer will march.
     ///   Material behaviour— one blast leaves a clean crater in sand, a ragged one in stone,
@@ -25,8 +28,8 @@ namespace VoxelEngine.Showcase
     /// A demo harness, not engine code: it lives in its own assembly and nothing references it.
     /// </summary>
     /// <remarks>
-    /// <see cref="ExecuteAlways"/> so the scene view shows the world without entering play
-    /// mode. Input, camera movement, and streaming stay play-mode only.
+    /// <see cref="ExecuteAlways"/> so the scene view shows the world without entering play mode.
+    /// Input, movement, and streaming stay play-mode only.
     /// </remarks>
     [ExecuteAlways]
     [AddComponentMenu("VoxelEngine/Voxel Showcase")]
@@ -41,29 +44,32 @@ namespace VoxelEngine.Showcase
         [SerializeField] private int m_BrickPoolCapacity = 262144;
 
         [Header("Streaming")]
-        [Tooltip("Regions kept resident around the camera. One region is 51.2 m across.")]
+        [Tooltip("Regions kept resident around the player. One region is 51.2 m across.")]
         [SerializeField] private int m_LoadRadiusRegions = 2;
 
-        [Tooltip("Regions are evicted past this radius. Must exceed the load radius — the gap " +
-                 "is the hysteresis that stops a region thrashing on a boundary.")]
+        [Tooltip("Regions evicted past this radius. The gap above the load radius is the " +
+                 "hysteresis that stops a region thrashing on a boundary.")]
         [SerializeField] private int m_UnloadRadiusRegions = 4;
 
-        [Tooltip("Regions generated per frame. Generation is the demo's biggest single cost, " +
-                 "so it is budgeted rather than done all at once.")]
-        [SerializeField] private int m_RegionsPerFrame = 1;
+        [Tooltip("Milliseconds per frame spent generating terrain. Work resumes mid-region.")]
+        [SerializeField] private float m_GenerateBudgetMs = 3f;
 
-        [Tooltip("Region meshes rebuilt per frame.")]
-        [SerializeField] private int m_MeshesPerFrame = 1;
+        [Tooltip("Milliseconds per frame spent building surface meshes. Work resumes mid-region.")]
+        [SerializeField] private float m_MeshBudgetMs = 4f;
+
+        [Header("Character")]
+        [SerializeField] private bool m_FlyMode;
+        [SerializeField] private float m_WalkSpeed = 5.5f;
+        [SerializeField] private float m_FlySpeed = 18f;
+        [SerializeField] private float m_LookSensitivity = 2.5f;
+
+        [Tooltip("How far the player can reach to edit, in metres.")]
+        [SerializeField] private float m_ReachMetres = 12f;
 
         [Header("Editing")]
         [SerializeField] private int m_BrushRadius = 12;
         [SerializeField] private int m_MinBrushRadius = 2;
         [SerializeField] private int m_MaxBrushRadius = 40;
-
-        [Header("Camera")]
-        [SerializeField] private float m_MoveSpeed = 18f;
-        [SerializeField] private float m_FastMultiplier = 6f;
-        [SerializeField] private float m_LookSensitivity = 2.5f;
 
         [Header("Presentation")]
         [Tooltip("Presentation-only. Shadows across a streamed world are expensive.")]
@@ -71,6 +77,8 @@ namespace VoxelEngine.Showcase
 
         private ShowcaseWorld _world;
         private VoxelSurfaceRenderer _renderer;
+        private CharacterMotor _motor;
+        private bool _spawned;
 
         private int _materialSlot;
         private bool _showHud = true;
@@ -81,7 +89,6 @@ namespace VoxelEngine.Showcase
         private bool _hasAim;
         private int3 _aimVoxel, _placeVoxel;
 
-        // Frame timing.
         private float _smoothedMs;
         private float _worstMs;
         private float _worstWindowStart;
@@ -96,21 +103,22 @@ namespace VoxelEngine.Showcase
             _world = new ShowcaseWorld(m_Seed, m_BrickPoolCapacity,
                                        m_LoadRadiusRegions, m_UnloadRadiusRegions);
             _renderer = new VoxelSurfaceRenderer { CastShadows = m_CastShadows };
+            _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
+            _spawned = false;
 
             if (Application.isPlaying)
             {
-                PositionCamera();
+                Spawn();
                 SetCursorLocked(true);
             }
-
-            // Seed the world around the spawn point so the first frame is not empty. In edit
-            // mode this is the only generation that happens — streaming needs a running camera.
-            _world.UpdateStreaming(transform.position, EditModeWarmupRegions);
-            _renderer.Sync(_world, EditModeWarmupRegions * 5);
+            else
+            {
+                // Edit mode gets one region so the scene view is not empty. Nothing streams
+                // without a running player.
+                _world.GenerateRegionBlocking(int3.zero);
+                _renderer.Sync(_world, 5000);
+            }
         }
-
-        /// <summary>Regions generated up front, before any streaming has run.</summary>
-        private const int EditModeWarmupRegions = 4;
 
         private void OnDisable()
         {
@@ -120,24 +128,45 @@ namespace VoxelEngine.Showcase
             _world = null;
         }
 
+        /// <summary>
+        /// Puts the character on the ground with the region beneath it fully built. This one
+        /// generation is deliberately blocking: a non-resident region reads as empty, so
+        /// spawning before it exists drops the character through the world.
+        /// </summary>
+        private void Spawn()
+        {
+            var spawn = _world.SpawnPosition();
+
+            _world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(spawn));
+            _motor.SnapToGround(_world, spawn);
+
+            transform.position = _motor.EyePosition;
+            transform.rotation = Quaternion.Euler(5f, 0f, 0f);
+            _yaw = 0f;
+            _pitch = 5f;
+            _spawned = true;
+        }
+
         private void Update()
         {
             if (_world == null || _renderer == null) return;
 
             if (Application.isPlaying)
             {
+                if (!_spawned) Spawn();
+
                 TrackFrameTime();
                 HandleKeys();
                 if (_mouseLook) HandleLook();
-                HandleMove();
+                MovePlayer();
                 UpdateAim();
                 HandleEdits();
 
-                _world.UpdateStreaming(transform.position, m_RegionsPerFrame);
+                _world.StepStreaming(transform.position, m_GenerateBudgetMs);
             }
 
             _renderer.CastShadows = m_CastShadows;
-            _renderer.Sync(_world, m_MeshesPerFrame);
+            _renderer.Sync(_world, Application.isPlaying ? m_MeshBudgetMs : 0.0);
         }
 
         private void TrackFrameTime()
@@ -157,18 +186,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        // -- camera --------------------------------------------------------------
-
-        private void PositionCamera()
-        {
-            var spawn = _world.SpawnPosition();
-            transform.position = spawn;
-            transform.LookAt(spawn + new Vector3(0f, -0.25f, 1f));
-
-            var e = transform.eulerAngles;
-            _yaw = e.y;
-            _pitch = e.x > 180f ? e.x - 360f : e.x;
-        }
+        // -- movement ------------------------------------------------------------
 
         private void HandleLook()
         {
@@ -177,20 +195,45 @@ namespace VoxelEngine.Showcase
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
 
-        private void HandleMove()
+        private void MovePlayer()
         {
-            var move = Vector3.zero;
-            if (Input.GetKey(KeyCode.W)) move += transform.forward;
-            if (Input.GetKey(KeyCode.S)) move -= transform.forward;
-            if (Input.GetKey(KeyCode.D)) move += transform.right;
-            if (Input.GetKey(KeyCode.A)) move -= transform.right;
-            if (Input.GetKey(KeyCode.E)) move += Vector3.up;
-            if (Input.GetKey(KeyCode.Q)) move -= Vector3.up;
+            float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
+            float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
+            bool sprint = Input.GetKey(KeyCode.LeftShift);
 
-            if (move == Vector3.zero) return;
+            if (m_FlyMode)
+            {
+                var move = transform.forward * forward + transform.right * strafe;
+                if (Input.GetKey(KeyCode.Space)) move += Vector3.up;
+                if (Input.GetKey(KeyCode.LeftControl)) move -= Vector3.up;
 
-            float speed = m_MoveSpeed * (Input.GetKey(KeyCode.LeftShift) ? m_FastMultiplier : 1f);
-            transform.position += move.normalized * (speed * Time.deltaTime);
+                if (move.sqrMagnitude > 1e-6f)
+                {
+                    float speed = m_FlySpeed * (sprint ? 3f : 1f);
+                    transform.position += move.normalized * (speed * Time.deltaTime);
+                }
+
+                _motor.Position = transform.position - Vector3.up * _motor.EyeHeight;
+                _motor.Velocity = Vector3.zero;
+                return;
+            }
+
+            // Walking. Movement is flattened to the ground plane so looking up does not slow
+            // you down, and held while the region under the character is still generating —
+            // an ungenerated region reads as empty and would drop the player through it.
+            if (!_world.IsGenerated(ShowcaseWorld.RegionAt(_motor.Position)))
+            {
+                transform.position = _motor.EyePosition;
+                return;
+            }
+
+            var flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            var flatRight = Vector3.ProjectOnPlane(transform.right, Vector3.up).normalized;
+            var wish = flatForward * forward + flatRight * strafe;
+            if (wish.sqrMagnitude > 1f) wish.Normalize();
+
+            _motor.Step(_world, wish, sprint, Input.GetKey(KeyCode.Space), Time.deltaTime);
+            transform.position = _motor.EyePosition;
         }
 
         private void SetCursorLocked(bool locked)
@@ -207,6 +250,18 @@ namespace VoxelEngine.Showcase
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
             if (Input.GetKeyDown(KeyCode.F1)) _showHud = !_showHud;
             if (Input.GetKeyDown(KeyCode.T)) m_CastShadows = !m_CastShadows;
+
+            if (Input.GetKeyDown(KeyCode.F))
+            {
+                m_FlyMode = !m_FlyMode;
+                if (!m_FlyMode)
+                {
+                    _motor.Position = transform.position - Vector3.up * _motor.EyeHeight;
+                    _motor.Velocity = Vector3.zero;
+                }
+            }
+
+            if (Input.GetKeyDown(KeyCode.R)) Spawn();
 
             for (int i = 0; i < ShowcaseWorld.BuildableMaterials.Length; i++)
                 if (Input.GetKeyDown(KeyCode.Alpha1 + i)) _materialSlot = i;
@@ -241,7 +296,7 @@ namespace VoxelEngine.Showcase
         // -- picking -------------------------------------------------------------
 
         /// <summary>
-        /// Resolves what the camera points at, in two stages.
+        /// Resolves what the player is looking at, in two stages.
         ///
         /// <see cref="VoxelRaycast"/> walks brick coordinates and rejects empty space a brick at
         /// a time; the refinement then walks voxels through the hit brick using the same
@@ -253,15 +308,15 @@ namespace VoxelEngine.Showcase
             _hasAim = false;
 
             var originVoxel = (float3)(transform.position / VoxelSurfaceRenderer.VoxelSize);
-            var direction = (float3)transform.forward;
+            var direction = math.normalize((float3)transform.forward);
             var originBrick = originVoxel / VoxelDimensions.BrickEdge;
 
             if (!VoxelRaycast.Raycast(in _world.Table, in _world.Pool, originBrick, direction, out var hit))
                 return;
 
+            int reachVoxels = Mathf.CeilToInt(m_ReachMetres / VoxelSurfaceRenderer.VoxelSize);
             int3 startVoxel = (int3)math.floor(originVoxel);
-            int3 endVoxel = hit.Position * VoxelDimensions.BrickEdge
-                          + (int3)math.round(math.normalize(direction) * (VoxelDimensions.BrickEdge * 3));
+            int3 endVoxel = startVoxel + (int3)math.round(direction * reachVoxels);
 
             var cursor = DdaTraversal.Cursor.Between(startVoxel, endVoxel);
             int3 previous = startVoxel;
@@ -289,33 +344,37 @@ namespace VoxelEngine.Showcase
 
             var style = new GUIStyle(GUI.skin.label) { fontSize = 13, richText = true, wordWrap = false };
 
-            GUI.Box(new Rect(10, 10, 420, 366), GUIContent.none);
-            GUILayout.BeginArea(new Rect(22, 20, 400, 350));
+            GUI.Box(new Rect(10, 10, 430, 384), GUIContent.none);
+            GUILayout.BeginArea(new Rect(22, 20, 410, 368));
 
             byte material = ShowcaseWorld.BuildableMaterials[_materialSlot];
             int poolBytes = _world.Pool.AllocatedCount * VoxelDimensions.BytesPerMixedBrick;
             float fps = _smoothedMs > 0f ? 1000f / _smoothedMs : 0f;
-            var regionCoord = new int3(
-                Mathf.FloorToInt(transform.position.x / ShowcaseWorld.RegionMetres), 0,
-                Mathf.FloorToInt(transform.position.z / ShowcaseWorld.RegionMetres));
+            var rc = ShowcaseWorld.RegionAt(_motor.Position);
 
             GUILayout.Label("<b>Voxel engine showcase</b>", style);
-            GUILayout.Label($"seed 0x{_world.Seed:X}   voxel {VoxelSurfaceRenderer.VoxelSize:0.00} m   " +
-                            $"region {ShowcaseWorld.RegionMetres:0.#} m", style);
+            GUILayout.Label($"voxel {VoxelSurfaceRenderer.VoxelSize:0.00} m   " +
+                            $"brick {VoxelSurfaceRenderer.VoxelSize * VoxelDimensions.BrickEdge:0.0} m   " +
+                            $"region {ShowcaseWorld.RegionMetres:0.#} m   seed 0x{_world.Seed:X}", style);
             GUILayout.Space(6);
 
             GUILayout.Label($"<b>Frame</b>   {fps:0} fps   {_smoothedMs:0.0} ms   " +
                             $"worst 1s {_displayWorstMs:0.0} ms", style);
             GUILayout.Space(6);
 
+            GUILayout.Label($"<b>Player</b>   {(m_FlyMode ? "flying" : _motor.Grounded ? "grounded" : "airborne")}", style);
+            GUILayout.Label($"position   {_motor.Position.x:0.0}, {_motor.Position.y:0.0}, {_motor.Position.z:0.0} m" +
+                            $"   region {rc.x}, {rc.z}", style);
+            GUILayout.Space(6);
+
             GUILayout.Label("<b>Streaming</b>", style);
-            GUILayout.Label($"camera region      {regionCoord.x}, {regionCoord.z}", style);
             GUILayout.Label($"resident regions   {_world.Table.ResidentCount}" +
                             $"   (load r{_world.LoadRadiusRegions} / unload r{_world.UnloadRadiusRegions})", style);
             GUILayout.Label($"generated / evicted {_world.RegionsGenerated} / {_world.RegionsEvicted}" +
-                            $"   pending {_world.PendingRegionLoads}", style);
-            GUILayout.Label($"last generate      {_world.LastGenerateMs:0.0} ms" +
-                            $"   mesh {_renderer.LastRebuildMs:0.0} ms (queue {_renderer.PendingRebuilds})", style);
+                            $"   queued {_world.PendingRegionLoads}   building {_world.GenerationProgress * 100f:0}%", style);
+            GUILayout.Label($"budgets   generate {_world.LastGenerateMs:0.0} / {m_GenerateBudgetMs:0.#} ms" +
+                            $"   mesh {_renderer.LastRebuildMs:0.0} / {m_MeshBudgetMs:0.#} ms" +
+                            $"   queue {_renderer.PendingRebuilds}", style);
             GUILayout.Space(6);
 
             GUILayout.Label("<b>Storage</b>", style);
@@ -326,13 +385,12 @@ namespace VoxelEngine.Showcase
             GUILayout.Space(6);
 
             GUILayout.Label($"<b>Last edit</b>   {_lastEditLabel}   ({_lastEditMs:0.0} ms)", style);
-            GUILayout.Space(6);
+            GUILayout.Space(4);
 
-            GUILayout.Label("<b>Controls</b>", style);
-            GUILayout.Label("WASD/QE fly, shift boost, mouse look, esc release", style);
-            GUILayout.Label("LMB blast   RMB build   wheel radius   1-4 material", style);
-            GUILayout.Label("T shadows   F1 hide HUD", style);
-            GUILayout.Label($"brush r{m_BrushRadius}   material <b>{ShowcaseWorld.MaterialNames[material]}</b>", style);
+            GUILayout.Label("WASD move   space jump   shift sprint   F fly   R respawn", style);
+            GUILayout.Label($"LMB blast   RMB build   wheel radius   1-4 material   " +
+                            $"r{m_BrushRadius} <b>{ShowcaseWorld.MaterialNames[material]}</b>", style);
+            GUILayout.Label("T shadows   F1 hide HUD   esc release cursor", style);
 
             GUILayout.EndArea();
         }

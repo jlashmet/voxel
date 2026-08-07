@@ -97,31 +97,59 @@ namespace VoxelEngine.Showcase
         // -- driving -------------------------------------------------------------
 
         /// <summary>
-        /// Rebuilds at most <paramref name="maxRegionsThisCall"/> dirty region meshes and drops
-        /// meshes for regions that are no longer resident. Budgeted per call so a fly-through
-        /// spreads meshing across frames rather than stalling on the whole resident set.
+        /// Meshes dirty regions for up to <paramref name="budgetMs"/> milliseconds and drops
+        /// meshes for regions that are no longer resident. The work resumes mid-region across
+        /// frames, so a fly-through costs a slice per frame instead of a stall per region.
         /// </summary>
-        public void Sync(ShowcaseWorld world, int maxRegionsThisCall)
+        public void Sync(ShowcaseWorld world, double budgetMs)
         {
             DropEvicted(ref world.Table);
 
-            PendingRebuilds = world.DirtyRegions.Count;
-            if (PendingRebuilds == 0)
+            var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
+            var start = Time.realtimeSinceStartupAsDouble;
+            bool didWork = false;
+
+            while (Time.realtimeSinceStartupAsDouble < deadline)
             {
-                LastRebuildMs = 0;
-                return;
+                if (!_mesh.Active && !BeginNextRegion(world)) break;
+
+                didWork = true;
+                if (StepRegion(world)) FinishRegion();
             }
 
-            var start = Time.realtimeSinceStartupAsDouble;
-            int done = 0;
-
-            // Snapshot: rebuilding mutates nothing in the set, but enumerating while removing is
-            // not allowed.
-            var todo = new List<int3>(world.DirtyRegions);
-            foreach (var rc in todo)
+            if (didWork)
             {
-                if (done >= maxRegionsThisCall) break;
+                LastRebuildMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
+                RecomputeTotals();
+            }
 
+            PendingRebuilds = world.DirtyRegions.Count + (_mesh.Active ? 1 : 0);
+        }
+
+        /// <summary>
+        /// In-progress meshing of one region. Like generation, the unit of work has to be
+        /// smaller than the unit of data: a region takes hundreds of milliseconds to mesh, so
+        /// the brick loop resumes from a cursor and stops wherever the budget runs out.
+        /// </summary>
+        private struct MeshState
+        {
+            public bool Active;
+            public int3 Coord;
+            public int Cursor;   // brick index within the region
+            public int Faces;
+        }
+
+        private MeshState _mesh;
+
+        /// <summary>Bricks visited per slice. Most are empty and cost a single pointer test.</summary>
+        private const int BricksPerSlice = 8192;
+
+        private bool BeginNextRegion(ShowcaseWorld world)
+        {
+            while (world.DirtyRegions.Count > 0)
+            {
+                int3 rc = default;
+                foreach (var c in world.DirtyRegions) { rc = c; break; }
                 world.DirtyRegions.Remove(rc);
 
                 if (!world.Table.IsResident(rc))
@@ -130,13 +158,88 @@ namespace VoxelEngine.Showcase
                     continue;
                 }
 
-                RebuildRegion(world, rc);
-                done++;
+                for (int m = 1; m < MaterialCount; m++)
+                {
+                    _verts[m].Clear();
+                    _normals[m].Clear();
+                    _tris[m].Clear();
+                }
+
+                _mesh = new MeshState { Active = true, Coord = rc, Cursor = 0, Faces = 0 };
+                return true;
             }
 
-            LastRebuildMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
-            PendingRebuilds = world.DirtyRegions.Count;
-            RecomputeTotals();
+            return false;
+        }
+
+        /// <summary>Advances meshing by one slice. Returns true when the region is complete.</summary>
+        private bool StepRegion(ShowcaseWorld world)
+        {
+            ref var table = ref world.Table;
+            ref var pool = ref world.Pool;
+
+            // The region can be evicted or edited mid-build; if it is gone, abandon the work
+            // rather than meshing a region that no longer exists.
+            if (!table.TryGetRegion(_mesh.Coord, out var region))
+            {
+                _mesh = default;
+                return false;
+            }
+
+            int3 originVoxel = _mesh.Coord * ShowcaseWorld.RegionVoxelEdge;
+            int total = VoxelDimensions.RegionEdge * VoxelDimensions.RegionEdge * VoxelDimensions.RegionEdge;
+            int end = math.min(_mesh.Cursor + BricksPerSlice, total);
+
+            for (int i = _mesh.Cursor; i < end; i++)
+            {
+                int bx = i & VoxelDimensions.RegionEdgeMask;
+                int by = (i >> VoxelDimensions.RegionEdgeLog2) & VoxelDimensions.RegionEdgeMask;
+                int bz = i >> (VoxelDimensions.RegionEdgeLog2 * 2);
+
+                var brick = region.GetBrick(bx, by, bz);
+                if (brick.IsEmpty) continue;
+
+                // Interior rejection by brick reference alone: six uniform solid neighbours mean
+                // no face of this brick can be exposed. Six pointer reads instead of 384 voxel
+                // probes, and it is why underground rock costs nothing to mesh.
+                if (brick.IsUniform && NeighboursAllSolid(ref table, region, bx, by, bz))
+                    continue;
+
+                LoadBrickMaterials(in pool, brick);
+                _mesh.Faces += EmitBrick(ref table, in pool, originVoxel + new int3(bx, by, bz) * E);
+            }
+
+            _mesh.Cursor = end;
+            return _mesh.Cursor >= total;
+        }
+
+        private void FinishRegion()
+        {
+            var surface = GetOrCreateSurface(_mesh.Coord);
+            surface.Faces = _mesh.Faces;
+            surface.Vertices = 0;
+
+            for (int m = 1; m < MaterialCount; m++)
+            {
+                var mesh = surface.Meshes[m];
+                mesh.Clear();
+
+                if (_verts[m].Count == 0)
+                {
+                    surface.Renderers[m].enabled = false;
+                    continue;
+                }
+
+                mesh.SetVertices(_verts[m]);
+                mesh.SetNormals(_normals[m]);
+                mesh.SetTriangles(_tris[m], 0);
+                mesh.RecalculateBounds();
+
+                surface.Vertices += _verts[m].Count;
+                surface.Renderers[m].enabled = true;
+            }
+
+            _mesh = default;
         }
 
         private void DropEvicted(ref RegionTable table)
@@ -174,67 +277,6 @@ namespace VoxelEngine.Showcase
         }
 
         // -- meshing -------------------------------------------------------------
-
-        private void RebuildRegion(ShowcaseWorld world, int3 regionCoord)
-        {
-            for (int m = 1; m < MaterialCount; m++)
-            {
-                _verts[m].Clear();
-                _normals[m].Clear();
-                _tris[m].Clear();
-            }
-
-            ref var table = ref world.Table;
-            ref var pool = ref world.Pool;
-
-            if (!table.TryGetRegion(regionCoord, out var region)) return;
-
-            int3 originVoxel = regionCoord * ShowcaseWorld.RegionVoxelEdge;
-            int faces = 0;
-
-            for (int bz = 0; bz < VoxelDimensions.RegionEdge; bz++)
-            for (int by = 0; by < VoxelDimensions.RegionEdge; by++)
-            for (int bx = 0; bx < VoxelDimensions.RegionEdge; bx++)
-            {
-                var brick = region.GetBrick(bx, by, bz);
-                if (brick.IsEmpty) continue;
-
-                // Interior rejection by brick reference alone: six uniform solid neighbours mean
-                // no face of this brick can be exposed. Six pointer reads instead of 384 voxel
-                // probes, and it is why underground rock costs nothing to mesh.
-                if (brick.IsUniform && NeighboursAllSolid(ref table, region, bx, by, bz))
-                    continue;
-
-                LoadBrickMaterials(in pool, brick);
-
-                int3 brickBase = originVoxel + new int3(bx, by, bz) * E;
-                faces += EmitBrick(ref table, in pool, brickBase);
-            }
-
-            var surface = GetOrCreateSurface(regionCoord);
-            surface.Faces = faces;
-            surface.Vertices = 0;
-
-            for (int m = 1; m < MaterialCount; m++)
-            {
-                var mesh = surface.Meshes[m];
-                mesh.Clear();
-
-                if (_verts[m].Count == 0)
-                {
-                    surface.Renderers[m].enabled = false;
-                    continue;
-                }
-
-                mesh.SetVertices(_verts[m]);
-                mesh.SetNormals(_normals[m]);
-                mesh.SetTriangles(_tris[m], 0);
-                mesh.RecalculateBounds();
-
-                surface.Vertices += _verts[m].Count;
-                surface.Renderers[m].enabled = true;
-            }
-        }
 
         /// <summary>Copies a brick's 512 materials into scratch so meshing avoids per-voxel map lookups.</summary>
         private void LoadBrickMaterials(in BrickPool pool, BrickRef brick)

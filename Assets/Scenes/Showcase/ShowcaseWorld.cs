@@ -114,25 +114,77 @@ namespace VoxelEngine.Showcase
         // -- streaming -----------------------------------------------------------
 
         /// <summary>
-        /// Brings the resident set in line with the camera position, generating at most
-        /// <paramref name="maxRegionsThisCall"/> regions so a fly-through spreads the cost over
-        /// frames instead of stalling on one.
+        /// Advances streaming for up to <paramref name="budgetMs"/> milliseconds.
+        ///
+        /// Generation is interruptible: a region is built in slices and the work stops at the
+        /// budget wherever it happens to be, resuming next frame. Whole regions were the
+        /// obvious unit and the wrong one — a region costs tens of milliseconds to fill, which
+        /// is several frames' worth, so the unit of work has to be smaller than the unit of
+        /// data.
         /// </summary>
-        public void UpdateStreaming(float3 cameraMetres, int maxRegionsThisCall)
+        public void StepStreaming(float3 cameraMetres, double budgetMs)
         {
             var centre = ResidencyManager.PositionToRegion(cameraMetres);
+            RefreshPending(centre);
+
+            var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
+            var start = Time.realtimeSinceStartupAsDouble;
+            bool didWork = false;
+
+            while (Time.realtimeSinceStartupAsDouble < deadline)
+            {
+                if (!_gen.Active)
+                {
+                    if (_pendingLoads.Count == 0) break;
+
+                    BeginRegion(_pendingLoads[0]);
+                    _pendingLoads.RemoveAt(0);
+                }
+
+                didWork = true;
+                if (StepRegion()) FinishRegion();
+            }
+
+            if (didWork) LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
+
+            EvictDistantRegions(centre);
+        }
+
+        /// <summary>
+        /// Generates one region to completion regardless of budget. Used once at spawn: the
+        /// character needs ground under it before physics can run at all.
+        /// </summary>
+        public void GenerateRegionBlocking(int3 regionCoord)
+        {
+            if (_generated.Contains(regionCoord)) return;
+            if (_gen.Active) FinishRegionForced();
+
+            BeginRegion(regionCoord);
+            while (!StepRegion()) { }
+            FinishRegion();
+        }
+
+        public bool IsGenerated(int3 regionCoord) => _generated.Contains(regionCoord);
+
+        /// <summary>Region containing a world position in metres.</summary>
+        public static int3 RegionAt(Vector3 metres) => new int3(
+            Mathf.FloorToInt(metres.x / RegionMetres), 0, Mathf.FloorToInt(metres.z / RegionMetres));
+
+        private void RefreshPending(int3 centre)
+        {
+            _pendingLoads.Clear();
 
             // Terrain lives entirely inside the y = 0 region layer, and an empty region still
             // costs 1 MB of brick pointers, so the demo keeps residency to that layer rather
             // than paying for a sphere of pure sky.
-            _pendingLoads.Clear();
-
             for (int dx = -LoadRadiusRegions; dx <= LoadRadiusRegions; dx++)
             for (int dz = -LoadRadiusRegions; dz <= LoadRadiusRegions; dz++)
             {
-                var rc = new int3(centre.x + dx, 0, centre.z + dz);
                 if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;
+
+                var rc = new int3(centre.x + dx, 0, centre.z + dz);
                 if (_generated.Contains(rc)) { ResidencyManager.TouchRegion(rc); continue; }
+                if (_gen.Active && _gen.Coord.Equals(rc)) continue;
 
                 _pendingLoads.Add(rc);
             }
@@ -144,23 +196,6 @@ namespace VoxelEngine.Showcase
                 long db = (long)(b.x - centre.x) * (b.x - centre.x) + (long)(b.z - centre.z) * (b.z - centre.z);
                 return da.CompareTo(db);
             });
-
-            var start = Time.realtimeSinceStartupAsDouble;
-            int generated = 0;
-
-            for (int i = 0; i < _pendingLoads.Count && generated < maxRegionsThisCall; i++)
-            {
-                GenerateRegion(_pendingLoads[i]);
-                generated++;
-            }
-
-            if (generated > 0)
-            {
-                LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
-                _pendingLoads.RemoveRange(0, generated);
-            }
-
-            EvictDistantRegions(centre);
         }
 
         private void EvictDistantRegions(int3 centre)
@@ -189,108 +224,176 @@ namespace VoxelEngine.Showcase
         // -- terrain generation --------------------------------------------------
 
         /// <summary>
-        /// Fills one region from the seed.
+        /// In-progress generation of a single region.
         ///
-        /// Bricks entirely below the surface become uniform references and cost nothing;
-        /// bricks entirely above become empty references and cost nothing. Only bricks the
-        /// surface passes through take a pool slot, and those are written straight into the
-        /// pool rather than through <see cref="VoxelAccess.SetVoxel"/> — the per-write
-        /// collapse-to-uniform check is exactly right for edits and exactly wrong for bulk
-        /// fill, where it would rescan 512 voxels per write.
+        /// Heights are computed first because every brick column needs the min and max surface
+        /// height across its footprint to decide whether it is uniform. Both phases resume from
+        /// a cursor, which is what makes generation interruptible.
         /// </summary>
-        private void GenerateRegion(int3 regionCoord)
+        private struct GenState
         {
-            var region = _table.LoadRegion(regionCoord);
-            int3 originVoxel = regionCoord * RegionVoxelEdge;
+            public bool Active;
+            public int3 Coord;
+            public Region Region;
+            public NativeArray<int> Heights;
+            public int Phase;      // 0 = heights, 1 = bricks
+            public int Cursor;     // rows done, then brick columns done
+        }
 
-            // Surface height for every voxel column in the region.
-            var heights = new NativeArray<int>(RegionVoxelEdge * RegionVoxelEdge, Allocator.Temp);
-            for (int lz = 0; lz < RegionVoxelEdge; lz++)
-            for (int lx = 0; lx < RegionVoxelEdge; lx++)
-                heights[lx + lz * RegionVoxelEdge] = SurfaceHeight(originVoxel.x + lx, originVoxel.z + lz);
+        private GenState _gen;
 
-            for (int bz = 0; bz < VoxelDimensions.RegionEdge; bz++)
-            for (int bx = 0; bx < VoxelDimensions.RegionEdge; bx++)
+        /// <summary>Voxel rows of height sampled per slice.</summary>
+        private const int HeightRowsPerSlice = 24;
+
+        /// <summary>Brick columns filled per slice. One column is 64 bricks tall.</summary>
+        private const int BrickColumnsPerSlice = 48;
+
+        /// <summary>Fraction of the in-flight region that is built, 0..1.</summary>
+        public float GenerationProgress => !_gen.Active ? 1f
+            : _gen.Phase == 0
+                ? _gen.Cursor / (float)RegionVoxelEdge * 0.3f
+                : 0.3f + _gen.Cursor / (float)(VoxelDimensions.RegionEdge * VoxelDimensions.RegionEdge) * 0.7f;
+
+        private void BeginRegion(int3 regionCoord)
+        {
+            _gen.Active = true;
+            _gen.Coord = regionCoord;
+            _gen.Region = _table.LoadRegion(regionCoord);
+            _gen.Heights = new NativeArray<int>(RegionVoxelEdge * RegionVoxelEdge, Allocator.Persistent);
+            _gen.Phase = 0;
+            _gen.Cursor = 0;
+        }
+
+        /// <summary>Advances the in-flight region by one slice. Returns true when it is complete.</summary>
+        private bool StepRegion()
+        {
+            int3 originVoxel = _gen.Coord * RegionVoxelEdge;
+
+            if (_gen.Phase == 0)
             {
-                // Height range across this brick column decides which bricks are uniform.
-                int minH = int.MaxValue, maxH = int.MinValue;
-                for (int vz = 0; vz < VoxelDimensions.BrickEdge; vz++)
-                for (int vx = 0; vx < VoxelDimensions.BrickEdge; vx++)
-                {
-                    int h = heights[(bx * VoxelDimensions.BrickEdge + vx)
-                                    + (bz * VoxelDimensions.BrickEdge + vz) * RegionVoxelEdge];
-                    if (h < minH) minH = h;
-                    if (h > maxH) maxH = h;
-                }
+                int endRow = math.min(_gen.Cursor + HeightRowsPerSlice, RegionVoxelEdge);
 
-                for (int by = 0; by < VoxelDimensions.RegionEdge; by++)
-                {
-                    int brickBaseY = originVoxel.y + by * VoxelDimensions.BrickEdge;
-                    int brickTopY = brickBaseY + VoxelDimensions.BrickEdge - 1;
-                    int idx = Region.BrickIndex(bx, by, bz);
+                for (int lz = _gen.Cursor; lz < endRow; lz++)
+                for (int lx = 0; lx < RegionVoxelEdge; lx++)
+                    _gen.Heights[lx + lz * RegionVoxelEdge] = SurfaceHeight(originVoxel.x + lx, originVoxel.z + lz);
 
-                    if (brickBaseY > maxH)
-                    {
-                        region.BrickRefs[idx] = BrickRef.Empty;
-                        continue;
-                    }
+                _gen.Cursor = endRow;
+                if (_gen.Cursor < RegionVoxelEdge) return false;
 
-                    if (brickTopY <= minH)
-                    {
-                        // Wholly underground: one uniform reference, no allocation, no voxels.
-                        region.BrickRefs[idx] = BrickRef.Uniform(
-                            brickTopY < minH - DeepDepth ? MatBedrock : MatStone);
-                        continue;
-                    }
-
-                    int poolIndex = _pool.Allocate();
-
-                    for (int vz = 0; vz < VoxelDimensions.BrickEdge; vz++)
-                    for (int vy = 0; vy < VoxelDimensions.BrickEdge; vy++)
-                    for (int vx = 0; vx < VoxelDimensions.BrickEdge; vx++)
-                    {
-                        int h = heights[(bx * VoxelDimensions.BrickEdge + vx)
-                                        + (bz * VoxelDimensions.BrickEdge + vz) * RegionVoxelEdge];
-                        int y = brickBaseY + vy;
-
-                        _pool.SetVoxel(poolIndex,
-                                       OccupancyMask.VoxelIndex(vx, vy, vz),
-                                       MaterialAt(y, h));
-                    }
-
-                    // A brick that came out single-material collapses back, keeping the pool
-                    // honest even during bulk fill.
-                    if (_pool.TryGetUniformMaterial(poolIndex, out var uniform))
-                    {
-                        _pool.Free(poolIndex);
-                        region.BrickRefs[idx] = uniform == VoxelDimensions.MaterialEmpty
-                            ? BrickRef.Empty
-                            : BrickRef.Uniform(uniform);
-                    }
-                    else
-                    {
-                        region.BrickRefs[idx] = BrickRef.FromPoolIndex(poolIndex);
-                    }
-                }
+                _gen.Phase = 1;
+                _gen.Cursor = 0;
+                return false;
             }
 
-            heights.Dispose();
-            _table.CommitRegion(region);
-            ResidencyManager.TouchRegion(regionCoord);
+            int columns = VoxelDimensions.RegionEdge * VoxelDimensions.RegionEdge;
+            int endColumn = math.min(_gen.Cursor + BrickColumnsPerSlice, columns);
 
-            _generated.Add(regionCoord);
-            _dirtyRegions.Add(regionCoord);
+            for (int c = _gen.Cursor; c < endColumn; c++)
+                FillBrickColumn(originVoxel, c % VoxelDimensions.RegionEdge, c / VoxelDimensions.RegionEdge);
 
-            // Neighbours must re-mesh too: faces along the shared border were meshed as the
-            // edge of the loaded world and are now interior.
-            _dirtyRegions.Add(regionCoord + new int3(1, 0, 0));
-            _dirtyRegions.Add(regionCoord + new int3(-1, 0, 0));
-            _dirtyRegions.Add(regionCoord + new int3(0, 0, 1));
-            _dirtyRegions.Add(regionCoord + new int3(0, 0, -1));
+            _gen.Cursor = endColumn;
+            return _gen.Cursor >= columns;
+        }
+
+        /// <summary>
+        /// Fills one 64-brick-tall column.
+        ///
+        /// Bricks entirely below the surface become uniform references and cost nothing; bricks
+        /// entirely above become empty references and cost nothing. Only bricks the surface
+        /// passes through take a pool slot, and those are written straight into the pool rather
+        /// than through <see cref="VoxelAccess.SetVoxel"/> — the per-write collapse-to-uniform
+        /// check is exactly right for edits and exactly wrong for bulk fill, where it would
+        /// rescan 512 voxels on every one of them.
+        /// </summary>
+        private void FillBrickColumn(int3 originVoxel, int bx, int bz)
+        {
+            int minH = int.MaxValue, maxH = int.MinValue;
+
+            for (int vz = 0; vz < VoxelDimensions.BrickEdge; vz++)
+            for (int vx = 0; vx < VoxelDimensions.BrickEdge; vx++)
+            {
+                int h = _gen.Heights[(bx * VoxelDimensions.BrickEdge + vx)
+                                     + (bz * VoxelDimensions.BrickEdge + vz) * RegionVoxelEdge];
+                if (h < minH) minH = h;
+                if (h > maxH) maxH = h;
+            }
+
+            for (int by = 0; by < VoxelDimensions.RegionEdge; by++)
+            {
+                int brickBaseY = originVoxel.y + by * VoxelDimensions.BrickEdge;
+                int brickTopY = brickBaseY + VoxelDimensions.BrickEdge - 1;
+                int idx = Region.BrickIndex(bx, by, bz);
+
+                if (brickBaseY > maxH)
+                {
+                    _gen.Region.BrickRefs[idx] = BrickRef.Empty;
+                    continue;
+                }
+
+                if (brickTopY <= minH)
+                {
+                    _gen.Region.BrickRefs[idx] = BrickRef.Uniform(
+                        brickTopY < minH - DeepDepth ? MatBedrock : MatStone);
+                    continue;
+                }
+
+                int poolIndex = _pool.Allocate();
+
+                for (int vz = 0; vz < VoxelDimensions.BrickEdge; vz++)
+                for (int vy = 0; vy < VoxelDimensions.BrickEdge; vy++)
+                for (int vx = 0; vx < VoxelDimensions.BrickEdge; vx++)
+                {
+                    int h = _gen.Heights[(bx * VoxelDimensions.BrickEdge + vx)
+                                         + (bz * VoxelDimensions.BrickEdge + vz) * RegionVoxelEdge];
+
+                    _pool.SetVoxel(poolIndex,
+                                   OccupancyMask.VoxelIndex(vx, vy, vz),
+                                   MaterialAt(brickBaseY + vy, h));
+                }
+
+                if (_pool.TryGetUniformMaterial(poolIndex, out var uniform))
+                {
+                    _pool.Free(poolIndex);
+                    _gen.Region.BrickRefs[idx] = uniform == VoxelDimensions.MaterialEmpty
+                        ? BrickRef.Empty
+                        : BrickRef.Uniform(uniform);
+                }
+                else
+                {
+                    _gen.Region.BrickRefs[idx] = BrickRef.FromPoolIndex(poolIndex);
+                }
+            }
+        }
+
+        private void FinishRegion()
+        {
+            var coord = _gen.Coord;
+
+            _table.CommitRegion(_gen.Region);
+            ResidencyManager.TouchRegion(coord);
+
+            _generated.Add(coord);
+            _dirtyRegions.Add(coord);
+
+            // Neighbours must re-mesh too: faces along the shared border were meshed as the edge
+            // of the loaded world and are now interior.
+            _dirtyRegions.Add(coord + new int3(1, 0, 0));
+            _dirtyRegions.Add(coord + new int3(-1, 0, 0));
+            _dirtyRegions.Add(coord + new int3(0, 0, 1));
+            _dirtyRegions.Add(coord + new int3(0, 0, -1));
+
             RegionsGenerated++;
 
-            if (regionCoord.Equals(int3.zero))
-                BuildLandmarks();
+            FinishRegionForced();
+
+            if (coord.Equals(int3.zero)) BuildLandmarks();
+        }
+
+        /// <summary>Releases the in-flight generation state without publishing it.</summary>
+        private void FinishRegionForced()
+        {
+            if (_gen.Heights.IsCreated) _gen.Heights.Dispose();
+            _gen = default;
         }
 
         /// <summary>Depth below the surface at which stone gives way to indestructible bedrock.</summary>
@@ -523,6 +626,7 @@ namespace VoxelEngine.Showcase
 
         public void Dispose()
         {
+            FinishRegionForced();
             if (_table.IsCreated) _table.Dispose();
             if (_pool.IsCreated) _pool.Dispose();
         }
