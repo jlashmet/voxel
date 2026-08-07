@@ -125,6 +125,9 @@ namespace VoxelEngine.Core.Storage
             if ((uint)brickIndex >= (uint)_highWater)
                 throw new ArgumentOutOfRangeException(nameof(brickIndex));
 
+            // The slot is going back into circulation, so its dirty flag must not survive:
+            // whoever allocates it next has to be able to mark it.
+            ClearDirty(brickIndex);
             _freeList.Add(brickIndex);
         }
 
@@ -168,6 +171,20 @@ namespace VoxelEngine.Core.Storage
 
             _dirtyFlags[brickIndex] = 1;
             _dirtyBricks.Add(brickIndex);
+        }
+
+        /// <summary>
+        /// Clears one brick's dirty flag once the uploader has consumed it.
+        ///
+        /// A flag that is never cleared is worse than one that is never set: <see cref="MarkDirty"/>
+        /// early-returns on it, so every later change to that slot is silently dropped and the
+        /// GPU keeps stale voxels forever.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ClearDirty(int brickIndex)
+        {
+            if (!_dirtyFlags.IsCreated || (uint)brickIndex >= (uint)_dirtyFlags.Length) return;
+            _dirtyFlags[brickIndex] = 0;
         }
 
         /// <summary>Clears the dirty set after the uploader has consumed it.</summary>

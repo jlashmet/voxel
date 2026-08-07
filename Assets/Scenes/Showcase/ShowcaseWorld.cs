@@ -396,6 +396,10 @@ namespace VoxelEngine.Showcase
 
             RegionsGenerated++;
 
+            // The pointer grid is only final now. Anything uploaded earlier described a
+            // half-built region.
+            _regionsNeedingUpload.Add(coord);
+
             FinishRegionForced();
 
             if (coord.Equals(int3.zero)) BuildLandmarks();
@@ -584,6 +588,10 @@ namespace VoxelEngine.Showcase
                               voxel.y >> VoxelDimensions.RegionVoxelEdgeLog2,
                               voxel.z >> VoxelDimensions.RegionVoxelEdgeLog2);
             _dirtyRegions.Add(rc);
+
+            // An edit can allocate or collapse a brick, which rewrites the pointer, so the GPU
+            // copy of this region's grid is stale until it is sent again.
+            _regionsNeedingUpload.Add(rc);
             _regionsNeedingUpload.Add(rc);
 
             int lx = voxel.x & (RegionVoxelEdge - 1);

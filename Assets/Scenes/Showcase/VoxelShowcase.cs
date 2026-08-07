@@ -186,8 +186,13 @@ namespace VoxelEngine.Showcase
             {
                 // The raymarch reads the brickmap directly, so the mesh path is not just
                 // unnecessary — leaving it on would draw the world twice.
+                // Do not clear RegionsNeedingUpload here. It is the world telling the renderer
+                // which pointer grids changed, and the renderer clears it once consumed. The
+                // driver clearing it every frame meant a region's pointers were uploaded once,
+                // while it was still generating, and never refreshed — so the GPU held pointers
+                // to pool slots that had since been freed and reused, and the raymarch drew
+                // nothing at all once generation completed.
                 _renderer.SetVisible(false);
-                _world.RegionsNeedingUpload.Clear();
             }
             else
             {

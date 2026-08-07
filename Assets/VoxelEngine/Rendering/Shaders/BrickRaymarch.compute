@@ -158,11 +158,14 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
     float2 uv = (float2(id.xy) + 0.5) / g_TargetSize;
     float2 ndc = uv * 2.0 - 1.0;
 
-    float4 nearH = mul(g_InvViewProj, float4(ndc, 0.0, 1.0));
-    float4 farH  = mul(g_InvViewProj, float4(ndc, 1.0, 1.0));
-    float3 nearP = nearH.xyz / nearH.w;
-    float3 farP  = farH.xyz / farH.w;
-    float3 dir   = normalize(farP - nearP);
+    // Unproject one point and aim at it from the camera. Differencing two depths instead
+    // (far minus near) looks equivalent and is not: Unity uses reversed-Z on Metal and
+    // Vulkan, where NDC depth 0 is the far plane, so that subtraction points the ray out of
+    // the back of the camera and every pixel returns sky. Any valid depth unprojects to a
+    // point in front of the camera, so this form does not care which convention is in use.
+    float4 h = mul(g_InvViewProj, float4(ndc, 0.5, 1.0));
+    float3 target = h.xyz / h.w;
+    float3 dir = normalize(target - g_CameraPos);
 
     // Brick space: one unit per brick, which is what the outer DDA steps through.
     float brickSize = g_VoxelSize * k_BrickEdge;
@@ -222,5 +225,8 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
         else                                         { brick.z += step.z; t = tMax.z; tMax.z += tDelta.z; axis = 2; }
     }
 
-    g_Colour[id.xy] = float4(colour, 1.0);
+    // Write flipped vertically rather than building the ray from a flipped uv: the rays are
+    // correct as constructed, it is the target's row order that disagrees with the blit. Doing
+    // it on the uv instead aims every ray at the sky, which is how that mistake presents.
+    g_Colour[uint2(id.x, (uint)g_TargetSize.y - 1u - id.y)] = float4(colour, 1.0);
 }

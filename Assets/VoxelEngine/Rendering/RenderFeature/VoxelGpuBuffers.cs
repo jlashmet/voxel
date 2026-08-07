@@ -97,7 +97,15 @@ namespace VoxelEngine.Rendering
 
         public bool IsCreated => _voxelBuffer != null;
 
-        /// <summary>Bricks uploaded per sync. Caps the cost of the frame a region completes on.</summary>
+        /// <summary>
+        /// Bricks uploaded per sync. A freshly generated region is roughly 4,500 bricks, so a
+        /// region reaches the GPU in about fifteen frames — a quarter of a second at 60 Hz.
+        ///
+        /// Raising this to cover a whole region in one call was tried and made the raymarch
+        /// render nothing at all: a single 30 MB SetData does not land before the dispatch that
+        /// reads it in the same frame. Uploading in bounded pieces is not just about spreading
+        /// cost. Bricks not yet uploaded raymarch as empty, so the world fades in.
+        /// </summary>
         private const int MaxBricksPerSync = 4096;
 
         /// <summary>Refuses to mirror a pool larger than this. 262144 slots is 134 MB of VRAM.</summary>
@@ -160,6 +168,11 @@ namespace VoxelEngine.Rendering
 
             ReleaseSlotsOutsideWindow();
             AssignSlots(ref table, regionsNeedingRefresh);
+
+            // Consumed: whatever needed re-sending has been sent. Clearing here rather than at
+            // the producer is what keeps the signal alive long enough to be acted on.
+            regionsNeedingRefresh?.Clear();
+
             UploadDirtyBricks(ref pool);
 
             _windowBuffer.SetData(_window);
@@ -232,40 +245,72 @@ namespace VoxelEngine.Rendering
             LastRegionsUploaded++;
         }
 
+        /// <summary>Upload calls issued on the most recent sync. One per contiguous run.</summary>
+        public int LastUploadCalls { get; private set; }
+
+        private int[] _sortScratch = new int[MaxBricksPerSync];
+
         /// <summary>
         /// Uploads changed bricks, packing four voxel bytes to a uint.
         ///
-        /// Bricks are uploaded one at a time rather than coalesced: dirty bricks are scattered
-        /// across the pool, and a contiguous run is the exception. The per-brick payload is
-        /// 512 bytes, which is small enough that the call overhead dominates either way.
+        /// Dirty bricks are sorted and uploaded as contiguous runs, one SetData per run. That
+        /// grouping is not a micro-optimisation: a SetData is a driver staging allocation, and
+        /// issuing thousands of them per frame grew process memory by gigabytes within seconds —
+        /// enough to be killed by the run guard at 6 GB. Pool indices are handed out
+        /// sequentially, so a freshly generated region is a handful of runs rather than
+        /// thousands of separate writes.
         /// </summary>
         private void UploadDirtyBricks(ref BrickPool pool)
         {
+            LastUploadCalls = 0;
+
             var dirty = pool.DirtyBricks;
             if (!dirty.IsCreated || dirty.Length == 0) return;
 
             int count = math.min(dirty.Length, MaxBricksPerSync);
+            for (var i = 0; i < count; i++) _sortScratch[i] = dirty[i];
+            System.Array.Sort(_sortScratch, 0, count);
+
             var voxels = pool.Voxels;
+            int uploaded = 0;
+            int runStart = 0;
 
-            for (var i = 0; i < count; i++)
+            while (runStart < count)
             {
-                int brick = dirty[i];
-                int src = pool.VoxelOffset(brick);
-                int dst = i * UintsPerBrick;
+                // Extend the run while indices stay consecutive and the scratch buffer holds.
+                int runEnd = runStart + 1;
+                while (runEnd < count
+                       && _sortScratch[runEnd] == _sortScratch[runEnd - 1] + 1
+                       && runEnd - runStart < MaxBricksPerSync)
+                    runEnd++;
 
-                for (var u = 0; u < UintsPerBrick; u++)
+                int runLength = runEnd - runStart;
+
+                for (var i = 0; i < runLength; i++)
                 {
-                    int b = src + u * 4;
-                    _voxelScratch[dst + u] = voxels[b]
-                                           | ((uint)voxels[b + 1] << 8)
-                                           | ((uint)voxels[b + 2] << 16)
-                                           | ((uint)voxels[b + 3] << 24);
+                    int src = pool.VoxelOffset(_sortScratch[runStart + i]);
+                    int dst = i * UintsPerBrick;
+
+                    for (var u = 0; u < UintsPerBrick; u++)
+                    {
+                        int b = src + u * 4;
+                        _voxelScratch[dst + u] = voxels[b]
+                                               | ((uint)voxels[b + 1] << 8)
+                                               | ((uint)voxels[b + 2] << 16)
+                                               | ((uint)voxels[b + 3] << 24);
+                    }
                 }
 
-                _voxelBuffer.SetData(_voxelScratch, dst, brick * UintsPerBrick, UintsPerBrick);
+                _voxelBuffer.SetData(_voxelScratch, 0,
+                                     _sortScratch[runStart] * UintsPerBrick,
+                                     runLength * UintsPerBrick);
+
+                LastUploadCalls++;
+                uploaded += runLength;
+                runStart = runEnd;
             }
 
-            LastBricksUploaded = count;
+            LastBricksUploaded = uploaded;
 
             if (count == dirty.Length)
             {
@@ -274,6 +319,10 @@ namespace VoxelEngine.Rendering
             else
             {
                 // Partial drain: keep the tail for next frame rather than losing the updates.
+                // The consumed prefix must have its flags cleared too, or those slots stay
+                // pinned as dirty and never accept another mark.
+                for (var i = 0; i < count; i++) pool.ClearDirty(_sortScratch[i]);
+
                 for (var i = 0; i < dirty.Length - count; i++)
                     dirty[i] = dirty[i + count];
 
