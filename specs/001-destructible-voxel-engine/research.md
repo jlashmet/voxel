@@ -103,6 +103,21 @@ The measurement is now an **expected-pass verification** rather than an open que
 
 **Gate**: M0 must produce a number before M4 begins. Risk ranking drops from 1 to 4.
 
+### R-004/M0: M0 measurement spike results
+
+M0 measurement pending hardware testing. Target: <= 9 ms Mobile-HE at 0.75 scale. No thermal throttle over 20 min.
+
+**Pending measurements**:
+
+| Measurement | Target | Measured |
+|---|---|---|
+| Full-detail raymarch, Mobile-HE, 0.75 scale | <= 9 ms | _pending_ |
+| Implicit-only contingency, Mobile-HE | <= 5 ms | _pending_ |
+| Full-detail raymarch, PC, 1.0 scale | <= 6 ms | _pending_ |
+| Brick pool 384 MB resident, Mobile-HE | no thermal throttle over 20 min | _pending_ |
+
+**Go/no-go (T011)**: if full-detail exceeds 9 ms on Mobile-HE, ship mobile on the implicit/mip path at all distances — lower fidelity, same data, same collision.
+
 ---
 
 ## R-010: Concurrent conflicting alteration arbitration

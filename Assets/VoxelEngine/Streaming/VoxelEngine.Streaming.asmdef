@@ -1,7 +1,7 @@
 {
   "name": "VoxelEngine.Streaming",
   "rootNamespace": "VoxelEngine.Streaming",
-  "references": ["VoxelEngine.Core", "Unity.Burst", "Unity.Collections", "Unity.Mathematics", "VoxelEngine.Net"],
+  "references": ["VoxelEngine.Core", "Unity.Burst", "Unity.Collections", "Unity.Mathematics", "VoxelEngine.Net", "VoxelEngine.Tiering"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": true,

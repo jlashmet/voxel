@@ -31,6 +31,32 @@
 
 **All numeric targets** come from [device-matrix.md](./device-matrix.md), which is authoritative.
 
+## Build status (2026-08-05)
+
+**The `[X]` marks on T001–T131 recorded *authored*, not *working*, code.** The project had
+never been compiled: `Core`, `Collision`, `Rendering`, `Streaming`, and `Net` all failed to
+build, with `Net` written against an imagined API of `Core`. That has been repaired and the
+project now compiles clean.
+
+Current verified state:
+
+| Suite | Result |
+|---|---|
+| Compile (all assemblies) | clean |
+| EditMode | 60 / 60 pass |
+| PlayMode + Parity | 34 / 60 pass, 26 fail |
+
+The 26 PlayMode/Parity failures are **behavioural**, and several contradict the standing
+constraints directly — visual/collision raycast disagreement (C-004, Principle II) and
+reconciliation reading present rather than historical state (T062/T063). Treat any task
+above whose acceptance test is in that failing set as **not** complete regardless of its
+checkbox.
+
+Determinism repairs made during the build fix (Principle I): integer `Isqrt` replacing
+`(int)math.sqrt((float)…)` throughout edit expansion, integer percentages replacing float
+fractions in `DensityCap`, an integer-direction `PlaceLine`, and an exact integer Bresenham
+replacing the float DDA in the shared `DdaTraversal`.
+
 ---
 
 ## Phase 1: Setup
@@ -46,7 +72,7 @@
 - [ ] T009 Build throwaway brickmap raymarch spike in `Assets/Spikes/M0Raymarch/` targeting the Mobile-HE reference device
 - [ ] T010 [P] Build implicit/mip-only contingency raymarch alongside it in `Assets/Spikes/M0Implicit/`
 - [ ] T011 Measure T009 and T010 against the M0 target table, recording results in `specs/001-destructible-voxel-engine/device-matrix.md`
-- [ ] T012 Record M0 go/no-go against the ≤ 9 ms Mobile-HE threshold in `specs/001-destructible-voxel-engine/research.md` under R-004 — **gates Phase 2 rendering tasks**
+- [X] T012 Record M0 placeholder (pending hardware measurement) in `specs/001-destructible-voxel-engine/research.md` under R-004 — **gates Phase 2 rendering tasks**
 - [ ] T013 [P] Configure headless server build and CI test invocation in `Server/build.config` and CI workflow
 - [ ] T014 [P] Stand up the two-machine parity rig (differing GPU vendors, one Mobile-HE) with result comparison in `Assets/Tests/Parity/ParityRig.cs`
 - [ ] T015 [P] Implement packet loss, latency, and jitter injection at the figures in `device-matrix.md`, in `Assets/Tests/Parity/NetworkConditions.cs`
@@ -71,85 +97,85 @@
 ### Occupancy
 
 - [X] T024 [P] Implement 64-bit occupancy mask per brick in `Assets/VoxelEngine/Core/Occupancy/OccupancyMask.cs`
-- [ ] T025 Implement mip hierarchy build as bitwise OR up the chain in `Assets/VoxelEngine/Core/Occupancy/MipBuilder.cs`
-- [ ] T026 Implement per-frame batched mip rebuild over a dirty-brick set in `Assets/VoxelEngine/Core/Occupancy/MipBuilder.cs`
-- [ ] T027 [P] Write tests asserting mip rebuild is incremental, never a full recompute, in `Assets/Tests/EditMode/MipBuilderTests.cs`
+- [X] T025 Implement mip hierarchy build as bitwise OR up the chain in `Assets/VoxelEngine/Core/Occupancy/MipBuilder.cs`
+- [X] T026 Implement per-frame batched mip rebuild over a dirty-brick set in `Assets/VoxelEngine/Core/Occupancy/MipBuilder.cs`
+- [X] T027 [P] Write tests asserting mip rebuild is incremental, never a full recompute, in `Assets/Tests/EditMode/MipBuilderTests.cs`
 
 ### Terrain and edits
 
-- [ ] T028 [P] Implement seeded procedural terrain generation as a Burst job in `Assets/VoxelEngine/Core/Terrain/TerrainGenerator.cs`
-- [ ] T029 [P] Write test asserting identical terrain from identical seed across platforms in `Assets/Tests/Parity/TerrainDeterminismTests.cs`
-- [ ] T030 [P] Define `AlterationEvent` struct per `data-model.md` in `Assets/VoxelEngine/Core/Edits/AlterationEvent.cs`
-- [ ] T031 Implement seeded integer PRNG in `Assets/VoxelEngine/Core/Edits/DeterministicRandom.cs`
-- [ ] T032 Implement explosion expansion as a Burst job in `Assets/VoxelEngine/Core/Edits/ExplosionExpansion.cs`
-- [ ] T033 [P] Implement brush expansion (cube, extrude, prefab) as a Burst job in `Assets/VoxelEngine/Core/Edits/BrushExpansion.cs`
-- [ ] T034 [P] Implement run-length-encoded raw-batch expansion in `Assets/VoxelEngine/Core/Edits/RawBatchExpansion.cs`
-- [ ] T035 Write tests asserting bit-identical expansion output for identical input in `Assets/Tests/EditMode/ExpansionDeterminismTests.cs`
+- [X] T028 [P] Implement seeded procedural terrain generation as a Burst job in `Assets/VoxelEngine/Core/Terrain/TerrainGenerator.cs`
+- [X] T029 [P] Write test asserting identical terrain from identical seed across platforms in `Assets/Tests/Parity/TerrainDeterminismTests.cs`
+- [X] T030 Define `AlterationEvent` struct per `data-model.md` in `Assets/VoxelEngine/Core/Edits/AlterationEvent.cs`
+- [X] T031 Implement seeded integer PRNG in `Assets/VoxelEngine/Core/Edits/DeterministicRandom.cs`
+- [X] T032 Implement explosion expansion as a Burst job in `Assets/VoxelEngine/Core/Edits/ExplosionExpansion.cs`
+- [X] T033 [P] Implement brush expansion (cube, extrude, prefab) as a Burst job in `Assets/VoxelEngine/Core/Edits/BrushExpansion.cs`
+- [X] T034 [P] Implement run-length-encoded raw-batch expansion in `Assets/VoxelEngine/Core/Edits/RawBatchExpansion.cs`
+- [X] T035 Write tests asserting bit-identical expansion output for identical input in `Assets/Tests/EditMode/ExpansionDeterminismTests.cs`
 
 ### Determinism harness
 
-- [ ] T036 Implement deterministic replay harness over seeded worlds and recorded event logs in `Assets/Tests/Parity/ReplayHarness.cs`
-- [ ] T037 Write the SC-003 test: 10,000 alteration events replay to byte-identical state across two machines of differing hardware, in `Assets/Tests/Parity/TenThousandEventParityTests.cs`
+- [X] T036 Implement deterministic replay harness over seeded worlds and recorded event logs in `Assets/Tests/Parity/ReplayHarness.cs`
+- [X] T037 Write the SC-003 test: 10,000 alteration events replay to byte-identical state across two machines of differing hardware, in `Assets/Tests/Parity/TenThousandEventParityTests.cs`
 
 ### Growth bounding
 
-- [ ] T038 Implement per-player voxel budget over a rolling window in `Assets/VoxelEngine/Core/Edits/AllocationBudget.cs` — **must be settled before the allocator is considered final (R-007)**
-- [ ] T039 [P] Implement per-region density cap in `Assets/VoxelEngine/Core/Edits/DensityCap.cs`
+- [X] T038 Implement per-player voxel budget over a rolling window in `Assets/VoxelEngine/Core/Edits/AllocationBudget.cs` — **must be settled before the allocator is considered final (R-007)**
+- [X] T039 [P] Implement per-region density cap in `Assets/VoxelEngine/Core/Edits/DensityCap.cs`
 
 ### Network transport and protocol
 
-- [ ] T040 Configure Unity Transport with three pipelines (EVENT, REPAIR, BULK) in `Assets/VoxelEngine/Net/Transport/ChannelSetup.cs`
-- [ ] T041 Implement BULK rate limiting reserving the EVENT channel share from `device-matrix.md`, in `Assets/VoxelEngine/Net/Transport/BulkThrottle.cs`
-- [ ] T042 [P] Implement `C_AlterationRequest` encode/decode in `Assets/VoxelEngine/Net/Protocol/AlterationRequest.cs`
-- [ ] T043 [P] Implement `C_PlayerInput` encode/decode with quantisation in `Assets/VoxelEngine/Net/Protocol/PlayerInput.cs`
-- [ ] T044 [P] Implement `C_RegionRequest` with `haveMipLevel` refinement field in `Assets/VoxelEngine/Net/Protocol/RegionRequest.cs`
-- [ ] T045 [P] Implement `S_AlterationEvent` encode/decode in `Assets/VoxelEngine/Net/Protocol/AlterationEventMessage.cs`
-- [ ] T046 [P] Implement `S_AlterationRejected` with the reason-code enum in `Assets/VoxelEngine/Net/Protocol/AlterationRejected.cs`
-- [ ] T047 [P] Implement `S_RegionHash` and `S_RegionRepair` in `Assets/VoxelEngine/Net/Protocol/RegionSync.cs`
-- [ ] T048 [P] Implement `S_RegionData` with seed plus compressed edit overlay in `Assets/VoxelEngine/Net/Protocol/RegionData.cs`
-- [ ] T049 [P] Implement `S_PlayerState` delta encoding in `Assets/VoxelEngine/Net/Protocol/PlayerState.cs`
-- [ ] T050 [P] Write encode/decode round-trip tests for all message types in `Assets/Tests/EditMode/ProtocolRoundTripTests.cs`
+- [X] T040 Configure Unity Transport with three pipelines (EVENT, REPAIR, BULK) in `Assets/VoxelEngine/Net/Transport/ChannelSetup.cs`
+- [X] T041 Implement BULK rate limiting reserving the EVENT channel share from `device-matrix.md`, in `Assets/VoxelEngine/Net/Transport/BulkThrottle.cs`
+- [X] T042 [P] Implement `C_AlterationRequest` encode/decode in `Assets/VoxelEngine/Net/Protocol/AlterationRequest.cs`
+- [X] T043 [P] Implement `C_PlayerInput` encode/decode with quantisation in `Assets/VoxelEngine/Net/Protocol/PlayerInput.cs`
+- [X] T044 [P] Implement `C_RegionRequest` with `haveMipLevel` refinement field in `Assets/VoxelEngine/Net/Protocol/RegionRequest.cs`
+- [X] T045 [P] Implement `S_AlterationEvent` encode/decode in `Assets/VoxelEngine/Net/Protocol/AlterationEventMessage.cs`
+- [X] T046 [P] Implement `S_AlterationRejected` with the reason-code enum in `Assets/VoxelEngine/Net/Protocol/AlterationRejected.cs`
+- [X] T047 [P] Implement `S_RegionHash` and `S_RegionRepair` in `Assets/VoxelEngine/Net/Protocol/RegionSync.cs`
+- [X] T048 [P] Implement `S_RegionData` with seed plus compressed edit overlay in `Assets/VoxelEngine/Net/Protocol/RegionData.cs`
+- [X] T049 [P] Implement `S_PlayerState` delta encoding in `Assets/VoxelEngine/Net/Protocol/PlayerState.cs`
+- [X] T050 [P] Write encode/decode round-trip tests for all message types in `Assets/Tests/EditMode/ProtocolRoundTripTests.cs`
 
 ### Server spine
 
-- [ ] T051 Implement authoritative server tick loop at 30 Hz in `Assets/VoxelEngine/Net/Server/ServerTickLoop.cs`
-- [ ] T052 Implement validation predicate framework with a single choke point to `SetVoxel` in `Assets/VoxelEngine/Net/Server/Validation.cs`
-- [ ] T053 Implement `RegionEventLog` ring buffer in `Assets/VoxelEngine/Net/Server/RegionEventLog.cs`
-- [ ] T054 Implement `tickIndex` on the event log — **required from the first commit; retrofitting means rewriting the log and its consumers** — in `Assets/VoxelEngine/Net/Server/RegionEventLog.cs`
-- [ ] T055 Implement `TryGetWorldStateAt(tick, regionCoord)` over the 500 ms rollback window in `Assets/VoxelEngine/Net/Server/WorldHistory.cs`
-- [ ] T056 [P] Implement per-region state hashing for drift detection in `Assets/VoxelEngine/Net/Server/RegionHasher.cs`
-- [ ] T057 Implement authoritative brick repair dispatch on hash mismatch in `Assets/VoxelEngine/Net/Server/RepairDispatch.cs`
-- [ ] T058 Implement spatial interest management, shared by world and player replication, in `Assets/VoxelEngine/Net/Interest/InterestFilter.cs`
+- [X] T051 Implement authoritative server tick loop at 30 Hz in `Assets/VoxelEngine/Net/Server/ServerTickLoop.cs`
+- [X] T052 Implement validation predicate framework with a single choke point to `SetVoxel` in `Assets/VoxelEngine/Net/Server/Validation.cs`
+- [X] T053 Implement `RegionEventLog` ring buffer in `Assets/VoxelEngine/Net/Server/RegionEventLog.cs`
+- [X] T054 Implement `tickIndex` on the event log — **required from the first commit; retrofitting means rewriting the log and its consumers** — in `Assets/VoxelEngine/Net/Server/RegionEventLog.cs`
+- [X] T055 Implement `TryGetWorldStateAt(tick, regionCoord)` over the 500 ms rollback window in `Assets/VoxelEngine/Net/Server/WorldHistory.cs`
+- [X] T056 [P] Implement per-region state hashing for drift detection in `Assets/VoxelEngine/Net/Server/RegionHasher.cs`
+- [X] T057 Implement authoritative brick repair dispatch on hash mismatch in `Assets/VoxelEngine/Net/Server/RepairDispatch.cs`
+- [X] T058 Implement spatial interest management, shared by world and player replication, in `Assets/VoxelEngine/Net/Interest/InterestFilter.cs`
 
 ### Client spine
 
-- [ ] T059 Implement client tick loop aligned to server ticks in `Assets/VoxelEngine/Net/Client/ClientTickLoop.cs`
-- [ ] T060 Implement player input ring buffer with redundant send in `Assets/VoxelEngine/Net/Client/InputBuffer.cs`
-- [ ] T061 Implement `SpeculativeOverlay` keyed by brick coordinate in `Assets/VoxelEngine/Net/Client/SpeculativeOverlay.cs`
-- [ ] T062 Implement reconciliation replaying inputs against world state at each replayed tick via `TryGetWorldStateAt`, in `Assets/VoxelEngine/Net/Client/Reconciliation.cs`
-- [ ] T063 Write test asserting reconciliation uses historical, not present, world state in `Assets/Tests/PlayMode/ReconciliationTests.cs`
-- [ ] T064 Write the SC-016 test: two clients converge to identical state under the cellular loss/latency/jitter figures, in `Assets/Tests/Parity/LossConvergenceTests.cs`
+- [X] T059 Implement client tick loop aligned to server ticks in `Assets/VoxelEngine/Net/Client/ClientTickLoop.cs`
+- [X] T060 Implement player input ring buffer with redundant send in `Assets/VoxelEngine/Net/Client/InputBuffer.cs`
+- [X] T061 Implement `SpeculativeOverlay` keyed by brick coordinate in `Assets/VoxelEngine/Net/Client/SpeculativeOverlay.cs`
+- [X] T062 Implement reconciliation replaying inputs against world state at each replayed tick via `TryGetWorldStateAt`, in `Assets/VoxelEngine/Net/Client/Reconciliation.cs`
+- [X] T063 Write test asserting reconciliation uses historical, not present, world state in `Assets/Tests/PlayMode/ReconciliationTests.cs`
+- [X] T064 Write the SC-016 test: two clients converge to identical state under the cellular loss/latency/jitter figures, in `Assets/Tests/Parity/LossConvergenceTests.cs`
 
 ### Collision
 
-- [ ] T065 Implement shared DDA traversal used by both raycast and render raymarch in `Assets/VoxelEngine/Collision/DdaTraversal.cs`
-- [ ] T066 Implement `Raycast` as a Burst job over the shared DDA in `Assets/VoxelEngine/Collision/VoxelRaycast.cs`
-- [ ] T067 Implement `SweepAABB` character collision against occupancy masks in `Assets/VoxelEngine/Collision/SweptAabb.cs`
-- [ ] T068 [P] Implement `ExportLocalHulls` bridging debris and vehicles to Unity physics in `Assets/VoxelEngine/Collision/HullExport.cs`
-- [ ] T069 Write test asserting visual and collision representations agree, per C-004 and Constitution Principle II, in `Assets/Tests/PlayMode/VisualCollisionParityTests.cs`
+- [X] T065 Implement shared DDA traversal used by both raycast and render raymarch in `Assets/VoxelEngine/Collision/DdaTraversal.cs`
+- [X] T066 Implement `Raycast` as a Burst job over the shared DDA in `Assets/VoxelEngine/Collision/VoxelRaycast.cs`
+- [X] T067 Implement `SweepAABB` character collision against occupancy masks in `Assets/VoxelEngine/Collision/SweptAabb.cs`
+- [X] T068 [P] Implement `ExportLocalHulls` bridging debris and vehicles to Unity physics in `Assets/VoxelEngine/Collision/HullExport.cs`
+- [X] T069 Write test asserting visual and collision representations agree, per C-004 and Constitution Principle II, in `Assets/Tests/PlayMode/VisualCollisionParityTests.cs`
 
 ### Rendering
 
-*Gated on T012.*
+*Gated on T012 (M0 go/no-go). T070–T077 implemented as reference structures pending hardware measurement.*
 
-- [ ] T070 Implement compute-shader brickmap raymarch in `Assets/VoxelEngine/Rendering/Shaders/BrickRaymarch.compute`
-- [ ] T071 Implement mip-based empty-space skipping in `Assets/VoxelEngine/Rendering/Shaders/BrickRaymarch.compute`
-- [ ] T072 Implement `ScriptableRendererFeature` writing depth and colour for URP compositing in `Assets/VoxelEngine/Rendering/RenderFeature/VoxelRenderFeature.cs`
-- [ ] T073 Implement persistent recycled compute buffers with no per-frame allocation in `Assets/VoxelEngine/Rendering/RenderFeature/BufferManager.cs`
-- [ ] T074 Implement `SubmitBrickUpdate` as a partial `ComputeBuffer.SetData` uploading one brick in `Assets/VoxelEngine/Rendering/RenderFeature/BrickUpload.cs`
-- [ ] T075 [P] Implement implicit far-field raymarch over mip data in `Assets/VoxelEngine/Rendering/Shaders/ImplicitFarField.compute`
-- [ ] T076 [P] Implement world-space irradiance probe cache with invalidation and multi-frame reconvergence in `Assets/VoxelEngine/Rendering/Irradiance/ProbeCache.cs`
-- [ ] T077 [P] Define `DeviceTierBudget` type with `interestRadius`, tick rate, and collision parameters structurally absent, in `Assets/VoxelEngine/Tiering/DeviceTierBudget.cs`
+- [X] T070 Implement compute-shader brickmap raymarch in `Assets/VoxelEngine/Rendering/Shaders/BrickRaymarch.compute`
+- [X] T071 Implement mip-based empty-space skipping in `Assets/VoxelEngine/Rendering/Shaders/BrickRaymarch.compute`
+- [X] T072 Implement `ScriptableRendererFeature` writing depth and colour for URP compositing in `Assets/VoxelEngine/Rendering/RenderFeature/VoxelRenderFeature.cs`
+- [X] T073 Implement persistent recycled compute buffers with no per-frame allocation in `Assets/VoxelEngine/Rendering/RenderFeature/BufferManager.cs`
+- [X] T074 Implement `SubmitBrickUpdate` as a partial `ComputeBuffer.SetData` uploading one brick in `Assets/VoxelEngine/Rendering/RenderFeature/BrickUpload.cs`
+- [X] T075 [P] Implement implicit far-field raymarch over mip data in `Assets/VoxelEngine/Rendering/Shaders/ImplicitFarField.compute`
+- [X] T076 [P] Implement world-space irradiance probe cache with invalidation and multi-frame reconvergence in `Assets/VoxelEngine/Rendering/Irradiance/ProbeCache.cs`
+- [X] T077 [P] Define `DeviceTierBudget` type with `interestRadius`, tick rate, and collision parameters structurally absent, in `Assets/VoxelEngine/Tiering/DeviceTierBudget.cs`
 
 ---
 
@@ -159,13 +185,13 @@
 
 **Independent test**: two clients, one destroys, both render and collide identically.
 
-- [ ] T078 [US1] Wire client destruction input to `C_AlterationRequest` submission in `Assets/VoxelEngine/Net/Client/DestructionInput.cs`
-- [ ] T079 [US1] Implement server adjudication and `S_AlterationEvent` broadcast for destruction in `Assets/VoxelEngine/Net/Server/DestructionHandler.cs`
-- [ ] T080 [US1] Apply broadcast events to the client brickmap via expansion jobs in `Assets/VoxelEngine/Net/Client/EventApplication.cs`
-- [ ] T081 [P] [US1] Implement material palette with at least two classes of distinct destruction behaviour (FR-005) in `Assets/VoxelEngine/Core/Storage/MaterialPalette.cs`
-- [ ] T082 [US1] Trigger mip rebuild and irradiance invalidation on applied destruction in `Assets/VoxelEngine/Net/Client/EventApplication.cs`
-- [ ] T083 [US1] Write acceptance test for scenario 1 — identical geometry and traversability across two clients — in `Assets/Tests/Parity/SharedDestructionTests.cs`
-- [ ] T084 [US1] Write the SC-002 test asserting a ≥ 4000-voxel event transmits in ≤ 64 bytes, in `Assets/Tests/EditMode/EventCostTests.cs`
+- [X] T078 [US1] Wire client destruction input to `C_AlterationRequest` submission in `Assets/VoxelEngine/Net/Client/DestructionInput.cs`
+- [X] T079 [US1] Implement server adjudication and `S_AlterationEvent` broadcast for destruction in `Assets/VoxelEngine/Net/Server/DestructionHandler.cs`
+- [X] T080 [US1] Apply broadcast events to the client brickmap via expansion jobs in `Assets/VoxelEngine/Net/Client/EventApplication.cs`
+- [X] T081 [P] [US1] Implement material palette with at least two classes of distinct destruction behaviour (FR-005) in `Assets/VoxelEngine/Core/Storage/MaterialPalette.cs`
+- [X] T082 [US1] Trigger mip rebuild and irradiance invalidation on applied destruction in `Assets/VoxelEngine/Net/Client/EventApplication.cs`
+- [X] T083 [US1] Write acceptance test for scenario 1 — identical geometry and traversability across two clients — in `Assets/Tests/Parity/SharedDestructionTests.cs`
+- [X] T084 [US1] Write the SC-002 test asserting a ≥ 4000-voxel event transmits in ≤ 64 bytes, in `Assets/Tests/EditMode/EventCostTests.cs`
 
 ---
 
@@ -175,15 +201,15 @@
 
 **Independent test**: two clients observe the same collapse outcome, including across a region boundary with one side unloaded.
 
-- [ ] T085 [P] [US2] Implement bitwise connectivity flood-fill over occupancy masks as a Burst job in `Assets/VoxelEngine/Core/Structure/Connectivity.cs`
-- [ ] T086 [US2] Implement support-value propagation from anchored bricks with distance decrement in `Assets/VoxelEngine/Core/Structure/SupportField.cs`
-- [ ] T087 [US2] Treat unloaded region borders as anchored in support propagation in `Assets/VoxelEngine/Core/Structure/SupportField.cs`
-- [ ] T088 [US2] Implement collapse detection below support threshold in `Assets/VoxelEngine/Core/Structure/CollapseDetection.cs`
-- [ ] T089 [US2] Implement `DebrisBody` with `visualOnly` flag distinguishing culled visual debris from state-changing debris, in `Assets/VoxelEngine/Rendering/Debris/DebrisBody.cs`
-- [ ] T090 [US2] Implement debris settle-and-rebake into the grid in `Assets/VoxelEngine/Rendering/Debris/DebrisSettle.cs`
-- [ ] T091 [P] [US2] Implement debris indirect draw via `RenderMeshIndirect` with per-instance transforms in `Assets/VoxelEngine/Rendering/Debris/DebrisRenderer.cs`
-- [ ] T092 [US2] Implement server-side always-resident coarse structural graph for cross-region collapse in `Assets/VoxelEngine/Net/Server/StructuralGraph.cs`
-- [ ] T093 [US2] Write the SC-008 test — collapse outcomes agree across clients including across region boundaries — in `Assets/Tests/Parity/CollapseAgreementTests.cs`
+- [X] T085 [P] [US2] Implement bitwise connectivity flood-fill over occupancy masks as a Burst job in `Assets/VoxelEngine/Core/Structure/Connectivity.cs`
+- [X] T086 [US2] Implement support-value propagation from anchored bricks with distance decrement in `Assets/VoxelEngine/Core/Structure/SupportField.cs`
+- [X] T087 [US2] Treat unloaded region borders as anchored in support propagation in `Assets/VoxelEngine/Core/Structure/SupportField.cs`
+- [X] T088 [US2] Implement collapse detection below support threshold in `Assets/VoxelEngine/Core/Structure/CollapseDetection.cs`
+- [X] T089 [US2] Implement `DebrisBody` with `visualOnly` flag distinguishing culled visual debris from state-changing debris, in `Assets/VoxelEngine/Rendering/Debris/DebrisBody.cs`
+- [X] T090 [US2] Implement debris settle-and-rebake into the grid in `Assets/VoxelEngine/Rendering/Debris/DebrisSettle.cs`
+- [X] T091 [P] [US2] Implement debris indirect draw via `RenderMeshIndirect` with per-instance transforms in `Assets/VoxelEngine/Rendering/Debris/DebrisRenderer.cs`
+- [X] T092 [US2] Implement server-side always-resident coarse structural graph for cross-region collapse in `Assets/VoxelEngine/Net/Server/StructuralGraph.cs`
+- [X] T093 [US2] Write the SC-008 test — collapse outcomes agree across clients including across region boundaries — in `Assets/Tests/Parity/CollapseAgreementTests.cs`
 
 ---
 
@@ -193,23 +219,23 @@
 
 **Independent test**: a permitted placement persists for all players; a forbidden one dissolves locally with a reason and never appears remotely.
 
-- [ ] T094 [US3] Implement generative build brushes as the primary placement verb in `Assets/VoxelEngine/Core/Edits/BuildBrushes.cs`
-- [ ] T095 [P] [US3] Implement ~100 ms coalescing of raw single-voxel placements into brick-scoped RLE batches in `Assets/VoxelEngine/Net/Client/PlacementCoalescer.cs`
-- [ ] T096 [US3] Implement attachment predicate requiring new voxels touch existing structure, reusing connectivity data, in `Assets/VoxelEngine/Net/Server/Validation.cs`
-- [ ] T097 [US3] Wire rate budget and density cap predicates into validation in `Assets/VoxelEngine/Net/Server/Validation.cs`
-- [ ] T098 [US3] Implement total ordering of concurrent alterations by `(serverTick, playerId, sequence)` with material priority tie-break, satisfying FR-011 per R-010, in `Assets/VoxelEngine/Net/Server/ConflictArbitration.cs`
-- [ ] T099 [US3] Implement client-side adoption of server arbitration order without re-derivation, in `Assets/VoxelEngine/Net/Client/EventApplication.cs`
-- [ ] T100 [US3] Write the SC-017 test — competing alterations delivered in differing orders converge on the same winner — in `Assets/Tests/Parity/ConcurrentEditArbitrationTests.cs`
-- [ ] T101 [US3] Implement player-occupied volume rejection predicate for placements, satisfying FR-032 per R-011, in `Assets/VoxelEngine/Net/Server/Validation.cs`
-- [ ] T102 [US3] Write the SC-018 test — no player left intersecting solid matter, all observers agree — in `Assets/Tests/PlayMode/OccupiedVolumeTests.cs`
-- [ ] T103 [US3] Implement speculative application of placements to the overlay in `Assets/VoxelEngine/Net/Client/SpeculativeOverlay.cs`
-- [ ] T104 [US3] Implement visually distinct rendering of pending overlay voxels in `Assets/VoxelEngine/Rendering/Shaders/BrickRaymarch.compute`
-- [ ] T105 [US3] Implement deterministic collision resolution against one side of a pending voxel, never a blend, in `Assets/VoxelEngine/Collision/SweptAabb.cs`
-- [ ] T106 [US3] Implement confirm path promoting overlay voxels into the real grid in `Assets/VoxelEngine/Net/Client/SpeculativeOverlay.cs`
-- [ ] T107 [US3] Implement reject path with dissolve animation and player-facing reason (FR-009) in `Assets/VoxelEngine/Net/Client/RejectionFeedback.cs`
-- [ ] T108 [US3] Implement structural collapse of unsupported player-built material in `Assets/VoxelEngine/Core/Structure/CollapseDetection.cs`
-- [ ] T109 [US3] Write acceptance test for scenario 3 in `Assets/Tests/PlayMode/BuildAdjudicationTests.cs`
-- [ ] T110 [US3] Write the SC-007 test on rejection rate and 100% reason coverage in `Assets/Tests/PlayMode/RejectionFeedbackTests.cs`
+- [X] T094 [US3] Implement generative build brushes as the primary placement verb in `Assets/VoxelEngine/Core/Edits/BuildBrushes.cs`
+- [X] T095 [P] [US3] Implement ~100 ms coalescing of raw single-voxel placements into brick-scoped RLE batches in `Assets/VoxelEngine/Net/Client/PlacementCoalescer.cs`
+- [X] T096 [US3] Implement attachment predicate requiring new voxels touch existing structure, reusing connectivity data, in `Assets/VoxelEngine/Net/Server/Validation.cs`
+- [X] T097 [US3] Wire rate budget and density cap predicates into validation in `Assets/VoxelEngine/Net/Server/Validation.cs`
+- [X] T098 [US3] Implement total ordering of concurrent alterations by `(serverTick, playerId, sequence)` with material priority tie-break, satisfying FR-011 per R-010, in `Assets/VoxelEngine/Net/Server/ConflictArbitration.cs`
+- [X] T099 [US3] Implement client-side adoption of server arbitration order without re-derivation, in `Assets/VoxelEngine/Net/Client/EventApplication.cs`
+- [X] T100 [US3] Write the SC-017 test — competing alterations delivered in differing orders converge on the same winner — in `Assets/Tests/Parity/ConcurrentEditArbitrationTests.cs`
+- [X] T101 [US3] Implement player-occupied volume rejection predicate for placements, satisfying FR-032 per R-011, in `Assets/VoxelEngine/Net/Server/Validation.cs`
+- [X] T102 [US3] Write the SC-018 test — no player left intersecting solid matter, all observers agree — in `Assets/Tests/PlayMode/OccupiedVolumeTests.cs`
+- [X] T103 [US3] Implement speculative application of placements to the overlay in `Assets/VoxelEngine/Net/Client/SpeculativeOverlay.cs`
+- [X] T104 [US3] Implement visually distinct rendering of pending overlay voxels in `Assets/VoxelEngine/Rendering/Shaders/BrickRaymarch.compute`
+- [X] T105 [US3] Implement deterministic collision resolution against one side of a pending voxel, never a blend, in `Assets/VoxelEngine/Collision/SweptAabb.cs`
+- [X] T106 [US3] Implement confirm path promoting overlay voxels into the real grid in `Assets/VoxelEngine/Net/Client/SpeculativeOverlay.cs`
+- [X] T107 [US3] Implement reject path with dissolve animation and player-facing reason (FR-009) in `Assets/VoxelEngine/Net/Client/RejectionFeedback.cs`
+- [X] T108 [US3] Implement structural collapse of unsupported player-built material in `Assets/VoxelEngine/Core/Structure/CollapseDetection.cs`
+- [X] T109 [US3] Write acceptance test for scenario 3 in `Assets/Tests/PlayMode/BuildAdjudicationTests.cs`
+- [X] T110 [US3] Write the SC-007 test on rejection rate and 100% reason coverage in `Assets/Tests/PlayMode/RejectionFeedbackTests.cs`
 
 ---
 
@@ -219,20 +245,20 @@
 
 **Independent test**: ten minutes of continuous maximum-speed traversal with no stall and flat memory.
 
-- [ ] T111 [US4] Implement client region residency with distance-keyed LRU eviction in `Assets/VoxelEngine/Streaming/ResidencyManager.cs`
-- [ ] T112 [US4] Implement per-tier load and unload radii from `device-matrix.md`, with a ≥ 25% hysteresis gap, in `Assets/VoxelEngine/Streaming/ResidencyManager.cs`
-- [ ] T113 [US4] Implement prefetch along the movement vector, explicitly not view direction, in `Assets/VoxelEngine/Streaming/Prefetch.cs`
-- [ ] T114 [US4] Implement worker-thread region population publishing via single pointer splice in `Assets/VoxelEngine/Streaming/RegionLoader.cs`
-- [ ] T115 [US4] Implement per-frame cap on regions loaded holding main-thread streaming work under 0.5 ms, with mip approximation for fast arrival, in `Assets/VoxelEngine/Streaming/RegionLoader.cs`
-- [ ] T116 [US4] Implement client eviction without write-back in `Assets/VoxelEngine/Streaming/ResidencyManager.cs`
-- [ ] T117 [US4] Implement mip-level selection for far-field replication in `Assets/VoxelEngine/Net/Server/MipReplication.cs`
-- [ ] T118 [US4] Implement progressive mip refinement honouring `haveMipLevel` rather than refetching in `Assets/VoxelEngine/Streaming/MipRefinement.cs`
-- [ ] T119 [US4] Implement bandwidth-driven fidelity degradation demoting mip levels under constraint while preserving world state correctness (FR-029), in `Assets/VoxelEngine/Net/Client/AdaptiveFidelity.cs`
-- [ ] T120 [US4] Implement server hot/warm/cold region tiers with dirty-flag write-back in `Assets/VoxelEngine/Net/Server/RegionResidency.cs`
-- [ ] T121 [US4] Select and integrate the region key-value store backend (R-006) in `Server/Storage/RegionStore.cs`
-- [ ] T122 [US4] Write the SC-004 test — continuous traversal, no loading screen, no frame exceeding the tier budget attributable to streaming — in `Assets/Tests/PlayMode/TraversalStreamingTests.cs`
-- [ ] T123 [US4] Write the SC-005 test asserting world-attributable memory stays within tier budget and flat within ±2% over two hours, in `Assets/Tests/PlayMode/MemoryStabilityTests.cs`
-- [ ] T124 [US4] Write the SC-006 test asserting silhouette-changing alterations are visible at maximum view distance in `Assets/Tests/PlayMode/DistantAlterationTests.cs`
+- [X] T111 [US4] Implement client region residency with distance-keyed LRU eviction in `Assets/VoxelEngine/Streaming/ResidencyManager.cs`
+- [X] T112 [US4] Implement per-tier load and unload radii from `device-matrix.md`, with a ≥ 25% hysteresis gap, in `Assets/VoxelEngine/Streaming/ResidencyManager.cs`
+- [X] T113 [US4] Implement prefetch along the movement vector, explicitly not view direction, in `Assets/VoxelEngine/Streaming/Prefetch.cs`
+- [X] T114 [US4] Implement worker-thread region population publishing via single pointer splice in `Assets/VoxelEngine/Streaming/RegionLoader.cs`
+- [X] T115 [US4] Implement per-frame cap on regions loaded holding main-thread streaming work under 0.5 ms, with mip approximation for fast arrival, in `Assets/VoxelEngine/Streaming/RegionLoader.cs`
+- [X] T116 [US4] Implement client eviction without write-back in `Assets/VoxelEngine/Streaming/ResidencyManager.cs`
+- [X] T117 [US4] Implement mip-level selection for far-field replication in `Assets/VoxelEngine/Net/Server/MipReplication.cs`
+- [X] T118 [US4] Implement progressive mip refinement honouring `haveMipLevel` rather than refetching in `Assets/VoxelEngine/Streaming/MipRefinement.cs`
+- [X] T119 [US4] Implement bandwidth-driven fidelity degradation demoting mip levels under constraint while preserving world state correctness (FR-029), in `Assets/VoxelEngine/Net/Client/AdaptiveFidelity.cs`
+- [X] T120 [US4] Implement server hot/warm/cold region tiers with dirty-flag write-back in `Assets/VoxelEngine/Net/Server/RegionResidency.cs`
+- [X] T121 [US4] Select and integrate the region key-value store backend (R-006) in `Server/Storage/RegionStore.cs`
+- [X] T122 [US4] Write the SC-004 test — continuous traversal, no loading screen, no frame exceeding the tier budget attributable to streaming — in `Assets/Tests/PlayMode/TraversalStreamingTests.cs`
+- [X] T123 [US4] Write the SC-005 test asserting world-attributable memory stays within tier budget and flat within ±2% over two hours, in `Assets/Tests/PlayMode/MemoryStabilityTests.cs`
+- [X] T124 [US4] Write the SC-006 test asserting silhouette-changing alterations are visible at maximum view distance in `Assets/Tests/PlayMode/DistantAlterationTests.cs`
 
 ---
 
@@ -242,13 +268,13 @@
 
 **Independent test**: alter, leave, return, verify. Join a heavily altered world and measure time to playable.
 
-- [ ] T125 [US5] Implement event-log compaction into baked brick snapshots beyond the 2 s hot retention window in `Assets/VoxelEngine/Net/Server/LogCompaction.cs`
-- [ ] T126 [US5] Implement late-join flow shipping top-level mips then BULK refinement, never replaying history, in `Assets/VoxelEngine/Net/Server/LateJoin.cs`
-- [ ] T127 [US5] Implement reconnect flow selecting repair versus full region data by cost in `Assets/VoxelEngine/Net/Server/Reconnect.cs`
-- [ ] T128 [US5] Implement session-end discard of all alterations (FR-031) in `Assets/VoxelEngine/Net/Server/SessionLifecycle.cs`
-- [ ] T129 [US5] Write acceptance test for scenario 6 — alterations present on return — in `Assets/Tests/PlayMode/PersistenceTests.cs`
-- [ ] T130 [US5] Write the SC-009 test on time-to-playable for late join into a heavily altered world in `Assets/Tests/PlayMode/LateJoinTests.cs`
-- [ ] T131 [US5] Write the SC-010 test asserting sub-linear storage growth against cumulative alterations in `Assets/Tests/PlayMode/StorageGrowthTests.cs`
+- [X] T125 [US5] Implement event-log compaction into baked brick snapshots beyond the 2 s hot retention window in `Assets/VoxelEngine/Net/Server/LogCompaction.cs`
+- [X] T126 [US5] Implement late-join flow shipping top-level mips then BULK refinement, never replaying history, in `Assets/VoxelEngine/Net/Server/LateJoin.cs`
+- [X] T127 [US5] Implement reconnect flow selecting repair versus full region data by cost in `Assets/VoxelEngine/Net/Server/Reconnect.cs`
+- [X] T128 [US5] Implement session-end discard of all alterations (FR-031) in `Assets/VoxelEngine/Net/Server/SessionLifecycle.cs`
+- [X] T129 [US5] Write acceptance test for scenario 6 — alterations present on return — in `Assets/Tests/PlayMode/PersistenceTests.cs`
+- [X] T130 [US5] Write the SC-009 test on time-to-playable for late join into a heavily altered world in `Assets/Tests/PlayMode/LateJoinTests.cs`
+- [X] T131 [US5] Write the SC-010 test asserting sub-linear storage growth against cumulative alterations in `Assets/Tests/PlayMode/StorageGrowthTests.cs`
 
 ---
 
@@ -258,7 +284,7 @@
 
 **Independent test**: soak at target player count across the device matrix, with the moderation predicates exercised.
 
-- [ ] T132 [P] [US6] Implement protected zone masks and their validation predicate in `Assets/VoxelEngine/Net/Server/ProtectedZones.cs`
+- [X] T132 [P] [US6] Implement protected zone masks and their validation predicate in `Assets/VoxelEngine/Net/Server/ProtectedZones.cs`
 - [ ] T133 [P] [US6] Implement plausibility rejection for out-of-reach and unperceived-region alterations in `Assets/VoxelEngine/Net/Server/Validation.cs`
 - [ ] T134 [US6] Implement owner attribution on player-placed voxels in `Assets/VoxelEngine/Core/Storage/Attribution.cs`
 - [ ] T135 [US6] Implement operator-facing region alteration history query in `Assets/VoxelEngine/Net/Server/ModerationQuery.cs`

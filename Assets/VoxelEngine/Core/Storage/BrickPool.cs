@@ -31,6 +31,18 @@ namespace VoxelEngine.Core.Storage
         private NativeList<int> _freeList;
         private int _highWater;
 
+        /// <summary>
+        /// One byte per slot: 1 when the brick has changed since the last upload.
+        ///
+        /// The renderer mirrors this pool in GPU memory and cannot afford to re-upload
+        /// megabytes per edit, so the pool records what changed. A flag plus a list keeps the
+        /// hot path to one branch — bulk terrain fill touches millions of voxels but only
+        /// thousands of distinct bricks, and only the first write to each appends.
+        /// </summary>
+        private NativeArray<byte> _dirtyFlags;
+
+        private NativeList<int> _dirtyBricks;
+
         public int Capacity { get; private set; }
 
         /// <summary>Bricks currently allocated. The number to watch in a soak test.</summary>
@@ -55,6 +67,8 @@ namespace VoxelEngine.Core.Storage
             Occupancy = new NativeArray<ulong>(capacity * VoxelDimensions.OccupancyWordsPerBrick,
                                               allocator, NativeArrayOptions.ClearMemory);
             _freeList = new NativeList<int>(capacity >> 4, allocator);
+            _dirtyFlags = new NativeArray<byte>(capacity, allocator, NativeArrayOptions.ClearMemory);
+            _dirtyBricks = new NativeList<int>(capacity >> 4, allocator);
             _highWater = 0;
         }
 
@@ -123,6 +137,8 @@ namespace VoxelEngine.Core.Storage
             var oo = OccupancyOffset(brickIndex);
             for (var i = 0; i < VoxelDimensions.OccupancyWordsPerBrick; i++)
                 Occupancy[oo + i] = 0UL;
+
+            MarkDirty(brickIndex);
         }
 
         /// <summary>Fill a freshly allocated brick with a single material, e.g. when a uniform brick is being split.</summary>
@@ -136,6 +152,33 @@ namespace VoxelEngine.Core.Storage
             var occupied = material != VoxelDimensions.MaterialEmpty;
             for (var i = 0; i < VoxelDimensions.OccupancyWordsPerBrick; i++)
                 Occupancy[oo + i] = occupied ? ulong.MaxValue : 0UL;
+
+            MarkDirty(brickIndex);
+        }
+
+        /// <summary>Bricks changed since <see cref="ClearDirtyBricks"/>. Consumed by the uploader.</summary>
+        public NativeList<int> DirtyBricks => _dirtyBricks;
+
+        /// <summary>Marks a brick as changed. Cheap enough to sit in the write path.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void MarkDirty(int brickIndex)
+        {
+            if (!_dirtyFlags.IsCreated || (uint)brickIndex >= (uint)_dirtyFlags.Length) return;
+            if (_dirtyFlags[brickIndex] != 0) return;
+
+            _dirtyFlags[brickIndex] = 1;
+            _dirtyBricks.Add(brickIndex);
+        }
+
+        /// <summary>Clears the dirty set after the uploader has consumed it.</summary>
+        public void ClearDirtyBricks()
+        {
+            if (!_dirtyBricks.IsCreated) return;
+
+            for (var i = 0; i < _dirtyBricks.Length; i++)
+                _dirtyFlags[_dirtyBricks[i]] = 0;
+
+            _dirtyBricks.Clear();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -149,6 +192,8 @@ namespace VoxelEngine.Core.Storage
             var occ = Occupancy;
             OccupancyMask.Set(ref occ, OccupancyOffset(brickIndex), voxelIndex,
                               material != VoxelDimensions.MaterialEmpty);
+
+            MarkDirty(brickIndex);
         }
 
         /// <summary>
@@ -178,6 +223,8 @@ namespace VoxelEngine.Core.Storage
             if (Voxels.IsCreated) Voxels.Dispose();
             if (Occupancy.IsCreated) Occupancy.Dispose();
             if (_freeList.IsCreated) _freeList.Dispose();
+            if (_dirtyFlags.IsCreated) _dirtyFlags.Dispose();
+            if (_dirtyBricks.IsCreated) _dirtyBricks.Dispose();
             Capacity = 0;
             _highWater = 0;
         }
