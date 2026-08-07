@@ -1,0 +1,22 @@
+{
+  "name": "VoxelEngine.Showcase",
+  "rootNamespace": "VoxelEngine.Showcase",
+  "references": [
+    "VoxelEngine.Core",
+    "VoxelEngine.Collision",
+    "VoxelEngine.Streaming",
+    "VoxelEngine.Tiering",
+    "Unity.Burst",
+    "Unity.Collections",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "noEngineReferences": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": []
+}
