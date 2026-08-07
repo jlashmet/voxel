@@ -123,6 +123,8 @@ namespace VoxelEngine.Showcase
             // Hand the world to the render feature. URP owns the feature and constructs it, so
             // the world registers itself rather than being injected.
             VoxelRenderBridge.RegionsNeedingUpload = _world.RegionsNeedingUpload;
+            VoxelRenderBridge.TerrainSeed = _world.Seed;
+            VoxelRenderBridge.FarBaseHeight = ShowcaseWorld.BaseHeightVoxels;
             VoxelRenderBridge.Source = () => new VoxelWorldView
             {
                 Table = _world.Table,

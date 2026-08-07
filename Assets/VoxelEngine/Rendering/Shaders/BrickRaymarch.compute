@@ -41,6 +41,17 @@ uint     g_WindowZ;
 // can be located in one frame rather than inferred from what the picture looks like.
 uint     g_DebugMode;
 
+// -- implicit far field -------------------------------------------------------
+// Beyond the resident set there are no voxels to march, so distance cannot come from
+// residency: a 10 km horizon at full detail is hundreds of regions and gigabytes. The far
+// field is evaluated from the world seed instead and costs nothing to keep resident, which is
+// what device-matrix.md means by "implicit far-field (mip 5+)". This is the demo's terrain
+// function ported exactly, so the procedural horizon lines up with the voxels in front of it.
+uint     g_TerrainSeed;
+float    g_FarDistance;      // metres; 0 disables the far field
+uint     g_FarBaseHeight;    // voxels
+uint     g_FarEnabled;
+
 // Material colours, indexed by material id. Slot 0 is empty and never shaded.
 float4 g_MaterialColours[16];
 
@@ -106,6 +117,134 @@ float3 Shade(uint material, float3 normal)
     float ndotl = saturate(dot(normal, g_SunDirection));
     float3 ambient = SkyColour(normal) * 0.35;
     return albedo * (ambient + ndotl * 0.9);
+}
+
+// -- implicit far field -------------------------------------------------------
+
+uint FarHash(uint v)
+{
+    v ^= v >> 16; v *= 0x85ebca6bu;
+    v ^= v >> 13; v *= 0xc2b2ae35u;
+    v ^= v >> 16;
+    return v;
+}
+
+int FarCorner(int x, int z, int salt)
+{
+    uint h = FarHash((uint)x * 2654435761u ^ (uint)z * 2246822519u ^ g_TerrainSeed ^ ((uint)salt << 24));
+    return (int)((h >> 8) & 0x3FFu);
+}
+
+// 3t^2 - 2t^3 in fixed point. Unsigned rather than signed: the intermediate reaches ~1.07e9,
+// which overflows a signed 32-bit multiply-add but fits comfortably in uint.
+int FarSmooth(int f, int cell)
+{
+    uint t = (uint)((f * 1024) / cell);
+    return (int)((t * t * (3u * 1024u - 2u * t)) >> 20);
+}
+
+int FarOctave(int wx, int wz, int log2Cell, int amplitude)
+{
+    int cell = 1 << log2Cell;
+    int x0 = wx >> log2Cell, z0 = wz >> log2Cell;
+    int fx = wx & (cell - 1), fz = wz & (cell - 1);
+
+    int c00 = FarCorner(x0,     z0,     log2Cell);
+    int c10 = FarCorner(x0 + 1, z0,     log2Cell);
+    int c01 = FarCorner(x0,     z0 + 1, log2Cell);
+    int c11 = FarCorner(x0 + 1, z0 + 1, log2Cell);
+
+    int tx = FarSmooth(fx, cell);
+    int tz = FarSmooth(fz, cell);
+
+    int a = c00 + (((c10 - c00) * tx) >> 10);
+    int b = c01 + (((c11 - c01) * tx) >> 10);
+    int v = a + (((b - a) * tz) >> 10);
+
+    return ((v * amplitude) >> 10) - (amplitude >> 1);
+}
+
+// Surface height in voxels. Must match ShowcaseWorld.SurfaceHeight or the horizon will not
+// meet the voxels at the transition.
+int FarSurfaceHeight(int wx, int wz)
+{
+    int h = (int)g_FarBaseHeight;
+    h += FarOctave(wx, wz, 9, 70);
+    h += FarOctave(wx, wz, 7, 24);
+    h += FarOctave(wx, wz, 5, 6);
+    return clamp(h, 8, 512 - 24);
+}
+
+float FarHeightMetres(float3 p)
+{
+    int wx = (int)floor(p.x / g_VoxelSize);
+    int wz = (int)floor(p.z / g_VoxelSize);
+    return FarSurfaceHeight(wx, wz) * g_VoxelSize;
+}
+
+// Marches the procedural heightfield from tStart outward. Steps grow with distance: near the
+// transition the surface must be met precisely, far away a pixel covers many metres.
+bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
+{
+    colour = float3(0, 0, 0);
+
+    float maxHeight = (512.0 - 24.0) * g_VoxelSize;
+    float3 p = origin + dir * tStart;
+
+    // Looking up from above everything: nothing to find.
+    if (dir.y >= 0.0 && p.y > maxHeight) return false;
+
+    float t = tStart;
+    float step = max(1.0, tStart * 0.01);
+    float previousGap = p.y - FarHeightMetres(p);
+
+    [loop]
+    for (uint i = 0u; i < 192u; i++)
+    {
+        t += step;
+        if (t > g_FarDistance) return false;
+
+        p = origin + dir * t;
+        if (dir.y > 0.0 && p.y > maxHeight) return false;
+
+        float gap = p.y - FarHeightMetres(p);
+
+        if (gap <= 0.0)
+        {
+            // Crossed the surface: bisect back to it so the silhouette is not stepped.
+            float lo = t - step, hi = t;
+            for (uint b = 0u; b < 12u; b++)
+            {
+                float mid = 0.5 * (lo + hi);
+                float3 q = origin + dir * mid;
+                if (q.y - FarHeightMetres(q) <= 0.0) hi = mid; else lo = mid;
+            }
+
+            p = origin + dir * hi;
+
+            // Normal from finite differences of the height field, spaced by the local step so
+            // distant terrain does not shade as noise.
+            float e = max(g_VoxelSize, hi * 0.004);
+            float hL = FarHeightMetres(p - float3(e, 0, 0));
+            float hR = FarHeightMetres(p + float3(e, 0, 0));
+            float hD = FarHeightMetres(p - float3(0, 0, e));
+            float hU = FarHeightMetres(p + float3(0, 0, e));
+            float3 normal = normalize(float3(hL - hR, 2.0 * e, hD - hU));
+
+            uint material = p.y < (float)g_FarBaseHeight * g_VoxelSize ? 3u : 1u;   // sand : stone
+            colour = Shade(material, normal);
+
+            // Fade into the sky with distance so the far edge is a horizon, not a wall.
+            float haze = saturate((hi - g_FarDistance * 0.35) / (g_FarDistance * 0.65));
+            colour = lerp(colour, SkyColour(dir), haze * 0.85);
+            return true;
+        }
+
+        previousGap = gap;
+        step *= 1.03;
+    }
+
+    return false;
 }
 
 // -- traversal ----------------------------------------------------------------
@@ -246,6 +385,17 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
         if (tMax.x < tMax.y && tMax.x < tMax.z)      { brick.x += step.x; t = tMax.x; tMax.x += tDelta.x; axis = 0; }
         else if (tMax.y < tMax.z)                    { brick.y += step.y; t = tMax.y; tMax.y += tDelta.y; axis = 1; }
         else                                         { brick.z += step.z; t = tMax.z; tMax.z += tDelta.z; axis = 2; }
+    }
+
+    // Nothing in the resident set: hand the ray to the procedural horizon.
+    if (!hit && g_FarEnabled != 0u && g_FarDistance > 0.0)
+    {
+        float3 farColour;
+        if (MarchFarField(g_CameraPos, dir, max(t * brickSize, 1.0), farColour))
+        {
+            colour = farColour;
+            hit = true;
+        }
     }
 
     if (g_DebugMode == 1u) { colour = float3(sawSlot, sawRef, sawMixed); hit = true; }

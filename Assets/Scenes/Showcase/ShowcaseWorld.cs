@@ -54,6 +54,12 @@ namespace VoxelEngine.Showcase
         /// <summary>Base terrain height in voxels. Terrain stays inside the y = 0 region layer.</summary>
         private const int BaseHeight = 220;
 
+        /// <summary>
+        /// Exposed for the renderer's implicit far field, which evaluates this same terrain from
+        /// the seed for everything beyond the resident set.
+        /// </summary>
+        public const int BaseHeightVoxels = BaseHeight;
+
         // -- state ---------------------------------------------------------------
 
         private RegionTable _table;

@@ -40,6 +40,10 @@ namespace VoxelEngine.Rendering
         private static readonly int s_WindowZ = Shader.PropertyToID("g_WindowZ");
         private static readonly int s_MaterialColours = Shader.PropertyToID("g_MaterialColours");
         private static readonly int s_DebugMode = Shader.PropertyToID("g_DebugMode");
+        private static readonly int s_TerrainSeed = Shader.PropertyToID("g_TerrainSeed");
+        private static readonly int s_FarDistance = Shader.PropertyToID("g_FarDistance");
+        private static readonly int s_FarBaseHeight = Shader.PropertyToID("g_FarBaseHeight");
+        private static readonly int s_FarEnabled = Shader.PropertyToID("g_FarEnabled");
 
         private readonly VoxelGpuBuffers _buffers = new();
         private ComputeShader _raymarch;
@@ -163,6 +167,10 @@ namespace VoxelEngine.Rendering
                 cmd.SetComputeIntParam(data.Raymarch, s_WindowY, VoxelGpuBuffers.WindowY);
                 cmd.SetComputeIntParam(data.Raymarch, s_WindowZ, VoxelGpuBuffers.WindowZ);
                 cmd.SetComputeIntParam(data.Raymarch, s_DebugMode, VoxelRenderBridge.DebugMode);
+                cmd.SetComputeIntParam(data.Raymarch, s_TerrainSeed, unchecked((int)VoxelRenderBridge.TerrainSeed));
+                cmd.SetComputeFloatParam(data.Raymarch, s_FarDistance, VoxelRenderBridge.FarDistance);
+                cmd.SetComputeIntParam(data.Raymarch, s_FarBaseHeight, VoxelRenderBridge.FarBaseHeight);
+                cmd.SetComputeIntParam(data.Raymarch, s_FarEnabled, VoxelRenderBridge.FarFieldEnabled ? 1 : 0);
                 cmd.SetComputeVectorArrayParam(data.Raymarch, s_MaterialColours, VoxelRenderBridge.MaterialColours);
 
                 // Seed the target with what URP has drawn so far, so rays that miss composite

@@ -46,6 +46,20 @@ namespace VoxelEngine.Rendering
         /// </summary>
         public static int DebugMode;
 
+        /// <summary>World seed, so the far field can evaluate the same terrain the CPU generates.</summary>
+        public static uint TerrainSeed;
+
+        /// <summary>Base terrain height in voxels, matching the world's generator.</summary>
+        public static int FarBaseHeight = 220;
+
+        /// <summary>
+        /// How far the procedural horizon extends, in metres. This is not bounded by residency —
+        /// the far field holds no data — so it is a shading cost, not a memory one.
+        /// </summary>
+        public static float FarDistance = 8000f;
+
+        public static bool FarFieldEnabled = true;
+
         /// <summary>Direction light points *from* the surface toward the sun.</summary>
         public static Vector3 SunDirection = new Vector3(0.45f, 0.78f, 0.43f).normalized;
 
