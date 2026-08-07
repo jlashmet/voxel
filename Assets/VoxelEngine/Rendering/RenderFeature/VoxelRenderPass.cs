@@ -165,6 +165,10 @@ namespace VoxelEngine.Rendering
                 cmd.SetComputeIntParam(data.Raymarch, s_DebugMode, VoxelRenderBridge.DebugMode);
                 cmd.SetComputeVectorArrayParam(data.Raymarch, s_MaterialColours, VoxelRenderBridge.MaterialColours);
 
+                // Seed the target with what URP has drawn so far, so rays that miss composite
+                // as "unchanged" rather than as this shader's idea of the sky.
+                Blitter.BlitCameraTexture(cmd, data.CameraColour, data.Colour);
+
                 cmd.DispatchCompute(data.Raymarch, data.Kernel, data.GroupsX, data.GroupsY, 1);
 
                 Blitter.BlitCameraTexture(cmd, data.Colour, data.CameraColour);

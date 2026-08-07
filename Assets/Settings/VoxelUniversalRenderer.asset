@@ -68,7 +68,7 @@ MonoBehaviour:
   m_Name: VoxelRenderFeature
   m_EditorClassIdentifier: VoxelEngine.Rendering::VoxelEngine.Rendering.VoxelRenderFeature
   m_Active: 1
-  m_Enabled: 0
+  m_Enabled: 1
   m_Raymarch: {fileID: 7200000, guid: 825fb4c425c9e494ba58a7902329ec83, type: 3}
   m_Event: 500
   m_RenderScale: 1

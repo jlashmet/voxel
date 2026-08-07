@@ -49,11 +49,11 @@ namespace VoxelEngine.Showcase
 
         [Header("Streaming")]
         [Tooltip("Regions kept resident around the player. One region is 51.2 m across.")]
-        [SerializeField] private int m_LoadRadiusRegions = 2;
+        [SerializeField] private int m_LoadRadiusRegions = 3;
 
         [Tooltip("Regions evicted past this radius. The gap above the load radius is the " +
                  "hysteresis that stops a region thrashing on a boundary.")]
-        [SerializeField] private int m_UnloadRadiusRegions = 4;
+        [SerializeField] private int m_UnloadRadiusRegions = 5;
 
         [Tooltip("Milliseconds per frame spent generating terrain. Work resumes mid-region.")]
         [SerializeField] private float m_GenerateBudgetMs = 3f;
@@ -78,7 +78,7 @@ namespace VoxelEngine.Showcase
         [Header("Renderer")]
         [Tooltip("Raymarch the brickmap on the GPU (the engine path). Off falls back to the " +
                  "demo's mesh builder, which is only kept for A/B comparison.")]
-        [SerializeField] private bool m_UseRaymarch;
+        [SerializeField] private bool m_UseRaymarch = true;
 
         [Header("Presentation")]
         [Tooltip("Presentation-only. Shadows across a streamed world are expensive.")]

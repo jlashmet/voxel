@@ -190,6 +190,7 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
     float maxT = g_MaxDistance / brickSize;
 
     float3 colour = SkyColour(dir);
+    bool hit = false;
 
     // Traversal telemetry, reported by the debug modes below.
     float sawSlot = 0.0;      // the ray entered a region that is mirrored on the GPU
@@ -218,6 +219,7 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
             {
                 // Uniform, non-empty: the pointer itself carries the material. No memory read.
                 colour = Shade((uint)(-brickRef - 1), normal);
+                hit = true;
                 break;
             }
 
@@ -236,6 +238,7 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
             if (material != 0u)
             {
                 colour = Shade(material, hitNormal);
+                hit = true;
                 break;
             }
         }
@@ -245,8 +248,13 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
         else                                         { brick.z += step.z; t = tMax.z; tMax.z += tDelta.z; axis = 2; }
     }
 
-    if (g_DebugMode == 1u) colour = float3(sawSlot, sawRef, sawMixed);
-    else if (g_DebugMode == 2u) colour = float3(sawVoxel, steps / max(1.0, (float)g_MaxSteps), 0.0);
+    if (g_DebugMode == 1u) { colour = float3(sawSlot, sawRef, sawMixed); hit = true; }
+    else if (g_DebugMode == 2u) { colour = float3(sawVoxel, steps / max(1.0, (float)g_MaxSteps), 0.0); hit = true; }
+
+    // A ray that hits nothing leaves the pixel alone. The target is seeded with the camera
+    // colour before dispatch, so misses keep the skybox and anything URP already drew, instead
+    // of the raymarch painting its own sky over the whole frame.
+    if (!hit) return;
 
     // Write flipped vertically rather than building the ray from a flipped uv: the rays are
     // correct as constructed, it is the target's row order that disagrees with the blit. Doing

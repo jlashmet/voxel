@@ -185,7 +185,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.05
-  far clip plane: 600
+  far clip plane: 400
   field of view: 70
   orthographic: 0
   orthographic size: 5
@@ -226,8 +226,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Seed: 1592594996
   m_BrickPoolCapacity: 262144
-  m_LoadRadiusRegions: 2
-  m_UnloadRadiusRegions: 4
+  m_LoadRadiusRegions: 3
+  m_UnloadRadiusRegions: 5
   m_GenerateBudgetMs: 3
   m_MeshBudgetMs: 4
   m_FlyMode: 0
@@ -238,7 +238,7 @@ MonoBehaviour:
   m_BrushRadius: 12
   m_MinBrushRadius: 2
   m_MaxBrushRadius: 40
-  m_UseRaymarch: 0
+  m_UseRaymarch: 1
   m_CastShadows: 0
 --- !u!1 &200000
 GameObject:
