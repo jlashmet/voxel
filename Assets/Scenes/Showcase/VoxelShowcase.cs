@@ -2,6 +2,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Collision;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Rendering;
 
 namespace VoxelEngine.Showcase
 {
@@ -28,10 +29,13 @@ namespace VoxelEngine.Showcase
     /// A demo harness, not engine code: it lives in its own assembly and nothing references it.
     /// </summary>
     /// <remarks>
-    /// <see cref="ExecuteAlways"/> so the scene view shows the world without entering play mode.
-    /// Input, movement, and streaming stay play-mode only.
+    /// Play mode only, deliberately. An earlier version ran with <c>ExecuteAlways</c> so the
+    /// scene view would show the world without pressing Play. That is not survivable: OnEnable
+    /// allocates a ~150 MB brick pool and does seconds of blocking generation and meshing, and
+    /// the editor re-runs OnEnable on every domain reload — every script compile, every entry
+    /// and exit from play mode. Reloads then queue faster than the work completes and the editor
+    /// is gone. Nothing in this component may allocate or generate outside play mode.
     /// </remarks>
-    [ExecuteAlways]
     [AddComponentMenu("VoxelEngine/Voxel Showcase")]
     public sealed class VoxelShowcase : MonoBehaviour
     {
@@ -71,6 +75,11 @@ namespace VoxelEngine.Showcase
         [SerializeField] private int m_MinBrushRadius = 2;
         [SerializeField] private int m_MaxBrushRadius = 40;
 
+        [Header("Renderer")]
+        [Tooltip("Raymarch the brickmap on the GPU (the engine path). Off falls back to the " +
+                 "demo's mesh builder, which is only kept for A/B comparison.")]
+        [SerializeField] private bool m_UseRaymarch = true;
+
         [Header("Presentation")]
         [Tooltip("Presentation-only. Shadows across a streamed world are expensive.")]
         [SerializeField] private bool m_CastShadows;
@@ -100,28 +109,37 @@ namespace VoxelEngine.Showcase
         // world holds Persistent native collections and must not outlive the component.
         private void OnEnable()
         {
-            _world = new ShowcaseWorld(m_Seed, m_BrickPoolCapacity,
+            if (!Application.isPlaying) return;
+
+            // Clamped rather than trusted: the pool is 576 bytes per slot, so a mistyped
+            // inspector value is hundreds of megabytes before anything reports a problem.
+            int capacity = Mathf.Clamp(m_BrickPoolCapacity, 4096, 262144);
+
+            _world = new ShowcaseWorld(m_Seed, capacity,
                                        m_LoadRadiusRegions, m_UnloadRadiusRegions);
             _renderer = new VoxelSurfaceRenderer { CastShadows = m_CastShadows };
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
+
+            // Hand the world to the render feature. URP owns the feature and constructs it, so
+            // the world registers itself rather than being injected.
+            VoxelRenderBridge.RegionsNeedingUpload = _world.RegionsNeedingUpload;
+            VoxelRenderBridge.Source = () => new VoxelWorldView
+            {
+                Table = _world.Table,
+                Pool = _world.Pool,
+                CameraRegion = ShowcaseWorld.RegionAt(transform.position),
+            };
             _spawned = false;
 
-            if (Application.isPlaying)
-            {
-                Spawn();
-                SetCursorLocked(true);
-            }
-            else
-            {
-                // Edit mode gets one region so the scene view is not empty. Nothing streams
-                // without a running player.
-                _world.GenerateRegionBlocking(int3.zero);
-                _renderer.Sync(_world, 5000);
-            }
+            Spawn();
+            SetCursorLocked(true);
         }
 
         private void OnDisable()
         {
+            VoxelRenderBridge.Source = null;
+            VoxelRenderBridge.RegionsNeedingUpload = null;
+
             _renderer?.Dispose();
             _renderer = null;
             _world?.Dispose();
@@ -149,9 +167,8 @@ namespace VoxelEngine.Showcase
 
         private void Update()
         {
-            if (_world == null || _renderer == null) return;
+            if (!Application.isPlaying || _world == null || _renderer == null) return;
 
-            if (Application.isPlaying)
             {
                 if (!_spawned) Spawn();
 
@@ -165,8 +182,19 @@ namespace VoxelEngine.Showcase
                 _world.StepStreaming(transform.position, m_GenerateBudgetMs);
             }
 
-            _renderer.CastShadows = m_CastShadows;
-            _renderer.Sync(_world, Application.isPlaying ? m_MeshBudgetMs : 0.0);
+            if (m_UseRaymarch)
+            {
+                // The raymarch reads the brickmap directly, so the mesh path is not just
+                // unnecessary — leaving it on would draw the world twice.
+                _renderer.SetVisible(false);
+                _world.RegionsNeedingUpload.Clear();
+            }
+            else
+            {
+                _renderer.SetVisible(true);
+                _renderer.CastShadows = m_CastShadows;
+                _renderer.Sync(_world, m_MeshBudgetMs);
+            }
         }
 
         private void TrackFrameTime()
@@ -340,7 +368,7 @@ namespace VoxelEngine.Showcase
 
         private void OnGUI()
         {
-            if (!_showHud || _world == null || _renderer == null) return;
+            if (!Application.isPlaying || !_showHud || _world == null || _renderer == null) return;
 
             var style = new GUIStyle(GUI.skin.label) { fontSize = 13, richText = true, wordWrap = false };
 
@@ -380,8 +408,9 @@ namespace VoxelEngine.Showcase
             GUILayout.Label("<b>Storage</b>", style);
             GUILayout.Label($"mixed bricks       {_world.Pool.AllocatedCount:N0} / {_world.Pool.Capacity:N0}" +
                             $"   ({poolBytes / (1024f * 1024f):0.0} MB)", style);
-            GUILayout.Label($"surface geometry   {_renderer.FaceCount:N0} quads" +
-                            $"   {_renderer.VertexCount:N0} verts   {_renderer.RegionMeshCount} meshes", style);
+            GUILayout.Label(m_UseRaymarch
+                ? "renderer           GPU brickmap raymarch (no geometry)"
+                : $"renderer           mesh: {_renderer.FaceCount:N0} quads, {_renderer.VertexCount:N0} verts", style);
             GUILayout.Space(6);
 
             GUILayout.Label($"<b>Last edit</b>   {_lastEditLabel}   ({_lastEditMs:0.0} ms)", style);

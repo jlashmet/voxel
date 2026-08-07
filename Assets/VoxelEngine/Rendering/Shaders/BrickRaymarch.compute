@@ -1,0 +1,226 @@
+#pragma kernel CSBrickRaymarch
+
+// Brickmap raymarch.
+//
+// One ray per pixel, marched with a DDA over brick coordinates. Empty and uniform bricks are
+// resolved from the pointer alone — no voxel memory is touched — so open sky and solid rock are
+// both nearly free to traverse. Only a mixed brick descends into a second DDA over its 8^3
+// voxels. That two-tier structure is the whole point of the brickmap: cost tracks surfaces, not
+// volume.
+//
+// Nothing here produces authoritative state. Float arithmetic is fine on this side of the line;
+// the integer CPU jobs own agreement (Constitution Principle I).
+
+// Window of region slots around the camera. Each entry is a slot index or -1.
+StructuredBuffer<int> g_RegionWindow;
+
+// Brick pointers, MaxSlots * 262144 entries. Negative values encode uniform material as
+// -(material + 1), so -1 is empty. Non-negative values are brick pool indices.
+StructuredBuffer<int> g_BrickRefs;
+
+// Voxel bytes of the brick pool, four materials per uint.
+StructuredBuffer<uint> g_BrickVoxels;
+
+RWTexture2D<float4> g_Colour;
+
+float4x4 g_InvViewProj;
+float3   g_CameraPos;        // world space, metres
+float3   g_WindowOrigin;     // region coordinate of window cell (0,0,0)
+float3   g_SunDirection;     // normalised, pointing from surface toward the sun
+float4   g_SkyHorizon;
+float4   g_SkyZenith;
+float2   g_TargetSize;       // width, height in pixels
+float    g_VoxelSize;        // metres per voxel
+float    g_MaxDistance;      // metres
+uint     g_MaxSteps;         // brick steps per ray (device-matrix.md: 256 on PC)
+uint     g_WindowX;
+uint     g_WindowY;
+uint     g_WindowZ;
+
+// Material colours, indexed by material id. Slot 0 is empty and never shaded.
+float4 g_MaterialColours[16];
+
+static const int k_BrickEdge = 8;
+static const int k_RegionEdgeLog2 = 6;      // bricks per region edge = 64
+static const int k_RegionEdgeMask = 63;
+static const int k_BricksPerRegion = 64 * 64 * 64;
+
+// -- storage lookups ----------------------------------------------------------
+
+int RegionSlot(int3 regionCoord)
+{
+    // Single exit: some compilers warn about multi-return helpers being potentially
+    // uninitialised, and an undefined slot index would read arbitrary brick memory.
+    int slot = -1;
+    int3 w = regionCoord - int3(g_WindowOrigin);
+
+    bool inside = w.x >= 0 && w.y >= 0 && w.z >= 0
+               && w.x < (int)g_WindowX && w.y < (int)g_WindowY && w.z < (int)g_WindowZ;
+
+    if (inside)
+        slot = g_RegionWindow[w.x + (int)g_WindowX * (w.y + (int)g_WindowY * w.z)];
+
+    return slot;
+}
+
+// Brick reference at a brick coordinate, or -1 (empty) when the region is not resident. A
+// non-resident region reading as empty is the same contract the CPU side uses.
+int BrickRefAt(int3 brickCoord)
+{
+    int result = -1;
+    int slot = RegionSlot(brickCoord >> k_RegionEdgeLog2);
+
+    if (slot >= 0)
+    {
+        int3 b = brickCoord & k_RegionEdgeMask;
+        int indexInRegion = b.x | (b.y << k_RegionEdgeLog2) | (b.z << (k_RegionEdgeLog2 * 2));
+        result = g_BrickRefs[slot * k_BricksPerRegion + indexInRegion];
+    }
+
+    return result;
+}
+
+uint VoxelMaterial(int poolIndex, int3 v)
+{
+    int voxelIndex = v.x | (v.y << 3) | (v.z << 6);          // matches OccupancyMask.VoxelIndex
+    uint packed = g_BrickVoxels[poolIndex * 128 + (voxelIndex >> 2)];
+    return (packed >> ((voxelIndex & 3) * 8)) & 0xFFu;
+}
+
+float3 SkyColour(float3 dir)
+{
+    float t = saturate(dir.y * 0.5 + 0.5);
+    return lerp(g_SkyHorizon.rgb, g_SkyZenith.rgb, t);
+}
+
+float3 Shade(uint material, float3 normal)
+{
+    float3 albedo = g_MaterialColours[min(material, 15u)].rgb;
+
+    // Deliberately plain: a lambert term plus a sky-coloured ambient. Irradiance probes are a
+    // separate piece of the pipeline and do not belong in the traversal kernel.
+    float ndotl = saturate(dot(normal, g_SunDirection));
+    float3 ambient = SkyColour(normal) * 0.35;
+    return albedo * (ambient + ndotl * 0.9);
+}
+
+// -- traversal ----------------------------------------------------------------
+
+// Marches the 8^3 voxels of one mixed brick. Returns the material hit, or 0.
+uint MarchBrick(int poolIndex, float3 entryVoxel, float3 dir, out float3 normal, out float tHit)
+{
+    normal = float3(0, 1, 0);
+    tHit = 0;
+
+    int3 v = clamp(int3(floor(entryVoxel)), 0, k_BrickEdge - 1);
+    int3 step = int3(dir.x >= 0 ? 1 : -1, dir.y >= 0 ? 1 : -1, dir.z >= 0 ? 1 : -1);
+
+    float3 invDir = 1.0 / max(abs(dir), 1e-8);
+    float3 nextBoundary = float3(step.x > 0 ? v.x + 1 : v.x,
+                                 step.y > 0 ? v.y + 1 : v.y,
+                                 step.z > 0 ? v.z + 1 : v.z);
+    float3 tMax = (nextBoundary - entryVoxel) * invDir * float3(sign(dir.x) != 0 ? 1 : 0,
+                                                                sign(dir.y) != 0 ? 1 : 0,
+                                                                sign(dir.z) != 0 ? 1 : 0);
+    tMax = abs(tMax);
+    float3 tDelta = invDir;
+
+    int axis = 1;
+
+    // 8^3 needs at most 22 steps to cross corner to corner.
+    [loop]
+    for (uint i = 0; i < 24u; i++)
+    {
+        uint material = VoxelMaterial(poolIndex, v);
+        if (material != 0u)
+        {
+            normal = float3(axis == 0 ? -step.x : 0, axis == 1 ? -step.y : 0, axis == 2 ? -step.z : 0);
+            return material;
+        }
+
+        if (tMax.x < tMax.y && tMax.x < tMax.z)      { v.x += step.x; tHit = tMax.x; tMax.x += tDelta.x; axis = 0; }
+        else if (tMax.y < tMax.z)                    { v.y += step.y; tHit = tMax.y; tMax.y += tDelta.y; axis = 1; }
+        else                                         { v.z += step.z; tHit = tMax.z; tMax.z += tDelta.z; axis = 2; }
+
+        if (any(v < 0) || any(v >= k_BrickEdge)) break;
+    }
+
+    return 0u;
+}
+
+[numthreads(8, 8, 1)]
+void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)g_TargetSize.x || id.y >= (uint)g_TargetSize.y) return;
+
+    // Per-pixel ray from the inverse view-projection. Reconstructing the ray here rather than
+    // receiving it per pixel is what makes this a raymarcher instead of a blit.
+    float2 uv = (float2(id.xy) + 0.5) / g_TargetSize;
+    float2 ndc = uv * 2.0 - 1.0;
+
+    float4 nearH = mul(g_InvViewProj, float4(ndc, 0.0, 1.0));
+    float4 farH  = mul(g_InvViewProj, float4(ndc, 1.0, 1.0));
+    float3 nearP = nearH.xyz / nearH.w;
+    float3 farP  = farH.xyz / farH.w;
+    float3 dir   = normalize(farP - nearP);
+
+    // Brick space: one unit per brick, which is what the outer DDA steps through.
+    float brickSize = g_VoxelSize * k_BrickEdge;
+    float3 origin = g_CameraPos / brickSize;
+
+    int3 brick = int3(floor(origin));
+    int3 step = int3(dir.x >= 0 ? 1 : -1, dir.y >= 0 ? 1 : -1, dir.z >= 0 ? 1 : -1);
+
+    float3 invDir = 1.0 / max(abs(dir), 1e-8);
+    float3 nextBoundary = float3(step.x > 0 ? brick.x + 1 : brick.x,
+                                 step.y > 0 ? brick.y + 1 : brick.y,
+                                 step.z > 0 ? brick.z + 1 : brick.z);
+    float3 tMax = abs((nextBoundary - origin) * invDir);
+    float3 tDelta = invDir;
+
+    float t = 0.0;
+    int axis = 1;
+    float maxT = g_MaxDistance / brickSize;
+
+    float3 colour = SkyColour(dir);
+
+    [loop]
+    for (uint i = 0; i < g_MaxSteps; i++)
+    {
+        if (t > maxT) break;
+
+        int brickRef = BrickRefAt(brick);
+
+        if (brickRef != -1)
+        {
+            float3 normal = float3(axis == 0 ? -step.x : 0, axis == 1 ? -step.y : 0, axis == 2 ? -step.z : 0);
+
+            if (brickRef < -1)
+            {
+                // Uniform, non-empty: the pointer itself carries the material. No memory read.
+                colour = Shade((uint)(-brickRef - 1), normal);
+                break;
+            }
+
+            // Mixed: descend. Entry point in voxel coordinates within this brick.
+            float3 entry = (origin + dir * (t + 1e-4)) - float3(brick);
+            float3 entryVoxel = clamp(entry * k_BrickEdge, 0.0, k_BrickEdge - 1e-3);
+
+            float3 hitNormal;
+            float tInner;
+            uint material = MarchBrick(brickRef, entryVoxel, dir, hitNormal, tInner);
+
+            if (material != 0u)
+            {
+                colour = Shade(material, hitNormal);
+                break;
+            }
+        }
+
+        if (tMax.x < tMax.y && tMax.x < tMax.z)      { brick.x += step.x; t = tMax.x; tMax.x += tDelta.x; axis = 0; }
+        else if (tMax.y < tMax.z)                    { brick.y += step.y; t = tMax.y; tMax.y += tDelta.y; axis = 1; }
+        else                                         { brick.z += step.z; t = tMax.z; tMax.z += tDelta.z; axis = 2; }
+    }
+
+    g_Colour[id.xy] = float4(colour, 1.0);
+}

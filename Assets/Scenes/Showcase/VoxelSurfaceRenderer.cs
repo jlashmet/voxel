@@ -54,6 +54,15 @@ namespace VoxelEngine.Showcase
         private bool _castShadows;
 
         public GameObject Root => _root;
+
+        /// <summary>
+        /// Hides the mesh path wholesale. Used when the GPU raymarch is driving, where leaving
+        /// these renderers on would draw the world a second time.
+        /// </summary>
+        public void SetVisible(bool visible)
+        {
+            if (_root != null && _root.activeSelf != visible) _root.SetActive(visible);
+        }
         public int RegionMeshCount => _surfaces.Count;
         public int FaceCount { get; private set; }
         public int VertexCount { get; private set; }

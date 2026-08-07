@@ -63,6 +63,13 @@ namespace VoxelEngine.Showcase
 
         private readonly HashSet<int3> _generated = new();
         private readonly HashSet<int3> _dirtyRegions = new();
+
+        /// <summary>
+        /// Regions whose brick pointer grid changed and must be re-uploaded to the GPU mirror.
+        /// Separate from <see cref="DirtyRegions"/> because the two consumers drain at different
+        /// rates: the mesher takes one region per budget slice, the uploader takes all of them.
+        /// </summary>
+        private readonly HashSet<int3> _regionsNeedingUpload = new();
         private readonly List<int3> _pendingLoads = new();
 
         public ref RegionTable Table => ref _table;
@@ -71,6 +78,9 @@ namespace VoxelEngine.Showcase
 
         /// <summary>Regions whose geometry changed and need their surface mesh rebuilt.</summary>
         public HashSet<int3> DirtyRegions => _dirtyRegions;
+
+        /// <summary>Regions whose brick pointers the renderer must re-upload.</summary>
+        public HashSet<int3> RegionsNeedingUpload => _regionsNeedingUpload;
 
         public uint Seed { get; }
 
@@ -215,6 +225,7 @@ namespace VoxelEngine.Showcase
                 ResidencyManager.EvictWithoutWriteBack(rc, ref _table, ref _pool);
                 _generated.Remove(rc);
                 _dirtyRegions.Remove(rc);
+                _regionsNeedingUpload.Remove(rc);
                 RegionsEvicted++;
             }
 
@@ -374,6 +385,7 @@ namespace VoxelEngine.Showcase
 
             _generated.Add(coord);
             _dirtyRegions.Add(coord);
+            _regionsNeedingUpload.Add(coord);
 
             // Neighbours must re-mesh too: faces along the shared border were meshed as the edge
             // of the loaded world and are now interior.
@@ -572,6 +584,7 @@ namespace VoxelEngine.Showcase
                               voxel.y >> VoxelDimensions.RegionVoxelEdgeLog2,
                               voxel.z >> VoxelDimensions.RegionVoxelEdgeLog2);
             _dirtyRegions.Add(rc);
+            _regionsNeedingUpload.Add(rc);
 
             int lx = voxel.x & (RegionVoxelEdge - 1);
             int lz = voxel.z & (RegionVoxelEdge - 1);
