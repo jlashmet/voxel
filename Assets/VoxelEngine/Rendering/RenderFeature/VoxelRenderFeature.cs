@@ -13,7 +13,9 @@ namespace VoxelEngine.Rendering
     /// </summary>
     public class VoxelRenderFeature : ScriptableRendererFeature
     {
-        [SerializeField] private bool m_Enabled = true;
+        [Tooltip("Off by default: the raymarch is not yet verified to render correctly, and a " +
+                 "renderer feature runs in the editor as well as in play mode.")]
+        [SerializeField] private bool m_Enabled;
 
         [Header("Raymarch")]
         [Tooltip("BrickRaymarch.compute")]
@@ -35,8 +37,18 @@ namespace VoxelEngine.Rendering
 
         private VoxelRenderPass m_Pass;
 
+        /// <summary>
+        /// Called by URP on every domain reload and on every inspector edit of this asset.
+        ///
+        /// The previous pass must be disposed here. It owns roughly 180 MB of ComputeBuffer,
+        /// and ComputeBuffer is not released by the garbage collector — dropping the reference
+        /// leaks the memory for the life of the process. Recreating without disposing leaked
+        /// that much per script compile, which is enough to exhaust a machine in an afternoon.
+        /// </summary>
         public override void Create()
         {
+            m_Pass?.Dispose();
+
             m_Pass = new VoxelRenderPass();
             m_Pass.Setup(m_Raymarch);
         }

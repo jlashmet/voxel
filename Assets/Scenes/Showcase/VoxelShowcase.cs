@@ -78,7 +78,7 @@ namespace VoxelEngine.Showcase
         [Header("Renderer")]
         [Tooltip("Raymarch the brickmap on the GPU (the engine path). Off falls back to the " +
                  "demo's mesh builder, which is only kept for A/B comparison.")]
-        [SerializeField] private bool m_UseRaymarch = true;
+        [SerializeField] private bool m_UseRaymarch;
 
         [Header("Presentation")]
         [Tooltip("Presentation-only. Shadows across a streamed world are expensive.")]
