@@ -202,27 +202,27 @@ uint FarHash(uint v)
 float2 SurfaceUV(float3 normal, float3 hitVoxel)
 {
     float3 a = abs(normal);
-    if (a.y >= a.x && a.y >= a.z) return hitVoxel.xz / 52.0;
-    if (a.x >= a.z) return hitVoxel.zy / 52.0;
-    return hitVoxel.xy / 52.0;
+    if (a.y >= a.x && a.y >= a.z) return hitVoxel.xz / 36.0;
+    if (a.x >= a.z) return hitVoxel.zy / 36.0;
+    return hitVoxel.xy / 36.0;
 }
 
-float3 SampleSurfaceTexture(uint material, float2 uv, float3 fallback)
+float3 SampleSurfaceTexture(uint material, float2 uv, float3 fallback, float lod)
 {
     float3 texel = fallback;
 
-    if (material == 1u) texel = g_StoneTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
-    else if (material == 2u) texel = g_WoodTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
-    else if (material == 3u) texel = g_SandTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
-    else if (material == 6u) texel = g_RockTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
-    else if (material == 7u) texel = g_SlateTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
+    if (material == 1u) texel = g_StoneTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 2u) texel = g_WoodTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 3u) texel = g_SandTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 6u) texel = g_RockTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 7u) texel = g_SlateTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
     else if (material == 8u)
-        texel = g_SlateTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb
+        texel = g_SlateTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb
               * float3(1.18, 0.68, 0.58);
-    else if (material == 10u) texel = g_GrassTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
-    else if (material == 13u) texel = g_DirtTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
+    else if (material == 10u) texel = g_GrassTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 13u) texel = g_DirtTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
     else if (material == 14u)
-        texel = g_GrassTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb * 0.72;
+        texel = g_GrassTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb * 0.72;
 
     return texel;
 }
@@ -231,32 +231,42 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
 {
     float3 albedo = g_MaterialColours[min(material, 15u)].rgb;
 
-    // The voxel material remains authoritative; textures are presentation-only detail sampled
-    // in world space, so adjacent bricks and region boundaries cannot introduce UV seams.
-    float3 textured = SampleSurfaceTexture(material, SurfaceUV(normal, hitVoxel), albedo);
-    albedo = lerp(albedo, textured, 0.74);
+    // The voxel material remains dominant. The authored maps contribute restrained colour
+    // variation in world space, so region boundaries cannot introduce UV seams. Estimate the
+    // mip from hit distance: compute shaders have no implicit pixel derivatives, and forcing mip
+    // zero made distant terrain shimmer while turning wall detail into high-frequency noise.
+    float hitDistance = length(hitVoxel * g_VoxelSize - g_CameraPos);
+    float textureLod = clamp(log2(max(1.0, hitDistance * 0.36)), 0.0, 8.0);
+    float3 textured = SampleSurfaceTexture(material, SurfaceUV(normal, hitVoxel),
+                                           albedo, textureLod);
+    float textureWeight = lerp(0.28, 0.12, saturate(hitDistance / 350.0));
 
-    // Large flat walls need a masonry scale between "one colour" and authored props. Courses
-    // are five voxels (50 cm) high with staggered joints; a small coordinate hash breaks the
-    // remaining uniformity without introducing temporal noise or authoritative state.
+    if (material == 1u)
+    {
+        // The stone map is intentionally pale blue and looks attractive in isolation, but using
+        // that average colour directly bleaches an entire fortress. Preserve its painted chips,
+        // mortar, and value changes around the palette's neutral masonry colour instead.
+        float textureLuminance = dot(textured, float3(0.2126, 0.7152, 0.0722));
+        float detail = clamp(textureLuminance / 0.68, 0.74, 1.20);
+        float3 chroma = textured / max(textureLuminance, 0.08);
+        albedo *= lerp(1.0, detail, 0.58);
+        albedo *= lerp(1.0, chroma, 0.06);
+    }
+    else
+    {
+        albedo = lerp(albedo, textured, textureWeight);
+    }
+
+    // The texture already contains its own brick/plank layout. Overlaying a second procedural
+    // mortar grid produced doubled, misaligned courses. Retain only subtle deterministic colour
+    // variation to break repetition without inventing another pattern.
     if (material == 1u || material == 6u)
     {
         int3 cell = int3(floor(hitVoxel));
-        int course = abs(cell.y) % 5;
-        int across = abs(normal.x) > 0.5 ? cell.z : cell.x;
-        int stagger = (abs(cell.y) / 5) & 1;
-        bool mortar = course == 0 || abs(across + stagger * 4) % 9 == 0;
-
         uint h = FarHash((uint)cell.x * 73856093u ^ (uint)cell.y * 19349663u
                          ^ (uint)cell.z * 83492791u ^ material * 2654435761u);
-        float variation = 0.88 + ((h >> 24) & 255u) * (0.18 / 255.0);
-        albedo *= mortar ? 0.72 : variation;
-    }
-
-    if (material == 2u)
-    {
-        int3 cell = int3(floor(hitVoxel));
-        albedo *= (abs(cell.y) % 4 == 0) ? 0.78 : 1.0;
+        float variation = 0.94 + ((h >> 24) & 255u) * (0.10 / 255.0);
+        albedo *= variation;
     }
 
     float ndotl = saturate(dot(normal, g_SunDirection));

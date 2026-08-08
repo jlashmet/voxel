@@ -78,8 +78,9 @@ namespace VoxelEngine.Showcase
         /// <summary>Drops the character onto the surface below the given position.</summary>
         public void SnapToGround(ShowcaseWorld world, Vector3 near)
         {
-            int surface = world.SurfaceHeight(Mathf.FloorToInt(near.x / VoxelSize),
-                                              Mathf.FloorToInt(near.z / VoxelSize));
+            int surface = world.OccupiedSurfaceHeight(
+                Mathf.FloorToInt(near.x / VoxelSize),
+                Mathf.FloorToInt(near.z / VoxelSize));
 
             Position = new Vector3(near.x, (surface + 2) * VoxelSize, near.z);
             Velocity = Vector3.zero;

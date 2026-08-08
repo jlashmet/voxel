@@ -672,13 +672,39 @@ namespace VoxelEngine.Showcase
             Seed ^ (uint)(centre.x * 73856093) ^ (uint)(centre.y * 19349663)
                  ^ (uint)(centre.z * 83492791) ^ ((uint)radius << 3) ^ (_editCounter * 2654435761u);
 
-        /// <summary>Spawn point in metres: above the terrain at the centre of region (0,0,0).</summary>
+        /// <summary>
+        /// Spawn point in metres, on the open southern approach to the castle.
+        ///
+        /// The former z=166 position lies inside the castle's sculpted outcrop. Grounding there
+        /// against the unmodified terrain sampler put the character's body inside raised rock.
+        /// This point is beyond both the cliff skirt and the longest possible gate bridge.
+        /// </summary>
         public Vector3 SpawnPosition()
         {
             int cx = RegionVoxelEdge / 2;
-            int cz = RegionVoxelEdge / 2;
+            const int cz = -80;
             int h = SurfaceHeight(cx, cz);
-            return new Vector3(cx * 0.1f, (h + 40) * 0.1f, (cz - 90) * 0.1f);
+            return new Vector3(cx * 0.1f, (h + 40) * 0.1f, cz * 0.1f);
+        }
+
+        /// <summary>
+        /// Highest occupied voxel in a generated world column.
+        ///
+        /// Unlike <see cref="SurfaceHeight"/>, this includes landmarks and player edits. Spawn
+        /// and respawn must use the world that collision actually reads, not the terrain that
+        /// existed before the castle sculpted it.
+        /// </summary>
+        public int OccupiedSurfaceHeight(int wx, int wz)
+        {
+            for (int y = RegionVoxelEdge - 1; y >= 0; y--)
+            {
+                byte material = VoxelAccess.GetVoxel(ref _table, in _pool, new int3(wx, y, wz));
+                if (material != VoxelDimensions.MaterialEmpty) return y;
+            }
+
+            // A generated terrain column always has a surface, but retaining the canonical
+            // sampler fallback makes this method safe if called before its region is resident.
+            return SurfaceHeight(wx, wz);
         }
 
         /// <summary>
