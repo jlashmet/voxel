@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Collision;
@@ -98,6 +99,27 @@ namespace VoxelEngine.Showcase
         private bool _hasAim;
         private int3 _aimVoxel, _placeVoxel;
 
+        private sealed class TornadoShot
+        {
+            public GameObject Root;
+            public LineRenderer[] Spirals;
+            public Transform Core;
+            public Mesh CoreMesh;
+            public Vector3 Position;
+            public Vector3 Direction;
+            public float Age;
+            public float Phase;
+            public int ImpactRadius;
+        }
+
+        private readonly List<TornadoShot> _tornadoes = new();
+        private Material _tornadoMaterial;
+
+        private const float TornadoSpeed = 28f;
+        private const float TornadoLifetime = 3f;
+
+        public int ActiveTornadoCount => _tornadoes.Count;
+
         private float _smoothedMs;
         private float _worstMs;
         private float _worstWindowStart;
@@ -145,6 +167,11 @@ namespace VoxelEngine.Showcase
 
             _renderer?.Dispose();
             _renderer = null;
+            for (int i = 0; i < _tornadoes.Count; i++)
+                DestroyTornado(_tornadoes[i]);
+            _tornadoes.Clear();
+            if (_tornadoMaterial != null) Destroy(_tornadoMaterial);
+            _tornadoMaterial = null;
             _world?.Dispose();
             _world = null;
         }
@@ -198,6 +225,8 @@ namespace VoxelEngine.Showcase
                 MovePlayer();
                 UpdateAim();
                 HandleEdits();
+                StepTornadoes(Time.deltaTime);
+                _world.StepPhysics(Time.deltaTime);
 
                 _world.StepStreaming(transform.position, m_GenerateBudgetMs);
             }
@@ -327,16 +356,15 @@ namespace VoxelEngine.Showcase
 
         private void HandleEdits()
         {
-            if (!_hasAim) return;
-
             if (Input.GetMouseButtonDown(0))
             {
-                var start = Time.realtimeSinceStartupAsDouble;
-                int changed = _world.Explode(_aimVoxel, (ushort)m_BrushRadius);
-                _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
-                _lastEditLabel = $"blast r{m_BrushRadius}: {changed:N0} voxels";
+                Vector3 hand = transform.position + transform.forward * 0.65f
+                             + transform.right * 0.34f - transform.up * 0.24f;
+                LaunchTornado(hand, transform.forward, m_BrushRadius);
+                _lastEditMs = 0.0;
+                _lastEditLabel = $"tornado launched r{m_BrushRadius}";
             }
-            else if (Input.GetMouseButtonDown(1))
+            else if (_hasAim && Input.GetMouseButtonDown(1))
             {
                 byte material = ShowcaseWorld.BuildableMaterials[_materialSlot];
                 var start = Time.realtimeSinceStartupAsDouble;
@@ -344,6 +372,237 @@ namespace VoxelEngine.Showcase
                 _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
                 _lastEditLabel = $"place {ShowcaseWorld.MaterialNames[material]} r{m_BrushRadius}: {changed:N0} voxels";
             }
+        }
+
+        /// <summary>Launches a visible corkscrew projectile; impact remains world-authoritative.</summary>
+        public void LaunchTornado(Vector3 origin, Vector3 direction, int impactRadius)
+        {
+            direction = direction.sqrMagnitude > 1e-6f ? direction.normalized : transform.forward;
+            EnsureTornadoMaterial();
+
+            var root = new GameObject("Tornado projectile");
+            root.transform.SetPositionAndRotation(origin, Quaternion.LookRotation(direction));
+            var shot = new TornadoShot
+            {
+                Root = root,
+                Spirals = new LineRenderer[3],
+                Position = origin,
+                Direction = direction,
+                ImpactRadius = Mathf.Clamp(impactRadius, m_MinBrushRadius, m_MaxBrushRadius),
+            };
+
+            Color[] colours =
+            {
+                new(0.72f, 0.94f, 1f, 0.92f),
+                new(0.36f, 0.72f, 1f, 0.78f),
+                new(0.86f, 0.90f, 0.98f, 0.58f),
+            };
+
+            for (int i = 0; i < shot.Spirals.Length; i++)
+            {
+                var child = new GameObject($"spiral {i}");
+                child.transform.SetParent(root.transform, false);
+                var line = child.AddComponent<LineRenderer>();
+                line.sharedMaterial = _tornadoMaterial;
+                line.useWorldSpace = false;
+                line.positionCount = 40;
+                line.widthMultiplier = 0.075f;
+                line.numCapVertices = 2;
+                line.numCornerVertices = 2;
+                line.alignment = LineAlignment.View;
+                line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                line.receiveShadows = false;
+                line.sortingOrder = 50;
+                line.startColor = colours[i];
+                line.endColor = new Color(colours[i].r, colours[i].g, colours[i].b, 0.08f);
+                shot.Spirals[i] = line;
+            }
+
+            CreateTornadoCore(shot);
+
+            UpdateTornadoVisual(shot);
+            _tornadoes.Add(shot);
+        }
+
+        private void StepTornadoes(float deltaTime)
+        {
+            for (int i = _tornadoes.Count - 1; i >= 0; i--)
+            {
+                var shot = _tornadoes[i];
+                Vector3 previous = shot.Position;
+                float distance = TornadoSpeed * deltaTime;
+                shot.Position += shot.Direction * distance;
+                shot.Age += deltaTime;
+                shot.Phase += deltaTime * 13f;
+
+                if (TryTornadoImpact(previous, shot.Position, out int3 hit))
+                {
+                    var start = Time.realtimeSinceStartupAsDouble;
+                    int changed = _world.Explode(hit, (ushort)shot.ImpactRadius);
+                    _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
+                    _lastEditLabel = $"tornado impact r{shot.ImpactRadius}: {changed:N0} voxels, " +
+                                     $"{_world.ActiveFallingVoxels:N0} falling";
+                    SpawnImpactBurst((Vector3)((float3)hit * VoxelSurfaceRenderer.VoxelSize));
+                    DestroyTornado(shot);
+                    _tornadoes.RemoveAt(i);
+                    continue;
+                }
+
+                if (shot.Age >= TornadoLifetime)
+                {
+                    DestroyTornado(shot);
+                    _tornadoes.RemoveAt(i);
+                    continue;
+                }
+
+                shot.Root.transform.SetPositionAndRotation(
+                    shot.Position, Quaternion.LookRotation(shot.Direction));
+                UpdateTornadoVisual(shot);
+            }
+        }
+
+        private bool TryTornadoImpact(Vector3 from, Vector3 to, out int3 hit)
+        {
+            int3 start = (int3)math.floor((float3)from / VoxelSurfaceRenderer.VoxelSize);
+            int3 end = (int3)math.floor((float3)to / VoxelSurfaceRenderer.VoxelSize);
+            var cursor = DdaTraversal.Cursor.Between(start, end);
+
+            while (cursor.MoveNext())
+            {
+                int3 voxel = cursor.Current;
+                if (!VoxelAccess.IsSolid(ref _world.Table, in _world.Pool, voxel)) continue;
+                hit = voxel;
+                return true;
+            }
+
+            hit = default;
+            return false;
+        }
+
+        private void UpdateTornadoVisual(TornadoShot shot)
+        {
+            const int points = 40;
+            for (int strand = 0; strand < shot.Spirals.Length; strand++)
+            {
+                var line = shot.Spirals[strand];
+                for (int p = 0; p < points; p++)
+                {
+                    float t = p / (float)(points - 1);
+                    float z = Mathf.Lerp(-1.9f, 0.25f, t);
+                    float radius = Mathf.Lerp(0.62f, 0.06f, t)
+                                 * (0.86f + Mathf.Sin(t * 18f + shot.Phase) * 0.14f);
+                    float angle = shot.Phase + strand * Mathf.PI * 2f / shot.Spirals.Length
+                                + t * Mathf.PI * 8f;
+                    line.SetPosition(p, new Vector3(Mathf.Cos(angle) * radius,
+                                                    Mathf.Sin(angle) * radius, z));
+                }
+            }
+
+            if (shot.Core != null)
+                shot.Core.localRotation = Quaternion.Euler(0f, 0f, shot.Phase * Mathf.Rad2Deg);
+        }
+
+        private void CreateTornadoCore(TornadoShot shot)
+        {
+            const int rings = 9;
+            const int sides = 16;
+            var vertices = new Vector3[rings * sides];
+            var triangles = new int[(rings - 1) * sides * 6];
+
+            for (int ring = 0; ring < rings; ring++)
+            {
+                float t = ring / (float)(rings - 1);
+                float z = Mathf.Lerp(-1.85f, 0.18f, t);
+                float radius = Mathf.Lerp(0.38f, 0.055f, t)
+                             * (1f + Mathf.Sin(t * Mathf.PI * 5f) * 0.12f);
+                for (int side = 0; side < sides; side++)
+                {
+                    float angle = side * Mathf.PI * 2f / sides + t * Mathf.PI * 2f;
+                    vertices[ring * sides + side] =
+                        new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius, z);
+                }
+            }
+
+            int triangle = 0;
+            for (int ring = 0; ring < rings - 1; ring++)
+            for (int side = 0; side < sides; side++)
+            {
+                int next = (side + 1) % sides;
+                int a = ring * sides + side;
+                int b = ring * sides + next;
+                int c = (ring + 1) * sides + side;
+                int d = (ring + 1) * sides + next;
+                triangles[triangle++] = a; triangles[triangle++] = b; triangles[triangle++] = c;
+                triangles[triangle++] = b; triangles[triangle++] = d; triangles[triangle++] = c;
+            }
+
+            shot.CoreMesh = new Mesh { name = "Runtime tornado funnel" };
+            shot.CoreMesh.vertices = vertices;
+            shot.CoreMesh.triangles = triangles;
+            shot.CoreMesh.RecalculateNormals();
+            shot.CoreMesh.RecalculateBounds();
+
+            var core = new GameObject("funnel core");
+            core.transform.SetParent(shot.Root.transform, false);
+            core.AddComponent<MeshFilter>().sharedMesh = shot.CoreMesh;
+            var renderer = core.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = _tornadoMaterial;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            shot.Core = core.transform;
+        }
+
+        private static void DestroyTornado(TornadoShot shot)
+        {
+            if (shot.CoreMesh != null) Destroy(shot.CoreMesh);
+            if (shot.Root != null) Destroy(shot.Root);
+        }
+
+        private void EnsureTornadoMaterial()
+        {
+            if (_tornadoMaterial != null) return;
+            // UI/Default is a late transparent vertex-colour shader. The custom voxel pass
+            // fills the opaque target immediately before transparents, so a regular opaque
+            // material is overwritten even when its geometry is nearer than the raymarched world.
+            Shader shader = Shader.Find("UI/Default");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            _tornadoMaterial = new Material(shader) { name = "Runtime Tornado" };
+            if (_tornadoMaterial.HasProperty("_Color"))
+                _tornadoMaterial.SetColor("_Color", new Color(0.55f, 0.86f, 1f, 0.48f));
+            if (_tornadoMaterial.HasProperty("_BaseColor"))
+                _tornadoMaterial.SetColor("_BaseColor", new Color(0.55f, 0.86f, 1f, 0.48f));
+        }
+
+        private void SpawnImpactBurst(Vector3 position)
+        {
+            var root = new GameObject("Tornado impact");
+            root.transform.position = position;
+            var particles = root.AddComponent<ParticleSystem>();
+            // A newly-added ParticleSystem starts immediately. Stop it before configuring
+            // duration and bursts; Unity rejects those mutations while it is playing.
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = particles.main;
+            main.duration = 0.18f;
+            main.loop = false;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.25f, 0.55f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(4f, 10f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.18f);
+            main.startColor = new ParticleSystem.MinMaxGradient(
+                new Color(0.42f, 0.78f, 1f, 0.9f), Color.white);
+            main.maxParticles = 140;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            var emission = particles.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 110) });
+            var shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 0.24f;
+            var renderer = particles.GetComponent<ParticleSystemRenderer>();
+            renderer.sharedMaterial = _tornadoMaterial;
+            particles.Play();
+            Destroy(root, 1.2f);
         }
 
         // -- picking -------------------------------------------------------------
@@ -397,8 +656,8 @@ namespace VoxelEngine.Showcase
 
             var style = new GUIStyle(GUI.skin.label) { fontSize = 13, richText = true, wordWrap = false };
 
-            GUI.Box(new Rect(10, 10, 430, 384), GUIContent.none);
-            GUILayout.BeginArea(new Rect(22, 20, 410, 368));
+            GUI.Box(new Rect(10, 10, 430, 404), GUIContent.none);
+            GUILayout.BeginArea(new Rect(22, 20, 410, 388));
 
             byte material = ShowcaseWorld.BuildableMaterials[_materialSlot];
             int poolBytes = _world.Pool.AllocatedCount * VoxelDimensions.BytesPerMixedBrick;
@@ -441,10 +700,12 @@ namespace VoxelEngine.Showcase
             GUILayout.Space(6);
 
             GUILayout.Label($"<b>Last edit</b>   {_lastEditLabel}   ({_lastEditMs:0.0} ms)", style);
+            GUILayout.Label($"physics            {_world.ActiveFallingVoxels:N0} falling voxels in " +
+                            $"{_world.ActiveFallingClusters} clusters   tornadoes {_tornadoes.Count}", style);
             GUILayout.Space(4);
 
             GUILayout.Label("WASD move   space jump   shift sprint   F fly   R respawn", style);
-            GUILayout.Label($"LMB blast   RMB build   wheel radius   1-4 material   " +
+            GUILayout.Label($"LMB tornado   RMB build   wheel impact radius   1-4 material   " +
                             $"r{m_BrushRadius} <b>{ShowcaseWorld.MaterialNames[material]}</b>", style);
             GUILayout.Label("T shadows   F1 hide HUD   esc release cursor", style);
 

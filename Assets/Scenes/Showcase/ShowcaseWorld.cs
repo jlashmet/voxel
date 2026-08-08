@@ -74,6 +74,31 @@ namespace VoxelEngine.Showcase
 
         private readonly HashSet<int3> _generated = new();
         private readonly HashSet<int3> _dirtyRegions = new();
+        private readonly List<FallingCluster> _fallingClusters = new();
+
+        private static readonly int3[] s_Neighbours =
+        {
+            new(1, 0, 0), new(-1, 0, 0), new(0, 1, 0),
+            new(0, -1, 0), new(0, 0, 1), new(0, 0, -1),
+        };
+
+        private struct FallingVoxel
+        {
+            public int3 Position;
+            public byte Material;
+        }
+
+        private sealed class FallingCluster
+        {
+            public readonly List<FallingVoxel> Voxels = new(512);
+            public float DownVelocity;
+            public float DropAccumulator;
+            public int PendingSteps;
+            public bool InGrid;
+        }
+
+        private const int MaxCollapseComponentVoxels = 262_144;
+        private const int FallingChunkVoxels = 2_048;
 
         /// <summary>
         /// Regions whose brick pointer grid changed and must be re-uploaded to the GPU mirror.
@@ -97,6 +122,19 @@ namespace VoxelEngine.Showcase
 
         /// <summary>Regions in the wanted set that have not been generated yet.</summary>
         public int PendingRegionLoads => _pendingLoads.Count;
+
+        public int ActiveFallingClusters => _fallingClusters.Count;
+
+        public int ActiveFallingVoxels
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < _fallingClusters.Count; i++)
+                    count += _fallingClusters[i].Voxels.Count;
+                return count;
+            }
+        }
 
         public int RegionsGenerated { get; private set; }
         public int RegionsEvicted { get; private set; }
@@ -561,6 +599,7 @@ namespace VoxelEngine.Showcase
         {
             var rng = new DeterministicRandom(MixSeed(centre, radius));
             var voxels = BuildBrushes.PlaceSphere(centre, radius, VoxelDimensions.MaterialEmpty, Seed);
+            var removed = new List<int3>(math.min(voxels.Length, 8192));
 
             int radiusSq = radius * radius;
             int changed = 0;
@@ -582,14 +621,218 @@ namespace VoxelEngine.Showcase
                 if (VoxelAccess.SetVoxel(ref _table, ref _pool, v, VoxelDimensions.MaterialEmpty))
                 {
                     changed++;
+                    removed.Add(v);
                     MarkDirty(v);
                 }
             }
 
             voxels.Dispose();
+            int collapsed = ResolveUnsupportedAfterRemoval(removed, centre, radius);
             _editCounter++;
-            LastEditVoxels = changed;
-            return changed;
+            LastEditVoxels = changed + collapsed;
+            return changed + collapsed;
+        }
+
+        /// <summary>
+        /// Removes one exact voxel and runs the same support/collapse pass as an impact. Exposed
+        /// for deterministic physics tests and for future non-explosive cutting tools.
+        /// </summary>
+        public int RemoveAndResolveCollapse(int3 voxel)
+        {
+            byte material = VoxelAccess.GetVoxel(ref _table, in _pool, voxel);
+            if (material == VoxelDimensions.MaterialEmpty || !_palette.IsDestructible(material))
+                return 0;
+            if (!VoxelAccess.SetVoxel(ref _table, ref _pool, voxel, VoxelDimensions.MaterialEmpty))
+                return 0;
+
+            MarkDirty(voxel);
+            var removed = new List<int3>(1) { voxel };
+            int collapsed = ResolveUnsupportedAfterRemoval(removed, voxel, 1);
+            LastEditVoxels = 1 + collapsed;
+            return 1 + collapsed;
+        }
+
+        /// <summary>
+        /// Advances unsupported voxel clusters under gravity. Clusters are temporarily removed
+        /// before collision so split chunks from the same collapse fall together, then written
+        /// back at their new integer-voxel positions. Rendering and collision therefore observe
+        /// the same authoritative moving state; no detached GameObject copy exists.
+        /// </summary>
+        public void StepPhysics(float deltaTime)
+        {
+            if (_fallingClusters.Count == 0 || deltaTime <= 0f) return;
+
+            bool needsStep = false;
+            for (int i = 0; i < _fallingClusters.Count; i++)
+            {
+                var cluster = _fallingClusters[i];
+                cluster.DownVelocity = math.min(cluster.DownVelocity + 9.81f * deltaTime, 64f);
+                cluster.DropAccumulator += cluster.DownVelocity * deltaTime / VoxelSurfaceRenderer.VoxelSize;
+                cluster.PendingSteps = math.min(16, (int)math.floor(cluster.DropAccumulator));
+                if (cluster.PendingSteps > 0)
+                {
+                    cluster.DropAccumulator -= cluster.PendingSteps;
+                    needsStep = true;
+                }
+                if (!cluster.InGrid) needsStep = true;
+            }
+
+            if (!needsStep) return;
+
+            // Remove every active cluster first, so chunks cut from one connected component do
+            // not falsely collide with each other at their previous positions.
+            for (int i = 0; i < _fallingClusters.Count; i++)
+            {
+                var cluster = _fallingClusters[i];
+                if (!cluster.InGrid) continue;
+                WriteCluster(cluster, VoxelDimensions.MaterialEmpty, useStoredMaterial: false);
+                cluster.InGrid = false;
+            }
+
+            var settled = new List<int>();
+            for (int i = 0; i < _fallingClusters.Count; i++)
+            {
+                var cluster = _fallingClusters[i];
+                bool hit = false;
+
+                for (int step = 0; step < cluster.PendingSteps; step++)
+                {
+                    if (!CanMoveDown(cluster))
+                    {
+                        hit = true;
+                        break;
+                    }
+
+                    for (int v = 0; v < cluster.Voxels.Count; v++)
+                    {
+                        var falling = cluster.Voxels[v];
+                        falling.Position.y--;
+                        cluster.Voxels[v] = falling;
+                    }
+                }
+
+                cluster.PendingSteps = 0;
+                if (hit) settled.Add(i);
+            }
+
+            // Publish only after every chunk has resolved against the stationary world. Writing
+            // one chunk early would make the next chunk collide with its sibling mid-fall.
+            for (int i = 0; i < _fallingClusters.Count; i++)
+            {
+                WriteCluster(_fallingClusters[i], 0, useStoredMaterial: true);
+                _fallingClusters[i].InGrid = true;
+            }
+
+            for (int i = settled.Count - 1; i >= 0; i--)
+                _fallingClusters.RemoveAt(settled[i]);
+        }
+
+        private int ResolveUnsupportedAfterRemoval(List<int3> removed, int3 impact, int radius)
+        {
+            if (removed.Count == 0) return 0;
+
+            int reach = math.clamp(radius * 6, 48, 256);
+            int3 min = impact - new int3(reach, reach, reach);
+            int3 max = impact + new int3(reach, reach * 2, reach);
+            var visited = new HashSet<int3>();
+            int collapsed = 0;
+
+            for (int r = 0; r < removed.Count; r++)
+            for (int d = 0; d < s_Neighbours.Length; d++)
+            {
+                int3 seed = removed[r] + s_Neighbours[d];
+                if (visited.Contains(seed)) continue;
+                byte seedMaterial = VoxelAccess.GetVoxel(ref _table, in _pool, seed);
+                if (seedMaterial == VoxelDimensions.MaterialEmpty) continue;
+
+                var component = new List<FallingVoxel>(512);
+                var queue = new Queue<int3>();
+                queue.Enqueue(seed);
+                visited.Add(seed);
+                bool anchored = false;
+                bool continuesOutside = false;
+                bool overflow = false;
+
+                while (queue.Count > 0)
+                {
+                    int3 current = queue.Dequeue();
+                    byte material = VoxelAccess.GetVoxel(ref _table, in _pool, current);
+                    if (material == VoxelDimensions.MaterialEmpty) continue;
+
+                    if (!_palette.IsDestructible(material) || current.y <= 0)
+                        anchored = true;
+
+                    component.Add(new FallingVoxel { Position = current, Material = material });
+                    if (component.Count >= MaxCollapseComponentVoxels)
+                    {
+                        overflow = true;
+                        break;
+                    }
+
+                    for (int n = 0; n < s_Neighbours.Length; n++)
+                    {
+                        int3 next = current + s_Neighbours[n];
+                        bool outside = math.any(next < min) || math.any(next > max);
+                        if (outside)
+                        {
+                            if (VoxelAccess.IsSolid(ref _table, in _pool, next))
+                                continuesOutside = true;
+                            continue;
+                        }
+
+                        if (visited.Contains(next)
+                            || !VoxelAccess.IsSolid(ref _table, in _pool, next)) continue;
+                        visited.Add(next);
+                        queue.Enqueue(next);
+                    }
+                }
+
+                // Oversized or boundary-connected masses are conservatively supported. This is
+                // the terrain/lower-stump path; severed architectural pieces remain bounded.
+                if (anchored || continuesOutside || overflow) continue;
+
+                for (int i = 0; i < component.Count; i++)
+                {
+                    var voxel = component[i];
+                    if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel.Position,
+                                             VoxelDimensions.MaterialEmpty))
+                    {
+                        MarkDirty(voxel.Position);
+                        collapsed++;
+                    }
+                }
+
+                for (int offset = 0; offset < component.Count; offset += FallingChunkVoxels)
+                {
+                    var cluster = new FallingCluster();
+                    int end = math.min(component.Count, offset + FallingChunkVoxels);
+                    for (int i = offset; i < end; i++) cluster.Voxels.Add(component[i]);
+                    _fallingClusters.Add(cluster);
+                }
+            }
+
+            return collapsed;
+        }
+
+        private bool CanMoveDown(FallingCluster cluster)
+        {
+            for (int i = 0; i < cluster.Voxels.Count; i++)
+            {
+                int3 below = cluster.Voxels[i].Position + new int3(0, -1, 0);
+                if (below.y < 0 || VoxelAccess.IsSolid(ref _table, in _pool, below)) return false;
+            }
+            return true;
+        }
+
+        private void WriteCluster(FallingCluster cluster, byte material, bool useStoredMaterial)
+        {
+            for (int i = 0; i < cluster.Voxels.Count; i++)
+            {
+                var voxel = cluster.Voxels[i];
+                byte value = useStoredMaterial ? voxel.Material : material;
+                if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel.Position, value))
+                    MarkDirty(voxel.Position);
+            }
         }
 
         /// <summary>Places a solid sphere — the build half of the loop.</summary>
@@ -627,7 +870,6 @@ namespace VoxelEngine.Showcase
 
             // An edit can allocate or collapse a brick, which rewrites the pointer, so the GPU
             // copy of this region's grid is stale until it is sent again.
-            _regionsNeedingUpload.Add(rc);
             _regionsNeedingUpload.Add(rc);
 
             int lx = voxel.x & (RegionVoxelEdge - 1);
@@ -718,6 +960,7 @@ namespace VoxelEngine.Showcase
         public void Dispose()
         {
             FinishRegionForced();
+            _fallingClusters.Clear();
             if (_catalogue.IsCreated) _catalogue.Dispose();
             if (_table.IsCreated) _table.Dispose();
             if (_pool.IsCreated) _pool.Dispose();
