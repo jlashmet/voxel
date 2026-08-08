@@ -380,7 +380,25 @@ float FarHeightMetres(float3 p)
 {
     int wx = (int)floor(p.x / g_VoxelSize);
     int wz = (int)floor(p.z / g_VoxelSize);
-    return FarSurfaceHeight(wx, wz) * g_VoxelSize;
+
+    float terrain = FarSurfaceHeight(wx, wz) * g_VoxelSize;
+
+    // The authored voxel volume owns the playable landscape around the castle. Beyond it, build
+    // broad mountain masses for composition only: they frame the skyline like the concept art
+    // without creating CPU geometry, collision, or save-state that the player could reach. The
+    // 140 m clear radius keeps this addition well outside the castle cameras and their streamed
+    // regions; the long blend turns the intervening far field into foothills instead of a wall.
+    float castleRadius = length(p.xz - float2(25.6, 37.6));
+    float mountainEnvelope = smoothstep(140.0, 360.0, castleRadius);
+
+    float broad = FarOctave(wx, wz, 11, 1024) / 1024.0 + 0.5;
+    float medium = FarOctave(wx, wz, 9, 1024) / 1024.0 + 0.5;
+    float fine = FarOctave(wx, wz, 7, 1024) / 1024.0 + 0.5;
+    float ridge = 1.0 - abs(broad * 2.0 - 1.0);
+    float peaks = pow(saturate(ridge * 0.78 + medium * 0.32 + fine * 0.12 - 0.24), 1.65);
+    float mountains = mountainEnvelope * (8.0 + peaks * 78.0);
+
+    return terrain + mountains;
 }
 
 // Marches the procedural heightfield from tStart outward. Steps grow with distance: near the
@@ -389,7 +407,9 @@ bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
 {
     colour = float3(0, 0, 0);
 
-    float maxHeight = (512.0 - 24.0) * g_VoxelSize;
+    // Canonical terrain tops out around 49 m, while the presentation-only background can reach
+    // roughly 135 m. This is only an early-out ceiling; it does not change the voxel world bounds.
+    float maxHeight = 145.0;
     float3 p = origin + dir * tStart;
 
     // Looking up from above everything: nothing to find.
@@ -432,12 +452,18 @@ bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
             float hU = FarHeightMetres(p + float3(0, 0, e));
             float3 normal = normalize(float3(hL - hR, 2.0 * e, hD - hU));
 
-            uint material = p.y < (float)g_FarBaseHeight * g_VoxelSize ? 3u : 10u;  // sand : grass
+            float castleRadius = length(p.xz - float2(25.6, 37.6));
+            float mountainBlend = smoothstep(160.0, 390.0, castleRadius);
+            uint material = mountainBlend > 0.42
+                ? 6u
+                : (p.y < (float)g_FarBaseHeight * g_VoxelSize ? 3u : 10u);
             colour = Shade(material, normal, p / g_VoxelSize);
 
-            // Fade into the sky with distance so the far edge is a horizon, not a wall.
+            // Mountains get atmospheric perspective early enough to sit behind the castle rather
+            // than competing with it; the terrain horizon keeps its original long-distance fade.
             float haze = saturate((hi - g_FarDistance * 0.35) / (g_FarDistance * 0.65));
-            colour = lerp(colour, SkyColour(dir), haze * 0.85);
+            float mountainHaze = mountainBlend * smoothstep(160.0, 950.0, hi) * 0.46;
+            colour = lerp(colour, SkyColour(dir), max(haze * 0.85, mountainHaze));
             return true;
         }
 
