@@ -181,12 +181,12 @@ namespace VoxelEngine.Tests.PlayMode
                                     new Vector3(plan.Centre.x + 37,
                                                 baseY + plan.FloorHeight + 15,
                                                 keepMin.z + keepSize.z / 2 - 2) * 0.1f),
-                ("21_library",     new Vector3(plan.Centre.x + 26,
+                ("21_library",     new Vector3(plan.Centre.x + 55,
                                                 baseY + plan.FloorHeight * 3 + 18,
-                                                keepMin.z + keepSize.z / 2 - 44) * 0.1f,
-                                    new Vector3(keepMin.x + 18,
+                                                keepMin.z + keepSize.z / 2 - 72) * 0.1f,
+                                    new Vector3(plan.Centre.x - 35,
                                                 baseY + plan.FloorHeight * 3 + 15,
-                                                keepMin.z + keepSize.z / 2 - 44) * 0.1f),
+                                                keepMin.z + keepSize.z / 2 - 35) * 0.1f),
 
                 // The actual first-person reveal is part of the authored presentation. Keep it
                 // under visual regression alongside the diagnostic orbit views.

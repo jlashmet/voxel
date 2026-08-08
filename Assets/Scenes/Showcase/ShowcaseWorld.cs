@@ -624,6 +624,12 @@ namespace VoxelEngine.Showcase
                 LightAt(plan.Centre.x - 40, dungeonY + 9, caveZ - 15, 9.0f),
                 LightAt(plan.Centre.x + 45, dungeonY + 11, caveZ + 24, 9.0f),
                 LightAt(plan.Centre.x + 145, dungeonY + 12, caveZ + 25, 9.0f),
+                LightAt(plan.Centre.x - 52, baseY + plan.FloorHeight + 16,
+                        keepCentreZ + 27, 6.5f),
+                LightAt(plan.Centre.x, baseY + plan.FloorHeight * 3 + 17,
+                        keepCentreZ - 42, 6.0f),
+                LightAt(plan.Centre.x, baseY + plan.FloorHeight * 3 + 17,
+                        keepCentreZ + 42, 6.0f),
             };
 
             var hallWarm = new Vector4(1.00f, 0.38f, 0.10f, 1.85f);
@@ -638,6 +644,7 @@ namespace VoxelEngine.Showcase
                 chapelWarm, chapelWarm,
                 cellarWarm, cellarWarm, cellarWarm, cellarWarm, sideRoomWarm, sideRoomWarm,
                 caveBlue, caveBlue, caveBlue,
+                upperWarm, upperWarm, upperWarm,
             };
         }
 

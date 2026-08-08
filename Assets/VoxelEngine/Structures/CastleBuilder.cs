@@ -1667,6 +1667,13 @@ namespace VoxelEngine.Structures
                 case 1: // bedchamber: framed bed, mattress, canopy, chest, wardrobe and rug
                     int bedX = cx + 24;
                     int bedZ = cz - 23;
+
+                    // Shallow ceiling bays give the large chamber the timber rhythm of the
+                    // reference without lowering the 4.6 m clear room volume.
+                    for (int beamZ = min.z + 22; beamZ < min.z + size.z - 18; beamZ += 36)
+                        brush.Box(new int3(min.x + 9, y + plan.FloorHeight - 7, beamZ),
+                                  new int3(size.x - 18, 4, 4), Mat.Wood);
+
                     for (int bxSide = 0; bxSide <= 1; bxSide++)
                     for (int bzSide = 0; bzSide <= 1; bzSide++)
                         brush.Box(new int3(bedX + bxSide * 22, y + 3, bedZ + bzSide * 39),
@@ -1727,6 +1734,43 @@ namespace VoxelEngine.Structures
                                            hangingZ - 13),
                                   new int3(3, 3, 26), Mat.Gold);
                     }
+
+                    // Two backed chairs and a low drinks table make the hearth a second focal
+                    // group. They remain against the west wall, outside the central bed-door and
+                    // spiral-stair circulation lanes.
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        int chairZ = cz + 25 + side * 18;
+                        int chairX = min.x + inner + 31;
+                        brush.Box(new int3(chairX, y + 4, chairZ - 5),
+                                  new int3(10, 4, 10), Mat.Wood);
+                        brush.Box(new int3(chairX, y + 8, chairZ - 5),
+                                  new int3(4, 13, 10), Mat.Wood);
+                        brush.Box(new int3(chairX + 2, y + 8, chairZ - 4),
+                                  new int3(7, 3, 8), Mat.Cloth);
+                    }
+                    brush.Cylinder(min.x + inner + 48, y + 3, cz + 25,
+                                   7, 7, Mat.Wood);
+                    brush.Disc(min.x + inner + 48, y + 10, cz + 25, 9, Mat.Gold);
+
+                    // A compact six-light chandelier hangs over the rug rather than the canopy,
+                    // balancing the warm bedside lamps and fireplace.
+                    int bedLampX = cx - 18;
+                    brush.Box(new int3(bedLampX - 1, y + 32, cz - 1),
+                              new int3(2, 10, 2), Mat.Gold);
+                    brush.Box(new int3(bedLampX - 12, y + 30, cz - 1),
+                              new int3(24, 2, 2), Mat.Wood);
+                    brush.Box(new int3(bedLampX - 1, y + 30, cz - 10),
+                              new int3(2, 2, 20), Mat.Wood);
+                    int2[] bedroomCandles =
+                    {
+                        new(-10, 0), new(10, 0), new(-5, -8), new(5, -8),
+                        new(-5, 8), new(5, 8),
+                    };
+                    foreach (int2 candle in bedroomCandles)
+                        brush.Box(new int3(bedLampX + candle.x - 2, y + 27,
+                                           cz + candle.y - 2),
+                                  new int3(4, 6, 4), Mat.Glass);
                     break;
 
                 default: // library / stores: shelves against the walls
@@ -1771,6 +1815,13 @@ namespace VoxelEngine.Structures
                         brush.Box(new int3(cx - 2, y + 13, deskZ - 1),
                                   new int3(4, 3, 3), Mat.Glass);
 
+                        // Uneven stacks keep the broad desk surfaces from reading as empty slabs.
+                        for (int book = 0; book < 3; book++)
+                            brush.Box(new int3(cx - 15 + book * 8, y + 13 + book,
+                                               deskZ + 4),
+                                      new int3(7, 1, 9),
+                                      (book & 1) == 0 ? Mat.Cloth : Mat.Gold);
+
                         // A backed reading chair remains offset from the centre doorway.
                         brush.Box(new int3(cx + 25, y + 4, deskZ - 4),
                                   new int3(9, 4, 9), Mat.Wood);
@@ -1783,15 +1834,34 @@ namespace VoxelEngine.Structures
                     for (int beamZ = min.z + 24; beamZ < min.z + size.z - 20; beamZ += 38)
                         brush.Box(new int3(min.x + 9, y + plan.FloorHeight - 7, beamZ),
                                   new int3(size.x - 18, 4, 4), Mat.Wood);
-                    brush.Box(new int3(cx - 1, y + 31, cz - 1),
-                              new int3(2, 10, 2), Mat.Gold);
-                    brush.Box(new int3(cx - 10, y + 29, cz - 1),
-                              new int3(20, 2, 2), Mat.Wood);
-                    brush.Box(new int3(cx - 1, y + 29, cz - 10),
-                              new int3(2, 2, 20), Mat.Wood);
-                    for (int side = -1; side <= 1; side += 2)
-                        brush.Box(new int3(cx + side * 9 - 2, y + 25, cz - 2),
-                                  new int3(4, 6, 4), Mat.Glass);
+
+                    // One fixture per partitioned reading room. The former central chandelier
+                    // was embedded in the dividing wall and left both desks at the edge of its
+                    // light pool.
+                    for (int roomSide = -1; roomSide <= 1; roomSide += 2)
+                    {
+                        int lampZ = cz + roomSide * 42;
+                        brush.Box(new int3(cx - 1, y + 31, lampZ - 1),
+                                  new int3(2, 10, 2), Mat.Gold);
+                        brush.Box(new int3(cx - 10, y + 29, lampZ - 1),
+                                  new int3(20, 2, 2), Mat.Wood);
+                        brush.Box(new int3(cx - 1, y + 29, lampZ - 10),
+                                  new int3(2, 2, 20), Mat.Wood);
+                        int2[] libraryCandles =
+                        {
+                            new(-9, 0), new(9, 0), new(0, -9), new(0, 9),
+                        };
+                        foreach (int2 candle in libraryCandles)
+                            brush.Box(new int3(cx + candle.x - 2, y + 25,
+                                               lampZ + candle.y - 2),
+                                      new int3(4, 6, 4), Mat.Glass);
+
+                        // Paired wall sconces extend the light rhythm down both shelf aisles.
+                        brush.Box(new int3(min.x + inner + 17, y + 18, lampZ - 2),
+                                  new int3(4, 7, 4), Mat.Glass);
+                        brush.Box(new int3(min.x + size.x - inner - 21, y + 18, lampZ - 2),
+                                  new int3(4, 7, 4), Mat.Glass);
+                    }
                     break;
             }
 
