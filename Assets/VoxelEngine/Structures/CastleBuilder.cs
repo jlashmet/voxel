@@ -793,8 +793,12 @@ namespace VoxelEngine.Structures
                 // Both retain their real spiral stair and courtyard door; this is usable height,
                 // not a sealed silhouette prop. Roofed rear towers form a second skyline layer.
                 int heightVariation = i == 0 ? 58 : i == 1 ? 8 : i == 2 ? 30 : 14;
+                int towerHeight = plan.TowerHeight + heightVariation;
                 Tower(ref brush, in plan, corners[i], plan.TowerRadius,
-                      plan.TowerHeight + heightVariation, i >= 2);
+                      towerHeight, i >= 2);
+                if (i < 2)
+                    FrontTowerWindows(ref brush, corners[i], plan.TowerRadius,
+                                      towerHeight, plan.FloorHeight);
             }
         }
 
@@ -820,6 +824,16 @@ namespace VoxelEngine.Structures
 
             // Spiral stair up the shaft.
             brush.SpiralStair(at.x, at.y + 2, at.z, radius - 14, height - 24, Mat.Stone);
+
+            // Shallow floor-height belt courses break the otherwise uninterrupted cylinder into
+            // occupied storeys. They project only three voxels from the outside skin and never
+            // enter the stair room.
+            for (int y = at.y + plan.FloorHeight; y < at.y + height - 28;
+                 y += plan.FloorHeight)
+            {
+                brush.Cylinder(at.x, y - 2, at.z, radius + 2, 3,
+                               Mat.DarkStone, radius - 1);
+            }
 
             // Every tower needs a real ground-floor entrance. Aim it toward the castle centre;
             // gate towers therefore open into the bailey and corner turrets open into the keep.
@@ -859,6 +873,36 @@ namespace VoxelEngine.Structures
             brush.Box(new int3(at.x, peakY, at.z), new int3(2, 30, 2), Mat.Wood);
             brush.Box(new int3(at.x + 2, peakY + 17, at.z), new int3(22, 11, 2), Mat.Cloth);
             brush.Set(at.x, peakY + 30, at.z, Mat.Gold);
+        }
+
+        /// <summary>
+        /// Places consistent occupied openings on the hero-facing arc of a drum tower. Random
+        /// arrow slits are useful around the full circumference, but they can leave the entire
+        /// approach elevation blank for a valid seed. These arched windows remain in the outer
+        /// masonry shell and therefore cannot intersect the spiral stair or its landings.
+        /// </summary>
+        private static void FrontTowerWindows(ref VoxelBrush brush, int3 at, int radius,
+                                              int height, int floorHeight)
+        {
+            const int width = 14;
+            const int windowHeight = 24;
+            int frontZ = at.z - radius - 2;
+
+            for (int floor = 1; floor * floorHeight + windowHeight + 12 < height; floor++)
+            {
+                int y = at.y + floor * floorHeight + 9;
+
+                // Projecting dark-stone hood and sill provide real shadow depth around the warm
+                // opening. Carve afterward so the hood becomes a ring rather than a filled badge.
+                brush.Arch(new int3(at.x - width / 2 - 3, y - 3, frontZ - 3),
+                           width + 6, windowHeight + 6, 5, 2, Mat.DarkStone);
+                brush.Arch(new int3(at.x - width / 2, y, frontZ - 4),
+                           width, windowHeight, 20, 2, Mat.Empty);
+                brush.Arch(new int3(at.x - width / 2 + 3, y + 3, frontZ + 2),
+                           width - 6, windowHeight - 7, 2, 2, Mat.Glass);
+                brush.Box(new int3(at.x - width / 2 - 4, y - 4, frontZ - 4),
+                          new int3(width + 8, 3, 6), Mat.DarkStone);
+            }
         }
 
         private static void CarveTowerDoor(ref VoxelBrush brush, in CastlePlan plan,
@@ -901,8 +945,12 @@ namespace VoxelEngine.Structures
             brush.Box(new int3(plan.Centre.x - spacing, baseY, gateZ - plan.WallThickness),
                       new int3(spacing * 2, blockHeight, plan.WallThickness * 2), Mat.Stone);
 
-            Tower(ref brush, in plan, left, r, plan.GateTowerHeight + 38, false);
-            Tower(ref brush, in plan, right, r, plan.GateTowerHeight + 12, false);
+            int leftHeight = plan.GateTowerHeight + 38;
+            int rightHeight = plan.GateTowerHeight + 12;
+            Tower(ref brush, in plan, left, r, leftHeight, false);
+            Tower(ref brush, in plan, right, r, rightHeight, false);
+            FrontTowerWindows(ref brush, left, r, leftHeight, plan.FloorHeight);
+            FrontTowerWindows(ref brush, right, r, rightHeight, plan.FloorHeight);
 
             // Arched gate passage.
             brush.Arch(new int3(plan.Centre.x - 26, baseY, gateZ - plan.WallThickness),
