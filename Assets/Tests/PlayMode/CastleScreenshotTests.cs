@@ -131,8 +131,8 @@ namespace VoxelEngine.Tests.PlayMode
 
                 // East shoulder: verifies the ravine, cascade, pool, hall balcony, and tree belt
                 // as a composition rather than only asserting that their voxels were written.
-                ("08_waterfall",   waterfallPool + new Vector3(9f, 7f, 14f),
-                                    waterfallPool + new Vector3(-4f, 1f, 0f)),
+                ("08_waterfall",   waterfallPool + new Vector3(17f, 10f, 10f),
+                                    waterfallPool + new Vector3(-6f, 2f, 0f)),
 
                 // The reference treats rooms and underground spaces as first-class generated
                 // content. These cameras sit inside the authoritative voxel volume—no cutaway

@@ -25,9 +25,13 @@ namespace VoxelEngine.Showcase
         private const byte Stone = ShowcaseWorld.MatStone;
         private const byte Wood = ShowcaseWorld.MatWood;
         private const byte Glass = ShowcaseWorld.MatGlass;
+        private const byte Tile = 8;
 
         /// <summary>Cottage footprint in voxels — 9.6 m square, 8 m tall.</summary>
         private static readonly int3 Footprint = new(96, 80, 96);
+
+        /// <summary>Authored first site, exposed so runtime tests probe the catalogue contract.</summary>
+        public static readonly int3 FirstCottageOrigin = new(690, 0, 92);
 
         public static FeatureCatalogue Build(uint seed, Allocator allocator)
         {
@@ -41,7 +45,7 @@ namespace VoxelEngine.Showcase
                 anchors: 2,
                 slots: 0,
                 programLength: program.Length,
-                materials: 3,
+                materials: 4,
                 explicitPlacements: placements.Count,
                 overrides: 0,
                 allocator);
@@ -60,6 +64,7 @@ namespace VoxelEngine.Showcase
             catalogue.Materials[0] = Stone;
             catalogue.Materials[1] = Wood;
             catalogue.Materials[2] = Glass;
+            catalogue.Materials[3] = Tile;
 
             catalogue.Definitions[CottageId] = new FeatureDefinition
             {
@@ -73,7 +78,7 @@ namespace VoxelEngine.Showcase
                 AnchorOffset = 0, AnchorCount = 2,
                 SlotOffset = 0, SlotCount = 0,
                 ProgramOffset = 0, ProgramLength = program.Length,
-                MaterialOffset = 0, MaterialCount = 3,
+                MaterialOffset = 0, MaterialCount = 4,
                 MaxPrimitives = 64,
             };
 
@@ -103,21 +108,22 @@ namespace VoxelEngine.Showcase
 
         /// <summary>
         /// Four cottages east of the castle, one per orientation, so rotation can be checked by
-        /// walking around them rather than by reading a test result. They deliberately live in
-        /// the neighbouring region: the castle sculpts a broad rocky outcrop around spawn, and
-        /// landmarks must not compete for authority over the same voxels.
+        /// walking around them rather than by reading a test result. Their staggered lane reads as
+        /// a small settlement from the castle approach instead of four test boxes on one axis.
+        /// They deliberately live beyond the sculpted crag so landmarks do not compete for terrain
+        /// authority.
         /// </summary>
         private static List<ExplicitPlacement> PlacementSites(uint seed)
         {
             var sites = new List<ExplicitPlacement>();
 
-            // The castle's sculpted skirt ends well before x = 700 for every seeded plan.
+            // The castle's sculpted skirt ends well before x = 680 for every seeded plan.
             int3[] origins =
             {
-                new(700, 0, 100),
-                new(700, 0, 230),
-                new(700, 0, 360),
-                new(700, 0, 490),
+                FirstCottageOrigin,
+                new(790, 0, 190),
+                new(710, 0, 322),
+                new(805, 0, 438),
             };
 
             for (var i = 0; i < origins.Length; i++)
@@ -150,7 +156,8 @@ namespace VoxelEngine.Showcase
 
         /// <summary>
         /// The cottage, as opcodes: foundation, a solid block of wall with the interior carved
-        /// out of it, a doorway, windows, and a gable roof.
+        /// out of it, an open doorway, glazed windows, expressed timber frame, chimney, dormer,
+        /// and tiled gable roof.
         ///
         /// Carving the interior out of a solid block rather than placing four walls is not just
         /// shorter — four walls invite a one-voxel gap at a corner, and a gap in a wall is the
@@ -160,9 +167,9 @@ namespace VoxelEngine.Showcase
         {
             const int width = 64;
             const int depth = 64;
-            const int wall = 32;
+            const int wall = 38;
             const int thickness = 4;
-            const int roof = 16;
+            const int roof = 20;
 
             var code = new List<int>();
 
@@ -193,9 +200,43 @@ namespace VoxelEngine.Showcase
             Box(width - 20, 22, 0, 10, 10, thickness, 0, PrimitiveMode.Carve);
             Box(width - 20, 22, 0, 10, 10, thickness, Glass, PrimitiveMode.Fill);
 
-            // Gable roof.
+            // Expressed timber frame. These two-voxel-deep members sit on the outside skin, so
+            // they create shadow depth without narrowing the hollow room.
+            Box(0, 8, 0, 4, wall, 2, Wood, PrimitiveMode.Fill);
+            Box(width - 4, 8, 0, 4, wall, 2, Wood, PrimitiveMode.Fill);
+            Box(0, 8, depth - 2, 4, wall, 2, Wood, PrimitiveMode.Fill);
+            Box(width - 4, 8, depth - 2, 4, wall, 2, Wood, PrimitiveMode.Fill);
+            Box(0, 8, 0, width, 4, 2, Wood, PrimitiveMode.Fill);
+            Box(0, 8 + wall - 5, 0, width, 5, 2, Wood, PrimitiveMode.Fill);
+            Box(0, 25, 0, width, 3, 2, Wood, PrimitiveMode.Fill);
+            Box(width / 2 - 8, 8, 0, 4, 22, 2, Wood, PrimitiveMode.Fill);
+            Box(width / 2 + 4, 8, 0, 4, 22, 2, Wood, PrimitiveMode.Fill);
+            Box(width / 2 - 10, 28, 0, 20, 4, 2, Wood, PrimitiveMode.Fill);
+
+            // Window hoods and sills turn the warm panes into constructed openings rather than
+            // emissive squares painted on the wall.
+            Box(7, 19, 0, 16, 3, 3, Wood, PrimitiveMode.Fill);
+            Box(7, 32, 0, 16, 3, 3, Wood, PrimitiveMode.Fill);
+            Box(width - 23, 19, 0, 16, 3, 3, Wood, PrimitiveMode.Fill);
+            Box(width - 23, 32, 0, 16, 3, 3, Wood, PrimitiveMode.Fill);
+
+            // Stone chimney rises through the rear roof slope and gives each rotated instance a
+            // readable domestic silhouette.
+            Box(width - 17, 8 + wall - 4, depth - 19, 9, roof + 20, 9,
+                Stone, PrimitiveMode.Fill);
+
+            // Main tiled gable and a small front dormer with its own warm pane and cap.
             Op(ShapeOp.EmitPrism, 0, 8 + wall, 0, width, roof, depth,
-               (int)PrismProfile.Gable, Wood, (int)PrimitiveMode.Fill);
+               (int)PrismProfile.Gable, Tile, (int)PrimitiveMode.Fill);
+            Box(width / 2 - 11, 8 + wall + 5, 0, 22, 13, 12,
+                Stone, PrimitiveMode.Fill);
+            Box(width / 2 - 4, 8 + wall + 8, 0, 8, 8, 3,
+                Glass, PrimitiveMode.Fill);
+            Op(ShapeOp.EmitPrism, width / 2 - 14, 8 + wall + 18, 0, 28, 9, 16,
+               (int)PrismProfile.Gable, Tile, (int)PrimitiveMode.Fill);
+
+            // Low stone stoop marks the open, traversable doorway and seats the house on slopes.
+            Box(width / 2 - 9, 5, 0, 18, 3, 10, Stone, PrimitiveMode.Fill);
 
             Op(ShapeOp.SetAnchor, 0, width / 2, 8, 0, (int)Facing.South);
             Op(ShapeOp.SetAnchor, 1, width / 2, 8, depth / 2, (int)Facing.Up);

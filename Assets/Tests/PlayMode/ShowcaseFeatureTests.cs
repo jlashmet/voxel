@@ -38,7 +38,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.Greater(world.FeatureVoxelsBuilt, 1000, "cottages generated but wrote almost nothing");
 
             // Wall material at the south face of the first cottage, just above its foundation.
-            var origin = new int3(700, 0, 100);
+            int3 origin = ShowcaseCatalogue.FirstCottageOrigin;
             int lowest = int.MaxValue;
             for (var z = 0; z <= 96; z += 16)
             for (var x = 0; x <= 96; x += 16)
@@ -63,7 +63,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             // The roof must be above the walls and below the footprint ceiling.
             byte roof = VoxelAccess.GetVoxel(ref world.Table, in world.Pool,
-                                             new int3(origin.x + 32, baseY + 44, origin.z + 32));
+                                             new int3(origin.x + 32, baseY + 50, origin.z + 32));
             Debug.Log($"### ROOF voxel={roof}");
             Assert.AreNotEqual(VoxelDimensions.MaterialEmpty, roof, "the cottage has no roof");
         }
