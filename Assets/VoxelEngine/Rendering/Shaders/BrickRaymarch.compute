@@ -460,7 +460,17 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // Tone map. Without it the bright faces clip flat and the whole image reads as washed-out
     // pastel, which no amount of geometry fixes.
     lit = lit * 1.45;
-    return lit / (1.0 + lit * 0.38);
+    lit = lit / (1.0 + lit * 0.38);
+
+    // URP fog cannot affect this compute-owned colour target. Apply restrained aerial
+    // perspective here so the streamed landscape and distant masonry settle into the same sky
+    // as the procedural mountains. Keep the first sixty metres completely clear: interiors,
+    // destruction feedback, and the playable face of the castle must retain full contrast.
+    float3 viewDirection = normalize(hitVoxel * g_VoxelSize - g_CameraPos);
+    float distanceFog = smoothstep(60.0, 300.0, hitDistance) * 0.40;
+    float lowAltitude = 1.0 - smoothstep(32.0, 72.0, hitVoxel.y * g_VoxelSize);
+    distanceFog *= lerp(0.82, 1.12, lowAltitude);
+    return lerp(lit, SkyColour(viewDirection), saturate(distanceFog));
 }
 
 // -- implicit far field -------------------------------------------------------
