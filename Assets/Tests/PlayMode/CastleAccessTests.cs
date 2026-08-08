@@ -53,6 +53,35 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator PlayerEInteractionUsesMotorProximityAndClearsItsPrompt()
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
+                "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+
+            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            var world = (ShowcaseWorld)typeof(VoxelShowcase)
+                .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
+            var motor = (CharacterMotor)typeof(VoxelShowcase)
+                .GetField("_motor", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
+
+            motor.Position = world.CastleTrapdoorPosition + Vector3.right * 20f;
+            Assert.That(showcase.InteractionPromptVisible, Is.False,
+                "the E prompt must not advertise an out-of-range interaction");
+            Assert.That(showcase.TryInteract(), Is.False,
+                "the player-facing interaction must reject a distant motor position");
+
+            motor.Position = world.CastleTrapdoorPosition + Vector3.up;
+            Assert.That(showcase.InteractionPromptVisible, Is.True,
+                "a nearby player should receive the E prompt");
+            Assert.That(showcase.TryInteract(), Is.True,
+                "the same operation bound to E should open the nearby hatch");
+            Assert.That(world.CastleTrapdoorOpen, Is.True);
+            Assert.That(showcase.InteractionPromptVisible, Is.False,
+                "the prompt must disappear after the one-shot hatch interaction completes");
+        }
+
+        [UnityTest]
         public IEnumerator EveryKeepRoomAndHallWingConnectsToTheMainStair()
         {
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(

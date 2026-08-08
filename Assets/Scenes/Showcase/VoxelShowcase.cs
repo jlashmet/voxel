@@ -360,11 +360,7 @@ namespace VoxelEngine.Showcase
 
             if (Input.GetKeyDown(KeyCode.R)) Spawn();
 
-            if (Input.GetKeyDown(KeyCode.E) && _world.TryOpenCastleTrapdoor(_motor.Position))
-            {
-                _lastEditMs = 0.0;
-                _lastEditLabel = "secret cellar trapdoor opened";
-            }
+            if (Input.GetKeyDown(KeyCode.E)) TryInteract();
 
             for (int i = 0; i < ShowcaseWorld.BuildableMaterials.Length; i++)
                 if (Input.GetKeyDown(KeyCode.Alpha1 + i)) _materialSlot = i;
@@ -373,6 +369,25 @@ namespace VoxelEngine.Showcase
             if (Mathf.Abs(scroll) > 0.01f)
                 m_BrushRadius = Mathf.Clamp(m_BrushRadius + (scroll > 0f ? 2 : -2),
                                             m_MinBrushRadius, m_MaxBrushRadius);
+        }
+
+        /// <summary>Whether the player-facing E prompt should currently be visible.</summary>
+        public bool InteractionPromptVisible => _world != null && _motor != null
+            && _world.CanOpenCastleTrapdoor(_motor.Position);
+
+        /// <summary>
+        /// Performs the interaction bound to E. Keeping this as a callable driver operation lets
+        /// tests exercise the same motor-position gate and feedback path as keyboard input rather
+        /// than bypassing the showcase and calling the world mutation directly.
+        /// </summary>
+        public bool TryInteract()
+        {
+            if (_world == null || _motor == null
+                || !_world.TryOpenCastleTrapdoor(_motor.Position)) return false;
+
+            _lastEditMs = 0.0;
+            _lastEditLabel = "secret cellar trapdoor opened";
+            return true;
         }
 
         private void HandleEdits()
@@ -691,8 +706,10 @@ namespace VoxelEngine.Showcase
 
         private void OnGUI()
         {
-            if (!Application.isPlaying || !_showHud || _world == null || _renderer == null) return;
+            if (!Application.isPlaying || _world == null || _renderer == null) return;
 
+            if (_showHud)
+            {
             var style = new GUIStyle(GUI.skin.label) { fontSize = 13, richText = true, wordWrap = false };
 
             GUI.Box(new Rect(10, 10, 430, 404), GUIContent.none);
@@ -750,8 +767,11 @@ namespace VoxelEngine.Showcase
             GUILayout.Label("T shadows   F1 hide HUD   esc release cursor", style);
 
             GUILayout.EndArea();
+            }
 
-            if (_world.CanOpenCastleTrapdoor(_motor.Position))
+            // Interaction guidance is gameplay UI, not diagnostics. F1 may hide the performance
+            // HUD, but it must never make the secret hatch undiscoverable.
+            if (InteractionPromptVisible)
             {
                 var prompt = new GUIStyle(GUI.skin.box)
                 {
