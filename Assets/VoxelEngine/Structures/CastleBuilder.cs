@@ -542,6 +542,81 @@ namespace VoxelEngine.Structures
                     new int3(0, 0, 1), hz * 2, t, h, false);
             WallRun(ref brush, in plan, new int3(plan.Centre.x + hx - t, baseY, plan.Centre.z - hz),
                     new int3(0, 0, 1), hz * 2, t, h, false);
+
+            CurtainFacadeDetails(ref brush, in plan, baseY);
+        }
+
+        /// <summary>
+        /// Adds the secondary depth layer visible in the reference: battered buttresses, blind
+        /// Gothic bays, machicolation corbels, and roofed sentry pinnacles. These are exterior
+        /// structure rather than sealed rooms, so they enrich the silhouette without inventing
+        /// inaccessible occupied space.
+        /// </summary>
+        private static void CurtainFacadeDetails(ref VoxelBrush brush, in CastlePlan plan, int baseY)
+        {
+            int hx = plan.BaileyHalfX;
+            int hz = plan.BaileyHalfZ;
+            int gateZ = plan.Centre.z - hz;
+            int wallTop = baseY + plan.WallHeight;
+
+            // South/front curtain: paired buttresses and recessed arched panels on both shoulders.
+            for (int side = -1; side <= 1; side += 2)
+            for (int bay = 0; bay < 3; bay++)
+            {
+                int x = plan.Centre.x + side * (112 + bay * 58);
+                if (math.abs(x - plan.Centre.x) >= hx - plan.TowerRadius) continue;
+
+                brush.Box(new int3(x - 7, baseY, gateZ - 12),
+                          new int3(14, 58, 14), Mat.DarkStone);
+                brush.Box(new int3(x - 5, baseY + 50, gateZ - 9),
+                          new int3(10, plan.WallHeight - 44, 11), Mat.Stone);
+                brush.Box(new int3(x - 9, baseY + 52, gateZ - 14),
+                          new int3(18, 5, 16), Mat.Stone);
+
+                int panelX = x + side * 26 - 10;
+                brush.Arch(new int3(panelX, baseY + 28, gateZ - 2),
+                           20, 38, 3, 2, Mat.DarkStone);
+                brush.Arch(new int3(panelX + 6, baseY + 39, gateZ - 3),
+                           8, 21, 4, 2, Mat.Empty);
+            }
+
+            // Corbels throw a repeating shadow beneath the wall walk, breaking the single flat
+            // strip that dominated the first exterior renders.
+            for (int x = plan.Centre.x - hx + plan.TowerRadius;
+                 x <= plan.Centre.x + hx - plan.TowerRadius; x += 24)
+            {
+                if (math.abs(x - plan.Centre.x) < 82) continue;
+                brush.Box(new int3(x - 5, wallTop - 8, gateZ - 10),
+                          new int3(10, 12, 12), Mat.DarkStone);
+            }
+
+            // Two solid roofed sentry pinnacles establish the layered roofline seen between the
+            // gatehouse and corner towers. They contain no inaccessible interior volume.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int x = plan.Centre.x + side * 132;
+                brush.Cylinder(x, wallTop + 1, gateZ + plan.WallThickness / 2,
+                               14, 28, Mat.Stone);
+                brush.Cylinder(x, wallTop + 25, gateZ + plan.WallThickness / 2,
+                               17, 5, Mat.DarkStone, 10);
+                brush.Cone(x, wallTop + 29, gateZ + plan.WallThickness / 2,
+                           16, 32, Mat.Slate);
+                brush.Box(new int3(x, wallTop + 60, gateZ + plan.WallThickness / 2),
+                          new int3(2, 15, 2), Mat.Gold);
+            }
+
+            // Narrow buttresses on the side curtains keep the same architectural language in
+            // oblique and aerial views instead of detailing only the postcard facade.
+            for (int side = -1; side <= 1; side += 2)
+            for (int z = plan.Centre.z - hz + 76; z < plan.Centre.z + hz - 54; z += 82)
+            {
+                int x = plan.Centre.x + side * hx;
+                int outerX = x + side * 2;
+                brush.Box(new int3(outerX + (side < 0 ? -10 : 0), baseY, z - 6),
+                          new int3(10, 62, 12), Mat.DarkStone);
+                brush.Box(new int3(outerX + (side < 0 ? -7 : 0), baseY + 54, z - 5),
+                          new int3(7, plan.WallHeight - 48, 10), Mat.Stone);
+            }
         }
 
         /// <summary>
@@ -931,6 +1006,27 @@ namespace VoxelEngine.Structures
                 }
             }
 
+            // Floor-height string courses and projecting window hoods make the tall keep read as
+            // stacked occupied storeys rather than one extruded slab. They stay outside the shell
+            // and therefore do not narrow any interior route.
+            for (int f = 1; f < floors; f++)
+            {
+                int courseY = baseY + f * plan.FloorHeight - 3;
+                brush.Box(new int3(min.x - 3, courseY, min.z - 3),
+                          new int3(size.x + 6, 3, 4), Mat.DarkStone);
+                brush.Box(new int3(min.x - 3, courseY, min.z + size.z - 1),
+                          new int3(size.x + 6, 3, 4), Mat.DarkStone);
+            }
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int bannerX = plan.Centre.x + side * 52;
+                brush.Box(new int3(bannerX - 7, baseY + plan.FloorHeight * 2 + 8, min.z - 3),
+                          new int3(14, 54, 3), Mat.Cloth);
+                brush.Box(new int3(bannerX - 10, baseY + plan.FloorHeight * 2 + 59, min.z - 4),
+                          new int3(20, 3, 4), Mat.Gold);
+            }
+
             // Battlements and a steep roof.
             int topY = baseY + floors * plan.FloorHeight;
             brush.Box(new int3(min.x - 5, topY, min.z - 5), new int3(size.x + 10, 6, size.z + 10), Mat.DarkStone);
@@ -944,6 +1040,108 @@ namespace VoxelEngine.Structures
             brush.Gable(new int3(min.x, topY + 8, min.z), new int3(size.x, 70, size.z), true, Mat.Tile);
 
             GreatHallWing(ref brush, in plan, min, size, baseY);
+            ChapelWing(ref brush, in plan, min, size, baseY);
+        }
+
+        /// <summary>
+        /// A tall chapel accumulated against the west side of the keep. Unlike a decorative
+        /// annex it has a player-sized joining arch, a continuous central aisle, and no sealed
+        /// upper volume. The asymmetrical lower roofline is a defining feature of the reference.
+        /// </summary>
+        private static void ChapelWing(ref VoxelBrush brush, in CastlePlan plan,
+                                       int3 keepMin, int3 keepSize, int baseY)
+        {
+            int width = math.max(78, keepSize.x / 3);
+            int depth = math.max(96, keepSize.z * 3 / 5);
+            int height = plan.FloorHeight * 2;
+            var min = new int3(keepMin.x - width + 4, baseY,
+                               keepMin.z + keepSize.z - depth - 38);
+            int centreZ = min.z + depth / 2;
+
+            brush.Box(new int3(min.x - 5, baseY - 12, min.z - 5),
+                      new int3(width + 10, 16, depth + 10), Mat.DarkStone);
+            brush.HollowBox(min, new int3(width, height, depth), 6,
+                            Mat.Stone, false, false);
+            brush.FillBulk(new int3(min.x + 6, baseY + 1, min.z + 6),
+                           new int3(width - 12, height - 1, depth - 12), Mat.Empty);
+
+            // Direct joining arch and a hard circulation core across the overlapping shells.
+            brush.Arch(new int3(keepMin.x - 8, baseY + 2, centreZ - 12),
+                       24, 36, 16, 0, Mat.Empty);
+            brush.Box(new int3(keepMin.x - 12, baseY, centreZ - 8),
+                      new int3(24, 2, 16), Mat.Stone);
+            brush.Box(new int3(keepMin.x - 12, baseY + 2, centreZ - 8),
+                      new int3(24, 25, 16), Mat.Empty);
+
+            // West rose window and two tall side lancets.
+            brush.Arch(new int3(min.x - 1, baseY + 30, centreZ - 16),
+                       32, 34, 8, 0, Mat.Empty);
+            brush.Box(new int3(min.x + 2, baseY + 35, centreZ - 10),
+                      new int3(3, 24, 20), Mat.Glass);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int z = centreZ + side * 34;
+                brush.Arch(new int3(min.x + width / 2 - 7, baseY + 20, z - 6),
+                           14, 38, 7, 2, Mat.Empty);
+                brush.Box(new int3(min.x + width / 2 - 4, baseY + 25, z - 4),
+                          new int3(8, 26, 2), Mat.Glass);
+            }
+
+            // Raised altar at the west end. Pews flank a 1.6 m aisle from the keep doorway, so
+            // the room remains traversable even though it reads as densely furnished.
+            brush.Box(new int3(min.x + 9, baseY + 1, centreZ - 22),
+                      new int3(14, 5, 44), Mat.DarkStone);
+            brush.Box(new int3(min.x + 13, baseY + 8, centreZ - 14),
+                      new int3(7, 15, 28), Mat.Cloth);
+            brush.Box(new int3(min.x + 10, baseY + 14, centreZ - 2),
+                      new int3(12, 4, 4), Mat.Gold);
+            brush.Box(new int3(min.x + 14, baseY + 10, centreZ - 2),
+                      new int3(4, 13, 4), Mat.Gold);
+            brush.Box(new int3(min.x + 18, baseY + 6, centreZ - 18),
+                      new int3(10, 5, 36), Mat.Wood);
+
+            for (int row = 0; row < 3; row++)
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int x = min.x + 34 + row * 15;
+                int z = centreZ + side * 17;
+                brush.Box(new int3(x, baseY + 2, z - 10),
+                          new int3(7, 6, 20), Mat.Wood);
+                brush.Box(new int3(x + 5, baseY + 7, z - 10),
+                          new int3(3, 10, 20), Mat.Wood);
+            }
+
+            // Timber hammer-beam suggestion and warm hanging lamps in the tall volume.
+            for (int x = min.x + 18; x < min.x + width - 12; x += 20)
+            {
+                brush.Box(new int3(x, baseY + 55, min.z + 7),
+                          new int3(4, 4, depth - 14), Mat.Wood);
+                brush.Box(new int3(x, baseY + 44, min.z + 7),
+                          new int3(4, 15, 4), Mat.Wood);
+                brush.Box(new int3(x, baseY + 44, min.z + depth - 11),
+                          new int3(4, 15, 4), Mat.Wood);
+            }
+            for (int side = -1; side <= 1; side += 2)
+            {
+                brush.Box(new int3(min.x + width / 2 - 2, baseY + 28,
+                                   centreZ + side * 24 - 2),
+                          new int3(4, 9, 4), Mat.Glass);
+                brush.Box(new int3(min.x + width / 2 - 1, baseY + 37,
+                                   centreZ + side * 24 - 1),
+                          new int3(2, 18, 2), Mat.Gold);
+            }
+
+            brush.Gable(new int3(min.x - 4, baseY + height, min.z - 4),
+                        new int3(width + 8, 42, depth + 8), false, Mat.Slate);
+
+            // External buttresses anchor the chapel visually to the cliff-side masonry.
+            for (int z = min.z + 10; z < min.z + depth - 8; z += 30)
+            {
+                brush.Box(new int3(min.x - 8, baseY, z),
+                          new int3(10, 46, 9), Mat.DarkStone);
+                brush.Box(new int3(min.x - 5, baseY + 40, z + 1),
+                          new int3(7, 25, 7), Mat.Stone);
+            }
         }
 
         /// <summary>

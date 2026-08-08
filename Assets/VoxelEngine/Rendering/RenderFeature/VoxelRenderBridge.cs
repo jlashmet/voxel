@@ -74,6 +74,14 @@ namespace VoxelEngine.Rendering
         public static Color SkyHorizon = new(0.62f, 0.70f, 0.80f);
         public static Color SkyZenith = new(0.25f, 0.44f, 0.72f);
 
+        /// <summary>
+        /// Presentation lights consumed directly by the compute shader. xyz is world metres and
+        /// w is radius; matching colour xyz is linear tint and w is intensity. The raymarch owns
+        /// its pixels, so ordinary Unity lights cannot illuminate voxel hits.
+        /// </summary>
+        public static Vector4[] LocalLights = System.Array.Empty<Vector4>();
+        public static Vector4[] LocalLightColours = System.Array.Empty<Vector4>();
+
         /// <summary>Material colours by index. Element 0 is empty and never shaded.</summary>
         public static Vector4[] MaterialColours =
         {

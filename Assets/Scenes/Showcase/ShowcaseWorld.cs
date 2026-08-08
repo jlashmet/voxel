@@ -563,6 +563,7 @@ namespace VoxelEngine.Showcase
             _castlePlan = plan;
             _hasCastlePlan = true;
             _castleTrapdoorOpen = false;
+            BuildCastlePresentationLights(in plan);
 
             CastleVoxels = brush.TotalVoxelsWritten;
 
@@ -578,6 +579,61 @@ namespace VoxelEngine.Showcase
 
         /// <summary>Voxels the castle wrote. Reported in the HUD so its cost is visible.</summary>
         public long CastleVoxels { get; private set; }
+
+        public Vector4[] CastlePresentationLights { get; private set; } = Array.Empty<Vector4>();
+        public Vector4[] CastlePresentationLightColours { get; private set; } = Array.Empty<Vector4>();
+
+        private void BuildCastlePresentationLights(in CastlePlan plan)
+        {
+            int baseY = plan.Centre.y + plan.PlateauHeight;
+            int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
+            int keepCentreZ = keepMinZ + plan.KeepHalfZ;
+            int keepMaxX = plan.Centre.x + plan.KeepHalfX;
+            int wingWidth = math.max(96, plan.KeepHalfX * 4 / 5);
+            int wingDepth = math.max(80, plan.KeepHalfZ * 2 - 72);
+            int wingCentreX = keepMaxX - 4 + wingWidth / 2;
+            int wingCentreZ = keepMinZ + 24 + wingDepth / 2;
+            int chapelWidth = math.max(78, plan.KeepHalfX * 2 / 3);
+            int chapelDepth = math.max(96, plan.KeepHalfZ * 6 / 5);
+            int chapelCentreX = plan.Centre.x - plan.KeepHalfX - chapelWidth / 2 + 4;
+            int chapelCentreZ = keepMinZ + plan.KeepHalfZ * 2 - chapelDepth / 2 - 38;
+            int cellarY = baseY - 46;
+            int dungeonY = cellarY - 120;
+            int trapZ = keepMinZ + plan.KeepHalfZ + 40;
+            int caveZ = trapZ - 411;
+
+            static Vector4 LightAt(int x, int y, int z, float radiusMetres) =>
+                new(x * 0.1f, y * 0.1f, z * 0.1f, radiusMetres);
+
+            CastlePresentationLights = new[]
+            {
+                LightAt(plan.Centre.x - 45, baseY + 17, keepCentreZ - 28, 7.0f),
+                LightAt(plan.Centre.x + 42, baseY + 17, keepCentreZ + 30, 7.0f),
+                LightAt(plan.Centre.x, baseY + plan.FloorHeight + 17, keepCentreZ, 8.0f),
+                LightAt(plan.Centre.x, baseY + plan.FloorHeight * 3 + 17, keepCentreZ, 7.0f),
+                LightAt(wingCentreX, baseY + 17, wingCentreZ, 7.5f),
+                LightAt(wingCentreX, baseY + plan.FloorHeight + 17, wingCentreZ, 7.0f),
+                LightAt(chapelCentreX - 18, baseY + 24, chapelCentreZ, 7.5f),
+                LightAt(chapelCentreX + 22, baseY + 27, chapelCentreZ, 7.5f),
+                LightAt(plan.Centre.x - 55, cellarY + 17, keepCentreZ, 7.0f),
+                LightAt(plan.Centre.x + 58, cellarY + 17, keepCentreZ, 7.0f),
+                LightAt(plan.Centre.x - 55, dungeonY + 18, trapZ, 8.5f),
+                LightAt(plan.Centre.x + 55, dungeonY + 18, trapZ, 8.5f),
+                LightAt(plan.Centre.x - 40, dungeonY + 9, caveZ - 15, 9.0f),
+                LightAt(plan.Centre.x + 45, dungeonY + 11, caveZ + 24, 9.0f),
+            };
+
+            var warm = new Vector4(1.00f, 0.38f, 0.10f, 2.35f);
+            var chapelWarm = new Vector4(1.00f, 0.42f, 0.14f, 1.15f);
+            var cellarWarm = new Vector4(1.00f, 0.28f, 0.06f, 2.05f);
+            var caveBlue = new Vector4(0.12f, 0.62f, 1.00f, 1.85f);
+            CastlePresentationLightColours = new[]
+            {
+                warm, warm, warm, warm, warm, warm, chapelWarm, chapelWarm,
+                cellarWarm, cellarWarm, cellarWarm, cellarWarm,
+                caveBlue, caveBlue,
+            };
+        }
 
         public bool CastleTrapdoorOpen => _castleTrapdoorOpen;
 

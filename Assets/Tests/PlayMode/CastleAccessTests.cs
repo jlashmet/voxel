@@ -79,6 +79,17 @@ namespace VoxelEngine.Tests.PlayMode
             AssertActorClear(world, new int3(plan.Centre.x, baseY + 2, keepMin.z + 4),
                 "main keep entrance");
 
+            // The asymmetrical chapel is an occupied wing, not facade dressing. Its central
+            // aisle must connect the altar end directly to the keep joining arch.
+            int chapelWidth = math.max(78, keepSize.x / 3);
+            int chapelDepth = math.max(96, keepSize.z * 3 / 5);
+            var chapelMin = new int3(keepMin.x - chapelWidth + 4, baseY,
+                                     keepMin.z + keepSize.z - chapelDepth - 38);
+            int chapelCentreZ = chapelMin.z + chapelDepth / 2;
+            for (int x = chapelMin.x + 31; x <= keepMin.x + 4; x += 2)
+                AssertActorClear(world, new int3(x, baseY + 2, chapelCentreZ),
+                    $"chapel aisle at x={x}");
+
             // Curtain, gatehouse, and keep turrets are rooms too. Each must have a player-sized
             // inward-facing entrance and a first-floor landing on its own stair.
             int hx = plan.BaileyHalfX, hz = plan.BaileyHalfZ;

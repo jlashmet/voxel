@@ -54,6 +54,9 @@ namespace VoxelEngine.Rendering
         private static readonly int s_CutawayEnabled = Shader.PropertyToID("g_CutawayEnabled");
         private static readonly int s_CutawayMinVoxel = Shader.PropertyToID("g_CutawayMinVoxel");
         private static readonly int s_CutawayMaxVoxel = Shader.PropertyToID("g_CutawayMaxVoxel");
+        private static readonly int s_LocalLightCount = Shader.PropertyToID("g_LocalLightCount");
+        private static readonly int s_LocalLights = Shader.PropertyToID("g_LocalLights");
+        private static readonly int s_LocalLightColours = Shader.PropertyToID("g_LocalLightColours");
 
         private readonly VoxelGpuBuffers _buffers = new();
         private ComputeShader _raymarch;
@@ -151,6 +154,10 @@ namespace VoxelEngine.Rendering
             {
                 format = GraphicsFormat.R16G16B16A16_SFloat,
                 enableRandomWrite = true,
+                // The presentation tier may raymarch above native resolution. Bilinear resolve
+                // turns that extra coverage into stable sub-pixel edges instead of point-sampled
+                // stair steps when the compute target is composited back to the camera.
+                filterMode = FilterMode.Bilinear,
                 clearBuffer = false,
                 name = "_VoxelRaymarch",
             };
@@ -233,6 +240,16 @@ namespace VoxelEngine.Rendering
                 cmd.SetComputeVectorParam(data.Raymarch, s_CutawayMaxVoxel,
                                           VoxelRenderBridge.CutawayMaxVoxel);
                 cmd.SetComputeVectorArrayParam(data.Raymarch, s_MaterialColours, VoxelRenderBridge.MaterialColours);
+                int localLightCount = Mathf.Min(16, VoxelRenderBridge.LocalLights?.Length ?? 0,
+                                                VoxelRenderBridge.LocalLightColours?.Length ?? 0);
+                cmd.SetComputeIntParam(data.Raymarch, s_LocalLightCount, localLightCount);
+                if (localLightCount > 0)
+                {
+                    cmd.SetComputeVectorArrayParam(data.Raymarch, s_LocalLights,
+                                                   VoxelRenderBridge.LocalLights);
+                    cmd.SetComputeVectorArrayParam(data.Raymarch, s_LocalLightColours,
+                                                   VoxelRenderBridge.LocalLightColours);
+                }
 
                 // Seed the target with what URP has drawn so far, so rays that miss composite
                 // as "unchanged" rather than as this shader's idea of the sky.

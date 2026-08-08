@@ -69,6 +69,9 @@ float3   g_CutawayMaxVoxel;
 
 // Material colours, indexed by material id. Slot 0 is empty and never shaded.
 float4 g_MaterialColours[16];
+uint g_LocalLightCount;
+float4 g_LocalLights[16];          // xyz position in metres, w radius
+float4 g_LocalLightColours[16];    // rgb tint, w intensity
 
 static const int k_BrickEdge = 8;
 static const int k_RegionEdgeLog2 = 6;      // bricks per region edge = 64
@@ -138,6 +141,57 @@ bool SolidAt(int3 voxel)
     if (brickRef < -1) return true;                 // uniform, non-empty
 
     return VoxelMaterial(brickRef, voxel & 7) != 0u;
+}
+
+// Bevels lighting across exposed voxel edges while preserving the authoritative grid and exact
+// ray hit. Neighbour checks are essential: without them every voxel inside a flat wall rounds
+// independently and the wall looks quilted. Only an edge with empty space beside it contributes
+// a tangent normal, producing the soft masonry/wood silhouette of a high-resolution voxel model
+// without changing collision, storage, or destruction topology.
+float3 RoundedSurfaceNormal(float3 hitVoxel, float3 faceNormal)
+{
+    const float bevel = 0.24;
+    const float strength = 0.82;
+
+    int3 solidVoxel = int3(floor(hitVoxel - faceNormal * 0.02));
+    float3 f = frac(hitVoxel);
+    float3 n = faceNormal;
+
+    if (abs(faceNormal.x) > 0.5)
+    {
+        if (!SolidAt(solidVoxel + int3(0, -1, 0)))
+            n.y -= strength * (1.0 - smoothstep(0.0, bevel, f.y));
+        if (!SolidAt(solidVoxel + int3(0, 1, 0)))
+            n.y += strength * smoothstep(1.0 - bevel, 1.0, f.y);
+        if (!SolidAt(solidVoxel + int3(0, 0, -1)))
+            n.z -= strength * (1.0 - smoothstep(0.0, bevel, f.z));
+        if (!SolidAt(solidVoxel + int3(0, 0, 1)))
+            n.z += strength * smoothstep(1.0 - bevel, 1.0, f.z);
+    }
+    else if (abs(faceNormal.y) > 0.5)
+    {
+        if (!SolidAt(solidVoxel + int3(-1, 0, 0)))
+            n.x -= strength * (1.0 - smoothstep(0.0, bevel, f.x));
+        if (!SolidAt(solidVoxel + int3(1, 0, 0)))
+            n.x += strength * smoothstep(1.0 - bevel, 1.0, f.x);
+        if (!SolidAt(solidVoxel + int3(0, 0, -1)))
+            n.z -= strength * (1.0 - smoothstep(0.0, bevel, f.z));
+        if (!SolidAt(solidVoxel + int3(0, 0, 1)))
+            n.z += strength * smoothstep(1.0 - bevel, 1.0, f.z);
+    }
+    else
+    {
+        if (!SolidAt(solidVoxel + int3(-1, 0, 0)))
+            n.x -= strength * (1.0 - smoothstep(0.0, bevel, f.x));
+        if (!SolidAt(solidVoxel + int3(1, 0, 0)))
+            n.x += strength * smoothstep(1.0 - bevel, 1.0, f.x);
+        if (!SolidAt(solidVoxel + int3(0, -1, 0)))
+            n.y -= strength * (1.0 - smoothstep(0.0, bevel, f.y));
+        if (!SolidAt(solidVoxel + int3(0, 1, 0)))
+            n.y += strength * smoothstep(1.0 - bevel, 1.0, f.y);
+    }
+
+    return normalize(n);
 }
 
 // Marches toward the sun and reports whether anything blocks it.
@@ -245,13 +299,19 @@ float3 SampleSurfaceTexture(uint material, float2 uv, float3 fallback, float lod
 
 float3 Shade(uint material, float3 normal, float3 hitVoxel)
 {
+    float hitDistance = length(hitVoxel * g_VoxelSize - g_CameraPos);
+    float3 roundedNormal = RoundedSurfaceNormal(hitVoxel, normal);
+    // A ten-centimetre bevel is sub-pixel in a long shot. Applying it anyway turns every
+    // one-voxel terrain terrace into alternating light/dark stipple, so fade to the stable face
+    // normal before the edge becomes smaller than a pixel.
+    float bevelVisibility = 1.0 - smoothstep(24.0, 52.0, hitDistance);
+    normal = normalize(lerp(normal, roundedNormal, bevelVisibility));
     float3 albedo = g_MaterialColours[min(material, 15u)].rgb;
 
     // The voxel material remains dominant. The authored maps contribute restrained colour
     // variation in world space, so region boundaries cannot introduce UV seams. Estimate the
     // mip from hit distance: compute shaders have no implicit pixel derivatives, and forcing mip
     // zero made distant terrain shimmer while turning wall detail into high-frequency noise.
-    float hitDistance = length(hitVoxel * g_VoxelSize - g_CameraPos);
     float textureLod = clamp(log2(max(1.0, hitDistance * 0.36)), 0.0, 8.0);
     float3 textured = SampleSurfaceTexture(material, SurfaceUV(normal, hitVoxel),
                                            albedo, textureLod);
@@ -298,6 +358,25 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     float ao = Occlusion(hitVoxel, normal);
 
     float3 lit = albedo * (ambient * ao + ndotl * shadow * 1.05 + fill * ao);
+
+    // Authored room/cave lights. Unity's lighting buffers cannot shade this compute-owned colour
+    // target, so a small fixed array is cheaper and more predictable than pretending point-light
+    // GameObjects affect the voxels. Quadratic falloff keeps each pool local to its room and the
+    // normal term preserves shape instead of applying a flat emissive wash.
+    float3 hitMetres = hitVoxel * g_VoxelSize;
+    [loop]
+    for (uint lightIndex = 0u; lightIndex < min(g_LocalLightCount, 16u); lightIndex++)
+    {
+        float3 toLight = g_LocalLights[lightIndex].xyz - hitMetres;
+        float distanceToLight = length(toLight);
+        float radius = max(g_LocalLights[lightIndex].w, 0.01);
+        float attenuation = saturate(1.0 - distanceToLight / radius);
+        attenuation *= attenuation;
+        float facing = saturate(dot(normal, toLight / max(distanceToLight, 0.001)));
+        float shaped = attenuation * (0.18 + facing * 0.82);
+        lit += albedo * g_LocalLightColours[lightIndex].rgb
+             * (g_LocalLightColours[lightIndex].w * shaped);
+    }
 
     // Enclosed rooms cannot receive Unity lights because this renderer owns its pixels. A soft,
     // short-range camera-side bounce stands in for eye adaptation / a carried torch and affects

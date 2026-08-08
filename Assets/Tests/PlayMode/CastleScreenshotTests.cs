@@ -47,6 +47,12 @@ namespace VoxelEngine.Tests.PlayMode
                 .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
             var cam = Camera.main;
 
+            Assert.GreaterOrEqual(world.CastlePresentationLights.Length, 12,
+                "occupied castle rooms need authored GPU light pools");
+            Assert.AreEqual(world.CastlePresentationLights.Length,
+                            world.CastlePresentationLightColours.Length,
+                "every GPU light position needs a colour/intensity record");
+
             float uploadDeadline = Time.realtimeSinceStartup + 30f;
             var uploadTarget = new RenderTexture(Screen.width, Screen.height, 0,
                                                  RenderTextureFormat.ARGB32);
@@ -95,6 +101,10 @@ namespace VoxelEngine.Tests.PlayMode
             var stairCamera = new Vector3(plan.Centre.x, baseY + 18, keepMin.z + 16) * 0.1f;
             var stairLook = new Vector3(plan.Centre.x - 60, baseY + 20, keepMin.z + 76) * 0.1f;
             int3 trapdoor = CastleBuilder.TrapdoorCentre(in plan);
+            int chapelWidth = math.max(78, keepSize.x / 3);
+            int chapelDepth = math.max(96, keepSize.z * 3 / 5);
+            var chapelMin = new int3(keepMin.x - chapelWidth + 4, baseY,
+                                     keepMin.z + keepSize.z - chapelDepth - 38);
 
             var views = new (string name, Vector3 position, Vector3 lookAt)[]
             {
@@ -140,6 +150,10 @@ namespace VoxelEngine.Tests.PlayMode
                 ("15_secret_archive",
                                     new Vector3(keepMin.x + 42, baseY - 30, keepMin.z + 42) * 0.1f,
                                     new Vector3(keepMin.x + 82, baseY - 29, keepMin.z + 55) * 0.1f),
+                ("16_chapel",      new Vector3(keepMin.x - 9, baseY + 18,
+                                                chapelMin.z + chapelDepth / 2) * 0.1f,
+                                    new Vector3(chapelMin.x + 15, baseY + 20,
+                                                chapelMin.z + chapelDepth / 2) * 0.1f),
 
                 // Terrain far from the castle, to tell whether the terracing is the castle's
                 // sculpting or the terrain generator's own stepping.

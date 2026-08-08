@@ -165,6 +165,8 @@ namespace VoxelEngine.Showcase
         private void OnDisable()
         {
             VoxelRenderBridge.CutawayEnabled = false;
+            VoxelRenderBridge.LocalLights = System.Array.Empty<Vector4>();
+            VoxelRenderBridge.LocalLightColours = System.Array.Empty<Vector4>();
             VoxelRenderBridge.Source = null;
             VoxelRenderBridge.RegionsNeedingUpload = null;
 
@@ -209,6 +211,9 @@ namespace VoxelEngine.Showcase
 
             _world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(spawn));
             _motor.SnapToGround(_world, spawn);
+
+            VoxelRenderBridge.LocalLights = _world.CastlePresentationLights;
+            VoxelRenderBridge.LocalLightColours = _world.CastlePresentationLightColours;
 
             transform.position = _motor.EyePosition;
             transform.rotation = Quaternion.Euler(5f, 0f, 0f);
