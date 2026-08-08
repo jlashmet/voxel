@@ -30,6 +30,13 @@ Texture2D<float4> g_RockTexture;
 Texture2D<float4> g_SlateTexture;
 Texture2D<float4> g_GrassTexture;
 Texture2D<float4> g_DirtTexture;
+Texture2D<float4> g_StoneNormal;
+Texture2D<float4> g_WoodNormal;
+Texture2D<float4> g_SandNormal;
+Texture2D<float4> g_RockNormal;
+Texture2D<float4> g_SlateNormal;
+Texture2D<float4> g_GrassNormal;
+Texture2D<float4> g_DirtNormal;
 SamplerState sampler_g_StoneTexture;
 
 float4x4 g_InvViewProj;
@@ -297,6 +304,49 @@ float3 SampleSurfaceTexture(uint material, float2 uv, float3 fallback, float lod
     return texel;
 }
 
+float3 SampleSurfaceNormal(uint material, float2 uv, float3 surfaceNormal, float lod)
+{
+    float3 packed = float3(0.5, 0.5, 1.0);
+    bool mapped = true;
+
+    if (material == 1u) packed = g_StoneNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 2u) packed = g_WoodNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 3u) packed = g_SandNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 6u) packed = g_RockNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 7u || material == 8u)
+        packed = g_SlateNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 10u || material == 14u)
+        packed = g_GrassNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 13u)
+        packed = g_DirtNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else mapped = false;
+
+    if (!mapped) return surfaceNormal;
+
+    float3 tangentNormal = normalize(packed * 2.0 - 1.0);
+    float3 a = abs(surfaceNormal);
+    float3 tangent;
+    float3 bitangent;
+    if (a.y >= a.x && a.y >= a.z)
+    {
+        tangent = float3(1, 0, 0);
+        bitangent = float3(0, 0, 1);
+    }
+    else if (a.x >= a.z)
+    {
+        tangent = float3(0, 0, 1);
+        bitangent = float3(0, 1, 0);
+    }
+    else
+    {
+        tangent = float3(1, 0, 0);
+        bitangent = float3(0, 1, 0);
+    }
+
+    return normalize(surfaceNormal * max(tangentNormal.z, 0.18)
+                   + tangent * tangentNormal.x + bitangent * tangentNormal.y);
+}
+
 float3 Shade(uint material, float3 normal, float3 hitVoxel)
 {
     float hitDistance = length(hitVoxel * g_VoxelSize - g_CameraPos);
@@ -313,7 +363,13 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // mip from hit distance: compute shaders have no implicit pixel derivatives, and forcing mip
     // zero made distant terrain shimmer while turning wall detail into high-frequency noise.
     float textureLod = clamp(log2(max(1.0, hitDistance * 0.36)), 0.0, 8.0);
-    float3 textured = SampleSurfaceTexture(material, SurfaceUV(normal, hitVoxel),
+    float2 surfaceUv = SurfaceUV(normal, hitVoxel);
+    float3 mappedNormal = SampleSurfaceNormal(material, surfaceUv, normal, textureLod);
+    float normalStrength = (material == 1u || material == 6u) ? 0.32 : 0.22;
+    normalStrength *= 1.0 - smoothstep(18.0, 64.0, hitDistance);
+    normal = normalize(lerp(normal, mappedNormal, normalStrength));
+
+    float3 textured = SampleSurfaceTexture(material, surfaceUv,
                                            albedo, textureLod);
     float textureWeight = lerp(0.28, 0.12, saturate(hitDistance / 350.0));
 

@@ -46,6 +46,13 @@ namespace VoxelEngine.Rendering
         private static readonly int s_SlateTexture = Shader.PropertyToID("g_SlateTexture");
         private static readonly int s_GrassTexture = Shader.PropertyToID("g_GrassTexture");
         private static readonly int s_DirtTexture = Shader.PropertyToID("g_DirtTexture");
+        private static readonly int s_StoneNormal = Shader.PropertyToID("g_StoneNormal");
+        private static readonly int s_WoodNormal = Shader.PropertyToID("g_WoodNormal");
+        private static readonly int s_SandNormal = Shader.PropertyToID("g_SandNormal");
+        private static readonly int s_RockNormal = Shader.PropertyToID("g_RockNormal");
+        private static readonly int s_SlateNormal = Shader.PropertyToID("g_SlateNormal");
+        private static readonly int s_GrassNormal = Shader.PropertyToID("g_GrassNormal");
+        private static readonly int s_DirtNormal = Shader.PropertyToID("g_DirtNormal");
         private static readonly int s_DebugMode = Shader.PropertyToID("g_DebugMode");
         private static readonly int s_TerrainSeed = Shader.PropertyToID("g_TerrainSeed");
         private static readonly int s_FarDistance = Shader.PropertyToID("g_FarDistance");
@@ -68,6 +75,13 @@ namespace VoxelEngine.Rendering
         private Texture2D _slateTexture;
         private Texture2D _grassTexture;
         private Texture2D _dirtTexture;
+        private Texture2D _stoneNormal;
+        private Texture2D _woodNormal;
+        private Texture2D _sandNormal;
+        private Texture2D _rockNormal;
+        private Texture2D _slateNormal;
+        private Texture2D _grassNormal;
+        private Texture2D _dirtNormal;
 
         public float RenderScale { get; set; } = 1f;
         public float VoxelSize { get; set; } = 0.1f;
@@ -89,7 +103,11 @@ namespace VoxelEngine.Rendering
         public void Setup(ComputeShader raymarch, Texture2D stoneTexture = null,
                           Texture2D woodTexture = null, Texture2D sandTexture = null,
                           Texture2D rockTexture = null, Texture2D slateTexture = null,
-                          Texture2D grassTexture = null, Texture2D dirtTexture = null)
+                          Texture2D grassTexture = null, Texture2D dirtTexture = null,
+                          Texture2D stoneNormal = null, Texture2D woodNormal = null,
+                          Texture2D sandNormal = null, Texture2D rockNormal = null,
+                          Texture2D slateNormal = null, Texture2D grassNormal = null,
+                          Texture2D dirtNormal = null)
         {
             _raymarch = raymarch;
             _stoneTexture = stoneTexture;
@@ -99,6 +117,13 @@ namespace VoxelEngine.Rendering
             _slateTexture = slateTexture;
             _grassTexture = grassTexture;
             _dirtTexture = dirtTexture;
+            _stoneNormal = stoneNormal;
+            _woodNormal = woodNormal;
+            _sandNormal = sandNormal;
+            _rockNormal = rockNormal;
+            _slateNormal = slateNormal;
+            _grassNormal = grassNormal;
+            _dirtNormal = dirtNormal;
             _kernel = raymarch != null && raymarch.HasKernel("CSBrickRaymarch")
                 ? raymarch.FindKernel("CSBrickRaymarch")
                 : -1;
@@ -127,6 +152,13 @@ namespace VoxelEngine.Rendering
             public Texture2D SlateTexture;
             public Texture2D GrassTexture;
             public Texture2D DirtTexture;
+            public Texture2D StoneNormal;
+            public Texture2D WoodNormal;
+            public Texture2D SandNormal;
+            public Texture2D RockNormal;
+            public Texture2D SlateNormal;
+            public Texture2D GrassNormal;
+            public Texture2D DirtNormal;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -187,6 +219,13 @@ namespace VoxelEngine.Rendering
             passData.SlateTexture = _slateTexture;
             passData.GrassTexture = _grassTexture;
             passData.DirtTexture = _dirtTexture;
+            passData.StoneNormal = _stoneNormal;
+            passData.WoodNormal = _woodNormal;
+            passData.SandNormal = _sandNormal;
+            passData.RockNormal = _rockNormal;
+            passData.SlateNormal = _slateNormal;
+            passData.GrassNormal = _grassNormal;
+            passData.DirtNormal = _dirtNormal;
 
             builder.UseTexture(passData.Colour, AccessFlags.Write);
             builder.UseTexture(passData.CameraColour, AccessFlags.Write);
@@ -214,6 +253,20 @@ namespace VoxelEngine.Rendering
                     cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_GrassTexture, data.GrassTexture);
                 if (data.DirtTexture != null)
                     cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DirtTexture, data.DirtTexture);
+                if (data.StoneNormal != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_StoneNormal, data.StoneNormal);
+                if (data.WoodNormal != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_WoodNormal, data.WoodNormal);
+                if (data.SandNormal != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_SandNormal, data.SandNormal);
+                if (data.RockNormal != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_RockNormal, data.RockNormal);
+                if (data.SlateNormal != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_SlateNormal, data.SlateNormal);
+                if (data.GrassNormal != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_GrassNormal, data.GrassNormal);
+                if (data.DirtNormal != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DirtNormal, data.DirtNormal);
 
                 cmd.SetComputeMatrixParam(data.Raymarch, s_InvViewProj, data.InvViewProj);
                 cmd.SetComputeVectorParam(data.Raymarch, s_CameraPos, data.CameraPos);

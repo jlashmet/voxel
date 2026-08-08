@@ -30,6 +30,15 @@ namespace VoxelEngine.Rendering
         [SerializeField] private Texture2D m_GrassTexture;
         [SerializeField] private Texture2D m_DirtTexture;
 
+        [Header("Stylized surface normals")]
+        [SerializeField] private Texture2D m_StoneNormal;
+        [SerializeField] private Texture2D m_WoodNormal;
+        [SerializeField] private Texture2D m_SandNormal;
+        [SerializeField] private Texture2D m_RockNormal;
+        [SerializeField] private Texture2D m_SlateNormal;
+        [SerializeField] private Texture2D m_GrassNormal;
+        [SerializeField] private Texture2D m_DirtNormal;
+
         [SerializeField] private RenderPassEvent m_Event = RenderPassEvent.BeforeRenderingTransparents;
 
         [Header("Presentation (DeviceTierBudget)")]
@@ -60,7 +69,9 @@ namespace VoxelEngine.Rendering
 
             m_Pass = new VoxelRenderPass();
             m_Pass.Setup(m_Raymarch, m_StoneTexture, m_WoodTexture, m_SandTexture,
-                         m_RockTexture, m_SlateTexture, m_GrassTexture, m_DirtTexture);
+                         m_RockTexture, m_SlateTexture, m_GrassTexture, m_DirtTexture,
+                         m_StoneNormal, m_WoodNormal, m_SandNormal, m_RockNormal,
+                         m_SlateNormal, m_GrassNormal, m_DirtNormal);
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
