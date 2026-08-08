@@ -114,9 +114,17 @@ float3 Shade(uint material, float3 normal)
 
     // Deliberately plain: a lambert term plus a sky-coloured ambient. Irradiance probes are a
     // separate piece of the pipeline and do not belong in the traversal kernel.
+    // Hemisphere ambient plus a bounce term. A single sun with a flat 0.35 sky ambient renders
+    // every surface facing away from it almost black, which made stone walls and lit ground read
+    // as different materials despite being the same one.
     float ndotl = saturate(dot(normal, g_SunDirection));
-    float3 ambient = SkyColour(normal) * 0.35;
-    return albedo * (ambient + ndotl * 0.9);
+    float fill = saturate(dot(normal, -g_SunDirection)) * 0.18;
+
+    float3 groundBounce = float3(0.26, 0.23, 0.19);
+    float hemi = normal.y * 0.5 + 0.5;
+    float3 ambient = lerp(groundBounce, SkyColour(normal), hemi) * 0.62;
+
+    return albedo * (ambient + ndotl * 0.85 + fill);
 }
 
 // -- implicit far field -------------------------------------------------------

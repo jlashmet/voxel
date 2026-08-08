@@ -9,6 +9,7 @@ using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Core.Terrain;
 using VoxelEngine.Streaming;
+using VoxelEngine.Structures;
 
 namespace VoxelEngine.Showcase
 {
@@ -42,7 +43,8 @@ namespace VoxelEngine.Showcase
 
         public static readonly string[] MaterialNames =
         {
-            "empty", "stone", "wood", "sand", "glass", "bedrock"
+            "empty", "stone", "wood", "sand", "glass", "bedrock",
+            "darkstone", "slate", "tile", "cloth", "grass", "water", "gold", "dirt", "moss"
         };
 
         // -- geometry constants --------------------------------------------------
@@ -128,6 +130,18 @@ namespace VoxelEngine.Showcase
             _palette.Register(MatSand, 20, DestructionClass.Powder);
             _palette.Register(MatGlass, 10, DestructionClass.Powder);
             _palette.Register(MatBedrock, 255, DestructionClass.None);
+
+            // Castle materials. Weathering and roofing read as different stone, which is most of
+            // what stops masonry looking extruded.
+            _palette.Register(6, 210, DestructionClass.Crumble);   // dark stone
+            _palette.Register(7, 120, DestructionClass.Crumble);   // slate
+            _palette.Register(8, 110, DestructionClass.Crumble);   // tile
+            _palette.Register(9, 15, DestructionClass.Splinter);   // cloth
+            _palette.Register(10, 25, DestructionClass.Powder);    // grass
+            _palette.Register(11, 5, DestructionClass.Spreading);  // water
+            _palette.Register(12, 180, DestructionClass.Crumble);  // gold
+            _palette.Register(13, 30, DestructionClass.Powder);    // dirt
+            _palette.Register(14, 40, DestructionClass.Powder);    // moss
 
             _catalogue = ShowcaseCatalogue.Build(seed, Allocator.Persistent);
         }
@@ -473,27 +487,54 @@ namespace VoxelEngine.Showcase
         /// Hand-built structures at the spawn point, so there is something with corners and
         /// distinct materials to blow up before you go looking at terrain.
         /// </summary>
+        /// <summary>
+        /// The castle: sited, built, furnished, and undermined by its own dungeon.
+        ///
+        /// Built once when the origin region completes. It sculpts its own outcrop, so it must run
+        /// after terrain rather than alongside it.
+        /// </summary>
         private void BuildLandmarks()
         {
             int cx = RegionVoxelEdge / 2;
-            int cz = RegionVoxelEdge / 2;
+            int cz = RegionVoxelEdge / 2 + 120;
             int ground = SurfaceHeight(cx, cz);
 
-            var towerBase = new int3(cx, ground - 2, cz + 40);
-            StampCylinder(towerBase, 14, 70, MatStone);
-            StampCylinder(new int3(towerBase.x, towerBase.y + 3, towerBase.z), 11, 66, VoxelDimensions.MaterialEmpty);
-            StampCylinder(new int3(towerBase.x, towerBase.y + 70, towerBase.z), 17, 4, MatWood);
+            var plan = CastleBuilder.Plan(new int3(cx, ground, cz), Seed);
 
-            // Wall with a glass band, both destructible but with very different hardness.
-            FillBox(new int3(cx - 60, ground - 2, cz - 40), new int3(120, 26, 6), MatWood);
-            FillBox(new int3(cx - 60, ground + 10, cz - 40), new int3(120, 8, 6), MatGlass);
+            // Every region the castle reaches into must exist *before* it is built. A castle is
+            // wider than a region, and terrain generation writes a region's brick pointers
+            // wholesale — so a neighbour generated afterwards silently erases the half of the
+            // castle that stood in it. That is what left a scatter of blocks and a terraced
+            // quarry where a castle should be.
+            int reach = plan.PlateauRadius + plan.CliffDrop + 400;
+            for (int dz = -1; dz <= 1; dz++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dz == 0) continue;
 
-            // Bedrock pillars: DestructionClass.None, so blasts leave them standing.
-            for (int i = 0; i < 4; i++)
-                StampCylinder(new int3(cx - 45 + i * 30, ground - 2, cz + 90), 5, 34, MatBedrock);
+                int3 neighbour = new int3(
+                    (cx + dx * reach) >> VoxelDimensions.RegionVoxelEdgeLog2, 0,
+                    (cz + dz * reach) >> VoxelDimensions.RegionVoxelEdgeLog2);
 
-            StampSphere(new int3(cx + 60, ground + 8, cz - 10), 18, MatSand);
+                GenerateRegionBlocking(neighbour);
+            }
+
+            var brush = CastleBuilder.Build(_table, _pool, in plan, Seed);
+
+            CastleVoxels = brush.VoxelsWritten;
+
+            // Everything the castle touched has to be re-meshed and re-uploaded.
+            for (int dz = -1; dz <= 1; dz++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                var rc = new int3(dx, 0, dz);
+                _dirtyRegions.Add(rc);
+                _regionsNeedingUpload.Add(rc);
+            }
         }
+
+        /// <summary>Voxels the castle wrote. Reported in the HUD so its cost is visible.</summary>
+        public int CastleVoxels { get; private set; }
 
         // -- edits ---------------------------------------------------------------
 

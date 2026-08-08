@@ -98,15 +98,28 @@ namespace VoxelEngine.Rendering
         public bool IsCreated => _voxelBuffer != null;
 
         /// <summary>
-        /// Bricks uploaded per sync. A freshly generated region is roughly 4,500 bricks, so a
-        /// region reaches the GPU in about fifteen frames — a quarter of a second at 60 Hz.
+        /// Bricks uploaded per sync, and the size of the staging scratch.
         ///
         /// Raising this to cover a whole region in one call was tried and made the raymarch
-        /// render nothing at all: a single 30 MB SetData does not land before the dispatch that
-        /// reads it in the same frame. Uploading in bounded pieces is not just about spreading
-        /// cost. Bricks not yet uploaded raymarch as empty, so the world fades in.
+        /// render nothing: a single 30 MB SetData does not land before the dispatch that reads it
+        /// in the same frame. Bricks not yet uploaded raymarch as empty, so the world fades in.
         /// </summary>
-        private const int MaxBricksPerSync = 4096;
+        private const int MaxBricksPerSync = 8192;
+
+        /// <summary>
+        /// Hard cap on SetData calls per sync.
+        ///
+        /// This is the load-bearing limit. Each SetData is a driver staging allocation, and
+        /// issuing thousands per frame grows process memory without bound — a castle that dirtied
+        /// 130,000 scattered bricks took a machine to 200 GB while per-process RSS reporting
+        /// showed under 4 GB.
+        ///
+        /// Run coalescing helps when pool indices happen to be contiguous and does nothing when
+        /// they are not, so it cannot be relied on. Uploading contiguous *spans* — re-sending a
+        /// few clean bricks caught between dirty ones — costs bandwidth and bounds the call count
+        /// absolutely, which is the trade worth making.
+        /// </summary>
+        private const int MaxUploadCallsPerSync = 4;
 
         /// <summary>Refuses to mirror a pool larger than this. 262144 slots is 134 MB of VRAM.</summary>
         public const int MaxMirroredBricks = 262144;
@@ -272,61 +285,65 @@ namespace VoxelEngine.Rendering
             System.Array.Sort(_sortScratch, 0, count);
 
             var voxels = pool.Voxels;
-            int uploaded = 0;
-            int runStart = 0;
+            int consumed = 0;
 
-            while (runStart < count)
+            // Walk the sorted indices, emitting at most MaxUploadCallsPerSync contiguous spans.
+            // A span may include clean bricks between dirty ones; re-uploading those is cheaper
+            // than the driver allocation another call would cost.
+            int cursor = 0;
+            while (cursor < count && LastUploadCalls < MaxUploadCallsPerSync)
             {
-                // Extend the run while indices stay consecutive and the scratch buffer holds.
-                int runEnd = runStart + 1;
-                while (runEnd < count
-                       && _sortScratch[runEnd] == _sortScratch[runEnd - 1] + 1
-                       && runEnd - runStart < MaxBricksPerSync)
-                    runEnd++;
+                int spanStart = _sortScratch[cursor];
+                int spanEnd = spanStart;
+                int inSpan = 0;
 
-                int runLength = runEnd - runStart;
-
-                for (var i = 0; i < runLength; i++)
+                while (cursor < count && _sortScratch[cursor] - spanStart < MaxBricksPerSync)
                 {
-                    int src = pool.VoxelOffset(_sortScratch[runStart + i]);
-                    int dst = i * UintsPerBrick;
+                    spanEnd = _sortScratch[cursor];
+                    cursor++;
+                    inSpan++;
+                }
+
+                int spanLength = spanEnd - spanStart + 1;
+
+                for (var b = 0; b < spanLength; b++)
+                {
+                    int src = pool.VoxelOffset(spanStart + b);
+                    int dst = b * UintsPerBrick;
 
                     for (var u = 0; u < UintsPerBrick; u++)
                     {
-                        int b = src + u * 4;
-                        _voxelScratch[dst + u] = voxels[b]
-                                               | ((uint)voxels[b + 1] << 8)
-                                               | ((uint)voxels[b + 2] << 16)
-                                               | ((uint)voxels[b + 3] << 24);
+                        int p = src + u * 4;
+                        _voxelScratch[dst + u] = voxels[p]
+                                               | ((uint)voxels[p + 1] << 8)
+                                               | ((uint)voxels[p + 2] << 16)
+                                               | ((uint)voxels[p + 3] << 24);
                     }
                 }
 
-                _voxelBuffer.SetData(_voxelScratch, 0,
-                                     _sortScratch[runStart] * UintsPerBrick,
-                                     runLength * UintsPerBrick);
+                _voxelBuffer.SetData(_voxelScratch, 0, spanStart * UintsPerBrick,
+                                     spanLength * UintsPerBrick);
 
                 LastUploadCalls++;
-                uploaded += runLength;
-                runStart = runEnd;
+                consumed += inSpan;
             }
 
-            LastBricksUploaded = uploaded;
+            LastBricksUploaded = consumed;
 
-            if (count == dirty.Length)
+            if (consumed >= dirty.Length)
             {
                 pool.ClearDirtyBricks();
             }
             else
             {
-                // Partial drain: keep the tail for next frame rather than losing the updates.
-                // The consumed prefix must have its flags cleared too, or those slots stay
-                // pinned as dirty and never accept another mark.
-                for (var i = 0; i < count; i++) pool.ClearDirty(_sortScratch[i]);
+                // Partial drain: the consumed prefix must have its flags cleared too, or those
+                // slots stay pinned as dirty and never accept another mark.
+                for (var i = 0; i < consumed; i++) pool.ClearDirty(_sortScratch[i]);
 
-                for (var i = 0; i < dirty.Length - count; i++)
-                    dirty[i] = dirty[i + count];
+                for (var i = 0; i < dirty.Length - consumed; i++)
+                    dirty[i] = dirty[i + consumed];
 
-                dirty.Length -= count;
+                dirty.Length -= consumed;
             }
         }
 

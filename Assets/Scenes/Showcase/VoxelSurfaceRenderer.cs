@@ -28,7 +28,7 @@ namespace VoxelEngine.Showcase
         /// <summary>Edge length of one voxel in metres (device-matrix.md: 10 cm).</summary>
         public const float VoxelSize = 0.1f;
 
-        private const int MaterialCount = 6; // empty + stone, wood, sand, glass, bedrock
+        private const int MaterialCount = 15; // empty + engine palette + castle materials
         private const int E = VoxelDimensions.BrickEdge;
 
         private sealed class RegionSurface
@@ -585,6 +585,15 @@ namespace VoxelEngine.Showcase
                 new Color(0.82f, 0.72f, 0.46f),             // sand
                 new Color(0.52f, 0.76f, 0.84f),             // glass
                 new Color(0.15f, 0.15f, 0.17f),             // bedrock
+                new Color(0.34f, 0.33f, 0.35f),             // dark stone
+                new Color(0.24f, 0.26f, 0.32f),             // slate
+                new Color(0.46f, 0.24f, 0.18f),             // tile
+                new Color(0.62f, 0.12f, 0.14f),             // cloth
+                new Color(0.31f, 0.44f, 0.20f),             // grass
+                new Color(0.18f, 0.35f, 0.48f),             // water
+                new Color(0.80f, 0.66f, 0.26f),             // gold
+                new Color(0.38f, 0.31f, 0.24f),             // dirt
+                new Color(0.32f, 0.40f, 0.24f),             // moss
             };
 
             var materials = new Material[colours.Length];

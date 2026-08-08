@@ -75,6 +75,15 @@ namespace VoxelEngine.Rendering
             new(0.82f, 0.72f, 0.46f, 1f),   // sand
             new(0.52f, 0.76f, 0.84f, 1f),   // glass
             new(0.15f, 0.15f, 0.17f, 1f),   // bedrock
+            new(0.34f, 0.33f, 0.35f, 1f),   // dark stone
+            new(0.24f, 0.26f, 0.32f, 1f),   // slate
+            new(0.46f, 0.24f, 0.18f, 1f),   // tile
+            new(0.62f, 0.12f, 0.14f, 1f),   // cloth
+            new(0.31f, 0.44f, 0.20f, 1f),   // grass
+            new(0.18f, 0.35f, 0.48f, 1f),   // water
+            new(0.80f, 0.66f, 0.26f, 1f),   // gold
+            new(0.38f, 0.31f, 0.24f, 1f),   // dirt
+            new(0.32f, 0.40f, 0.24f, 1f),   // moss
         };
 
         public static bool TryGetWorld(out VoxelWorldView view)

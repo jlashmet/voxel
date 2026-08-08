@@ -5,6 +5,7 @@
     "VoxelEngine.Core",
     "VoxelEngine.Collision",
     "VoxelEngine.Rendering",
+    "VoxelEngine.Structures",
     "VoxelEngine.Streaming",
     "VoxelEngine.Tiering",
     "Unity.Burst",
