@@ -590,7 +590,7 @@ namespace VoxelEngine.Showcase
                 new Color(0.46f, 0.24f, 0.18f),             // tile
                 new Color(0.62f, 0.12f, 0.14f),             // cloth
                 new Color(0.31f, 0.44f, 0.20f),             // grass
-                new Color(0.18f, 0.35f, 0.48f),             // water
+                new Color(0.10f, 0.43f, 0.56f),             // water
                 new Color(0.80f, 0.66f, 0.26f),             // gold
                 new Color(0.38f, 0.31f, 0.24f),             // dirt
                 new Color(0.32f, 0.40f, 0.24f),             // moss

@@ -107,6 +107,12 @@ namespace VoxelEngine.Tests.PlayMode
             int chapelDepth = math.max(96, keepSize.z * 3 / 5);
             var chapelMin = new int3(keepMin.x - chapelWidth + 4, baseY,
                                      keepMin.z + keepSize.z - chapelDepth - 38);
+            int waterfallX = plan.Centre.x + plan.PlateauRadius - 8
+                           + plan.CliffDrop + 24;
+            int waterfallZ = plan.Centre.z - plan.BaileyHalfZ + 84;
+            int waterfallY = math.max(baseY - 82,
+                world.SurfaceHeight(waterfallX, waterfallZ) - 12);
+            var waterfallPool = new Vector3(waterfallX, waterfallY, waterfallZ) * 0.1f;
 
             var views = new (string name, Vector3 position, Vector3 lookAt)[]
             {
@@ -125,8 +131,8 @@ namespace VoxelEngine.Tests.PlayMode
 
                 // East shoulder: verifies the ravine, cascade, pool, hall balcony, and tree belt
                 // as a composition rather than only asserting that their voxels were written.
-                ("08_waterfall",   centre + new Vector3(70f, 30f, 5f),
-                                    centre + new Vector3(48f, -5f, 5f)),
+                ("08_waterfall",   waterfallPool + new Vector3(9f, 7f, 14f),
+                                    waterfallPool + new Vector3(-4f, 1f, 0f)),
 
                 // The reference treats rooms and underground spaces as first-class generated
                 // content. These cameras sit inside the authoritative voxel volume—no cutaway

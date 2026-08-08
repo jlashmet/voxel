@@ -495,7 +495,9 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     {
         float fresnel = pow(1.0 - saturate(abs(normal.y)), 2.0);
         lit = lerp(lit, g_SkyHorizon.rgb * 0.72, 0.28 + fresnel * 0.22);
-        lit += float3(0.02, 0.07, 0.10);
+        // Water frequently sits beneath the east wall and tree canopy. Preserve a cool colour
+        // floor there so the stream does not become indistinguishable from dark stone.
+        lit += float3(0.025, 0.16, 0.22);
     }
 
     // Tone map. Without it the bright faces clip flat and the whole image reads as washed-out

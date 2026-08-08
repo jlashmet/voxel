@@ -344,7 +344,13 @@ namespace VoxelEngine.Structures
         private static void RavineWaterfall(ref VoxelBrush brush, in CastlePlan plan,
                                             uint terrainSeed, int top)
         {
-            int streamZ = plan.Centre.z + 42;
+            // Keep the water on the southeast terrace. The former centre+42 placement put the
+            // entire feature behind the castle from the authored southern approach: it existed,
+            // but neither the player nor the hero camera could read it as part of the castle's
+            // silhouette. This position remains well east of the gate lane while bringing the
+            // cascade onto the visible front quarter of the crag.
+            int waterfallOffsetZ = -plan.BaileyHalfZ + 84;
+            int streamZ = plan.Centre.z + waterfallOffsetZ;
             int streamStartX = plan.Centre.x + plan.BaileyHalfX + plan.TowerRadius + 22;
             int fallX = plan.Centre.x + plan.PlateauRadius - 8;
             int streamLength = math.max(1, fallX - streamStartX);
@@ -373,9 +379,10 @@ namespace VoxelEngine.Structures
             // fixed water plane gives the cascade a readable destination even on a noisy seed.
             int poolX = fallX + plan.CliffDrop + 24;
             int sampledGround = TerrainSampler.HeightAt(poolX, streamZ, terrainSeed);
-            // The surrounding terrain varies by only a few metres. Force a deep but still
-            // visible cut; a twelve-metre shaft hid opaque voxel water below the sightline.
-            int poolY = math.min(top - 82, sampledGround - 12);
+            // Stay no more than twelve voxels below the surrounding terrain. Taking the lower
+            // of these bounds buried the pool at top-82 whenever the castle stood on a raised
+            // crag, producing a dry-looking shaft with the water below every useful sightline.
+            int poolY = math.max(top - 82, sampledGround - 12);
             const int poolRadiusX = 48;
             const int poolRadiusZ = 34;
 
@@ -404,11 +411,11 @@ namespace VoxelEngine.Structures
             // A narrow sheet reads better at voxel scale than a broad opaque blue slab. The
             // empty pocket behind it keeps the falling water visibly separate from the cliff.
             for (int dx = 0; dx < 3; dx++)
-            for (int dz = -8; dz <= 8; dz++)
+            for (int dz = -12; dz <= 12; dz++)
             {
                 brush.FillColumnBulk(fallX + dx, poolY + 1, top - 24,
                                      streamZ + dz, Mat.Empty);
-                if (math.abs(dz) <= 6)
+                if (math.abs(dz) <= 10)
                     brush.FillColumnBulk(fallX + dx, poolY + 1, top - 24,
                                          streamZ + dz, Mat.Water);
             }
@@ -420,10 +427,10 @@ namespace VoxelEngine.Structures
             {
                 float t = (x - fallX) / (float)cascadeLength;
                 int waterY = (int)math.round(math.lerp(top - 25, poolY, t));
-                for (int dz = -6; dz <= 6; dz++)
+                for (int dz = -10; dz <= 10; dz++)
                 {
                     brush.FillColumnBulk(x, waterY, top + 4, streamZ + dz, Mat.Empty);
-                    if (math.abs(dz) <= 5)
+                    if (math.abs(dz) <= 9)
                         brush.FillColumnBulk(x, waterY, waterY + 2, streamZ + dz, Mat.Water);
                 }
             }
@@ -444,7 +451,7 @@ namespace VoxelEngine.Structures
             // seeded belt intentionally avoids this sector so it cannot hide the water.
             int2[] treeOffsets =
             {
-                new(30, -48), new(34, 49), new(-42, 46), new(4, 55),
+                new(118, -86), new(112, 92), new(-120, 88), new(8, 128),
             };
             for (int i = 0; i < treeOffsets.Length; i++)
             {
@@ -481,7 +488,9 @@ namespace VoxelEngine.Structures
                 bool outsideWalls = math.abs(ox) > plan.BaileyHalfX + plan.TowerRadius + 16
                                  || math.abs(oz) > plan.BaileyHalfZ + plan.TowerRadius + 16;
                 bool blocksGate = oz < -plan.BaileyHalfZ && math.abs(ox) < 105;
-                bool nearWaterfall = ox > plan.BaileyHalfX && math.abs(oz - 42) < 72;
+                int waterfallOffsetZ = -plan.BaileyHalfZ + 84;
+                bool nearWaterfall = ox > plan.BaileyHalfX
+                                  && math.abs(oz - waterfallOffsetZ) < 72;
                 if (!outsideWalls || blocksGate || nearWaterfall) continue;
 
                 int height = rng.NextInt(34, 58);
