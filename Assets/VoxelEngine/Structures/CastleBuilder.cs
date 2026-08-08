@@ -335,6 +335,7 @@ namespace VoxelEngine.Structures
             int top = plan.Centre.y + plan.PlateauHeight;
             RavineWaterfall(ref brush, in plan, terrainSeed, top);
             TreeBelt(ref brush, in plan, top);
+            ApproachPlanting(ref brush, in plan, top);
         }
 
         private static void RavineWaterfall(ref VoxelBrush brush, in CastlePlan plan,
@@ -486,6 +487,52 @@ namespace VoxelEngine.Structures
                      height, canopyRadius, built % 3 == 0 ? Mat.Grass : Mat.Moss);
                 built++;
             }
+        }
+
+        /// <summary>
+        /// A composed foreground frame rather than uniform procedural scatter. Dark conifers and
+        /// broken stone sit outside the broad gate/bridge lane, matching the reference's wooded
+        /// ravine setting while preserving an unmistakable route into the castle.
+        /// </summary>
+        private static void ApproachPlanting(ref VoxelBrush brush, in CastlePlan plan, int top)
+        {
+            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
+            int2[] offsets =
+            {
+                new(-178, -92), new(168, -78), new(-235, -105), new(235, -110),
+                new(-154, 42), new(184, 62),
+            };
+
+            for (int i = 0; i < offsets.Length; i++)
+            {
+                int x = plan.Centre.x + offsets[i].x;
+                int z = gateZ + offsets[i].y;
+                int surface = HighestSolid(ref brush, x, z, top + 20, top - 170);
+                Pine(ref brush, x, surface + 1, z, 58 + (i % 3) * 8,
+                     18 + (i & 1) * 3, i % 3 == 0 ? Mat.Grass : Mat.Moss);
+
+                // Irregular companion rocks visually root each tree and prevent the repeated
+                // verticals from reading as a planted avenue.
+                int side = (i & 1) == 0 ? -1 : 1;
+                int rockX = x + side * (13 + i % 3 * 3);
+                int rockZ = z + 8 - i * 3;
+                int rockY = HighestSolid(ref brush, rockX, rockZ, top + 20, top - 170);
+                brush.Cone(rockX, rockY + 1, rockZ, 4 + i % 3, 6 + i % 4,
+                           i % 2 == 0 ? Mat.DarkStone : Mat.Stone);
+            }
+        }
+
+        private static void Pine(ref VoxelBrush brush, int x, int y, int z,
+                                 int height, int radius, byte foliage)
+        {
+            int trunkRadius = math.max(3, radius / 5);
+            brush.Cylinder(x, y, z, trunkRadius, height - 8, Mat.Wood);
+
+            // Overlapping tapered crowns keep every foliage mass tied into the trunk while
+            // producing a much richer outline than the broad ellipsoid deciduous trees.
+            brush.Cone(x, y + height / 4, z, radius, height * 3 / 5, foliage);
+            brush.Cone(x, y + height / 2, z, math.max(8, radius - 3), height / 2, foliage);
+            brush.Cone(x, y + height * 2 / 3, z, math.max(6, radius - 6), height / 3, foliage);
         }
 
         private static void Tree(ref VoxelBrush brush, int x, int y, int z,
@@ -707,10 +754,13 @@ namespace VoxelEngine.Structures
 
             for (int i = 0; i < corners.Length; i++)
             {
-                // Flat fighting tops frame the entrance; roofed rear towers give the keep a
-                // second, less repetitive silhouette layer behind them.
+                // The reference is deliberately accumulated and asymmetric: its western front
+                // tower is an older, taller watch tower while the opposite drum remains lower.
+                // Both retain their real spiral stair and courtyard door; this is usable height,
+                // not a sealed silhouette prop. Roofed rear towers form a second skyline layer.
+                int heightVariation = i == 0 ? 58 : i == 1 ? 8 : i == 2 ? 30 : 14;
                 Tower(ref brush, in plan, corners[i], plan.TowerRadius,
-                      plan.TowerHeight + (i >= 2 ? 14 : 0), i >= 2);
+                      plan.TowerHeight + heightVariation, i >= 2);
             }
         }
 
@@ -817,7 +867,7 @@ namespace VoxelEngine.Structures
             brush.Box(new int3(plan.Centre.x - spacing, baseY, gateZ - plan.WallThickness),
                       new int3(spacing * 2, blockHeight, plan.WallThickness * 2), Mat.Stone);
 
-            Tower(ref brush, in plan, left, r, plan.GateTowerHeight + 12, false);
+            Tower(ref brush, in plan, left, r, plan.GateTowerHeight + 38, false);
             Tower(ref brush, in plan, right, r, plan.GateTowerHeight + 12, false);
 
             // Arched gate passage.
@@ -856,6 +906,25 @@ namespace VoxelEngine.Structures
             for (int x = -34; x <= 34; x++)
                 brush.FillColumnBulk(plan.Centre.x + x, baseY - 2, baseY - 1,
                                      gateZ - plan.WallThickness - z, Mat.Wood);
+
+            // Timber rails, stone abutments, and regularly spaced posts turn the former floating
+            // plank into a believable defended approach. The full 5.2 m centre lane stays clear
+            // for the player and for destruction debris.
+            int bridgeNearZ = gateZ - plan.WallThickness - 149;
+            int bridgeFarZ = gateZ - plan.WallThickness;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int railX = plan.Centre.x + side * 32;
+                brush.Box(new int3(railX - 2, baseY + 8, bridgeNearZ),
+                          new int3(4, 4, 150), Mat.Wood);
+                for (int z = bridgeNearZ; z <= bridgeFarZ; z += 24)
+                    brush.Box(new int3(railX - 3, baseY - 1, z),
+                              new int3(6, 17, 6), Mat.Wood);
+            }
+            brush.Box(new int3(plan.Centre.x - 42, baseY - 12, bridgeNearZ - 8),
+                      new int3(84, 12, 14), Mat.DarkStone);
+            brush.Box(new int3(plan.Centre.x - 40, baseY - 5, bridgeFarZ - 5),
+                      new int3(80, 7, 12), Mat.Stone);
         }
 
         // -- courtyard -----------------------------------------------------------
@@ -1039,8 +1108,109 @@ namespace VoxelEngine.Structures
 
             brush.Gable(new int3(min.x, topY + 8, min.z), new int3(size.x, 70, size.z), true, Mat.Tile);
 
+            KeepRooflineDetails(ref brush, in plan, min, size, topY);
+
             GreatHallWing(ref brush, in plan, min, size, baseY);
             ChapelWing(ref brush, in plan, min, size, baseY);
+        }
+
+        /// <summary>
+        /// Breaks the keep's single long roof into the clustered silhouette of the reference:
+        /// an off-centre masonry lantern, two front dormers, and a tall heraldic finial. These are
+        /// open belfry/dormer structures over the roof rather than inaccessible occupied rooms.
+        /// </summary>
+        private static void KeepRooflineDetails(ref VoxelBrush brush, in CastlePlan plan,
+                                                int3 min, int3 size, int topY)
+        {
+            int roofFrontZ = min.z - 2;
+
+            // Paired dormers project through the front roof plane. Their lit glazing gives the
+            // large roof a human scale in the long approach view.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int dormerX = plan.Centre.x + side * 52;
+                brush.Box(new int3(dormerX - 12, topY + 25, roofFrontZ),
+                          new int3(24, 25, 18), Mat.Stone);
+                brush.Arch(new int3(dormerX - 6, topY + 32, roofFrontZ - 1),
+                           12, 16, 4, 2, Mat.Empty);
+                brush.Box(new int3(dormerX - 3, topY + 35, roofFrontZ),
+                          new int3(6, 10, 2), Mat.Glass);
+                brush.Gable(new int3(dormerX - 15, topY + 49, roofFrontZ - 4),
+                            new int3(30, 20, 25), true, Mat.Slate);
+            }
+
+            // An open, off-centre belfry rises from the ridge. Four piers and connecting lintels
+            // create visible sky openings, so it reads as architectural depth rather than a
+            // solid voxel cube pretending to contain another room.
+            int lanternX = plan.Centre.x + size.x / 7;
+            int lanternZ = min.z + size.z / 2;
+            int lanternY = topY + 63;
+            const int half = 24;
+            for (int sx = -1; sx <= 1; sx += 2)
+            for (int sz = -1; sz <= 1; sz += 2)
+                brush.Box(new int3(lanternX + sx * half - 5, lanternY,
+                                   lanternZ + sz * half - 5),
+                          new int3(10, 48, 10), Mat.Stone);
+
+            // Thin walls between the piers make the belfry read as a small square tower at long
+            // range. Large arches immediately carve those walls back to open air, so there is no
+            // sealed rooftop room and the sky remains visible through it from every direction.
+            brush.Box(new int3(lanternX - half - 5, lanternY,
+                               lanternZ - half - 5),
+                      new int3(half * 2 + 10, 48, 8), Mat.Stone);
+            brush.Box(new int3(lanternX - half - 5, lanternY,
+                               lanternZ + half - 3),
+                      new int3(half * 2 + 10, 48, 8), Mat.Stone);
+            brush.Box(new int3(lanternX - half - 5, lanternY,
+                               lanternZ - half + 3),
+                      new int3(8, 48, half * 2 - 6), Mat.Stone);
+            brush.Box(new int3(lanternX + half - 3, lanternY,
+                               lanternZ - half + 3),
+                      new int3(8, 48, half * 2 - 6), Mat.Stone);
+            brush.Arch(new int3(lanternX - 13, lanternY + 7,
+                                lanternZ - half - 6), 26, 34, 10, 2, Mat.Empty);
+            brush.Arch(new int3(lanternX - 13, lanternY + 7,
+                                lanternZ + half - 4), 26, 34, 10, 2, Mat.Empty);
+            brush.Arch(new int3(lanternX - half - 6, lanternY + 7,
+                                lanternZ - 13), 26, 34, 10, 0, Mat.Empty);
+            brush.Arch(new int3(lanternX + half - 4, lanternY + 7,
+                                lanternZ - 13), 26, 34, 10, 0, Mat.Empty);
+
+            brush.Box(new int3(lanternX - half - 5, lanternY + 40,
+                               lanternZ - half - 5),
+                      new int3(half * 2 + 10, 9, 10), Mat.DarkStone);
+            brush.Box(new int3(lanternX - half - 5, lanternY + 40,
+                               lanternZ + half - 5),
+                      new int3(half * 2 + 10, 9, 10), Mat.DarkStone);
+            brush.Box(new int3(lanternX - half - 5, lanternY + 40,
+                               lanternZ - half + 5),
+                      new int3(10, 9, half * 2 - 10), Mat.DarkStone);
+            brush.Box(new int3(lanternX + half - 5, lanternY + 40,
+                               lanternZ - half + 5),
+                      new int3(10, 9, half * 2 - 10), Mat.DarkStone);
+            // A flat machicolated crown echoes the tall square towers in the reference and reads
+            // clearly from the approach; the earlier little gable collapsed into a table shape.
+            brush.Box(new int3(lanternX - half - 8, lanternY + 49,
+                               lanternZ - half - 8),
+                      new int3(half * 2 + 16, 7, half * 2 + 16), Mat.DarkStone);
+            for (int x = -half - 7; x <= half - 5; x += 18)
+            {
+                brush.Box(new int3(lanternX + x, lanternY + 56,
+                                   lanternZ - half - 7), new int3(11, 15, 8), Mat.Stone);
+                brush.Box(new int3(lanternX + x, lanternY + 56,
+                                   lanternZ + half - 1), new int3(11, 15, 8), Mat.Stone);
+            }
+            for (int z = -half + 8; z <= half - 10; z += 18)
+            {
+                brush.Box(new int3(lanternX - half - 7, lanternY + 56,
+                                   lanternZ + z), new int3(8, 15, 11), Mat.Stone);
+                brush.Box(new int3(lanternX + half - 1, lanternY + 56,
+                                   lanternZ + z), new int3(8, 15, 11), Mat.Stone);
+            }
+            brush.Box(new int3(lanternX - 1, lanternY + 70, lanternZ - 1),
+                      new int3(3, 30, 3), Mat.Gold);
+            brush.Box(new int3(lanternX + 2, lanternY + 86, lanternZ - 1),
+                      new int3(24, 11, 3), Mat.Cloth);
         }
 
         /// <summary>

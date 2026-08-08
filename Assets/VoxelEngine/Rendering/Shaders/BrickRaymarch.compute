@@ -268,6 +268,20 @@ float3 SkyColour(float3 dir)
     return lerp(g_SkyHorizon.rgb, g_SkyZenith.rgb, t);
 }
 
+float3 PresentationSky(float3 dir)
+{
+    float3 sky = SkyColour(dir);
+
+    // The direct sun is behind the player in the hero approach, but its broad warm halo still
+    // gives the upper sky a lighting direction and matches the warm/cool split used indoors.
+    float towardSun = saturate(dot(dir, g_SunDirection));
+    float glow = pow(towardSun, 18.0) * 0.30;
+    float disc = pow(towardSun, 850.0) * 2.2;
+    sky += float3(1.0, 0.55, 0.22) * glow + float3(1.0, 0.91, 0.72) * disc;
+
+    return sky;
+}
+
 uint FarHash(uint v)
 {
     v ^= v >> 16; v *= 0x85ebca6bu;
@@ -782,10 +796,14 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
     if (g_DebugMode == 1u) { colour = float3(sawSlot, sawRef, sawMixed); hit = true; }
     else if (g_DebugMode == 2u) { colour = float3(sawVoxel, steps / max(1.0, (float)g_MaxSteps), 0.0); hit = true; }
 
-    // A ray that hits nothing leaves the pixel alone. The target is seeded with the camera
-    // colour before dispatch, so misses keep the skybox and anything URP already drew, instead
-    // of the raymarch painting its own sky over the whole frame.
-    if (!hit) return;
+    // The compute target owns the opaque landscape, including its presentation sky. Transparent
+    // URP effects render after this pass, so tornadoes and HUD elements remain composited above
+    // it while misses no longer expose the scene's flat default clear colour.
+    if (!hit)
+    {
+        colour = PresentationSky(dir);
+        hit = true;
+    }
 
     // Write flipped vertically rather than building the ray from a flipped uv: the rays are
     // correct as constructed, it is the target's row order that disagrees with the blit. Doing
