@@ -5,16 +5,17 @@ A destructible and buildable multiplayer voxel world, built in Unity.
 ## Active feature
 
 <!-- SPECKIT START -->
-**Plan**: [specs/001-destructible-voxel-engine/plan.md](specs/001-destructible-voxel-engine/plan.md)
+**Plan**: [specs/002-world-feature-authoring/plan.md](specs/002-world-feature-authoring/plan.md)
 
 Supporting artifacts:
 
-- [spec.md](specs/001-destructible-voxel-engine/spec.md) — requirements and success criteria
-- [research.md](specs/001-destructible-voxel-engine/research.md) — Phase 0 decisions
-- [data-model.md](specs/001-destructible-voxel-engine/data-model.md) — structures and invariants
-- [contracts/](specs/001-destructible-voxel-engine/contracts/) — wire protocol and module interfaces
-- [quickstart.md](specs/001-destructible-voxel-engine/quickstart.md) — orientation
-- [architecture-notes.md](specs/001-destructible-voxel-engine/architecture-notes.md) — technical reasoning in depth
+- [spec.md](specs/002-world-feature-authoring/spec.md) — requirements and success criteria
+- [research.md](specs/002-world-feature-authoring/research.md) — Phase 0 decisions
+- [data-model.md](specs/002-world-feature-authoring/data-model.md) — structures and invariants
+- [contracts/](specs/002-world-feature-authoring/contracts/) — catalogue format, shape program, module interfaces
+- [quickstart.md](specs/002-world-feature-authoring/quickstart.md) — orientation
+
+**Foundation**: [specs/001-destructible-voxel-engine/plan.md](specs/001-destructible-voxel-engine/plan.md) — the engine this builds on, with its own spec, research, data model, contracts, and architecture notes.
 <!-- SPECKIT END -->
 
 **Numeric budgets**: [device-matrix.md](specs/001-destructible-voxel-engine/device-matrix.md) is authoritative for every frame, memory, latency, and bandwidth target. Do not invent numbers elsewhere.
