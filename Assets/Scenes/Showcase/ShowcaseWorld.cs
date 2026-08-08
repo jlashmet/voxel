@@ -96,8 +96,8 @@ namespace VoxelEngine.Showcase
             public float3 ImpulseDirection;
         }
 
-        private const int MaxCollapseComponentVoxels = 262_144;
-        private const int FallingChunkEdge = 4;
+        private const int MaxCollapseComponentVoxels = 1_048_576;
+        private const int FallingChunkEdge = 8;
 
         /// <summary>
         /// Regions whose brick pointer grid changed and must be re-uploaded to the GPU mirror.
@@ -783,7 +783,8 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private int ResolveOverloadedSupport(int3 impact, int radius, float3 impulseDirection)
         {
-            int scanRadius = math.clamp(radius * 2 + 4, 8, 64);
+            int influenceRadius = math.clamp(radius * 4 + 48, 64, 128);
+            int scanRadius = influenceRadius;
             int minY = math.max(0, impact.y - radius - 2);
             int maxY = math.min(RegionVoxelEdge - 2, impact.y + radius + 2);
             int yStep = math.max(1, radius / 8);
@@ -815,6 +816,7 @@ namespace VoxelEngine.Showcase
             int collapsed = 0;
             int seedY = weakestPlane + 1;
             int radiusSq = scanRadius * scanRadius;
+            int influenceRadiusSq = influenceRadius * influenceRadius;
             var visited = new HashSet<int3>();
 
             for (int dz = -scanRadius; dz <= scanRadius; dz++)
@@ -830,6 +832,7 @@ namespace VoxelEngine.Showcase
                 stack.Push(seed);
                 visited.Add(seed);
                 long supportCapacity = 0;
+                bool containsStructuralMaterial = false;
                 bool overflow = false;
 
                 while (stack.Count > 0)
@@ -837,6 +840,7 @@ namespace VoxelEngine.Showcase
                     int3 current = stack.Pop();
                     byte material = VoxelAccess.GetVoxel(ref _table, in _pool, current);
                     if (material == VoxelDimensions.MaterialEmpty) continue;
+                    containsStructuralMaterial |= IsStructuralMaterial(material);
                     component.Add(new FallingVoxel { Position = current, Material = material });
                     if (component.Count >= MaxCollapseComponentVoxels)
                     {
@@ -855,14 +859,17 @@ namespace VoxelEngine.Showcase
                     for (int n = 0; n < s_Neighbours.Length; n++)
                     {
                         int3 next = current + s_Neighbours[n];
+                        int relX = next.x - impact.x;
+                        int relZ = next.z - impact.z;
                         if (next.y <= weakestPlane || visited.Contains(next)
+                            || relX * relX + relZ * relZ > influenceRadiusSq
                             || !VoxelAccess.IsSolid(ref _table, in _pool, next)) continue;
                         visited.Add(next);
                         stack.Push(next);
                     }
                 }
 
-                if (!overflow && component.Count > supportCapacity)
+                if (!overflow && containsStructuralMaterial && component.Count > supportCapacity)
                     collapsed += DetachComponent(component, impact, impulseDirection);
             }
 
@@ -884,6 +891,12 @@ namespace VoxelEngine.Showcase
             }
             return count;
         }
+
+        private static bool IsStructuralMaterial(byte material) => material switch
+        {
+            MatWood or MatGlass or 6 or 7 or 8 or 9 or 12 => true,
+            _ => false,
+        };
 
         private int DetachComponent(List<FallingVoxel> component, int3 impact,
                                     float3 impulseDirection)
@@ -910,7 +923,7 @@ namespace VoxelEngine.Showcase
                                        FloorDiv(p.y, FallingChunkEdge),
                                        FloorDiv(p.z, FallingChunkEdge));
                 if (!buckets.TryGetValue(bucket, out var voxels))
-                    buckets.Add(bucket, voxels = new List<FallingVoxel>(64));
+                    buckets.Add(bucket, voxels = new List<FallingVoxel>(512));
                 voxels.Add(detached[i]);
             }
 

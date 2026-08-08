@@ -35,7 +35,7 @@ namespace VoxelEngine.Tests.PlayMode
                 int detached = 0;
                 while (world.TryDequeueDetachedChunk(out var chunk))
                 {
-                    Assert.LessOrEqual(chunk.Voxels.Length, GpuDebrisSystem.VoxelsPerChunk);
+                    Assert.LessOrEqual(chunk.Voxels.Length, GpuDebrisSystem.MaxVoxelsPerChunk);
                     detached += chunk.Voxels.Length;
                     world.RestoreDetachedChunk(chunk);
                 }
@@ -93,7 +93,15 @@ namespace VoxelEngine.Tests.PlayMode
                 for (int x = 15; x <= 25; x++)
                 for (int y = 11; y <= 30; y++)
                 for (int z = 15; z <= 25; z++)
-                    Set(world, new int3(x, y, z), ShowcaseWorld.MatStone);
+                    Set(world, new int3(x, y, z), 6);
+
+                // A bridge to a separately grounded structure makes the tower globally
+                // connected. Local load paths must still fail at the destroyed base.
+                Set(world, new int3(60, 0, 20), ShowcaseWorld.MatBedrock);
+                for (int y = 1; y <= 20; y++)
+                    Set(world, new int3(60, y, 20), 6);
+                for (int x = 25; x <= 60; x++)
+                    Set(world, new int3(x, 20, 20), 6);
 
                 world.RemoveAndResolveCollapse(new int3(21, 10, 20));
 
@@ -103,6 +111,92 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.GreaterOrEqual(detached, 2400,
                     "a full tower remained suspended by one wood voxel of contact area");
                 Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 30, 20)));
+            }
+            finally
+            {
+                world.Dispose();
+            }
+        }
+
+        [Test]
+        public void NaturalTerrainIsNeverClassifiedAsOverloadedArchitecture()
+        {
+            var world = new ShowcaseWorld(987u, 16384, 1, 2);
+            try
+            {
+                for (int x = 0; x <= 24; x++)
+                for (int z = 0; z <= 24; z++)
+                {
+                    Set(world, new int3(x, 0, z), ShowcaseWorld.MatBedrock);
+                    for (int y = 1; y <= 12; y++)
+                        Set(world, new int3(x, y, z), y == 12 ? (byte)10 : ShowcaseWorld.MatStone);
+                }
+
+                int changed = world.RemoveAndResolveCollapse(new int3(12, 8, 12));
+
+                Assert.AreEqual(1, changed, "terrain around a small cavity was detached as debris");
+                Assert.Zero(world.PendingDetachedChunks,
+                    "natural ground entered the animated structural debris queue");
+            }
+            finally
+            {
+                world.Dispose();
+            }
+        }
+
+        [Test]
+        public void CastleScaleHollowTowerFailsOnOneRemoteColumn()
+        {
+            var world = new ShowcaseWorld(1357u, 262144, 1, 2);
+            try
+            {
+                const int cx = 100;
+                const int cz = 100;
+                const int radius = 30;
+                const int innerRadius = 18;
+                int outerSq = radius * radius;
+                int innerSq = innerRadius * innerRadius;
+
+                // Two narrow base columns initially carry a hollow tower. Removing the near one
+                // leaves a globally connected tower on a remote thread, matching the castle case.
+                foreach (int x in new[] { cx - radius, cx + radius })
+                {
+                    Set(world, new int3(x, 0, cz), ShowcaseWorld.MatBedrock);
+                    for (int y = 1; y <= 10; y++) Set(world, new int3(x, y, cz), 6);
+                }
+
+                int towerVoxels = 0;
+                for (int x = cx - radius; x <= cx + radius; x++)
+                for (int z = cz - radius; z <= cz + radius; z++)
+                {
+                    int dx = x - cx;
+                    int dz = z - cz;
+                    int distanceSq = dx * dx + dz * dz;
+                    if (distanceSq > outerSq || distanceSq < innerSq) continue;
+                    for (int y = 11; y <= 160; y++)
+                    {
+                        Set(world, new int3(x, y, z), 6);
+                        towerVoxels++;
+                    }
+                }
+                Assert.Greater(towerVoxels, 262144,
+                    "fixture no longer exceeds the former conservative traversal cap");
+
+                world.RemoveAndResolveCollapse(new int3(cx + radius, 10, cz));
+
+                int detached = 0;
+                int chunks = 0;
+                while (world.TryDequeueDetachedChunk(out var chunk))
+                {
+                    detached += chunk.Voxels.Length;
+                    chunks++;
+                }
+                Assert.AreEqual(towerVoxels, detached,
+                    "castle-scale upper tower remained on the remote support thread");
+                Assert.LessOrEqual(chunks, GpuDebrisSystem.MaxChunks,
+                    "tower collapse exceeds the bounded authoritative GPU chunk capacity");
+                Assert.AreEqual(VoxelDimensions.MaterialEmpty,
+                    Get(world, new int3(cx, 160, cz + radius)));
             }
             finally
             {
@@ -130,7 +224,7 @@ namespace VoxelEngine.Tests.PlayMode
                     for (int x = cx - 3; x <= cx + 3; x++)
                     for (int y = 11; y <= 22; y++)
                     for (int z = 17; z <= 23; z++)
-                        Set(world, new int3(x, y, z), ShowcaseWorld.MatStone);
+                        Set(world, new int3(x, y, z), 6);
                 }
 
                 var collapseTimer = Stopwatch.StartNew();
@@ -195,14 +289,15 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.Zero(world.RegionsNeedingUpload.Count,
                     "GPU flight rewrote authoritative voxel regions before settlement");
 
-                float deadline = Time.realtimeSinceStartup + 4f;
+                float deadline = Time.realtimeSinceStartup + 2.5f;
                 while (debris.ActiveChunks > 0 && Time.realtimeSinceStartup < deadline)
                 {
                     debris.Step(world, 0.033f);
                     yield return null;
                 }
 
-                Assert.Zero(debris.ActiveChunks, "GPU debris did not settle and rebake within the bound");
+                Assert.Zero(debris.ActiveChunks,
+                    "wood debris kept animating instead of settling within its short lifetime");
                 int rebaked = 0;
                 for (int x = -20; x <= 60; x++)
                 for (int y = 1; y <= 30; y++)
@@ -272,7 +367,7 @@ namespace VoxelEngine.Tests.PlayMode
                 rt.Release();
                 Object.DestroyImmediate(rt);
                 Assert.True(File.Exists(output));
-                Assert.Greater(debris.ActiveChunks, 1);
+                Assert.Greater(debris.ActiveChunks, 0);
             }
             finally
             {

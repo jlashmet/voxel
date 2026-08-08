@@ -14,10 +14,11 @@ namespace VoxelEngine.Showcase
     /// </summary>
     public sealed class GpuDebrisSystem : IDisposable
     {
-        public const int MaxChunks = 1024;
-        public const int VoxelsPerChunk = 64;
+        public const int MaxChunks = 2048;
+        public const int MaxVoxelsPerChunk = 512;
+        public const int RenderInstancesPerChunk = 64;
         private const int MaxSubmissionsPerFrame = 96;
-        private const int MaxSettlesPerReadback = 48;
+        private const int MaxSettlesPerReadback = 8;
         private const float ReadbackInterval = 0.2f;
 
         [StructLayout(LayoutKind.Sequential)]
@@ -44,7 +45,8 @@ namespace VoxelEngine.Showcase
         }
 
         private readonly GpuState[] _states = new GpuState[MaxChunks];
-        private readonly GpuInstance[] _instances = new GpuInstance[MaxChunks * VoxelsPerChunk];
+        private readonly GpuInstance[] _instances =
+            new GpuInstance[MaxChunks * RenderInstancesPerChunk];
         private readonly ChunkRecord[] _records = new ChunkRecord[MaxChunks];
         private readonly ComputeShader _compute;
         private readonly int _integrateKernel;
@@ -74,7 +76,7 @@ namespace VoxelEngine.Showcase
             _integrateKernel = _compute.FindKernel("Integrate");
             _stateBuffer = new ComputeBuffer(MaxChunks, Marshal.SizeOf<GpuState>(),
                                              ComputeBufferType.Structured);
-            _instanceBuffer = new ComputeBuffer(MaxChunks * VoxelsPerChunk,
+            _instanceBuffer = new ComputeBuffer(MaxChunks * RenderInstancesPerChunk,
                                                 Marshal.SizeOf<GpuInstance>(),
                                                 ComputeBufferType.Structured);
             _argumentsBuffer = new ComputeBuffer(1, sizeof(uint) * 5,
@@ -149,10 +151,12 @@ namespace VoxelEngine.Showcase
                 pivot /= math.max(1, chunk.Voxels.Length);
 
                 float collisionRadius = 0.087f;
-                int instanceStart = slot * VoxelsPerChunk;
-                for (int i = 0; i < VoxelsPerChunk; i++)
+                int instanceStart = slot * RenderInstancesPerChunk;
+                int visibleCount = math.min(RenderInstancesPerChunk, chunk.Voxels.Length);
+                float visualScale = math.pow(chunk.Voxels.Length / (float)visibleCount, 1f / 3f);
+                for (int i = 0; i < RenderInstancesPerChunk; i++)
                 {
-                    if (i >= chunk.Voxels.Length)
+                    if (i >= visibleCount)
                     {
                         _instances[instanceStart + i] = new GpuInstance
                         {
@@ -162,14 +166,16 @@ namespace VoxelEngine.Showcase
                         continue;
                     }
 
-                    Vector3 centre = ((Vector3)(float3)chunk.Voxels[i] + Vector3.one * 0.5f)
+                    int sourceIndex = i * chunk.Voxels.Length / visibleCount;
+                    Vector3 centre = ((Vector3)(float3)chunk.Voxels[sourceIndex]
+                                   + Vector3.one * 0.5f)
                                    * VoxelSurfaceRenderer.VoxelSize;
                     Vector3 local = centre - pivot;
                     collisionRadius = math.max(collisionRadius, local.magnitude + 0.087f);
                     _instances[instanceStart + i] = new GpuInstance
                     {
                         LocalSlot = new Vector4(local.x, local.y, local.z, slot),
-                        Colour = MaterialColour(chunk.Materials[i]),
+                        Colour = MaterialColour(chunk.Materials[sourceIndex], visualScale),
                     };
                 }
 
@@ -191,6 +197,7 @@ namespace VoxelEngine.Showcase
                     14 => 0.45f, // moss
                     _ => 1f,
                 };
+                float settleLifetime = materialScale < 0.7f ? 1.35f : 3f;
                 float massScale = math.clamp(math.rsqrt(math.max(1f, chunk.Voxels.Length / 8f)),
                                              0.45f, 1f);
                 float impulseScale = materialScale * massScale;
@@ -211,7 +218,7 @@ namespace VoxelEngine.Showcase
                     Rotation = new Vector4(0f, 0f, 0f, 1f),
                     VelocitySettled = new Vector4(velocity.x, velocity.y, velocity.z, 0f),
                     AngularGround = new Vector4(angular.x, angular.y, angular.z, ground),
-                    ContactActive = new Vector4(0f, 1f, 0f, 0f),
+                    ContactActive = new Vector4(0f, 1f, settleLifetime, 0f),
                 };
                 _records[slot] = new ChunkRecord { Chunk = chunk, OriginalPivot = pivot };
                 _highestActiveSlot = math.max(_highestActiveSlot, slot);
@@ -225,8 +232,8 @@ namespace VoxelEngine.Showcase
             if (maxSlot < minSlot) return;
             int stateCount = maxSlot - minSlot + 1;
             _stateBuffer.SetData(_states, minSlot, minSlot, stateCount);
-            int firstInstance = minSlot * VoxelsPerChunk;
-            int instanceCount = stateCount * VoxelsPerChunk;
+            int firstInstance = minSlot * RenderInstancesPerChunk;
+            int instanceCount = stateCount * RenderInstancesPerChunk;
             _instanceBuffer.SetData(_instances, firstInstance, firstInstance, instanceCount);
             UpdateDrawArguments();
         }
@@ -275,7 +282,7 @@ namespace VoxelEngine.Showcase
             _argumentsBuffer.SetData(new uint[]
             {
                 _cube.GetIndexCount(0),
-                (uint)((_highestActiveSlot + 1) * VoxelsPerChunk),
+                (uint)((_highestActiveSlot + 1) * RenderInstancesPerChunk),
                 _cube.GetIndexStart(0), (uint)_cube.GetBaseVertex(0), 0,
             });
         }
@@ -287,18 +294,22 @@ namespace VoxelEngine.Showcase
             return -1;
         }
 
-        private static Vector4 MaterialColour(byte material) => material switch
+        private static Vector4 MaterialColour(byte material, float scale)
         {
-            ShowcaseWorld.MatWood => new Vector4(0.43f, 0.25f, 0.12f, 1f),
-            ShowcaseWorld.MatSand => new Vector4(0.72f, 0.64f, 0.42f, 1f),
-            ShowcaseWorld.MatGlass => new Vector4(0.52f, 0.78f, 0.88f, 1f),
-            7 => new Vector4(0.20f, 0.24f, 0.30f, 1f),
-            8 => new Vector4(0.42f, 0.18f, 0.12f, 1f),
-            10 => new Vector4(0.25f, 0.46f, 0.15f, 1f),
-            13 => new Vector4(0.32f, 0.22f, 0.13f, 1f),
-            14 => new Vector4(0.22f, 0.38f, 0.18f, 1f),
-            _ => new Vector4(0.48f, 0.50f, 0.54f, 1f),
-        };
+            Vector4 colour = material switch
+            {
+                ShowcaseWorld.MatWood => new Vector4(0.43f, 0.25f, 0.12f, scale),
+                ShowcaseWorld.MatSand => new Vector4(0.72f, 0.64f, 0.42f, scale),
+                ShowcaseWorld.MatGlass => new Vector4(0.52f, 0.78f, 0.88f, scale),
+                7 => new Vector4(0.20f, 0.24f, 0.30f, scale),
+                8 => new Vector4(0.42f, 0.18f, 0.12f, scale),
+                10 => new Vector4(0.25f, 0.46f, 0.15f, scale),
+                13 => new Vector4(0.32f, 0.22f, 0.13f, scale),
+                14 => new Vector4(0.22f, 0.38f, 0.18f, scale),
+                _ => new Vector4(0.48f, 0.50f, 0.54f, scale),
+            };
+            return colour;
+        }
 
         private static uint Hash(uint value)
         {

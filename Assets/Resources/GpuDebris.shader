@@ -62,8 +62,9 @@ Shader "VoxelEngine/GpuDebris"
                 DebrisState state = _States[slot];
 
                 float3 worldPosition = state.positionAge.xyz
-                    + Rotate(state.rotation, instance.localSlot.xyz + input.positionOS * 0.098);
-                if (state.contactActive.y < 0.5 || instance.colour.a < 0.5)
+                    + Rotate(state.rotation, instance.localSlot.xyz
+                                            + input.positionOS * (0.098 * instance.colour.a));
+                if (state.contactActive.y < 0.5 || instance.colour.a <= 0.0)
                     worldPosition = float3(0.0, -100000.0, 0.0);
 
                 float3 normalWS = Rotate(state.rotation, input.normalOS);

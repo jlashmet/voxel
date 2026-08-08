@@ -52,7 +52,7 @@ void Integrate(uint id : SV_DispatchThreadID)
         contactTime += dt;
 
         if ((contactTime > 0.24 && length(velocity) < 1.4 && length(angular) < 1.8)
-            || state.positionAge.w > 3.0)
+            || state.positionAge.w > max(1.0, state.contactActive.z))
         {
             state.velocitySettled.w = 1.0;
             velocity = 0.0;
