@@ -74,12 +74,12 @@ namespace VoxelEngine.Showcase
 
         private readonly HashSet<int3> _generated = new();
         private readonly HashSet<int3> _dirtyRegions = new();
-        private readonly List<FallingCluster> _fallingClusters = new();
+        private readonly Queue<DetachedVoxelChunk> _detachedChunks = new();
 
         private static readonly int3[] s_Neighbours =
         {
             new(1, 0, 0), new(-1, 0, 0), new(0, 1, 0),
-            new(0, -1, 0), new(0, 0, 1), new(0, 0, -1),
+            new(0, 0, 1), new(0, 0, -1), new(0, -1, 0),
         };
 
         private struct FallingVoxel
@@ -88,17 +88,16 @@ namespace VoxelEngine.Showcase
             public byte Material;
         }
 
-        private sealed class FallingCluster
+        public sealed class DetachedVoxelChunk
         {
-            public readonly List<FallingVoxel> Voxels = new(512);
-            public float DownVelocity;
-            public float DropAccumulator;
-            public int PendingSteps;
-            public bool InGrid;
+            public int3[] Voxels;
+            public byte[] Materials;
+            public float3 ImpactMetres;
+            public float3 ImpulseDirection;
         }
 
         private const int MaxCollapseComponentVoxels = 262_144;
-        private const int FallingChunkVoxels = 2_048;
+        private const int FallingChunkEdge = 4;
 
         /// <summary>
         /// Regions whose brick pointer grid changed and must be re-uploaded to the GPU mirror.
@@ -123,18 +122,7 @@ namespace VoxelEngine.Showcase
         /// <summary>Regions in the wanted set that have not been generated yet.</summary>
         public int PendingRegionLoads => _pendingLoads.Count;
 
-        public int ActiveFallingClusters => _fallingClusters.Count;
-
-        public int ActiveFallingVoxels
-        {
-            get
-            {
-                int count = 0;
-                for (int i = 0; i < _fallingClusters.Count; i++)
-                    count += _fallingClusters[i].Voxels.Count;
-                return count;
-            }
-        }
+        public int PendingDetachedChunks => _detachedChunks.Count;
 
         public int RegionsGenerated { get; private set; }
         public int RegionsEvicted { get; private set; }
@@ -595,7 +583,7 @@ namespace VoxelEngine.Showcase
         /// explosion leaves a clean crater in sand and a ragged one in stone. Selection is a
         /// seeded integer draw, so the same blast resolves identically on every client.
         /// </summary>
-        public int Explode(int3 centre, ushort radius)
+        public int Explode(int3 centre, ushort radius, float3 impulseDirection = default)
         {
             var rng = new DeterministicRandom(MixSeed(centre, radius));
             var voxels = BuildBrushes.PlaceSphere(centre, radius, VoxelDimensions.MaterialEmpty, Seed);
@@ -627,7 +615,7 @@ namespace VoxelEngine.Showcase
             }
 
             voxels.Dispose();
-            int collapsed = ResolveUnsupportedAfterRemoval(removed, centre, radius);
+            int collapsed = ResolveUnsupportedAfterRemoval(removed, centre, radius, impulseDirection);
             _editCounter++;
             LastEditVoxels = changed + collapsed;
             return changed + collapsed;
@@ -647,120 +635,110 @@ namespace VoxelEngine.Showcase
 
             MarkDirty(voxel);
             var removed = new List<int3>(1) { voxel };
-            int collapsed = ResolveUnsupportedAfterRemoval(removed, voxel, 1);
+            int collapsed = ResolveUnsupportedAfterRemoval(removed, voxel, 1, default);
             LastEditVoxels = 1 + collapsed;
             return 1 + collapsed;
         }
 
-        /// <summary>
-        /// Advances unsupported voxel clusters under gravity. Clusters are temporarily removed
-        /// before collision so split chunks from the same collapse fall together, then written
-        /// back at their new integer-voxel positions. Rendering and collision therefore observe
-        /// the same authoritative moving state; no detached GameObject copy exists.
-        /// </summary>
-        public void StepPhysics(float deltaTime)
+        public bool TryDequeueDetachedChunk(out DetachedVoxelChunk chunk) =>
+            _detachedChunks.TryDequeue(out chunk);
+
+        /// <summary>Restores a chunk when the bounded GPU debris pool cannot accept it.</summary>
+        public void RestoreDetachedChunk(DetachedVoxelChunk chunk)
         {
-            if (_fallingClusters.Count == 0 || deltaTime <= 0f) return;
-
-            bool needsStep = false;
-            for (int i = 0; i < _fallingClusters.Count; i++)
-            {
-                var cluster = _fallingClusters[i];
-                cluster.DownVelocity = math.min(cluster.DownVelocity + 9.81f * deltaTime, 64f);
-                cluster.DropAccumulator += cluster.DownVelocity * deltaTime / VoxelSurfaceRenderer.VoxelSize;
-                cluster.PendingSteps = math.min(16, (int)math.floor(cluster.DropAccumulator));
-                if (cluster.PendingSteps > 0)
-                {
-                    cluster.DropAccumulator -= cluster.PendingSteps;
-                    needsStep = true;
-                }
-                if (!cluster.InGrid) needsStep = true;
-            }
-
-            if (!needsStep) return;
-
-            // Remove every active cluster first, so chunks cut from one connected component do
-            // not falsely collide with each other at their previous positions.
-            for (int i = 0; i < _fallingClusters.Count; i++)
-            {
-                var cluster = _fallingClusters[i];
-                if (!cluster.InGrid) continue;
-                WriteCluster(cluster, VoxelDimensions.MaterialEmpty, useStoredMaterial: false);
-                cluster.InGrid = false;
-            }
-
-            var settled = new List<int>();
-            for (int i = 0; i < _fallingClusters.Count; i++)
-            {
-                var cluster = _fallingClusters[i];
-                bool hit = false;
-
-                for (int step = 0; step < cluster.PendingSteps; step++)
-                {
-                    if (!CanMoveDown(cluster))
-                    {
-                        hit = true;
-                        break;
-                    }
-
-                    for (int v = 0; v < cluster.Voxels.Count; v++)
-                    {
-                        var falling = cluster.Voxels[v];
-                        falling.Position.y--;
-                        cluster.Voxels[v] = falling;
-                    }
-                }
-
-                cluster.PendingSteps = 0;
-                if (hit) settled.Add(i);
-            }
-
-            // Publish only after every chunk has resolved against the stationary world. Writing
-            // one chunk early would make the next chunk collide with its sibling mid-fall.
-            for (int i = 0; i < _fallingClusters.Count; i++)
-            {
-                WriteCluster(_fallingClusters[i], 0, useStoredMaterial: true);
-                _fallingClusters[i].InGrid = true;
-            }
-
-            for (int i = settled.Count - 1; i >= 0; i--)
-                _fallingClusters.RemoveAt(settled[i]);
+            for (int i = 0; i < chunk.Voxels.Length; i++)
+                if (VoxelAccess.SetVoxel(ref _table, ref _pool, chunk.Voxels[i], chunk.Materials[i]))
+                    MarkDirty(chunk.Voxels[i]);
         }
 
-        private int ResolveUnsupportedAfterRemoval(List<int3> removed, int3 impact, int radius)
+        /// <summary>
+        /// Voxelizes a settled, arbitrarily rotated presentation chunk back into authoritative
+        /// grid cells. Occupied targets climb a few cells rather than overwriting world geometry.
+        /// </summary>
+        public void SettleDetachedChunk(DetachedVoxelChunk chunk, Vector3 pivotMetres,
+                                        Quaternion rotation, Vector3 originalPivotMetres)
+        {
+            var occupiedTargets = new HashSet<int3>();
+            for (int i = 0; i < chunk.Voxels.Length; i++)
+            {
+                Vector3 originalCentre = ((Vector3)(float3)chunk.Voxels[i] + Vector3.one * 0.5f)
+                                       * VoxelSurfaceRenderer.VoxelSize;
+                Vector3 targetCentre = pivotMetres + rotation * (originalCentre - originalPivotMetres);
+                int3 target = (int3)math.round((float3)targetCentre / VoxelSurfaceRenderer.VoxelSize - 0.5f);
+
+                int lift = 0;
+                while (lift < 6 && (occupiedTargets.Contains(target)
+                       || VoxelAccess.IsSolid(ref _table, in _pool, target)))
+                {
+                    target.y++;
+                    lift++;
+                }
+
+                if (lift == 6) continue;
+                if (VoxelAccess.SetVoxel(ref _table, ref _pool, target, chunk.Materials[i]))
+                {
+                    occupiedTargets.Add(target);
+                    MarkDirty(target);
+                }
+            }
+        }
+
+        /// <summary>Returns the centre height at which a detached chunk should meet solid world.</summary>
+        public float FindLandingCentreY(float3 pivotMetres, float halfHeightMetres)
+        {
+            int x = (int)math.floor(pivotMetres.x / VoxelSurfaceRenderer.VoxelSize);
+            int z = (int)math.floor(pivotMetres.z / VoxelSurfaceRenderer.VoxelSize);
+            int startY = (int)math.floor((pivotMetres.y - halfHeightMetres)
+                                        / VoxelSurfaceRenderer.VoxelSize) - 1;
+            for (int y = math.min(startY, RegionVoxelEdge - 1); y >= 0; y--)
+                if (VoxelAccess.IsSolid(ref _table, in _pool, new int3(x, y, z)))
+                    return (y + 1) * VoxelSurfaceRenderer.VoxelSize + halfHeightMetres;
+            return halfHeightMetres;
+        }
+
+        private int ResolveUnsupportedAfterRemoval(List<int3> removed, int3 impact, int radius,
+                                                    float3 impulseDirection)
         {
             if (removed.Count == 0) return 0;
 
-            int reach = math.clamp(radius * 6, 48, 256);
-            int3 min = impact - new int3(reach, reach, reach);
-            int3 max = impact + new int3(reach, reach * 2, reach);
-            var visited = new HashSet<int3>();
-            int collapsed = 0;
-
+            // Deduplicate the solid boundary once. The previous removed×6 nested scan repeatedly
+            // revisited empty neighbours and was the dominant cost when several tornadoes hit.
+            var candidates = new HashSet<int3>();
             for (int r = 0; r < removed.Count; r++)
             for (int d = 0; d < s_Neighbours.Length; d++)
             {
-                int3 seed = removed[r] + s_Neighbours[d];
-                if (visited.Contains(seed)) continue;
-                byte seedMaterial = VoxelAccess.GetVoxel(ref _table, in _pool, seed);
-                if (seedMaterial == VoxelDimensions.MaterialEmpty) continue;
+                int3 candidate = removed[r] + s_Neighbours[d];
+                if (VoxelAccess.IsSolid(ref _table, in _pool, candidate)) candidates.Add(candidate);
+            }
+
+            var classified = new HashSet<int3>();
+            var knownSupported = new HashSet<int3>();
+            int collapsed = 0;
+
+            foreach (int3 seed in candidates)
+            {
+                if (classified.Contains(seed)) continue;
 
                 var component = new List<FallingVoxel>(512);
-                var queue = new Queue<int3>();
-                queue.Enqueue(seed);
-                visited.Add(seed);
+                var stack = new Stack<int3>();
+                var localSeen = new HashSet<int3>();
+                stack.Push(seed);
+                localSeen.Add(seed);
                 bool anchored = false;
-                bool continuesOutside = false;
                 bool overflow = false;
 
-                while (queue.Count > 0)
+                while (stack.Count > 0)
                 {
-                    int3 current = queue.Dequeue();
+                    int3 current = stack.Pop();
+                    if (knownSupported.Contains(current)) { anchored = true; break; }
                     byte material = VoxelAccess.GetVoxel(ref _table, in _pool, current);
                     if (material == VoxelDimensions.MaterialEmpty) continue;
 
                     if (!_palette.IsDestructible(material) || current.y <= 0)
+                    {
                         anchored = true;
+                        break;
+                    }
 
                     component.Add(new FallingVoxel { Position = current, Material = material });
                     if (component.Count >= MaxCollapseComponentVoxels)
@@ -769,71 +747,196 @@ namespace VoxelEngine.Showcase
                         break;
                     }
 
+                    // Push downward last so the LIFO traversal follows columns toward ground
+                    // before spreading sideways across an entire terrain surface.
                     for (int n = 0; n < s_Neighbours.Length; n++)
                     {
                         int3 next = current + s_Neighbours[n];
-                        bool outside = math.any(next < min) || math.any(next > max);
-                        if (outside)
-                        {
-                            if (VoxelAccess.IsSolid(ref _table, in _pool, next))
-                                continuesOutside = true;
-                            continue;
-                        }
+                        if (localSeen.Contains(next)
+                            || !VoxelAccess.IsSolid(ref _table, in _pool, next)) continue;
+                        localSeen.Add(next);
+                        stack.Push(next);
+                    }
+                }
 
-                        if (visited.Contains(next)
+                if (anchored || overflow)
+                {
+                    foreach (int3 voxel in localSeen)
+                    {
+                        classified.Add(voxel);
+                        knownSupported.Add(voxel);
+                    }
+                    continue;
+                }
+
+                collapsed += DetachComponent(component, impact, impulseDirection);
+            }
+
+            collapsed += ResolveOverloadedSupport(impact, radius, impulseDirection);
+            return collapsed;
+        }
+
+        /// <summary>
+        /// Connectivity is necessary but not sufficient: a surviving one-voxel neck cannot carry
+        /// an entire tower. Find the weakest vertical contact plane through the damaged band,
+        /// then compare the mass above it with material-weighted contact capacity.
+        /// </summary>
+        private int ResolveOverloadedSupport(int3 impact, int radius, float3 impulseDirection)
+        {
+            int scanRadius = math.clamp(radius * 2 + 4, 8, 64);
+            int minY = math.max(0, impact.y - radius - 2);
+            int maxY = math.min(RegionVoxelEdge - 2, impact.y + radius + 2);
+            int yStep = math.max(1, radius / 8);
+            int weakestPlane = impact.y;
+            int weakestContacts = int.MaxValue;
+            long weakestScore = long.MaxValue;
+
+            for (int y = minY; y <= maxY; y += yStep)
+            {
+                int contacts = CountVerticalContacts(impact.x, impact.z, y, scanRadius);
+                long score = (long)contacts * (4 + math.abs(y - impact.y));
+                if (contacts > 0 && score < weakestScore)
+                {
+                    weakestContacts = contacts;
+                    weakestPlane = y;
+                    weakestScore = score;
+                }
+            }
+            // The exact impact layer matters even when a large brush samples every few layers.
+            int impactContacts = CountVerticalContacts(impact.x, impact.z, impact.y, scanRadius);
+            if (impactContacts > 0 && (long)impactContacts * 4 < weakestScore)
+            {
+                weakestContacts = impactContacts;
+                weakestPlane = impact.y;
+                weakestScore = (long)impactContacts * 4;
+            }
+            if (weakestContacts == int.MaxValue) return 0;
+
+            int collapsed = 0;
+            int seedY = weakestPlane + 1;
+            int radiusSq = scanRadius * scanRadius;
+            var visited = new HashSet<int3>();
+
+            for (int dz = -scanRadius; dz <= scanRadius; dz++)
+            for (int dx = -scanRadius; dx <= scanRadius; dx++)
+            {
+                if (dx * dx + dz * dz > radiusSq) continue;
+                int3 seed = new int3(impact.x + dx, seedY, impact.z + dz);
+                if (visited.Contains(seed) || !VoxelAccess.IsSolid(ref _table, in _pool, seed))
+                    continue;
+
+                var component = new List<FallingVoxel>(512);
+                var stack = new Stack<int3>();
+                stack.Push(seed);
+                visited.Add(seed);
+                long supportCapacity = 0;
+                bool overflow = false;
+
+                while (stack.Count > 0)
+                {
+                    int3 current = stack.Pop();
+                    byte material = VoxelAccess.GetVoxel(ref _table, in _pool, current);
+                    if (material == VoxelDimensions.MaterialEmpty) continue;
+                    component.Add(new FallingVoxel { Position = current, Material = material });
+                    if (component.Count >= MaxCollapseComponentVoxels)
+                    {
+                        overflow = true;
+                        break;
+                    }
+
+                    if (current.y == seedY)
+                    {
+                        byte below = VoxelAccess.GetVoxel(ref _table, in _pool,
+                                                         current + new int3(0, -1, 0));
+                        if (below != VoxelDimensions.MaterialEmpty)
+                            supportCapacity += 48 + _palette.GetHardness(below);
+                    }
+
+                    for (int n = 0; n < s_Neighbours.Length; n++)
+                    {
+                        int3 next = current + s_Neighbours[n];
+                        if (next.y <= weakestPlane || visited.Contains(next)
                             || !VoxelAccess.IsSolid(ref _table, in _pool, next)) continue;
                         visited.Add(next);
-                        queue.Enqueue(next);
+                        stack.Push(next);
                     }
                 }
 
-                // Oversized or boundary-connected masses are conservatively supported. This is
-                // the terrain/lower-stump path; severed architectural pieces remain bounded.
-                if (anchored || continuesOutside || overflow) continue;
-
-                for (int i = 0; i < component.Count; i++)
-                {
-                    var voxel = component[i];
-                    if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel.Position,
-                                             VoxelDimensions.MaterialEmpty))
-                    {
-                        MarkDirty(voxel.Position);
-                        collapsed++;
-                    }
-                }
-
-                for (int offset = 0; offset < component.Count; offset += FallingChunkVoxels)
-                {
-                    var cluster = new FallingCluster();
-                    int end = math.min(component.Count, offset + FallingChunkVoxels);
-                    for (int i = offset; i < end; i++) cluster.Voxels.Add(component[i]);
-                    _fallingClusters.Add(cluster);
-                }
+                if (!overflow && component.Count > supportCapacity)
+                    collapsed += DetachComponent(component, impact, impulseDirection);
             }
 
             return collapsed;
         }
 
-        private bool CanMoveDown(FallingCluster cluster)
+        private int CountVerticalContacts(int centreX, int centreZ, int planeY, int radius)
         {
-            for (int i = 0; i < cluster.Voxels.Count; i++)
+            int count = 0;
+            int radiusSq = radius * radius;
+            for (int dz = -radius; dz <= radius; dz++)
+            for (int dx = -radius; dx <= radius; dx++)
             {
-                int3 below = cluster.Voxels[i].Position + new int3(0, -1, 0);
-                if (below.y < 0 || VoxelAccess.IsSolid(ref _table, in _pool, below)) return false;
+                if (dx * dx + dz * dz > radiusSq) continue;
+                int3 lower = new int3(centreX + dx, planeY, centreZ + dz);
+                if (VoxelAccess.IsSolid(ref _table, in _pool, lower)
+                    && VoxelAccess.IsSolid(ref _table, in _pool, lower + new int3(0, 1, 0)))
+                    count++;
             }
-            return true;
+            return count;
         }
 
-        private void WriteCluster(FallingCluster cluster, byte material, bool useStoredMaterial)
+        private int DetachComponent(List<FallingVoxel> component, int3 impact,
+                                    float3 impulseDirection)
         {
-            for (int i = 0; i < cluster.Voxels.Count; i++)
+            var detached = new List<FallingVoxel>(component.Count);
+            for (int i = 0; i < component.Count; i++)
             {
-                var voxel = cluster.Voxels[i];
-                byte value = useStoredMaterial ? voxel.Material : material;
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel.Position, value))
+                var voxel = component[i];
+                if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel.Position,
+                                         VoxelDimensions.MaterialEmpty))
+                {
                     MarkDirty(voxel.Position);
+                    detached.Add(voxel);
+                }
             }
+            if (detached.Count == 0) return 0;
+
+            // Spatial buckets make coherent small chunks instead of arbitrary graph slices.
+            var buckets = new Dictionary<int3, List<FallingVoxel>>();
+            for (int i = 0; i < detached.Count; i++)
+            {
+                int3 p = detached[i].Position;
+                int3 bucket = new int3(FloorDiv(p.x, FallingChunkEdge),
+                                       FloorDiv(p.y, FallingChunkEdge),
+                                       FloorDiv(p.z, FallingChunkEdge));
+                if (!buckets.TryGetValue(bucket, out var voxels))
+                    buckets.Add(bucket, voxels = new List<FallingVoxel>(64));
+                voxels.Add(detached[i]);
+            }
+
+            foreach (var pair in buckets)
+            {
+                var voxels = pair.Value;
+                var chunk = new DetachedVoxelChunk
+                {
+                    Voxels = new int3[voxels.Count],
+                    Materials = new byte[voxels.Count],
+                    ImpactMetres = ((float3)impact + 0.5f) * VoxelSurfaceRenderer.VoxelSize,
+                    ImpulseDirection = impulseDirection,
+                };
+                for (int i = 0; i < voxels.Count; i++)
+                {
+                    chunk.Voxels[i] = voxels[i].Position;
+                    chunk.Materials[i] = voxels[i].Material;
+                }
+                _detachedChunks.Enqueue(chunk);
+            }
+
+            return detached.Count;
         }
+
+        private static int FloorDiv(int value, int divisor) =>
+            value >= 0 ? value / divisor : -((-value + divisor - 1) / divisor);
 
         /// <summary>Places a solid sphere — the build half of the loop.</summary>
         public int Place(int3 centre, ushort radius, byte material)
@@ -960,7 +1063,7 @@ namespace VoxelEngine.Showcase
         public void Dispose()
         {
             FinishRegionForced();
-            _fallingClusters.Clear();
+            _detachedChunks.Clear();
             if (_catalogue.IsCreated) _catalogue.Dispose();
             if (_table.IsCreated) _table.Dispose();
             if (_pool.IsCreated) _pool.Dispose();

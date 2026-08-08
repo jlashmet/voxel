@@ -1,0 +1,72 @@
+#pragma kernel Integrate
+
+struct DebrisState
+{
+    float4 positionAge;
+    float4 rotation;
+    float4 velocitySettled;
+    float4 angularGround;
+    float4 contactActive;
+};
+
+RWStructuredBuffer<DebrisState> _States;
+float _DeltaTime;
+uint _StateCount;
+
+float4 QuaternionMultiply(float4 a, float4 b)
+{
+    return float4(
+        a.w * b.xyz + b.w * a.xyz + cross(a.xyz, b.xyz),
+        a.w * b.w - dot(a.xyz, b.xyz));
+}
+
+[numthreads(64, 1, 1)]
+void Integrate(uint id : SV_DispatchThreadID)
+{
+    if (id >= _StateCount) return;
+    DebrisState state = _States[id];
+    if (state.contactActive.y < 0.5 || state.velocitySettled.w > 0.5) return;
+
+    float dt = min(_DeltaTime, 1.0 / 20.0);
+    float3 position = state.positionAge.xyz;
+    float3 velocity = state.velocitySettled.xyz;
+    float3 angular = state.angularGround.xyz;
+    float contactTime = state.contactActive.x;
+
+    state.positionAge.w += dt;
+    velocity.y -= 9.81 * dt;
+    velocity *= exp(-0.08 * dt);
+    position += velocity * dt;
+
+    float4 omega = float4(angular, 0.0);
+    state.rotation = normalize(state.rotation + QuaternionMultiply(omega, state.rotation) * (0.5 * dt));
+
+    float groundY = state.angularGround.w;
+    if (position.y <= groundY)
+    {
+        position.y = groundY;
+        if (velocity.y < -0.6) velocity.y *= -0.12;
+        else velocity.y = 0.0;
+        velocity.xz *= exp(-6.0 * dt);
+        angular *= exp(-4.5 * dt);
+        contactTime += dt;
+
+        if ((contactTime > 0.24 && length(velocity) < 1.4 && length(angular) < 1.8)
+            || state.positionAge.w > 3.0)
+        {
+            state.velocitySettled.w = 1.0;
+            velocity = 0.0;
+            angular = 0.0;
+        }
+    }
+    else
+    {
+        contactTime = 0.0;
+    }
+
+    state.positionAge.xyz = position;
+    state.velocitySettled.xyz = velocity;
+    state.angularGround.xyz = angular;
+    state.contactActive.x = contactTime;
+    _States[id] = state;
+}

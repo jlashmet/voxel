@@ -86,6 +86,7 @@ namespace VoxelEngine.Showcase
         [SerializeField] private bool m_CastShadows;
 
         private ShowcaseWorld _world;
+        private GpuDebrisSystem _gpuDebris;
         private VoxelSurfaceRenderer _renderer;
         private CharacterMotor _motor;
         private bool _spawned;
@@ -117,6 +118,7 @@ namespace VoxelEngine.Showcase
 
         private const float TornadoSpeed = 28f;
         private const float TornadoLifetime = 3f;
+        private const int MaxActiveTornadoes = 8;
 
         public int ActiveTornadoCount => _tornadoes.Count;
 
@@ -139,6 +141,7 @@ namespace VoxelEngine.Showcase
 
             _world = new ShowcaseWorld(m_Seed, capacity,
                                        m_LoadRadiusRegions, m_UnloadRadiusRegions);
+            _gpuDebris = new GpuDebrisSystem();
             _renderer = new VoxelSurfaceRenderer { CastShadows = m_CastShadows };
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 
@@ -167,6 +170,8 @@ namespace VoxelEngine.Showcase
 
             _renderer?.Dispose();
             _renderer = null;
+            _gpuDebris?.Dispose();
+            _gpuDebris = null;
             for (int i = 0; i < _tornadoes.Count; i++)
                 DestroyTornado(_tornadoes[i]);
             _tornadoes.Clear();
@@ -226,7 +231,7 @@ namespace VoxelEngine.Showcase
                 UpdateAim();
                 HandleEdits();
                 StepTornadoes(Time.deltaTime);
-                _world.StepPhysics(Time.deltaTime);
+                _gpuDebris?.Step(_world, Time.deltaTime);
 
                 _world.StepStreaming(transform.position, m_GenerateBudgetMs);
             }
@@ -377,6 +382,12 @@ namespace VoxelEngine.Showcase
         /// <summary>Launches a visible corkscrew projectile; impact remains world-authoritative.</summary>
         public void LaunchTornado(Vector3 origin, Vector3 direction, int impactRadius)
         {
+            if (_tornadoes.Count >= MaxActiveTornadoes)
+            {
+                DestroyTornado(_tornadoes[0]);
+                _tornadoes.RemoveAt(0);
+            }
+
             direction = direction.sqrMagnitude > 1e-6f ? direction.normalized : transform.forward;
             EnsureTornadoMaterial();
 
@@ -426,6 +437,7 @@ namespace VoxelEngine.Showcase
 
         private void StepTornadoes(float deltaTime)
         {
+            int impactsThisFrame = 0;
             for (int i = _tornadoes.Count - 1; i >= 0; i--)
             {
                 var shot = _tornadoes[i];
@@ -437,11 +449,22 @@ namespace VoxelEngine.Showcase
 
                 if (TryTornadoImpact(previous, shot.Position, out int3 hit))
                 {
+                    // Structural classification is CPU-authoritative. Serialize impacts so a
+                    // shotgun burst cannot schedule several large connectivity walks in one frame.
+                    if (impactsThisFrame > 0)
+                    {
+                        shot.Position = previous;
+                        shot.Root.transform.position = previous;
+                        continue;
+                    }
+                    impactsThisFrame++;
+
                     var start = Time.realtimeSinceStartupAsDouble;
-                    int changed = _world.Explode(hit, (ushort)shot.ImpactRadius);
+                    int changed = _world.Explode(hit, (ushort)shot.ImpactRadius,
+                                                 (float3)shot.Direction);
                     _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
                     _lastEditLabel = $"tornado impact r{shot.ImpactRadius}: {changed:N0} voxels, " +
-                                     $"{_world.ActiveFallingVoxels:N0} falling";
+                                     $"{(_gpuDebris?.ActiveVoxels ?? 0):N0} falling";
                     SpawnImpactBurst((Vector3)((float3)hit * VoxelSurfaceRenderer.VoxelSize));
                     DestroyTornado(shot);
                     _tornadoes.RemoveAt(i);
@@ -700,8 +723,9 @@ namespace VoxelEngine.Showcase
             GUILayout.Space(6);
 
             GUILayout.Label($"<b>Last edit</b>   {_lastEditLabel}   ({_lastEditMs:0.0} ms)", style);
-            GUILayout.Label($"physics            {_world.ActiveFallingVoxels:N0} falling voxels in " +
-                            $"{_world.ActiveFallingClusters} clusters   tornadoes {_tornadoes.Count}", style);
+            GUILayout.Label($"physics            {(_gpuDebris?.ActiveVoxels ?? 0):N0} falling voxels in " +
+                            $"{_gpuDebris?.ActiveChunks ?? 0} GPU chunks   " +
+                            $"queued {_world.PendingDetachedChunks}   tornadoes {_tornadoes.Count}", style);
             GUILayout.Space(4);
 
             GUILayout.Label("WASD move   space jump   shift sprint   F fly   R respawn", style);
