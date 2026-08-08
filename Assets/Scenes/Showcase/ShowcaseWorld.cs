@@ -607,8 +607,8 @@ namespace VoxelEngine.Showcase
 
             CastlePresentationLights = new[]
             {
-                LightAt(plan.Centre.x - 45, baseY + 17, keepCentreZ - 28, 7.0f),
-                LightAt(plan.Centre.x + 42, baseY + 17, keepCentreZ + 30, 7.0f),
+                LightAt(plan.Centre.x - 45, baseY + 26, keepCentreZ - 28, 8.0f),
+                LightAt(plan.Centre.x + 42, baseY + 26, keepCentreZ + 30, 8.0f),
                 LightAt(plan.Centre.x, baseY + plan.FloorHeight + 17, keepCentreZ, 8.0f),
                 LightAt(plan.Centre.x, baseY + plan.FloorHeight * 3 + 17, keepCentreZ, 7.0f),
                 LightAt(wingCentreX, baseY + 17, wingCentreZ, 7.5f),
