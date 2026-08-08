@@ -2080,32 +2080,55 @@ namespace VoxelEngine.Structures
                 brush.Cone(crystal.x + 6, crystal.y, crystal.z + 6, 3, 17, Mat.Glass);
             }
 
-            // The side grotto is the cool-colour reward at the end of the branch: a ring of
-            // crystals around a low ruined plinth, with hanging formations framing the opening.
-            for (int i = 0; i < 7; i++)
+            // The side grotto is the cool-colour reward at the end of the branch. A shallow
+            // spring and ruined arch provide a layered focal composition; slender crystals stay
+            // at the perimeter instead of forming the former bright picket fence around a cube.
+            brush.Disc(sideCaveX, at.y + 1, sideCaveZ, 15, Mat.Water);
+            brush.Box(new int3(sideCaveX - 20, at.y + 2, sideCaveZ - 3),
+                      new int3(40, 2, 6), Mat.DarkStone);
+
+            int archX = sideCaveX + 28;
+            for (int side = -1; side <= 1; side += 2)
             {
-                float angle = i * (math.PI * 2f / 7f);
-                int cx = sideCaveX + (int)math.round(math.cos(angle) * 20f);
-                int cz = sideCaveZ + (int)math.round(math.sin(angle) * 20f);
-                brush.Cone(cx, at.y + 2, cz, 3 + (i & 1), 14 + i * 2,
-                           i % 3 == 0 ? Mat.Gold : Mat.Glass);
+                int pillarZ = sideCaveZ + side * 16;
+                brush.Cylinder(archX, at.y + 2, pillarZ, 6, 29, Mat.Stone);
+                brush.Cylinder(archX, at.y + 27, pillarZ, 8, 4, Mat.DarkStone);
             }
-            brush.Box(new int3(sideCaveX - 12, at.y + 2, sideCaveZ - 9),
-                      new int3(24, 5, 18), Mat.Stone);
-            brush.Box(new int3(sideCaveX - 5, at.y + 7, sideCaveZ - 4),
-                      new int3(10, 8, 8), Mat.Gold);
-            brush.HangingCone(sideCaveX - 22, at.y + 32, sideCaveZ - 18,
-                              6, 20, Mat.DarkStone);
-            brush.HangingCone(sideCaveX + 25, at.y + 35, sideCaveZ + 16,
-                              7, 23, Mat.DarkStone);
+            brush.Box(new int3(archX - 4, at.y + 28, sideCaveZ - 22),
+                      new int3(8, 6, 44), Mat.DarkStone);
+            brush.Box(new int3(archX + 1, at.y + 11, sideCaveZ - 3),
+                      new int3(5, 14, 6), Mat.Glass);
+            brush.Box(new int3(archX - 2, at.y + 8, sideCaveZ - 6),
+                      new int3(11, 4, 12), Mat.Stone);
+
+            for (int i = 0; i < 9; i++)
+            {
+                float angle = i * (math.PI * 2f / 9f) + 0.23f;
+                float radius = 27f + (i % 3) * 5f;
+                int cx = sideCaveX + (int)math.round(math.cos(angle) * radius);
+                int cz = sideCaveZ + (int)math.round(math.sin(angle) * radius);
+                int crystalHeight = 10 + (i * 7 % 13);
+                brush.Cone(cx, at.y + 2, cz, 2 + (i & 1), crystalHeight,
+                           i == 2 || i == 7 ? Mat.Gold : Mat.Glass);
+                if ((i & 1) == 0)
+                    brush.Cone(cx + 5, at.y + 2, cz - 3, 2,
+                               math.max(7, crystalHeight - 6), Mat.Glass);
+            }
+            brush.HangingCone(sideCaveX - 25, at.y + 35, sideCaveZ - 20,
+                              6, 21, Mat.DarkStone);
+            brush.HangingCone(sideCaveX + 3, at.y + 38, sideCaveZ + 20,
+                              7, 25, Mat.DarkStone);
+            brush.HangingCone(sideCaveX + 30, at.y + 34, sideCaveZ - 15,
+                              5, 18, Mat.DarkStone);
 
             // Cave dressing is intentionally random, but circulation is not. Reassert the final
             // tunnel core after stalagmites/crystals so no seed can decorate across the route;
-            // stop before the altar ring to preserve the grotto composition.
+            // carry the causeway through the spring to the grotto centre so the player capsule
+            // cannot clip the water rim during the reveal.
             brush.Box(new int3(at.x - 5, at.y + 2, sideCaveZ - 8),
-                      new int3(135, 22, 16), Mat.Empty);
+                      new int3(151, 22, 16), Mat.Empty);
             brush.Box(new int3(at.x - 5, at.y - 1, sideCaveZ - 8),
-                      new int3(135, 3, 16), Mat.DarkStone);
+                      new int3(151, 3, 16), Mat.DarkStone);
 
             int3[] caveLights =
             {
