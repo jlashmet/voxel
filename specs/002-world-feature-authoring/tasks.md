@@ -45,11 +45,15 @@ which is authoritative. T009 puts this feature's numbers there before any of the
 
 ## Build status (2026-08-07)
 
-**T001–T023 are authored but not yet compiled.** The verification run was refused by
+**T001–T039 are authored but not yet compiled.** The verification run was refused by
 `tools/unity-run.sh` because a Unity editor was open, and overriding that guard is how this
 project's machine got taken down three times. What has been checked: brace and paren balance
-across all 17 new files, and the float ban applied to itself over `Core/Features` and
+across all 23 new files, and the float ban applied to itself over `Core/Features` and
 `Core/Terrain` — zero violations.
+
+**T040 is deliberately not marked.** It is the judgement gate — generate the cottage and decide
+whether parametric output is good enough to build seven more milestones on — and it cannot be
+answered without running the editor.
 
 Spec 001 recorded the same trap in harsher terms: its `[X]` marks "recorded *authored*, not
 *working*, code" against assemblies that had never been built. The marks below mean the work is
@@ -117,22 +121,22 @@ and generates identically whether rasterised whole or in pieces.
 cottage, that eight disjoint sub-volume rasterisations equal one whole rasterisation, and that
 changing a parameter changes the result deterministically.
 
-- [ ] T024 [P] [US1] Define the opcode enum per contracts/shape-program.md in `Assets/VoxelEngine/Core/Features/ShapeOps.cs`
-- [ ] T025 [US1] Implement the shape program register file and execution loop in `Assets/VoxelEngine/Core/Features/ShapeProgram.cs`
-- [ ] T026 [P] [US1] Implement `EMIT_BOX` and `EMIT_RAMP` in `Assets/VoxelEngine/Core/Features/Emitters/BoxEmitter.cs`
-- [ ] T027 [P] [US1] Implement `EMIT_CYLINDER` with integer circle rasterisation in `Assets/VoxelEngine/Core/Features/Emitters/CylinderEmitter.cs`
-- [ ] T028 [P] [US1] Implement `EMIT_PRISM` with gable, shed, and arch profiles in `Assets/VoxelEngine/Core/Features/Emitters/PrismEmitter.cs`
-- [ ] T029 [P] [US1] Implement `EMIT_CAPSULE_CHAIN` in `Assets/VoxelEngine/Core/Features/Emitters/CapsuleChainEmitter.cs`
-- [ ] T030 [US1] Implement structured control flow — `REPEAT`, `IF_RANGE`, `PUSH_TRANSFORM`, `POP_TRANSFORM` — with statically computable trip counts in `Assets/VoxelEngine/Core/Features/ShapeProgram.cs`
-- [ ] T031 [US1] Implement `DRAW_RANGE` seeded integer parameter draws honouring `Quantum` in `Assets/VoxelEngine/Core/Features/ParameterDraw.cs`
-- [ ] T032 [US1] Implement `SET_ANCHOR` recording into the resolved anchor list in `Assets/VoxelEngine/Core/Features/ShapeProgram.cs`
-- [ ] T033 [US1] Implement the primitive rasteriser with exact sub-volume clipping in `Assets/VoxelEngine/Core/Features/PrimitiveRasteriser.cs`, writing through the existing voxel write path
-- [ ] T034 [US1] Enforce the per-region primitive cap with a loud failure rather than truncation in `Assets/VoxelEngine/Core/Features/PrimitiveRasteriser.cs` (FR-036)
-- [ ] T035 [US1] Apply explicit placements during region generation in `Assets/VoxelEngine/Core/Features/FeatureGeneration.cs`
-- [ ] T036 [P] [US1] Test: sub-volume equality for the cottage fixture in `Assets/Tests/Features/SubVolumeEqualityTests.cs`
-- [ ] T037 [P] [US1] Test: parameter draws are identical across runs and platforms in `Assets/Tests/Parity/ParameterDrawParityTests.cs`
-- [ ] T038 [P] [US1] Test: every emitted primitive lies inside the declared footprint in `Assets/Tests/Features/FootprintContainmentTests.cs`
-- [ ] T039 [P] [US1] Test: the evaluator contains no float path, asserted by analyzer output in `Assets/Tests/Features/NoFloatInGenerationTests.cs`
+- [X] T024 [P] [US1] Define the opcode enum per contracts/shape-program.md in `Assets/VoxelEngine/Core/Features/ShapeOps.cs`
+- [X] T025 [US1] Implement the shape program register file and execution loop in `Assets/VoxelEngine/Core/Features/ShapeProgram.cs`
+- [X] T026 [P] [US1] Implement `EMIT_BOX` and `EMIT_RAMP` in `Assets/VoxelEngine/Core/Features/Emitters/BoxEmitter.cs`
+- [X] T027 [P] [US1] Implement `EMIT_CYLINDER` with integer circle rasterisation in `Assets/VoxelEngine/Core/Features/Emitters/CylinderEmitter.cs`
+- [X] T028 [P] [US1] Implement `EMIT_PRISM` with gable, shed, and arch profiles in `Assets/VoxelEngine/Core/Features/Emitters/PrismEmitter.cs`
+- [X] T029 [P] [US1] Implement `EMIT_CAPSULE_CHAIN` in `Assets/VoxelEngine/Core/Features/Emitters/CapsuleChainEmitter.cs`
+- [X] T030 [US1] Implement structured control flow — `REPEAT`, `IF_RANGE`, `PUSH_TRANSFORM`, `POP_TRANSFORM` — with statically computable trip counts in `Assets/VoxelEngine/Core/Features/ShapeProgram.cs`
+- [X] T031 [US1] Implement `DRAW_RANGE` seeded integer parameter draws honouring `Quantum` in `Assets/VoxelEngine/Core/Features/ParameterDraw.cs`
+- [X] T032 [US1] Implement `SET_ANCHOR` recording into the resolved anchor list in `Assets/VoxelEngine/Core/Features/ShapeProgram.cs`
+- [X] T033 [US1] Implement the primitive rasteriser with exact sub-volume clipping in `Assets/VoxelEngine/Core/Features/PrimitiveRasteriser.cs`, writing through the existing voxel write path
+- [X] T034 [US1] Enforce the per-region primitive cap with a loud failure rather than truncation in `Assets/VoxelEngine/Core/Features/PrimitiveRasteriser.cs` (FR-036)
+- [X] T035 [US1] Apply explicit placements during region generation in `Assets/VoxelEngine/Core/Features/FeatureGeneration.cs`
+- [X] T036 [P] [US1] Test: sub-volume equality for the cottage fixture in `Assets/Tests/Features/SubVolumeEqualityTests.cs`
+- [X] T037 [P] [US1] Test: parameter draws are identical across runs and platforms in `Assets/Tests/Parity/ParameterDrawParityTests.cs`
+- [X] T038 [P] [US1] Test: every emitted primitive lies inside the declared footprint in `Assets/Tests/Features/FootprintContainmentTests.cs`
+- [X] T039 [P] [US1] Test: the evaluator contains no float path, asserted by analyzer output in `Assets/Tests/Features/NoFloatInGenerationTests.cs`
 - [ ] T040 [US1] **Look at it.** Generate the cottage in the showcase scene and judge whether parametric output is good enough to build on (plan risk 2). Record the verdict in `specs/002-world-feature-authoring/architecture-notes.md`
 
 ---

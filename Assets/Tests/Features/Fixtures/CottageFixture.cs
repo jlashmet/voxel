@@ -11,9 +11,8 @@ namespace VoxelEngine.Tests.Features.Fixtures
     /// separate concern with its own failure modes, and a fixture that depends on it cannot tell
     /// you whether the generator or the parser broke.
     ///
-    /// The shape program is empty at this stage. Opcodes and the evaluator arrive with US1
-    /// (T024–T032); until then this fixture exercises the catalogue structures, the load-bearing
-    /// invariant checks, and the identity hash — which is what Phase 2 is for.
+    /// The shape program comes from <see cref="CottageProgram"/>, written as opcodes by hand.
+    /// Composition slots stay empty until US4.
     /// </summary>
     public static class CottageFixture
     {
@@ -31,17 +30,21 @@ namespace VoxelEngine.Tests.Features.Fixtures
 
         public static FeatureCatalogue Build(Allocator allocator)
         {
+            var program = CottageProgram.Build();
+
             var catalogue = CatalogueLoader.Allocate(
                 definitions: 1,
                 rules: 1,
                 parameters: 4,
                 anchors: 2,
                 slots: 0,
-                programLength: 0,
+                programLength: program.Length,
                 materials: 3,
                 explicitPlacements: 1,
                 overrides: 0,
                 allocator);
+
+            for (var i = 0; i < program.Length; i++) catalogue.Program[i] = program[i];
 
             catalogue.Parameters[ParamWidth] = new ParameterSpec
             {
@@ -94,7 +97,7 @@ namespace VoxelEngine.Tests.Features.Fixtures
                 ParameterOffset = 0, ParameterCount = 4,
                 AnchorOffset = 0, AnchorCount = 2,
                 SlotOffset = 0, SlotCount = 0,
-                ProgramOffset = 0, ProgramLength = 0,
+                ProgramOffset = 0, ProgramLength = program.Length,
                 MaterialOffset = 0, MaterialCount = 3,
 
                 MaxPrimitives = 64,
