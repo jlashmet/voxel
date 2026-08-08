@@ -51,6 +51,9 @@ namespace VoxelEngine.Rendering
         private static readonly int s_FarDistance = Shader.PropertyToID("g_FarDistance");
         private static readonly int s_FarBaseHeight = Shader.PropertyToID("g_FarBaseHeight");
         private static readonly int s_FarEnabled = Shader.PropertyToID("g_FarEnabled");
+        private static readonly int s_CutawayEnabled = Shader.PropertyToID("g_CutawayEnabled");
+        private static readonly int s_CutawayMinVoxel = Shader.PropertyToID("g_CutawayMinVoxel");
+        private static readonly int s_CutawayMaxVoxel = Shader.PropertyToID("g_CutawayMaxVoxel");
 
         private readonly VoxelGpuBuffers _buffers = new();
         private ComputeShader _raymarch;
@@ -223,6 +226,12 @@ namespace VoxelEngine.Rendering
                 cmd.SetComputeFloatParam(data.Raymarch, s_FarDistance, VoxelRenderBridge.FarDistance);
                 cmd.SetComputeIntParam(data.Raymarch, s_FarBaseHeight, VoxelRenderBridge.FarBaseHeight);
                 cmd.SetComputeIntParam(data.Raymarch, s_FarEnabled, VoxelRenderBridge.FarFieldEnabled ? 1 : 0);
+                cmd.SetComputeIntParam(data.Raymarch, s_CutawayEnabled,
+                                       VoxelRenderBridge.CutawayEnabled ? 1 : 0);
+                cmd.SetComputeVectorParam(data.Raymarch, s_CutawayMinVoxel,
+                                          VoxelRenderBridge.CutawayMinVoxel);
+                cmd.SetComputeVectorParam(data.Raymarch, s_CutawayMaxVoxel,
+                                          VoxelRenderBridge.CutawayMaxVoxel);
                 cmd.SetComputeVectorArrayParam(data.Raymarch, s_MaterialColours, VoxelRenderBridge.MaterialColours);
 
                 // Seed the target with what URP has drawn so far, so rays that miss composite

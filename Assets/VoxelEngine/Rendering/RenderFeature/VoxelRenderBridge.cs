@@ -60,6 +60,14 @@ namespace VoxelEngine.Rendering
 
         public static bool FarFieldEnabled = true;
 
+        /// <summary>
+        /// Presentation-only rectangular clip volume in world-voxel coordinates. Used by fixed
+        /// section views to expose generated rooms without mutating authoritative storage.
+        /// </summary>
+        public static bool CutawayEnabled;
+        public static Vector3 CutawayMinVoxel;
+        public static Vector3 CutawayMaxVoxel;
+
         /// <summary>Direction light points *from* the surface toward the sun.</summary>
         public static Vector3 SunDirection = new Vector3(0.42f, 0.58f, -0.70f).normalized;
 

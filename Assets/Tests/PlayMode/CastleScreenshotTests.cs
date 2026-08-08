@@ -112,6 +112,11 @@ namespace VoxelEngine.Tests.PlayMode
                 ("11_cave",        centre + new Vector3(0f, -15.0f, -31f),
                                     centre + new Vector3(5f, -14.5f, -27f)),
 
+                // Presentation-only section through the southern half of the keep. The renderer
+                // skips the clip volume; RegionTable and BrickPool are never modified.
+                ("12_cutaway",     centre + new Vector3(0f, 18f, -38f),
+                                    centre + new Vector3(0f, 7f, 6f)),
+
                 // Terrain far from the castle, to tell whether the terracing is the castle's
                 // sculpting or the terrain generator's own stepping.
                 ("07_terrain",     centre + new Vector3(260f, 22f, 260f), centre + new Vector3(360f, 12f, 360f)),
@@ -119,6 +124,14 @@ namespace VoxelEngine.Tests.PlayMode
 
             foreach (var view in views)
             {
+                bool cutaway = view.name == "12_cutaway";
+                if (cutaway)
+                {
+                    showcase.SetCutawayPresentation(true,
+                        new Vector3(154f, 54f, 326f), new Vector3(358f, 512f, 410f));
+                }
+                else showcase.SetCutawayPresentation(false);
+
                 cam.transform.position = view.position;
                 cam.transform.LookAt(view.lookAt);
 
@@ -126,9 +139,17 @@ namespace VoxelEngine.Tests.PlayMode
                 yield return null;
                 yield return null;
 
+                int allocatedBeforeCapture = world.Pool.AllocatedCount;
                 Capture(cam, Path.Combine(OutputDirectory, view.name + ".png"));
+                if (cutaway)
+                {
+                    Assert.AreEqual(allocatedBeforeCapture, world.Pool.AllocatedCount,
+                        "Rendering a cutaway must not allocate, free, or carve authoritative bricks.");
+                }
                 Debug.Log($"### SHOT {view.name} from {view.position}");
             }
+
+            showcase.SetCutawayPresentation(false);
 
             Debug.Log($"### DONE wrote {views.Length} views to {OutputDirectory}");
             Assert.Greater(world.CastleVoxels, 100000, "the castle wrote almost nothing");

@@ -139,6 +139,7 @@ namespace VoxelEngine.Showcase
 
         private void OnDisable()
         {
+            VoxelRenderBridge.CutawayEnabled = false;
             VoxelRenderBridge.Source = null;
             VoxelRenderBridge.RegionsNeedingUpload = null;
 
@@ -146,6 +147,18 @@ namespace VoxelEngine.Showcase
             _renderer = null;
             _world?.Dispose();
             _world = null;
+        }
+
+        /// <summary>
+        /// Enables a presentation-only section box. Intended for fixed showcase cameras; it
+        /// never writes to the voxel world and is reset automatically when this driver disables.
+        /// </summary>
+        public void SetCutawayPresentation(bool enabled, Vector3 minVoxel = default,
+                                           Vector3 maxVoxel = default)
+        {
+            VoxelRenderBridge.CutawayMinVoxel = minVoxel;
+            VoxelRenderBridge.CutawayMaxVoxel = maxVoxel;
+            VoxelRenderBridge.CutawayEnabled = enabled;
         }
 
         /// <summary>

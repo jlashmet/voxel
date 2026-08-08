@@ -61,6 +61,12 @@ float    g_FarDistance;      // metres; 0 disables the far field
 uint     g_FarBaseHeight;    // voxels
 uint     g_FarEnabled;
 
+// Presentation-only section box. Voxels inside it are skipped by primary, shadow, and AO rays;
+// CPU storage remains untouched and therefore stays authoritative.
+uint     g_CutawayEnabled;
+float3   g_CutawayMinVoxel;
+float3   g_CutawayMaxVoxel;
+
 // Material colours, indexed by material id. Slot 0 is empty and never shaded.
 float4 g_MaterialColours[16];
 
@@ -111,10 +117,20 @@ uint VoxelMaterial(int poolIndex, int3 v)
     return (packed >> ((voxelIndex & 3) * 8)) & 0xFFu;
 }
 
+bool PresentationClipped(int3 voxel)
+{
+    if (g_CutawayEnabled == 0u) return false;
+
+    float3 p = float3(voxel);
+    return all(p >= g_CutawayMinVoxel) && all(p < g_CutawayMaxVoxel);
+}
+
 // True when a voxel is solid. Used by the shadow and occlusion rays, which need to sample the
 // world at arbitrary points rather than walk it.
 bool SolidAt(int3 voxel)
 {
+    if (PresentationClipped(voxel)) return false;
+
     int3 brick = voxel >> 3;
     int brickRef = BrickRefAt(brick);
 
@@ -434,8 +450,10 @@ bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
 
 // -- traversal ----------------------------------------------------------------
 
-// Marches the 8^3 voxels of one mixed brick. Returns the material hit, or 0.
-uint MarchBrick(int poolIndex, float3 entryVoxel, float3 dir, out float3 normal, out float tHit)
+// Marches the 8^3 voxels of one brick. Uniform bricks normally stop in the outer DDA without
+// descending, but a cutaway may cross only part of one and therefore needs voxel resolution.
+uint MarchBrick(int brickRef, int3 brickCoord, float3 entryVoxel, float3 dir,
+                out float3 normal, out float tHit)
 {
     normal = float3(0, 1, 0);
     tHit = 0;
@@ -459,8 +477,11 @@ uint MarchBrick(int poolIndex, float3 entryVoxel, float3 dir, out float3 normal,
     [loop]
     for (uint i = 0; i < 24u; i++)
     {
-        uint material = VoxelMaterial(poolIndex, v);
-        if (material != 0u)
+        uint material = brickRef < -1
+            ? (uint)(-brickRef - 1)
+            : VoxelMaterial(brickRef, v);
+        int3 worldVoxel = brickCoord * k_BrickEdge + v;
+        if (material != 0u && !PresentationClipped(worldVoxel))
         {
             normal = float3(axis == 0 ? -step.x : 0, axis == 1 ? -step.y : 0, axis == 2 ? -step.z : 0);
             return material;
@@ -539,7 +560,7 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
             sawRef = 1.0;
             float3 normal = float3(axis == 0 ? -step.x : 0, axis == 1 ? -step.y : 0, axis == 2 ? -step.z : 0);
 
-            if (brickRef < -1)
+            if (brickRef < -1 && g_CutawayEnabled == 0u)
             {
                 // Uniform, non-empty: the pointer itself carries the material. No memory read.
                 // Brick space to voxel space. The outer DDA steps bricks, so the hit position is
@@ -554,11 +575,11 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
             float3 entry = (origin + dir * (t + 1e-4)) - float3(brick);
             float3 entryVoxel = clamp(entry * k_BrickEdge, 0.0, k_BrickEdge - 1e-3);
 
-            sawMixed = 1.0;
+            if (brickRef >= 0) sawMixed = 1.0;
 
             float3 hitNormal;
             float tInner;
-            uint material = MarchBrick(brickRef, entryVoxel, dir, hitNormal, tInner);
+            uint material = MarchBrick(brickRef, brick, entryVoxel, dir, hitNormal, tInner);
 
             if (material != 0u) sawVoxel = 1.0;
 
