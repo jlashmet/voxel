@@ -350,6 +350,12 @@ namespace VoxelEngine.Showcase
 
             if (Input.GetKeyDown(KeyCode.R)) Spawn();
 
+            if (Input.GetKeyDown(KeyCode.E) && _world.TryOpenCastleTrapdoor(_motor.Position))
+            {
+                _lastEditMs = 0.0;
+                _lastEditLabel = "secret cellar trapdoor opened";
+            }
+
             for (int i = 0; i < ShowcaseWorld.BuildableMaterials.Length; i++)
                 if (Input.GetKeyDown(KeyCode.Alpha1 + i)) _materialSlot = i;
 
@@ -728,12 +734,24 @@ namespace VoxelEngine.Showcase
                             $"queued {_world.PendingDetachedChunks}   tornadoes {_tornadoes.Count}", style);
             GUILayout.Space(4);
 
-            GUILayout.Label("WASD move   space jump   shift sprint   F fly   R respawn", style);
+            GUILayout.Label("WASD move   space jump   shift sprint   E interact   F fly   R respawn", style);
             GUILayout.Label($"LMB tornado   RMB build   wheel impact radius   1-4 material   " +
                             $"r{m_BrushRadius} <b>{ShowcaseWorld.MaterialNames[material]}</b>", style);
             GUILayout.Label("T shadows   F1 hide HUD   esc release cursor", style);
 
             GUILayout.EndArea();
+
+            if (_world.CanOpenCastleTrapdoor(_motor.Position))
+            {
+                var prompt = new GUIStyle(GUI.skin.box)
+                {
+                    fontSize = 16,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter,
+                };
+                GUI.Box(new Rect(Screen.width * 0.5f - 120f, Screen.height - 96f, 240f, 40f),
+                        "E  OPEN TRAPDOOR", prompt);
+            }
         }
     }
 }

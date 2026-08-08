@@ -255,26 +255,34 @@ namespace VoxelEngine.Structures
 
         public void Box(int3 min, int3 size, byte material)
         {
-            for (int z = 0; z < size.z; z++)
-            for (int y = 0; y < size.y; y++)
-            for (int x = 0; x < size.x; x++)
-                Set(min.x + x, min.y + y, min.z + z, material);
+            if (math.any(size <= 0)) return;
+            FillBulk(min, size, material);
         }
 
         /// <summary>Walls only — the shell of a box, with an open interior.</summary>
         public void HollowBox(int3 min, int3 size, int thickness, byte material, bool floor, bool ceiling)
         {
-            for (int z = 0; z < size.z; z++)
-            for (int y = 0; y < size.y; y++)
-            for (int x = 0; x < size.x; x++)
-            {
-                bool shell = x < thickness || x >= size.x - thickness
-                          || z < thickness || z >= size.z - thickness
-                          || (floor && y < thickness)
-                          || (ceiling && y >= size.y - thickness);
+            if (math.any(size <= 0) || thickness <= 0) return;
 
-                if (shell) Set(min.x + x, min.y + y, min.z + z, material);
+            int t = math.min(thickness, math.min(size.x, size.z));
+            FillBulk(min, new int3(t, size.y, size.z), material);
+            FillBulk(new int3(min.x + size.x - t, min.y, min.z),
+                     new int3(t, size.y, size.z), material);
+
+            int middleX = math.max(0, size.x - t * 2);
+            if (middleX > 0)
+            {
+                FillBulk(new int3(min.x + t, min.y, min.z),
+                         new int3(middleX, size.y, t), material);
+                FillBulk(new int3(min.x + t, min.y, min.z + size.z - t),
+                         new int3(middleX, size.y, t), material);
             }
+
+            if (floor)
+                FillBulk(min, new int3(size.x, math.min(t, size.y), size.z), material);
+            if (ceiling)
+                FillBulk(new int3(min.x, min.y + math.max(0, size.y - t), min.z),
+                         new int3(size.x, math.min(t, size.y), size.z), material);
         }
 
         /// <summary>Vertical cylinder. <paramref name="innerRadius"/> above zero leaves a shaft.</summary>
@@ -326,6 +334,21 @@ namespace VoxelEngine.Structures
                     if (d2 <= r2 && (d2 >= inner2 || y >= height - 4))
                         Set(cx + x, baseY + y, cz + z, material);
                 }
+            }
+        }
+
+        /// <summary>Solid taper hanging from a ceiling, used for cave stalactites.</summary>
+        public void HangingCone(int cx, int ceilingY, int cz, int radius, int height, byte material)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                float t = 1f - (float)y / height;
+                int r = math.max(0, (int)math.round(radius * t));
+                int r2 = r * r;
+                for (int z = -r; z <= r; z++)
+                for (int x = -r; x <= r; x++)
+                    if (x * x + z * z <= r2)
+                        Set(cx + x, ceilingY - y, cz + z, material);
             }
         }
 
@@ -439,26 +462,44 @@ namespace VoxelEngine.Structures
         }
 
         /// <summary>
-        /// Spiral stair inside a shaft. How a keep gets from cellar to battlements without a
-        /// straight run eating the floor plan.
+        /// Walkable spiral stair inside a shaft. Treads rise 20 cm and advance roughly 30 cm at
+        /// their walking line, matching CharacterMotor's 30 cm step-up allowance. Each tread
+        /// also carves 2 m of headroom; without that carve a stair drawn through a floor stack is
+        /// only visible geometry, not circulation.
         /// </summary>
         public void SpiralStair(int cx, int baseY, int cz, int radius, int height, byte material)
         {
-            for (int y = 0; y < height; y++)
+            const int rise = 2;
+            const int run = 3;
+            const int headroom = 20;
+            const int angularSamples = 5;
+
+            int innerRadius = math.max(2, radius - 10);
+            float walkingRadius = (innerRadius + radius) * 0.5f;
+            float anglePerStep = run / walkingRadius;
+            int steps = (height + rise - 1) / rise;
+
+            for (int step = 0; step < steps; step++)
             {
-                float angle = y * 0.35f;
+                int treadY = baseY + step * rise;
 
-                for (int r = 1; r <= radius; r++)
+                // A shallow wedge rather than a one-voxel spoke gives the character's 60 cm
+                // footprint somewhere to stand while turning around the shaft.
+                for (int sample = 0; sample < angularSamples; sample++)
                 {
-                    int x = cx + (int)math.round(math.cos(angle) * r);
-                    int z = cz + (int)math.round(math.sin(angle) * r);
-                    Set(x, baseY + y, z, material);
+                    float angle = (step + sample / (float)angularSamples) * anglePerStep;
 
-                    // A second voxel behind the tread, so the stair is walkable rather than a
-                    // sequence of floating pads.
-                    int x2 = cx + (int)math.round(math.cos(angle - 0.18f) * r);
-                    int z2 = cz + (int)math.round(math.sin(angle - 0.18f) * r);
-                    Set(x2, baseY + y, z2, material);
+                    for (int r = innerRadius; r <= radius; r++)
+                    {
+                        int x = cx + (int)math.round(math.cos(angle) * r);
+                        int z = cz + (int)math.round(math.sin(angle) * r);
+
+                        for (int h = rise; h < headroom; h++)
+                            Set(x, treadY + h, z, Mat.Empty);
+
+                        Set(x, treadY, z, material);
+                        Set(x, treadY + 1, z, material);
+                    }
                 }
             }
         }

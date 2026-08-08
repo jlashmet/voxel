@@ -6,6 +6,7 @@
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
     "VoxelEngine.Streaming",
+    "VoxelEngine.Structures",
     "VoxelEngine.Tiering",
     "Unity.Burst",
     "Unity.Collections",

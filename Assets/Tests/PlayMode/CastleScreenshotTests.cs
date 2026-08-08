@@ -2,10 +2,12 @@ using System.Collections;
 using System.IO;
 using System.Reflection;
 using NUnit.Framework;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Showcase;
+using VoxelEngine.Structures;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -78,35 +80,47 @@ namespace VoxelEngine.Tests.PlayMode
 
             cam.farClipPlane = 4000f;
 
-            // The castle sits at the centre of region (0,0,0), offset +120 voxels in z.
-            var centre = new Vector3(25.6f, 0f, 25.6f + 12f);
+            // Derive framing from the generated plan. The castle family now varies around a
+            // 50-60 m footprint, so hard-coding the former 35 m camera orbit clips valid seeds.
+            int groundVoxels = world.SurfaceHeight(256, 376);
+            var plan = CastleBuilder.Plan(new int3(256, groundVoxels, 376), world.Seed);
+            int baseY = plan.Centre.y + plan.PlateauHeight;
+            var keepMin = new int3(plan.Centre.x - plan.KeepHalfX, baseY,
+                                   plan.Centre.z - plan.KeepHalfZ + 60);
+            var keepSize = new int3(plan.KeepHalfX * 2, plan.KeepHeight,
+                                    plan.KeepHalfZ * 2);
+            var centre = new Vector3(plan.Centre.x, baseY, plan.Centre.z) * 0.1f;
+            float orbitScale = math.max(plan.BaileyHalfX, plan.BaileyHalfZ) / 175f;
 
-            // The plateau raises the ground the castle stands on, so framing from the natural
-            // terrain height aims at its foundations.
-            float ground = world.SurfaceHeight(256, 376) * 0.1f;
-            centre.y = ground + 2.6f;
+            var stairCamera = new Vector3(plan.Centre.x, baseY + 18, keepMin.z + 16) * 0.1f;
+            var stairLook = new Vector3(plan.Centre.x - 60, baseY + 20, keepMin.z + 76) * 0.1f;
+            int3 trapdoor = CastleBuilder.TrapdoorCentre(in plan);
 
-            // Distances sized to a 35 m castle with 13 m towers. The first pass reused framing
-            // written for a castle two and a half times larger and photographed a smudge.
             var views = new (string name, Vector3 position, Vector3 lookAt)[]
             {
-                ("01_approach",    centre + new Vector3(0f, 8f, -52f),   centre + new Vector3(0f, 7f, 0f)),
-                ("02_aerial",      centre + new Vector3(-46f, 48f, -46f), centre + new Vector3(0f, 9f, 0f)),
-                ("03_gate",        centre + new Vector3(0f, 4f, -26f),   centre + new Vector3(0f, 8f, 0f)),
-                ("04_courtyard",   centre + new Vector3(-5f, 5f, -8f),   centre + new Vector3(4f, 8f, 5f)),
-                ("05_silhouette",  centre + new Vector3(58f, 21f, -58f), centre + new Vector3(0f, 8f, 0f)),
-                ("06_wall_detail", centre + new Vector3(-21f, 7f, -13f), centre + new Vector3(-13f, 7f, -5f)),
+                ("01_approach",    centre + new Vector3(0f, 11f, -52f * orbitScale),
+                                    centre + new Vector3(0f, 10f, 0f)),
+                ("02_aerial",      centre + new Vector3(-62f, 64f, -62f),
+                                    centre + new Vector3(0f, 11f, 0f)),
+                ("03_gate",        centre + new Vector3(0f, 5f, -38f),
+                                    centre + new Vector3(0f, 10f, 0f)),
+                ("04_courtyard",   centre + new Vector3(-7f, 6f, -15f),
+                                    centre + new Vector3(5f, 10f, 6f)),
+                ("05_silhouette",  centre + new Vector3(82f, 29f, -82f),
+                                    centre + new Vector3(0f, 11f, 0f)),
+                ("06_wall_detail", centre + new Vector3(-32f, 8f, -22f),
+                                    centre + new Vector3(-23f, 8f, -12f)),
 
                 // East shoulder: verifies the ravine, cascade, pool, hall balcony, and tree belt
                 // as a composition rather than only asserting that their voxels were written.
-                ("08_waterfall",   centre + new Vector3(55f, 25f, 4f),
-                                    centre + new Vector3(37f, -5f, 4f)),
+                ("08_waterfall",   centre + new Vector3(70f, 30f, 5f),
+                                    centre + new Vector3(48f, -5f, 5f)),
 
                 // The reference treats rooms and underground spaces as first-class generated
                 // content. These cameras sit inside the authoritative voxel volume—no cutaway
                 // mesh or separate presentation model is involved.
-                ("09_great_hall",  centre + new Vector3(0f, 2.2f, 4.5f),
-                                    centre + new Vector3(5f, 2.0f, 9f)),
+                ("09_great_hall",  centre + new Vector3(0f, 2.2f, 2f),
+                                    centre + new Vector3(7f, 2.0f, 8f)),
                 ("10_dungeon",     centre + new Vector3(-4f, -15.2f, 9f),
                                     centre + new Vector3(6f, -15.0f, 13f)),
                 ("11_cave",        centre + new Vector3(0f, -15.0f, -31f),
@@ -114,8 +128,18 @@ namespace VoxelEngine.Tests.PlayMode
 
                 // Presentation-only section through the southern half of the keep. The renderer
                 // skips the clip volume; RegionTable and BrickPool are never modified.
-                ("12_cutaway",     centre + new Vector3(0f, 18f, -38f),
-                                    centre + new Vector3(0f, 7f, 6f)),
+                ("12_cutaway",     centre + new Vector3(0f, 25f, -56f),
+                                    centre + new Vector3(0f, 11f, 7f)),
+
+                // From just inside the open front doors, explicitly proves that the grand stair
+                // is visible and reads as the route to the occupied upper floor.
+                ("13_stair_hall",  stairCamera, stairLook),
+
+                ("14_trapdoor",    new Vector3(trapdoor.x, trapdoor.y + 18, trapdoor.z - 24) * 0.1f,
+                                    new Vector3(trapdoor.x, trapdoor.y + 1, trapdoor.z) * 0.1f),
+                ("15_secret_archive",
+                                    new Vector3(keepMin.x + 42, baseY - 30, keepMin.z + 42) * 0.1f,
+                                    new Vector3(keepMin.x + 82, baseY - 29, keepMin.z + 55) * 0.1f),
 
                 // Terrain far from the castle, to tell whether the terracing is the castle's
                 // sculpting or the terrain generator's own stepping.
@@ -124,11 +148,19 @@ namespace VoxelEngine.Tests.PlayMode
 
             foreach (var view in views)
             {
+                if (view.name == "15_secret_archive")
+                {
+                    Assert.That(world.TryOpenCastleTrapdoor(world.CastleTrapdoorPosition + Vector3.up),
+                                Is.True, "secret-room capture requires the hatch to open first");
+                }
+
                 bool cutaway = view.name == "12_cutaway";
                 if (cutaway)
                 {
                     showcase.SetCutawayPresentation(true,
-                        new Vector3(154f, 54f, 326f), new Vector3(358f, 512f, 410f));
+                        new Vector3(keepMin.x + 8, 0f, keepMin.z - 4),
+                        new Vector3(keepMin.x + keepSize.x - 8, 512f,
+                                    keepMin.z + keepSize.z / 2));
                 }
                 else showcase.SetCutawayPresentation(false);
 

@@ -71,6 +71,9 @@ namespace VoxelEngine.Showcase
         private FeatureCatalogue _catalogue;
         private MaterialPalette _palette;
         private uint _editCounter;
+        private CastlePlan _castlePlan;
+        private bool _hasCastlePlan;
+        private bool _castleTrapdoorOpen;
 
         private readonly HashSet<int3> _generated = new();
         private readonly HashSet<int3> _dirtyRegions = new();
@@ -557,6 +560,9 @@ namespace VoxelEngine.Showcase
             }
 
             var brush = CastleBuilder.Build(ref _table, ref _pool, in plan, Seed);
+            _castlePlan = plan;
+            _hasCastlePlan = true;
+            _castleTrapdoorOpen = false;
 
             CastleVoxels = brush.TotalVoxelsWritten;
 
@@ -572,6 +578,51 @@ namespace VoxelEngine.Showcase
 
         /// <summary>Voxels the castle wrote. Reported in the HUD so its cost is visible.</summary>
         public long CastleVoxels { get; private set; }
+
+        public bool CastleTrapdoorOpen => _castleTrapdoorOpen;
+
+        public Vector3 CastleTrapdoorPosition
+        {
+            get
+            {
+                if (!_hasCastlePlan) return Vector3.positiveInfinity;
+                int3 centre = CastleBuilder.TrapdoorCentre(in _castlePlan);
+                return ((Vector3)(float3)centre + new Vector3(0.5f, 0.2f, 0.5f)) * 0.1f;
+            }
+        }
+
+        /// <summary>True while the player is close enough to operate the closed cellar hatch.</summary>
+        public bool CanOpenCastleTrapdoor(Vector3 playerFeetMetres)
+        {
+            if (!_hasCastlePlan || _castleTrapdoorOpen) return false;
+            Vector3 delta = playerFeetMetres - CastleTrapdoorPosition;
+            return new Vector2(delta.x, delta.z).sqrMagnitude <= 3.2f * 3.2f
+                && math.abs(delta.y) <= 2.5f;
+        }
+
+        /// <summary>
+        /// Opens the secret hatch without invoking destruction physics. This is authored moving
+        /// architecture, so only the known lid bounds change and the stair beneath remains intact.
+        /// </summary>
+        public bool TryOpenCastleTrapdoor(Vector3 playerFeetMetres)
+        {
+            if (!CanOpenCastleTrapdoor(playerFeetMetres)) return false;
+
+            int3 centre = CastleBuilder.TrapdoorCentre(in _castlePlan);
+            int half = CastleBuilder.TrapdoorHalfSize;
+            for (int y = centre.y; y < centre.y + 4; y++)
+            for (int z = centre.z - half; z < centre.z + half; z++)
+            for (int x = centre.x - half; x < centre.x + half; x++)
+            {
+                var voxel = new int3(x, y, z);
+                if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel,
+                                         VoxelDimensions.MaterialEmpty))
+                    MarkDirty(voxel);
+            }
+
+            _castleTrapdoorOpen = true;
+            return true;
+        }
 
         // -- edits ---------------------------------------------------------------
 
