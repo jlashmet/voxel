@@ -73,7 +73,7 @@ namespace VoxelEngine.Rendering
             new(0.52f, 0.53f, 0.56f, 1f),   // stone
             new(0.46f, 0.29f, 0.14f, 1f),   // wood
             new(0.82f, 0.72f, 0.46f, 1f),   // sand
-            new(0.52f, 0.76f, 0.84f, 1f),   // glass
+            new(0.78f, 0.48f, 0.18f, 1f),   // warm lit glass
             new(0.15f, 0.15f, 0.17f, 1f),   // bedrock
             new(0.34f, 0.33f, 0.35f, 1f),   // dark stone
             new(0.24f, 0.26f, 0.32f, 1f),   // slate

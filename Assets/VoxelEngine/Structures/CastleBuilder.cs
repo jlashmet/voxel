@@ -53,6 +53,29 @@ namespace VoxelEngine.Structures
             int baileyX = rng.NextInt(150, 200);
             int baileyZ = rng.NextInt(150, 200);
 
+            // A circular crag must contain the rectangular bailey's corners, not merely its
+            // longest half-axis. The old radius left all four corner towers standing beyond the
+            // sculpted site on whatever terrain happened to be underneath them.
+            int plateauRadius = (int)math.ceil(math.sqrt(baileyX * baileyX + baileyZ * baileyZ))
+                                + rng.NextInt(18, 32);
+            int plateauHeight = rng.NextInt(26, 44);
+            int cliffDrop = rng.NextInt(26, 44);
+            int wallHeight = rng.NextInt(70, 95);
+            int wallThickness = rng.NextInt(16, 22);
+            int towerRadius = rng.NextInt(24, 32);
+            int towerHeight = rng.NextInt(100, 135);
+            int gateTowerRadius = rng.NextInt(22, 28);
+            int gateTowerHeight = rng.NextInt(110, 145);
+            int keepHalfX = rng.NextInt(64, 86);
+            int keepHalfZ = rng.NextInt(54, 72);
+
+            // Consume the former independent height draw so all later seeded choices remain
+            // stable. Height now comes from the floor stack, but changing unrelated dimensions
+            // would make before/after screenshots much harder to compare.
+            rng.NextInt(190, 240);
+            const int floorHeight = 38;
+            int floors = rng.NextInt(4, 6);
+
             return new CastlePlan
             {
                 Centre = centre,
@@ -61,31 +84,31 @@ namespace VoxelEngine.Structures
                 // Tight to the walls. A wide skirt of sculpted rock reads as a quarry, not a
                 // crag, because a smooth analytic falloff quantised to voxels produces clean
                 // contour rings — natural terrain hides that behind noise and this did not.
-                PlateauRadius = math.max(baileyX, baileyZ) + rng.NextInt(14, 28),
-                PlateauHeight = rng.NextInt(26, 44),
-                CliffDrop = rng.NextInt(26, 44),
+                PlateauRadius = plateauRadius,
+                PlateauHeight = plateauHeight,
+                CliffDrop = cliffDrop,
 
                 BaileyHalfX = baileyX,
                 BaileyHalfZ = baileyZ,
 
-                WallHeight = rng.NextInt(70, 95),
-                WallThickness = rng.NextInt(16, 22),
+                WallHeight = wallHeight,
+                WallThickness = wallThickness,
 
-                TowerRadius = rng.NextInt(24, 32),
-                TowerHeight = rng.NextInt(100, 135),
+                TowerRadius = towerRadius,
+                TowerHeight = towerHeight,
 
-                GateTowerRadius = rng.NextInt(22, 28),
-                GateTowerHeight = rng.NextInt(110, 145),
+                GateTowerRadius = gateTowerRadius,
+                GateTowerHeight = gateTowerHeight,
 
-                KeepHalfX = rng.NextInt(64, 86),
-                KeepHalfZ = rng.NextInt(54, 72),
+                KeepHalfX = keepHalfX,
+                KeepHalfZ = keepHalfZ,
 
                 // Comfortably twice the curtain wall. A keep that only just clears the walls
                 // gives the silhouette no centre, which is what the first pass looked like.
-                KeepHeight = rng.NextInt(190, 240),
+                KeepHeight = floors * floorHeight,
 
-                FloorHeight = 38,
-                Floors = rng.NextInt(4, 6),
+                FloorHeight = floorHeight,
+                Floors = floors,
             };
         }
 
@@ -129,7 +152,8 @@ namespace VoxelEngine.Structures
         /// The refusal is the point. A plan that would write more than the brush's budget is a
         /// mistake in the plan, and finding out by running it costs an afternoon and a reboot.
         /// </summary>
-        public static VoxelBrush Build(RegionTable table, BrickPool pool, in CastlePlan plan, uint terrainSeed)
+        public static VoxelBrush Build(ref RegionTable table, ref BrickPool pool,
+                                       in CastlePlan plan, uint terrainSeed)
         {
             var brush = new VoxelBrush(table, pool);
 
@@ -144,14 +168,37 @@ namespace VoxelEngine.Structures
             }
 
             Site(ref brush, in plan, terrainSeed);
+            RequireBudget(in brush, "site");
             CurtainWalls(ref brush, in plan);
+            RequireBudget(in brush, "curtain walls");
             CornerTowers(ref brush, in plan);
+            RequireBudget(in brush, "corner towers");
             Gatehouse(ref brush, in plan);
+            RequireBudget(in brush, "gatehouse");
             Courtyard(ref brush, in plan);
+            RequireBudget(in brush, "courtyard");
             Keep(ref brush, in plan);
+            RequireBudget(in brush, "keep");
             Dungeon(ref brush, in plan);
+            RequireBudget(in brush, "dungeon");
+
+            // RegionTable and BrickPool are handle-like structs, but their scalar bookkeeping
+            // (notably BrickPool's high-water mark) is copied by value. Publish the updated
+            // handles back to the owner or later allocations can reuse slots the castle owns.
+            table = brush.Table;
+            pool = brush.Pool;
 
             return brush;
+        }
+
+        private static void RequireBudget(in VoxelBrush brush, string stage)
+        {
+            if (!brush.BudgetExceeded) return;
+
+            throw new System.InvalidOperationException(
+                $"CastleBuilder exceeded its {brush.WriteBudget:N0}-write budget while building " +
+                $"the {stage}, after {brush.TotalVoxelsWritten:N0} changed voxels. " +
+                "A partial castle is invalid.");
         }
 
         // -- site ----------------------------------------------------------------
@@ -212,7 +259,7 @@ namespace VoxelEngine.Structures
                 {
                     // Cutting into the hill. Bulk for the body, per voxel for the new surface.
                     if (ground - target > 8)
-                        brush.FillBulk(new int3(wx, target + 7, wz), new int3(1, ground - target - 6, 1), Mat.Empty);
+                        brush.FillColumnBulk(wx, target + 7, ground + 1, wz, Mat.Empty);
 
                     for (int y = target + 1; y <= math.min(ground, target + 7); y++)
                         brush.Set(wx, y, wz, Mat.Empty);
@@ -226,14 +273,14 @@ namespace VoxelEngine.Structures
                     int capBottom = math.max(ground, target - 6);
 
                     if (capBottom > ground)
-                        brush.FillBulk(new int3(wx, ground, wz), new int3(1, capBottom - ground, 1), Mat.DarkStone);
+                        brush.FillColumnBulk(wx, ground, capBottom, wz, Mat.DarkStone);
 
                     for (int y = capBottom; y <= target; y++)
                         brush.Set(wx, y, wz, y > target - 3 ? Mat.Stone : Mat.DarkStone);
                 }
 
                 // Grass cap on the plateau, away from where the walls will sit.
-                if (d < edge - 40 && rng.NextInt(0, 100) < 88)
+                if (d < edge - 12 && rng.NextInt(0, 100) < 92)
                     brush.Set(wx, target, wz, Mat.Grass);
             }
 
@@ -410,8 +457,13 @@ namespace VoxelEngine.Structures
                 new(plan.Centre.x + hx, baseY, plan.Centre.z + hz),
             };
 
-            foreach (var corner in corners)
-                Tower(ref brush, in plan, corner, plan.TowerRadius, plan.TowerHeight, true);
+            for (int i = 0; i < corners.Length; i++)
+            {
+                // Flat fighting tops frame the entrance; roofed rear towers give the keep a
+                // second, less repetitive silhouette layer behind them.
+                Tower(ref brush, in plan, corners[i], plan.TowerRadius,
+                      plan.TowerHeight + (i >= 2 ? 14 : 0), i >= 2);
+            }
         }
 
         /// <summary>
@@ -476,17 +528,18 @@ namespace VoxelEngine.Structures
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
             int r = plan.GateTowerRadius;
-            int spacing = 78;
+            int spacing = 54;
 
             var left = new int3(plan.Centre.x - spacing, baseY, gateZ);
             var right = new int3(plan.Centre.x + spacing, baseY, gateZ);
 
-            Tower(ref brush, in plan, left, r, plan.GateTowerHeight, true);
-            Tower(ref brush, in plan, right, r, plan.GateTowerHeight, true);
+            Tower(ref brush, in plan, left, r, plan.GateTowerHeight + 12, false);
+            Tower(ref brush, in plan, right, r, plan.GateTowerHeight + 12, false);
 
             // Block between the towers, then the passage carved through it.
+            int blockHeight = plan.WallHeight + 22;
             brush.Box(new int3(plan.Centre.x - spacing, baseY, gateZ - plan.WallThickness),
-                      new int3(spacing * 2, plan.WallHeight + 40, plan.WallThickness * 2), Mat.Stone);
+                      new int3(spacing * 2, blockHeight, plan.WallThickness * 2), Mat.Stone);
 
             // Arched gate passage.
             brush.Arch(new int3(plan.Centre.x - 26, baseY, gateZ - plan.WallThickness),
@@ -501,6 +554,11 @@ namespace VoxelEngine.Structures
                 brush.Box(new int3(x, baseY + plan.WallHeight + 6, gateZ - plan.WallThickness - 6),
                           new int3(5, 14, 6), Mat.DarkStone);
             }
+
+            brush.Crenellate(
+                new int3(plan.Centre.x - spacing, baseY + blockHeight,
+                         gateZ - plan.WallThickness),
+                new int3(1, 0, 0), spacing * 2, 8, 18, 18, 12, Mat.Stone);
 
             // Bridge across the moat.
             for (int z = 0; z < 150; z++)
@@ -588,7 +646,7 @@ namespace VoxelEngine.Structures
             for (int f = 0; f < floors; f++)
             {
                 int y = baseY + f * plan.FloorHeight + 12;
-                int height = f == 1 ? 44 : 28;
+                int height = f == 1 ? plan.FloorHeight - 14 : plan.FloorHeight - 18;
 
                 for (int i = 0; i < 3; i++)
                 {
@@ -610,6 +668,49 @@ namespace VoxelEngine.Structures
             }
 
             brush.Gable(new int3(min.x, topY + 8, min.z), new int3(size.x, 70, size.z), true, Mat.Tile);
+
+            GreatHallWing(ref brush, in plan, min, size, baseY);
+        }
+
+        /// <summary>
+        /// A lower occupied wing attached off-centre to the keep. The main block alone is a
+        /// symmetric tower with a roof; the reference castle reads as a place accumulated over
+        /// time, with halls and chambers stepping down around the central mass.
+        /// </summary>
+        private static void GreatHallWing(ref VoxelBrush brush, in CastlePlan plan,
+                                          int3 keepMin, int3 keepSize, int baseY)
+        {
+            int wingHeight = plan.FloorHeight * 2;
+            int wingWidth = 76;
+            int wingDepth = math.max(64, keepSize.z - 42);
+            var wingMin = new int3(keepMin.x + keepSize.x - 4, baseY,
+                                   keepMin.z + 24);
+
+            brush.Box(new int3(wingMin.x - 4, baseY - 12, wingMin.z - 4),
+                      new int3(wingWidth + 8, 16, wingDepth + 8), Mat.DarkStone);
+            brush.HollowBox(wingMin, new int3(wingWidth, wingHeight, wingDepth),
+                            6, Mat.Stone, false, false);
+            brush.Box(new int3(wingMin.x + 6, baseY + plan.FloorHeight, wingMin.z + 6),
+                      new int3(wingWidth - 12, 3, wingDepth - 12), Mat.Wood);
+
+            // Two tall windows on the exposed end wall, and smaller upper windows.
+            for (int i = 0; i < 2; i++)
+            {
+                int z = wingMin.z + 14 + i * (wingDepth - 28);
+                brush.Arch(new int3(wingMin.x + wingWidth - 7, baseY + 12, z),
+                           16, 28, 8, 0, Mat.Empty);
+                brush.Box(new int3(wingMin.x + wingWidth - 5, baseY + 16, z + 3),
+                          new int3(2, 18, 10), Mat.Glass);
+            }
+
+            // The joining arch makes this real interior space rather than a building merely
+            // intersecting the keep's outside wall.
+            brush.Arch(new int3(wingMin.x - 8, baseY + 2,
+                                wingMin.z + wingDepth / 2 - 10),
+                       20, 32, 16, 0, Mat.Empty);
+
+            brush.Gable(new int3(wingMin.x - 4, baseY + wingHeight, wingMin.z - 4),
+                        new int3(wingWidth + 8, 34, wingDepth + 8), true, Mat.Tile);
         }
 
         /// <summary>
@@ -732,7 +833,8 @@ namespace VoxelEngine.Structures
             {
                 int z = passZ - i;
                 int y = dungeonY + (int)math.round(math.sin(i * 0.02f) * 8f);
-                brush.Box(new int3(tx - 14, y, z), new int3(28, 32, 1), Mat.Empty);
+                for (int x = tx - 14; x < tx + 14; x++)
+                    brush.FillColumnBulk(x, y, y + 32, z, Mat.Empty);
                 brush.Box(new int3(tx - 16, y - 2, z), new int3(32, 2, 1), Mat.DarkStone);
             }
 
@@ -757,11 +859,16 @@ namespace VoxelEngine.Structures
                 int r2 = r * r;
 
                 for (int z = -r; z <= r; z++)
-                for (int y = -r; y <= r; y++)
                 for (int x = -r; x <= r; x++)
                 {
-                    if (x * x + y * y + z * z > r2) continue;
-                    brush.Set(at.x + ox + x, at.y + oy + y, at.z + oz + z, Mat.Empty);
+                    int verticalSq = r2 - x * x - z * z;
+                    if (verticalSq < 0) continue;
+
+                    int halfHeight = (int)math.floor(math.sqrt(verticalSq));
+                    brush.FillColumnBulk(at.x + ox + x,
+                                         at.y + oy - halfHeight,
+                                         at.y + oy + halfHeight + 1,
+                                         at.z + oz + z, Mat.Empty);
                 }
             }
 

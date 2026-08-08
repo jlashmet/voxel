@@ -125,9 +125,11 @@ namespace VoxelEngine.Core.Storage
             if ((uint)brickIndex >= (uint)_highWater)
                 throw new ArgumentOutOfRangeException(nameof(brickIndex));
 
-            // The slot is going back into circulation, so its dirty flag must not survive:
-            // whoever allocates it next has to be able to mark it.
-            ClearDirty(brickIndex);
+            // Keep the dirty flag when the slot is already queued. If this slot is reused before
+            // upload, ClearBrick changes its contents in place and the existing queue entry is
+            // exactly the notification the renderer needs. Clearing only the flag while leaving
+            // that entry in _dirtyBricks makes reuse append the same index again; site sculpting
+            // can then inflate the queue by hundreds of thousands of duplicates.
             _freeList.Add(brickIndex);
         }
 

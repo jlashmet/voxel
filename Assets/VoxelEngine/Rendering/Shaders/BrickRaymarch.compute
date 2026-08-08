@@ -182,9 +182,40 @@ float3 SkyColour(float3 dir)
     return lerp(g_SkyHorizon.rgb, g_SkyZenith.rgb, t);
 }
 
+uint FarHash(uint v)
+{
+    v ^= v >> 16; v *= 0x85ebca6bu;
+    v ^= v >> 13; v *= 0xc2b2ae35u;
+    v ^= v >> 16;
+    return v;
+}
+
 float3 Shade(uint material, float3 normal, float3 hitVoxel)
 {
     float3 albedo = g_MaterialColours[min(material, 15u)].rgb;
+
+    // Large flat walls need a masonry scale between "one colour" and authored props. Courses
+    // are five voxels (50 cm) high with staggered joints; a small coordinate hash breaks the
+    // remaining uniformity without introducing temporal noise or authoritative state.
+    if (material == 1u || material == 6u)
+    {
+        int3 cell = int3(floor(hitVoxel));
+        int course = abs(cell.y) % 5;
+        int across = abs(normal.x) > 0.5 ? cell.z : cell.x;
+        int stagger = (abs(cell.y) / 5) & 1;
+        bool mortar = course == 0 || abs(across + stagger * 4) % 9 == 0;
+
+        uint h = FarHash((uint)cell.x * 73856093u ^ (uint)cell.y * 19349663u
+                         ^ (uint)cell.z * 83492791u ^ material * 2654435761u);
+        float variation = 0.88 + ((h >> 24) & 255u) * (0.18 / 255.0);
+        albedo *= mortar ? 0.72 : variation;
+    }
+
+    if (material == 2u)
+    {
+        int3 cell = int3(floor(hitVoxel));
+        albedo *= (abs(cell.y) % 4 == 0) ? 0.78 : 1.0;
+    }
 
     float ndotl = saturate(dot(normal, g_SunDirection));
     float fill = saturate(dot(normal, -g_SunDirection)) * 0.18;
@@ -200,6 +231,10 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
 
     float3 lit = albedo * (ambient * ao + ndotl * shadow * 1.05 + fill * ao);
 
+    // Glass doubles as the presentation material for occupied windows until local-light probes
+    // arrive. A restrained emission keeps rooms legible in shade without turning windows white.
+    if (material == 4u) lit += albedo * 0.42;
+
     // Tone map. Without it the bright faces clip flat and the whole image reads as washed-out
     // pastel, which no amount of geometry fixes.
     lit = lit * 1.45;
@@ -207,14 +242,6 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
 }
 
 // -- implicit far field -------------------------------------------------------
-
-uint FarHash(uint v)
-{
-    v ^= v >> 16; v *= 0x85ebca6bu;
-    v ^= v >> 13; v *= 0xc2b2ae35u;
-    v ^= v >> 16;
-    return v;
-}
 
 int FarCorner(int x, int z, int salt)
 {
@@ -318,7 +345,7 @@ bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
             float hU = FarHeightMetres(p + float3(0, 0, e));
             float3 normal = normalize(float3(hL - hR, 2.0 * e, hD - hU));
 
-            uint material = p.y < (float)g_FarBaseHeight * g_VoxelSize ? 3u : 1u;   // sand : stone
+            uint material = p.y < (float)g_FarBaseHeight * g_VoxelSize ? 3u : 10u;  // sand : grass
             colour = Shade(material, normal, p / g_VoxelSize);
 
             // Fade into the sky with distance so the far edge is a horizon, not a wall.

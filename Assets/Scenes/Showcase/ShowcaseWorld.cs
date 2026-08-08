@@ -240,6 +240,11 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < resident.Length; i++)
             {
                 var rc = resident[i];
+
+                // The in-flight generator owns this Region value until FinishRegion commits it.
+                // Evicting it here disposes BrickRefs out from under the next StepRegion call.
+                if (_gen.Active && rc.Equals(_gen.Coord)) continue;
+
                 int dx = rc.x - centre.x;
                 int dz = rc.z - centre.z;
 
@@ -465,7 +470,7 @@ namespace VoxelEngine.Showcase
         private static byte MaterialAt(int y, int surface)
         {
             if (y > surface) return VoxelDimensions.MaterialEmpty;
-            if (y == surface) return surface < BaseHeight ? MatSand : MatStone;
+            if (y == surface) return surface < BaseHeight ? MatSand : Mat.Grass;
             if (y > surface - DeepDepth) return MatStone;
             return MatBedrock;
         }
@@ -506,35 +511,41 @@ namespace VoxelEngine.Showcase
             // wholesale — so a neighbour generated afterwards silently erases the half of the
             // castle that stood in it. That is what left a scatter of blocks and a terraced
             // quarry where a castle should be.
-            int reach = plan.PlateauRadius + plan.CliffDrop + 400;
-            for (int dz = -1; dz <= 1; dz++)
-            for (int dx = -1; dx <= 1; dx++)
-            {
-                if (dx == 0 && dz == 0) continue;
+            // Enumerate every coordinate in the touched range. Sampling centre +/- reach and
+            // treating those samples as neighbours skipped intermediate coordinates whenever
+            // reach exceeded one region; the castle then wrote into a default-empty region and
+            // left enormous void wedges where its terrain foundation should have been.
+            int reach = math.max(plan.PlateauRadius + plan.CliffDrop + 8, RegionVoxelEdge);
+            int minRx = (cx - reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
+            int maxRx = (cx + reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
+            int minRz = (cz - reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
+            int maxRz = (cz + reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
 
-                int3 neighbour = new int3(
-                    (cx + dx * reach) >> VoxelDimensions.RegionVoxelEdgeLog2, 0,
-                    (cz + dz * reach) >> VoxelDimensions.RegionVoxelEdgeLog2);
+            for (int rz = minRz; rz <= maxRz; rz++)
+            for (int rx = minRx; rx <= maxRx; rx++)
+            {
+                var neighbour = new int3(rx, 0, rz);
+                if (neighbour.Equals(int3.zero)) continue;
 
                 GenerateRegionBlocking(neighbour);
             }
 
-            var brush = CastleBuilder.Build(_table, _pool, in plan, Seed);
+            var brush = CastleBuilder.Build(ref _table, ref _pool, in plan, Seed);
 
-            CastleVoxels = brush.VoxelsWritten;
+            CastleVoxels = brush.TotalVoxelsWritten;
 
             // Everything the castle touched has to be re-meshed and re-uploaded.
-            for (int dz = -1; dz <= 1; dz++)
-            for (int dx = -1; dx <= 1; dx++)
+            for (int rz = minRz; rz <= maxRz; rz++)
+            for (int rx = minRx; rx <= maxRx; rx++)
             {
-                var rc = new int3(dx, 0, dz);
+                var rc = new int3(rx, 0, rz);
                 _dirtyRegions.Add(rc);
                 _regionsNeedingUpload.Add(rc);
             }
         }
 
         /// <summary>Voxels the castle wrote. Reported in the HUD so its cost is visible.</summary>
-        public int CastleVoxels { get; private set; }
+        public long CastleVoxels { get; private set; }
 
         // -- edits ---------------------------------------------------------------
 

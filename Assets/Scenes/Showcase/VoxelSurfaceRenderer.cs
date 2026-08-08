@@ -583,7 +583,7 @@ namespace VoxelEngine.Showcase
                 new Color(0.52f, 0.53f, 0.56f),             // stone
                 new Color(0.46f, 0.29f, 0.14f),             // wood
                 new Color(0.82f, 0.72f, 0.46f),             // sand
-                new Color(0.52f, 0.76f, 0.84f),             // glass
+                new Color(0.78f, 0.48f, 0.18f),             // warm lit glass
                 new Color(0.15f, 0.15f, 0.17f),             // bedrock
                 new Color(0.34f, 0.33f, 0.35f),             // dark stone
                 new Color(0.24f, 0.26f, 0.32f),             // slate

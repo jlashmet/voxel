@@ -29,6 +29,13 @@ namespace VoxelEngine.Structures
         public int BricksWritten;
 
         /// <summary>
+        /// Voxels changed through batched column writes. These do not consume
+        /// <see cref="WriteBudget"/> because a column segment performs one collapse scan per
+        /// brick, rather than one scan per voxel.
+        /// </summary>
+        public long BulkVoxelsWritten;
+
+        /// <summary>
         /// Hard ceiling on writes. Once crossed, every further write is dropped and
         /// <see cref="BudgetExceeded"/> latches.
         ///
@@ -51,18 +58,20 @@ namespace VoxelEngine.Structures
             _pool = pool;
             VoxelsWritten = 0;
             BricksWritten = 0;
+            BulkVoxelsWritten = 0;
             WriteBudget = writeBudget;
             BudgetExceeded = false;
         }
 
         /// <summary>
-        /// Twelve million voxels — roughly a 240 m cube of surface, or several minutes of honest
-        /// work. Anything above this is a mistake rather than an ambitious structure.
+        /// Twelve million slow-path voxel changes. Batched whole-brick and column operations are
+        /// counted separately because they avoid the per-voxel collapse scan this ceiling guards.
         /// </summary>
         public const int DefaultWriteBudget = 12_000_000;
 
         public RegionTable Table => _table;
         public BrickPool Pool => _pool;
+        public long TotalVoxelsWritten => VoxelsWritten + BulkVoxelsWritten;
 
         // -- primitives ----------------------------------------------------------
 
@@ -117,6 +126,86 @@ namespace VoxelEngine.Structures
                 for (int y = overlapMin.y; y < overlapMax.y; y++)
                 for (int x = overlapMin.x; x < overlapMax.x; x++)
                     Set(x, y, z, material);
+            }
+        }
+
+        /// <summary>
+        /// Fills one vertical column, batching all writes in a brick before checking whether the
+        /// brick collapsed to a uniform reference.
+        ///
+        /// A one-voxel-wide call to <see cref="FillBulk"/> cannot cover an 8x8x8 brick and falls
+        /// back to <see cref="Set"/> for every voxel. Site sculpting issues hundreds of thousands
+        /// of such columns, so that fallback turns a cheap height-volume rewrite into millions of
+        /// 512-byte collapse scans. This is the column-shaped equivalent of the whole-brick path.
+        /// </summary>
+        public void FillColumnBulk(int x, int minY, int maxYExclusive, int z, byte material)
+        {
+            if (maxYExclusive <= minY) return;
+
+            int firstBrickY = minY >> VoxelDimensions.BrickEdgeLog2;
+            int lastBrickY = (maxYExclusive - 1) >> VoxelDimensions.BrickEdgeLog2;
+
+            for (int brickY = firstBrickY; brickY <= lastBrickY; brickY++)
+            {
+                int brickOriginY = brickY << VoxelDimensions.BrickEdgeLog2;
+                int fromY = math.max(minY, brickOriginY);
+                int toY = math.min(maxYExclusive, brickOriginY + VoxelDimensions.BrickEdge);
+
+                var world = new int3(x, brickOriginY, z);
+                VoxelAccess.Decompose(world, out var regionCoord, out var brickInRegion,
+                                      out var voxelInBrick);
+
+                var region = _table.LoadRegion(regionCoord);
+                int brickIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y, brickInRegion.z);
+                var brick = region.BrickRefs[brickIndex];
+
+                if (brick.IsUniform && brick.UniformMaterial == material) continue;
+
+                int poolIndex;
+                if (brick.IsUniform)
+                {
+                    poolIndex = _pool.Allocate();
+                    _pool.FillBrick(poolIndex, brick.UniformMaterial);
+                    region.BrickRefs[brickIndex] = BrickRef.FromPoolIndex(poolIndex);
+                }
+                else
+                {
+                    poolIndex = brick.PoolIndex;
+                }
+
+                int changed = 0;
+                for (int y = fromY; y < toY; y++)
+                {
+                    int voxelIndex = VoxelEngine.Core.Occupancy.OccupancyMask.VoxelIndex(
+                        voxelInBrick.x, y - brickOriginY, voxelInBrick.z);
+
+                    if (_pool.GetVoxel(poolIndex, voxelIndex) == material) continue;
+                    _pool.SetVoxel(poolIndex, voxelIndex, material);
+                    changed++;
+                }
+
+                if (changed == 0)
+                {
+                    // This can only occur after materialising a uniform brick whose requested
+                    // segment already matched. Avoid retaining a needless mixed allocation.
+                    if (brick.IsUniform)
+                    {
+                        _pool.Free(poolIndex);
+                        region.BrickRefs[brickIndex] = brick;
+                    }
+                    continue;
+                }
+
+                if (_pool.TryGetUniformMaterial(poolIndex, out var uniform))
+                {
+                    _pool.Free(poolIndex);
+                    region.BrickRefs[brickIndex] = BrickRef.Uniform(uniform);
+                }
+
+                region.Dirty = true;
+                _table.CommitRegion(region);
+                BulkVoxelsWritten += changed;
+                BricksWritten++;
             }
         }
 
@@ -195,14 +284,13 @@ namespace VoxelEngine.Structures
             int r2 = radius * radius;
             int ir2 = innerRadius * innerRadius;
 
-            for (int y = 0; y < height; y++)
             for (int z = -radius; z <= radius; z++)
             for (int x = -radius; x <= radius; x++)
             {
                 int d2 = x * x + z * z;
                 if (d2 > r2 || (innerRadius > 0 && d2 < ir2)) continue;
 
-                Set(cx + x, baseY + y, cz + z, material);
+                FillColumnBulk(cx + x, baseY, baseY + height, cz + z, material);
             }
         }
 

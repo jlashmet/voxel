@@ -102,20 +102,22 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Four cottages in front of the spawn point, one per orientation, so rotation can be
-        /// checked by walking around them rather than by reading a test result.
+        /// Four cottages east of the castle, one per orientation, so rotation can be checked by
+        /// walking around them rather than by reading a test result. They deliberately live in
+        /// the neighbouring region: the castle sculpts a broad rocky outcrop around spawn, and
+        /// landmarks must not compete for authority over the same voxels.
         /// </summary>
         private static List<ExplicitPlacement> PlacementSites(uint seed)
         {
             var sites = new List<ExplicitPlacement>();
 
-            // Spawn looks down +z from roughly voxel z = 166 at the centre of region (0,0,0).
+            // The castle's sculpted skirt ends well before x = 700 for every seeded plan.
             int3[] origins =
             {
-                new(150, 0, 230),
-                new(280, 0, 230),
-                new(150, 0, 360),
-                new(280, 0, 360),
+                new(700, 0, 100),
+                new(700, 0, 230),
+                new(700, 0, 360),
+                new(700, 0, 490),
             };
 
             for (var i = 0; i < origins.Length; i++)

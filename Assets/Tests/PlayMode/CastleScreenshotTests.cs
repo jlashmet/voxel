@@ -36,11 +36,35 @@ namespace VoxelEngine.Tests.PlayMode
                 "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
 
             // The castle is built when the origin region completes, which happens during spawn.
-            yield return new WaitForSeconds(6f);
+            // Construction dirties far more bricks than the renderer uploads in one frame, so a
+            // fixed delay can capture a half-uploaded castle on a fast unthrottled test runner.
+            yield return null;
 
             var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             var world = (ShowcaseWorld)typeof(VoxelShowcase)
                 .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
+            var cam = Camera.main;
+
+            float uploadDeadline = Time.realtimeSinceStartup + 30f;
+            var uploadTarget = new RenderTexture(Screen.width, Screen.height, 0,
+                                                 RenderTextureFormat.ARGB32);
+            cam.targetTexture = uploadTarget;
+            while ((world.Pool.DirtyBricks.Length > 0 || world.RegionsNeedingUpload.Count > 0)
+                   && Time.realtimeSinceStartup < uploadDeadline)
+            {
+                // Batchmode does not draw a game view while a coroutine merely yields. Rendering
+                // explicitly is what executes the render feature and drains its bounded uploads.
+                cam.Render();
+                yield return null;
+            }
+            cam.targetTexture = null;
+            uploadTarget.Release();
+            Object.DestroyImmediate(uploadTarget);
+
+            Assert.Zero(world.Pool.DirtyBricks.Length,
+                "Timed out waiting for the castle's mixed bricks to reach the GPU mirror.");
+            Assert.Zero(world.RegionsNeedingUpload.Count,
+                "Timed out waiting for the castle's region pointers to reach the GPU mirror.");
 
             Debug.Log($"### CASTLE voxels={world.CastleVoxels:N0} bricks={world.Pool.AllocatedCount:N0}" +
                       $" of {world.Pool.Capacity:N0}");
@@ -48,9 +72,10 @@ namespace VoxelEngine.Tests.PlayMode
             // Free the camera from the character so it can be placed anywhere.
             typeof(VoxelShowcase).GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
                 .SetValue(showcase, true);
+            typeof(VoxelShowcase).GetField("_mouseLook", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(showcase, false);
             yield return null;
 
-            var cam = Camera.main;
             cam.farClipPlane = 4000f;
 
             // The castle sits at the centre of region (0,0,0), offset +120 voxels in z.
@@ -66,10 +91,10 @@ namespace VoxelEngine.Tests.PlayMode
             var views = new (string name, Vector3 position, Vector3 lookAt)[]
             {
                 ("01_approach",    centre + new Vector3(0f, 8f, -52f),   centre + new Vector3(0f, 7f, 0f)),
-                ("02_aerial",      centre + new Vector3(-38f, 44f, -38f), centre),
+                ("02_aerial",      centre + new Vector3(-46f, 48f, -46f), centre + new Vector3(0f, 9f, 0f)),
                 ("03_gate",        centre + new Vector3(0f, 4f, -26f),   centre + new Vector3(0f, 8f, 0f)),
-                ("04_courtyard",   centre + new Vector3(-7f, 5f, 2f),    centre + new Vector3(7f, 8f, 12f)),
-                ("05_silhouette",  centre + new Vector3(64f, 20f, -64f), centre + new Vector3(0f, 7f, 0f)),
+                ("04_courtyard",   centre + new Vector3(-5f, 5f, -8f),   centre + new Vector3(4f, 8f, 5f)),
+                ("05_silhouette",  centre + new Vector3(58f, 21f, -58f), centre + new Vector3(0f, 8f, 0f)),
                 ("06_wall_detail", centre + new Vector3(-21f, 7f, -13f), centre + new Vector3(-13f, 7f, -5f)),
 
                 // Terrain far from the castle, to tell whether the terracing is the castle's

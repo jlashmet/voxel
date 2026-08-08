@@ -38,7 +38,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.Greater(world.FeatureVoxelsBuilt, 1000, "cottages generated but wrote almost nothing");
 
             // Wall material at the south face of the first cottage, just above its foundation.
-            var origin = new int3(150, 0, 230);
+            var origin = new int3(700, 0, 100);
             int lowest = int.MaxValue;
             for (var z = 0; z <= 96; z += 16)
             for (var x = 0; x <= 96; x += 16)
