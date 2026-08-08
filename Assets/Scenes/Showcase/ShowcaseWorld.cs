@@ -601,6 +601,7 @@ namespace VoxelEngine.Showcase
             int dungeonY = cellarY - 120;
             int trapZ = keepMinZ + plan.KeepHalfZ + 40;
             int caveZ = trapZ - 411;
+            int3 bellTower = CastleBuilder.ChapelBellTowerCentre(in plan);
 
             static Vector4 LightAt(int x, int y, int z, float radiusMetres) =>
                 new(x * 0.1f, y * 0.1f, z * 0.1f, radiusMetres);
@@ -630,6 +631,11 @@ namespace VoxelEngine.Showcase
                         keepCentreZ - 42, 6.0f),
                 LightAt(plan.Centre.x, baseY + plan.FloorHeight * 3 + 17,
                         keepCentreZ + 42, 6.0f),
+                LightAt(bellTower.x, baseY + 17, bellTower.z, 5.5f),
+                LightAt(bellTower.x, baseY + plan.FloorHeight * 2 + 17,
+                        bellTower.z, 5.5f),
+                LightAt(bellTower.x, baseY + plan.FloorHeight * 3 + 17,
+                        bellTower.z, 5.0f),
             };
 
             var hallWarm = new Vector4(1.00f, 0.38f, 0.10f, 1.85f);
@@ -645,6 +651,7 @@ namespace VoxelEngine.Showcase
                 cellarWarm, cellarWarm, cellarWarm, cellarWarm, sideRoomWarm, sideRoomWarm,
                 caveBlue, caveBlue, caveBlue,
                 upperWarm, upperWarm, upperWarm,
+                chapelWarm, upperWarm, upperWarm,
             };
         }
 

@@ -103,6 +103,7 @@ namespace VoxelEngine.Tests.PlayMode
             var stairCamera = new Vector3(plan.Centre.x, baseY + 18, keepMin.z + 16) * 0.1f;
             var stairLook = new Vector3(plan.Centre.x - 60, baseY + 20, keepMin.z + 76) * 0.1f;
             int3 trapdoor = CastleBuilder.TrapdoorCentre(in plan);
+            int3 bellTower = CastleBuilder.ChapelBellTowerCentre(in plan);
             int chapelWidth = math.max(78, keepSize.x / 3);
             int chapelDepth = math.max(96, keepSize.z * 3 / 5);
             var chapelMin = new int3(keepMin.x - chapelWidth + 4, baseY,
@@ -194,6 +195,19 @@ namespace VoxelEngine.Tests.PlayMode
                                     new Vector3(plan.Centre.x - 35,
                                                 baseY + plan.FloorHeight * 3 + 15,
                                                 keepMin.z + keepSize.z / 2 - 35) * 0.1f),
+
+                ("24_bell_tower", new Vector3(bellTower.x - 160,
+                                                baseY + 180,
+                                                bellTower.z - 220) * 0.1f,
+                                    new Vector3(bellTower.x + 8,
+                                                baseY + 105,
+                                                bellTower.z) * 0.1f),
+                ("25_bell_stair", new Vector3(bellTower.x + 19,
+                                                baseY + plan.FloorHeight * 2 + 18,
+                                                bellTower.z + 18) * 0.1f,
+                                    new Vector3(bellTower.x - 18,
+                                                baseY + plan.FloorHeight * 2 + 14,
+                                                bellTower.z - 7) * 0.1f),
 
                 // The actual first-person reveal is part of the authored presentation. Keep it
                 // under visual regression alongside the diagnostic orbit views.

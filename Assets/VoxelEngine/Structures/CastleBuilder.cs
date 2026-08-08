@@ -43,6 +43,8 @@ namespace VoxelEngine.Structures
     public static class CastleBuilder
     {
         public const int TrapdoorHalfSize = 8;
+        public const int ChapelBellTowerSize = 56;
+        public const int ChapelBellTowerStairRadius = 16;
 
         /// <summary>Centre of the ground-floor hatch leading to the cellar.</summary>
         public static int3 TrapdoorCentre(in CastlePlan plan)
@@ -50,6 +52,24 @@ namespace VoxelEngine.Structures
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
             return new int3(plan.Centre.x, baseY, keepMinZ + plan.KeepHalfZ + 40);
+        }
+
+        /// <summary>Centre of the occupied bell tower accumulated behind the chapel.</summary>
+        public static int3 ChapelBellTowerCentre(in CastlePlan plan)
+        {
+            int baseY = plan.Centre.y + plan.PlateauHeight;
+            int keepMinX = plan.Centre.x - plan.KeepHalfX;
+            int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
+            int keepWidth = plan.KeepHalfX * 2;
+            int keepDepth = plan.KeepHalfZ * 2;
+            int chapelWidth = math.max(78, keepWidth / 3);
+            int chapelDepth = math.max(96, keepDepth * 3 / 5);
+            int chapelMinX = keepMinX - chapelWidth + 4;
+            int chapelMinZ = keepMinZ + keepDepth - chapelDepth - 38;
+            int towerMinX = chapelMinX + 8;
+            int towerMinZ = chapelMinZ + chapelDepth - 6;
+            return new int3(towerMinX + ChapelBellTowerSize / 2, baseY,
+                            towerMinZ + ChapelBellTowerSize / 2);
         }
 
         /// <summary>Draws a plan from a seed. This is where the family lives.</summary>
@@ -1410,6 +1430,132 @@ namespace VoxelEngine.Structures
                 brush.Box(new int3(min.x - 5, baseY + 40, z + 1),
                           new int3(7, 25, 7), Mat.Stone);
             }
+
+            ChapelBellTower(ref brush, in plan, baseY);
+        }
+
+        /// <summary>
+        /// An occupied bell/solar tower behind the chapel. Its offset mass breaks the keep's
+        /// bilateral silhouette in the same way as the accumulated square towers in the
+        /// reference. Every storey is real interior space reached from the chapel by a spiral
+        /// stair; the upper volume is therefore neither facade dressing nor a sealed prop.
+        /// </summary>
+        private static void ChapelBellTower(ref VoxelBrush brush, in CastlePlan plan, int baseY)
+        {
+            const int size = ChapelBellTowerSize;
+            int height = plan.FloorHeight * 4;
+            int3 centre = ChapelBellTowerCentre(in plan);
+            var min = new int3(centre.x - size / 2, baseY, centre.z - size / 2);
+
+            brush.Box(new int3(min.x - 5, baseY - 16, min.z - 5),
+                      new int3(size + 10, 20, size + 10), Mat.DarkStone);
+            brush.HollowBox(min, new int3(size, height, size), 6,
+                            Mat.Stone, false, false);
+            brush.FillBulk(new int3(min.x + 6, baseY + 1, min.z + 6),
+                           new int3(size - 12, height - 1, size - 12), Mat.Empty);
+
+            // Four stacked occupied chambers, with the stair authored after the slabs so it
+            // carves consistent headroom through each landing.
+            for (int floor = 1; floor < 4; floor++)
+            {
+                int floorY = baseY + floor * plan.FloorHeight;
+                brush.Box(new int3(min.x + 6, floorY, min.z + 6),
+                          new int3(size - 12, 3, size - 12), Mat.Wood);
+            }
+
+            int stairX = min.x + size - 19;
+            int stairZ = min.z + size / 2;
+            brush.SpiralStair(stairX, baseY + 2, stairZ,
+                              ChapelBellTowerStairRadius, height - 4, Mat.Stone);
+
+            // The chapel-to-tower threshold lies on the chapel's rear wall. Restore a solid
+            // landing, then clear an actor-sized core across both overlapping shells.
+            int connectorX = centre.x;
+            int keepDepth = plan.KeepHalfZ * 2;
+            int chapelDepth = math.max(96, keepDepth * 3 / 5);
+            int chapelCentreZ = min.z + 6 - chapelDepth / 2;
+            int aisleStartZ = chapelCentreZ - 6;
+            brush.Box(new int3(connectorX - 8, baseY, aisleStartZ),
+                      new int3(16, 2, min.z + 12 - aisleStartZ), Mat.Stone);
+            brush.Arch(new int3(connectorX - 9, baseY + 2, min.z - 9),
+                       18, 32, 18, 2, Mat.Empty);
+            brush.Box(new int3(connectorX - 7, baseY + 2, aisleStartZ),
+                      new int3(14, 24, min.z + 12 - aisleStartZ), Mat.Empty);
+
+            // Recessed windows on three exposed faces advertise all four usable storeys. Warm
+            // glazing and deep dark-stone hoods keep the openings legible in the long hero shot.
+            for (int floor = 0; floor < 4; floor++)
+            {
+                int windowY = baseY + floor * plan.FloorHeight + 12;
+                int windowHeight = plan.FloorHeight - 18;
+
+                brush.Arch(new int3(min.x - 2, windowY, centre.z - 7),
+                           14, windowHeight, 10, 0, Mat.Empty);
+                brush.Box(new int3(min.x + 2, windowY + 4, centre.z - 4),
+                          new int3(2, windowHeight - 9, 8), Mat.Glass);
+                brush.Box(new int3(min.x - 4, windowY - 3, centre.z - 11),
+                          new int3(5, 3, 22), Mat.DarkStone);
+
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    // The ground-floor south bay is the chapel doorway. A glazed window in the
+                    // same bay looked plausible from outside but silently sealed the route.
+                    if (floor == 0 && side < 0) continue;
+
+                    int z = side < 0 ? min.z - 2 : min.z + size - 8;
+                    brush.Arch(new int3(centre.x - 7, windowY, z),
+                               14, windowHeight, 10, 2, Mat.Empty);
+                    int glassZ = side < 0 ? min.z + 2 : min.z + size - 4;
+                    brush.Box(new int3(centre.x - 4, windowY + 4, glassZ),
+                              new int3(8, windowHeight - 9, 2), Mat.Glass);
+                }
+            }
+
+            // Compact furnishing leaves the eastern half and the full stair ring clear. Each
+            // level has a distinct use: sacristy storage, scriptorium desk, solar bench, bells.
+            for (int floor = 0; floor < 3; floor++)
+            {
+                int floorY = baseY + floor * plan.FloorHeight;
+                brush.Box(new int3(min.x + 8, floorY + 3, min.z + 9),
+                          new int3(10, 24, 18), Mat.Wood);
+                brush.Box(new int3(min.x + 19, floorY + 8, min.z + 11),
+                          new int3(15, 4, 12), Mat.Wood);
+                brush.Box(new int3(min.x + 21, floorY + 3, min.z + 13),
+                          new int3(4, 6, 4), Mat.Wood);
+                brush.Box(new int3(min.x + 28, floorY + 12, min.z + 14),
+                          new int3(3, 7, 3), floor == 2 ? Mat.Glass : Mat.Gold);
+            }
+
+            int bellY = baseY + plan.FloorHeight * 3 + 14;
+            brush.Box(new int3(min.x + 9, bellY - 8, centre.z - 2),
+                      new int3(size - 31, 4, 4), Mat.Wood);
+            for (int i = 0; i < 2; i++)
+            {
+                int bellX = min.x + 17 + i * 16;
+                brush.Box(new int3(bellX, bellY, centre.z - 5),
+                          new int3(9, 10, 10), Mat.Gold);
+                brush.Box(new int3(bellX + 3, bellY + 10, centre.z - 2),
+                          new int3(3, 10, 3), Mat.Wood);
+            }
+
+            // A projecting crown and steep slate roof add a second square-tower profile to the
+            // skyline without inventing another inaccessible rooftop chamber.
+            int topY = baseY + height;
+            brush.Box(new int3(min.x - 5, topY, min.z - 5),
+                      new int3(size + 10, 7, size + 10), Mat.DarkStone);
+            for (int x = min.x - 4; x < min.x + size + 2; x += 18)
+            {
+                brush.Box(new int3(x, topY + 7, min.z - 4),
+                          new int3(11, 15, 8), Mat.Stone);
+                brush.Box(new int3(x, topY + 7, min.z + size - 4),
+                          new int3(11, 15, 8), Mat.Stone);
+            }
+            brush.Gable(new int3(min.x + 2, topY + 10, min.z + 2),
+                        new int3(size - 4, 46, size - 4), true, Mat.Slate);
+            brush.Box(new int3(centre.x - 1, topY + 53, centre.z - 1),
+                      new int3(3, 25, 3), Mat.Gold);
+            brush.Box(new int3(centre.x + 2, topY + 66, centre.z - 1),
+                      new int3(20, 9, 3), Mat.Cloth);
         }
 
         /// <summary>

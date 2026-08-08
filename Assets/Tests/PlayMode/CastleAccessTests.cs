@@ -119,6 +119,22 @@ namespace VoxelEngine.Tests.PlayMode
                 AssertActorClear(world, new int3(x, baseY + 2, chapelCentreZ),
                     $"chapel aisle at x={x}");
 
+            // The offset bell tower is four occupied storeys, not a sealed skyline prop. Its
+            // ground threshold joins the chapel's rear aisle and its spiral must provide a clear
+            // landing on every upper floor.
+            int3 bellCentre = CastleBuilder.ChapelBellTowerCentre(in plan);
+            int bellMinZ = bellCentre.z - CastleBuilder.ChapelBellTowerSize / 2;
+            for (int z = chapelCentreZ; z <= bellMinZ + 9; z += 2)
+                AssertActorClear(world, new int3(bellCentre.x, baseY + 2, z),
+                    $"chapel bell-tower threshold at z={z}");
+
+            int bellStairX = bellCentre.x + CastleBuilder.ChapelBellTowerSize / 2 - 19;
+            for (int floor = 1; floor < 4; floor++)
+                AssertStairLanding(world, bellStairX, baseY + 2, bellCentre.z,
+                                   CastleBuilder.ChapelBellTowerStairRadius,
+                                   floor * plan.FloorHeight - 2,
+                                   $"chapel bell tower floor {floor}");
+
             // Curtain, gatehouse, and keep turrets are rooms too. Each must have a player-sized
             // inward-facing entrance and a first-floor landing on its own stair.
             int hx = plan.BaileyHalfX, hz = plan.BaileyHalfZ;
@@ -341,8 +357,19 @@ namespace VoxelEngine.Tests.PlayMode
 
         private static void AssertActorClear(ShowcaseWorld world, int3 feet, string label)
         {
-            Assert.That(ActorClear(world, feet.x, feet.y, feet.z), Is.True,
-                $"{label} does not fit the player capsule");
+            if (ActorClear(world, feet.x, feet.y, feet.z)) return;
+
+            for (int y = feet.y; y < feet.y + 18; y++)
+            for (int z = feet.z - 3; z < feet.z + 3; z++)
+            for (int x = feet.x - 3; x < feet.x + 3; x++)
+            {
+                byte material = Get(world, x, y, z);
+                if (material != Mat.Empty)
+                    Assert.Fail($"{label} has material {material} blocking the player capsule " +
+                                $"at {x},{y},{z}");
+            }
+
+            Assert.Fail($"{label} has no solid floor beneath {feet}");
         }
 
         private static byte Get(ShowcaseWorld world, int x, int y, int z) =>
