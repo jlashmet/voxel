@@ -4,8 +4,10 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Core.Edits;
+using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Core.Terrain;
 using VoxelEngine.Streaming;
 
 namespace VoxelEngine.Showcase
@@ -64,6 +66,7 @@ namespace VoxelEngine.Showcase
 
         private RegionTable _table;
         private BrickPool _pool;
+        private FeatureCatalogue _catalogue;
         private MaterialPalette _palette;
         private uint _editCounter;
 
@@ -125,6 +128,8 @@ namespace VoxelEngine.Showcase
             _palette.Register(MatSand, 20, DestructionClass.Powder);
             _palette.Register(MatGlass, 10, DestructionClass.Powder);
             _palette.Register(MatBedrock, 255, DestructionClass.None);
+
+            _catalogue = ShowcaseCatalogue.Build(seed, Allocator.Persistent);
         }
 
         // -- streaming -----------------------------------------------------------
@@ -400,6 +405,28 @@ namespace VoxelEngine.Showcase
             _dirtyRegions.Add(coord + new int3(0, 0, 1));
             _dirtyRegions.Add(coord + new int3(0, 0, -1));
 
+            // Features are generated after terrain, so they carve and build against finished
+            // ground. Everything here is a function of (seed, catalogue, region coordinate) —
+            // no neighbour is consulted, which is why regions may arrive in any order.
+            if (_catalogue.IsCreated)
+            {
+                var featureStart = Time.realtimeSinceStartupAsDouble;
+
+                var report = FeatureGeneration.GenerateRegion(
+                    in _catalogue, Seed, coord, ref _table, ref _pool);
+
+                FeatureVoxelsBuilt += report.VoxelsWritten;
+                FeatureInstancesBuilt += report.InstancesRasterised;
+
+                // Only record timing for regions that actually built something; otherwise the
+                // number reads as the cost of doing nothing.
+                if (report.InstancesRasterised > 0)
+                    LastFeatureMs = (Time.realtimeSinceStartupAsDouble - featureStart) * 1000.0;
+
+                if (report.BudgetExceeded)
+                    Debug.LogWarning($"Feature budget exceeded in region {coord}; content was refused rather than truncated.");
+            }
+
             RegionsGenerated++;
 
             // The pointer grid is only final now. Anything uploaded earlier described a
@@ -430,64 +457,15 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Deterministic integer value noise, summed over four octaves.
+        /// Surface height in voxels, from the engine's canonical sampler.
         ///
-        /// Demo-side rather than <see cref="Core.Terrain.TerrainGenerator.SampleSurfaceHeight"/>,
-        /// which reduces its inputs modulo the region edge and therefore produces the same
-        /// terrain in every region — a seam-free world needs the noise to be a function of the
-        /// world coordinate, not the region-local one. Worth fixing in the engine; flagged
-        /// rather than worked around silently.
+        /// This used to be a demo-side copy of the noise, written because
+        /// <c>TerrainGenerator.SampleSurfaceHeight</c> reduced its inputs modulo the region edge
+        /// and produced identical terrain in every region. That is fixed, so the copy is gone:
+        /// the showcase and the feature generator must agree about where the ground is, and two
+        /// implementations of the same function are two things that can drift.
         /// </summary>
-        public int SurfaceHeight(int wx, int wz)
-        {
-            int h = BaseHeight;
-            // Deliberately smooth at voxel scale: high-frequency detail turns every 10 cm step
-            // into extra faces, and the mesh cost of that is far larger than the visual gain.
-            h += Octave(wx, wz, 9, 70);
-            h += Octave(wx, wz, 7, 24);
-            h += Octave(wx, wz, 5, 6);
-            return math.clamp(h, 8, RegionVoxelEdge - 24);
-        }
-
-        /// <summary>One octave of value noise: hash four lattice corners, interpolate in fixed point.</summary>
-        private int Octave(int wx, int wz, int log2Cell, int amplitude)
-        {
-            int cell = 1 << log2Cell;
-            int x0 = wx >> log2Cell, z0 = wz >> log2Cell;
-            int fx = wx & (cell - 1), fz = wz & (cell - 1);
-
-            int c00 = Corner(x0, z0, log2Cell);
-            int c10 = Corner(x0 + 1, z0, log2Cell);
-            int c01 = Corner(x0, z0 + 1, log2Cell);
-            int c11 = Corner(x0 + 1, z0 + 1, log2Cell);
-
-            // Smoothstep in fixed point, 0..1024, so the lattice does not show as creases.
-            int tx = Smooth(fx, cell);
-            int tz = Smooth(fz, cell);
-
-            int a = c00 + ((c10 - c00) * tx >> 10);
-            int b = c01 + ((c11 - c01) * tx >> 10);
-            int v = a + ((b - a) * tz >> 10);   // v is 0..1024
-
-            return (v * amplitude >> 10) - (amplitude >> 1);
-        }
-
-        private int Corner(int x, int z, int salt) =>
-            (int)((Hash((uint)x * 2654435761u ^ (uint)z * 2246822519u ^ Seed ^ ((uint)salt << 24)) >> 8) & 0x3FF);
-
-        private static int Smooth(int f, int cell)
-        {
-            long t = (long)f * 1024 / cell;             // 0..1024
-            return (int)(t * t * (3 * 1024 - 2 * t) >> 20); // 3t^2 - 2t^3, still 0..1024
-        }
-
-        private static uint Hash(uint v)
-        {
-            v ^= v >> 16; v *= 0x85ebca6bu;
-            v ^= v >> 13; v *= 0xc2b2ae35u;
-            v ^= v >> 16;
-            return v;
-        }
+        public int SurfaceHeight(int wx, int wz) => TerrainSampler.HeightAt(wx, wz, Seed);
 
         // -- landmarks -----------------------------------------------------------
 
@@ -651,9 +629,18 @@ namespace VoxelEngine.Showcase
             return new Vector3(cx * 0.1f, (h + 40) * 0.1f, (cz - 90) * 0.1f);
         }
 
+        /// <summary>
+        /// Feature voxels written so far, accumulated. Reporting only the most recent region
+        /// showed zero almost always, since most regions contain no features.
+        /// </summary>
+        public int FeatureVoxelsBuilt { get; private set; }
+        public int FeatureInstancesBuilt { get; private set; }
+        public double LastFeatureMs { get; private set; }
+
         public void Dispose()
         {
             FinishRegionForced();
+            if (_catalogue.IsCreated) _catalogue.Dispose();
             if (_table.IsCreated) _table.Dispose();
             if (_pool.IsCreated) _pool.Dispose();
         }

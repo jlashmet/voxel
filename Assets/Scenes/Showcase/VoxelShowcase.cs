@@ -415,6 +415,8 @@ namespace VoxelEngine.Showcase
             GUILayout.Label("<b>Storage</b>", style);
             GUILayout.Label($"mixed bricks       {_world.Pool.AllocatedCount:N0} / {_world.Pool.Capacity:N0}" +
                             $"   ({poolBytes / (1024f * 1024f):0.0} MB)", style);
+            GUILayout.Label($"features           {_world.FeatureInstancesBuilt} built" +
+                            $"   {_world.FeatureVoxelsBuilt:N0} voxels   {_world.LastFeatureMs:0.0} ms", style);
             GUILayout.Label(m_UseRaymarch
                 ? "renderer           GPU brickmap raymarch (no geometry)"
                 : $"renderer           mesh: {_renderer.FaceCount:N0} quads, {_renderer.VertexCount:N0} verts", style);
