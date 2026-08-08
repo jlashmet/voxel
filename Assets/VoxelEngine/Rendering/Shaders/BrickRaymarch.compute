@@ -138,19 +138,51 @@ bool PresentationClipped(int3 voxel)
     return all(p >= g_CutawayMinVoxel) && all(p < g_CutawayMaxVoxel);
 }
 
-// True when a voxel is solid. Used by the shadow and occlusion rays, which need to sample the
-// world at arbitrary points rather than walk it.
-bool SolidAt(int3 voxel)
+// Material at an arbitrary voxel. Keeping this lookup separate from SolidAt lets presentation
+// shading distinguish terrain caps from foliage without changing traversal or authoritative
+// occupancy.
+uint MaterialAt(int3 voxel)
 {
-    if (PresentationClipped(voxel)) return false;
+    if (PresentationClipped(voxel)) return 0u;
 
     int3 brick = voxel >> 3;
     int brickRef = BrickRefAt(brick);
 
-    if (brickRef == -1) return false;
-    if (brickRef < -1) return true;                 // uniform, non-empty
+    if (brickRef == -1) return 0u;
+    if (brickRef < -1) return (uint)(-brickRef - 1);
 
-    return VoxelMaterial(brickRef, voxel & 7) != 0u;
+    return VoxelMaterial(brickRef, voxel & 7);
+}
+
+// True when a voxel is solid. Used by the shadow and occlusion rays, which need to sample the
+// world at arbitrary points rather than walk it.
+bool SolidAt(int3 voxel)
+{
+    return MaterialAt(voxel) != 0u;
+}
+
+// Implemented in the implicit-far-field section below. HLSL permits a forward declaration;
+// keeping the canonical function single-sourced prevents near shading and the horizon drifting.
+int FarSurfaceHeight(int wx, int wz);
+
+bool NaturalTerrainCap(uint material, int3 voxel)
+{
+    if (material != 3u && material != 10u) return false;
+
+    // Procedural terrain writes its cap at this exact canonical height. Trees, roofs, courtyard
+    // planting, and the raised castle crag do not, so they retain their authored voxel normals.
+    return abs(voxel.y - FarSurfaceHeight(voxel.x, voxel.z)) <= 1;
+}
+
+float3 SmoothNaturalTerrainNormal(int3 voxel)
+{
+    const int radius = 4;
+    int hL = FarSurfaceHeight(voxel.x - radius, voxel.z);
+    int hR = FarSurfaceHeight(voxel.x + radius, voxel.z);
+    int hD = FarSurfaceHeight(voxel.x, voxel.z - radius);
+    int hU = FarSurfaceHeight(voxel.x, voxel.z + radius);
+    return normalize(float3((float)(hL - hR), radius * 2.0,
+                            (float)(hD - hU)));
 }
 
 // Bevels lighting across exposed voxel edges while preserving the authoritative grid and exact
@@ -390,12 +422,48 @@ float3 SampleSurfaceNormal(uint material, float2 uv, float3 hitVoxel,
 float3 Shade(uint material, float3 normal, float3 hitVoxel)
 {
     float hitDistance = length(hitVoxel * g_VoxelSize - g_CameraPos);
+    float3 faceNormal = normal;
     float3 roundedNormal = RoundedSurfaceNormal(hitVoxel, normal);
     // A ten-centimetre bevel is sub-pixel in a long shot. Applying it anyway turns every
     // one-voxel terrain terrace into alternating light/dark stipple, so fade to the stable face
     // normal before the edge becomes smaller than a pixel.
     float bevelVisibility = 1.0 - smoothstep(24.0, 52.0, hitDistance);
     normal = normalize(lerp(normal, roundedNormal, bevelVisibility));
+
+    int3 solidVoxel = int3(floor(hitVoxel - faceNormal * 0.02));
+    int3 terrainVoxel = solidVoxel;
+
+    // A quantised slope exposes the mineral voxel immediately beneath each grass/sand cap as a
+    // field of gray side-face flecks. Treat only that one canonical under-edge as the cap for
+    // presentation. Storage, destruction hardness, ray hits, and collision remain stone.
+    if (material == 1u)
+    {
+        [unroll]
+        for (int capOffset = 1; capOffset <= 3; capOffset++)
+        {
+            int3 capVoxel = solidVoxel + int3(0, capOffset, 0);
+            uint capMaterial = MaterialAt(capVoxel);
+            if (NaturalTerrainCap(capMaterial, capVoxel))
+            {
+                material = capMaterial;
+                terrainVoxel = capVoxel;
+                break;
+            }
+
+            // Empty space means this is a structural surface, not a buried terrain edge. Stop
+            // before sampling farther above a wall or ruin.
+            if (capMaterial == 0u) break;
+        }
+    }
+
+    if (NaturalTerrainCap(material, terrainVoxel))
+    {
+        float3 terrainNormal = SmoothNaturalTerrainNormal(terrainVoxel);
+        // Preserve a hint of the close voxel face for material readability, then converge to the
+        // smooth heightfield normal before terraces become sub-pixel contour lines.
+        float terrainBlend = lerp(0.72, 0.94, smoothstep(5.0, 28.0, hitDistance));
+        normal = normalize(lerp(normal, terrainNormal, terrainBlend));
+    }
     float3 albedo = g_MaterialColours[min(material, 15u)].rgb;
 
     // The voxel material remains dominant. The authored maps contribute restrained colour
@@ -561,6 +629,7 @@ int FarSurfaceHeight(int wx, int wz)
     h += FarOctave(wx, wz, 9, 70);
     h += FarOctave(wx, wz, 7, 24);
     h += FarOctave(wx, wz, 5, 6);
+    h += FarOctave(wx, wz, 4, 4);
     return clamp(h, 8, 512 - 24);
 }
 
