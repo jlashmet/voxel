@@ -167,6 +167,18 @@ namespace VoxelEngine.Tests.PlayMode
                                                 trapdoor.z - 386) * 0.1f,
                                     new Vector3(plan.Centre.x + 145, baseY - 150,
                                                 trapdoor.z - 386) * 0.1f),
+                ("20_bedchamber",  new Vector3(plan.Centre.x - 48,
+                                                baseY + plan.FloorHeight + 18,
+                                                keepMin.z + keepSize.z / 2 - 42) * 0.1f,
+                                    new Vector3(plan.Centre.x + 37,
+                                                baseY + plan.FloorHeight + 15,
+                                                keepMin.z + keepSize.z / 2 - 2) * 0.1f),
+                ("21_library",     new Vector3(plan.Centre.x + 26,
+                                                baseY + plan.FloorHeight * 3 + 18,
+                                                keepMin.z + keepSize.z / 2 - 44) * 0.1f,
+                                    new Vector3(keepMin.x + 18,
+                                                baseY + plan.FloorHeight * 3 + 15,
+                                                keepMin.z + keepSize.z / 2 - 44) * 0.1f),
 
                 // Terrain far from the castle, to tell whether the terracing is the castle's
                 // sculpting or the terrain generator's own stepping.

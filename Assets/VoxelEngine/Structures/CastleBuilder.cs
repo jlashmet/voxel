@@ -1311,12 +1311,51 @@ namespace VoxelEngine.Structures
 
             switch (floor)
             {
-                case 0: // great hall: long table, benches, hearth
-                    brush.Box(new int3(cx - 40, y + 1, cz - 10), new int3(80, 8, 20), Mat.Wood);
-                    brush.Box(new int3(cx - 44, y + 1, cz - 20), new int3(88, 5, 6), Mat.Wood);
-                    brush.Box(new int3(cx - 44, y + 1, cz + 16), new int3(88, 5, 6), Mat.Wood);
+                case 0: // great hall: constructed table, benches, hearth, throne and chandelier
+                    // Tabletop and four trestle legs. The former solid 8-voxel-high block read as
+                    // a plinth; negative space under furniture is what makes its scale legible.
+                    brush.Box(new int3(cx - 42, y + 8, cz - 9), new int3(84, 3, 18), Mat.Wood);
+                    for (int sideX = -1; sideX <= 1; sideX += 2)
+                    for (int sideZ = -1; sideZ <= 1; sideZ += 2)
+                        brush.Box(new int3(cx + sideX * 34 - 3, y + 1, cz + sideZ * 6 - 3),
+                                  new int3(6, 7, 6), Mat.Wood);
+
+                    // Benches with seats and sparse legs instead of solid rails.
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        int benchZ = cz + side * 18;
+                        brush.Box(new int3(cx - 44, y + 5, benchZ - 3),
+                                  new int3(88, 3, 6), Mat.Wood);
+                        for (int leg = -1; leg <= 1; leg += 2)
+                            brush.Box(new int3(cx + leg * 34 - 2, y + 1, benchZ - 2),
+                                      new int3(4, 4, 4), Mat.Wood);
+                    }
+
                     brush.Box(new int3(min.x + inner, y + 1, cz - 24), new int3(10, 40, 48), Mat.DarkStone);
                     brush.Box(new int3(min.x + inner + 2, y + 3, cz - 14), new int3(6, 16, 28), Mat.Empty);
+                    brush.Box(new int3(min.x + inner + 5, y + 3, cz - 10),
+                              new int3(4, 6, 20), Mat.Gold);
+
+                    // Raised high seat at the rear of the hall, clear of the entrance/stair axis.
+                    brush.Box(new int3(cx + 57, y + 1, cz - 18),
+                              new int3(14, 4, 36), Mat.DarkStone);
+                    brush.Box(new int3(cx + 60, y + 5, cz - 9),
+                              new int3(8, 11, 18), Mat.Wood);
+                    brush.Box(new int3(cx + 62, y + 10, cz - 7),
+                              new int3(5, 10, 14), Mat.Cloth);
+
+                    // Compact chandelier above actor headroom, with four warm candles.
+                    brush.Box(new int3(cx - 1, y + 25, cz - 1), new int3(2, 9, 2), Mat.Gold);
+                    brush.Box(new int3(cx - 13, y + 23, cz - 1), new int3(26, 2, 2), Mat.Wood);
+                    brush.Box(new int3(cx - 1, y + 23, cz - 13), new int3(2, 2, 26), Mat.Wood);
+                    int2[] candleOffsets = { new(-12, 0), new(12, 0), new(0, -12), new(0, 12) };
+                    foreach (int2 candle in candleOffsets)
+                    {
+                        brush.Box(new int3(cx + candle.x - 2, y + 20, cz + candle.y - 2),
+                                  new int3(4, 6, 4), Mat.Glass);
+                        brush.Box(new int3(cx + candle.x - 1, y + 19, cz + candle.y - 1),
+                                  new int3(2, 2, 2), Mat.Gold);
+                    }
 
                     // Warm sconces are emissive presentation voxels as well as real fixtures.
                     for (int side = -1; side <= 1; side += 2)
@@ -1329,29 +1368,80 @@ namespace VoxelEngine.Structures
                     }
                     break;
 
-                case 1: // bedchamber: bed, chest, rug
-                    brush.Box(new int3(cx + 10, y + 1, cz - 30), new int3(46, 10, 60), Mat.Wood);
-                    brush.Box(new int3(cx + 10, y + 11, cz - 30), new int3(46, 5, 60), Mat.Cloth);
-                    brush.Box(new int3(cx - 40, y + 1, cz + 20), new int3(24, 14, 16), Mat.Wood);
+                case 1: // bedchamber: framed bed, mattress, canopy, chest, wardrobe and rug
+                    int bedX = cx + 24;
+                    int bedZ = cz - 23;
+                    for (int bxSide = 0; bxSide <= 1; bxSide++)
+                    for (int bzSide = 0; bzSide <= 1; bzSide++)
+                        brush.Box(new int3(bedX + bxSide * 22, y + 3, bedZ + bzSide * 39),
+                                  new int3(4, 7, 4), Mat.Wood);
+                    brush.Box(new int3(bedX, y + 8, bedZ), new int3(26, 3, 43), Mat.Wood);
+                    brush.Box(new int3(bedX + 2, y + 11, bedZ + 2), new int3(22, 4, 39), Mat.Cloth);
+                    brush.Box(new int3(bedX, y + 3, bedZ + 39), new int3(26, 22, 4), Mat.Wood);
+                    brush.Box(new int3(bedX + 3, y + 16, bedZ + 40), new int3(20, 7, 2), Mat.Cloth);
+
+                    // Two canopy posts and a cloth valance suggest luxury without roofing over
+                    // the entire bed and turning it into another solid volume.
+                    brush.Box(new int3(bedX, y + 11, bedZ), new int3(3, 19, 3), Mat.Wood);
+                    brush.Box(new int3(bedX + 23, y + 11, bedZ), new int3(3, 19, 3), Mat.Wood);
+                    brush.Box(new int3(bedX, y + 27, bedZ), new int3(26, 3, 5), Mat.Cloth);
+
+                    brush.Box(new int3(cx - 42, y + 3, cz + 24), new int3(22, 11, 15), Mat.Wood);
+                    brush.Box(new int3(cx - 43, y + 13, cz + 23), new int3(24, 3, 17), Mat.Gold);
+                    brush.Box(new int3(min.x + size.x - inner - 26, y + 3, min.z + inner + 12),
+                              new int3(18, 28, 22), Mat.Wood);
+                    brush.Box(new int3(cx - 32, y + 3, cz - 26),
+                              new int3(48, 1, 52), Mat.Cloth);
                     break;
 
                 default: // library / stores: shelves against the walls
                     for (int i = 0; i < 4; i++)
                     {
-                        brush.Box(new int3(min.x + inner + 4, y + 1, min.z + inner + 10 + i * 34),
+                        int shelfZ = min.z + inner + 10 + i * 34;
+                        brush.Box(new int3(min.x + inner + 4, y + 3, shelfZ),
                                   new int3(14, 34, 24), Mat.Wood);
-                        brush.Box(new int3(min.x + size.x - inner - 18, y + 1, min.z + inner + 10 + i * 34),
+                        brush.Box(new int3(min.x + size.x - inner - 18, y + 3, shelfZ),
                                   new int3(14, 34, 24), Mat.Wood);
+                        for (int shelf = 0; shelf < 3; shelf++)
+                        {
+                            byte books = (i + shelf) % 2 == 0 ? Mat.Cloth : Mat.Gold;
+                            // Project book spines to the room-facing plane; inserts one voxel
+                            // behind the case face are completely hidden by opaque voxel wood.
+                            brush.Box(new int3(min.x + inner + 17, y + 9 + shelf * 9, shelfZ + 2),
+                                      new int3(3, 5, 20), books);
+                            brush.Box(new int3(min.x + size.x - inner - 20,
+                                               y + 9 + shelf * 9, shelfZ + 2),
+                                      new int3(3, 5, 20), books);
+                        }
+                    }
+
+                    // Separate reading desks in the two partitioned halves, offset from the
+                    // centre doorway and spiral landing.
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        int deskZ = cz + side * 43;
+                        brush.Box(new int3(cx - 22, y + 10, deskZ - 10),
+                                  new int3(44, 3, 20), Mat.Wood);
+                        brush.Box(new int3(cx - 18, y + 3, deskZ - 7),
+                                  new int3(5, 7, 5), Mat.Wood);
+                        brush.Box(new int3(cx + 13, y + 3, deskZ + 2),
+                                  new int3(5, 7, 5), Mat.Wood);
+                        brush.Box(new int3(cx - 2, y + 13, deskZ - 1),
+                                  new int3(4, 3, 3), Mat.Glass);
                     }
                     break;
             }
 
             // A little clutter, so no two rooms are identical.
-            for (int i = 0; i < rng.NextInt(2, 6); i++)
+            for (int i = 0; i < rng.NextInt(2, 5); i++)
             {
-                int px = rng.NextInt(min.x + inner + 8, min.x + size.x - inner - 12);
+                bool leftWall = rng.NextBool();
+                int px = leftWall ? min.x + inner + 22 : min.x + size.x - inner - 30;
                 int pz = rng.NextInt(min.z + inner + 8, min.z + size.z - inner - 12);
-                brush.Box(new int3(px, y + 1, pz), new int3(rng.NextInt(6, 14), rng.NextInt(6, 18), rng.NextInt(6, 14)), Mat.Wood);
+                int radius = rng.NextInt(4, 7);
+                brush.Cylinder(px, y + 3, pz, radius, rng.NextInt(8, 14), Mat.Wood);
+                brush.Box(new int3(px - radius, y + 7, pz - radius - 1),
+                          new int3(radius * 2, 2, radius * 2 + 2), Mat.Gold);
             }
         }
 
