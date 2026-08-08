@@ -1,0 +1,14 @@
+{
+  "name": "VoxelEngine.Tools.Features",
+  "rootNamespace": "VoxelEngine.Tools.Features",
+  "references": ["VoxelEngine.Core", "Unity.Burst", "Unity.Collections", "Unity.Mathematics"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "noEngineReferences": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": []
+}

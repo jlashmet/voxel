@@ -107,6 +107,34 @@ Conditions the parity harness (T014) injects; SC-016 must hold under all of them
 
 ---
 
+## World features (spec 002)
+
+Feature generation participates in cross-client agreement, so **every number here is identical on
+every tier**. Device class may change how a feature is drawn; it may not change whether it exists,
+where it is, or what it is made of (Principle IV). A tiered placement budget would put a village
+on a PC and not on a phone, which is the same class of defect as tiering interest radius.
+
+| Parameter | PC | Console | Mobile-HE |
+|---|---|---|---|
+| Feature generation per region | 8 ms | 8 ms | 8 ms |
+| Max primitives rasterised per region | 4096 | 4096 | 4096 |
+| Max candidates scanned per region | 512 | 512 | 512 |
+| Max primitives per instance | 512 | 512 | 512 |
+| Max footprint per definition | 1280 voxels (128 m) | 1280 | 1280 |
+| Placement cell edge | 640 voxels (64 m) | 640 | 640 |
+| Catalogue size limit | 256 definitions | 256 | 256 |
+| Stored state per touched instance | 64 B | 64 B | 64 B |
+
+**The 8 ms generation budget is provisional.** Terrain generation alone measures ~45 ms per
+region, so this number is a target rather than an observation, and spec 002 task T058 measures
+against it before anything is built on the assumption. If measurement disagrees, this table
+changes — not the code that reads it.
+
+**Feature generation shares the streaming budget rather than adding to it.** It is spent inside
+the region generation slice, not alongside it.
+
+---
+
 ## Scale targets
 
 | Parameter | Value |

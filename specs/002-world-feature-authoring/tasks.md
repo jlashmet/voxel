@@ -43,14 +43,30 @@ which is authoritative. T009 puts this feature's numbers there before any of the
 
 ---
 
+## Build status (2026-08-07)
+
+**T001–T023 are authored but not yet compiled.** The verification run was refused by
+`tools/unity-run.sh` because a Unity editor was open, and overriding that guard is how this
+project's machine got taken down three times. What has been checked: brace and paren balance
+across all 17 new files, and the float ban applied to itself over `Core/Features` and
+`Core/Terrain` — zero violations.
+
+Spec 001 recorded the same trap in harsher terms: its `[X]` marks "recorded *authored*, not
+*working*, code" against assemblies that had never been built. The marks below mean the work is
+written and self-reviewed. They do not mean it compiles.
+
+**What closes this**: one guarded Unity run with the editor closed, running
+`VoxelEngine.Tests.Features`, `TerrainContinuityTests`, and `IntegerOnlyGenerationTests`.
+
+
 ## Phase 1: Setup
 
-- [ ] T001 Create `Assets/VoxelEngine/Core/Features/` and confirm it is covered by the existing `VoxelEngine.Core` assembly in `Assets/VoxelEngine/Core/VoxelEngine.Core.asmdef`
-- [ ] T002 [P] Extend the float-ban analyzer rule to `Core/Features` and `Core/Terrain` in the analyzer configuration under `Assets/VoxelEngine/Core/`
-- [ ] T003 [P] Create the authoring tools assembly at `Assets/VoxelEngine/Tools/Features/VoxelEngine.Tools.Features.asmdef`, editor-only, referencing `VoxelEngine.Core`
-- [ ] T004 [P] Create the test assembly at `Assets/Tests/Features/VoxelEngine.Tests.Features.asmdef` referencing `VoxelEngine.Core` and `VoxelEngine.Net`
-- [ ] T005 [P] Create the sample catalogue location `Assets/StreamingAssets/Catalogues/` with a README stating that catalogues are world identity and must not be edited mid-session
-- [ ] T006 [P] Add `specs/002-world-feature-authoring/architecture-notes.md` as a stub for reasoning that outgrows the plan
+- [X] T001 Create `Assets/VoxelEngine/Core/Features/` and confirm it is covered by the existing `VoxelEngine.Core` assembly in `Assets/VoxelEngine/Core/VoxelEngine.Core.asmdef`
+- [X] T002 [P] Extend the float-ban analyzer rule to `Core/Features` and `Core/Terrain` in the analyzer configuration under `Assets/VoxelEngine/Core/`
+- [X] T003 [P] Create the authoring tools assembly at `Assets/VoxelEngine/Tools/Features/VoxelEngine.Tools.Features.asmdef`, editor-only, referencing `VoxelEngine.Core`
+- [X] T004 [P] Create the test assembly at `Assets/Tests/Features/VoxelEngine.Tests.Features.asmdef` referencing `VoxelEngine.Core` and `VoxelEngine.Net`
+- [X] T005 [P] Create the sample catalogue location `Assets/StreamingAssets/Catalogues/` with a README stating that catalogues are world identity and must not be edited mid-session
+- [X] T006 [P] Add `specs/002-world-feature-authoring/architecture-notes.md` as a stub for reasoning that outgrows the plan
 
 ---
 
@@ -60,35 +76,35 @@ which is authoritative. T009 puts this feature's numbers there before any of the
 rather than conveniences: T009 closes Constitution gate VI, and T010–T012 replace a terrain
 sampler that is currently wrong in a way that would silently corrupt every placement decision.
 
-- [ ] T007 Record this feature's budgets in `specs/001-destructible-voxel-engine/device-matrix.md` as a "World features" section, marked as simulation parameters identical across all tiers (Constitution IV)
-- [ ] T008 [P] Mirror those budgets as compile-time constants in `Assets/VoxelEngine/Core/Features/FeatureBudget.cs`, with a comment pointing at device-matrix.md as the source
-- [ ] T009 Verify Constitution gate VI is closed by confirming no number in `plan.md` or `research.md` R-008 lacks a counterpart in device-matrix.md
+- [X] T007 Record this feature's budgets in `specs/001-destructible-voxel-engine/device-matrix.md` as a "World features" section, marked as simulation parameters identical across all tiers (Constitution IV)
+- [X] T008 [P] Mirror those budgets as compile-time constants in `Assets/VoxelEngine/Core/Features/FeatureBudget.cs`, with a comment pointing at device-matrix.md as the source
+- [X] T009 Verify Constitution gate VI is closed by confirming no number in `plan.md` or `research.md` R-008 lacks a counterpart in device-matrix.md
 
 **Terrain must become a pure, world-continuous function.** `TerrainGenerator.SampleSurfaceHeight`
 currently reduces its inputs modulo the region edge, so it produces identical terrain in every
 region. Placement rules read ground height and slope; building on that sampler would place every
 village in the same relative spot in every region.
 
-- [ ] T010 Replace the region-tiling noise in `Assets/VoxelEngine/Core/Terrain/TerrainGenerator.cs` with world-continuous integer value noise that is a pure function of world coordinates
-- [ ] T011 [P] Add `Assets/VoxelEngine/Core/Terrain/TerrainSampler.cs` exposing `HeightAt(int x, int z)` and `SlopeAt(int x, int z)` as the only terrain surface generation may read
-- [ ] T012 [P] Add a parity test in `Assets/Tests/Parity/TerrainContinuityTests.cs` asserting height is continuous across region boundaries and identical when sampled from either side
+- [X] T010 Replace the region-tiling noise in `Assets/VoxelEngine/Core/Terrain/TerrainGenerator.cs` with world-continuous integer value noise that is a pure function of world coordinates
+- [X] T011 [P] Add `Assets/VoxelEngine/Core/Terrain/TerrainSampler.cs` exposing `HeightAt(int x, int z)` and `SlopeAt(int x, int z)` as the only terrain surface generation may read
+- [X] T012 [P] Add a parity test in `Assets/Tests/Parity/TerrainContinuityTests.cs` asserting height is continuous across region boundaries and identical when sampled from either side
 
 **Catalogue data structures** — blittable, Burst-compatible, no managed references.
 
-- [ ] T013 [P] Define `Primitive` (shape, bounds, material, mode, order) in `Assets/VoxelEngine/Core/Features/Primitive.cs`
-- [ ] T014 [P] Define `ParameterSpec` and `ParameterSet` in `Assets/VoxelEngine/Core/Features/ParameterSpec.cs`
-- [ ] T015 [P] Define `AnchorSpec`, `ResolvedAnchor`, and `SlotSpec` in `Assets/VoxelEngine/Core/Features/AnchorSpec.cs`
-- [ ] T016 [P] Define `FeatureDefinition` per data-model.md in `Assets/VoxelEngine/Core/Features/FeatureDefinition.cs`
-- [ ] T017 [P] Define `PlacementRule` and `ExplicitPlacement` in `Assets/VoxelEngine/Core/Features/PlacementRule.cs`
-- [ ] T018 Define `FeatureCatalogue` as an immutable blob with `Version` and `CatalogueHash` in `Assets/VoxelEngine/Core/Features/FeatureCatalogue.cs`
-- [ ] T019 Implement catalogue loading and hashing in `Assets/VoxelEngine/Core/Features/CatalogueLoader.cs`, refusing to load a version the evaluator does not implement
-- [ ] T020 [P] Add integer hash helpers shared with `DeterministicRandom` in `Assets/VoxelEngine/Core/Features/FeatureHash.cs`
+- [X] T013 [P] Define `Primitive` (shape, bounds, material, mode, order) in `Assets/VoxelEngine/Core/Features/Primitive.cs`
+- [X] T014 [P] Define `ParameterSpec` and `ParameterSet` in `Assets/VoxelEngine/Core/Features/ParameterSpec.cs`
+- [X] T015 [P] Define `AnchorSpec`, `ResolvedAnchor`, and `SlotSpec` in `Assets/VoxelEngine/Core/Features/AnchorSpec.cs`
+- [X] T016 [P] Define `FeatureDefinition` per data-model.md in `Assets/VoxelEngine/Core/Features/FeatureDefinition.cs`
+- [X] T017 [P] Define `PlacementRule` and `ExplicitPlacement` in `Assets/VoxelEngine/Core/Features/PlacementRule.cs`
+- [X] T018 Define `FeatureCatalogue` as an immutable blob with `Version` and `CatalogueHash` in `Assets/VoxelEngine/Core/Features/FeatureCatalogue.cs`
+- [X] T019 Implement catalogue loading and hashing in `Assets/VoxelEngine/Core/Features/CatalogueLoader.cs`, refusing to load a version the evaluator does not implement
+- [X] T020 [P] Add integer hash helpers shared with `DeterministicRandom` in `Assets/VoxelEngine/Core/Features/FeatureHash.cs`
 
 **The harness that catches almost everything.**
 
-- [ ] T021 Build the order-independence harness in `Assets/Tests/Parity/GenerationOrderHarness.cs`: generate a region block in N shuffled orders and compare the resulting brickmaps byte for byte
-- [ ] T022 [P] Add a sub-volume equality helper to `Assets/Tests/Features/SubVolumeEquality.cs` comparing whole-volume rasterisation against a tiling of disjoint sub-volumes
-- [ ] T023 [P] Add a catalogue test fixture with one hand-written definition in `Assets/Tests/Features/Fixtures/CottageFixture.cs`
+- [X] T021 Build the order-independence harness in `Assets/Tests/Parity/GenerationOrderHarness.cs`: generate a region block in N shuffled orders and compare the resulting brickmaps byte for byte
+- [X] T022 [P] Add a sub-volume equality helper to `Assets/Tests/Features/SubVolumeEquality.cs` comparing whole-volume rasterisation against a tiling of disjoint sub-volumes
+- [X] T023 [P] Add a catalogue test fixture with one hand-written definition in `Assets/Tests/Features/Fixtures/CottageFixture.cs`
 
 ---
 
