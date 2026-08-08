@@ -619,19 +619,23 @@ namespace VoxelEngine.Showcase
                 LightAt(plan.Centre.x + 58, cellarY + 17, keepCentreZ, 7.0f),
                 LightAt(plan.Centre.x - 55, dungeonY + 18, trapZ, 8.5f),
                 LightAt(plan.Centre.x + 55, dungeonY + 18, trapZ, 8.5f),
+                LightAt(plan.Centre.x + 226, dungeonY + 16, trapZ, 8.0f),
+                LightAt(plan.Centre.x - 226, dungeonY + 15, trapZ, 8.0f),
                 LightAt(plan.Centre.x - 40, dungeonY + 9, caveZ - 15, 9.0f),
                 LightAt(plan.Centre.x + 45, dungeonY + 11, caveZ + 24, 9.0f),
+                LightAt(plan.Centre.x + 145, dungeonY + 12, caveZ + 25, 9.0f),
             };
 
             var warm = new Vector4(1.00f, 0.38f, 0.10f, 2.35f);
             var chapelWarm = new Vector4(1.00f, 0.42f, 0.14f, 1.15f);
             var cellarWarm = new Vector4(1.00f, 0.28f, 0.06f, 2.05f);
+            var sideRoomWarm = new Vector4(1.00f, 0.34f, 0.09f, 1.05f);
             var caveBlue = new Vector4(0.12f, 0.62f, 1.00f, 1.85f);
             CastlePresentationLightColours = new[]
             {
                 warm, warm, warm, warm, warm, warm, chapelWarm, chapelWarm,
-                cellarWarm, cellarWarm, cellarWarm, cellarWarm,
-                caveBlue, caveBlue,
+                cellarWarm, cellarWarm, cellarWarm, cellarWarm, sideRoomWarm, sideRoomWarm,
+                caveBlue, caveBlue, caveBlue,
             };
         }
 

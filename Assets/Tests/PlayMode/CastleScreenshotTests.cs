@@ -154,6 +154,19 @@ namespace VoxelEngine.Tests.PlayMode
                                                 chapelMin.z + chapelDepth / 2) * 0.1f,
                                     new Vector3(chapelMin.x + 15, baseY + 20,
                                                 chapelMin.z + chapelDepth / 2) * 0.1f),
+                ("17_puzzle_room", new Vector3(plan.Centre.x + 190, baseY - 148,
+                                                trapdoor.z) * 0.1f,
+                                    new Vector3(plan.Centre.x + 226, baseY - 150,
+                                                trapdoor.z) * 0.1f),
+                ("18_treasury",    new Vector3(plan.Centre.x - 190, baseY - 148,
+                                                trapdoor.z) * 0.1f,
+                                    new Vector3(plan.Centre.x - 230, baseY - 150,
+                                                trapdoor.z) * 0.1f),
+                ("19_crystal_grotto",
+                                    new Vector3(plan.Centre.x + 94, baseY - 148,
+                                                trapdoor.z - 386) * 0.1f,
+                                    new Vector3(plan.Centre.x + 145, baseY - 150,
+                                                trapdoor.z - 386) * 0.1f),
 
                 // Terrain far from the castle, to tell whether the terracing is the castle's
                 // sculpting or the terrain generator's own stepping.

@@ -70,8 +70,8 @@ float3   g_CutawayMaxVoxel;
 // Material colours, indexed by material id. Slot 0 is empty and never shaded.
 float4 g_MaterialColours[16];
 uint g_LocalLightCount;
-float4 g_LocalLights[16];          // xyz position in metres, w radius
-float4 g_LocalLightColours[16];    // rgb tint, w intensity
+float4 g_LocalLights[20];          // xyz position in metres, w radius
+float4 g_LocalLightColours[20];    // rgb tint, w intensity
 
 static const int k_BrickEdge = 8;
 static const int k_RegionEdgeLog2 = 6;      // bricks per region edge = 64
@@ -365,7 +365,7 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // normal term preserves shape instead of applying a flat emissive wash.
     float3 hitMetres = hitVoxel * g_VoxelSize;
     [loop]
-    for (uint lightIndex = 0u; lightIndex < min(g_LocalLightCount, 16u); lightIndex++)
+    for (uint lightIndex = 0u; lightIndex < min(g_LocalLightCount, 20u); lightIndex++)
     {
         float3 toLight = g_LocalLights[lightIndex].xyz - hitMetres;
         float distanceToLight = length(toLight);

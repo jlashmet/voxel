@@ -176,6 +176,21 @@ namespace VoxelEngine.Tests.PlayMode
                         Is.True, "the access graph must be evaluated with its secret hatch open");
             AssertStairLanding(world, trapX, cellarY, trapZ, 9, 44, "cellar to ground");
             AssertStairLanding(world, trapX, dungeonY, trapZ, 13, 118, "dungeon to cellar");
+
+            // Distinct underground set pieces are part of the same walkable graph. Sample the
+            // deliberately authored centre lines up to each furnished focal area.
+            for (int x = trapX + 120; x <= trapX + 208; x += 2)
+                AssertActorClear(world, new int3(x, dungeonY + 2, trapZ),
+                    $"puzzle-room branch at x={x}");
+            for (int x = trapX - 120; x >= trapX - 258; x -= 2)
+                AssertActorClear(world, new int3(x, dungeonY + 2, trapZ),
+                    $"treasury branch at x={x}");
+
+            int mainCaveZ = trapZ - 411;
+            int sideCaveZ = mainCaveZ + 25;
+            for (int x = trapX; x <= trapX + 128; x += 2)
+                AssertActorClear(world, new int3(x, dungeonY + 2, sideCaveZ),
+                    $"crystal-grotto branch at x={x}");
         }
 
         private static void AssertStairLanding(ShowcaseWorld world, int cx, int baseY, int cz,

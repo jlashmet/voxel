@@ -1453,6 +1453,8 @@ namespace VoxelEngine.Structures
                                    hallMin.z + 76 + row * 28),
                           new int3(40, 5, 8), row == 1 ? Mat.DarkStone : Mat.Wood);
 
+            DungeonSideChambers(ref brush, tx, tz, dungeonY);
+
             // Secret passage: a low tunnel from the hall out towards the cliff.
             int passZ = hallMin.z - 1;
             for (int i = 0; i < 320; i++)
@@ -1465,6 +1467,146 @@ namespace VoxelEngine.Structures
             }
 
             Cave(ref brush, in plan, new int3(tx, dungeonY, passZ - 320));
+        }
+
+        /// <summary>
+        /// Distinct puzzle and treasury beats branching from the ruined hall. Both corridors are
+        /// straight, level, and player-sized; the chambers use carved rock as their envelope so
+        /// they feel excavated beneath the castle rather than like more rooms in the keep.
+        /// </summary>
+        private static void DungeonSideChambers(ref VoxelBrush brush, int tx, int trapZ,
+                                                int dungeonY)
+        {
+            const int corridorHalf = 10;
+            const int corridorHeight = 30;
+
+            // East branch: puzzle room.
+            int puzzleMinX = tx + 176;
+            int puzzleMinZ = trapZ - 58;
+            brush.Box(new int3(tx + 118, dungeonY + 2, trapZ - corridorHalf),
+                      new int3(70, corridorHeight, corridorHalf * 2), Mat.Empty);
+            brush.Box(new int3(tx + 118, dungeonY, trapZ - corridorHalf),
+                      new int3(70, 2, corridorHalf * 2), Mat.DarkStone);
+            brush.FillBulk(new int3(puzzleMinX, dungeonY + 2, puzzleMinZ),
+                           new int3(100, 38, 116), Mat.Empty);
+            brush.Box(new int3(puzzleMinX, dungeonY, puzzleMinZ),
+                      new int3(100, 2, 116), Mat.DarkStone);
+
+            // Inlaid floor graph: four arms converge on the centre tile, making the chamber read
+            // as a designed puzzle space from the doorway without raising the walking surface.
+            brush.Box(new int3(puzzleMinX + 8, dungeonY + 1, trapZ - 2),
+                      new int3(84, 1, 4), Mat.Slate);
+            brush.Box(new int3(puzzleMinX + 48, dungeonY + 1, puzzleMinZ + 8),
+                      new int3(4, 1, 100), Mat.Slate);
+            for (int ring = 0; ring < 3; ring++)
+            {
+                int inset = 18 + ring * 10;
+                brush.Box(new int3(puzzleMinX + inset, dungeonY + 1, puzzleMinZ + 15),
+                          new int3(2, 1, 86), ring == 1 ? Mat.Gold : Mat.Cloth);
+                brush.Box(new int3(puzzleMinX + 98 - inset, dungeonY + 1, puzzleMinZ + 15),
+                          new int3(2, 1, 86), ring == 1 ? Mat.Gold : Mat.Cloth);
+            }
+
+            // Four rune plinths surround a clear centre tile; their varied materials make the
+            // interaction grammar legible even before puzzle behaviour exists.
+            int puzzleCx = puzzleMinX + 50;
+            int puzzleCz = trapZ;
+            int2[] runeOffsets = { new(-26, -30), new(26, -30), new(-26, 30), new(26, 30) };
+            for (int i = 0; i < runeOffsets.Length; i++)
+            {
+                int px = puzzleCx + runeOffsets[i].x;
+                int pz = puzzleCz + runeOffsets[i].y;
+                brush.Box(new int3(px - 8, dungeonY + 2, pz - 8),
+                          new int3(16, 8, 16), Mat.Stone);
+                brush.Box(new int3(px - 4, dungeonY + 10, pz - 4),
+                          new int3(8, 10 + i * 2, 8), i % 2 == 0 ? Mat.Glass : Mat.Gold);
+            }
+            brush.Box(new int3(puzzleCx - 14, dungeonY + 2, puzzleCz - 14),
+                      new int3(28, 3, 28), Mat.Slate);
+            brush.Box(new int3(puzzleCx - 4, dungeonY + 5, puzzleCz - 4),
+                      new int3(8, 5, 8), Mat.Glass);
+
+            // Broken perimeter arches imply a much older buried hall without closing the central
+            // route from its corridor to the puzzle dais.
+            for (int arch = 0; arch < 2; arch++)
+            {
+                int z = puzzleMinZ + 16 + arch * 84;
+                brush.Cylinder(puzzleMinX + 12, dungeonY + 2, z, 7, 31, Mat.Stone);
+                brush.Cylinder(puzzleMinX + 88, dungeonY + 2, z, 7, 31, Mat.Stone);
+            }
+            for (int x = puzzleMinX + 15; x < puzzleMinX + 92; x += 25)
+                brush.Box(new int3(x, dungeonY + 32, puzzleMinZ + 5),
+                          new int3(4, 4, 106), Mat.Wood);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                brush.Box(new int3(puzzleMinX + 50 - 2, dungeonY + 18,
+                                   trapZ + side * 49 - 2),
+                          new int3(4, 8, 4), Mat.Glass);
+                brush.Box(new int3(puzzleMinX + 48, dungeonY + 15,
+                                   trapZ + side * 49 - 1),
+                          new int3(6, 3, 3), Mat.Gold);
+            }
+
+            // West branch: secret treasury.
+            int treasuryMinX = tx - 276;
+            int treasuryMinZ = trapZ - 52;
+            brush.Box(new int3(tx - 188, dungeonY + 2, trapZ - corridorHalf),
+                      new int3(70, corridorHeight, corridorHalf * 2), Mat.Empty);
+            brush.Box(new int3(tx - 188, dungeonY, trapZ - corridorHalf),
+                      new int3(70, 2, corridorHalf * 2), Mat.DarkStone);
+            brush.FillBulk(new int3(treasuryMinX, dungeonY + 2, treasuryMinZ),
+                           new int3(100, 36, 104), Mat.Empty);
+            brush.Box(new int3(treasuryMinX, dungeonY, treasuryMinZ),
+                      new int3(100, 2, 104), Mat.DarkStone);
+
+            // Repeating ceiling ribs and shelf bays turn the rock cut into an occupied vault.
+            for (int x = treasuryMinX + 12; x < treasuryMinX + 94; x += 24)
+                brush.Box(new int3(x, dungeonY + 30, treasuryMinZ + 5),
+                          new int3(5, 4, 94), Mat.Wood);
+            for (int side = -1; side <= 1; side += 2)
+            for (int bay = 0; bay < 3; bay++)
+            {
+                int x = treasuryMinX + 18 + bay * 30;
+                int z = trapZ + side * 45;
+                brush.Box(new int3(x - 9, dungeonY + 2, z - 5),
+                          new int3(18, 23, 10), Mat.Wood);
+                brush.Box(new int3(x - 10, dungeonY + 9, z - 6),
+                          new int3(20, 2, 12), Mat.Gold);
+                brush.Box(new int3(x - 10, dungeonY + 18, z - 6),
+                          new int3(20, 2, 12), Mat.Gold);
+            }
+
+            // Chests and coin tables remain against the edges; the central carpet is the route
+            // and visual reveal from the tunnel.
+            for (int side = -1; side <= 1; side += 2)
+            for (int row = 0; row < 3; row++)
+            {
+                int x = treasuryMinX + 24 + row * 27;
+                int z = trapZ + side * 34;
+                brush.Box(new int3(x - 8, dungeonY + 2, z - 7),
+                          new int3(16, 10, 14), Mat.Wood);
+                brush.Box(new int3(x - 9, dungeonY + 10, z - 8),
+                          new int3(18, 3, 16), Mat.Gold);
+            }
+            brush.Box(new int3(treasuryMinX + 18, dungeonY + 1, trapZ - 8),
+                      new int3(62, 1, 16), Mat.Cloth);
+            brush.Box(new int3(treasuryMinX + 15, dungeonY + 2, treasuryMinZ + 12),
+                      new int3(70, 5, 12), Mat.Gold);
+            for (int pile = 0; pile < 5; pile++)
+            {
+                int px = treasuryMinX + 18 + pile * 16;
+                int pz = treasuryMinZ + 21 + (pile & 1) * 7;
+                brush.Cone(px, dungeonY + 7, pz, 5, 7 + (pile % 3) * 3, Mat.Gold);
+            }
+            for (int side = -1; side <= 1; side += 2)
+            {
+                brush.Box(new int3(treasuryMinX + 50 - 2, dungeonY + 17,
+                                   trapZ + side * 45 - 2),
+                          new int3(4, 8, 4), Mat.Glass);
+                brush.Box(new int3(treasuryMinX + 48, dungeonY + 14,
+                                   trapZ + side * 45 - 1),
+                          new int3(6, 3, 3), Mat.Gold);
+            }
         }
 
         /// <summary>A natural cavern at the end of the passage, with a pool.</summary>
@@ -1497,6 +1639,37 @@ namespace VoxelEngine.Structures
                                          at.z + oz + z, Mat.Empty);
                 }
             }
+
+            // A low east tunnel opens into a second crystal grotto. Carve it before decoration
+            // so later props cannot be accidentally erased, and lay a continuous stone path at
+            // the same elevation as the main pool bridge.
+            int sideCaveX = at.x + 145;
+            int sideCaveZ = at.z + 25;
+            brush.Box(new int3(at.x - 5, at.y + 2, sideCaveZ - 10),
+                      new int3(159, 30, 20), Mat.Empty);
+            brush.Box(new int3(at.x - 5, at.y - 1, sideCaveZ - 10),
+                      new int3(159, 3, 20), Mat.DarkStone);
+
+            for (int b = 0; b < 3; b++)
+            {
+                int ox = sideCaveX + rng.NextInt(-24, 25);
+                int oy = at.y + rng.NextInt(4, 18);
+                int oz = sideCaveZ + rng.NextInt(-30, 31);
+                int r = rng.NextInt(27, 36);
+                int r2 = r * r;
+                for (int z = -r; z <= r; z++)
+                for (int x = -r; x <= r; x++)
+                {
+                    int verticalSq = r2 - x * x - z * z;
+                    if (verticalSq < 0) continue;
+                    int halfHeight = (int)math.floor(math.sqrt(verticalSq));
+                    brush.FillColumnBulk(ox + x, oy - halfHeight, oy + halfHeight + 1,
+                                         oz + z, Mat.Empty);
+                }
+            }
+            brush.Box(new int3(at.x - 5, at.y - 1, sideCaveZ - 10),
+                      new int3(159, 3, 20), Mat.DarkStone);
+            brush.Disc(sideCaveX, at.y - 1, sideCaveZ, 28, Mat.DarkStone);
 
             // Pool in the floor, and a scatter of stalagmites.
             for (int z = -44; z <= 44; z++)
@@ -1548,6 +1721,33 @@ namespace VoxelEngine.Structures
                 brush.Cone(crystal.x - 7, crystal.y, crystal.z + 4, 3, 14, Mat.Gold);
                 brush.Cone(crystal.x + 6, crystal.y, crystal.z + 6, 3, 17, Mat.Glass);
             }
+
+            // The side grotto is the cool-colour reward at the end of the branch: a ring of
+            // crystals around a low ruined plinth, with hanging formations framing the opening.
+            for (int i = 0; i < 7; i++)
+            {
+                float angle = i * (math.PI * 2f / 7f);
+                int cx = sideCaveX + (int)math.round(math.cos(angle) * 20f);
+                int cz = sideCaveZ + (int)math.round(math.sin(angle) * 20f);
+                brush.Cone(cx, at.y + 2, cz, 3 + (i & 1), 14 + i * 2,
+                           i % 3 == 0 ? Mat.Gold : Mat.Glass);
+            }
+            brush.Box(new int3(sideCaveX - 12, at.y + 2, sideCaveZ - 9),
+                      new int3(24, 5, 18), Mat.Stone);
+            brush.Box(new int3(sideCaveX - 5, at.y + 7, sideCaveZ - 4),
+                      new int3(10, 8, 8), Mat.Gold);
+            brush.HangingCone(sideCaveX - 22, at.y + 32, sideCaveZ - 18,
+                              6, 20, Mat.DarkStone);
+            brush.HangingCone(sideCaveX + 25, at.y + 35, sideCaveZ + 16,
+                              7, 23, Mat.DarkStone);
+
+            // Cave dressing is intentionally random, but circulation is not. Reassert the final
+            // tunnel core after stalagmites/crystals so no seed can decorate across the route;
+            // stop before the altar ring to preserve the grotto composition.
+            brush.Box(new int3(at.x - 5, at.y + 2, sideCaveZ - 8),
+                      new int3(135, 22, 16), Mat.Empty);
+            brush.Box(new int3(at.x - 5, at.y - 1, sideCaveZ - 8),
+                      new int3(135, 3, 16), Mat.DarkStone);
 
             int3[] caveLights =
             {

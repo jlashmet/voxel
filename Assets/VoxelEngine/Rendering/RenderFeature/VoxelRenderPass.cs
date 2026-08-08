@@ -240,7 +240,7 @@ namespace VoxelEngine.Rendering
                 cmd.SetComputeVectorParam(data.Raymarch, s_CutawayMaxVoxel,
                                           VoxelRenderBridge.CutawayMaxVoxel);
                 cmd.SetComputeVectorArrayParam(data.Raymarch, s_MaterialColours, VoxelRenderBridge.MaterialColours);
-                int localLightCount = Mathf.Min(16, VoxelRenderBridge.LocalLights?.Length ?? 0,
+                int localLightCount = Mathf.Min(20, VoxelRenderBridge.LocalLights?.Length ?? 0,
                                                 VoxelRenderBridge.LocalLightColours?.Length ?? 0);
                 cmd.SetComputeIntParam(data.Raymarch, s_LocalLightCount, localLightCount);
                 if (localLightCount > 0)
