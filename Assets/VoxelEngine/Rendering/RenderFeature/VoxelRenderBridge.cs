@@ -69,7 +69,7 @@ namespace VoxelEngine.Rendering
         public static Vector3 CutawayMaxVoxel;
 
         /// <summary>Direction light points *from* the surface toward the sun.</summary>
-        public static Vector3 SunDirection = new Vector3(0.42f, 0.58f, -0.70f).normalized;
+        public static Vector3 SunDirection = new Vector3(0.55f, 0.43f, -0.72f).normalized;
 
         public static Color SkyHorizon = new(0.62f, 0.70f, 0.80f);
         public static Color SkyZenith = new(0.25f, 0.44f, 0.72f);

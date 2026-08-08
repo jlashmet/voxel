@@ -30,6 +30,7 @@ Texture2D<float4> g_RockTexture;
 Texture2D<float4> g_SlateTexture;
 Texture2D<float4> g_GrassTexture;
 Texture2D<float4> g_DirtTexture;
+Texture2D<float4> g_DarkStoneTexture;
 Texture2D<float4> g_StoneNormal;
 Texture2D<float4> g_WoodNormal;
 Texture2D<float4> g_SandNormal;
@@ -37,6 +38,8 @@ Texture2D<float4> g_RockNormal;
 Texture2D<float4> g_SlateNormal;
 Texture2D<float4> g_GrassNormal;
 Texture2D<float4> g_DirtNormal;
+Texture2D<float4> g_DarkStoneNormal;
+Texture2D<float4> g_SkyTexture;
 SamplerState sampler_g_StoneTexture;
 
 float4x4 g_InvViewProj;
@@ -270,7 +273,14 @@ float3 SkyColour(float3 dir)
 
 float3 PresentationSky(float3 dir)
 {
-    float3 sky = SkyColour(dir);
+    // Equirectangular authored panorama. Keeping this in the same compute pass as the opaque
+    // landscape guarantees that its colour and the aerial-perspective target are identical.
+    float2 skyUv = float2(atan2(dir.x, dir.z) * 0.159154943 + 0.5,
+                          asin(clamp(dir.y, -1.0, 1.0)) * 0.318309886 + 0.5);
+    float3 paintedSky = g_SkyTexture.SampleLevel(sampler_g_StoneTexture, skyUv, 0.0).rgb;
+    float paintedLuminance = dot(paintedSky, float3(0.2126, 0.7152, 0.0722));
+    paintedSky = lerp(paintedLuminance.xxx, paintedSky, 0.46);
+    float3 sky = lerp(paintedSky, SkyColour(dir), 0.68);
 
     // The direct sun is behind the player in the hero approach, but its broad warm halo still
     // gives the upper sky a lighting direction and matches the warm/cool split used indoors.
@@ -298,14 +308,22 @@ float2 SurfaceUV(float3 normal, float3 hitVoxel)
     return hitVoxel.xy / 36.0;
 }
 
-float3 SampleSurfaceTexture(uint material, float2 uv, float3 fallback, float lod)
+float3 SampleSurfaceTexture(uint material, float2 uv, float3 hitVoxel,
+                            float hitDistance, float3 fallback, float lod)
 {
     float3 texel = fallback;
 
     if (material == 1u) texel = g_StoneTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
     else if (material == 2u) texel = g_WoodTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
     else if (material == 3u) texel = g_SandTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
-    else if (material == 6u) texel = g_RockTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 6u)
+    {
+        float exteriorWeathering = smoothstep(110.0, 170.0, hitVoxel.y)
+                                 * (1.0 - smoothstep(120.0, 220.0, hitDistance));
+        float3 caveRock = g_RockTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+        float3 agedMasonry = g_DarkStoneTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+        texel = lerp(caveRock, agedMasonry, exteriorWeathering);
+    }
     else if (material == 7u) texel = g_SlateTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
     else if (material == 8u)
         texel = g_SlateTexture.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb
@@ -318,7 +336,8 @@ float3 SampleSurfaceTexture(uint material, float2 uv, float3 fallback, float lod
     return texel;
 }
 
-float3 SampleSurfaceNormal(uint material, float2 uv, float3 surfaceNormal, float lod)
+float3 SampleSurfaceNormal(uint material, float2 uv, float3 hitVoxel,
+                           float hitDistance, float3 surfaceNormal, float lod)
 {
     float3 packed = float3(0.5, 0.5, 1.0);
     bool mapped = true;
@@ -326,7 +345,14 @@ float3 SampleSurfaceNormal(uint material, float2 uv, float3 surfaceNormal, float
     if (material == 1u) packed = g_StoneNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
     else if (material == 2u) packed = g_WoodNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
     else if (material == 3u) packed = g_SandNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
-    else if (material == 6u) packed = g_RockNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+    else if (material == 6u)
+    {
+        float exteriorWeathering = smoothstep(110.0, 170.0, hitVoxel.y)
+                                 * (1.0 - smoothstep(120.0, 220.0, hitDistance));
+        float3 caveNormal = g_RockNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+        float3 masonryNormal = g_DarkStoneNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
+        packed = lerp(caveNormal, masonryNormal, exteriorWeathering);
+    }
     else if (material == 7u || material == 8u)
         packed = g_SlateNormal.SampleLevel(sampler_g_StoneTexture, uv, lod).rgb;
     else if (material == 10u || material == 14u)
@@ -378,13 +404,14 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // zero made distant terrain shimmer while turning wall detail into high-frequency noise.
     float textureLod = clamp(log2(max(1.0, hitDistance * 0.36)), 0.0, 8.0);
     float2 surfaceUv = SurfaceUV(normal, hitVoxel);
-    float3 mappedNormal = SampleSurfaceNormal(material, surfaceUv, normal, textureLod);
+    float3 mappedNormal = SampleSurfaceNormal(material, surfaceUv, hitVoxel,
+                                               hitDistance, normal, textureLod);
     float normalStrength = (material == 1u || material == 6u) ? 0.32 : 0.22;
     normalStrength *= 1.0 - smoothstep(18.0, 64.0, hitDistance);
     normal = normalize(lerp(normal, mappedNormal, normalStrength));
 
-    float3 textured = SampleSurfaceTexture(material, surfaceUv,
-                                           albedo, textureLod);
+    float3 textured = SampleSurfaceTexture(material, surfaceUv, hitVoxel,
+                                           hitDistance, albedo, textureLod);
     float textureWeight = lerp(0.28, 0.12, saturate(hitDistance / 350.0));
 
     if (material == 1u)
@@ -420,14 +447,14 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
 
     float3 groundBounce = float3(0.26, 0.23, 0.19);
     float hemi = normal.y * 0.5 + 0.5;
-    float3 ambient = lerp(groundBounce, SkyColour(normal), hemi) * 0.42;
+    float3 ambient = lerp(groundBounce, SkyColour(normal), hemi) * 0.37;
 
     // Shadows cut the sun only; ambient still reaches a shadowed wall, or a north face would go
     // black again the moment it fell into shade.
     float shadow = ndotl > 0.0 ? SunShadow(hitVoxel, normal) : 1.0;
     float ao = Occlusion(hitVoxel, normal);
 
-    float3 lit = albedo * (ambient * ao + ndotl * shadow * 1.05 + fill * ao);
+    float3 lit = albedo * (ambient * ao + ndotl * shadow * 1.16 + fill * ao);
 
     // Authored room/cave lights. Unity's lighting buffers cannot shade this compute-owned colour
     // target, so a small fixed array is cheaper and more predictable than pretending point-light

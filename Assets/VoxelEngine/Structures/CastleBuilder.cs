@@ -667,6 +667,28 @@ namespace VoxelEngine.Structures
                 brush.Box(new int3(outerX + (side < 0 ? -7 : 0), baseY + 54, z - 5),
                           new int3(7, plan.WallHeight - 48, 10), Mat.Stone);
             }
+
+            // Sparse moss and rain staining anchor the pale masonry to the wet ravine setting.
+            // Every patch is only two voxels deep on the outside face, so weathering cannot fill
+            // an arrow slit, narrow the wall walk, or create an inaccessible interior volume.
+            int2[] frontWeathering =
+            {
+                new(-190, 15), new(-146, 7), new(-94, 24),
+                new(103, 10), new(158, 27), new(205, 13),
+            };
+            for (int i = 0; i < frontWeathering.Length; i++)
+            {
+                int patchX = plan.Centre.x + frontWeathering[i].x;
+                int patchY = baseY + frontWeathering[i].y;
+                int width = 13 + (i * 7 % 17);
+                int height = 5 + (i * 5 % 13);
+                if (math.abs(patchX - plan.Centre.x) > hx - plan.TowerRadius - width) continue;
+                brush.Box(new int3(patchX, patchY, gateZ - 2),
+                          new int3(width, height, 2), Mat.Moss);
+                if ((i & 1) == 0)
+                    brush.Box(new int3(patchX + width / 3, baseY + 2, gateZ - 2),
+                              new int3(5, frontWeathering[i].y + 4, 2), Mat.Moss);
+            }
         }
 
         /// <summary>
@@ -1097,6 +1119,22 @@ namespace VoxelEngine.Structures
                           new int3(14, 54, 3), Mat.Cloth);
                 brush.Box(new int3(bannerX - 10, baseY + plan.FloorHeight * 2 + 59, min.z - 4),
                           new int3(20, 3, 4), Mat.Gold);
+            }
+
+            // A few damp streaks climb from the keep plinth. Keeping them below the principal
+            // windows preserves the pale central mass while breaking the pristine lower facade.
+            int2[] keepStains =
+            {
+                new(-74, 5), new(-35, 14), new(42, 8), new(76, 20),
+            };
+            for (int i = 0; i < keepStains.Length; i++)
+            {
+                int stainX = plan.Centre.x + keepStains[i].x;
+                int stainHeight = 8 + (i * 6 % 15);
+                brush.Box(new int3(stainX, baseY + keepStains[i].y, min.z - 2),
+                          new int3(9 + (i & 1) * 6, stainHeight, 2), Mat.Moss);
+                brush.Box(new int3(stainX + 3, baseY + 2, min.z - 2),
+                          new int3(3, keepStains[i].y + 5, 2), Mat.Moss);
             }
 
             // Battlements and a steep roof.

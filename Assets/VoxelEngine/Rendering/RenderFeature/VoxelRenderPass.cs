@@ -46,6 +46,7 @@ namespace VoxelEngine.Rendering
         private static readonly int s_SlateTexture = Shader.PropertyToID("g_SlateTexture");
         private static readonly int s_GrassTexture = Shader.PropertyToID("g_GrassTexture");
         private static readonly int s_DirtTexture = Shader.PropertyToID("g_DirtTexture");
+        private static readonly int s_DarkStoneTexture = Shader.PropertyToID("g_DarkStoneTexture");
         private static readonly int s_StoneNormal = Shader.PropertyToID("g_StoneNormal");
         private static readonly int s_WoodNormal = Shader.PropertyToID("g_WoodNormal");
         private static readonly int s_SandNormal = Shader.PropertyToID("g_SandNormal");
@@ -53,6 +54,8 @@ namespace VoxelEngine.Rendering
         private static readonly int s_SlateNormal = Shader.PropertyToID("g_SlateNormal");
         private static readonly int s_GrassNormal = Shader.PropertyToID("g_GrassNormal");
         private static readonly int s_DirtNormal = Shader.PropertyToID("g_DirtNormal");
+        private static readonly int s_DarkStoneNormal = Shader.PropertyToID("g_DarkStoneNormal");
+        private static readonly int s_SkyTexture = Shader.PropertyToID("g_SkyTexture");
         private static readonly int s_DebugMode = Shader.PropertyToID("g_DebugMode");
         private static readonly int s_TerrainSeed = Shader.PropertyToID("g_TerrainSeed");
         private static readonly int s_FarDistance = Shader.PropertyToID("g_FarDistance");
@@ -75,6 +78,7 @@ namespace VoxelEngine.Rendering
         private Texture2D _slateTexture;
         private Texture2D _grassTexture;
         private Texture2D _dirtTexture;
+        private Texture2D _darkStoneTexture;
         private Texture2D _stoneNormal;
         private Texture2D _woodNormal;
         private Texture2D _sandNormal;
@@ -82,6 +86,8 @@ namespace VoxelEngine.Rendering
         private Texture2D _slateNormal;
         private Texture2D _grassNormal;
         private Texture2D _dirtNormal;
+        private Texture2D _darkStoneNormal;
+        private Texture2D _skyTexture;
 
         public float RenderScale { get; set; } = 1f;
         public float VoxelSize { get; set; } = 0.1f;
@@ -107,7 +113,8 @@ namespace VoxelEngine.Rendering
                           Texture2D stoneNormal = null, Texture2D woodNormal = null,
                           Texture2D sandNormal = null, Texture2D rockNormal = null,
                           Texture2D slateNormal = null, Texture2D grassNormal = null,
-                          Texture2D dirtNormal = null)
+                          Texture2D dirtNormal = null, Texture2D darkStoneTexture = null,
+                          Texture2D darkStoneNormal = null, Texture2D skyTexture = null)
         {
             _raymarch = raymarch;
             _stoneTexture = stoneTexture;
@@ -124,6 +131,9 @@ namespace VoxelEngine.Rendering
             _slateNormal = slateNormal;
             _grassNormal = grassNormal;
             _dirtNormal = dirtNormal;
+            _darkStoneTexture = darkStoneTexture;
+            _darkStoneNormal = darkStoneNormal;
+            _skyTexture = skyTexture;
             _kernel = raymarch != null && raymarch.HasKernel("CSBrickRaymarch")
                 ? raymarch.FindKernel("CSBrickRaymarch")
                 : -1;
@@ -152,6 +162,7 @@ namespace VoxelEngine.Rendering
             public Texture2D SlateTexture;
             public Texture2D GrassTexture;
             public Texture2D DirtTexture;
+            public Texture2D DarkStoneTexture;
             public Texture2D StoneNormal;
             public Texture2D WoodNormal;
             public Texture2D SandNormal;
@@ -159,6 +170,8 @@ namespace VoxelEngine.Rendering
             public Texture2D SlateNormal;
             public Texture2D GrassNormal;
             public Texture2D DirtNormal;
+            public Texture2D DarkStoneNormal;
+            public Texture2D SkyTexture;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -219,6 +232,7 @@ namespace VoxelEngine.Rendering
             passData.SlateTexture = _slateTexture;
             passData.GrassTexture = _grassTexture;
             passData.DirtTexture = _dirtTexture;
+            passData.DarkStoneTexture = _darkStoneTexture;
             passData.StoneNormal = _stoneNormal;
             passData.WoodNormal = _woodNormal;
             passData.SandNormal = _sandNormal;
@@ -226,6 +240,8 @@ namespace VoxelEngine.Rendering
             passData.SlateNormal = _slateNormal;
             passData.GrassNormal = _grassNormal;
             passData.DirtNormal = _dirtNormal;
+            passData.DarkStoneNormal = _darkStoneNormal;
+            passData.SkyTexture = _skyTexture;
 
             builder.UseTexture(passData.Colour, AccessFlags.Write);
             builder.UseTexture(passData.CameraColour, AccessFlags.Write);
@@ -253,6 +269,9 @@ namespace VoxelEngine.Rendering
                     cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_GrassTexture, data.GrassTexture);
                 if (data.DirtTexture != null)
                     cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DirtTexture, data.DirtTexture);
+                if (data.DarkStoneTexture != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DarkStoneTexture,
+                                               data.DarkStoneTexture);
                 if (data.StoneNormal != null)
                     cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_StoneNormal, data.StoneNormal);
                 if (data.WoodNormal != null)
@@ -267,6 +286,12 @@ namespace VoxelEngine.Rendering
                     cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_GrassNormal, data.GrassNormal);
                 if (data.DirtNormal != null)
                     cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DirtNormal, data.DirtNormal);
+                if (data.DarkStoneNormal != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DarkStoneNormal,
+                                               data.DarkStoneNormal);
+                if (data.SkyTexture != null)
+                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_SkyTexture,
+                                               data.SkyTexture);
 
                 cmd.SetComputeMatrixParam(data.Raymarch, s_InvViewProj, data.InvViewProj);
                 cmd.SetComputeVectorParam(data.Raymarch, s_CameraPos, data.CameraPos);

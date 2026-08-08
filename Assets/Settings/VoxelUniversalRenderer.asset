@@ -77,6 +77,7 @@ MonoBehaviour:
   m_SlateTexture: {fileID: 2800000, guid: c8cf60e930e3746b797c6134c0f523d4, type: 3}
   m_GrassTexture: {fileID: 2800000, guid: 345515da94241410cbc57715fdb888d3, type: 3}
   m_DirtTexture: {fileID: 2800000, guid: a56e1d111424c42cf8f1b1af2e0d6225, type: 3}
+  m_DarkStoneTexture: {fileID: 2800000, guid: 42e688fe641194e6da296eebe1a64527, type: 3}
   m_StoneNormal: {fileID: 2800000, guid: 040b9352cc772422eb301e36f7b60e42, type: 3}
   m_WoodNormal: {fileID: 2800000, guid: 908c7bd06b0614fde9131f87d14b1f03, type: 3}
   m_SandNormal: {fileID: 2800000, guid: 9bb0a69f57240440da0bf6c18d146730, type: 3}
@@ -84,6 +85,8 @@ MonoBehaviour:
   m_SlateNormal: {fileID: 2800000, guid: ee741d22f50f84c67987808330e76192, type: 3}
   m_GrassNormal: {fileID: 2800000, guid: 19b03bfbb38d44e2d9a42373947092c4, type: 3}
   m_DirtNormal: {fileID: 2800000, guid: 20533ede57cd04a45bb027703a32257d, type: 3}
+  m_DarkStoneNormal: {fileID: 2800000, guid: 59745539a8cf44b838eb6b9840189a6d, type: 3}
+  m_SkyTexture: {fileID: 2800000, guid: eb20ae14ee9e0412395d71969340f6ad, type: 3}
   m_Event: 450
   m_RenderScale: 1.25
   m_VoxelSize: 0.1
