@@ -216,9 +216,14 @@ namespace VoxelEngine.Showcase
             VoxelRenderBridge.LocalLightColours = _world.CastlePresentationLightColours;
 
             transform.position = _motor.EyePosition;
-            transform.rotation = Quaternion.Euler(5f, 0f, 0f);
-            _yaw = 0f;
-            _pitch = 5f;
+            var castleTarget = new Vector3(ShowcaseWorld.RegionVoxelEdge * 0.5f * 0.1f,
+                                           transform.position.y + 5.0f,
+                                           (ShowcaseWorld.RegionVoxelEdge * 0.5f + 120f) * 0.1f);
+            Vector3 toCastle = castleTarget - transform.position;
+            _yaw = Mathf.Atan2(toCastle.x, toCastle.z) * Mathf.Rad2Deg;
+            _pitch = -Mathf.Atan2(toCastle.y,
+                                  new Vector2(toCastle.x, toCastle.z).magnitude) * Mathf.Rad2Deg;
+            transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
             _spawned = true;
         }
 

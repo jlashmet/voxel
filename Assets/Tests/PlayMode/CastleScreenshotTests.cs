@@ -85,6 +85,8 @@ namespace VoxelEngine.Tests.PlayMode
             yield return null;
 
             cam.farClipPlane = 4000f;
+            Vector3 playerRevealPosition = cam.transform.position;
+            Vector3 playerRevealLook = playerRevealPosition + cam.transform.forward * 100f;
 
             // Derive framing from the generated plan. The castle family now varies around a
             // 50-60 m footprint, so hard-coding the former 35 m camera orbit clips valid seeds.
@@ -179,6 +181,10 @@ namespace VoxelEngine.Tests.PlayMode
                                     new Vector3(keepMin.x + 18,
                                                 baseY + plan.FloorHeight * 3 + 15,
                                                 keepMin.z + keepSize.z / 2 - 44) * 0.1f),
+
+                // The actual first-person reveal is part of the authored presentation. Keep it
+                // under visual regression alongside the diagnostic orbit views.
+                ("22_player_reveal", playerRevealPosition, playerRevealLook),
 
                 // Terrain far from the castle, to tell whether the terracing is the castle's
                 // sculpting or the terrain generator's own stepping.

@@ -28,6 +28,8 @@ namespace VoxelEngine.Tests.PlayMode
             const float voxelSize = VoxelSurfaceRenderer.VoxelSize;
 
             Assert.Less(eye.z, 0f, "Spawn must remain on the open southern approach.");
+            Assert.Greater(eye.x, ShowcaseWorld.RegionMetres * 0.5f + 8f,
+                "Spawn should be offset east for an oblique castle reveal.");
 
             int minX = Mathf.FloorToInt((feet.x - 0.3f) / voxelSize);
             int maxX = Mathf.FloorToInt((feet.x + 0.3f - 1e-4f) / voxelSize);
@@ -49,13 +51,26 @@ namespace VoxelEngine.Tests.PlayMode
             int centreX = Mathf.FloorToInt(feet.x / voxelSize);
             int centreZ = Mathf.FloorToInt(feet.z / voxelSize);
             int surface = world.OccupiedSurfaceHeight(centreX, centreZ);
-            Assert.That(minY - surface, Is.InRange(1, 2),
-                "Player feet should start no more than one clearance voxel above the surface.");
+            int footprintSurface = int.MinValue;
+            for (int z = minZ; z <= maxZ; z++)
+            for (int x = minX; x <= maxX; x++)
+                footprintSurface = Mathf.Max(footprintSurface,
+                    world.OccupiedSurfaceHeight(x, z));
+            Assert.That(minY - footprintSurface, Is.InRange(1, 2),
+                "Player feet should start no more than one clearance voxel above the highest " +
+                "surface under the capsule footprint.");
 
             byte ground = VoxelAccess.GetVoxel(ref world.Table, in world.Pool,
                                                new int3(centreX, surface, centreZ));
             Assert.AreNotEqual(VoxelDimensions.MaterialEmpty, ground,
                 "Player spawn has no occupied ground directly beneath it.");
+
+            Vector3 castleTarget = new(ShowcaseWorld.RegionMetres * 0.5f,
+                                       eye.y + 5f,
+                                       (ShowcaseWorld.RegionVoxelEdge / 2 + 120) * voxelSize);
+            Vector3 expectedView = (castleTarget - eye).normalized;
+            Assert.Greater(Vector3.Dot(showcase.transform.forward, expectedView), 0.995f,
+                "Initial camera must frame the castle from the oblique spawn.");
         }
     }
 }

@@ -1152,8 +1152,11 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public Vector3 SpawnPosition()
         {
-            int cx = RegionVoxelEdge / 2;
-            const int cz = -80;
+            // Offset east of the bridge axis so the first view layers the eastern tower,
+            // gatehouse, keep, and west wing instead of collapsing them into a flat symmetric
+            // elevation. This remains beyond the sculpted cliff skirt and bridge footprint.
+            int cx = RegionVoxelEdge / 2 + 190;
+            const int cz = -220;
             int h = SurfaceHeight(cx, cz);
             return new Vector3(cx * 0.1f, (h + 40) * 0.1f, cz * 0.1f);
         }

@@ -78,9 +78,17 @@ namespace VoxelEngine.Showcase
         /// <summary>Drops the character onto the surface below the given position.</summary>
         public void SnapToGround(ShowcaseWorld world, Vector3 near)
         {
-            int surface = world.OccupiedSurfaceHeight(
-                Mathf.FloorToInt(near.x / VoxelSize),
-                Mathf.FloorToInt(near.z / VoxelSize));
+            // Ground against the complete capsule footprint. Sampling only the centre column
+            // embeds an edge of the player whenever the terrain rises by one voxel beneath its
+            // 60 cm width—the exact failure an oblique hillside spawn exposed.
+            int minX = Mathf.FloorToInt((near.x - Radius) / VoxelSize);
+            int maxX = Mathf.FloorToInt((near.x + Radius - 1e-4f) / VoxelSize);
+            int minZ = Mathf.FloorToInt((near.z - Radius) / VoxelSize);
+            int maxZ = Mathf.FloorToInt((near.z + Radius - 1e-4f) / VoxelSize);
+            int surface = int.MinValue;
+            for (int z = minZ; z <= maxZ; z++)
+            for (int x = minX; x <= maxX; x++)
+                surface = Mathf.Max(surface, world.OccupiedSurfaceHeight(x, z));
 
             Position = new Vector3(near.x, (surface + 2) * VoxelSize, near.z);
             Velocity = Vector3.zero;
