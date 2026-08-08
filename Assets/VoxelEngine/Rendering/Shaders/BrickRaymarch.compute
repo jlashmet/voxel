@@ -236,6 +236,31 @@ float3 RoundedSurfaceNormal(float3 hitVoxel, float3 faceNormal)
     return normalize(n);
 }
 
+// Estimates the normal of the authored solid volume rather than the single voxel face struck by
+// the ray. A tower cylinder is necessarily a staircase in storage; lighting every stair with its
+// axis-aligned hit normal turns that high-resolution curve into alternating black vertical bands.
+// Central occupancy differences across a wider stencil recover the larger masonry form while retaining
+// crisp silhouettes, exact ray hits, collision, and destruction topology.
+float3 MasonryVolumeNormal(int3 voxel, float3 faceNormal)
+{
+    const int radius = 3;
+    float3 gradient;
+    gradient.x = (SolidAt(voxel - int3(radius, 0, 0)) ? 1.0 : 0.0)
+               - (SolidAt(voxel + int3(radius, 0, 0)) ? 1.0 : 0.0);
+    gradient.y = (SolidAt(voxel - int3(0, radius, 0)) ? 1.0 : 0.0)
+               - (SolidAt(voxel + int3(0, radius, 0)) ? 1.0 : 0.0);
+    gradient.z = (SolidAt(voxel - int3(0, 0, radius)) ? 1.0 : 0.0)
+               - (SolidAt(voxel + int3(0, 0, radius)) ? 1.0 : 0.0);
+
+    // Thin trim can be solid on both sides of every wide probe. The struck face remains the
+    // reliable fallback and also keeps the inferred normal in the visible hemisphere.
+    if (dot(gradient, gradient) < 0.0001) return faceNormal;
+    float3 inferred = normalize(gradient + faceNormal * 0.22);
+    if (dot(inferred, faceNormal) < 0.12)
+        inferred = normalize(inferred + faceNormal * 0.55);
+    return inferred;
+}
+
 // Marches toward the sun and reports whether anything blocks it.
 //
 // A raymarcher gets shadows almost free — it is the same traversal, run again, and stopping at
@@ -423,7 +448,11 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
 {
     float hitDistance = length(hitVoxel * g_VoxelSize - g_CameraPos);
     float3 faceNormal = normal;
-    float3 roundedNormal = RoundedSurfaceNormal(hitVoxel, normal);
+    bool masonryCandidate = material == 1u || material == 6u;
+    // Masonry gets a larger-scale volume normal below. Avoid paying four edge-neighbour probes
+    // for a bevel that would immediately be replaced, particularly in full-screen castle views.
+    float3 roundedNormal = masonryCandidate ? faceNormal
+                                            : RoundedSurfaceNormal(hitVoxel, normal);
     // A ten-centimetre bevel is sub-pixel in a long shot. Applying it anyway turns every
     // one-voxel terrain terrace into alternating light/dark stipple, so fade to the stable face
     // normal before the edge becomes smaller than a pixel.
@@ -463,6 +492,15 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
         // smooth heightfield normal before terraces become sub-pixel contour lines.
         float terrainBlend = lerp(0.72, 0.94, smoothstep(5.0, 28.0, hitDistance));
         normal = normalize(lerp(normal, terrainNormal, terrainBlend));
+    }
+    else if (material == 1u || material == 6u)
+    {
+        // Structural masonry should read as one carved volume, especially on cylindrical towers
+        // and cave walls. Fade only at extreme range, where a voxel is already sub-pixel and the
+        // extra occupancy probes cannot affect the silhouette.
+        float3 volumeNormal = MasonryVolumeNormal(solidVoxel, faceNormal);
+        float volumeBlend = 0.84 * (1.0 - smoothstep(180.0, 360.0, hitDistance));
+        normal = normalize(lerp(faceNormal, volumeNormal, volumeBlend));
     }
     float3 albedo = g_MaterialColours[min(material, 15u)].rgb;
 
