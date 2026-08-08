@@ -97,6 +97,11 @@ namespace VoxelEngine.Tests.PlayMode
                 ("05_silhouette",  centre + new Vector3(58f, 21f, -58f), centre + new Vector3(0f, 8f, 0f)),
                 ("06_wall_detail", centre + new Vector3(-21f, 7f, -13f), centre + new Vector3(-13f, 7f, -5f)),
 
+                // East shoulder: verifies the ravine, cascade, pool, hall balcony, and tree belt
+                // as a composition rather than only asserting that their voxels were written.
+                ("08_waterfall",   centre + new Vector3(55f, 25f, 4f),
+                                    centre + new Vector3(37f, -5f, 4f)),
+
                 // Terrain far from the castle, to tell whether the terracing is the castle's
                 // sculpting or the terrain generator's own stepping.
                 ("07_terrain",     centre + new Vector3(260f, 22f, 260f), centre + new Vector3(360f, 12f, 360f)),

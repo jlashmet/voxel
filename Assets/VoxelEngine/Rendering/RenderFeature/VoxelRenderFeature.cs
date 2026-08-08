@@ -21,6 +21,15 @@ namespace VoxelEngine.Rendering
         [Tooltip("BrickRaymarch.compute")]
         [SerializeField] private ComputeShader m_Raymarch;
 
+        [Header("Stylized surface textures")]
+        [SerializeField] private Texture2D m_StoneTexture;
+        [SerializeField] private Texture2D m_WoodTexture;
+        [SerializeField] private Texture2D m_SandTexture;
+        [SerializeField] private Texture2D m_RockTexture;
+        [SerializeField] private Texture2D m_SlateTexture;
+        [SerializeField] private Texture2D m_GrassTexture;
+        [SerializeField] private Texture2D m_DirtTexture;
+
         [SerializeField] private RenderPassEvent m_Event = RenderPassEvent.BeforeRenderingTransparents;
 
         [Header("Presentation (DeviceTierBudget)")]
@@ -50,7 +59,8 @@ namespace VoxelEngine.Rendering
             m_Pass?.Dispose();
 
             m_Pass = new VoxelRenderPass();
-            m_Pass.Setup(m_Raymarch);
+            m_Pass.Setup(m_Raymarch, m_StoneTexture, m_WoodTexture, m_SandTexture,
+                         m_RockTexture, m_SlateTexture, m_GrassTexture, m_DirtTexture);
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)

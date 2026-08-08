@@ -181,6 +181,8 @@ namespace VoxelEngine.Structures
             RequireBudget(in brush, "keep");
             Dungeon(ref brush, in plan);
             RequireBudget(in brush, "dungeon");
+            LandscapeDetails(ref brush, in plan, terrainSeed);
+            RequireBudget(in brush, "landscape details");
 
             // RegionTable and BrickPool are handle-like structs, but their scalar bookkeeping
             // (notably BrickPool's high-water mark) is copied by value. Publish the updated
@@ -321,6 +323,206 @@ namespace VoxelEngine.Structures
 
                 for (int y = top - cut; y < top - cut + math.max(4, cut / 2); y++)
                     brush.Set(x, y, z, Mat.Water);
+            }
+        }
+
+        /// <summary>
+        /// Composes the castle into a place rather than leaving it on an isolated analytic pad:
+        /// a stream cuts through the eastern shoulder, falls into a rock pool, and a sparse tree
+        /// belt frames the walls without obscuring the silhouette or the gate approach.
+        /// </summary>
+        private static void LandscapeDetails(ref VoxelBrush brush, in CastlePlan plan,
+                                             uint terrainSeed)
+        {
+            int top = plan.Centre.y + plan.PlateauHeight;
+            RavineWaterfall(ref brush, in plan, terrainSeed, top);
+            TreeBelt(ref brush, in plan, top);
+        }
+
+        private static void RavineWaterfall(ref VoxelBrush brush, in CastlePlan plan,
+                                            uint terrainSeed, int top)
+        {
+            int streamZ = plan.Centre.z + 42;
+            int streamStartX = plan.Centre.x + plan.BaileyHalfX + plan.TowerRadius + 22;
+            int fallX = plan.Centre.x + plan.PlateauRadius - 8;
+            int streamLength = math.max(1, fallX - streamStartX);
+
+            // A descending, irregular channel across the shoulder. Water occupies only the
+            // bottom few voxels; the dark exposed sides are supplied by the outcrop beneath it.
+            for (int x = streamStartX; x <= fallX; x++)
+            {
+                float t = (x - streamStartX) / (float)streamLength;
+                int halfWidth = 8 + (int)math.round(t * 6f);
+                int channelY = top - 7 - (int)math.round(t * 22f);
+
+                for (int dz = -halfWidth; dz <= halfWidth; dz++)
+                {
+                    float across = math.abs(dz) / (float)halfWidth;
+                    int bank = (int)math.round(across * across * 8f);
+                    int bottom = channelY + bank;
+
+                    brush.FillColumnBulk(x, bottom, top + 7, streamZ + dz, Mat.Empty);
+                    if (math.abs(dz) <= halfWidth - 3)
+                        brush.FillColumnBulk(x, bottom, bottom + 3, streamZ + dz, Mat.Water);
+                }
+            }
+
+            // The pool is beyond the cliff edge and slightly below the procedural ground. A
+            // fixed water plane gives the cascade a readable destination even on a noisy seed.
+            int poolX = fallX + plan.CliffDrop + 24;
+            int sampledGround = TerrainSampler.HeightAt(poolX, streamZ, terrainSeed);
+            // The surrounding terrain varies by only a few metres. Force a deep but still
+            // visible cut; a twelve-metre shaft hid opaque voxel water below the sightline.
+            int poolY = math.min(top - 82, sampledGround - 12);
+            const int poolRadiusX = 48;
+            const int poolRadiusZ = 34;
+
+            for (int dz = -poolRadiusZ; dz <= poolRadiusZ; dz++)
+            for (int dx = -poolRadiusX; dx <= poolRadiusX; dx++)
+            {
+                float ellipse = dx * dx / (float)(poolRadiusX * poolRadiusX)
+                              + dz * dz / (float)(poolRadiusZ * poolRadiusZ);
+                if (ellipse > 1f) continue;
+
+                // Rise all the way back to terrain height at the rim. The former seven-voxel
+                // rise made a twelve-metre vertical shaft with water hidden at its bottom.
+                float bankT = math.saturate((ellipse - 0.45f) / 0.55f);
+                int bottom = ellipse <= 0.45f
+                    ? poolY - 9
+                    : (int)math.round(math.lerp(poolY - 9, top - 2,
+                                                math.pow(bankT, 0.72f)));
+                int wx = poolX + dx;
+                int wz = streamZ + dz;
+
+                brush.FillColumnBulk(wx, bottom, top + 6, wz, Mat.Empty);
+                if (ellipse < 0.46f && bottom < poolY + 1)
+                    brush.FillColumnBulk(wx, bottom, poolY + 1, wz, Mat.Water);
+            }
+
+            // A narrow sheet reads better at voxel scale than a broad opaque blue slab. The
+            // empty pocket behind it keeps the falling water visibly separate from the cliff.
+            for (int dx = 0; dx < 3; dx++)
+            for (int dz = -8; dz <= 8; dz++)
+            {
+                brush.FillColumnBulk(fallX + dx, poolY + 1, top - 24,
+                                     streamZ + dz, Mat.Empty);
+                if (math.abs(dz) <= 6)
+                    brush.FillColumnBulk(fallX + dx, poolY + 1, top - 24,
+                                         streamZ + dz, Mat.Water);
+            }
+
+            // Carry the fall across the broken lower slope into the pool. This shallow stepped
+            // course is visible from above, while the narrow vertical sheet reads from the side.
+            int cascadeLength = math.max(1, poolX - fallX);
+            for (int x = fallX; x <= poolX; x++)
+            {
+                float t = (x - fallX) / (float)cascadeLength;
+                int waterY = (int)math.round(math.lerp(top - 25, poolY, t));
+                for (int dz = -6; dz <= 6; dz++)
+                {
+                    brush.FillColumnBulk(x, waterY, top + 4, streamZ + dz, Mat.Empty);
+                    if (math.abs(dz) <= 5)
+                        brush.FillColumnBulk(x, waterY, waterY + 2, streamZ + dz, Mat.Water);
+                }
+            }
+
+            // Broken rock at the pool rim hides the otherwise perfect ellipse.
+            var rockRng = new Random(plan.Seed ^ 0xA11CEu);
+            for (int i = 0; i < 10; i++)
+            {
+                float angle = rockRng.NextFloat(0f, math.PI * 2f);
+                int rx = poolX + (int)math.round(math.cos(angle) * rockRng.NextFloat(38f, 54f));
+                int rz = streamZ + (int)math.round(math.sin(angle) * rockRng.NextFloat(27f, 40f));
+                int rockSurface = HighestSolid(ref brush, rx, rz, top + 12, poolY - 16);
+                brush.Cone(rx, rockSurface + 1, rz, rockRng.NextInt(3, 6),
+                           rockRng.NextInt(5, 11), Mat.DarkStone);
+            }
+
+            // A few anchored trees belong specifically to the ravine composition. The wider
+            // seeded belt intentionally avoids this sector so it cannot hide the water.
+            int2[] treeOffsets =
+            {
+                new(30, -48), new(34, 49), new(-42, 46), new(4, 55),
+            };
+            for (int i = 0; i < treeOffsets.Length; i++)
+            {
+                int tx = poolX + treeOffsets[i].x;
+                int tz = streamZ + treeOffsets[i].y;
+                int surface = HighestSolid(ref brush, tx, tz, top + 24, top - 180);
+                Tree(ref brush, tx, surface + 1, tz, 42 + i * 3, 14 + (i & 1), Mat.Moss);
+            }
+        }
+
+        private static int HighestSolid(ref VoxelBrush brush, int x, int z, int fromY, int minY)
+        {
+            for (int y = fromY; y >= minY; y--)
+                if (brush.IsSolid(x, y, z)) return y;
+
+            return minY;
+        }
+
+        private static void TreeBelt(ref VoxelBrush brush, in CastlePlan plan, int top)
+        {
+            var rng = new Random(plan.Seed ^ 0x7EE5u);
+            int built = 0;
+
+            // Rejection sampling keeps trees outside the walls, out of the gate approach, and
+            // away from the waterfall. The fixed candidate ceiling makes cost deterministic.
+            for (int attempt = 0; attempt < 96 && built < 22; attempt++)
+            {
+                float angle = rng.NextFloat(0f, math.PI * 2f);
+                float radius = rng.NextFloat(plan.PlateauRadius * 0.74f,
+                                             plan.PlateauRadius - 26f);
+                int ox = (int)math.round(math.cos(angle) * radius);
+                int oz = (int)math.round(math.sin(angle) * radius);
+
+                bool outsideWalls = math.abs(ox) > plan.BaileyHalfX + plan.TowerRadius + 16
+                                 || math.abs(oz) > plan.BaileyHalfZ + plan.TowerRadius + 16;
+                bool blocksGate = oz < -plan.BaileyHalfZ && math.abs(ox) < 105;
+                bool nearWaterfall = ox > plan.BaileyHalfX && math.abs(oz - 42) < 72;
+                if (!outsideWalls || blocksGate || nearWaterfall) continue;
+
+                int height = rng.NextInt(34, 58);
+                int canopyRadius = rng.NextInt(12, 19);
+                Tree(ref brush, plan.Centre.x + ox, top + 1, plan.Centre.z + oz,
+                     height, canopyRadius, built % 3 == 0 ? Mat.Grass : Mat.Moss);
+                built++;
+            }
+        }
+
+        private static void Tree(ref VoxelBrush brush, int x, int y, int z,
+                                 int height, int canopyRadius, byte foliage)
+        {
+            int trunkRadius = math.max(3, canopyRadius / 5);
+            brush.Cylinder(x, y, z, trunkRadius, height, Mat.Wood);
+
+            int centreY = y + height - canopyRadius / 2;
+            int verticalRadius = canopyRadius + 5;
+            for (int dz = -canopyRadius; dz <= canopyRadius; dz++)
+            for (int dx = -canopyRadius; dx <= canopyRadius; dx++)
+            {
+                float radial = (dx * dx + dz * dz) / (float)(canopyRadius * canopyRadius);
+                if (radial > 1f) continue;
+
+                int halfHeight = math.max(1,
+                    (int)math.round(math.sqrt(1f - radial) * verticalRadius));
+                brush.FillColumnBulk(x + dx, centreY - halfHeight, centreY + halfHeight + 1,
+                                     z + dz, foliage);
+            }
+
+            // A smaller offset crown avoids the unmistakable perfect-ellipsoid silhouette.
+            int crownRadius = math.max(7, canopyRadius - 5);
+            int crownX = x + canopyRadius / 3;
+            int crownZ = z - canopyRadius / 4;
+            int crownY = centreY + canopyRadius / 2;
+            for (int dz = -crownRadius; dz <= crownRadius; dz++)
+            for (int dx = -crownRadius; dx <= crownRadius; dx++)
+            {
+                int radialSq = dx * dx + dz * dz;
+                if (radialSq > crownRadius * crownRadius) continue;
+                int halfHeight = (int)math.round(math.sqrt(crownRadius * crownRadius - radialSq));
+                brush.FillColumnBulk(crownX + dx, crownY - halfHeight, crownY + halfHeight + 1,
+                                     crownZ + dz, foliage);
             }
         }
 
@@ -518,7 +720,10 @@ namespace VoxelEngine.Structures
             if (!roof) return;
 
             brush.Cone(at.x, parapetY + 8, at.z, radius - 4, radius * 2, Mat.Slate);
-            brush.Set(at.x, parapetY + 8 + radius * 2, at.z, Mat.Gold);
+            int peakY = parapetY + 8 + radius * 2;
+            brush.Box(new int3(at.x, peakY, at.z), new int3(2, 30, 2), Mat.Wood);
+            brush.Box(new int3(at.x + 2, peakY + 17, at.z), new int3(22, 11, 2), Mat.Cloth);
+            brush.Set(at.x, peakY + 30, at.z, Mat.Gold);
         }
 
         // -- gatehouse -----------------------------------------------------------
@@ -559,6 +764,18 @@ namespace VoxelEngine.Structures
                 new int3(plan.Centre.x - spacing, baseY + blockHeight,
                          gateZ - plan.WallThickness),
                 new int3(1, 0, 0), spacing * 2, 8, 18, 18, 12, Mat.Stone);
+
+            // Long heraldic banners give the otherwise grey entrance a readable focal colour.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int bannerX = plan.Centre.x + side * 29;
+                brush.Box(new int3(bannerX - 7, baseY + 52,
+                                   gateZ - plan.WallThickness - 2),
+                          new int3(14, 42, 2), Mat.Cloth);
+                brush.Box(new int3(bannerX - 10, baseY + 92,
+                                   gateZ - plan.WallThickness - 3),
+                          new int3(20, 3, 3), Mat.Gold);
+            }
 
             // Bridge across the moat.
             for (int z = 0; z < 150; z++)
@@ -711,6 +928,19 @@ namespace VoxelEngine.Structures
 
             brush.Gable(new int3(wingMin.x - 4, baseY + wingHeight, wingMin.z - 4),
                         new int3(wingWidth + 8, 34, wingDepth + 8), true, Mat.Tile);
+
+            // Timber balcony on the exposed end turns the wing into occupied architecture and
+            // adds a horizontal layer against the keep's dominant vertical shafts.
+            int balconyY = baseY + plan.FloorHeight + 4;
+            int balconyZ = wingMin.z + wingDepth / 2 - 25;
+            brush.Box(new int3(wingMin.x + wingWidth - 2, balconyY, balconyZ),
+                      new int3(18, 4, 50), Mat.Wood);
+            brush.Box(new int3(wingMin.x + wingWidth + 12, balconyY + 4, balconyZ),
+                      new int3(3, 18, 3), Mat.Wood);
+            brush.Box(new int3(wingMin.x + wingWidth + 12, balconyY + 4, balconyZ + 47),
+                      new int3(3, 18, 3), Mat.Wood);
+            brush.Box(new int3(wingMin.x + wingWidth + 12, balconyY + 18, balconyZ),
+                      new int3(3, 3, 50), Mat.Wood);
         }
 
         /// <summary>

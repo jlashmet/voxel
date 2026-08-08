@@ -23,6 +23,15 @@ StructuredBuffer<uint> g_BrickVoxels;
 
 RWTexture2D<float4> g_Colour;
 
+Texture2D<float4> g_StoneTexture;
+Texture2D<float4> g_WoodTexture;
+Texture2D<float4> g_SandTexture;
+Texture2D<float4> g_RockTexture;
+Texture2D<float4> g_SlateTexture;
+Texture2D<float4> g_GrassTexture;
+Texture2D<float4> g_DirtTexture;
+SamplerState sampler_g_StoneTexture;
+
 float4x4 g_InvViewProj;
 float3   g_CameraPos;        // world space, metres
 float3   g_WindowOrigin;     // region coordinate of window cell (0,0,0)
@@ -190,9 +199,42 @@ uint FarHash(uint v)
     return v;
 }
 
+float2 SurfaceUV(float3 normal, float3 hitVoxel)
+{
+    float3 a = abs(normal);
+    if (a.y >= a.x && a.y >= a.z) return hitVoxel.xz / 52.0;
+    if (a.x >= a.z) return hitVoxel.zy / 52.0;
+    return hitVoxel.xy / 52.0;
+}
+
+float3 SampleSurfaceTexture(uint material, float2 uv, float3 fallback)
+{
+    float3 texel = fallback;
+
+    if (material == 1u) texel = g_StoneTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
+    else if (material == 2u) texel = g_WoodTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
+    else if (material == 3u) texel = g_SandTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
+    else if (material == 6u) texel = g_RockTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
+    else if (material == 7u) texel = g_SlateTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
+    else if (material == 8u)
+        texel = g_SlateTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb
+              * float3(1.18, 0.68, 0.58);
+    else if (material == 10u) texel = g_GrassTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
+    else if (material == 13u) texel = g_DirtTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb;
+    else if (material == 14u)
+        texel = g_GrassTexture.SampleLevel(sampler_g_StoneTexture, uv, 0).rgb * 0.72;
+
+    return texel;
+}
+
 float3 Shade(uint material, float3 normal, float3 hitVoxel)
 {
     float3 albedo = g_MaterialColours[min(material, 15u)].rgb;
+
+    // The voxel material remains authoritative; textures are presentation-only detail sampled
+    // in world space, so adjacent bricks and region boundaries cannot introduce UV seams.
+    float3 textured = SampleSurfaceTexture(material, SurfaceUV(normal, hitVoxel), albedo);
+    albedo = lerp(albedo, textured, 0.74);
 
     // Large flat walls need a masonry scale between "one colour" and authored props. Courses
     // are five voxels (50 cm) high with staggered joints; a small coordinate hash breaks the
@@ -234,6 +276,15 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // Glass doubles as the presentation material for occupied windows until local-light probes
     // arrive. A restrained emission keeps rooms legible in shade without turning windows white.
     if (material == 4u) lit += albedo * 0.42;
+
+    // Water is still voxel-opaque, but borrowing sky colour and a small emissive lift keeps thin
+    // streams and falling sheets readable against the dark ravine until refraction is added.
+    if (material == 11u)
+    {
+        float fresnel = pow(1.0 - saturate(abs(normal.y)), 2.0);
+        lit = lerp(lit, g_SkyHorizon.rgb * 0.72, 0.28 + fresnel * 0.22);
+        lit += float3(0.02, 0.07, 0.10);
+    }
 
     // Tone map. Without it the bright faces clip flat and the whole image reads as washed-out
     // pastel, which no amount of geometry fixes.
