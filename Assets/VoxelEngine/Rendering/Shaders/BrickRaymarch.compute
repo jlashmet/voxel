@@ -273,9 +273,19 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
 
     float3 lit = albedo * (ambient * ao + ndotl * shadow * 1.05 + fill * ao);
 
+    // Enclosed rooms cannot receive Unity lights because this renderer owns its pixels. A soft,
+    // short-range camera-side bounce stands in for eye adaptation / a carried torch and affects
+    // only surfaces facing the viewer within roughly eighteen metres.
+    float3 toCamera = g_CameraPos / g_VoxelSize - hitVoxel;
+    float cameraDistance = length(toCamera) * g_VoxelSize;
+    float cameraBounce = saturate(dot(normal, normalize(toCamera)))
+                       * saturate(1.0 - cameraDistance / 18.0) * 0.24;
+    lit += albedo * cameraBounce * float3(1.16, 0.78, 0.46);
+
     // Glass doubles as the presentation material for occupied windows until local-light probes
     // arrive. A restrained emission keeps rooms legible in shade without turning windows white.
     if (material == 4u) lit += albedo * 0.42;
+    if (material == 12u) lit += albedo * 0.34;
 
     // Water is still voxel-opaque, but borrowing sky colour and a small emissive lift keeps thin
     // streams and falling sheets readable against the dark ravine until refraction is added.

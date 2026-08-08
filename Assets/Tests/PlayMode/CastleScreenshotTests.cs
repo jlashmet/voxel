@@ -102,6 +102,16 @@ namespace VoxelEngine.Tests.PlayMode
                 ("08_waterfall",   centre + new Vector3(55f, 25f, 4f),
                                     centre + new Vector3(37f, -5f, 4f)),
 
+                // The reference treats rooms and underground spaces as first-class generated
+                // content. These cameras sit inside the authoritative voxel volume—no cutaway
+                // mesh or separate presentation model is involved.
+                ("09_great_hall",  centre + new Vector3(0f, 2.2f, 4.5f),
+                                    centre + new Vector3(5f, 2.0f, 9f)),
+                ("10_dungeon",     centre + new Vector3(-4f, -15.2f, 9f),
+                                    centre + new Vector3(6f, -15.0f, 13f)),
+                ("11_cave",        centre + new Vector3(0f, -15.0f, -31f),
+                                    centre + new Vector3(5f, -14.5f, -27f)),
+
                 // Terrain far from the castle, to tell whether the terracing is the castle's
                 // sculpting or the terrain generator's own stepping.
                 ("07_terrain",     centre + new Vector3(260f, 22f, 260f), centre + new Vector3(360f, 12f, 360f)),

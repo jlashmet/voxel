@@ -982,6 +982,16 @@ namespace VoxelEngine.Structures
                     brush.Box(new int3(cx - 44, y + 1, cz + 16), new int3(88, 5, 6), Mat.Wood);
                     brush.Box(new int3(min.x + inner, y + 1, cz - 24), new int3(10, 40, 48), Mat.DarkStone);
                     brush.Box(new int3(min.x + inner + 2, y + 3, cz - 14), new int3(6, 16, 28), Mat.Empty);
+
+                    // Warm sconces are emissive presentation voxels as well as real fixtures.
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        int lampZ = cz + side * 38;
+                        brush.Box(new int3(min.x + inner + 10, y + 16, lampZ - 2),
+                                  new int3(4, 8, 4), Mat.Glass);
+                        brush.Box(new int3(min.x + inner + 8, y + 14, lampZ - 1),
+                                  new int3(3, 3, 3), Mat.Gold);
+                    }
                     break;
 
                 case 1: // bedchamber: bed, chest, rug
@@ -1055,6 +1065,10 @@ namespace VoxelEngine.Structures
                 int pz = hallMin.z + 55 + j * 70;
                 brush.Cylinder(px, dungeonY, pz, 12, 46, Mat.Stone);
                 brush.Cylinder(px, dungeonY + 42, pz, 15, 4, Mat.DarkStone);
+                brush.Box(new int3(px - 2, dungeonY + 23, pz - 14),
+                          new int3(4, 8, 4), Mat.Glass);
+                brush.Box(new int3(px - 2, dungeonY + 20, pz - 13),
+                          new int3(4, 3, 3), Mat.Gold);
             }
 
             // Secret passage: a low tunnel from the hall out towards the cliff.
@@ -1116,6 +1130,19 @@ namespace VoxelEngine.Structures
                 int sz = at.z + rng.NextInt(-95, 95);
                 int h = rng.NextInt(10, 34);
                 brush.Cone(sx, at.y - 2, sz, rng.NextInt(3, 7), h, Mat.DarkStone);
+            }
+
+            int3[] caveLights =
+            {
+                new(at.x - 48, at.y + 12, at.z - 28),
+                new(at.x + 44, at.y + 10, at.z - 18),
+                new(at.x - 38, at.y + 14, at.z + 38),
+                new(at.x + 50, at.y + 11, at.z + 32),
+            };
+            foreach (var light in caveLights)
+            {
+                brush.Box(light, new int3(4, 9, 4), Mat.Glass);
+                brush.Box(light - new int3(1, 3, 1), new int3(6, 3, 6), Mat.Gold);
             }
         }
     }
