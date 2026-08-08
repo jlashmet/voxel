@@ -224,15 +224,18 @@ namespace VoxelEngine.Structures
                 float t = 1f - (float)y / height;
                 int r = math.max(0, (int)math.round(radius * t));
                 int r2 = r * r;
-                int inner = math.max(0, r - 2);
+
+                // A thicker shell than seems necessary. At tower radius a two-voxel skin leaves
+                // gaps between successive layers as the radius shrinks, and the roof reads as a
+                // cloud of fragments instead of a cone.
+                int inner = math.max(0, r - 5);
                 int inner2 = inner * inner;
 
                 for (int z = -r; z <= r; z++)
                 for (int x = -r; x <= r; x++)
                 {
                     int d2 = x * x + z * z;
-                    // Shell only: a solid cone of roof is wasted voxels and hides the interior.
-                    if (d2 <= r2 && (d2 >= inner2 || y >= height - 2))
+                    if (d2 <= r2 && (d2 >= inner2 || y >= height - 4))
                         Set(cx + x, baseY + y, cz + z, material);
                 }
             }
@@ -255,8 +258,9 @@ namespace VoxelEngine.Structures
                     int x = alongX ? j : i;
                     int z = alongX ? i : j;
 
-                    // Shell: only the top two layers, so the loft stays open.
-                    if (y >= h - 1 || y == 0)
+                    // Four layers of skin, not two: at a shallow pitch consecutive courses step
+                    // sideways faster than a thin shell can bridge, and the roof develops holes.
+                    if (y >= h - 3 || y <= 1)
                         Set(min.x + x, min.y + y, min.z + z, material);
                 }
             }
@@ -291,23 +295,22 @@ namespace VoxelEngine.Structures
         /// <summary>Ring of crenellations around a tower.</summary>
         public void CrenellateRing(int cx, int y, int cz, int radius, int height, byte material)
         {
-            for (int a = 0; a < 360; a += 6)
+            // Merlons as arcs of several degrees, three voxels deep. Single-voxel arcs at this
+            // radius rasterise to scattered dots that read as debris around the parapet.
+            for (int a = 0; a < 360; a += 24)
             {
-                // Alternating arcs read as merlons once rasterised at this radius.
-                if ((a / 6) % 2 == 1) continue;
-
-                float rad = a * math.PI / 180f;
-                int x = cx + (int)math.round(math.cos(rad) * radius);
-                int z = cz + (int)math.round(math.sin(rad) * radius);
-
-                for (int h = 0; h < height; h++)
+                for (int step = 0; step < 14; step++)
                 {
-                    Set(x, y + h, z, material);
+                    float rad = (a + step) * math.PI / 180f;
 
-                    // Thicken inward so merlons are not one voxel wide at this scale.
-                    int ix = cx + (int)math.round(math.cos(rad) * (radius - 1));
-                    int iz = cz + (int)math.round(math.sin(rad) * (radius - 1));
-                    Set(ix, y + h, iz, material);
+                    for (int inset = 0; inset < 3; inset++)
+                    {
+                        int x = cx + (int)math.round(math.cos(rad) * (radius - inset));
+                        int z = cz + (int)math.round(math.sin(rad) * (radius - inset));
+
+                        for (int h = 0; h < height; h++)
+                            Set(x, y + h, z, material);
+                    }
                 }
             }
         }

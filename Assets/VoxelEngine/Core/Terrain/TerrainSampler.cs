@@ -45,6 +45,12 @@ namespace VoxelEngine.Core.Terrain
             h += Octave(worldX, worldZ, 7, 24, seed);
             h += Octave(worldX, worldZ, 5, 6, seed);
 
+            // Fine detail, deliberately restored. A smooth analytic slope quantised to 10 cm
+            // voxels shows clean concentric contour terraces under raking light, which reads as
+            // a quarry. Breaking the height by a voxel or two scatters those contours.
+            h += Octave(worldX, worldZ, 3, 3, seed);
+            h += Octave(worldX, worldZ, 2, 2, seed);
+
             if (h < MinHeight) h = MinHeight;
             if (h > MaxHeight) h = MaxHeight;
             return h;

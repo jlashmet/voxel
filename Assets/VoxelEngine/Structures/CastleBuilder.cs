@@ -58,9 +58,12 @@ namespace VoxelEngine.Structures
                 Centre = centre,
                 Seed = seed,
 
-                PlateauRadius = math.max(baileyX, baileyZ) + rng.NextInt(40, 70),
-                PlateauHeight = rng.NextInt(18, 34),
-                CliffDrop = rng.NextInt(40, 70),
+                // Tight to the walls. A wide skirt of sculpted rock reads as a quarry, not a
+                // crag, because a smooth analytic falloff quantised to voxels produces clean
+                // contour rings — natural terrain hides that behind noise and this did not.
+                PlateauRadius = math.max(baileyX, baileyZ) + rng.NextInt(14, 28),
+                PlateauHeight = rng.NextInt(26, 44),
+                CliffDrop = rng.NextInt(26, 44),
 
                 BaileyHalfX = baileyX,
                 BaileyHalfZ = baileyZ,
@@ -74,9 +77,12 @@ namespace VoxelEngine.Structures
                 GateTowerRadius = rng.NextInt(22, 28),
                 GateTowerHeight = rng.NextInt(110, 145),
 
-                KeepHalfX = rng.NextInt(60, 82),
-                KeepHalfZ = rng.NextInt(50, 68),
-                KeepHeight = rng.NextInt(130, 170),
+                KeepHalfX = rng.NextInt(64, 86),
+                KeepHalfZ = rng.NextInt(54, 72),
+
+                // Comfortably twice the curtain wall. A keep that only just clears the walls
+                // gives the silhouette no centre, which is what the first pass looked like.
+                KeepHeight = rng.NextInt(190, 240),
 
                 FloorHeight = 38,
                 Floors = rng.NextInt(4, 6),
@@ -174,8 +180,10 @@ namespace VoxelEngine.Structures
                 float d = math.sqrt(x * x + z * z);
 
                 // Irregular edge: a perfectly circular plateau reads as a cake stand.
-                float wobble = math.sin(math.atan2(z, x) * 3.7f) * 26f
-                             + math.sin(math.atan2(z, x) * 8.3f) * 12f;
+                float angle = math.atan2(z, x);
+                float wobble = math.sin(angle * 3.7f) * 18f
+                             + math.sin(angle * 8.3f) * 9f
+                             + math.sin(angle * 17.1f) * 4f;
 
                 float edge = radius + wobble;
                 if (d > edge + plan.CliffDrop) continue;
@@ -189,9 +197,15 @@ namespace VoxelEngine.Structures
                 }
                 else
                 {
-                    // Cliff face: steep, slightly battered so it is not a cylinder.
+                    // Cliff face: steep, and broken up per column. The first version eased out of
+                    // the plateau with pow(t, 0.55), which gives a long shallow shoulder — and a
+                    // shallow slope in voxels is a staircase of contour terraces. Falling fast
+                    // and unevenly is both more castle-like and cheaper.
                     float t = (d - edge) / plan.CliffDrop;
-                    target = (int)math.round(math.lerp(top, ground - 20, math.pow(t, 0.55f)));
+                    float broken = math.pow(t, 1.7f)
+                                 + math.sin(angle * 11f + t * 6f) * 0.10f;
+
+                    target = (int)math.round(math.lerp(top, ground - 14, math.saturate(broken)));
                 }
 
                 if (target <= ground)
@@ -226,24 +240,39 @@ namespace VoxelEngine.Structures
             Moat(ref brush, in plan, top);
         }
 
-        /// <summary>A cut moat on the approach side, holding water below the gate.</summary>
+        /// <summary>
+        /// A channel cut across the approach, holding water.
+        ///
+        /// The first version spanned the full plateau width at plateau height, which put a slab
+        /// of water in mid-air beyond the cliff edge. A moat has to be cut *into* ground that
+        /// exists, so this only writes where it finds rock to cut.
+        /// </summary>
         private static void Moat(ref VoxelBrush brush, in CastlePlan plan, int top)
         {
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
-            int moatZ = gateZ - 110;
-            int depth = 70;
+            int moatZ = gateZ - 46;
+            int halfWidth = 26;
+            int depth = 34;
 
-            for (int z = moatZ - 55; z <= moatZ + 55; z++)
-            for (int x = plan.Centre.x - plan.PlateauRadius; x <= plan.Centre.x + plan.PlateauRadius; x++)
+            int reach = plan.BaileyHalfX + 40;
+
+            for (int z = moatZ - halfWidth; z <= moatZ + halfWidth; z++)
+            for (int x = plan.Centre.x - reach; x <= plan.Centre.x + reach; x++)
             {
-                float t = math.abs(z - moatZ) / 55f;
-                int cut = (int)math.round(depth * (1f - t * t));
-                if (cut <= 0) continue;
+                // Leave a causeway to the gate rather than requiring the bridge to be the only
+                // way across a full-width cut.
+                if (math.abs(x - plan.Centre.x) < 22) continue;
 
-                for (int y = top - cut; y <= top + 40; y++)
+                if (!brush.IsSolid(x, top - 1, z)) continue;   // nothing here to cut
+
+                float t = math.abs(z - moatZ) / (float)halfWidth;
+                int cut = (int)math.round(depth * (1f - t * t));
+                if (cut <= 2) continue;
+
+                for (int y = top - cut; y <= top + 6; y++)
                     brush.Set(x, y, z, Mat.Empty);
 
-                for (int y = top - cut; y < top - cut + 22; y++)
+                for (int y = top - cut; y < top - cut + math.max(4, cut / 2); y++)
                     brush.Set(x, y, z, Mat.Water);
             }
         }
