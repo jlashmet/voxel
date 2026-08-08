@@ -531,21 +531,41 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
         albedo *= lerp(1.0, detail, 0.58);
         albedo *= lerp(1.0, chroma, 0.06);
     }
+    else if (material == 6u)
+    {
+        // The source sheets for aged masonry and natural rock are deliberately warm paintings.
+        // Taking their RGB average literally made foundations mauve and caves orange. Keep their
+        // excellent cracks and block values, but grade them around the authored cool charcoal
+        // palette; explicit moss voxels and local cave lights supply colour where it belongs.
+        float textureLuminance = dot(textured, float3(0.2126, 0.7152, 0.0722));
+        float detail = clamp(textureLuminance / 0.58, 0.68, 1.24);
+        float3 chroma = textured / max(textureLuminance, 0.08);
+        albedo *= lerp(1.0, detail, 0.72);
+        albedo *= lerp(1.0, chroma, 0.025);
+    }
     else
     {
         albedo = lerp(albedo, textured, textureWeight);
     }
 
     // The texture already contains its own brick/plank layout. Overlaying a second procedural
-    // mortar grid produced doubled, misaligned courses. Retain only subtle deterministic colour
-    // variation to break repetition without inventing another pattern.
+    // mortar grid produced doubled, misaligned courses. Broad deterministic value fields provide
+    // the slow weathering visible across real masonry, while restrained voxel-scale variation
+    // keeps repetition from returning without turning a tower into salt-and-pepper noise.
     if (material == 1u || material == 6u)
     {
         int3 cell = int3(floor(hitVoxel));
         uint h = FarHash((uint)cell.x * 73856093u ^ (uint)cell.y * 19349663u
                          ^ (uint)cell.z * 83492791u ^ material * 2654435761u);
-        float variation = 0.94 + ((h >> 24) & 255u) * (0.10 / 255.0);
-        albedo *= variation;
+        float fineVariation = 0.98 + ((h >> 24) & 255u) * (0.04 / 255.0);
+
+        int3 macroCell = int3(floor(hitVoxel / 24.0));
+        uint macroHash = FarHash((uint)macroCell.x * 1597334677u
+                               ^ (uint)macroCell.y * 3812015801u
+                               ^ (uint)macroCell.z * 958282787u
+                               ^ material * 1103515245u);
+        float macroVariation = 0.91 + ((macroHash >> 24) & 255u) * (0.16 / 255.0);
+        albedo *= fineVariation * macroVariation;
     }
 
     float ndotl = saturate(dot(normal, g_SunDirection));

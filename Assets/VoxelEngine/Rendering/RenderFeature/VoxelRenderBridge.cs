@@ -86,12 +86,12 @@ namespace VoxelEngine.Rendering
         public static Vector4[] MaterialColours =
         {
             new(1f, 0f, 1f, 1f),
-            new(0.52f, 0.53f, 0.56f, 1f),   // stone
+            new(0.43f, 0.45f, 0.48f, 1f),   // cool weathered limestone
             new(0.46f, 0.29f, 0.14f, 1f),   // wood
             new(0.82f, 0.72f, 0.46f, 1f),   // sand
             new(0.78f, 0.48f, 0.18f, 1f),   // warm lit glass
             new(0.15f, 0.15f, 0.17f, 1f),   // bedrock
-            new(0.34f, 0.33f, 0.35f, 1f),   // dark stone
+            new(0.23f, 0.25f, 0.28f, 1f),   // structural / cave stone
             new(0.24f, 0.26f, 0.32f, 1f),   // slate
             new(0.46f, 0.24f, 0.18f, 1f),   // tile
             new(0.62f, 0.12f, 0.14f, 1f),   // cloth

@@ -580,12 +580,12 @@ namespace VoxelEngine.Showcase
             var colours = new[]
             {
                 Color.magenta,                              // empty — never drawn
-                new Color(0.52f, 0.53f, 0.56f),             // stone
+                new Color(0.43f, 0.45f, 0.48f),             // cool weathered limestone
                 new Color(0.46f, 0.29f, 0.14f),             // wood
                 new Color(0.82f, 0.72f, 0.46f),             // sand
                 new Color(0.78f, 0.48f, 0.18f),             // warm lit glass
                 new Color(0.15f, 0.15f, 0.17f),             // bedrock
-                new Color(0.34f, 0.33f, 0.35f),             // dark stone
+                new Color(0.23f, 0.25f, 0.28f),             // structural / cave stone
                 new Color(0.24f, 0.26f, 0.32f),             // slate
                 new Color(0.46f, 0.24f, 0.18f),             // tile
                 new Color(0.62f, 0.12f, 0.14f),             // cloth
