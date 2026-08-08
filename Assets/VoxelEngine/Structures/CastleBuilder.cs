@@ -1910,6 +1910,60 @@ namespace VoxelEngine.Structures
                           new int3(12, 28, 20), Mat.Wood);
                 brush.Box(new int3(keepMin.x + hx * 2 - 26, cellarY, z),
                           new int3(12, 28, 20), Mat.Wood);
+
+                // Individual archive spines sit on the aisle-facing shelf planes. Solid wooden
+                // blocks alone read as crates; irregular red/gold volumes establish scale and
+                // make the secret room's purpose legible from the stair landing.
+                for (int shelf = 0; shelf < 3; shelf++)
+                for (int book = 0; book < 5; book++)
+                {
+                    int bookZ = z + 2 + book * 3;
+                    int bookY = cellarY + 5 + shelf * 8;
+                    int bookHeight = 4 + ((book + shelf * 2 + z) & 3);
+                    byte bookMaterial = ((book + shelf) & 2) == 0 ? Mat.Cloth : Mat.Gold;
+                    brush.Box(new int3(keepMin.x + 25, bookY, bookZ),
+                              new int3(3, bookHeight, 2), bookMaterial);
+                    brush.Box(new int3(keepMin.x + hx * 2 - 28, bookY, bookZ),
+                              new int3(3, bookHeight, 2), bookMaterial);
+                }
+            }
+
+            // Timber ceiling bays and a floor runner make the long cellar read as one authored
+            // archive while keeping every addition above or flush with the central route.
+            for (int beamZ = keepMin.z + 18; beamZ < keepMin.z + hz * 2 - 20; beamZ += 38)
+                brush.Box(new int3(keepMin.x + 10, cellarY + 34, beamZ),
+                          new int3(hx * 2 - 20, 4, 4), Mat.Wood);
+            brush.Box(new int3(plan.Centre.x - 12, cellarY, keepMin.z + 18),
+                      new int3(24, 1, hz * 2 - 42), Mat.Cloth);
+
+            // Offset reading desk and chair: close enough to provide a focal group, but west of
+            // the north-south stair aisle that connects both spiral landings.
+            int archiveDeskX = plan.Centre.x - 55;
+            int archiveDeskZ = keepMin.z + hz;
+            brush.Box(new int3(archiveDeskX - 18, cellarY + 8, archiveDeskZ - 10),
+                      new int3(36, 3, 20), Mat.Wood);
+            brush.Box(new int3(archiveDeskX - 14, cellarY + 1, archiveDeskZ - 7),
+                      new int3(5, 7, 5), Mat.Wood);
+            brush.Box(new int3(archiveDeskX + 9, cellarY + 1, archiveDeskZ + 2),
+                      new int3(5, 7, 5), Mat.Wood);
+            for (int folio = 0; folio < 3; folio++)
+                brush.Box(new int3(archiveDeskX - 10 + folio * 8,
+                                   cellarY + 11 + folio, archiveDeskZ - 4),
+                          new int3(7, 1, 10), folio == 1 ? Mat.Gold : Mat.Cloth);
+            brush.Box(new int3(archiveDeskX + 23, cellarY + 4, archiveDeskZ - 5),
+                      new int3(9, 4, 10), Mat.Wood);
+            brush.Box(new int3(archiveDeskX + 29, cellarY + 8, archiveDeskZ - 5),
+                      new int3(3, 12, 10), Mat.Wood);
+
+            // The local-light probes already live near these fixtures; visible sconces now
+            // explain the warm pools instead of leaving the ceiling apparently self-lit.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int lampX = plan.Centre.x + side * 55;
+                brush.Box(new int3(lampX - 2, cellarY + 17, keepMin.z + hz - 2),
+                          new int3(4, 8, 4), Mat.Glass);
+                brush.Box(new int3(lampX - 3, cellarY + 14, keepMin.z + hz - 1),
+                          new int3(6, 3, 3), Mat.Gold);
             }
             brush.Box(new int3(keepMin.x + 38, cellarY + 1, keepMin.z + 24),
                       new int3(28, 10, 18), Mat.Wood);
@@ -2041,13 +2095,31 @@ namespace VoxelEngine.Structures
                 int pz = puzzleCz + runeOffsets[i].y;
                 brush.Box(new int3(px - 8, dungeonY + 2, pz - 8),
                           new int3(16, 8, 16), Mat.Stone);
-                brush.Box(new int3(px - 4, dungeonY + 10, pz - 4),
-                          new int3(8, 10 + i * 2, 8), i % 2 == 0 ? Mat.Glass : Mat.Gold);
+                brush.Disc(px, dungeonY + 10, pz, 6, Mat.DarkStone);
+                brush.Cone(px, dungeonY + 11, pz, 3 + (i & 1),
+                           8 + i * 2, i % 2 == 0 ? Mat.Glass : Mat.Gold);
+                brush.Cone(px + (i < 2 ? 5 : -5), dungeonY + 11, pz + 4,
+                           2, 6 + (i & 1) * 2, Mat.Glass);
             }
             brush.Box(new int3(puzzleCx - 14, dungeonY + 2, puzzleCz - 14),
                       new int3(28, 3, 28), Mat.Slate);
-            brush.Box(new int3(puzzleCx - 4, dungeonY + 5, puzzleCz - 4),
-                      new int3(8, 5, 8), Mat.Glass);
+            brush.Disc(puzzleCx, dungeonY + 5, puzzleCz, 8, Mat.DarkStone);
+            brush.Cone(puzzleCx, dungeonY + 6, puzzleCz, 4, 10, Mat.Glass);
+            brush.Cone(puzzleCx - 6, dungeonY + 6, puzzleCz + 4, 2, 7, Mat.Gold);
+
+            // A broken rune shrine closes the long eastward sightline without occupying the
+            // centre puzzle tile. It gives the room a reward-facing direction like the reference
+            // puzzle chamber rather than ending in unlit carved rock.
+            int shrineX = puzzleMinX + 91;
+            brush.Box(new int3(shrineX - 5, dungeonY + 2, puzzleCz - 28),
+                      new int3(7, 30, 7), Mat.Stone);
+            brush.Box(new int3(shrineX - 5, dungeonY + 2, puzzleCz + 21),
+                      new int3(7, 30, 7), Mat.Stone);
+            brush.Box(new int3(shrineX - 6, dungeonY + 28, puzzleCz - 28),
+                      new int3(8, 6, 56), Mat.DarkStone);
+            brush.Box(new int3(shrineX - 10, dungeonY + 3, puzzleCz - 12),
+                      new int3(10, 6, 24), Mat.DarkStone);
+            brush.Cone(shrineX - 7, dungeonY + 9, puzzleCz, 4, 16, Mat.Glass);
 
             // Broken perimeter arches imply a much older buried hall without closing the central
             // route from its corridor to the puzzle dais.
