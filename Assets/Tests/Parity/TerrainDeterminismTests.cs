@@ -75,30 +75,56 @@ namespace VoxelEngine.Tests.Parity
         }
 
         [Test]
-        public void TerrainHasBedrockBelowSurface()
+        public void TerrainHasSolidGroundBelowTheSurface()
         {
             var pool = new BrickPool(512, Allocator.Temp);
             var region = new Region(int3.zero, Allocator.Temp);
 
-            TerrainGenerator.Generate(region, 99u, in pool);
+            const uint seed = 99u;
+            TerrainGenerator.Generate(region, seed, in pool);
 
-            // At least some bricks below the region centre must be filled (bedrock).
-            bool foundSolid = false;
-            int3 centre = new int3(32, 32, 32);
-            for (int y = centre.y; y < VoxelDimensions.RegionEdge && !foundSolid; y++)
+            // Find the surface rather than assuming where it is. The previous version of this
+            // test scanned bricks from the region's vertical centre *upward* while claiming to
+            // check below the surface, and passed only because the old generator happened to put
+            // its base height at exactly that centre. It was asserting the surface's altitude,
+            // not that ground is solid.
+            const int column = 32;
+            int worldX = column * VoxelDimensions.BrickEdge + (VoxelDimensions.BrickEdge >> 1);
+            int worldZ = worldX;
+
+            int surfaceVoxel = TerrainSampler.HeightAt(worldX, worldZ, seed);
+            int surfaceBrick = surfaceVoxel >> VoxelDimensions.BrickEdgeLog2;
+
+            Assert.Greater(surfaceBrick, 1, "the surface is too low to have ground beneath it");
+            Assert.Less(surfaceBrick, VoxelDimensions.RegionEdge - 1,
+                "the surface is above the region — this test cannot see the ground");
+
+            for (int y = 0; y < surfaceBrick; y++)
             {
-                for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
-                {
-                    var brick = region.GetBrick(x, y, 32);
-                    if (!brick.IsEmpty)
-                    {
-                        foundSolid = true;
-                        break;
-                    }
-                }
+                Assert.IsFalse(region.GetBrick(column, y, column).IsEmpty,
+                    $"brick y={y} is empty but sits below the surface at brick {surfaceBrick}");
             }
 
-            Assert.IsTrue(foundSolid, "Terrain must have solid bedrock below the surface.");
+            Assert.IsTrue(region.GetBrick(column, VoxelDimensions.RegionEdge - 1, column).IsEmpty,
+                "the top of the region should be open sky");
+
+            region.Dispose();
+        }
+
+        [Test]
+        public void DeepGroundIsBedrock()
+        {
+            var pool = new BrickPool(512, Allocator.Temp);
+            var region = new Region(int3.zero, Allocator.Temp);
+
+            const uint seed = 99u;
+            TerrainGenerator.Generate(region, seed, in pool);
+
+            var deep = region.GetBrick(32, 0, 32);
+
+            Assert.IsTrue(deep.IsUniform, "the bottom of the region should be uniform ground");
+            Assert.AreEqual(TerrainGenerator.MaterialBedrock, deep.UniformMaterial,
+                "ground far below the surface should be bedrock");
 
             region.Dispose();
         }

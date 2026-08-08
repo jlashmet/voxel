@@ -45,23 +45,29 @@ which is authoritative. T009 puts this feature's numbers there before any of the
 
 ## Build status (2026-08-07)
 
-**T001–T039 are authored but not yet compiled.** The verification run was refused by
-`tools/unity-run.sh` because a Unity editor was open, and overriding that guard is how this
-project's machine got taken down three times. What has been checked: brace and paren balance
-across all 23 new files, and the float ban applied to itself over `Core/Features` and
-`Core/Terrain` — zero violations.
+**T001–T039 are compiled and tested.** 66 EditMode tests and 32 PlayMode tests pass, including
+every test written for this feature. Verified through `tools/unity-run.sh`; peak 3.5 GB, 13 s.
 
-**T040 is deliberately not marked.** It is the judgement gate — generate the cottage and decide
-whether parametric output is good enough to build seven more milestones on — and it cannot be
-answered without running the editor.
+The load-bearing results:
 
-Spec 001 recorded the same trap in harsher terms: its `[X]` marks "recorded *authored*, not
-*working*, code" against assemblies that had never been built. The marks below mean the work is
-written and self-reviewed. They do not mean it compiles.
+- `RasterisingInPiecesEqualsRasterisingWhole` — a cottage rasterised whole is voxel-identical to
+  the same cottage rasterised as eight disjoint octants. This is FR-008, and it is what lets a
+  castle spanning four regions be generated a region at a time.
+- `RegionGenerationIsIndependentOfOrder` — a 3×3 region block generated in 16 shuffled orders
+  produces byte-identical worlds.
+- `TerrainDoesNotRepeatBetweenRegions` and `NegativeCoordinatesDoNotMirrorTheWorld` — the tiling
+  and mirroring failures the old sampler had.
 
-**What closes this**: one guarded Unity run with the editor closed, running
-`VoxelEngine.Tests.Features`, `TerrainContinuityTests`, and `IntegerOnlyGenerationTests`.
+One pre-existing test was corrected rather than satisfied. `TerrainHasBedrockBelowSurface` scanned
+bricks from the region's vertical centre *upward* while claiming to check below the surface; it
+passed only because the old generator put its base height at exactly that centre, so it was
+asserting the surface's altitude rather than that ground is solid. It is now
+`TerrainHasSolidGroundBelowTheSurface`, which finds the surface and checks beneath it, plus
+`DeepGroundIsBedrock`.
 
+**T040 remains unmarked.** It is the judgement gate — look at a generated cottage and decide
+whether parametric output is good enough to build seven more milestones on — and no test can
+answer it.
 
 ## Phase 1: Setup
 
