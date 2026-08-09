@@ -45,6 +45,9 @@ namespace VoxelEngine.Structures
         public const int TrapdoorHalfSize = 8;
         public const int ChapelBellTowerSize = 56;
         public const int ChapelBellTowerStairRadius = 16;
+        public const int FrontGateWidth = 48;
+        public const int FrontGateHeight = 60;
+        public const int FrontGateDepth = 4;
 
         /// <summary>Centre of the ground-floor hatch leading to the cellar.</summary>
         public static int3 TrapdoorCentre(in CastlePlan plan)
@@ -52,6 +55,15 @@ namespace VoxelEngine.Structures
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
             return new int3(plan.Centre.x, baseY, keepMinZ + plan.KeepHalfZ + 40);
+        }
+
+        /// <summary>Minimum corner of the operable timber gate in the front gatehouse arch.</summary>
+        public static int3 FrontGateMinimum(in CastlePlan plan)
+        {
+            int baseY = plan.Centre.y + plan.PlateauHeight;
+            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
+            return new int3(plan.Centre.x - FrontGateWidth / 2, baseY + 1,
+                            gateZ - plan.WallThickness + 2);
         }
 
         /// <summary>Centre of the occupied bell tower accumulated behind the chapel.</summary>
@@ -309,41 +321,61 @@ namespace VoxelEngine.Structures
                     brush.FillColumnBulk(wx, target, target + 1, wz, Mat.Grass);
             }
 
-            Moat(ref brush, in plan, top);
+            LowerRiverGorge(ref brush, in plan, top);
         }
 
         /// <summary>
-        /// A channel cut across the approach, holding water.
-        ///
-        /// The first version spanned the full plateau width at plateau height, which put a slab
-        /// of water in mid-air beyond the cliff edge. A moat has to be cut *into* ground that
-        /// exists, so this only writes where it finds rock to cut.
+        /// Cuts the approach shelf into two unmistakable terrain levels. The castle and gate road
+        /// remain on the upper grass cap while a broad lower river crosses beneath the bridge.
+        /// Dirt, grass, and exposed dark rock are authored as actual bank strata rather than a
+        /// colour decal, so the height change reads from both the hero view and ground level.
         /// </summary>
-        private static void Moat(ref VoxelBrush brush, in CastlePlan plan, int top)
+        private static void LowerRiverGorge(ref VoxelBrush brush, in CastlePlan plan, int top)
         {
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
-            int moatZ = gateZ - 46;
-            int halfWidth = 26;
-            int depth = 34;
+            int riverZ = gateZ - plan.WallThickness - 92;
+            const int halfWidth = 70;
+            const int waterHalfWidth = 34;
+            int riverY = top - 68;
+            int reach = plan.PlateauRadius + plan.CliffDrop - 8;
 
-            int reach = plan.BaileyHalfX + 40;
-
-            for (int z = moatZ - halfWidth; z <= moatZ + halfWidth; z++)
             for (int x = plan.Centre.x - reach; x <= plan.Centre.x + reach; x++)
             {
-                // Leave a causeway to the gate rather than requiring the bridge to be the only
-                // way across a full-width cut.
-                if (math.abs(x - plan.Centre.x) < 22) continue;
+                int meander = (int)math.round(math.sin((x - plan.Centre.x) * 0.028f) * 8f
+                                            + math.sin((x - plan.Centre.x) * 0.071f) * 3f);
+                int channelZ = riverZ + meander;
 
-                if (!brush.IsSolid(x, top - 1, z)) continue;   // nothing here to cut
+                for (int dz = -halfWidth; dz <= halfWidth; dz++)
+                {
+                    int z = channelZ + dz;
+                    int existingSurface = HighestSolid(ref brush, x, z, top + 5, riverY - 30);
+                    if (existingSurface < riverY - 20) continue;
 
-                float t = math.abs(z - moatZ) / (float)halfWidth;
-                int cut = (int)math.round(depth * (1f - t * t));
-                if (cut <= 2) continue;
+                    float across = math.abs(dz) / (float)halfWidth;
+                    float bank = math.smoothstep(0.18f, 1f, across);
+                    int authoredTerrace = dz < 0 ? top - 22 : top - 1;
+                    int terraceTop = math.min(authoredTerrace, existingSurface);
+                    int surface = (int)math.round(math.lerp(riverY - 9, terraceTop, bank));
 
-                brush.FillColumnBulk(x, top - cut, top + 7, z, Mat.Empty);
-                brush.FillColumnBulk(x, top - cut,
-                                     top - cut + math.max(4, cut / 2), z, Mat.Water);
+                    brush.FillColumnBulk(x, surface + 1,
+                                         math.max(top + 8, existingSurface + 2), z, Mat.Empty);
+
+                    // Four visible dirt courses sit above broken foundation rock. The outermost
+                    // bank receives a grass lip, giving the gorge the green/brown/grey layering
+                    // seen in the reference instead of one monotonous cut stone wall.
+                    int dirtDepth = across > 0.46f ? 5 : 2;
+                    brush.FillColumnBulk(x, surface - dirtDepth, surface, z,
+                                         across > 0.38f ? Mat.Dirt : Mat.DarkStone);
+                    if (across > 0.56f)
+                        brush.FillColumnBulk(x, surface, surface + 1, z, Mat.Grass);
+
+                    if (math.abs(dz) <= waterHalfWidth)
+                    {
+                        int bed = riverY - 10
+                                + (int)math.round(math.abs(dz) * 4f / waterHalfWidth);
+                        brush.FillColumnBulk(x, bed, riverY + 1, z, Mat.Water);
+                    }
+                }
             }
         }
 
@@ -460,12 +492,12 @@ namespace VoxelEngine.Structures
             // fixed water plane gives the cascade a readable destination even on a noisy seed.
             int poolX = fallX + plan.CliffDrop + 24;
             int sampledGround = TerrainSampler.HeightAt(poolX, streamZ, terrainSeed);
-            // Stay no more than twelve voxels below the surrounding terrain. Taking the lower
-            // of these bounds buried the pool at top-82 whenever the castle stood on a raised
-            // crag, producing a dry-looking shaft with the water below every useful sightline.
-            int poolY = math.max(top - 82, sampledGround - 12);
-            const int poolRadiusX = 48;
-            const int poolRadiusZ = 34;
+            // Procedural ground can rise above the castle shelf here. Clamp the pool to a real
+            // lower terrace instead of letting that sample lift it above the waterfall lip. It
+            // remains close to the lower river level, so the outlet always runs downhill.
+            int poolY = math.clamp(sampledGround - 20, top - 74, top - 64);
+            const int poolRadiusX = 62;
+            const int poolRadiusZ = 45;
 
             for (int dz = -poolRadiusZ; dz <= poolRadiusZ; dz++)
             for (int dx = -poolRadiusX; dx <= poolRadiusX; dx++)
@@ -474,18 +506,18 @@ namespace VoxelEngine.Structures
                               + dz * dz / (float)(poolRadiusZ * poolRadiusZ);
                 if (ellipse > 1f) continue;
 
-                // Rise all the way back to terrain height at the rim. The former seven-voxel
-                // rise made a twelve-metre vertical shaft with water hidden at its bottom.
-                float bankT = math.saturate((ellipse - 0.45f) / 0.55f);
-                int bottom = ellipse <= 0.45f
-                    ? poolY - 9
-                    : (int)math.round(math.lerp(poolY - 9, top - 2,
-                                                math.pow(bankT, 0.72f)));
+                // Keep the pool rim on the lower terrace. Rising back to castle height around a
+                // small ellipse made a deep bowl whose water disappeared behind its own bank.
+                float bankT = math.saturate((ellipse - 0.58f) / 0.42f);
+                int bottom = ellipse <= 0.58f
+                    ? poolY - 8
+                    : (int)math.round(math.lerp(poolY - 8, poolY + 20,
+                                                math.pow(bankT, 0.78f)));
                 int wx = poolX + dx;
                 int wz = streamZ + dz;
 
                 brush.FillColumnBulk(wx, bottom, top + 6, wz, Mat.Empty);
-                if (ellipse < 0.46f && bottom < poolY + 1)
+                if (ellipse < 0.60f && bottom < poolY + 1)
                     brush.FillColumnBulk(wx, bottom, poolY + 1, wz, Mat.Water);
             }
 
@@ -513,6 +545,31 @@ namespace VoxelEngine.Structures
                     brush.FillColumnBulk(x, waterY, top + 4, streamZ + dz, Mat.Empty);
                     if (math.abs(dz) <= 9)
                         brush.FillColumnBulk(x, waterY, waterY + 2, streamZ + dz, Mat.Water);
+                }
+            }
+
+            // The plunge pool is not a decorative dead end. A lower outlet runs south into the
+            // broad approach river, making the upper stream, fall, pool, and lower watercourse
+            // one legible connected system from the reference view.
+            int downstreamX = poolX - poolRadiusX / 2;
+            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
+            int lowerRiverZ = gateZ - plan.WallThickness - 92
+                            + (int)math.round(math.sin((downstreamX - plan.Centre.x) * 0.028f) * 8f
+                                            + math.sin((downstreamX - plan.Centre.x) * 0.071f) * 3f);
+            int outletStartZ = streamZ - poolRadiusZ * 3 / 4;
+            int outletLength = math.max(1, outletStartZ - lowerRiverZ);
+            for (int z = outletStartZ; z >= lowerRiverZ; z--)
+            {
+                float t = (outletStartZ - z) / (float)outletLength;
+                int waterY = (int)math.round(math.lerp(poolY, top - 68, t));
+                int halfWidth = 10 + (int)math.round(t * 5f);
+                for (int dx = -halfWidth; dx <= halfWidth; dx++)
+                {
+                    float across = math.abs(dx) / (float)halfWidth;
+                    int bed = waterY - 6 + (int)math.round(across * across * 5f);
+                    brush.FillColumnBulk(downstreamX + dx, bed, top + 5, z, Mat.Empty);
+                    if (math.abs(dx) <= halfWidth - 3)
+                        brush.FillColumnBulk(downstreamX + dx, bed, waterY + 1, z, Mat.Water);
                 }
             }
 
@@ -601,8 +658,12 @@ namespace VoxelEngine.Structures
                 int x = plan.Centre.x + offsets[i].x;
                 int z = gateZ + offsets[i].y;
                 int surface = HighestSolid(ref brush, x, z, top + 20, top - 170);
-                Pine(ref brush, x, surface + 1, z, 58 + (i % 3) * 8,
-                     18 + (i & 1) * 3, i % 3 == 0 ? Mat.Grass : Mat.Moss);
+                if ((i & 1) == 0)
+                    Pine(ref brush, x, surface + 1, z, 58 + (i % 3) * 8,
+                         18 + (i & 1) * 3, i % 3 == 0 ? Mat.Grass : Mat.Moss);
+                else
+                    Tree(ref brush, x, surface + 1, z, 44 + (i % 3) * 6,
+                         15 + (i % 2) * 3, i % 3 == 0 ? Mat.Grass : Mat.Moss);
 
                 // Irregular companion rocks visually root each tree and prevent the repeated
                 // verticals from reading as a planted avenue.
@@ -633,6 +694,15 @@ namespace VoxelEngine.Structures
         {
             int trunkRadius = math.max(3, canopyRadius / 5);
             brush.Cylinder(x, y, z, trunkRadius, height, Mat.Wood);
+
+            // Two visible scaffold limbs give broadleaf trees a different construction grammar
+            // from conifers, especially where the irregular crown exposes concave gaps.
+            int branchY = y + height * 2 / 3;
+            int branchLength = math.max(8, canopyRadius - 3);
+            brush.Box(new int3(x - branchLength, branchY, z - 2),
+                      new int3(branchLength * 2, 4, 4), Mat.Wood);
+            brush.Box(new int3(x - 2, branchY + 5, z - branchLength),
+                      new int3(4, 4, branchLength * 2), Mat.Wood);
 
             int centreY = y + height - canopyRadius / 2;
             int lobeRadius = math.max(7, canopyRadius * 3 / 4);
@@ -770,9 +840,9 @@ namespace VoxelEngine.Structures
                 brush.Box(new int3(galleryX - 3, galleryY + 24, galleryZ - 2),
                           new int3(width + 6, 3, 24), Mat.Tile);
                 brush.Box(new int3(galleryX + 3, galleryY + 7, galleryZ + 3),
-                          new int3(4, 7, 4), Mat.Glass);
+                          new int3(4, 7, 4), Mat.LitWindow);
                 brush.Box(new int3(galleryX + width - 7, galleryY + 7, galleryZ + 3),
-                          new int3(4, 7, 4), Mat.Glass);
+                          new int3(4, 7, 4), Mat.LitWindow);
             }
 
             // Narrow buttresses on the side curtains keep the same architectural language in
@@ -1010,7 +1080,11 @@ namespace VoxelEngine.Structures
                 brush.Arch(new int3(at.x - width / 2, y, frontZ - 4),
                            width, windowHeight, 20, 2, Mat.Empty);
                 brush.Arch(new int3(at.x - width / 2 + 3, y + 3, frontZ + 2),
-                           width - 6, windowHeight - 7, 2, 2, Mat.Glass);
+                           width - 6, windowHeight - 7, 2, 2, Mat.LitWindow);
+                brush.Box(new int3(at.x - 1, y + 4, frontZ + 1),
+                          new int3(2, windowHeight - 10, 3), Mat.DarkStone);
+                brush.Box(new int3(at.x - width / 2 + 3, y + windowHeight / 2, frontZ + 1),
+                          new int3(width - 6, 2, 3), Mat.DarkStone);
                 brush.Box(new int3(at.x - width / 2 - 4, y - 4, frontZ - 4),
                           new int3(width + 8, 3, 6), Mat.DarkStone);
             }
@@ -1067,6 +1141,21 @@ namespace VoxelEngine.Structures
             brush.Arch(new int3(plan.Centre.x - 26, baseY, gateZ - plan.WallThickness),
                        52, 74, plan.WallThickness * 2, 2, Mat.Empty);
 
+            // A real closed double gate occupies the approach arch. It is deliberately one
+            // authored arch volume so the E interaction can remove exactly the door without
+            // invoking blast physics or disturbing the surrounding gatehouse masonry.
+            brush.Arch(FrontGateMinimum(in plan), FrontGateWidth, FrontGateHeight,
+                       FrontGateDepth, 2, Mat.Wood);
+            int3 gateMin = FrontGateMinimum(in plan);
+            for (int band = 0; band < 3; band++)
+                brush.Box(new int3(gateMin.x + 2, gateMin.y + 10 + band * 13, gateMin.z),
+                          new int3(FrontGateWidth - 4, 3, FrontGateDepth), Mat.DarkStone);
+            brush.Box(new int3(plan.Centre.x - 2, gateMin.y + 2, gateMin.z),
+                      new int3(4, 44, FrontGateDepth), Mat.DarkStone);
+            for (int side = -1; side <= 1; side += 2)
+                brush.Box(new int3(plan.Centre.x + side * 8 - 2, gateMin.y + 23, gateMin.z),
+                          new int3(4, 4, 2), Mat.Gold);
+
             // Portcullis slot, and the machicolation above the gate.
             brush.Box(new int3(plan.Centre.x - 28, baseY + 74, gateZ - 4), new int3(56, 6, 8), Mat.Empty);
 
@@ -1100,11 +1189,30 @@ namespace VoxelEngine.Structures
                 brush.FillColumnBulk(plan.Centre.x + x, baseY - 2, baseY - 1,
                                      gateZ - plan.WallThickness - z, Mat.Wood);
 
+            // Heavy longitudinal beams make the deck read as a load-bearing object from the
+            // lower river. They also visually tie the masonry piers into the timber span.
+            int bridgeNearZ = gateZ - plan.WallThickness - 149;
+            int bridgeFarZ = gateZ - plan.WallThickness;
+            for (int side = -1; side <= 1; side += 2)
+                brush.Box(new int3(plan.Centre.x + side * 25 - 4, baseY - 7, bridgeNearZ),
+                          new int3(8, 5, 150), Mat.DarkStone);
+
+            int riverZ = gateZ - plan.WallThickness - 92;
+            int riverY = baseY - 68;
+            int[] pierOffsets = { -27, 0, 27 };
+            for (int p = 0; p < pierOffsets.Length; p++)
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int pierZ = riverZ + pierOffsets[p];
+                brush.Box(new int3(plan.Centre.x + side * 24 - 6, riverY - 2, pierZ - 6),
+                          new int3(12, baseY - riverY - 5, 12), Mat.DarkStone);
+                brush.Box(new int3(plan.Centre.x + side * 24 - 9, baseY - 12, pierZ - 8),
+                          new int3(18, 6, 16), Mat.Stone);
+            }
+
             // Timber rails, stone abutments, and regularly spaced posts turn the former floating
             // plank into a believable defended approach. The full 5.2 m centre lane stays clear
             // for the player and for destruction debris.
-            int bridgeNearZ = gateZ - plan.WallThickness - 149;
-            int bridgeFarZ = gateZ - plan.WallThickness;
             for (int side = -1; side <= 1; side += 2)
             {
                 int railX = plan.Centre.x + side * 32;
@@ -1261,7 +1369,11 @@ namespace VoxelEngine.Structures
                     {
                         brush.Arch(new int3(x, y, min.z), 16, height, 9, 2, Mat.Empty);
                         brush.Box(new int3(x + 3, y + 4, min.z + 2),
-                                  new int3(10, height - 10, 2), Mat.Glass);
+                                  new int3(10, height - 10, 2), Mat.LitWindow);
+                        brush.Box(new int3(x + 7, y + 5, min.z + 1),
+                                  new int3(2, height - 12, 3), Mat.DarkStone);
+                        brush.Box(new int3(x + 3, y + height / 2, min.z + 1),
+                                  new int3(10, 2, 3), Mat.DarkStone);
                     }
 
                     brush.Arch(new int3(x, y, min.z + size.z - 8), 16, height, 9, 2, Mat.Empty);
@@ -1363,7 +1475,7 @@ namespace VoxelEngine.Structures
                 {
                     int bayX = minX + 5 + bay * 13;
                     brush.Box(new int3(bayX, y + 9, wallZ + depth - 4),
-                              new int3(9, plan.FloorHeight - 18, 3), Mat.Glass);
+                              new int3(9, plan.FloorHeight - 18, 3), Mat.LitWindow);
                 }
 
                 // A broad threshold connects each bay to the generated room and leaves the
@@ -1401,7 +1513,7 @@ namespace VoxelEngine.Structures
                 brush.Arch(new int3(dormerX - 6, topY + 32, roofFrontZ - 1),
                            12, 16, 4, 2, Mat.Empty);
                 brush.Box(new int3(dormerX - 3, topY + 35, roofFrontZ),
-                          new int3(6, 10, 2), Mat.Glass);
+                          new int3(6, 10, 2), Mat.LitWindow);
                 brush.Gable(new int3(dormerX - 15, topY + 49, roofFrontZ - 4),
                             new int3(30, 20, 25), true, Mat.Slate);
             }
@@ -1514,7 +1626,7 @@ namespace VoxelEngine.Structures
             brush.Arch(new int3(min.x - 1, baseY + 30, centreZ - 16),
                        32, 34, 8, 0, Mat.Empty);
             brush.Box(new int3(min.x + 2, baseY + 35, centreZ - 10),
-                      new int3(3, 24, 20), Mat.Glass);
+                      new int3(3, 24, 20), Mat.LitWindow);
             // Stone tracery divides the former single glowing rectangle into a cross and four
             // warm panes. At room scale this reads as a leaded rose window rather than a lamp.
             brush.Box(new int3(min.x + 1, baseY + 35, centreZ - 2),
@@ -1527,7 +1639,7 @@ namespace VoxelEngine.Structures
                 brush.Arch(new int3(min.x + width / 2 - 7, baseY + 20, z - 6),
                            14, 38, 7, 2, Mat.Empty);
                 brush.Box(new int3(min.x + width / 2 - 4, baseY + 25, z - 4),
-                          new int3(8, 26, 2), Mat.Glass);
+                          new int3(8, 26, 2), Mat.LitWindow);
             }
 
             // A layered sanctuary replaces the old flat red block: two stone steps, a timber
@@ -1701,7 +1813,7 @@ namespace VoxelEngine.Structures
                 brush.Arch(new int3(min.x - 2, windowY, centre.z - 7),
                            14, windowHeight, 10, 0, Mat.Empty);
                 brush.Box(new int3(min.x + 2, windowY + 4, centre.z - 4),
-                          new int3(2, windowHeight - 9, 8), Mat.Glass);
+                          new int3(2, windowHeight - 9, 8), Mat.LitWindow);
                 brush.Box(new int3(min.x - 4, windowY - 3, centre.z - 11),
                           new int3(5, 3, 22), Mat.DarkStone);
 
@@ -1716,7 +1828,7 @@ namespace VoxelEngine.Structures
                                14, windowHeight, 10, 2, Mat.Empty);
                     int glassZ = side < 0 ? min.z + 2 : min.z + size - 4;
                     brush.Box(new int3(centre.x - 4, windowY + 4, glassZ),
-                              new int3(8, windowHeight - 9, 2), Mat.Glass);
+                              new int3(8, windowHeight - 9, 2), Mat.LitWindow);
                 }
             }
 
@@ -1853,7 +1965,7 @@ namespace VoxelEngine.Structures
                 brush.Arch(new int3(wingMin.x + wingWidth - 7, baseY + 12, z),
                            16, 28, 8, 0, Mat.Empty);
                 brush.Box(new int3(wingMin.x + wingWidth - 5, baseY + 16, z + 3),
-                          new int3(2, 18, 10), Mat.Glass);
+                          new int3(2, 18, 10), Mat.LitWindow);
             }
 
             // The joining arch makes this real interior space rather than a building merely

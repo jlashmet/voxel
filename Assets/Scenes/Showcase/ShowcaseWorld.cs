@@ -44,7 +44,8 @@ namespace VoxelEngine.Showcase
         public static readonly string[] MaterialNames =
         {
             "empty", "stone", "wood", "sand", "glass", "bedrock",
-            "darkstone", "slate", "tile", "cloth", "grass", "water", "gold", "dirt", "moss"
+            "darkstone", "slate", "tile", "cloth", "grass", "water", "gold", "dirt", "moss",
+            "lit window"
         };
 
         // -- geometry constants --------------------------------------------------
@@ -74,6 +75,7 @@ namespace VoxelEngine.Showcase
         private CastlePlan _castlePlan;
         private bool _hasCastlePlan;
         private bool _castleTrapdoorOpen;
+        private bool _castleFrontGateOpen;
 
         private readonly HashSet<int3> _generated = new();
         private readonly HashSet<int3> _dirtyRegions = new();
@@ -187,6 +189,7 @@ namespace VoxelEngine.Showcase
             _palette.Register(12, 180, DestructionClass.Crumble);  // gold
             _palette.Register(13, 30, DestructionClass.Powder);    // dirt
             _palette.Register(14, 40, DestructionClass.Powder);    // moss
+            _palette.Register(15, 18, DestructionClass.Powder);    // leaded window glass
 
             _catalogue = ShowcaseCatalogue.Build(seed, Allocator.Persistent);
         }
@@ -579,6 +582,7 @@ namespace VoxelEngine.Showcase
             _castlePlan = plan;
             _hasCastlePlan = true;
             _castleTrapdoorOpen = false;
+            _castleFrontGateOpen = false;
             BuildCastlePresentationLights(in plan);
 
             CastleVoxels = brush.TotalVoxelsWritten;
@@ -672,6 +676,54 @@ namespace VoxelEngine.Showcase
         }
 
         public bool CastleTrapdoorOpen => _castleTrapdoorOpen;
+        public bool CastleFrontGateOpen => _castleFrontGateOpen;
+
+        public Vector3 CastleFrontGatePosition
+        {
+            get
+            {
+                if (!_hasCastlePlan) return Vector3.positiveInfinity;
+                int3 min = CastleBuilder.FrontGateMinimum(in _castlePlan);
+                return new Vector3(min.x + CastleBuilder.FrontGateWidth * 0.5f,
+                                   min.y,
+                                   min.z - 8f) * VoxelSurfaceRenderer.VoxelSize;
+            }
+        }
+
+        public bool CanOpenCastleFrontGate(Vector3 playerFeetMetres)
+        {
+            if (!_hasCastlePlan || _castleFrontGateOpen) return false;
+            Vector3 delta = playerFeetMetres - CastleFrontGatePosition;
+            return new Vector2(delta.x, delta.z).sqrMagnitude <= 4.2f * 4.2f
+                && math.abs(delta.y) <= 3.0f;
+        }
+
+        public bool TryOpenCastleFrontGate(Vector3 playerFeetMetres)
+        {
+            if (!CanOpenCastleFrontGate(playerFeetMetres)) return false;
+
+            int3 min = CastleBuilder.FrontGateMinimum(in _castlePlan);
+            int half = CastleBuilder.FrontGateWidth / 2;
+            int archTop = CastleBuilder.FrontGateHeight - half;
+            var gateVoxels = new List<FallingVoxel>(CastleBuilder.FrontGateWidth
+                                                    * CastleBuilder.FrontGateHeight
+                                                    * CastleBuilder.FrontGateDepth);
+            for (int d = 0; d < CastleBuilder.FrontGateDepth; d++)
+            for (int w = 0; w < CastleBuilder.FrontGateWidth; w++)
+            for (int h = 0; h < CastleBuilder.FrontGateHeight; h++)
+            {
+                int dx = w - half;
+                if (h > archTop && dx * dx + (h - archTop) * (h - archTop) > half * half)
+                    continue;
+
+                var voxel = new int3(min.x + w, min.y + h, min.z + d);
+                gateVoxels.Add(new FallingVoxel { Position = voxel, Material = MatWood });
+            }
+            ClearVoxelsBulk(gateVoxels);
+
+            _castleFrontGateOpen = true;
+            return true;
+        }
 
         public Vector3 CastleTrapdoorPosition
         {
@@ -892,6 +944,24 @@ namespace VoxelEngine.Showcase
                 if (VoxelAccess.IsSolid(ref _table, in _pool, candidate)) candidates.Add(candidate);
             }
 
+            int collapsed = ResolveDisconnectedCandidates(candidates, impact, impulseDirection);
+
+            // Load failure is brick-granular for speed and can cut through a larger connected
+            // structure at the edge of its bounded analysis volume. Recheck that exact new edge
+            // afterwards so clipped roofs, beams, banners, and ornaments cannot remain floating.
+            var overloadBoundary = new HashSet<int3>();
+            collapsed += ResolveOverloadedSupport(impact, radius, impulseDirection,
+                                                  overloadBoundary);
+            collapsed += ResolveDisconnectedCandidates(overloadBoundary, impact,
+                                                       impulseDirection);
+            return collapsed;
+        }
+
+        private int ResolveDisconnectedCandidates(HashSet<int3> candidates, int3 impact,
+                                                  float3 impulseDirection)
+        {
+            if (candidates.Count == 0) return 0;
+
             var classified = new HashSet<int3>();
             var knownSupported = new HashSet<int3>();
             int collapsed = 0;
@@ -952,8 +1022,6 @@ namespace VoxelEngine.Showcase
 
                 collapsed += DetachComponent(component, impact, impulseDirection);
             }
-
-            collapsed += ResolveOverloadedSupport(impact, radius, impulseDirection);
             return collapsed;
         }
 
@@ -962,7 +1030,8 @@ namespace VoxelEngine.Showcase
         /// an entire tower. Find the weakest vertical contact plane through the damaged band,
         /// then compare the mass above it with material-weighted contact capacity.
         /// </summary>
-        private int ResolveOverloadedSupport(int3 impact, int radius, float3 impulseDirection)
+        private int ResolveOverloadedSupport(int3 impact, int radius, float3 impulseDirection,
+                                             HashSet<int3> detachedBoundary)
         {
             int influenceRadius = math.clamp(radius * 2 + 56, 64, 96);
             int scanRadius = influenceRadius;
@@ -1039,7 +1108,14 @@ namespace VoxelEngine.Showcase
                             byte below = VoxelAccess.GetVoxel(ref _table, in _pool,
                                                              upper + new int3(0, -1, 0));
                             if (below != VoxelDimensions.MaterialEmpty)
-                                supportCapacity += 6 + _palette.GetHardness(below) / 32;
+                            {
+                                // One intact voxel column carries dozens of voxels above it, not
+                                // merely one short course. The former 6..12 capacity made even a
+                                // fully supported tower fail after any nearby impact. Material
+                                // hardness still matters, while a one-voxel thread remains far
+                                // too weak for a castle-scale mass.
+                                supportCapacity += 48 + _palette.GetHardness(below);
+                            }
                         }
                     }
 
@@ -1053,7 +1129,8 @@ namespace VoxelEngine.Showcase
                 }
 
                 if (containsStructuralMaterial && occupiedCount > supportCapacity)
-                    collapsed += DetachBrickComponent(component, seedY, impact, impulseDirection);
+                    collapsed += DetachBrickComponent(component, seedY, impact, impulseDirection,
+                                                      detachedBoundary);
             }
 
             return collapsed;
@@ -1102,7 +1179,8 @@ namespace VoxelEngine.Showcase
         }
 
         private int DetachBrickComponent(List<int3> component, int minimumVoxelY, int3 impact,
-                                         float3 impulseDirection)
+                                         float3 impulseDirection,
+                                         HashSet<int3> detachedBoundary)
         {
             var buckets = new List<VisualBucket>(component.Count);
             var touchedRegions = new HashSet<int3>();
@@ -1184,6 +1262,8 @@ namespace VoxelEngine.Showcase
                 _table.CommitRegion(region);
             }
 
+            CollectSolidBrickBoundary(component, minimumVoxelY, detachedBoundary);
+
             buckets.Sort((a, b) => a.Priority.CompareTo(b.Priority));
             int visualCount = math.min(MaxVisualChunksPerCollapse,
                                        MaxQueuedDetachedChunks - _detachedChunks.Count);
@@ -1213,6 +1293,67 @@ namespace VoxelEngine.Showcase
             }
 
             return detached;
+        }
+
+        /// <summary>
+        /// Collects only the surviving voxel faces immediately adjacent to a brick-granular
+        /// failure. Scanning perimeter faces instead of every detached voxel keeps the cascade
+        /// proportional to the exposed fracture surface.
+        /// </summary>
+        private void CollectSolidBrickBoundary(List<int3> component, int minimumVoxelY,
+                                               HashSet<int3> boundary)
+        {
+            var clearedBricks = new HashSet<int3>(component);
+            int minimumBrickY = minimumVoxelY >> VoxelDimensions.BrickEdgeLog2;
+
+            for (int i = 0; i < component.Count; i++)
+            {
+                int3 brick = component[i];
+                for (int d = 0; d < s_Neighbours.Length; d++)
+                {
+                    int3 neighbour = brick + s_Neighbours[d];
+                    if (clearedBricks.Contains(neighbour)) continue;
+                    AddSolidFaceSeeds(neighbour, s_Neighbours[d], minimumVoxelY, boundary);
+                }
+
+                // The lowest brick is only cleared above the failure plane. Include the exact
+                // surviving face inside that same mixed brick as a possible support/remnant.
+                if (brick.y == minimumBrickY && minimumVoxelY > 0)
+                {
+                    int originX = brick.x << VoxelDimensions.BrickEdgeLog2;
+                    int originZ = brick.z << VoxelDimensions.BrickEdgeLog2;
+                    for (int z = 0; z < VoxelDimensions.BrickEdge; z++)
+                    for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
+                    {
+                        int3 voxel = new int3(originX + x, minimumVoxelY - 1, originZ + z);
+                        if (VoxelAccess.IsSolid(ref _table, in _pool, voxel)) boundary.Add(voxel);
+                    }
+                }
+            }
+        }
+
+        private void AddSolidFaceSeeds(int3 worldBrick, int3 directionFromCleared,
+                                       int minimumVoxelY, HashSet<int3> boundary)
+        {
+            int3 origin = worldBrick << VoxelDimensions.BrickEdgeLog2;
+            int edge = VoxelDimensions.BrickEdge - 1;
+
+            for (int v = 0; v < VoxelDimensions.BrickEdge; v++)
+            for (int u = 0; u < VoxelDimensions.BrickEdge; u++)
+            {
+                int3 local;
+                if (directionFromCleared.x != 0)
+                    local = new int3(directionFromCleared.x > 0 ? 0 : edge, v, u);
+                else if (directionFromCleared.y != 0)
+                    local = new int3(u, directionFromCleared.y > 0 ? 0 : edge, v);
+                else
+                    local = new int3(u, v, directionFromCleared.z > 0 ? 0 : edge);
+
+                int3 voxel = origin + local;
+                if (voxel.y < minimumVoxelY
+                    || !VoxelAccess.IsSolid(ref _table, in _pool, voxel)) continue;
+                boundary.Add(voxel);
+            }
         }
 
         private static void AddVisualSample(VisualBucket bucket, FallingVoxel voxel)
@@ -1249,7 +1390,7 @@ namespace VoxelEngine.Showcase
 
         private static bool IsStructuralMaterial(byte material) => material switch
         {
-            MatWood or MatGlass or 6 or 7 or 8 or 9 or 12 => true,
+            MatWood or MatGlass or 6 or 7 or 8 or 9 or 12 or 15 => true,
             _ => false,
         };
 

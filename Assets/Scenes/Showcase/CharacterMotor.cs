@@ -32,6 +32,9 @@ namespace VoxelEngine.Showcase
         public float SprintMultiplier = 2.2f;
         public float JumpSpeed = 6.2f;
         public float Gravity = 22f;
+        public float FlightRiseSpeed = 7.5f;
+        public float FlightAcceleration = 24f;
+        public float FlightHoldDelay = 0.35f;
 
         /// <summary>Largest ledge that can be walked up without jumping: 3 voxels.</summary>
         public float StepHeight = 0.3f;
@@ -41,6 +44,11 @@ namespace VoxelEngine.Showcase
 
         public Vector3 Velocity;
         public bool Grounded { get; private set; }
+        public bool AssistedFlight { get; private set; }
+
+        private bool _jumpWasHeld;
+        private bool _airJumpAvailable = true;
+        private float _jumpHoldSeconds;
 
         /// <summary>Camera position for this character.</summary>
         public Vector3 EyePosition => Position + Vector3.up * EyeHeight;
@@ -49,7 +57,7 @@ namespace VoxelEngine.Showcase
         /// Advances one step. <paramref name="wishDir"/> is a horizontal unit-ish vector in world
         /// space; vertical motion comes from gravity and jumps only.
         /// </summary>
-        public void Step(ShowcaseWorld world, Vector3 wishDir, bool sprint, bool jump, float dt)
+        public void Step(ShowcaseWorld world, Vector3 wishDir, bool sprint, bool jumpHeld, float dt)
         {
             // Long frames — a region finishing generation, say — must not teleport the character
             // through the floor, so the step is clamped rather than trusted.
@@ -59,7 +67,42 @@ namespace VoxelEngine.Showcase
             Velocity.x = wishDir.x * speed;
             Velocity.z = wishDir.z * speed;
 
-            if (Grounded && jump) Velocity.y = JumpSpeed;
+            bool jumpPressed = jumpHeld && !_jumpWasHeld;
+            if (Grounded)
+            {
+                _airJumpAvailable = true;
+                AssistedFlight = false;
+            }
+
+            if (jumpPressed)
+            {
+                if (Grounded)
+                {
+                    Velocity.y = JumpSpeed;
+                }
+                else if (_airJumpAvailable)
+                {
+                    Velocity.y = JumpSpeed;
+                    _airJumpAvailable = false;
+                }
+            }
+
+            if (jumpHeld)
+            {
+                _jumpHoldSeconds += dt;
+                if (!Grounded && _jumpHoldSeconds >= FlightHoldDelay)
+                {
+                    AssistedFlight = true;
+                    Velocity.y = Mathf.MoveTowards(Velocity.y, FlightRiseSpeed,
+                                                   FlightAcceleration * dt);
+                }
+            }
+            else
+            {
+                _jumpHoldSeconds = 0f;
+                AssistedFlight = false;
+            }
+
             Velocity.y -= Gravity * dt;
             Velocity.y = Mathf.Max(Velocity.y, -60f);
 
@@ -73,6 +116,7 @@ namespace VoxelEngine.Showcase
                                         FootMax(Position, 0.02f));
 
             if (Grounded && Velocity.y < 0f) Velocity.y = 0f;
+            _jumpWasHeld = jumpHeld;
         }
 
         /// <summary>Drops the character onto the surface below the given position.</summary>
@@ -92,6 +136,10 @@ namespace VoxelEngine.Showcase
 
             Position = new Vector3(near.x, (surface + 2) * VoxelSize, near.z);
             Velocity = Vector3.zero;
+            _airJumpAvailable = true;
+            _jumpWasHeld = false;
+            _jumpHoldSeconds = 0f;
+            AssistedFlight = false;
         }
 
         // -- movement ------------------------------------------------------------

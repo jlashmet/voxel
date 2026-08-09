@@ -20,8 +20,8 @@ namespace VoxelEngine.Showcase
     ///                       Generation and meshing are time-budgeted, so the cost is a slice
     ///                       per frame rather than a stall per region.
     ///   Sparse storage    — the mixed-brick count tracks surface area, not world volume.
-    ///   Shared traversal  — picking runs through <see cref="VoxelRaycast"/> and
-    ///                       <see cref="DdaTraversal"/>, the same walk the renderer will march.
+    ///   Shared traversal  — tornado collision runs through <see cref="DdaTraversal"/>, the
+    ///                       same deterministic walk used by the rest of the voxel engine.
     ///   Material behaviour— one blast leaves a clean crater in sand, a ragged one in stone,
     ///                       and no mark at all on bedrock.
     ///   Bounded memory    — fill a crater back in and watch allocated bricks fall as bricks
@@ -68,9 +68,6 @@ namespace VoxelEngine.Showcase
         [SerializeField] private float m_FlySpeed = 18f;
         [SerializeField] private float m_LookSensitivity = 2.5f;
 
-        [Tooltip("How far the player can reach to edit, in metres.")]
-        [SerializeField] private float m_ReachMetres = 12f;
-
         [Header("Editing")]
         [SerializeField] private int m_BrushRadius = 12;
         [SerializeField] private int m_MinBrushRadius = 2;
@@ -91,14 +88,11 @@ namespace VoxelEngine.Showcase
         private CharacterMotor _motor;
         private bool _spawned;
 
-        private int _materialSlot;
-        private bool _showHud = true;
         private bool _mouseLook = true;
+        private bool _flashlightEnabled;
         private float _yaw, _pitch;
         private double _lastEditMs;
         private string _lastEditLabel = "—";
-        private bool _hasAim;
-        private int3 _aimVoxel, _placeVoxel;
 
         private sealed class TornadoShot
         {
@@ -121,11 +115,7 @@ namespace VoxelEngine.Showcase
         private const int MaxActiveTornadoes = 8;
 
         public int ActiveTornadoCount => _tornadoes.Count;
-
-        private float _smoothedMs;
-        private float _worstMs;
-        private float _worstWindowStart;
-        private float _displayWorstMs;
+        public bool FlashlightEnabled => _flashlightEnabled;
 
         // -- lifecycle -----------------------------------------------------------
 
@@ -167,6 +157,7 @@ namespace VoxelEngine.Showcase
             VoxelRenderBridge.CutawayEnabled = false;
             VoxelRenderBridge.LocalLights = System.Array.Empty<Vector4>();
             VoxelRenderBridge.LocalLightColours = System.Array.Empty<Vector4>();
+            VoxelRenderBridge.FlashlightEnabled = false;
             VoxelRenderBridge.Source = null;
             VoxelRenderBridge.RegionsNeedingUpload = null;
 
@@ -234,11 +225,10 @@ namespace VoxelEngine.Showcase
             {
                 if (!_spawned) Spawn();
 
-                TrackFrameTime();
                 HandleKeys();
                 if (_mouseLook) HandleLook();
                 MovePlayer();
-                UpdateAim();
+                UpdateFlashlight();
                 HandleEdits();
                 StepTornadoes(Time.deltaTime);
                 _gpuDebris?.Step(_world, Time.deltaTime);
@@ -263,23 +253,6 @@ namespace VoxelEngine.Showcase
                 _renderer.SetVisible(true);
                 _renderer.CastShadows = m_CastShadows;
                 _renderer.Sync(_world, m_MeshBudgetMs);
-            }
-        }
-
-        private void TrackFrameTime()
-        {
-            float ms = Time.unscaledDeltaTime * 1000f;
-
-            // Exponential smoothing for the headline number, plus the worst frame in a rolling
-            // one-second window — an average alone hides exactly the hitches worth seeing here.
-            _smoothedMs = _smoothedMs <= 0f ? ms : Mathf.Lerp(_smoothedMs, ms, 0.05f);
-            _worstMs = Mathf.Max(_worstMs, ms);
-
-            if (Time.unscaledTime - _worstWindowStart >= 1f)
-            {
-                _displayWorstMs = _worstMs;
-                _worstMs = 0f;
-                _worstWindowStart = Time.unscaledTime;
             }
         }
 
@@ -345,7 +318,6 @@ namespace VoxelEngine.Showcase
         private void HandleKeys()
         {
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
-            if (Input.GetKeyDown(KeyCode.F1)) _showHud = !_showHud;
             if (Input.GetKeyDown(KeyCode.T)) m_CastShadows = !m_CastShadows;
 
             if (Input.GetKeyDown(KeyCode.F))
@@ -362,9 +334,6 @@ namespace VoxelEngine.Showcase
 
             if (Input.GetKeyDown(KeyCode.E)) TryInteract();
 
-            for (int i = 0; i < ShowcaseWorld.BuildableMaterials.Length; i++)
-                if (Input.GetKeyDown(KeyCode.Alpha1 + i)) _materialSlot = i;
-
             float scroll = Input.GetAxisRaw("Mouse ScrollWheel");
             if (Mathf.Abs(scroll) > 0.01f)
                 m_BrushRadius = Mathf.Clamp(m_BrushRadius + (scroll > 0f ? 2 : -2),
@@ -373,7 +342,8 @@ namespace VoxelEngine.Showcase
 
         /// <summary>Whether the player-facing E prompt should currently be visible.</summary>
         public bool InteractionPromptVisible => _world != null && _motor != null
-            && _world.CanOpenCastleTrapdoor(_motor.Position);
+            && (_world.CanOpenCastleFrontGate(_motor.Position)
+                || _world.CanOpenCastleTrapdoor(_motor.Position));
 
         /// <summary>
         /// Performs the interaction bound to E. Keeping this as a callable driver operation lets
@@ -382,12 +352,20 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public bool TryInteract()
         {
-            if (_world == null || _motor == null
-                || !_world.TryOpenCastleTrapdoor(_motor.Position)) return false;
+            if (_world == null || _motor == null) return false;
 
             _lastEditMs = 0.0;
-            _lastEditLabel = "secret cellar trapdoor opened";
-            return true;
+            if (_world.TryOpenCastleFrontGate(_motor.Position))
+            {
+                _lastEditLabel = "castle front gate opened";
+                return true;
+            }
+            if (_world.TryOpenCastleTrapdoor(_motor.Position))
+            {
+                _lastEditLabel = "secret cellar trapdoor opened";
+                return true;
+            }
+            return false;
         }
 
         private void HandleEdits()
@@ -400,14 +378,20 @@ namespace VoxelEngine.Showcase
                 _lastEditMs = 0.0;
                 _lastEditLabel = $"tornado launched r{m_BrushRadius}";
             }
-            else if (_hasAim && Input.GetMouseButtonDown(1))
-            {
-                byte material = ShowcaseWorld.BuildableMaterials[_materialSlot];
-                var start = Time.realtimeSinceStartupAsDouble;
-                int changed = _world.Place(_placeVoxel, (ushort)m_BrushRadius, material);
-                _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
-                _lastEditLabel = $"place {ShowcaseWorld.MaterialNames[material]} r{m_BrushRadius}: {changed:N0} voxels";
-            }
+            else if (Input.GetMouseButtonDown(1)) ToggleFlashlight();
+        }
+
+        public void ToggleFlashlight()
+        {
+            _flashlightEnabled = !_flashlightEnabled;
+            UpdateFlashlight();
+        }
+
+        private void UpdateFlashlight()
+        {
+            VoxelRenderBridge.FlashlightEnabled = _flashlightEnabled;
+            VoxelRenderBridge.FlashlightPosition = transform.position;
+            VoxelRenderBridge.FlashlightDirection = transform.forward;
         }
 
         /// <summary>Launches a visible corkscrew projectile; impact remains world-authoritative.</summary>
@@ -516,6 +500,51 @@ namespace VoxelEngine.Showcase
         }
 
         private bool TryTornadoImpact(Vector3 from, Vector3 to, out int3 hit)
+        {
+            Vector3 travel = to - from;
+            Vector3 forward = travel.sqrMagnitude > 1e-8f ? travel.normalized : transform.forward;
+            Vector3 right = Vector3.Cross(forward, Vector3.up);
+            if (right.sqrMagnitude < 1e-4f) right = Vector3.Cross(forward, Vector3.right);
+            right.Normalize();
+            Vector3 up = Vector3.Cross(right, forward).normalized;
+            const float sweepRadius = 0.28f;
+            const float diagonal = sweepRadius * 0.70710678f;
+            bool found = false;
+            float nearestDistance = float.MaxValue;
+            hit = default;
+            ConsiderTornadoLine(from, to, Vector3.zero, ref found, ref nearestDistance, ref hit);
+            ConsiderTornadoLine(from, to, right * sweepRadius,
+                                ref found, ref nearestDistance, ref hit);
+            ConsiderTornadoLine(from, to, -right * sweepRadius,
+                                ref found, ref nearestDistance, ref hit);
+            ConsiderTornadoLine(from, to, up * sweepRadius,
+                                ref found, ref nearestDistance, ref hit);
+            ConsiderTornadoLine(from, to, -up * sweepRadius,
+                                ref found, ref nearestDistance, ref hit);
+            ConsiderTornadoLine(from, to, (right + up) * diagonal,
+                                ref found, ref nearestDistance, ref hit);
+            ConsiderTornadoLine(from, to, (right - up) * diagonal,
+                                ref found, ref nearestDistance, ref hit);
+            ConsiderTornadoLine(from, to, (-right + up) * diagonal,
+                                ref found, ref nearestDistance, ref hit);
+            ConsiderTornadoLine(from, to, (-right - up) * diagonal,
+                                ref found, ref nearestDistance, ref hit);
+            return found;
+        }
+
+        private void ConsiderTornadoLine(Vector3 from, Vector3 to, Vector3 offset,
+                                         ref bool found, ref float nearestDistance, ref int3 hit)
+        {
+            if (!TryTornadoLineImpact(from + offset, to + offset, out int3 candidate)) return;
+            float distance = math.lengthsq((float3)candidate * VoxelSurfaceRenderer.VoxelSize
+                                           - (float3)from);
+            if (distance >= nearestDistance) return;
+            nearestDistance = distance;
+            hit = candidate;
+            found = true;
+        }
+
+        private bool TryTornadoLineImpact(Vector3 from, Vector3 to, out int3 hit)
         {
             int3 start = (int3)math.floor((float3)from / VoxelSurfaceRenderer.VoxelSize);
             int3 end = (int3)math.floor((float3)to / VoxelSurfaceRenderer.VoxelSize);
@@ -659,118 +688,13 @@ namespace VoxelEngine.Showcase
             Destroy(root, 1.2f);
         }
 
-        // -- picking -------------------------------------------------------------
-
-        /// <summary>
-        /// Resolves what the player is looking at, in two stages.
-        ///
-        /// <see cref="VoxelRaycast"/> walks brick coordinates and rejects empty space a brick at
-        /// a time; the refinement then walks voxels through the hit brick using the same
-        /// <see cref="DdaTraversal.Cursor"/>. Two scales, one traversal — a second line-walk
-        /// here is exactly how a picker drifts away from what the renderer draws.
-        /// </summary>
-        private void UpdateAim()
-        {
-            _hasAim = false;
-
-            var originVoxel = (float3)(transform.position / VoxelSurfaceRenderer.VoxelSize);
-            var direction = math.normalize((float3)transform.forward);
-            var originBrick = originVoxel / VoxelDimensions.BrickEdge;
-
-            if (!VoxelRaycast.Raycast(in _world.Table, in _world.Pool, originBrick, direction, out var hit))
-                return;
-
-            int reachVoxels = Mathf.CeilToInt(m_ReachMetres / VoxelSurfaceRenderer.VoxelSize);
-            int3 startVoxel = (int3)math.floor(originVoxel);
-            int3 endVoxel = startVoxel + (int3)math.round(direction * reachVoxels);
-
-            var cursor = DdaTraversal.Cursor.Between(startVoxel, endVoxel);
-            int3 previous = startVoxel;
-
-            while (cursor.MoveNext())
-            {
-                int3 v = cursor.Current;
-                if (VoxelAccess.IsSolid(ref _world.Table, in _world.Pool, v))
-                {
-                    _aimVoxel = v;
-                    _placeVoxel = previous;
-                    _hasAim = true;
-                    return;
-                }
-
-                previous = v;
-            }
-        }
-
-        // -- HUD -----------------------------------------------------------------
+        // -- interaction prompt --------------------------------------------------
 
         private void OnGUI()
         {
             if (!Application.isPlaying || _world == null || _renderer == null) return;
 
-            if (_showHud)
-            {
-            var style = new GUIStyle(GUI.skin.label) { fontSize = 13, richText = true, wordWrap = false };
-
-            GUI.Box(new Rect(10, 10, 430, 404), GUIContent.none);
-            GUILayout.BeginArea(new Rect(22, 20, 410, 388));
-
-            byte material = ShowcaseWorld.BuildableMaterials[_materialSlot];
-            int poolBytes = _world.Pool.AllocatedCount * VoxelDimensions.BytesPerMixedBrick;
-            float fps = _smoothedMs > 0f ? 1000f / _smoothedMs : 0f;
-            var rc = ShowcaseWorld.RegionAt(_motor.Position);
-
-            GUILayout.Label("<b>Voxel engine showcase</b>", style);
-            GUILayout.Label($"voxel {VoxelSurfaceRenderer.VoxelSize:0.00} m   " +
-                            $"brick {VoxelSurfaceRenderer.VoxelSize * VoxelDimensions.BrickEdge:0.0} m   " +
-                            $"region {ShowcaseWorld.RegionMetres:0.#} m   seed 0x{_world.Seed:X}", style);
-            GUILayout.Space(6);
-
-            GUILayout.Label($"<b>Frame</b>   {fps:0} fps   {_smoothedMs:0.0} ms   " +
-                            $"worst 1s {_displayWorstMs:0.0} ms", style);
-            GUILayout.Space(6);
-
-            GUILayout.Label($"<b>Player</b>   {(m_FlyMode ? "flying" : _motor.Grounded ? "grounded" : "airborne")}", style);
-            GUILayout.Label($"position   {_motor.Position.x:0.0}, {_motor.Position.y:0.0}, {_motor.Position.z:0.0} m" +
-                            $"   region {rc.x}, {rc.z}", style);
-            GUILayout.Space(6);
-
-            GUILayout.Label("<b>Streaming</b>", style);
-            GUILayout.Label($"resident regions   {_world.Table.ResidentCount}" +
-                            $"   (load r{_world.LoadRadiusRegions} / unload r{_world.UnloadRadiusRegions})", style);
-            GUILayout.Label($"generated / evicted {_world.RegionsGenerated} / {_world.RegionsEvicted}" +
-                            $"   queued {_world.PendingRegionLoads}   building {_world.GenerationProgress * 100f:0}%", style);
-            GUILayout.Label($"budgets   generate {_world.LastGenerateMs:0.0} / {m_GenerateBudgetMs:0.#} ms" +
-                            $"   mesh {_renderer.LastRebuildMs:0.0} / {m_MeshBudgetMs:0.#} ms" +
-                            $"   queue {_renderer.PendingRebuilds}", style);
-            GUILayout.Space(6);
-
-            GUILayout.Label("<b>Storage</b>", style);
-            GUILayout.Label($"mixed bricks       {_world.Pool.AllocatedCount:N0} / {_world.Pool.Capacity:N0}" +
-                            $"   ({poolBytes / (1024f * 1024f):0.0} MB)", style);
-            GUILayout.Label($"features           {_world.FeatureInstancesBuilt} built" +
-                            $"   {_world.FeatureVoxelsBuilt:N0} voxels   {_world.LastFeatureMs:0.0} ms", style);
-            GUILayout.Label(m_UseRaymarch
-                ? "renderer           GPU brickmap raymarch (no geometry)"
-                : $"renderer           mesh: {_renderer.FaceCount:N0} quads, {_renderer.VertexCount:N0} verts", style);
-            GUILayout.Space(6);
-
-            GUILayout.Label($"<b>Last edit</b>   {_lastEditLabel}   ({_lastEditMs:0.0} ms)", style);
-            GUILayout.Label($"physics            {(_gpuDebris?.ActiveVoxels ?? 0):N0} falling voxels in " +
-                            $"{_gpuDebris?.ActiveChunks ?? 0} GPU chunks   " +
-                            $"queued {_world.PendingDetachedChunks}   tornadoes {_tornadoes.Count}", style);
-            GUILayout.Space(4);
-
-            GUILayout.Label("WASD move   space jump   shift sprint   E interact   F fly   R respawn", style);
-            GUILayout.Label($"LMB tornado   RMB build   wheel impact radius   1-4 material   " +
-                            $"r{m_BrushRadius} <b>{ShowcaseWorld.MaterialNames[material]}</b>", style);
-            GUILayout.Label("T shadows   F1 hide HUD   esc release cursor", style);
-
-            GUILayout.EndArea();
-            }
-
-            // Interaction guidance is gameplay UI, not diagnostics. F1 may hide the performance
-            // HUD, but it must never make the secret hatch undiscoverable.
+            // Keep only contextual gameplay guidance; the persistent diagnostics overlay is gone.
             if (InteractionPromptVisible)
             {
                 var prompt = new GUIStyle(GUI.skin.box)
@@ -780,7 +704,8 @@ namespace VoxelEngine.Showcase
                     alignment = TextAnchor.MiddleCenter,
                 };
                 GUI.Box(new Rect(Screen.width * 0.5f - 120f, Screen.height - 96f, 240f, 40f),
-                        "E  OPEN TRAPDOOR", prompt);
+                        _world.CanOpenCastleFrontGate(_motor.Position)
+                            ? "E  OPEN CASTLE GATE" : "E  OPEN TRAPDOOR", prompt);
             }
         }
     }

@@ -82,6 +82,19 @@ namespace VoxelEngine.Rendering
         public static Vector4[] LocalLights = System.Array.Empty<Vector4>();
         public static Vector4[] LocalLightColours = System.Array.Empty<Vector4>();
 
+        /// <summary>
+        /// Camera-mounted spotlight consumed by the voxel compute shader. Unity lights cannot
+        /// illuminate the raymarch target, so gameplay equipment must cross this bridge too.
+        /// </summary>
+        public static bool FlashlightEnabled;
+        public static Vector3 FlashlightPosition;
+        public static Vector3 FlashlightDirection = Vector3.forward;
+        public static Color FlashlightColour = new(1.00f, 0.91f, 0.72f, 1f);
+        public static float FlashlightRange = 34f;
+        public static float FlashlightIntensity = 2.4f;
+        public static float FlashlightInnerCos = 0.94f;
+        public static float FlashlightOuterCos = 0.78f;
+
         /// <summary>Material colours by index. Element 0 is empty and never shaded.</summary>
         public static Vector4[] MaterialColours =
         {
@@ -100,6 +113,7 @@ namespace VoxelEngine.Rendering
             new(0.80f, 0.66f, 0.26f, 1f),   // gold
             new(0.38f, 0.31f, 0.24f, 1f),   // dirt
             new(0.32f, 0.40f, 0.24f, 1f),   // moss
+            new(0.16f, 0.19f, 0.18f, 1f),   // dark leaded window glass
         };
 
         public static bool TryGetWorld(out VoxelWorldView view)

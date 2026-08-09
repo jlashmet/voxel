@@ -71,6 +71,22 @@ namespace VoxelEngine.Tests.PlayMode
             Vector3 expectedView = (castleTarget - eye).normalized;
             Assert.Greater(Vector3.Dot(showcase.transform.forward, expectedView), 0.995f,
                 "Initial camera must frame the castle from the oblique spawn.");
+
+            Assert.False(showcase.FlashlightEnabled);
+            showcase.ToggleFlashlight();
+            Assert.True(showcase.FlashlightEnabled);
+
+            var motor = (CharacterMotor)typeof(VoxelShowcase)
+                .GetField("_motor", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
+            motor.Step(world, Vector3.zero, false, false, 0.016f);
+            motor.Step(world, Vector3.zero, false, true, 0.016f);
+            Assert.Greater(motor.Velocity.y, 0f, "the first Space press must jump");
+            motor.Step(world, Vector3.zero, false, false, 0.016f);
+            motor.Step(world, Vector3.zero, false, true, 0.016f);
+            Assert.Greater(motor.Velocity.y, 5f, "a second Space press must restore upward speed");
+            for (int i = 0; i < 30; i++)
+                motor.Step(world, Vector3.zero, false, true, 0.016f);
+            Assert.True(motor.AssistedFlight, "holding Space must transition from jumping to flight");
         }
     }
 }

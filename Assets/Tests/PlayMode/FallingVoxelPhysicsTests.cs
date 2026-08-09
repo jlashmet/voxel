@@ -121,6 +121,78 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
+        public void SmallBlastDoesNotCollapseAHealthyFullySupportedTower()
+        {
+            var world = new ShowcaseWorld(2468u, 32768, 1, 2);
+            try
+            {
+                for (int x = 10; x <= 30; x++)
+                for (int z = 10; z <= 30; z++)
+                {
+                    Set(world, new int3(x, 0, z), ShowcaseWorld.MatBedrock);
+                    for (int y = 1; y <= 40; y++)
+                        Set(world, new int3(x, y, z), 6);
+                }
+
+                int changed = world.Explode(new int3(20, 20, 20), 2);
+
+                Assert.LessOrEqual(changed, 33,
+                    "a radius-two impact propagated structural failure outside its sphere");
+                Assert.Zero(world.PendingDetachedChunks,
+                    "a healthy broad base was misclassified as an overloaded support thread");
+                Assert.AreEqual(6, Get(world, new int3(10, 40, 10)),
+                    "the distant tower roof was removed by a localized blast");
+                Assert.AreEqual(6, Get(world, new int3(30, 20, 30)),
+                    "the blast changed voxels well outside its visible impact volume");
+            }
+            finally
+            {
+                world.Dispose();
+            }
+        }
+
+        [Test]
+        public void OverloadCascadeRemovesRoofAndBannerOutsideAnalysisRadius()
+        {
+            var world = new ShowcaseWorld(8642u, 32768, 1, 2);
+            try
+            {
+                for (int x = 20; x <= 21; x++)
+                {
+                    Set(world, new int3(x, 0, 20), ShowcaseWorld.MatBedrock);
+                    for (int y = 1; y <= 10; y++)
+                        Set(world, new int3(x, y, 20), ShowcaseWorld.MatWood);
+                }
+
+                for (int x = 15; x <= 25; x++)
+                for (int y = 11; y <= 30; y++)
+                for (int z = 15; z <= 25; z++)
+                    Set(world, new int3(x, y, z), 6);
+
+                // The long tile roof and cloth banner extend beyond the overload pass's bounded
+                // analysis cylinder. They are initially grounded through the tower, then must be
+                // caught by the exact connectivity sweep after the overloaded section fails.
+                for (int x = 15; x <= 140; x++)
+                    Set(world, new int3(x, 31, 20), 8);
+                for (int y = 25; y <= 31; y++)
+                    Set(world, new int3(140, y, 20), 9);
+
+                world.RemoveAndResolveCollapse(new int3(21, 10, 20));
+
+                Assert.Greater(world.PendingDetachedChunks, 0,
+                    "the overloaded tower produced no falling visual sample");
+                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(140, 31, 20)),
+                    "roof outside the bounded overload pass remained floating");
+                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(140, 25, 20)),
+                    "banner severed with the roof remained floating");
+            }
+            finally
+            {
+                world.Dispose();
+            }
+        }
+
+        [Test]
         public void NaturalTerrainIsNeverClassifiedAsOverloadedArchitecture()
         {
             var world = new ShowcaseWorld(987u, 16384, 1, 2);
@@ -437,6 +509,31 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.Zero(showcase.ActiveTornadoCount, "projectile never reached its target");
             Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, target),
                 "impact did not destroy the target voxel");
+        }
+
+        [UnityTest]
+        public IEnumerator TornadoSweptVolumeCatchesOffsetTargetAcrossLongFrame()
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
+                "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+
+            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            var world = (ShowcaseWorld)typeof(VoxelShowcase)
+                .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
+
+            var origin = new Vector3(10f, 40f, 10f);
+            int3 target = new int3(160, 400, 102); // 20 cm off the projectile centre line.
+            Set(world, target, ShowcaseWorld.MatWood);
+            showcase.LaunchTornado(origin, Vector3.right, 2);
+
+            var step = typeof(VoxelShowcase).GetMethod(
+                "StepTornadoes", BindingFlags.NonPublic | BindingFlags.Instance);
+            step.Invoke(showcase, new object[] { 0.25f }); // seven metres in one frame.
+
+            Assert.Zero(showcase.ActiveTornadoCount,
+                "swept tornado tunnelled through an offset target during a long frame");
+            Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, target));
         }
 
         [UnityTest]

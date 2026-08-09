@@ -65,6 +65,10 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 ("approach", centre + new Vector3(0f, 11f, -52f * orbitScale),
                              centre + new Vector3(0f, 10f, 0f)),
+                ("terrain_layers", centre + new Vector3(-42f, 21f, -72f),
+                                   centre + new Vector3(4f, 3f, -15f)),
+                ("waterfall_river", centre + new Vector3(61f, 4f, -35f),
+                                    centre + new Vector3(38f, -4f, -17f)),
                 ("silhouette", centre + new Vector3(82f, 29f, -82f),
                                centre + new Vector3(0f, 11f, 0f)),
                 ("wall", centre + new Vector3(-32f, 8f, -22f),

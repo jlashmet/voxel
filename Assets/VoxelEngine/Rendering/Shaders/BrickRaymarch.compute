@@ -82,6 +82,13 @@ float4 g_MaterialColours[16];
 uint g_LocalLightCount;
 float4 g_LocalLights[20];          // xyz position in metres, w radius
 float4 g_LocalLightColours[20];    // rgb tint, w intensity
+uint g_FlashlightEnabled;
+float3 g_FlashlightPosition;
+float3 g_FlashlightDirection;
+float4 g_FlashlightColour;         // rgb linear tint, w intensity
+float g_FlashlightRange;
+float g_FlashlightInnerCos;
+float g_FlashlightOuterCos;
 
 static const int k_BrickEdge = 8;
 static const int k_RegionEdgeLog2 = 6;      // bricks per region edge = 64
@@ -616,7 +623,7 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // tighter highlight. This gives material changes a lighting consequence instead of making
     // every surface differ only by its base colour.
     float3 halfVector = normalize(g_SunDirection + viewToCamera);
-    float roughness = material == 4u ? 0.24
+    float roughness = material == 4u || material == 15u ? 0.24
                     : material == 7u || material == 8u ? 0.42
                     : material == 11u ? 0.18
                     : material == 14u ? 0.48 : 0.76;
@@ -645,6 +652,21 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
              * (g_LocalLightColours[lightIndex].w * shaped);
     }
 
+    if (g_FlashlightEnabled != 0u)
+    {
+        float3 lightToHit = hitMetres - g_FlashlightPosition;
+        float flashlightDistance = length(lightToHit);
+        float3 beamDirection = lightToHit / max(flashlightDistance, 0.001);
+        float cone = smoothstep(g_FlashlightOuterCos, g_FlashlightInnerCos,
+                                dot(beamDirection, normalize(g_FlashlightDirection)));
+        float rangeFade = saturate(1.0 - flashlightDistance / max(g_FlashlightRange, 0.01));
+        rangeFade *= rangeFade;
+        float flashlightFacing = saturate(dot(normal, -beamDirection));
+        float flashlightShape = cone * rangeFade * (0.12 + flashlightFacing * 0.88);
+        lit += albedo * g_FlashlightColour.rgb
+             * (g_FlashlightColour.w * flashlightShape);
+    }
+
     // Enclosed rooms cannot receive Unity lights because this renderer owns its pixels. A soft,
     // short-range camera-side bounce stands in for eye adaptation / a carried torch and affects
     // only surfaces facing the viewer within roughly eighteen metres.
@@ -654,20 +676,36 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
                        * saturate(1.0 - cameraDistance / 18.0) * 0.24;
     lit += albedo * cameraBounce * float3(1.16, 0.78, 0.46);
 
-    // Glass doubles as the presentation material for occupied windows until local-light probes
-    // arrive. A restrained emission keeps rooms legible in shade without turning windows white.
-    if (material == 4u) lit += albedo * 0.42;
+    // Ordinary glass stays cool for water/crystals. Exterior leaded windows use a separate dark
+    // material with a small amber interior response, avoiding the flat yellow stickers produced
+    // when every glass voxel was emissive orange.
+    if (material == 4u) lit += albedo * 0.10;
+    if (material == 15u)
+    {
+        int3 paneCell = int3(floor(hitVoxel / 4.0));
+        float pane = ((FarHash((uint)paneCell.x * 73856093u
+                             ^ (uint)paneCell.y * 19349663u
+                             ^ (uint)paneCell.z * 83492791u) >> 27) & 1u) != 0u
+                   ? 1.0 : 0.55;
+        lit += float3(0.26, 0.13, 0.045) * pane;
+    }
     if (material == 12u) lit += albedo * 0.34;
 
-    // Water is still voxel-opaque, but borrowing sky colour and a small emissive lift keeps thin
-    // streams and falling sheets readable against the dark ravine until refraction is added.
+    // Water is voxel-opaque, but the camera ray can still reflect the procedural sky. Fresnel
+    // keeps a little river-bed colour at steep viewing angles while broad horizontal surfaces
+    // become a bright mirror; vertical waterfall sheets retain the cooler translucent read.
     if (material == 11u)
     {
-        float fresnel = pow(1.0 - saturate(abs(normal.y)), 2.0);
-        lit = lerp(lit, g_SkyHorizon.rgb * 0.72, 0.28 + fresnel * 0.22);
+        float3 reflectedDirection = reflect(-viewToCamera, normal);
+        float3 reflectedSky = PresentationSky(reflectedDirection);
+        float facing = saturate(dot(normal, viewToCamera));
+        float fresnel = 0.04 + 0.96 * pow(1.0 - facing, 5.0);
+        float horizontal = smoothstep(0.45, 0.92, abs(normal.y));
+        float reflectionWeight = lerp(0.24, 0.48 + fresnel * 0.34, horizontal);
+        lit = lerp(lit, reflectedSky, reflectionWeight);
         // Water frequently sits beneath the east wall and tree canopy. Preserve a cool colour
         // floor there so the stream does not become indistinguishable from dark stone.
-        lit += float3(0.025, 0.16, 0.22);
+        lit += float3(0.018, 0.10, 0.14) * lerp(1.0, 0.45, horizontal);
     }
 
     // Tone map. Without it the bright faces clip flat and the whole image reads as washed-out
@@ -748,17 +786,17 @@ float FarHeightMetres(float3 p)
     // The authored voxel volume owns the playable landscape around the castle. Beyond it, build
     // broad mountain masses for composition only: they frame the skyline like the concept art
     // without creating CPU geometry, collision, or save-state that the player could reach. The
-    // 140 m clear radius keeps this addition well outside the castle cameras and their streamed
-    // regions; the long blend turns the intervening far field into foothills instead of a wall.
+    // Keep the authored castle volume clear, then rise decisively into the high enclosing peaks
+    // in the reference. The long blend still supplies foothills instead of a circular wall.
     float castleRadius = length(p.xz - float2(25.6, 37.6));
-    float mountainEnvelope = smoothstep(140.0, 360.0, castleRadius);
+    float mountainEnvelope = smoothstep(105.0, 285.0, castleRadius);
 
     float broad = FarOctave(wx, wz, 11, 1024) / 1024.0 + 0.5;
     float medium = FarOctave(wx, wz, 9, 1024) / 1024.0 + 0.5;
     float fine = FarOctave(wx, wz, 7, 1024) / 1024.0 + 0.5;
     float ridge = 1.0 - abs(broad * 2.0 - 1.0);
     float peaks = pow(saturate(ridge * 0.78 + medium * 0.32 + fine * 0.12 - 0.24), 1.65);
-    float mountains = mountainEnvelope * (8.0 + peaks * 78.0);
+    float mountains = mountainEnvelope * (12.0 + peaks * 108.0);
 
     return terrain + mountains;
 }
@@ -770,8 +808,8 @@ bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
     colour = float3(0, 0, 0);
 
     // Canonical terrain tops out around 49 m, while the presentation-only background can reach
-    // roughly 135 m. This is only an early-out ceiling; it does not change the voxel world bounds.
-    float maxHeight = 145.0;
+    // roughly 165 m. This is only an early-out ceiling; it does not change the voxel world bounds.
+    float maxHeight = 180.0;
     float3 p = origin + dir * tStart;
 
     // Looking up from above everything: nothing to find.
@@ -815,7 +853,7 @@ bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
             float3 normal = normalize(float3(hL - hR, 2.0 * e, hD - hU));
 
             float castleRadius = length(p.xz - float2(25.6, 37.6));
-            float mountainBlend = smoothstep(160.0, 390.0, castleRadius);
+            float mountainBlend = smoothstep(125.0, 325.0, castleRadius);
             uint material = mountainBlend > 0.42
                 ? 6u
                 : (p.y < (float)g_FarBaseHeight * g_VoxelSize ? 3u : 10u);
@@ -824,7 +862,7 @@ bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
             // Mountains get atmospheric perspective early enough to sit behind the castle rather
             // than competing with it; the terrain horizon keeps its original long-distance fade.
             float haze = saturate((hi - g_FarDistance * 0.35) / (g_FarDistance * 0.65));
-            float mountainHaze = mountainBlend * smoothstep(160.0, 950.0, hi) * 0.46;
+            float mountainHaze = mountainBlend * smoothstep(190.0, 1050.0, hi) * 0.42;
             colour = lerp(colour, SkyColour(dir), max(haze * 0.85, mountainHaze));
             return true;
         }

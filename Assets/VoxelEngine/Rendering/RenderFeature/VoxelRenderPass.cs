@@ -67,6 +67,13 @@ namespace VoxelEngine.Rendering
         private static readonly int s_LocalLightCount = Shader.PropertyToID("g_LocalLightCount");
         private static readonly int s_LocalLights = Shader.PropertyToID("g_LocalLights");
         private static readonly int s_LocalLightColours = Shader.PropertyToID("g_LocalLightColours");
+        private static readonly int s_FlashlightEnabled = Shader.PropertyToID("g_FlashlightEnabled");
+        private static readonly int s_FlashlightPosition = Shader.PropertyToID("g_FlashlightPosition");
+        private static readonly int s_FlashlightDirection = Shader.PropertyToID("g_FlashlightDirection");
+        private static readonly int s_FlashlightColour = Shader.PropertyToID("g_FlashlightColour");
+        private static readonly int s_FlashlightRange = Shader.PropertyToID("g_FlashlightRange");
+        private static readonly int s_FlashlightInnerCos = Shader.PropertyToID("g_FlashlightInnerCos");
+        private static readonly int s_FlashlightOuterCos = Shader.PropertyToID("g_FlashlightOuterCos");
 
         private readonly VoxelGpuBuffers _buffers = new();
         private ComputeShader _raymarch;
@@ -328,6 +335,22 @@ namespace VoxelEngine.Rendering
                     cmd.SetComputeVectorArrayParam(data.Raymarch, s_LocalLightColours,
                                                    VoxelRenderBridge.LocalLightColours);
                 }
+                cmd.SetComputeIntParam(data.Raymarch, s_FlashlightEnabled,
+                                       VoxelRenderBridge.FlashlightEnabled ? 1 : 0);
+                cmd.SetComputeVectorParam(data.Raymarch, s_FlashlightPosition,
+                                          VoxelRenderBridge.FlashlightPosition);
+                cmd.SetComputeVectorParam(data.Raymarch, s_FlashlightDirection,
+                                          VoxelRenderBridge.FlashlightDirection.normalized);
+                Color flashlight = VoxelRenderBridge.FlashlightColour.linear;
+                cmd.SetComputeVectorParam(data.Raymarch, s_FlashlightColour,
+                    new Vector4(flashlight.r, flashlight.g, flashlight.b,
+                                VoxelRenderBridge.FlashlightIntensity));
+                cmd.SetComputeFloatParam(data.Raymarch, s_FlashlightRange,
+                                         VoxelRenderBridge.FlashlightRange);
+                cmd.SetComputeFloatParam(data.Raymarch, s_FlashlightInnerCos,
+                                         VoxelRenderBridge.FlashlightInnerCos);
+                cmd.SetComputeFloatParam(data.Raymarch, s_FlashlightOuterCos,
+                                         VoxelRenderBridge.FlashlightOuterCos);
 
                 // Seed the target with what URP has drawn so far, so rays that miss composite
                 // as "unchanged" rather than as this shader's idea of the sky.

@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Core.Terrain;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures;
 
@@ -50,6 +51,121 @@ namespace VoxelEngine.Tests.PlayMode
             for (int x = hatch.x - half; x < hatch.x + half; x++)
                 Assert.AreEqual(Mat.Empty, Get(world, x, y, z),
                     $"opened hatch left a blocking voxel at {x},{y},{z}");
+        }
+
+        [UnityTest]
+        public IEnumerator FrontGateOpensForANearbyPlayerAndClearsThePassage()
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
+                "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+
+            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            var world = (ShowcaseWorld)typeof(VoxelShowcase)
+                .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
+
+            const int cx = ShowcaseWorld.RegionVoxelEdge / 2;
+            const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
+            int ground = world.SurfaceHeight(cx, cz);
+            CastlePlan plan = CastleBuilder.Plan(new int3(cx, ground, cz), world.Seed);
+            int3 min = CastleBuilder.FrontGateMinimum(in plan);
+
+            Assert.AreEqual(Mat.Wood,
+                Get(world, min.x + 6, min.y + 8, min.z),
+                "the front arch must begin with a visible closed timber gate");
+            Assert.AreEqual(Mat.DarkStone,
+                Get(world, min.x + CastleBuilder.FrontGateWidth / 2, min.y + 8, min.z),
+                "the closed gate must include visible structural ironwork");
+            Assert.That(world.TryOpenCastleFrontGate(world.CastleFrontGatePosition
+                                                     + Vector3.forward * 20f), Is.False,
+                "a distant E interaction must not open the castle gate");
+            Assert.That(world.TryOpenCastleFrontGate(world.CastleFrontGatePosition), Is.True,
+                "a player on the bridge should be able to open the front gate");
+            Assert.That(world.CastleFrontGateOpen, Is.True);
+
+            int half = CastleBuilder.FrontGateWidth / 2;
+            int archTop = CastleBuilder.FrontGateHeight - half;
+            for (int d = 0; d < CastleBuilder.FrontGateDepth; d++)
+            for (int w = 0; w < CastleBuilder.FrontGateWidth; w++)
+            for (int h = 0; h < CastleBuilder.FrontGateHeight; h++)
+            {
+                int dx = w - half;
+                if (h > archTop && dx * dx + (h - archTop) * (h - archTop) > half * half)
+                    continue;
+                Assert.AreEqual(Mat.Empty, Get(world, min.x + w, min.y + h, min.z + d),
+                    $"opened front gate left a blocking voxel at {w},{h},{d}");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator CastleLandscapeContainsConnectedWaterLevelsAndSupportedBridge()
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
+                "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+
+            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            var world = (ShowcaseWorld)typeof(VoxelShowcase)
+                .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
+
+            const int cx = ShowcaseWorld.RegionVoxelEdge / 2;
+            const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
+            int ground = world.SurfaceHeight(cx, cz);
+            CastlePlan plan = CastleBuilder.Plan(new int3(cx, ground, cz), world.Seed);
+            int top = plan.Centre.y + plan.PlateauHeight;
+            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
+            int riverZ = gateZ - plan.WallThickness - 92;
+            int riverY = top - 68;
+
+            Assert.AreEqual(Mat.Water, Get(world, cx, riverY, riverZ),
+                "the lower approach river is missing beneath the bridge");
+            Assert.AreEqual(Mat.Wood, Get(world, cx, top - 2, riverZ),
+                "the timber bridge does not cross the lower river");
+            Assert.AreEqual(Mat.DarkStone, Get(world, cx + 24, riverY + 10, riverZ),
+                "the bridge deck has no masonry pier carrying it from the river bed");
+
+            bool grassBank = false;
+            bool dirtBank = false;
+            int bankX = cx + 80;
+            int bankChannelZ = riverZ
+                + (int)math.round(math.sin((bankX - plan.Centre.x) * 0.028f) * 8f
+                                  + math.sin((bankX - plan.Centre.x) * 0.071f) * 3f);
+            int bankZ = bankChannelZ + 65;
+            for (int y = riverY; y <= top; y++)
+            {
+                byte material = Get(world, bankX, y, bankZ);
+                grassBank |= material == Mat.Grass;
+                dirtBank |= material == Mat.Dirt;
+            }
+            Assert.True(grassBank && dirtBank,
+                "the gorge wall must expose both a grass lip and dirt strata");
+
+            int streamZ = plan.Centre.z - plan.BaileyHalfZ + 84;
+            int streamStartX = plan.Centre.x + plan.BaileyHalfX + plan.TowerRadius + 22;
+            int fallX = plan.Centre.x + plan.PlateauRadius - 8;
+            int streamX = (streamStartX + fallX) / 2;
+            float streamT = (streamX - streamStartX) / (float)math.max(1, fallX - streamStartX);
+            int streamY = top - 7 - (int)math.round(streamT * 22f);
+            Assert.AreEqual(Mat.Water, Get(world, streamX, streamY, streamZ),
+                "the upper stream beside the castle is missing");
+
+            int poolX = fallX + plan.CliffDrop + 24;
+            int sampledGround = TerrainSampler.HeightAt(poolX, streamZ, world.Seed);
+            int poolY = math.clamp(sampledGround - 20, top - 74, top - 64);
+            Assert.AreEqual(Mat.Water, Get(world, fallX, poolY + 2, streamZ),
+                "the upper stream does not form a waterfall into its plunge pool");
+
+            int downstreamX = poolX - 31;
+            int lowerRiverAtOutlet = riverZ
+                + (int)math.round(math.sin((downstreamX - plan.Centre.x) * 0.028f) * 8f
+                                  + math.sin((downstreamX - plan.Centre.x) * 0.071f) * 3f);
+            int outletStartZ = streamZ - 33;
+            int outletZ = (outletStartZ + lowerRiverAtOutlet) / 2;
+            float outletT = (outletStartZ - outletZ)
+                          / (float)math.max(1, outletStartZ - lowerRiverAtOutlet);
+            int outletY = (int)math.round(math.lerp(poolY, riverY, outletT));
+            Assert.AreEqual(Mat.Water, Get(world, downstreamX, outletY, outletZ),
+                "the waterfall pool is not connected to the lower river");
         }
 
         [UnityTest]

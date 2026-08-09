@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Structures;
 
 namespace VoxelEngine.Showcase
 {
@@ -594,6 +595,7 @@ namespace VoxelEngine.Showcase
                 new Color(0.80f, 0.66f, 0.26f),             // gold
                 new Color(0.38f, 0.31f, 0.24f),             // dirt
                 new Color(0.32f, 0.40f, 0.24f),             // moss
+                new Color(0.16f, 0.19f, 0.18f),             // dark leaded window glass
             };
 
             var materials = new Material[colours.Length];
@@ -609,8 +611,9 @@ namespace VoxelEngine.Showcase
                 // the shader does not declare is a no-op, so both are safe to set.
                 materials[i].SetColor("_Color", colours[i]);
                 materials[i].SetColor("_BaseColor", colours[i]);
-                materials[i].SetFloat("_Glossiness", i == ShowcaseWorld.MatGlass ? 0.7f : 0.05f);
-                materials[i].SetFloat("_Smoothness", i == ShowcaseWorld.MatGlass ? 0.7f : 0.05f);
+                bool glazing = i == ShowcaseWorld.MatGlass || i == Mat.LitWindow;
+                materials[i].SetFloat("_Glossiness", glazing ? 0.7f : 0.05f);
+                materials[i].SetFloat("_Smoothness", glazing ? 0.7f : 0.05f);
                 materials[i].SetFloat("_Metallic", 0f);
             }
 

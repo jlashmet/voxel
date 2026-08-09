@@ -26,5 +26,6 @@ namespace VoxelEngine.Structures
         public const byte Gold = 12;        // finials, treasure
         public const byte Dirt = 13;        // paths, cave floor
         public const byte Moss = 14;        // weathering on old stone
+        public const byte LitWindow = 15;   // dark leaded exterior glazing with warm interior
     }
 }
