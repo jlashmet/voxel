@@ -1366,6 +1366,12 @@ namespace VoxelEngine.Structures
                        32, 34, 8, 0, Mat.Empty);
             brush.Box(new int3(min.x + 2, baseY + 35, centreZ - 10),
                       new int3(3, 24, 20), Mat.Glass);
+            // Stone tracery divides the former single glowing rectangle into a cross and four
+            // warm panes. At room scale this reads as a leaded rose window rather than a lamp.
+            brush.Box(new int3(min.x + 1, baseY + 35, centreZ - 2),
+                      new int3(5, 24, 4), Mat.DarkStone);
+            brush.Box(new int3(min.x + 1, baseY + 45, centreZ - 10),
+                      new int3(5, 4, 20), Mat.DarkStone);
             for (int side = -1; side <= 1; side += 2)
             {
                 int z = centreZ + side * 34;
@@ -1375,18 +1381,52 @@ namespace VoxelEngine.Structures
                           new int3(8, 26, 2), Mat.Glass);
             }
 
-            // Raised altar at the west end. Pews flank a 1.6 m aisle from the keep doorway, so
-            // the room remains traversable even though it reads as densely furnished.
-            brush.Box(new int3(min.x + 9, baseY + 1, centreZ - 22),
-                      new int3(14, 5, 44), Mat.DarkStone);
-            brush.Box(new int3(min.x + 13, baseY + 8, centreZ - 14),
-                      new int3(7, 15, 28), Mat.Cloth);
-            brush.Box(new int3(min.x + 10, baseY + 14, centreZ - 2),
-                      new int3(12, 4, 4), Mat.Gold);
-            brush.Box(new int3(min.x + 14, baseY + 10, centreZ - 2),
-                      new int3(4, 13, 4), Mat.Gold);
-            brush.Box(new int3(min.x + 18, baseY + 6, centreZ - 18),
-                      new int3(10, 5, 36), Mat.Wood);
+            // A layered sanctuary replaces the old flat red block: two stone steps, a timber
+            // altar table, a triptych reredos, canopy, columns, cross, and clustered candles.
+            // It ends before x=min+31, preserving the full 1.6 m processional aisle contract.
+            brush.Box(new int3(min.x + 7, baseY + 1, centreZ - 27),
+                      new int3(21, 2, 54), Mat.DarkStone);
+            brush.Box(new int3(min.x + 9, baseY + 3, centreZ - 24),
+                      new int3(17, 2, 48), Mat.Stone);
+            brush.Box(new int3(min.x + 19, baseY + 7, centreZ - 21),
+                      new int3(8, 5, 42), Mat.Wood);
+            brush.Box(new int3(min.x + 17, baseY + 5, centreZ - 24),
+                      new int3(3, 9, 4), Mat.Wood);
+            brush.Box(new int3(min.x + 17, baseY + 5, centreZ + 20),
+                      new int3(3, 9, 4), Mat.Wood);
+
+            for (int panel = -1; panel <= 1; panel++)
+            {
+                int panelWidth = panel == 0 ? 15 : 11;
+                int panelZ = centreZ + panel * 17 - panelWidth / 2;
+                brush.Box(new int3(min.x + 7, baseY + 12, panelZ),
+                          new int3(3, panel == 0 ? 28 : 23, panelWidth), Mat.Cloth);
+                brush.Box(new int3(min.x + 6, baseY + 10, panelZ - 2),
+                          new int3(2, 3, panelWidth + 4), Mat.Gold);
+            }
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int columnZ = centreZ + side * 25 - 4;
+                brush.Box(new int3(min.x + 6, baseY + 7, columnZ),
+                          new int3(8, 36, 8), Mat.DarkStone);
+                brush.Box(new int3(min.x + 4, baseY + 40, columnZ - 2),
+                          new int3(12, 6, 12), Mat.Stone);
+            }
+            brush.Box(new int3(min.x + 5, baseY + 43, centreZ - 31),
+                      new int3(11, 6, 62), Mat.DarkStone);
+            brush.Box(new int3(min.x + 11, baseY + 20, centreZ - 2),
+                      new int3(10, 4, 4), Mat.Gold);
+            brush.Box(new int3(min.x + 14, baseY + 14, centreZ - 2),
+                      new int3(4, 17, 4), Mat.Gold);
+
+            for (int candle = -2; candle <= 2; candle++)
+            {
+                int candleZ = centreZ + candle * 7;
+                brush.Box(new int3(min.x + 20, baseY + 12, candleZ - 1),
+                          new int3(2, 5 + (candle & 1), 2), Mat.Glass);
+                brush.Box(new int3(min.x + 19, baseY + 11, candleZ - 2),
+                          new int3(4, 2, 4), Mat.Gold);
+            }
 
             for (int row = 0; row < 3; row++)
             for (int side = -1; side <= 1; side += 2)
@@ -1397,26 +1437,46 @@ namespace VoxelEngine.Structures
                           new int3(7, 6, 20), Mat.Wood);
                 brush.Box(new int3(x + 5, baseY + 7, z - 10),
                           new int3(3, 10, 20), Mat.Wood);
+                brush.Box(new int3(x + 1, baseY + 9, z - 8),
+                          new int3(4, 2, 16), row == 0 ? Mat.Gold : Mat.Wood);
             }
 
-            // Timber hammer-beam suggestion and warm hanging lamps in the tall volume.
-            for (int x = min.x + 18; x < min.x + width - 12; x += 20)
+            // Hammer-beam tie bars and mirrored stepped braces shape a legible timber vault
+            // beneath the tall roof instead of leaving one featureless flat ceiling.
+            for (int x = min.x + 24; x < min.x + width - 5; x += 24)
             {
-                brush.Box(new int3(x, baseY + 55, min.z + 7),
+                brush.Box(new int3(x, baseY + 49, min.z + 7),
                           new int3(4, 4, depth - 14), Mat.Wood);
-                brush.Box(new int3(x, baseY + 44, min.z + 7),
-                          new int3(4, 15, 4), Mat.Wood);
-                brush.Box(new int3(x, baseY + 44, min.z + depth - 11),
-                          new int3(4, 15, 4), Mat.Wood);
+                for (int step = 0; step < 12; step++)
+                {
+                    int braceY = baseY + 50 + step * 2;
+                    int southZ = min.z + 8 + step * 3;
+                    int northZ = min.z + depth - 12 - step * 3;
+                    brush.Box(new int3(x, braceY, southZ),
+                              new int3(4, 3, 5), Mat.Wood);
+                    brush.Box(new int3(x, braceY, northZ),
+                              new int3(4, 3, 5), Mat.Wood);
+                }
             }
-            for (int side = -1; side <= 1; side += 2)
+
+            // Two properly scaled chandeliers recede down the centre line. Cross-arms, chains,
+            // and four small lamps read as fixtures; the former 70 cm glowing cubes did not.
+            int[] chandelierX = { min.x + 30, min.x + 52 };
+            for (int i = 0; i < chandelierX.Length; i++)
             {
-                brush.Box(new int3(min.x + width / 2 - 2, baseY + 28,
-                                   centreZ + side * 24 - 2),
-                          new int3(4, 9, 4), Mat.Glass);
-                brush.Box(new int3(min.x + width / 2 - 1, baseY + 37,
-                                   centreZ + side * 24 - 1),
-                          new int3(2, 18, 2), Mat.Gold);
+                int cx = chandelierX[i];
+                int fixtureY = baseY + 39 + i * 2;
+                brush.Box(new int3(cx - 1, fixtureY + 3, centreZ - 1),
+                          new int3(2, 26 - i * 2, 2), Mat.Gold);
+                brush.Box(new int3(cx - 10, fixtureY, centreZ - 1),
+                          new int3(20, 3, 2), Mat.Gold);
+                brush.Box(new int3(cx - 1, fixtureY, centreZ - 10),
+                          new int3(2, 3, 20), Mat.Gold);
+                int2[] lamps = { new(-9, 0), new(8, 0), new(0, -9), new(0, 8) };
+                for (int lamp = 0; lamp < lamps.Length; lamp++)
+                    brush.Box(new int3(cx + lamps[lamp].x - 1, fixtureY - 3,
+                                       centreZ + lamps[lamp].y - 1),
+                              new int3(3, 5, 3), Mat.Glass);
             }
 
             brush.Gable(new int3(min.x - 4, baseY + height, min.z - 4),
