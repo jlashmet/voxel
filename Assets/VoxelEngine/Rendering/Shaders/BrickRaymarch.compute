@@ -485,7 +485,8 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
         }
     }
 
-    if (NaturalTerrainCap(material, terrainVoxel))
+    bool naturalTerrainSurface = NaturalTerrainCap(material, terrainVoxel);
+    if (naturalTerrainSurface)
     {
         float3 terrainNormal = SmoothNaturalTerrainNormal(terrainVoxel);
         // Preserve a hint of the close voxel face for material readability, then converge to the
@@ -503,6 +504,7 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
         normal = normalize(lerp(faceNormal, volumeNormal, volumeBlend));
     }
     float3 albedo = g_MaterialColours[min(material, 15u)].rgb;
+    bool foliageSurface = (material == 10u || material == 14u) && !naturalTerrainSurface;
 
     // The voxel material remains dominant. The authored maps contribute restrained colour
     // variation in world space, so region boundaries cannot introduce UV seams. Estimate the
@@ -512,7 +514,8 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     float2 surfaceUv = SurfaceUV(normal, hitVoxel);
     float3 mappedNormal = SampleSurfaceNormal(material, surfaceUv, hitVoxel,
                                                hitDistance, normal, textureLod);
-    float normalStrength = (material == 1u || material == 6u) ? 0.32 : 0.22;
+    float normalStrength = foliageSurface ? 0.04
+                         : (material == 1u || material == 6u) ? 0.32 : 0.22;
     normalStrength *= 1.0 - smoothstep(18.0, 64.0, hitDistance);
     normal = normalize(lerp(normal, mappedNormal, normalStrength));
 
@@ -520,7 +523,21 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
                                            hitDistance, albedo, textureLod);
     float textureWeight = lerp(0.28, 0.12, saturate(hitDistance / 350.0));
 
-    if (material == 1u)
+    if (foliageSurface)
+    {
+        // Tree crowns use the grass/moss palette but should not inherit a stretched terrain
+        // painting. Broad per-cluster and fine leaf values make overlapping lobes readable while
+        // keeping the renderer to one opaque voxel material.
+        int3 leafCell = int3(floor(hitVoxel / 3.0));
+        uint leafHash = FarHash((uint)leafCell.x * 73856093u
+                              ^ (uint)leafCell.y * 19349663u
+                              ^ (uint)leafCell.z * 83492791u);
+        float leafValue = 0.76 + ((leafHash >> 24) & 255u) * (0.34 / 255.0);
+        float upwardValue = lerp(0.82, 1.08, saturate(normal.y * 0.5 + 0.5));
+        albedo *= leafValue * upwardValue;
+        albedo = lerp(albedo, textured, 0.08);
+    }
+    else if (material == 1u)
     {
         // The stone map is intentionally pale blue and looks attractive in isolation, but using
         // that average colour directly bleaches an entire fortress. Preserve its painted chips,
@@ -582,15 +599,22 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     float shadow = ndotl > 0.0 ? SunShadow(hitVoxel, faceNormal) : 1.0;
     float ao = Occlusion(hitVoxel, normal);
     float3 sunColour = float3(1.00, 0.78, 0.57);
+    float3 viewToCamera = normalize(g_CameraPos / g_VoxelSize - hitVoxel);
 
     float3 lit = albedo * (ambient * lerp(0.58, 1.0, ao)
                          + sunColour * ndotl * shadow * 0.88
                          + fill * ao);
 
+    if (foliageSurface)
+    {
+        float transmitted = saturate(dot(-normal, g_SunDirection));
+        float rim = pow(1.0 - saturate(dot(normal, viewToCamera)), 2.0);
+        lit += albedo * sunColour * (0.10 + transmitted * 0.20 + rim * 0.08);
+    }
+
     // Even rough stone has a broad grazing response; slate, glass, wet moss, and water carry a
     // tighter highlight. This gives material changes a lighting consequence instead of making
     // every surface differ only by its base colour.
-    float3 viewToCamera = normalize(g_CameraPos / g_VoxelSize - hitVoxel);
     float3 halfVector = normalize(g_SunDirection + viewToCamera);
     float roughness = material == 4u ? 0.24
                     : material == 7u || material == 8u ? 0.42

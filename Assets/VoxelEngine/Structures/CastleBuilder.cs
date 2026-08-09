@@ -389,6 +389,23 @@ namespace VoxelEngine.Structures
                           bay % 3 == 0 ? Mat.Stone : Mat.DarkStone);
             }
 
+            // Tapered ivy tongues replace rectangular green decals. They climb from vegetation
+            // at the footing and break into narrower off-axis strands as they rise.
+            int[] ivyOffsets = { -214, -162, -108, 116, 171, 218 };
+            for (int i = 0; i < ivyOffsets.Length; i++)
+            {
+                int rootX = plan.Centre.x + ivyOffsets[i];
+                if (math.abs(ivyOffsets[i]) >= plan.BaileyHalfX - plan.TowerRadius) continue;
+                int ivyHeight = 24 + (i * 13 % 31);
+                for (int y = 0; y < ivyHeight; y += 6)
+                {
+                    int width = math.max(2, 9 - y / 7);
+                    int drift = ((i & 1) == 0 ? 1 : -1) * (y / 10);
+                    brush.Box(new int3(rootX + drift, top + 2 + y, gateZ - 2),
+                              new int3(width, math.min(7, ivyHeight - y), 2), Mat.Moss);
+                }
+            }
+
             // Two irregular foreground copses create depth layers in the hero view without
             // hiding the gate or repeating the evenly spaced procedural tree belt.
             int2[] copseOffsets =
@@ -618,32 +635,33 @@ namespace VoxelEngine.Structures
             brush.Cylinder(x, y, z, trunkRadius, height, Mat.Wood);
 
             int centreY = y + height - canopyRadius / 2;
-            int verticalRadius = canopyRadius + 5;
-            for (int dz = -canopyRadius; dz <= canopyRadius; dz++)
-            for (int dx = -canopyRadius; dx <= canopyRadius; dx++)
-            {
-                float radial = (dx * dx + dz * dz) / (float)(canopyRadius * canopyRadius);
-                if (radial > 1f) continue;
+            int lobeRadius = math.max(7, canopyRadius * 3 / 4);
 
+            // A clustered crown exposes concave gaps and overlapping silhouettes. The former
+            // single ellipsoid was mathematically smooth but read as one solid green boulder.
+            FoliageBlob(ref brush, x, centreY + 3, z, lobeRadius + 2, lobeRadius + 5, foliage);
+            FoliageBlob(ref brush, x - canopyRadius / 2, centreY - 2,
+                        z - canopyRadius / 4, lobeRadius, lobeRadius, foliage);
+            FoliageBlob(ref brush, x + canopyRadius / 2, centreY,
+                        z + canopyRadius / 5, lobeRadius, lobeRadius + 1, foliage);
+            FoliageBlob(ref brush, x + canopyRadius / 5, centreY + canopyRadius / 2,
+                        z - canopyRadius / 2, lobeRadius - 1, lobeRadius, foliage);
+            FoliageBlob(ref brush, x - canopyRadius / 4, centreY + canopyRadius / 3,
+                        z + canopyRadius / 2, lobeRadius - 2, lobeRadius - 1, foliage);
+        }
+
+        private static void FoliageBlob(ref VoxelBrush brush, int x, int y, int z,
+                                        int radius, int verticalRadius, byte foliage)
+        {
+            for (int dz = -radius; dz <= radius; dz++)
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                float radial = (dx * dx + dz * dz) / (float)(radius * radius);
+                if (radial > 1f) continue;
                 int halfHeight = math.max(1,
                     (int)math.round(math.sqrt(1f - radial) * verticalRadius));
-                brush.FillColumnBulk(x + dx, centreY - halfHeight, centreY + halfHeight + 1,
+                brush.FillColumnBulk(x + dx, y - halfHeight, y + halfHeight + 1,
                                      z + dz, foliage);
-            }
-
-            // A smaller offset crown avoids the unmistakable perfect-ellipsoid silhouette.
-            int crownRadius = math.max(7, canopyRadius - 5);
-            int crownX = x + canopyRadius / 3;
-            int crownZ = z - canopyRadius / 4;
-            int crownY = centreY + canopyRadius / 2;
-            for (int dz = -crownRadius; dz <= crownRadius; dz++)
-            for (int dx = -crownRadius; dx <= crownRadius; dx++)
-            {
-                int radialSq = dx * dx + dz * dz;
-                if (radialSq > crownRadius * crownRadius) continue;
-                int halfHeight = (int)math.round(math.sqrt(crownRadius * crownRadius - radialSq));
-                brush.FillColumnBulk(crownX + dx, crownY - halfHeight, crownY + halfHeight + 1,
-                                     crownZ + dz, foliage);
             }
         }
 
@@ -1287,6 +1305,8 @@ namespace VoxelEngine.Structures
                           new int3(3, keepStains[i].y + 5, 2), Mat.Moss);
             }
 
+            KeepRearOriel(ref brush, in plan, min, size, baseY);
+
             // Battlements and a steep roof.
             int topY = baseY + floors * plan.FloorHeight;
             brush.Box(new int3(min.x - 5, topY, min.z - 5), new int3(size.x + 10, 6, size.z + 10), Mat.DarkStone);
@@ -1303,6 +1323,62 @@ namespace VoxelEngine.Structures
 
             GreatHallWing(ref brush, in plan, min, size, baseY);
             ChapelWing(ref brush, in plan, min, size, baseY);
+        }
+
+        /// <summary>
+        /// A two-storey timber oriel accumulated on the rear keep wall. Each level opens directly
+        /// into an existing room, so the silhouette gain is still real accessible architecture
+        /// rather than a sealed facade prop.
+        /// </summary>
+        private static void KeepRearOriel(ref VoxelBrush brush, in CastlePlan plan,
+                                          int3 keepMin, int3 keepSize, int baseY)
+        {
+            const int width = 44;
+            const int depth = 22;
+            int minX = plan.Centre.x + 18;
+            int wallZ = keepMin.z + keepSize.z;
+            // Start above the curtain wall so the occupied volume participates in the exterior
+            // silhouette rather than being almost entirely hidden behind the battlements.
+            int firstFloorY = baseY + plan.FloorHeight * 2;
+
+            // Stone corbels visibly carry the timber volume from below.
+            for (int x = 3; x < width - 2; x += 12)
+                brush.Box(new int3(minX + x, firstFloorY - 13, wallZ + 2),
+                          new int3(5, 13, 14), Mat.DarkStone);
+
+            for (int storey = 0; storey < 2; storey++)
+            {
+                int y = firstFloorY + storey * plan.FloorHeight;
+                brush.Box(new int3(minX, y, wallZ - 2),
+                          new int3(width, 4, depth), Mat.Wood);
+                brush.Box(new int3(minX, y + 4, wallZ + depth - 5),
+                          new int3(width, plan.FloorHeight - 7, 4), Mat.Wood);
+                brush.Box(new int3(minX, y + 4, wallZ),
+                          new int3(4, plan.FloorHeight - 7, depth - 3), Mat.Wood);
+                brush.Box(new int3(minX + width - 4, y + 4, wallZ),
+                          new int3(4, plan.FloorHeight - 7, depth - 3), Mat.Wood);
+
+                // Three tall glazed bays separated by structural posts.
+                for (int bay = 0; bay < 3; bay++)
+                {
+                    int bayX = minX + 5 + bay * 13;
+                    brush.Box(new int3(bayX, y + 9, wallZ + depth - 4),
+                              new int3(9, plan.FloorHeight - 18, 3), Mat.Glass);
+                }
+
+                // A broad threshold connects each bay to the generated room and leaves the
+                // timber floor intact beneath the actor.
+                brush.Box(new int3(minX + 8, y + 4, wallZ - 8),
+                          new int3(width - 16, 25, 12), Mat.Empty);
+                brush.Box(new int3(minX + 4, y + 4, wallZ + 4),
+                          new int3(width - 8, plan.FloorHeight - 8, depth - 9), Mat.Empty);
+            }
+
+            int roofY = firstFloorY + plan.FloorHeight * 2;
+            brush.Gable(new int3(minX - 4, roofY, wallZ - 4),
+                        new int3(width + 8, 24, depth + 8), true, Mat.Tile);
+            brush.Box(new int3(minX - 3, firstFloorY + plan.FloorHeight - 1, wallZ - 1),
+                      new int3(width + 6, 3, depth + 1), Mat.DarkStone);
         }
 
         /// <summary>

@@ -69,6 +69,8 @@ namespace VoxelEngine.Tests.PlayMode
                                centre + new Vector3(0f, 11f, 0f)),
                 ("wall", centre + new Vector3(-32f, 8f, -22f),
                          centre + new Vector3(-23f, 8f, -12f)),
+                ("rear_annex", centre + new Vector3(28f, 13f, 36f),
+                               centre + new Vector3(4f, 13f, 4f)),
             };
 
             for (int i = 0; i < views.Length; i++)

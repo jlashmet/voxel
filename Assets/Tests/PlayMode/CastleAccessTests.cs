@@ -108,6 +108,19 @@ namespace VoxelEngine.Tests.PlayMode
             AssertActorClear(world, new int3(plan.Centre.x, baseY + 2, keepMin.z + 4),
                 "main keep entrance");
 
+            // The rear timber oriel is occupied volume, not a sealed exterior badge. Both
+            // storeys share the keep floor elevation and their broad thresholds stay clear.
+            int orielMinX = plan.Centre.x + 18;
+            int orielWallZ = keepMin.z + keepSize.z;
+            for (int storey = 2; storey <= 3; storey++)
+            {
+                int footY = baseY + storey * plan.FloorHeight + 4;
+                AssertActorClear(world, new int3(orielMinX + 22, footY, orielWallZ - 3),
+                    $"rear oriel threshold storey {storey}");
+                AssertActorClear(world, new int3(orielMinX + 22, footY, orielWallZ + 10),
+                    $"rear oriel room storey {storey}");
+            }
+
             // The asymmetrical chapel is an occupied wing, not facade dressing. Its central
             // aisle must connect the altar end directly to the keep joining arch.
             int chapelWidth = math.max(78, keepSize.x / 3);
