@@ -115,7 +115,7 @@ namespace VoxelEngine.Tests.PlayMode
             int top = plan.Centre.y + plan.PlateauHeight;
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
             int riverZ = gateZ - plan.WallThickness - 92;
-            int riverY = top - 68;
+            int riverY = top - CastleBuilder.LowerRiverDepth;
 
             Assert.AreEqual(Mat.Water, Get(world, cx, riverY, riverZ),
                 "the lower approach river is missing beneath the bridge");
@@ -140,32 +140,54 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.True(grassBank && dirtBank,
                 "the gorge wall must expose both a grass lip and dirt strata");
 
-            int streamZ = plan.Centre.z - plan.BaileyHalfZ + 84;
-            int streamStartX = plan.Centre.x + plan.BaileyHalfX + plan.TowerRadius + 22;
-            int fallX = plan.Centre.x + plan.PlateauRadius - 8;
-            int streamX = (streamStartX + fallX) / 2;
-            float streamT = (streamX - streamStartX) / (float)math.max(1, fallX - streamStartX);
-            int streamY = top - 7 - (int)math.round(streamT * 22f);
-            Assert.AreEqual(Mat.Water, Get(world, streamX, streamY, streamZ),
+            int streamX = CastleBuilder.WaterfallStreamX(in plan);
+            int lipZ = CastleBuilder.WaterfallLipZ(in plan);
+            int streamStartZ = plan.Centre.z + plan.BaileyHalfZ + plan.TowerRadius + 18;
+            int streamZ = (streamStartZ + lipZ) / 2;
+            float streamT = (streamStartZ - streamZ)
+                          / (float)math.max(1, streamStartZ - lipZ);
+            int streamCentreX = streamX
+                              + (int)math.round(math.sin(streamT * math.PI * 3.2f) * 7f);
+            int streamY = top - 6 - (int)math.round(streamT * 11f);
+            Assert.AreEqual(Mat.Water, Get(world, streamCentreX, streamY, streamZ),
                 "the upper stream beside the castle is missing");
 
-            int poolX = fallX + plan.CliffDrop + 24;
-            int sampledGround = TerrainSampler.HeightAt(poolX, streamZ, world.Seed);
-            int poolY = math.clamp(sampledGround - 20, top - 74, top - 64);
-            Assert.AreEqual(Mat.Water, Get(world, fallX, poolY + 2, streamZ),
+            int poolY = top - 80;
+            Assert.AreEqual(Mat.Cascade, Get(world, streamX, poolY + 2, lipZ),
                 "the upper stream does not form a waterfall into its plunge pool");
 
-            int downstreamX = poolX - 31;
-            int lowerRiverAtOutlet = riverZ
-                + (int)math.round(math.sin((downstreamX - plan.Centre.x) * 0.028f) * 8f
-                                  + math.sin((downstreamX - plan.Centre.x) * 0.071f) * 3f);
-            int outletStartZ = streamZ - 33;
-            int outletZ = (outletStartZ + lowerRiverAtOutlet) / 2;
-            float outletT = (outletStartZ - outletZ)
-                          / (float)math.max(1, outletStartZ - lowerRiverAtOutlet);
+            int lowerRiverAtOutlet = CastleBuilder.LowerRiverZAt(in plan, streamX);
+            int poolZ = lowerRiverAtOutlet + 27;
+            int outletZ = (poolZ + lowerRiverAtOutlet) / 2;
+            float outletT = (poolZ - outletZ)
+                          / (float)math.max(1, poolZ - lowerRiverAtOutlet);
             int outletY = (int)math.round(math.lerp(poolY, riverY, outletT));
-            Assert.AreEqual(Mat.Water, Get(world, downstreamX, outletY, outletZ),
+            Assert.AreEqual(Mat.Water, Get(world, streamX, outletY, outletZ),
                 "the waterfall pool is not connected to the lower river");
+
+            int poolRadiusX = 68;
+            for (int x = streamX - poolRadiusX - 10; x <= streamX + poolRadiusX + 10; x += 4)
+            for (int z = lowerRiverAtOutlet - 10; z <= lipZ + 30; z += 4)
+            {
+                bool waterBelow = false;
+                bool structurallyAnchored = false;
+                for (int y = top - CastleBuilder.LowerRiverDepth - 12; y <= top + 8; y++)
+                {
+                    byte material = Get(world, x, y, z);
+                    if (material == Mat.Water || material == Mat.Cascade)
+                    {
+                        waterBelow = true;
+                        structurallyAnchored = false;
+                        continue;
+                    }
+                    if (material == Mat.Empty || !waterBelow) continue;
+                    bool looseTerrain = material == Mat.Grass || material == Mat.Dirt
+                                     || material == Mat.Moss || material == Mat.Sand;
+                    Assert.False(looseTerrain && !structurallyAnchored,
+                        $"unsupported terrain shelf remains above water at {x},{y},{z}");
+                    structurallyAnchored = true;
+                }
+            }
         }
 
         [UnityTest]
@@ -365,6 +387,17 @@ namespace VoxelEngine.Tests.PlayMode
             for (int x = trapX; x <= trapX + 128; x += 2)
                 AssertActorClear(world, new int3(x, dungeonY + 2, sideCaveZ),
                     $"crystal-grotto branch at x={x}");
+
+            Assert.AreEqual(Mat.Empty, Get(world, trapX, dungeonY + 50, mainCaveZ),
+                "the main cave must have the tall natural vault visible in the reference");
+            Assert.AreEqual(Mat.Water, Get(world, trapX + 20, dungeonY - 5, mainCaveZ),
+                "the main cave is missing its reflective lower pool");
+            Assert.AreEqual(Mat.Cascade,
+                Get(world, trapX + 27, dungeonY + 10, mainCaveZ - 76),
+                "the rear cave waterfall is missing");
+            Assert.AreEqual(Mat.Crystal,
+                Get(world, trapX - 58, dungeonY + 6, mainCaveZ - 34),
+                "the cave lacks the cyan crystal focal material from the reference");
         }
 
         private static void AssertStairLanding(ShowcaseWorld world, int cx, int baseY, int cz,

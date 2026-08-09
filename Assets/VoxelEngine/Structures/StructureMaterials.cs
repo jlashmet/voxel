@@ -27,5 +27,7 @@ namespace VoxelEngine.Structures
         public const byte Dirt = 13;        // paths, cave floor
         public const byte Moss = 14;        // weathering on old stone
         public const byte LitWindow = 15;   // dark leaded exterior glazing with warm interior
+        public const byte Cascade = 16;     // bright aerated vertical waterfall surface
+        public const byte Crystal = 17;     // cool emissive cave crystal
     }
 }

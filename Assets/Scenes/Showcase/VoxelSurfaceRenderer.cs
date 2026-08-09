@@ -596,6 +596,8 @@ namespace VoxelEngine.Showcase
                 new Color(0.38f, 0.31f, 0.24f),             // dirt
                 new Color(0.32f, 0.40f, 0.24f),             // moss
                 new Color(0.16f, 0.19f, 0.18f),             // dark leaded window glass
+                new Color(0.22f, 0.62f, 0.78f),             // aerated cascade
+                new Color(0.08f, 0.56f, 0.82f),             // luminous cave crystal
             };
 
             var materials = new Material[colours.Length];

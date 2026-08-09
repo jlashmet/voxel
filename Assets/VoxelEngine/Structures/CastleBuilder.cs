@@ -48,6 +48,7 @@ namespace VoxelEngine.Structures
         public const int FrontGateWidth = 48;
         public const int FrontGateHeight = 60;
         public const int FrontGateDepth = 4;
+        public const int LowerRiverDepth = 88;
 
         /// <summary>Centre of the ground-floor hatch leading to the cellar.</summary>
         public static int3 TrapdoorCentre(in CastlePlan plan)
@@ -64,6 +65,23 @@ namespace VoxelEngine.Structures
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
             return new int3(plan.Centre.x - FrontGateWidth / 2, baseY + 1,
                             gateZ - plan.WallThickness + 2);
+        }
+
+        public static int WaterfallStreamX(in CastlePlan plan) =>
+            plan.Centre.x + plan.BaileyHalfX + plan.TowerRadius + 36;
+
+        public static int LowerRiverZAt(in CastlePlan plan, int x)
+        {
+            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
+            return gateZ - plan.WallThickness - 92
+                 + (int)math.round(math.sin((x - plan.Centre.x) * 0.028f) * 8f
+                                  + math.sin((x - plan.Centre.x) * 0.071f) * 3f);
+        }
+
+        public static int WaterfallLipZ(in CastlePlan plan)
+        {
+            int streamX = WaterfallStreamX(in plan);
+            return LowerRiverZAt(in plan, streamX) + 68;
         }
 
         /// <summary>Centre of the occupied bell tower accumulated behind the chapel.</summary>
@@ -334,9 +352,9 @@ namespace VoxelEngine.Structures
         {
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
             int riverZ = gateZ - plan.WallThickness - 92;
-            const int halfWidth = 70;
-            const int waterHalfWidth = 34;
-            int riverY = top - 68;
+            const int halfWidth = 90;
+            const int waterHalfWidth = 42;
+            int riverY = top - LowerRiverDepth;
             int reach = plan.PlateauRadius + plan.CliffDrop - 8;
 
             for (int x = plan.Centre.x - reach; x <= plan.Centre.x + reach; x++)
@@ -353,7 +371,7 @@ namespace VoxelEngine.Structures
 
                     float across = math.abs(dz) / (float)halfWidth;
                     float bank = math.smoothstep(0.18f, 1f, across);
-                    int authoredTerrace = dz < 0 ? top - 22 : top - 1;
+                    int authoredTerrace = dz < 0 ? top - 32 : top - 1;
                     int terraceTop = math.min(authoredTerrace, existingSurface);
                     int surface = (int)math.round(math.lerp(riverY - 9, terraceTop, bank));
 
@@ -392,6 +410,7 @@ namespace VoxelEngine.Structures
             TreeBelt(ref brush, in plan, top);
             ApproachPlanting(ref brush, in plan, top);
             WallFootingOvergrowth(ref brush, in plan, top);
+            RemoveFloatingRiverTerrain(ref brush, in plan, top);
         }
 
         private static void WallFootingOvergrowth(ref VoxelBrush brush, in CastlePlan plan, int top)
@@ -457,146 +476,151 @@ namespace VoxelEngine.Structures
         private static void RavineWaterfall(ref VoxelBrush brush, in CastlePlan plan,
                                             uint terrainSeed, int top)
         {
-            // Keep the water on the southeast terrace. The former centre+42 placement put the
-            // entire feature behind the castle from the authored southern approach: it existed,
-            // but neither the player nor the hero camera could read it as part of the castle's
-            // silhouette. This position remains well east of the gate lane while bringing the
-            // cascade onto the visible front quarter of the crag.
-            int waterfallOffsetZ = -plan.BaileyHalfZ + 84;
-            int streamZ = plan.Centre.z + waterfallOffsetZ;
-            int streamStartX = plan.Centre.x + plan.BaileyHalfX + plan.TowerRadius + 22;
-            int fallX = plan.Centre.x + plan.PlateauRadius - 8;
-            int streamLength = math.max(1, fallX - streamStartX);
+            int streamX = WaterfallStreamX(in plan);
+            int lipZ = WaterfallLipZ(in plan);
+            int riverZ = LowerRiverZAt(in plan, streamX);
+            int streamStartZ = plan.Centre.z + plan.BaileyHalfZ + plan.TowerRadius + 18;
+            int streamLength = math.max(1, streamStartZ - lipZ);
 
-            // A descending, irregular channel across the shoulder. Water occupies only the
-            // bottom few voxels; the dark exposed sides are supplied by the outcrop beneath it.
-            for (int x = streamStartX; x <= fallX; x++)
+            // The high stream now runs lengthwise beside the east curtain wall. Its meander and
+            // exposed dark banks keep the route legible from both the gate approach and aerial
+            // views before it reaches the front-facing cliff lip.
+            for (int z = streamStartZ; z >= lipZ; z--)
             {
-                float t = (x - streamStartX) / (float)streamLength;
-                int halfWidth = 8 + (int)math.round(t * 6f);
-                int channelY = top - 7 - (int)math.round(t * 22f);
-
-                for (int dz = -halfWidth; dz <= halfWidth; dz++)
+                float t = (streamStartZ - z) / (float)streamLength;
+                int centreX = streamX
+                            + (int)math.round(math.sin(t * math.PI * 3.2f) * 7f);
+                int halfWidth = 10 + (int)math.round(t * 5f);
+                int channelY = top - 6 - (int)math.round(t * 11f);
+                for (int dx = -halfWidth; dx <= halfWidth; dx++)
                 {
-                    float across = math.abs(dz) / (float)halfWidth;
-                    int bank = (int)math.round(across * across * 8f);
-                    int bottom = channelY + bank;
-
-                    brush.FillColumnBulk(x, bottom, top + 7, streamZ + dz, Mat.Empty);
-                    if (math.abs(dz) <= halfWidth - 3)
-                        brush.FillColumnBulk(x, bottom, bottom + 3, streamZ + dz, Mat.Water);
+                    float across = math.abs(dx) / (float)halfWidth;
+                    int bottom = channelY + (int)math.round(across * across * 8f);
+                    brush.FillColumnBulk(centreX + dx, bottom, top + 8, z, Mat.Empty);
+                    if (math.abs(dx) <= halfWidth - 3)
+                        brush.FillColumnBulk(centreX + dx, bottom, bottom + 3, z, Mat.Water);
                 }
             }
 
-            // The pool is beyond the cliff edge and slightly below the procedural ground. A
-            // fixed water plane gives the cascade a readable destination even on a noisy seed.
-            int poolX = fallX + plan.CliffDrop + 24;
-            int sampledGround = TerrainSampler.HeightAt(poolX, streamZ, terrainSeed);
-            // Procedural ground can rise above the castle shelf here. Clamp the pool to a real
-            // lower terrace instead of letting that sample lift it above the waterfall lip. It
-            // remains close to the lower river level, so the outlet always runs downhill.
-            int poolY = math.clamp(sampledGround - 20, top - 74, top - 64);
-            const int poolRadiusX = 62;
-            const int poolRadiusZ = 45;
-
+            // A lower plunge pool overlaps the north bank of the lower river. This guarantees
+            // the two water levels are physically connected and gives the fall a broad reflective
+            // destination rather than a decorative dead-end bowl.
+            int poolX = streamX;
+            int poolZ = riverZ + 27;
+            int poolY = top - 80;
+            const int poolRadiusX = 68;
+            const int poolRadiusZ = 43;
             for (int dz = -poolRadiusZ; dz <= poolRadiusZ; dz++)
             for (int dx = -poolRadiusX; dx <= poolRadiusX; dx++)
             {
                 float ellipse = dx * dx / (float)(poolRadiusX * poolRadiusX)
                               + dz * dz / (float)(poolRadiusZ * poolRadiusZ);
                 if (ellipse > 1f) continue;
-
-                // Keep the pool rim on the lower terrace. Rising back to castle height around a
-                // small ellipse made a deep bowl whose water disappeared behind its own bank.
-                float bankT = math.saturate((ellipse - 0.58f) / 0.42f);
-                int bottom = ellipse <= 0.58f
-                    ? poolY - 8
-                    : (int)math.round(math.lerp(poolY - 8, poolY + 20,
-                                                math.pow(bankT, 0.78f)));
-                int wx = poolX + dx;
-                int wz = streamZ + dz;
-
-                brush.FillColumnBulk(wx, bottom, top + 6, wz, Mat.Empty);
-                if (ellipse < 0.60f && bottom < poolY + 1)
-                    brush.FillColumnBulk(wx, bottom, poolY + 1, wz, Mat.Water);
+                float rim = math.saturate((ellipse - 0.66f) / 0.34f);
+                int bottom = ellipse < 0.66f
+                    ? poolY - 9
+                    : (int)math.round(math.lerp(poolY - 9, poolY + 17,
+                                                math.pow(rim, 0.72f)));
+                brush.FillColumnBulk(poolX + dx, bottom, top + 7, poolZ + dz, Mat.Empty);
+                if (ellipse < 0.68f)
+                    brush.FillColumnBulk(poolX + dx, bottom, poolY + 1,
+                                         poolZ + dz, Mat.Water);
             }
 
-            // A narrow sheet reads better at voxel scale than a broad opaque blue slab. The
-            // empty pocket behind it keeps the falling water visibly separate from the cliff.
-            for (int dx = 0; dx < 3; dx++)
-            for (int dz = -12; dz <= 12; dz++)
+            // Broad front-facing curtain. Clear a recessed shadow pocket first, then author five
+            // voxels of water thickness so grazing camera rays cannot skip the cascade.
+            for (int dz = -7; dz <= 7; dz++)
+            for (int dx = -30; dx <= 30; dx++)
             {
-                brush.FillColumnBulk(fallX + dx, poolY + 1, top - 24,
-                                     streamZ + dz, Mat.Empty);
-                if (math.abs(dz) <= 10)
-                    brush.FillColumnBulk(fallX + dx, poolY + 1, top - 24,
-                                         streamZ + dz, Mat.Water);
-            }
-
-            // Carry the fall across the broken lower slope into the pool. This shallow stepped
-            // course is visible from above, while the narrow vertical sheet reads from the side.
-            int cascadeLength = math.max(1, poolX - fallX);
-            for (int x = fallX; x <= poolX; x++)
-            {
-                float t = (x - fallX) / (float)cascadeLength;
-                int waterY = (int)math.round(math.lerp(top - 25, poolY, t));
-                for (int dz = -10; dz <= 10; dz++)
+                brush.FillColumnBulk(streamX + dx, poolY + 1, top - 16,
+                                     lipZ + dz, Mat.Empty);
+                if (dz <= 0 && dz >= -5 && math.abs(dx) <= 23)
                 {
-                    brush.FillColumnBulk(x, waterY, top + 4, streamZ + dz, Mat.Empty);
-                    if (math.abs(dz) <= 9)
-                        brush.FillColumnBulk(x, waterY, waterY + 2, streamZ + dz, Mat.Water);
+                    int edge = math.abs(dx);
+                    int raggedTop = top - 16 - edge / 7
+                                  - math.abs((dx * 13 + dz * 7) % 3);
+                    int raggedBottom = poolY + 1 + math.max(0, edge - 18) / 2;
+                    brush.FillColumnBulk(streamX + dx, raggedBottom, raggedTop,
+                                         lipZ + dz, Mat.Cascade);
                 }
             }
 
-            // The plunge pool is not a decorative dead end. A lower outlet runs south into the
-            // broad approach river, making the upper stream, fall, pool, and lower watercourse
-            // one legible connected system from the reference view.
-            int downstreamX = poolX - poolRadiusX / 2;
-            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
-            int lowerRiverZ = gateZ - plan.WallThickness - 92
-                            + (int)math.round(math.sin((downstreamX - plan.Centre.x) * 0.028f) * 8f
-                                            + math.sin((downstreamX - plan.Centre.x) * 0.071f) * 3f);
-            int outletStartZ = streamZ - poolRadiusZ * 3 / 4;
-            int outletLength = math.max(1, outletStartZ - lowerRiverZ);
-            for (int z = outletStartZ; z >= lowerRiverZ; z--)
+            // Stepped, widening outflow lowers the pool into the river's reflective plane.
+            int outletLength = math.max(1, poolZ - riverZ);
+            for (int z = poolZ; z >= riverZ; z--)
             {
-                float t = (outletStartZ - z) / (float)outletLength;
-                int waterY = (int)math.round(math.lerp(poolY, top - 68, t));
-                int halfWidth = 10 + (int)math.round(t * 5f);
+                float t = (poolZ - z) / (float)outletLength;
+                int waterY = (int)math.round(math.lerp(poolY, top - LowerRiverDepth, t));
+                int halfWidth = 18 + (int)math.round(t * 8f);
                 for (int dx = -halfWidth; dx <= halfWidth; dx++)
                 {
                     float across = math.abs(dx) / (float)halfWidth;
-                    int bed = waterY - 6 + (int)math.round(across * across * 5f);
-                    brush.FillColumnBulk(downstreamX + dx, bed, top + 5, z, Mat.Empty);
+                    int bed = waterY - 7 + (int)math.round(across * across * 6f);
+                    brush.FillColumnBulk(streamX + dx, bed, top + 5, z, Mat.Empty);
                     if (math.abs(dx) <= halfWidth - 3)
-                        brush.FillColumnBulk(downstreamX + dx, bed, waterY + 1, z, Mat.Water);
+                        brush.FillColumnBulk(streamX + dx, bed, waterY + 1, z, Mat.Water);
                 }
             }
 
-            // Broken rock at the pool rim hides the otherwise perfect ellipse.
+            // Broken masonry and asymmetrical trees frame, but never cross, the water curtain.
             var rockRng = new Random(plan.Seed ^ 0xA11CEu);
-            for (int i = 0; i < 10; i++)
+            for (int side = -1; side <= 1; side += 2)
+            for (int i = 0; i < 4; i++)
             {
-                float angle = rockRng.NextFloat(0f, math.PI * 2f);
-                int rx = poolX + (int)math.round(math.cos(angle) * rockRng.NextFloat(38f, 54f));
-                int rz = streamZ + (int)math.round(math.sin(angle) * rockRng.NextFloat(27f, 40f));
-                int rockSurface = HighestSolid(ref brush, rx, rz, top + 12, poolY - 16);
-                brush.Cone(rx, rockSurface + 1, rz, rockRng.NextInt(3, 6),
-                           rockRng.NextInt(5, 11), Mat.DarkStone);
+                int rx = streamX + side * (34 + i * 8);
+                int rz = lipZ + 5 + i * 7;
+                int surface = HighestSolid(ref brush, rx, rz, top + 12, poolY - 16);
+                brush.Cone(rx, surface + 1, rz, rockRng.NextInt(4, 7),
+                           rockRng.NextInt(7, 14), Mat.DarkStone);
             }
 
-            // A few anchored trees belong specifically to the ravine composition. The wider
-            // seeded belt intentionally avoids this sector so it cannot hide the water.
-            int2[] treeOffsets =
-            {
-                new(118, -86), new(112, 92), new(-120, 88), new(8, 128),
-            };
+            int2[] treeOffsets = { new(-88, 58), new(92, 72), new(-105, -28), new(108, -18) };
             for (int i = 0; i < treeOffsets.Length; i++)
             {
                 int tx = poolX + treeOffsets[i].x;
-                int tz = streamZ + treeOffsets[i].y;
+                int tz = poolZ + treeOffsets[i].y;
                 int surface = HighestSolid(ref brush, tx, tz, top + 24, top - 180);
-                Tree(ref brush, tx, surface + 1, tz, 42 + i * 3, 14 + (i & 1), Mat.Moss);
+                if ((i & 1) == 0)
+                    Tree(ref brush, tx, surface + 1, tz, 40 + i * 3, 15, Mat.Moss);
+                else
+                    Pine(ref brush, tx, surface + 1, tz, 45 + i * 3, 14, Mat.Grass);
+            }
+
+        }
+
+        private static void RemoveFloatingRiverTerrain(ref VoxelBrush brush,
+                                                       in CastlePlan plan, int top)
+        {
+            int streamX = WaterfallStreamX(in plan);
+            int lipZ = WaterfallLipZ(in plan);
+            int riverZ = LowerRiverZAt(in plan, streamX);
+            const int poolRadiusX = 68;
+
+            // Run after every planting/debris pass. Pool carving can expose old cap fragments,
+            // and later foliage can otherwise reintroduce green shelves above the water.
+            for (int x = streamX - poolRadiusX - 10; x <= streamX + poolRadiusX + 10; x++)
+            for (int z = riverZ - 10; z <= lipZ + 30; z++)
+            {
+                bool waterBelow = false;
+                bool structurallyAnchored = false;
+                for (int y = top - LowerRiverDepth - 12; y <= top + 8; y++)
+                {
+                    byte material = brush.Get(x, y, z);
+                    if (material == Mat.Water || material == Mat.Cascade)
+                    {
+                        waterBelow = true;
+                        structurallyAnchored = false;
+                        continue;
+                    }
+                    if (material == Mat.Empty || !waterBelow) continue;
+
+                    bool looseTerrain = material == Mat.Grass || material == Mat.Dirt
+                                     || material == Mat.Moss || material == Mat.Sand;
+                    if (looseTerrain && !structurallyAnchored)
+                        brush.Set(x, y, z, Mat.Empty);
+                    else
+                        structurallyAnchored = true;
+                }
             }
         }
 
@@ -626,9 +650,10 @@ namespace VoxelEngine.Structures
                 bool outsideWalls = math.abs(ox) > plan.BaileyHalfX + plan.TowerRadius + 16
                                  || math.abs(oz) > plan.BaileyHalfZ + plan.TowerRadius + 16;
                 bool blocksGate = oz < -plan.BaileyHalfZ && math.abs(ox) < 105;
-                int waterfallOffsetZ = -plan.BaileyHalfZ + 84;
-                bool nearWaterfall = ox > plan.BaileyHalfX
-                                  && math.abs(oz - waterfallOffsetZ) < 72;
+                int waterfallOffsetX = WaterfallStreamX(in plan) - plan.Centre.x;
+                int waterfallOffsetZ = WaterfallLipZ(in plan) - plan.Centre.z;
+                bool nearWaterfall = math.abs(ox - waterfallOffsetX) < 125
+                                  && math.abs(oz - waterfallOffsetZ) < 165;
                 if (!outsideWalls || blocksGate || nearWaterfall) continue;
 
                 int height = rng.NextInt(34, 58);
@@ -1198,7 +1223,7 @@ namespace VoxelEngine.Structures
                           new int3(8, 5, 150), Mat.DarkStone);
 
             int riverZ = gateZ - plan.WallThickness - 92;
-            int riverY = baseY - 68;
+            int riverY = baseY - LowerRiverDepth;
             int[] pierOffsets = { -27, 0, 27 };
             for (int p = 0; p < pierOffsets.Length; p++)
             for (int side = -1; side <= 1; side += 2)
@@ -2676,31 +2701,17 @@ namespace VoxelEngine.Structures
         {
             var rng = new Random(plan.Seed ^ 0xCAFEu);
 
-            // Blobby chamber: several overlapping spheres, which is what stops it reading as a room.
-            // Five blobs at 2.5-4 m radius. The first draft used seven at up to 7.8 m, which is
-            // ten million voxels of carving on its own — a cavern the size of a cathedral, costed
-            // by nobody.
-            for (int b = 0; b < 5; b++)
-            {
-                int ox = rng.NextInt(-55, 55);
-                int oy = rng.NextInt(-14, 26);
-                int oz = rng.NextInt(-55, 55);
-                int r = rng.NextInt(25, 40);
-                int r2 = r * r;
-
-                for (int z = -r; z <= r; z++)
-                for (int x = -r; x <= r; x++)
-                {
-                    int verticalSq = r2 - x * x - z * z;
-                    if (verticalSq < 0) continue;
-
-                    int halfHeight = (int)math.floor(math.sqrt(verticalSq));
-                    brush.FillColumnBulk(at.x + ox + x,
-                                         at.y + oy - halfHeight,
-                                         at.y + oy + halfHeight + 1,
-                                         at.z + oz + z, Mat.Empty);
-                }
-            }
+            // A cathedral-scale but bounded natural chamber. Overlapping ellipsoids create an
+            // asymmetric nave, side bays, and a high rear vault like the reference instead of
+            // exposing the concentric shells of several small spherical cuts.
+            CarveCavernEllipsoid(ref brush, at + new int3(0, 27, 0),
+                                 new int3(82, 36, 104), 0.17f);
+            CarveCavernEllipsoid(ref brush, at + new int3(-58, 23, -18),
+                                 new int3(56, 30, 72), 1.43f);
+            CarveCavernEllipsoid(ref brush, at + new int3(62, 25, 30),
+                                 new int3(60, 33, 74), 2.71f);
+            CarveCavernEllipsoid(ref brush, at + new int3(12, 31, -72),
+                                 new int3(66, 37, 62), 4.19f);
 
             // A low east tunnel opens into a second crystal grotto. Carve it before decoration
             // so later props cannot be accidentally erased, and lay a continuous stone path at
@@ -2712,23 +2723,15 @@ namespace VoxelEngine.Structures
             brush.Box(new int3(at.x - 5, at.y - 1, sideCaveZ - 10),
                       new int3(159, 3, 20), Mat.DarkStone);
 
-            for (int b = 0; b < 3; b++)
-            {
-                int ox = sideCaveX + rng.NextInt(-24, 25);
-                int oy = at.y + rng.NextInt(4, 18);
-                int oz = sideCaveZ + rng.NextInt(-30, 31);
-                int r = rng.NextInt(27, 36);
-                int r2 = r * r;
-                for (int z = -r; z <= r; z++)
-                for (int x = -r; x <= r; x++)
-                {
-                    int verticalSq = r2 - x * x - z * z;
-                    if (verticalSq < 0) continue;
-                    int halfHeight = (int)math.floor(math.sqrt(verticalSq));
-                    brush.FillColumnBulk(ox + x, oy - halfHeight, oy + halfHeight + 1,
-                                         oz + z, Mat.Empty);
-                }
-            }
+            CarveCavernEllipsoid(ref brush,
+                                 new int3(sideCaveX - 10, at.y + 17, sideCaveZ - 5),
+                                 new int3(40, 31, 47), 0.91f);
+            CarveCavernEllipsoid(ref brush,
+                                 new int3(sideCaveX + 24, at.y + 15, sideCaveZ + 16),
+                                 new int3(35, 27, 38), 2.23f);
+            CarveCavernEllipsoid(ref brush,
+                                 new int3(sideCaveX + 3, at.y + 23, sideCaveZ - 28),
+                                 new int3(31, 33, 34), 3.77f);
             brush.Box(new int3(at.x - 5, at.y - 1, sideCaveZ - 10),
                       new int3(159, 3, 20), Mat.DarkStone);
             brush.Disc(sideCaveX, at.y - 1, sideCaveZ, 28, Mat.DarkStone);
@@ -2746,27 +2749,64 @@ namespace VoxelEngine.Structures
             {
                 int sx = at.x + rng.NextInt(-95, 95);
                 int sz = at.z + rng.NextInt(-95, 95);
+                // Preserve the long entrance-to-waterfall reveal. The old unrestricted scatter
+                // regularly planted a full-height formation directly in the player's sightline.
+                if (math.abs(sx - at.x) < 24 && sz < at.z + 55 && sz > at.z - 92)
+                    sx += sx < at.x ? -32 : 32;
                 int h = rng.NextInt(10, 34);
                 brush.Cone(sx, at.y - 2, sz, rng.NextInt(3, 7), h, Mat.DarkStone);
             }
 
             // Ceiling formations mirror the floor scatter and break up the cavern's upper
-            // silhouette. A narrow bridge keeps the water chamber explorable on foot.
+            // silhouette. Their roots now reach the high carved vault rather than floating in
+            // the middle of the former low spherical chamber.
             for (int i = 0; i < 18; i++)
             {
                 int sx = at.x + rng.NextInt(-78, 78);
                 int sz = at.z + rng.NextInt(-78, 78);
-                brush.HangingCone(sx, at.y + rng.NextInt(24, 37), sz,
-                                  rng.NextInt(3, 7), rng.NextInt(10, 28), Mat.DarkStone);
+                brush.HangingCone(sx, at.y + rng.NextInt(48, 61), sz,
+                                  rng.NextInt(3, 8), rng.NextInt(12, 31), Mat.DarkStone);
             }
+            // Ancient stone causeway and broken parapet replace the clean timber footbridge.
             brush.Box(new int3(at.x - 5, at.y - 2, at.z - 52),
-                      new int3(10, 3, 104), Mat.Wood);
-            for (int z = -48; z <= 48; z += 16)
+                      new int3(10, 3, 104), Mat.DarkStone);
+            int2[] causewayRemains =
             {
-                brush.Box(new int3(at.x - 8, at.y + 1, at.z + z),
-                          new int3(3, 8, 3), Mat.Wood);
-                brush.Box(new int3(at.x + 5, at.y + 1, at.z + z),
-                          new int3(3, 8, 3), Mat.Wood);
+                new(-8, -42), new(5, -13), new(-8, 25), new(5, 45),
+            };
+            for (int i = 0; i < causewayRemains.Length; i++)
+                brush.Box(new int3(at.x + causewayRemains[i].x, at.y + 1,
+                                   at.z + causewayRemains[i].y),
+                          new int3(3, 4 + (i & 1) * 3, 3),
+                          i == 2 ? Mat.Moss : Mat.Stone);
+
+            // A cool spring falls from the rear vault into the main pool. The recessed pocket,
+            // irregular curtain edge, and nearby ruins recreate the cyan focal waterfall in the
+            // reference cave rather than relying on uniformly blue ambient light.
+            int fallZ = at.z - 76;
+            brush.Box(new int3(at.x + 15, at.y - 3, fallZ - 8),
+                      new int3(24, 31, 13), Mat.Empty);
+            for (int x = -8; x <= 8; x++)
+            for (int z = -1; z <= 0; z++)
+            {
+                int topY = at.y + 27 - math.abs(x) / 3
+                         - math.abs((x * 5 + z * 3) % 3);
+                brush.FillColumnBulk(at.x + 27 + x, at.y - 2, topY,
+                                     fallZ + z, Mat.Cascade);
+            }
+            brush.Disc(at.x + 27, at.y - 2, fallZ + 8, 28, Mat.Water);
+
+            // Fragmentary columns frame the waterfall without turning the natural cavern into a
+            // rectangular room. Missing upper courses and moss communicate age and collapse.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int columnX = at.x + 27 + side * 20;
+                brush.Cylinder(columnX, at.y - 2, fallZ + 4, 6,
+                               side < 0 ? 30 : 22, Mat.Stone);
+                brush.Cylinder(columnX, at.y + (side < 0 ? 24 : 16), fallZ + 4,
+                               8, 4, Mat.DarkStone);
+                brush.Cone(columnX + side * 4, at.y - 1, fallZ + 10,
+                           5, 8, Mat.Moss);
             }
 
             // Small crystal/gold clusters create distant landmarks rather than uniform cave
@@ -2779,9 +2819,9 @@ namespace VoxelEngine.Structures
             };
             foreach (int3 crystal in crystalCentres)
             {
-                brush.Cone(crystal.x, crystal.y, crystal.z, 5, 22, Mat.Glass);
-                brush.Cone(crystal.x - 7, crystal.y, crystal.z + 4, 3, 14, Mat.Gold);
-                brush.Cone(crystal.x + 6, crystal.y, crystal.z + 6, 3, 17, Mat.Glass);
+                brush.Cone(crystal.x, crystal.y, crystal.z, 3, 13, Mat.Crystal);
+                brush.Cone(crystal.x - 5, crystal.y, crystal.z + 3, 2, 8, Mat.Moss);
+                brush.Cone(crystal.x + 4, crystal.y, crystal.z + 4, 2, 10, Mat.Crystal);
             }
 
             // The side grotto is the cool-colour reward at the end of the branch. A shallow
@@ -2801,7 +2841,7 @@ namespace VoxelEngine.Structures
             brush.Box(new int3(archX - 4, at.y + 28, sideCaveZ - 22),
                       new int3(8, 6, 44), Mat.DarkStone);
             brush.Box(new int3(archX + 1, at.y + 11, sideCaveZ - 3),
-                      new int3(5, 14, 6), Mat.Glass);
+                      new int3(5, 14, 6), Mat.Crystal);
             brush.Box(new int3(archX - 2, at.y + 8, sideCaveZ - 6),
                       new int3(11, 4, 12), Mat.Stone);
 
@@ -2811,18 +2851,18 @@ namespace VoxelEngine.Structures
                 float radius = 27f + (i % 3) * 5f;
                 int cx = sideCaveX + (int)math.round(math.cos(angle) * radius);
                 int cz = sideCaveZ + (int)math.round(math.sin(angle) * radius);
-                int crystalHeight = 10 + (i * 7 % 13);
-                brush.Cone(cx, at.y + 2, cz, 2 + (i & 1), crystalHeight,
-                           i == 2 || i == 7 ? Mat.Gold : Mat.Glass);
+                int crystalHeight = 7 + (i * 5 % 8);
+                brush.Cone(cx, at.y + 2, cz, 2, crystalHeight,
+                           i == 2 || i == 7 ? Mat.Moss : Mat.Crystal);
                 if ((i & 1) == 0)
                     brush.Cone(cx + 5, at.y + 2, cz - 3, 2,
-                               math.max(7, crystalHeight - 6), Mat.Glass);
+                               math.max(7, crystalHeight - 6), Mat.Crystal);
             }
-            brush.HangingCone(sideCaveX - 25, at.y + 35, sideCaveZ - 20,
+            brush.HangingCone(sideCaveX - 25, at.y + 48, sideCaveZ - 20,
                               6, 21, Mat.DarkStone);
-            brush.HangingCone(sideCaveX + 3, at.y + 38, sideCaveZ + 20,
+            brush.HangingCone(sideCaveX + 3, at.y + 51, sideCaveZ + 20,
                               7, 25, Mat.DarkStone);
-            brush.HangingCone(sideCaveX + 30, at.y + 34, sideCaveZ - 15,
+            brush.HangingCone(sideCaveX + 30, at.y + 46, sideCaveZ - 15,
                               5, 18, Mat.DarkStone);
 
             // Cave dressing is intentionally random, but circulation is not. Reassert the final
@@ -2843,8 +2883,41 @@ namespace VoxelEngine.Structures
             };
             foreach (var light in caveLights)
             {
-                brush.Box(light, new int3(4, 9, 4), Mat.Glass);
-                brush.Box(light - new int3(1, 3, 1), new int3(6, 3, 6), Mat.Gold);
+                brush.Box(light, new int3(1, 3, 1), Mat.Glass);
+                brush.Box(light - new int3(1, 1, 1), new int3(3, 1, 3), Mat.Gold);
+            }
+        }
+
+        private static void CarveCavernEllipsoid(ref VoxelBrush brush, int3 centre, int3 radii,
+                                                 float phase)
+        {
+            float inverseX = 1f / (radii.x * radii.x);
+            float inverseZ = 1f / (radii.z * radii.z);
+            for (int z = -radii.z; z <= radii.z; z++)
+            for (int x = -radii.x; x <= radii.x; x++)
+            {
+                // Several broad, incommensurate waves displace the implicit chamber boundary.
+                // The previous perfect ellipsoid exposed concentric voxel courses from every
+                // viewpoint and read as a manufactured pipe. Keeping this deterministic retains
+                // reproducible generation while producing shelves, pinches, and an uneven vault.
+                float boundary = 1f
+                    + math.sin(x * 0.091f + z * 0.037f + phase) * 0.085f
+                    + math.sin(x * 0.031f - z * 0.073f + phase * 1.7f) * 0.065f
+                    + math.sin((x + z) * 0.151f - phase * 0.8f) * 0.025f;
+                float radial = (x * x * inverseX + z * z * inverseZ)
+                             / math.max(0.76f, boundary);
+                if (radial > 1f) continue;
+                float profile = math.sqrt(1f - radial);
+                int halfHeight = (int)math.floor(radii.y * profile);
+                int floorWarp = (int)math.round(
+                    math.sin(x * 0.117f + z * 0.053f + phase) * 2.2f
+                  + math.sin(z * 0.181f - phase) * 1.1f);
+                int roofWarp = (int)math.round(
+                    math.sin(x * 0.067f - z * 0.101f + phase * 2.0f) * 3.5f
+                  + math.sin((x - z) * 0.139f + phase) * 1.6f);
+                brush.FillColumnBulk(centre.x + x, centre.y - halfHeight + floorWarp,
+                                     centre.y + halfHeight + roofWarp + 1,
+                                     centre.z + z, Mat.Empty);
             }
         }
     }

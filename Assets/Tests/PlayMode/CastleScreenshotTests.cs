@@ -108,11 +108,9 @@ namespace VoxelEngine.Tests.PlayMode
             int chapelDepth = math.max(96, keepSize.z * 3 / 5);
             var chapelMin = new int3(keepMin.x - chapelWidth + 4, baseY,
                                      keepMin.z + keepSize.z - chapelDepth - 38);
-            int waterfallX = plan.Centre.x + plan.PlateauRadius - 8
-                           + plan.CliffDrop + 24;
-            int waterfallZ = plan.Centre.z - plan.BaileyHalfZ + 84;
-            int waterfallY = math.max(baseY - 82,
-                world.SurfaceHeight(waterfallX, waterfallZ) - 12);
+            int waterfallX = CastleBuilder.WaterfallStreamX(in plan);
+            int waterfallZ = CastleBuilder.WaterfallLipZ(in plan);
+            int waterfallY = baseY - 48;
             var waterfallPool = new Vector3(waterfallX, waterfallY, waterfallZ) * 0.1f;
 
             var views = new (string name, Vector3 position, Vector3 lookAt)[]

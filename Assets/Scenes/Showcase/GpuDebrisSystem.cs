@@ -295,6 +295,8 @@ namespace VoxelEngine.Showcase
                 13 => new Vector4(0.32f, 0.22f, 0.13f, scale),
                 14 => new Vector4(0.22f, 0.38f, 0.18f, scale),
                 15 => new Vector4(0.18f, 0.20f, 0.19f, scale),
+                16 => new Vector4(0.22f, 0.62f, 0.78f, scale),
+                17 => new Vector4(0.08f, 0.56f, 0.82f, scale),
                 _ => new Vector4(0.48f, 0.50f, 0.54f, scale),
             };
             return colour;

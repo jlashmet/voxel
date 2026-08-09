@@ -60,6 +60,17 @@ namespace VoxelEngine.Tests.PlayMode
             CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
             int baseY = plan.Centre.y + plan.PlateauHeight;
             Vector3 centre = new Vector3(plan.Centre.x, baseY, plan.Centre.z) * 0.1f;
+            Vector3 waterfall = new Vector3(CastleBuilder.WaterfallStreamX(in plan),
+                                            baseY - 48,
+                                            CastleBuilder.WaterfallLipZ(in plan)) * 0.1f;
+            int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
+            int trapZ = keepMinZ + plan.KeepHalfZ + 40;
+            int dungeonY = baseY - 166;
+            Vector3 cave = new Vector3(plan.Centre.x, dungeonY + 14, trapZ - 411) * 0.1f;
+            Vector3 grotto = new Vector3(plan.Centre.x + 145, dungeonY + 14,
+                                         trapZ - 386) * 0.1f;
+            Vector3 farCamera = centre + new Vector3(-24f, 28f, -76f);
+            Vector3 farTarget = centre + new Vector3(0f, 19f, 44f);
             float orbitScale = math.max(plan.BaileyHalfX, plan.BaileyHalfZ) / 175f;
             var views = new (string name, Vector3 position, Vector3 target)[]
             {
@@ -67,18 +78,38 @@ namespace VoxelEngine.Tests.PlayMode
                              centre + new Vector3(0f, 10f, 0f)),
                 ("terrain_layers", centre + new Vector3(-42f, 21f, -72f),
                                    centre + new Vector3(4f, 3f, -15f)),
-                ("waterfall_river", centre + new Vector3(61f, 4f, -35f),
-                                    centre + new Vector3(38f, -4f, -17f)),
+                ("waterfall_east", waterfall + new Vector3(18f, 12f, -18f),
+                                   waterfall + new Vector3(0f, 0f, 0f)),
+                ("waterfall_south", waterfall + new Vector3(3f, 11f, -24f),
+                                    waterfall + new Vector3(0f, -1f, 0f)),
+                ("waterfall_wide", centre + new Vector3(50f, 19f, -58f),
+                                   centre + new Vector3(30f, -3f, -15f)),
+                ("reference_hero", centre + new Vector3(-38f, 17f, -66f),
+                                   centre + new Vector3(5f, 3f, -7f)),
                 ("silhouette", centre + new Vector3(82f, 29f, -82f),
                                centre + new Vector3(0f, 11f, 0f)),
                 ("wall", centre + new Vector3(-32f, 8f, -22f),
                          centre + new Vector3(-23f, 8f, -12f)),
                 ("rear_annex", centre + new Vector3(28f, 13f, 36f),
                                centre + new Vector3(4f, 13f, 4f)),
+                ("far_translation_a", farCamera, farTarget),
+                ("far_translation_b", farCamera + Vector3.right * 6f,
+                                      farTarget + Vector3.right * 6f),
+                ("cave_entrance", cave + new Vector3(-1.8f, 0.1f, 8.5f),
+                                  cave + new Vector3(2.7f, -0.5f, -7.0f)),
+                ("cave_pool", cave + new Vector3(-5.5f, 0.3f, 2f),
+                              cave + new Vector3(2.7f, -0.5f, -7.4f)),
+                ("cave_grotto", grotto + new Vector3(-5f, 0.2f, -4f),
+                                grotto + new Vector3(2f, -0.2f, 1f)),
             };
 
+            string viewFilter = System.Environment.GetEnvironmentVariable("VOXEL_LOOKDEV_FILTER");
             for (int i = 0; i < views.Length; i++)
             {
+                if (!string.IsNullOrEmpty(viewFilter)
+                    && views[i].name.IndexOf(viewFilter,
+                        System.StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
                 camera.transform.position = views[i].position;
                 camera.transform.LookAt(views[i].target);
                 yield return null;

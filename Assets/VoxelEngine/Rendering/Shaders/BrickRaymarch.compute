@@ -41,6 +41,7 @@ Texture2D<float4> g_DirtNormal;
 Texture2D<float4> g_DarkStoneNormal;
 Texture2D<float4> g_SkyTexture;
 SamplerState sampler_g_StoneTexture;
+SamplerState sampler_g_SkyTexture;
 
 float4x4 g_InvViewProj;
 float3   g_CameraPos;        // world space, metres
@@ -78,7 +79,7 @@ float3   g_CutawayMinVoxel;
 float3   g_CutawayMaxVoxel;
 
 // Material colours, indexed by material id. Slot 0 is empty and never shaded.
-float4 g_MaterialColours[16];
+float4 g_MaterialColours[18];
 uint g_LocalLightCount;
 float4 g_LocalLights[20];          // xyz position in metres, w radius
 float4 g_LocalLightColours[20];    // rgb tint, w intensity
@@ -166,6 +167,151 @@ uint MaterialAt(int3 voxel)
 bool SolidAt(int3 voxel)
 {
     return MaterialAt(voxel) != 0u;
+}
+
+// Trilinearly filtered occupancy is the implicit scalar field used for large connected stone
+// volumes. Its 0.5 isosurface joins adjacent voxels before intersection, so a cylindrical tower
+// or carved cavern is one continuous surface rather than a collection of separately rounded
+// cubes. The analytic derivative is also the real field normal and avoids six extra probes.
+void OccupancyField(float3 p, out float density, out float3 gradient)
+{
+    float3 samplePosition = p - 0.5;
+    int3 baseVoxel = int3(floor(samplePosition));
+    float3 f = frac(samplePosition);
+    float3 s = f * f * (3.0 - 2.0 * f);
+    float3 ds = 6.0 * f * (1.0 - f);
+
+    float v000 = SolidAt(baseVoxel + int3(0, 0, 0)) ? 1.0 : 0.0;
+    float v100 = SolidAt(baseVoxel + int3(1, 0, 0)) ? 1.0 : 0.0;
+    float v010 = SolidAt(baseVoxel + int3(0, 1, 0)) ? 1.0 : 0.0;
+    float v110 = SolidAt(baseVoxel + int3(1, 1, 0)) ? 1.0 : 0.0;
+    float v001 = SolidAt(baseVoxel + int3(0, 0, 1)) ? 1.0 : 0.0;
+    float v101 = SolidAt(baseVoxel + int3(1, 0, 1)) ? 1.0 : 0.0;
+    float v011 = SolidAt(baseVoxel + int3(0, 1, 1)) ? 1.0 : 0.0;
+    float v111 = SolidAt(baseVoxel + int3(1, 1, 1)) ? 1.0 : 0.0;
+
+    float c00 = lerp(v000, v100, s.x);
+    float c10 = lerp(v010, v110, s.x);
+    float c01 = lerp(v001, v101, s.x);
+    float c11 = lerp(v011, v111, s.x);
+    float c0 = lerp(c00, c10, s.y);
+    float c1 = lerp(c01, c11, s.y);
+    density = lerp(c0, c1, s.z);
+
+    float dx0 = lerp(v100 - v000, v110 - v010, s.y);
+    float dx1 = lerp(v101 - v001, v111 - v011, s.y);
+    gradient.x = lerp(dx0, dx1, s.z) * ds.x;
+    float dy0 = lerp(v010 - v000, v110 - v100, s.x);
+    float dy1 = lerp(v011 - v001, v111 - v101, s.x);
+    gradient.y = lerp(dy0, dy1, s.z) * ds.y;
+    gradient.z = (c1 - c0) * ds.z;
+}
+
+bool RefineConnectedSdfHit(float3 entryPoint, float3 dir,
+                           out float advance, out float3 normal)
+{
+    float3 gradient;
+    float density;
+    OccupancyField(entryPoint, density, gradient);
+    if (density >= 0.5)
+    {
+        advance = 0.0;
+        normal = dot(gradient, gradient) > 1e-6 ? normalize(-gradient) : -dir;
+        return true;
+    }
+
+    float lo = 0.0;
+    float hi = 0.0;
+    bool bracketed = false;
+    [unroll]
+    for (uint stepIndex = 1u; stepIndex <= 3u; stepIndex++)
+    {
+        hi = stepIndex * 0.28;
+        OccupancyField(entryPoint + dir * hi, density, gradient);
+        if (density >= 0.5) { bracketed = true; break; }
+        lo = hi;
+    }
+    if (!bracketed)
+    {
+        advance = 0.0;
+        normal = -dir;
+        return false;
+    }
+
+    [unroll]
+    for (uint iteration = 0u; iteration < 2u; iteration++)
+    {
+        float mid = (lo + hi) * 0.5;
+        OccupancyField(entryPoint + dir * mid, density, gradient);
+        if (density >= 0.5) hi = mid; else lo = mid;
+    }
+    advance = hi;
+    OccupancyField(entryPoint + dir * advance, density, gradient);
+    normal = dot(gradient, gradient) > 1e-6 ? normalize(-gradient) : -dir;
+    return true;
+}
+
+// Signed distance to the locally merged voxel volume. Occupied neighbours extend the rounded
+// box through shared faces, so a flat wall remains continuous while exposed edges and corners
+// acquire a real curved intersection instead of only a bent lighting normal.
+float RoundedBoxSdf(float3 p, float3 centre, float3 halfExtent, float radius)
+{
+    float3 q = abs(p - centre) - max(halfExtent - radius, 0.04);
+    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - radius;
+}
+
+void LocalVoxelSdfFrame(int3 voxel, out float3 centre, out float3 halfExtent)
+{
+    centre = (float3)voxel + 0.5;
+    halfExtent = 0.5;
+
+    if (SolidAt(voxel - int3(1, 0, 0))) { centre.x -= 0.25; halfExtent.x += 0.25; }
+    if (SolidAt(voxel + int3(1, 0, 0))) { centre.x += 0.25; halfExtent.x += 0.25; }
+    if (SolidAt(voxel - int3(0, 1, 0))) { centre.y -= 0.25; halfExtent.y += 0.25; }
+    if (SolidAt(voxel + int3(0, 1, 0))) { centre.y += 0.25; halfExtent.y += 0.25; }
+    if (SolidAt(voxel - int3(0, 0, 1))) { centre.z -= 0.25; halfExtent.z += 0.25; }
+    if (SolidAt(voxel + int3(0, 0, 1))) { centre.z += 0.25; halfExtent.z += 0.25; }
+}
+
+bool RefineVoxelSdfHit(int3 voxel, uint material, float3 entryPoint, float3 dir,
+                       out float advance, out float3 normal)
+{
+    if (material == 1u || material == 6u)
+        return RefineConnectedSdfHit(entryPoint, dir, advance, normal);
+
+    float3 centre, halfExtent;
+    LocalVoxelSdfFrame(voxel, centre, halfExtent);
+    float radius = material == 2u || material == 7u || material == 8u ? 0.22
+                 : material == 11u || material == 16u ? 0.12 : 0.36;
+
+    advance = 0.0;
+    float3 p = entryPoint;
+    [unroll]
+    for (uint i = 0u; i < 10u; i++)
+    {
+        float distance = RoundedBoxSdf(p, centre, halfExtent, radius);
+        if (distance <= 0.012)
+        {
+            const float e = 0.025;
+            float3 gradient = float3(
+                RoundedBoxSdf(p + float3(e, 0, 0), centre, halfExtent, radius)
+                    - RoundedBoxSdf(p - float3(e, 0, 0), centre, halfExtent, radius),
+                RoundedBoxSdf(p + float3(0, e, 0), centre, halfExtent, radius)
+                    - RoundedBoxSdf(p - float3(0, e, 0), centre, halfExtent, radius),
+                RoundedBoxSdf(p + float3(0, 0, e), centre, halfExtent, radius)
+                    - RoundedBoxSdf(p - float3(0, 0, e), centre, halfExtent, radius));
+            normal = dot(gradient, gradient) > 1e-7 ? normalize(gradient) : -dir;
+            return true;
+        }
+
+        float stepDistance = max(distance, 0.018);
+        advance += stepDistance;
+        if (advance > 1.45) break;
+        p += dir * stepDistance;
+    }
+
+    normal = float3(0, 1, 0);
+    return false;
 }
 
 // Implemented in the implicit-far-field section below. HLSL permits a forward declaration;
@@ -341,7 +487,7 @@ float3 PresentationSky(float3 dir)
     // landscape guarantees that its colour and the aerial-perspective target are identical.
     float2 skyUv = float2(atan2(dir.x, dir.z) * 0.159154943 + 0.5,
                           asin(clamp(dir.y, -1.0, 1.0)) * 0.318309886 + 0.5);
-    float3 paintedSky = g_SkyTexture.SampleLevel(sampler_g_StoneTexture, skyUv, 0.0).rgb;
+    float3 paintedSky = g_SkyTexture.SampleLevel(sampler_g_SkyTexture, skyUv, 0.0).rgb;
     float paintedLuminance = dot(paintedSky, float3(0.2126, 0.7152, 0.0722));
     paintedSky = lerp(paintedLuminance.xxx, paintedSky, 0.46);
     float3 sky = lerp(paintedSky, SkyColour(dir), 0.48);
@@ -455,16 +601,8 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
 {
     float hitDistance = length(hitVoxel * g_VoxelSize - g_CameraPos);
     float3 faceNormal = normal;
-    bool masonryCandidate = material == 1u || material == 6u;
-    // Masonry gets a larger-scale volume normal below. Avoid paying four edge-neighbour probes
-    // for a bevel that would immediately be replaced, particularly in full-screen castle views.
-    float3 roundedNormal = masonryCandidate ? faceNormal
-                                            : RoundedSurfaceNormal(hitVoxel, normal);
-    // A ten-centimetre bevel is sub-pixel in a long shot. Applying it anyway turns every
-    // one-voxel terrain terrace into alternating light/dark stipple, so fade to the stable face
-    // normal before the edge becomes smaller than a pixel.
-    float bevelVisibility = 1.0 - smoothstep(24.0, 52.0, hitDistance);
-    normal = normalize(lerp(normal, roundedNormal, bevelVisibility));
+    // MarchBrick already refined this point against a signed-distance surface. Keep that actual
+    // gradient instead of applying the former cosmetic face-normal bevel a second time.
 
     int3 solidVoxel = int3(floor(hitVoxel - faceNormal * 0.02));
     int3 terrainVoxel = solidVoxel;
@@ -510,7 +648,7 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
         float volumeBlend = 0.84 * (1.0 - smoothstep(180.0, 360.0, hitDistance));
         normal = normalize(lerp(faceNormal, volumeNormal, volumeBlend));
     }
-    float3 albedo = g_MaterialColours[min(material, 15u)].rgb;
+    float3 albedo = g_MaterialColours[min(material, 17u)].rgb;
     bool foliageSurface = (material == 10u || material == 14u) && !naturalTerrainSurface;
 
     // The voxel material remains dominant. The authored maps contribute restrained colour
@@ -623,9 +761,10 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // tighter highlight. This gives material changes a lighting consequence instead of making
     // every surface differ only by its base colour.
     float3 halfVector = normalize(g_SunDirection + viewToCamera);
-    float roughness = material == 4u || material == 15u ? 0.24
+    float roughness = material == 17u ? 0.10
+                    : material == 4u || material == 15u ? 0.24
                     : material == 7u || material == 8u ? 0.42
-                    : material == 11u ? 0.18
+                    : material == 11u || material == 16u ? 0.18
                     : material == 14u ? 0.48 : 0.76;
     float specularPower = lerp(96.0, 9.0, roughness);
     float specularAmount = lerp(0.42, 0.035, roughness);
@@ -690,22 +829,40 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
         lit += float3(0.26, 0.13, 0.045) * pane;
     }
     if (material == 12u) lit += albedo * 0.34;
+    if (material == 17u) lit += albedo * 1.35 + float3(0.02, 0.11, 0.18);
 
     // Water is voxel-opaque, but the camera ray can still reflect the procedural sky. Fresnel
     // keeps a little river-bed colour at steep viewing angles while broad horizontal surfaces
     // become a bright mirror; vertical waterfall sheets retain the cooler translucent read.
-    if (material == 11u)
+    if (material == 11u || material == 16u)
     {
         float3 reflectedDirection = reflect(-viewToCamera, normal);
-        float3 reflectedSky = PresentationSky(reflectedDirection);
+        bool undergroundWater = hitVoxel.y * g_VoxelSize < 13.0;
+        float3 reflectedSky = undergroundWater
+                            ? float3(0.008, 0.025, 0.035)
+                            : PresentationSky(reflectedDirection);
         float facing = saturate(dot(normal, viewToCamera));
         float fresnel = 0.04 + 0.96 * pow(1.0 - facing, 5.0);
         float horizontal = smoothstep(0.45, 0.92, abs(normal.y));
-        float reflectionWeight = lerp(0.24, 0.48 + fresnel * 0.34, horizontal);
+        float reflectionWeight = undergroundWater
+                               ? lerp(0.10, 0.20 + fresnel * 0.12, horizontal)
+                               : lerp(0.24, 0.48 + fresnel * 0.34, horizontal);
         lit = lerp(lit, reflectedSky, reflectionWeight);
         // Water frequently sits beneath the east wall and tree canopy. Preserve a cool colour
         // floor there so the stream does not become indistinguishable from dark stone.
-        lit += float3(0.018, 0.10, 0.14) * lerp(1.0, 0.45, horizontal);
+        lit += (undergroundWater ? float3(0.006, 0.045, 0.060)
+                                : float3(0.018, 0.10, 0.14))
+             * lerp(1.0, 0.45, horizontal);
+        // Falling water needs to read as moving, aerated water rather than a dark blue wall.
+        // Irregular vertical bands provide a restrained foam response without introducing a
+        // second simulation or a translucent material path.
+        float cascade = material == 16u ? 1.0 : 0.0;
+        uint foamHash = FarHash((uint)floor(hitVoxel.x) * 73856093u
+                              ^ (uint)floor(hitVoxel.z) * 19349663u);
+        float foamJitter = ((foamHash >> 24) & 255u) * (1.0 / 255.0);
+        float turbulence = 0.5 + 0.5 * sin(hitVoxel.y * 0.21 + hitVoxel.x * 0.57
+                                         + hitVoxel.z * 0.31 + foamJitter * 4.0);
+        lit += cascade * (0.08 + turbulence * 0.09) * float3(0.42, 0.76, 0.96);
     }
 
     // Tone map. Without it the bright faces clip flat and the whole image reads as washed-out
@@ -764,6 +921,22 @@ int FarOctave(int wx, int wz, int log2Cell, int amplitude)
     return ((v * amplitude) >> 10) - (amplitude >> 1);
 }
 
+float FarOctaveContinuous(float2 voxelXZ, int log2Cell, float amplitude)
+{
+    float cellSize = (float)(1 << log2Cell);
+    float2 grid = voxelXZ / cellSize;
+    int2 cell = int2(floor(grid));
+    float2 f = frac(grid);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float c00 = (float)FarCorner(cell.x,     cell.y,     log2Cell);
+    float c10 = (float)FarCorner(cell.x + 1, cell.y,     log2Cell);
+    float c01 = (float)FarCorner(cell.x,     cell.y + 1, log2Cell);
+    float c11 = (float)FarCorner(cell.x + 1, cell.y + 1, log2Cell);
+    float value = lerp(lerp(c00, c10, f.x), lerp(c01, c11, f.x), f.y);
+    return value * (amplitude / 1024.0) - amplitude * 0.5;
+}
+
 // Surface height in voxels. Must match ShowcaseWorld.SurfaceHeight or the horizon will not
 // meet the voxels at the transition.
 int FarSurfaceHeight(int wx, int wz)
@@ -778,10 +951,16 @@ int FarSurfaceHeight(int wx, int wz)
 
 float FarHeightMetres(float3 p)
 {
-    int wx = (int)floor(p.x / g_VoxelSize);
-    int wz = (int)floor(p.z / g_VoxelSize);
-
-    float terrain = FarSurfaceHeight(wx, wz) * g_VoxelSize;
+    float2 voxelXZ = p.xz / g_VoxelSize;
+    int2 baseVoxel = int2(floor(voxelXZ));
+    float2 fraction = frac(voxelXZ);
+    fraction = fraction * fraction * (3.0 - 2.0 * fraction);
+    float h00 = FarSurfaceHeight(baseVoxel.x,     baseVoxel.y);
+    float h10 = FarSurfaceHeight(baseVoxel.x + 1, baseVoxel.y);
+    float h01 = FarSurfaceHeight(baseVoxel.x,     baseVoxel.y + 1);
+    float h11 = FarSurfaceHeight(baseVoxel.x + 1, baseVoxel.y + 1);
+    float terrain = lerp(lerp(h00, h10, fraction.x),
+                         lerp(h01, h11, fraction.x), fraction.y) * g_VoxelSize;
 
     // The authored voxel volume owns the playable landscape around the castle. Beyond it, build
     // broad mountain masses for composition only: they frame the skyline like the concept art
@@ -791,9 +970,9 @@ float FarHeightMetres(float3 p)
     float castleRadius = length(p.xz - float2(25.6, 37.6));
     float mountainEnvelope = smoothstep(105.0, 285.0, castleRadius);
 
-    float broad = FarOctave(wx, wz, 11, 1024) / 1024.0 + 0.5;
-    float medium = FarOctave(wx, wz, 9, 1024) / 1024.0 + 0.5;
-    float fine = FarOctave(wx, wz, 7, 1024) / 1024.0 + 0.5;
+    float broad = FarOctaveContinuous(voxelXZ, 11, 1024.0) / 1024.0 + 0.5;
+    float medium = FarOctaveContinuous(voxelXZ, 9, 1024.0) / 1024.0 + 0.5;
+    float fine = FarOctaveContinuous(voxelXZ, 7, 1024.0) / 1024.0 + 0.5;
     float ridge = 1.0 - abs(broad * 2.0 - 1.0);
     float peaks = pow(saturate(ridge * 0.78 + medium * 0.32 + fine * 0.12 - 0.24), 1.65);
     float mountains = mountainEnvelope * (12.0 + peaks * 108.0);
@@ -909,8 +1088,24 @@ uint MarchBrick(int brickRef, int3 brickCoord, float3 entryVoxel, float3 dir,
         int3 worldVoxel = brickCoord * k_BrickEdge + v;
         if (material != 0u && !PresentationClipped(worldVoxel))
         {
-            normal = float3(axis == 0 ? -step.x : 0, axis == 1 ? -step.y : 0, axis == 2 ? -step.z : 0);
-            return material;
+            float3 worldEntry = (float3)(brickCoord * k_BrickEdge) + entryVoxel + dir * tHit;
+            float sdfDistance = length(worldEntry * g_VoxelSize - g_CameraPos);
+            if (sdfDistance > 45.0)
+            {
+                normal = float3(axis == 0 ? -step.x : 0,
+                                axis == 1 ? -step.y : 0,
+                                axis == 2 ? -step.z : 0);
+                return material;
+            }
+            float sdfAdvance;
+            float3 sdfNormal;
+            if (RefineVoxelSdfHit(worldVoxel, material, worldEntry, dir,
+                                  sdfAdvance, sdfNormal))
+            {
+                tHit += sdfAdvance;
+                normal = sdfNormal;
+                return material;
+            }
         }
 
         if (tMax.x < tMax.y && tMax.x < tMax.z)      { v.x += step.x; tHit = tMax.x; tMax.x += tDelta.x; axis = 0; }
@@ -986,18 +1181,9 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
             sawRef = 1.0;
             float3 normal = float3(axis == 0 ? -step.x : 0, axis == 1 ? -step.y : 0, axis == 2 ? -step.z : 0);
 
-            if (brickRef < -1 && g_CutawayEnabled == 0u)
-            {
-                // Uniform, non-empty: the pointer itself carries the material. No memory read.
-                // Brick space to voxel space. The outer DDA steps bricks, so the hit position is
-                // in brick units and the occlusion sampler reads voxels — passing one for the
-                // other put every shadow ray eight times too close and shadowed the whole world.
-                colour = Shade((uint)(-brickRef - 1), normal, (origin + dir * t) * k_BrickEdge);
-                hit = true;
-                break;
-            }
-
-            // Mixed: descend. Entry point in voxel coordinates within this brick.
+            // Descend even for uniform bricks at the first visible hit. That preserves the fast
+            // brick-level empty-space traversal while giving exposed uniform-brick boundaries
+            // the same voxel SDF refinement as mixed storage.
             float3 entry = (origin + dir * (t + 1e-4)) - float3(brick);
             float3 entryVoxel = clamp(entry * k_BrickEdge, 0.0, k_BrickEdge - 1e-3);
 
@@ -1027,7 +1213,7 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
     if (!hit && g_FarEnabled != 0u && g_FarDistance > 0.0)
     {
         float3 farColour;
-        if (MarchFarField(g_CameraPos, dir, max(t * brickSize, 1.0), farColour))
+        if (MarchFarField(g_CameraPos, dir, 1.0, farColour))
         {
             colour = farColour;
             hit = true;

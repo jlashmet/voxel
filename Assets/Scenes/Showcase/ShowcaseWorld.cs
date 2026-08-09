@@ -45,7 +45,7 @@ namespace VoxelEngine.Showcase
         {
             "empty", "stone", "wood", "sand", "glass", "bedrock",
             "darkstone", "slate", "tile", "cloth", "grass", "water", "gold", "dirt", "moss",
-            "lit window"
+            "lit window", "cascade", "crystal"
         };
 
         // -- geometry constants --------------------------------------------------
@@ -642,9 +642,9 @@ namespace VoxelEngine.Showcase
                 LightAt(plan.Centre.x + 55, dungeonY + 18, trapZ, 8.5f),
                 LightAt(plan.Centre.x + 226, dungeonY + 16, trapZ, 8.0f),
                 LightAt(plan.Centre.x - 226, dungeonY + 15, trapZ, 8.0f),
-                LightAt(plan.Centre.x - 40, dungeonY + 9, caveZ - 15, 9.0f),
-                LightAt(plan.Centre.x + 45, dungeonY + 11, caveZ + 24, 9.0f),
-                LightAt(plan.Centre.x + 145, dungeonY + 12, caveZ + 25, 9.0f),
+                LightAt(plan.Centre.x - 40, dungeonY + 9, caveZ - 15, 11.5f),
+                LightAt(plan.Centre.x + 45, dungeonY + 11, caveZ + 24, 11.5f),
+                LightAt(plan.Centre.x + 145, dungeonY + 12, caveZ + 25, 10.5f),
                 LightAt(plan.Centre.x - 52, baseY + plan.FloorHeight + 16,
                         keepCentreZ + 27, 6.5f),
                 LightAt(plan.Centre.x, baseY + plan.FloorHeight * 3 + 17,
@@ -663,13 +663,14 @@ namespace VoxelEngine.Showcase
             var chapelWarm = new Vector4(1.00f, 0.42f, 0.14f, 1.15f);
             var cellarWarm = new Vector4(1.00f, 0.28f, 0.06f, 2.05f);
             var sideRoomWarm = new Vector4(1.00f, 0.34f, 0.09f, 1.05f);
-            var caveBlue = new Vector4(0.12f, 0.62f, 1.00f, 1.85f);
+            var caveWarm = new Vector4(1.00f, 0.27f, 0.06f, 2.35f);
+            var caveBlue = new Vector4(0.10f, 0.58f, 1.00f, 2.05f);
             CastlePresentationLightColours = new[]
             {
                 hallWarm, hallWarm, upperWarm, upperWarm, hallWarm, upperWarm,
                 chapelWarm, chapelWarm,
                 cellarWarm, cellarWarm, cellarWarm, cellarWarm, sideRoomWarm, sideRoomWarm,
-                caveBlue, caveBlue, caveBlue,
+                caveWarm, caveWarm, caveBlue,
                 upperWarm, upperWarm, upperWarm,
                 chapelWarm, upperWarm, upperWarm,
             };

@@ -114,6 +114,8 @@ namespace VoxelEngine.Rendering
             new(0.38f, 0.31f, 0.24f, 1f),   // dirt
             new(0.32f, 0.40f, 0.24f, 1f),   // moss
             new(0.16f, 0.19f, 0.18f, 1f),   // dark leaded window glass
+            new(0.22f, 0.62f, 0.78f, 1f),   // aerated cascade
+            new(0.08f, 0.56f, 0.82f, 1f),   // luminous cave crystal
         };
 
         public static bool TryGetWorld(out VoxelWorldView view)
