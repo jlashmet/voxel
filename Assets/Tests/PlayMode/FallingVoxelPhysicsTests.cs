@@ -15,7 +15,7 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class FallingVoxelPhysicsTests
     {
         [Test]
-        public void SeveredComponentLeavesGridAsBoundedDetachedChunks()
+        public void SeveredComponentLeavesGridAsBoundedVisualDebris()
         {
             var world = new ShowcaseWorld(123u, 4096, 1, 2);
             try
@@ -37,13 +37,13 @@ namespace VoxelEngine.Tests.PlayMode
                 {
                     Assert.LessOrEqual(chunk.Voxels.Length, GpuDebrisSystem.MaxVoxelsPerChunk);
                     detached += chunk.Voxels.Length;
-                    world.RestoreDetachedChunk(chunk);
                 }
 
                 Assert.AreEqual(3, detached);
-                Assert.AreEqual(ShowcaseWorld.MatWood, Get(world, new int3(20, 4, 20)));
-                Assert.AreEqual(ShowcaseWorld.MatWood, Get(world, new int3(20, 5, 20)));
-                Assert.AreEqual(ShowcaseWorld.MatWood, Get(world, new int3(20, 6, 20)));
+                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 4, 20)));
+                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 5, 20)));
+                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 6, 20)),
+                    "visual debris must never be reconciled into collision storage");
             }
             finally
             {
@@ -108,8 +108,10 @@ namespace VoxelEngine.Tests.PlayMode
                 int detached = 0;
                 while (world.TryDequeueDetachedChunk(out var chunk))
                     detached += chunk.Voxels.Length;
-                Assert.GreaterOrEqual(detached, 2400,
-                    "a full tower remained suspended by one wood voxel of contact area");
+                Assert.Greater(detached, 0,
+                    "the collapsed tower produced no visual debris sample");
+                Assert.Less(detached, 2400,
+                    "the full tower was retained as expensive exact debris instead of a lossy sample");
                 Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 30, 20)));
             }
             finally
@@ -191,10 +193,11 @@ namespace VoxelEngine.Tests.PlayMode
                     detached += chunk.Voxels.Length;
                     chunks++;
                 }
-                Assert.AreEqual(towerVoxels, detached,
-                    "castle-scale upper tower remained on the remote support thread");
-                Assert.LessOrEqual(chunks, GpuDebrisSystem.MaxChunks,
-                    "tower collapse exceeds the bounded authoritative GPU chunk capacity");
+                Assert.Greater(detached, 0, "tower collapse produced no visual feedback sample");
+                Assert.Less(detached, towerVoxels,
+                    "visual debris retained every voxel instead of applying its lossy budget");
+                Assert.LessOrEqual(chunks, ShowcaseWorld.MaxQueuedDetachedChunks,
+                    "tower collapse exceeded the bounded visual queue");
                 Assert.AreEqual(VoxelDimensions.MaterialEmpty,
                     Get(world, new int3(cx, 160, cz + radius)));
             }
@@ -246,7 +249,10 @@ namespace VoxelEngine.Tests.PlayMode
                 }
 
                 Assert.Greater(debris.ActiveChunks, 0);
-                Assert.LessOrEqual(debris.ActiveChunks, GpuDebrisSystem.MaxChunks);
+                Assert.LessOrEqual(debris.ActiveChunks, GpuDebrisSystem.MaxSubmissionsPerFrame,
+                    "one destruction frame submitted more visual chunks than its GPU budget");
+                Assert.Zero(world.PendingDetachedChunks,
+                    "one collapse kept emitting delayed secondary debris bursts");
                 Assert.Less(worstSubmitMs, 100,
                     "GPU submission exceeded its per-frame budget under eight rapid failures");
                 UnityEngine.Debug.Log($"### GPU_DEBRIS_STRESS collapse={collapseTimer.Elapsed.TotalMilliseconds:0.0}ms " +
@@ -261,7 +267,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator GpuDebrisSimulatesAndSettlesDetachedChunk()
+        public IEnumerator GpuDebrisExpiresWithoutRebakingDetachedChunk()
         {
             var world = new ShowcaseWorld(456u, 4096, 1, 2);
             var debris = new GpuDebrisSystem();
@@ -297,14 +303,16 @@ namespace VoxelEngine.Tests.PlayMode
                 }
 
                 Assert.Zero(debris.ActiveChunks,
-                    "wood debris kept animating instead of settling within its short lifetime");
+                    "wood debris kept animating beyond its short visual lifetime");
                 int rebaked = 0;
                 for (int x = -20; x <= 60; x++)
                 for (int y = 1; y <= 30; y++)
                 for (int z = -20; z <= 60; z++)
                     if (Get(world, new int3(x, y, z)) == ShowcaseWorld.MatWood) rebaked++;
-                Assert.GreaterOrEqual(rebaked, 5,
-                    "settled chunk did not rejoin the authoritative grid near its landing area");
+                Assert.AreEqual(2, rebaked,
+                    "expired visual debris rejoined the authoritative collision grid");
+                Assert.Zero(world.RegionsNeedingUpload.Count,
+                    "expiry triggered a second geometry upload/explosion cycle");
             }
             finally
             {

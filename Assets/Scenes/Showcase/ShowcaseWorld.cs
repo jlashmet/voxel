@@ -101,6 +101,8 @@ namespace VoxelEngine.Showcase
 
         private const int MaxCollapseComponentVoxels = 1_048_576;
         private const int FallingChunkEdge = 8;
+        public const int MaxQueuedDetachedChunks = 128;
+        private const int MaxVisualChunksPerCollapse = 64;
 
         /// <summary>
         /// Regions whose brick pointer grid changed and must be re-uploaded to the GPU mirror.
@@ -770,46 +772,6 @@ namespace VoxelEngine.Showcase
         public bool TryDequeueDetachedChunk(out DetachedVoxelChunk chunk) =>
             _detachedChunks.TryDequeue(out chunk);
 
-        /// <summary>Restores a chunk when the bounded GPU debris pool cannot accept it.</summary>
-        public void RestoreDetachedChunk(DetachedVoxelChunk chunk)
-        {
-            for (int i = 0; i < chunk.Voxels.Length; i++)
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, chunk.Voxels[i], chunk.Materials[i]))
-                    MarkDirty(chunk.Voxels[i]);
-        }
-
-        /// <summary>
-        /// Voxelizes a settled, arbitrarily rotated presentation chunk back into authoritative
-        /// grid cells. Occupied targets climb a few cells rather than overwriting world geometry.
-        /// </summary>
-        public void SettleDetachedChunk(DetachedVoxelChunk chunk, Vector3 pivotMetres,
-                                        Quaternion rotation, Vector3 originalPivotMetres)
-        {
-            var occupiedTargets = new HashSet<int3>();
-            for (int i = 0; i < chunk.Voxels.Length; i++)
-            {
-                Vector3 originalCentre = ((Vector3)(float3)chunk.Voxels[i] + Vector3.one * 0.5f)
-                                       * VoxelSurfaceRenderer.VoxelSize;
-                Vector3 targetCentre = pivotMetres + rotation * (originalCentre - originalPivotMetres);
-                int3 target = (int3)math.round((float3)targetCentre / VoxelSurfaceRenderer.VoxelSize - 0.5f);
-
-                int lift = 0;
-                while (lift < 6 && (occupiedTargets.Contains(target)
-                       || VoxelAccess.IsSolid(ref _table, in _pool, target)))
-                {
-                    target.y++;
-                    lift++;
-                }
-
-                if (lift == 6) continue;
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, target, chunk.Materials[i]))
-                {
-                    occupiedTargets.Add(target);
-                    MarkDirty(target);
-                }
-            }
-        }
-
         /// <summary>Returns the centre height at which a detached chunk should meet solid world.</summary>
         public float FindLandingCentreY(float3 pivotMetres, float halfHeightMetres)
         {
@@ -1028,7 +990,11 @@ namespace VoxelEngine.Showcase
         private int DetachComponent(List<FallingVoxel> component, int3 impact,
                                     float3 impulseDirection)
         {
-            var detached = new List<FallingVoxel>(component.Count);
+            // Authoritative geometry disappears immediately. Keep only a tiny, spatially spread
+            // sample for the short-lived GPU effect; retaining every voxel duplicated a large
+            // tower in managed arrays and then fed thousands of chunks into later frames.
+            var buckets = new Dictionary<int3, List<FallingVoxel>>();
+            int detachedCount = 0;
             for (int i = 0; i < component.Count; i++)
             {
                 var voxel = component[i];
@@ -1036,23 +1002,25 @@ namespace VoxelEngine.Showcase
                                          VoxelDimensions.MaterialEmpty))
                 {
                     MarkDirty(voxel.Position);
-                    detached.Add(voxel);
+                    detachedCount++;
+
+                    int3 p = voxel.Position;
+                    int3 bucket = new int3(FloorDiv(p.x, FallingChunkEdge),
+                                           FloorDiv(p.y, FallingChunkEdge),
+                                           FloorDiv(p.z, FallingChunkEdge));
+                    if (!buckets.TryGetValue(bucket, out var visualVoxels))
+                    {
+                        if (buckets.Count >= MaxVisualChunksPerCollapse
+                            || _detachedChunks.Count + buckets.Count
+                               >= MaxQueuedDetachedChunks) continue;
+                        buckets.Add(bucket, visualVoxels =
+                            new List<FallingVoxel>(GpuDebrisSystem.MaxVoxelsPerChunk));
+                    }
+                    if (visualVoxels.Count < GpuDebrisSystem.MaxVoxelsPerChunk)
+                        visualVoxels.Add(voxel);
                 }
             }
-            if (detached.Count == 0) return 0;
-
-            // Spatial buckets make coherent small chunks instead of arbitrary graph slices.
-            var buckets = new Dictionary<int3, List<FallingVoxel>>();
-            for (int i = 0; i < detached.Count; i++)
-            {
-                int3 p = detached[i].Position;
-                int3 bucket = new int3(FloorDiv(p.x, FallingChunkEdge),
-                                       FloorDiv(p.y, FallingChunkEdge),
-                                       FloorDiv(p.z, FallingChunkEdge));
-                if (!buckets.TryGetValue(bucket, out var voxels))
-                    buckets.Add(bucket, voxels = new List<FallingVoxel>(512));
-                voxels.Add(detached[i]);
-            }
+            if (detachedCount == 0) return 0;
 
             foreach (var pair in buckets)
             {
@@ -1072,7 +1040,7 @@ namespace VoxelEngine.Showcase
                 _detachedChunks.Enqueue(chunk);
             }
 
-            return detached.Count;
+            return detachedCount;
         }
 
         private static int FloorDiv(int value, int divisor) =>

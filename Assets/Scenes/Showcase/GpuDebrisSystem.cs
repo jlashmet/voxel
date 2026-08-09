@@ -9,17 +9,16 @@ using VoxelEngine.Rendering;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Fixed-capacity GPU debris simulation. Detached voxel data is uploaded once, transformed
-    /// and drawn entirely on the GPU, then read back only after bodies report that they settled.
+    /// Fixed-capacity, visual-only GPU debris simulation. Detached voxel samples are uploaded
+    /// once, transformed and drawn entirely on the GPU, then discarded on a short CPU lifetime.
+    /// They never re-enter collision or authoritative voxel storage.
     /// </summary>
     public sealed class GpuDebrisSystem : IDisposable
     {
-        public const int MaxChunks = 2048;
-        public const int MaxVoxelsPerChunk = 512;
-        public const int RenderInstancesPerChunk = 64;
-        private const int MaxSubmissionsPerFrame = 96;
-        private const int MaxSettlesPerReadback = 8;
-        private const float ReadbackInterval = 0.2f;
+        public const int MaxChunks = 256;
+        public const int MaxVoxelsPerChunk = 128;
+        public const int RenderInstancesPerChunk = 32;
+        public const int MaxSubmissionsPerFrame = 32;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct GpuState
@@ -40,8 +39,8 @@ namespace VoxelEngine.Showcase
 
         private sealed class ChunkRecord
         {
-            public ShowcaseWorld.DetachedVoxelChunk Chunk;
-            public Vector3 OriginalPivot;
+            public int VoxelCount;
+            public float ExpireAt;
         }
 
         private readonly GpuState[] _states = new GpuState[MaxChunks];
@@ -56,9 +55,6 @@ namespace VoxelEngine.Showcase
         private readonly Mesh _cube;
         private readonly Material _material;
         private readonly Bounds _drawBounds = new(Vector3.zero, Vector3.one * 10000f);
-        private AsyncGPUReadbackRequest _readback;
-        private bool _readbackPending;
-        private float _nextReadback;
         private bool _disposed;
         private int _highestActiveSlot = -1;
 
@@ -101,12 +97,13 @@ namespace VoxelEngine.Showcase
             if (_disposed) return;
             if (!Available)
             {
-                while (world.TryDequeueDetachedChunk(out var rejected))
-                    world.RestoreDetachedChunk(rejected);
+                // Visual debris is deliberately lossy. On a device without compute support the
+                // destroyed voxels stay gone and the presentation samples are simply discarded.
+                while (world.TryDequeueDetachedChunk(out _)) { }
                 return;
             }
 
-            PollReadback(world);
+            ExpireVisuals(Time.unscaledTime);
             SubmitPending(world);
 
             if (ActiveChunks > 0 && deltaTime > 0f)
@@ -120,12 +117,6 @@ namespace VoxelEngine.Showcase
                     ShadowCastingMode.Off, false, 0, null, LightProbeUsage.Off);
             }
 
-            if (!_readbackPending && ActiveChunks > 0 && Time.unscaledTime >= _nextReadback)
-            {
-                _readback = AsyncGPUReadback.Request(_stateBuffer);
-                _readbackPending = true;
-                _nextReadback = Time.unscaledTime + ReadbackInterval;
-            }
         }
 
         private void SubmitPending(ShowcaseWorld world)
@@ -134,15 +125,15 @@ namespace VoxelEngine.Showcase
             int minSlot = MaxChunks;
             int maxSlot = -1;
 
-            while (submitted < MaxSubmissionsPerFrame
-                   && world.TryDequeueDetachedChunk(out var chunk))
+            // Drain the entire event in one frame. Only the first budgeted samples become GPU
+            // visuals; the remainder disappear immediately instead of leaking into a queue that
+            // emits a fake secondary explosion on every later frame.
+            while (world.TryDequeueDetachedChunk(out var chunk))
             {
+                if (submitted >= MaxSubmissionsPerFrame) continue;
+
                 int slot = FindFreeSlot();
-                if (slot < 0)
-                {
-                    world.RestoreDetachedChunk(chunk);
-                    break;
-                }
+                if (slot < 0) continue;
 
                 Vector3 pivot = Vector3.zero;
                 for (int i = 0; i < chunk.Voxels.Length; i++)
@@ -197,7 +188,7 @@ namespace VoxelEngine.Showcase
                     14 => 0.45f, // moss
                     _ => 1f,
                 };
-                float settleLifetime = materialScale < 0.7f ? 1.35f : 3f;
+                float settleLifetime = materialScale < 0.7f ? 0.65f : 1.25f;
                 float massScale = math.clamp(math.rsqrt(math.max(1f, chunk.Voxels.Length / 8f)),
                                              0.45f, 1f);
                 float impulseScale = materialScale * massScale;
@@ -220,7 +211,11 @@ namespace VoxelEngine.Showcase
                     AngularGround = new Vector4(angular.x, angular.y, angular.z, ground),
                     ContactActive = new Vector4(0f, 1f, settleLifetime, 0f),
                 };
-                _records[slot] = new ChunkRecord { Chunk = chunk, OriginalPivot = pivot };
+                _records[slot] = new ChunkRecord
+                {
+                    VoxelCount = chunk.Voxels.Length,
+                    ExpireAt = Time.unscaledTime + settleLifetime,
+                };
                 _highestActiveSlot = math.max(_highestActiveSlot, slot);
                 ActiveChunks++;
                 ActiveVoxels += chunk.Voxels.Length;
@@ -238,34 +233,21 @@ namespace VoxelEngine.Showcase
             UpdateDrawArguments();
         }
 
-        private void PollReadback(ShowcaseWorld world)
+        private void ExpireVisuals(float now)
         {
-            if (!_readbackPending || !_readback.done) return;
-            _readbackPending = false;
-            if (_readback.hasError) return;
-
-            var states = _readback.GetData<GpuState>();
-            int settled = 0;
             int minSlot = MaxChunks;
             int maxSlot = -1;
-            for (int slot = 0; slot < MaxChunks && settled < MaxSettlesPerReadback; slot++)
+            for (int slot = 0; slot < MaxChunks; slot++)
             {
                 var record = _records[slot];
-                if (record == null || states[slot].VelocitySettled.w < 0.5f) continue;
-
-                GpuState state = states[slot];
-                var position = new Vector3(state.PositionAge.x, state.PositionAge.y, state.PositionAge.z);
-                var rotation = new Quaternion(state.Rotation.x, state.Rotation.y,
-                                              state.Rotation.z, state.Rotation.w).normalized;
-                world.SettleDetachedChunk(record.Chunk, position, rotation, record.OriginalPivot);
+                if (record == null || record.ExpireAt > now) continue;
 
                 ActiveChunks--;
-                ActiveVoxels -= record.Chunk.Voxels.Length;
+                ActiveVoxels -= record.VoxelCount;
                 _records[slot] = null;
                 _states[slot] = default;
                 minSlot = math.min(minSlot, slot);
                 maxSlot = math.max(maxSlot, slot);
-                settled++;
             }
 
             if (maxSlot >= minSlot)
@@ -358,7 +340,6 @@ namespace VoxelEngine.Showcase
         {
             if (_disposed) return;
             _disposed = true;
-            if (_readbackPending) _readback.WaitForCompletion();
             _argumentsBuffer?.Dispose();
             _instanceBuffer?.Dispose();
             _stateBuffer?.Dispose();
