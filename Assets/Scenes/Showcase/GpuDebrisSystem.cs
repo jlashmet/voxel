@@ -16,9 +16,9 @@ namespace VoxelEngine.Showcase
     public sealed class GpuDebrisSystem : IDisposable
     {
         public const int MaxChunks = 256;
-        public const int MaxVoxelsPerChunk = 128;
-        public const int RenderInstancesPerChunk = 32;
-        public const int MaxSubmissionsPerFrame = 32;
+        public const int MaxVoxelsPerChunk = 16;
+        public const int RenderInstancesPerChunk = 16;
+        public const int MaxSubmissionsPerFrame = 192;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct GpuState
@@ -144,7 +144,8 @@ namespace VoxelEngine.Showcase
                 float collisionRadius = 0.087f;
                 int instanceStart = slot * RenderInstancesPerChunk;
                 int visibleCount = math.min(RenderInstancesPerChunk, chunk.Voxels.Length);
-                float visualScale = math.pow(chunk.Voxels.Length / (float)visibleCount, 1f / 3f);
+                float visualScale = math.pow(math.max(1, chunk.SourceVoxelCount)
+                                             / (float)visibleCount, 1f / 3f);
                 for (int i = 0; i < RenderInstancesPerChunk; i++)
                 {
                     if (i >= visibleCount)
@@ -188,7 +189,6 @@ namespace VoxelEngine.Showcase
                     14 => 0.45f, // moss
                     _ => 1f,
                 };
-                float settleLifetime = materialScale < 0.7f ? 0.65f : 1.25f;
                 float massScale = math.clamp(math.rsqrt(math.max(1f, chunk.Voxels.Length / 8f)),
                                              0.45f, 1f);
                 float impulseScale = materialScale * massScale;
@@ -200,8 +200,14 @@ namespace VoxelEngine.Showcase
                                             Signed(Hash(hash + 79u)),
                                             Signed(Hash(hash + 97u))) * 7f;
                 velocity *= impulseScale;
+                // Structural debris should read as collapse immediately. A strong upward kick
+                // made towers hover for half a second before gravity became visible.
+                velocity.y = math.lerp(-1.4f, 0.15f, Unit(Hash(hash + 113u)));
                 angular *= math.lerp(0.65f, 1f, impulseScale);
                 float ground = world.FindLandingCentreY(pivot, collisionRadius);
+                float fallDistance = math.max(0f, pivot.y - ground);
+                float settleLifetime = math.clamp(math.sqrt(2f * fallDistance / 9.81f) + 0.7f,
+                                                  materialScale < 0.7f ? 0.85f : 1.15f, 3.5f);
 
                 _states[slot] = new GpuState
                 {
@@ -213,7 +219,7 @@ namespace VoxelEngine.Showcase
                 };
                 _records[slot] = new ChunkRecord
                 {
-                    VoxelCount = chunk.Voxels.Length,
+                    VoxelCount = math.max(chunk.SourceVoxelCount, chunk.Voxels.Length),
                     ExpireAt = Time.unscaledTime + settleLifetime,
                 };
                 _highestActiveSlot = math.max(_highestActiveSlot, slot);

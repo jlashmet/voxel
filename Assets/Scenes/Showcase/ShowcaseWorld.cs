@@ -95,14 +95,28 @@ namespace VoxelEngine.Showcase
         {
             public int3[] Voxels;
             public byte[] Materials;
+            public int SourceVoxelCount;
             public float3 ImpactMetres;
             public float3 ImpulseDirection;
         }
 
+        private sealed class VisualBucket
+        {
+            public readonly List<FallingVoxel> Samples = new(GpuDebrisSystem.RenderInstancesPerChunk);
+            public int SourceVoxelCount;
+            public uint Priority;
+        }
+
+        private struct BrickCollapseInfo
+        {
+            public int OccupiedCount;
+            public bool HasStructuralMarker;
+        }
+
         private const int MaxCollapseComponentVoxels = 1_048_576;
         private const int FallingChunkEdge = 8;
-        public const int MaxQueuedDetachedChunks = 128;
-        private const int MaxVisualChunksPerCollapse = 64;
+        public const int MaxQueuedDetachedChunks = 256;
+        private const int MaxVisualChunksPerCollapse = 192;
 
         /// <summary>
         /// Regions whose brick pointer grid changed and must be re-uploaded to the GPU mirror.
@@ -716,7 +730,7 @@ namespace VoxelEngine.Showcase
         {
             var rng = new DeterministicRandom(MixSeed(centre, radius));
             var voxels = BuildBrushes.PlaceSphere(centre, radius, VoxelDimensions.MaterialEmpty, Seed);
-            var removed = new List<int3>(math.min(voxels.Length, 8192));
+            var removed = new List<FallingVoxel>(math.min(voxels.Length, 8192));
 
             int radiusSq = radius * radius;
             int changed = 0;
@@ -735,15 +749,11 @@ namespace VoxelEngine.Showcase
 
                 if ((int)(rng.NextUint() & 0xFF) < resistance) continue;
 
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, v, VoxelDimensions.MaterialEmpty))
-                {
-                    changed++;
-                    removed.Add(v);
-                    MarkDirty(v);
-                }
+                removed.Add(new FallingVoxel { Position = v, Material = existing });
             }
 
             voxels.Dispose();
+            changed = ClearVoxelsBulk(removed);
             int collapsed = ResolveUnsupportedAfterRemoval(removed, centre, radius, impulseDirection);
             _editCounter++;
             LastEditVoxels = changed + collapsed;
@@ -759,11 +769,11 @@ namespace VoxelEngine.Showcase
             byte material = VoxelAccess.GetVoxel(ref _table, in _pool, voxel);
             if (material == VoxelDimensions.MaterialEmpty || !_palette.IsDestructible(material))
                 return 0;
-            if (!VoxelAccess.SetVoxel(ref _table, ref _pool, voxel, VoxelDimensions.MaterialEmpty))
-                return 0;
-
-            MarkDirty(voxel);
-            var removed = new List<int3>(1) { voxel };
+            var removed = new List<FallingVoxel>(1)
+            {
+                new() { Position = voxel, Material = material },
+            };
+            if (ClearVoxelsBulk(removed) == 0) return 0;
             int collapsed = ResolveUnsupportedAfterRemoval(removed, voxel, 1, default);
             LastEditVoxels = 1 + collapsed;
             return 1 + collapsed;
@@ -785,7 +795,89 @@ namespace VoxelEngine.Showcase
             return halfHeightMetres;
         }
 
-        private int ResolveUnsupportedAfterRemoval(List<int3> removed, int3 impact, int radius,
+        /// <summary>
+        /// Clears a destruction batch without running the mixed-to-uniform 512-byte scan after
+        /// every voxel. Each touched brick is normalized once at the end. Large tower failures
+        /// used to spend almost all of their frame repeating that same scan thousands of times.
+        /// </summary>
+        private int ClearVoxelsBulk(List<FallingVoxel> voxels)
+        {
+            if (voxels.Count == 0) return 0;
+
+            var touchedBricks = new HashSet<int3>();
+            var touchedRegions = new HashSet<int3>();
+            int cleared = 0;
+
+            for (int i = 0; i < voxels.Count; i++)
+            {
+                int3 position = voxels[i].Position;
+                VoxelAccess.Decompose(position, out int3 regionCoord,
+                                      out int3 brickInRegion, out int3 voxelInBrick);
+                if (!_table.TryGetRegion(regionCoord, out var region)) continue;
+
+                int brickIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y,
+                                                   brickInRegion.z);
+                BrickRef brick = region.BrickRefs[brickIndex];
+                if (brick.IsUniform)
+                {
+                    if (brick.UniformMaterial == VoxelDimensions.MaterialEmpty) continue;
+                    int poolIndex = _pool.Allocate();
+                    _pool.FillBrick(poolIndex, brick.UniformMaterial);
+                    brick = BrickRef.FromPoolIndex(poolIndex);
+                    region.BrickRefs[brickIndex] = brick;
+                }
+
+                int voxelIndex = VoxelEngine.Core.Occupancy.OccupancyMask.VoxelIndex(
+                    voxelInBrick.x, voxelInBrick.y, voxelInBrick.z);
+                if (_pool.GetVoxel(brick.PoolIndex, voxelIndex)
+                    == VoxelDimensions.MaterialEmpty) continue;
+
+                _pool.SetVoxel(brick.PoolIndex, voxelIndex, VoxelDimensions.MaterialEmpty);
+                touchedBricks.Add(position >> VoxelDimensions.BrickEdgeLog2);
+                touchedRegions.Add(regionCoord);
+                cleared++;
+            }
+
+            foreach (int3 worldBrick in touchedBricks)
+            {
+                int3 regionCoord = worldBrick >> VoxelDimensions.RegionEdgeLog2;
+                int3 localBrick = worldBrick & VoxelDimensions.RegionEdgeMask;
+                if (!_table.TryGetRegion(regionCoord, out var region)) continue;
+                int brickIndex = Region.BrickIndex(localBrick.x, localBrick.y, localBrick.z);
+                BrickRef brick = region.BrickRefs[brickIndex];
+                if (brick.IsMixed
+                    && _pool.TryGetUniformMaterial(brick.PoolIndex, out byte uniform))
+                {
+                    _pool.Free(brick.PoolIndex);
+                    region.BrickRefs[brickIndex] = BrickRef.Uniform(uniform);
+                }
+
+                MarkDirtyBrick(regionCoord, localBrick);
+            }
+
+            foreach (int3 regionCoord in touchedRegions)
+            {
+                if (!_table.TryGetRegion(regionCoord, out var region)) continue;
+                region.Dirty = true;
+                _table.CommitRegion(region);
+            }
+
+            return cleared;
+        }
+
+        private void MarkDirtyBrick(int3 regionCoord, int3 localBrick)
+        {
+            _dirtyRegions.Add(regionCoord);
+            _regionsNeedingUpload.Add(regionCoord);
+            if (localBrick.x == 0) _dirtyRegions.Add(regionCoord + new int3(-1, 0, 0));
+            if (localBrick.x == VoxelDimensions.RegionEdgeMask)
+                _dirtyRegions.Add(regionCoord + new int3(1, 0, 0));
+            if (localBrick.z == 0) _dirtyRegions.Add(regionCoord + new int3(0, 0, -1));
+            if (localBrick.z == VoxelDimensions.RegionEdgeMask)
+                _dirtyRegions.Add(regionCoord + new int3(0, 0, 1));
+        }
+
+        private int ResolveUnsupportedAfterRemoval(List<FallingVoxel> removed, int3 impact, int radius,
                                                     float3 impulseDirection)
         {
             if (removed.Count == 0) return 0;
@@ -796,7 +888,7 @@ namespace VoxelEngine.Showcase
             for (int r = 0; r < removed.Count; r++)
             for (int d = 0; d < s_Neighbours.Length; d++)
             {
-                int3 candidate = removed[r] + s_Neighbours[d];
+                int3 candidate = removed[r].Position + s_Neighbours[d];
                 if (VoxelAccess.IsSolid(ref _table, in _pool, candidate)) candidates.Add(candidate);
             }
 
@@ -872,97 +964,271 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private int ResolveOverloadedSupport(int3 impact, int radius, float3 impulseDirection)
         {
-            int influenceRadius = math.clamp(radius * 4 + 48, 64, 128);
+            int influenceRadius = math.clamp(radius * 2 + 56, 64, 96);
             int scanRadius = influenceRadius;
-            int minY = math.max(0, impact.y - radius - 2);
-            int maxY = math.min(RegionVoxelEdge - 2, impact.y + radius + 2);
-            int yStep = math.max(1, radius / 8);
             int weakestPlane = impact.y;
-            int weakestContacts = int.MaxValue;
-            long weakestScore = long.MaxValue;
-
-            for (int y = minY; y <= maxY; y += yStep)
-            {
-                int contacts = CountVerticalContacts(impact.x, impact.z, y, scanRadius);
-                long score = (long)contacts * (4 + math.abs(y - impact.y));
-                if (contacts > 0 && score < weakestScore)
-                {
-                    weakestContacts = contacts;
-                    weakestPlane = y;
-                    weakestScore = score;
-                }
-            }
-            // The exact impact layer matters even when a large brush samples every few layers.
-            int impactContacts = CountVerticalContacts(impact.x, impact.z, impact.y, scanRadius);
-            if (impactContacts > 0 && (long)impactContacts * 4 < weakestScore)
-            {
-                weakestContacts = impactContacts;
-                weakestPlane = impact.y;
-                weakestScore = (long)impactContacts * 4;
-            }
-            if (weakestContacts == int.MaxValue) return 0;
+            // A sphere's widest cut—and therefore its weakest remaining contact—is its centre
+            // plane. Scanning every layer (and later three representative layers) only repeated
+            // tens of thousands of sparse lookups before debris could start moving.
+            if (CountVerticalContacts(impact.x, impact.z, weakestPlane, scanRadius) == 0) return 0;
 
             int collapsed = 0;
             int seedY = weakestPlane + 1;
-            int radiusSq = scanRadius * scanRadius;
+            int minBrickX = (impact.x - influenceRadius) >> VoxelDimensions.BrickEdgeLog2;
+            int maxBrickX = (impact.x + influenceRadius) >> VoxelDimensions.BrickEdgeLog2;
+            int minBrickZ = (impact.z - influenceRadius) >> VoxelDimensions.BrickEdgeLog2;
+            int maxBrickZ = (impact.z + influenceRadius) >> VoxelDimensions.BrickEdgeLog2;
+            int minBrickY = seedY >> VoxelDimensions.BrickEdgeLog2;
+            // Castle towers are under 26 m tall. Do not probe empty sky to the top of the
+            // 51.2 m region after every impact.
+            int maxBrickY = math.min(RegionVoxelEdge - 1, seedY + 256)
+                          >> VoxelDimensions.BrickEdgeLog2;
             int influenceRadiusSq = influenceRadius * influenceRadius;
-            var visited = new HashSet<int3>();
+            var candidates = new Dictionary<int3, BrickCollapseInfo>();
 
-            for (int dz = -scanRadius; dz <= scanRadius; dz++)
-            for (int dx = -scanRadius; dx <= scanRadius; dx++)
+            // Structural overload is intentionally brick-granular. A castle-scale tower can
+            // contain hundreds of thousands of voxels; walking a HashSet node for every one was
+            // the remaining impact hitch. At 8^3 voxels per brick this bounds the same search to
+            // a few thousand compact records, while voxel collision remains exact until failure.
+            for (int bz = minBrickZ; bz <= maxBrickZ; bz++)
+            for (int by = minBrickY; by <= maxBrickY; by++)
+            for (int bx = minBrickX; bx <= maxBrickX; bx++)
             {
-                if (dx * dx + dz * dz > radiusSq) continue;
-                int3 seed = new int3(impact.x + dx, seedY, impact.z + dz);
-                if (visited.Contains(seed) || !VoxelAccess.IsSolid(ref _table, in _pool, seed))
+                int centreX = (bx << VoxelDimensions.BrickEdgeLog2) + 4 - impact.x;
+                int centreZ = (bz << VoxelDimensions.BrickEdgeLog2) + 4 - impact.z;
+                if (centreX * centreX + centreZ * centreZ
+                    > influenceRadiusSq + 64) continue;
+                int3 worldBrick = new int3(bx, by, bz);
+                BrickCollapseInfo info = ReadBrickCollapseInfo(worldBrick, seedY);
+                if (info.OccupiedCount > 0) candidates.Add(worldBrick, info);
+            }
+
+            var visited = new HashSet<int3>();
+            foreach (var pair in candidates)
+            {
+                int3 seed = pair.Key;
+                if (seed.y != minBrickY || visited.Contains(seed))
                     continue;
 
-                var component = new List<FallingVoxel>(512);
+                var component = new List<int3>(128);
                 var stack = new Stack<int3>();
                 stack.Push(seed);
                 visited.Add(seed);
                 long supportCapacity = 0;
                 bool containsStructuralMaterial = false;
-                bool overflow = false;
+                int occupiedCount = 0;
 
                 while (stack.Count > 0)
                 {
                     int3 current = stack.Pop();
-                    byte material = VoxelAccess.GetVoxel(ref _table, in _pool, current);
-                    if (material == VoxelDimensions.MaterialEmpty) continue;
-                    containsStructuralMaterial |= IsStructuralMaterial(material);
-                    component.Add(new FallingVoxel { Position = current, Material = material });
-                    if (component.Count >= MaxCollapseComponentVoxels)
-                    {
-                        overflow = true;
-                        break;
-                    }
+                    BrickCollapseInfo info = candidates[current];
+                    containsStructuralMaterial |= info.HasStructuralMarker;
+                    occupiedCount += info.OccupiedCount;
+                    component.Add(current);
 
-                    if (current.y == seedY)
+                    if (current.y == minBrickY)
                     {
-                        byte below = VoxelAccess.GetVoxel(ref _table, in _pool,
-                                                         current + new int3(0, -1, 0));
-                        if (below != VoxelDimensions.MaterialEmpty)
-                            supportCapacity += 48 + _palette.GetHardness(below);
+                        int brickOriginX = current.x << VoxelDimensions.BrickEdgeLog2;
+                        int brickOriginZ = current.z << VoxelDimensions.BrickEdgeLog2;
+                        for (int lz = 0; lz < VoxelDimensions.BrickEdge; lz++)
+                        for (int lx = 0; lx < VoxelDimensions.BrickEdge; lx++)
+                        {
+                            int3 upper = new int3(brickOriginX + lx, seedY,
+                                                  brickOriginZ + lz);
+                            if (!VoxelAccess.IsSolid(ref _table, in _pool, upper)) continue;
+                            byte below = VoxelAccess.GetVoxel(ref _table, in _pool,
+                                                             upper + new int3(0, -1, 0));
+                            if (below != VoxelDimensions.MaterialEmpty)
+                                supportCapacity += 6 + _palette.GetHardness(below) / 32;
+                        }
                     }
 
                     for (int n = 0; n < s_Neighbours.Length; n++)
                     {
                         int3 next = current + s_Neighbours[n];
-                        int relX = next.x - impact.x;
-                        int relZ = next.z - impact.z;
-                        if (next.y <= weakestPlane || visited.Contains(next)
-                            || relX * relX + relZ * relZ > influenceRadiusSq
-                            || !VoxelAccess.IsSolid(ref _table, in _pool, next)) continue;
+                        if (visited.Contains(next) || !candidates.ContainsKey(next)) continue;
                         visited.Add(next);
                         stack.Push(next);
                     }
                 }
 
-                if (!overflow && containsStructuralMaterial && component.Count > supportCapacity)
-                    collapsed += DetachComponent(component, impact, impulseDirection);
+                if (containsStructuralMaterial && occupiedCount > supportCapacity)
+                    collapsed += DetachBrickComponent(component, seedY, impact, impulseDirection);
             }
 
             return collapsed;
+        }
+
+        private BrickCollapseInfo ReadBrickCollapseInfo(int3 worldBrick, int minimumVoxelY)
+        {
+            int3 regionCoord = worldBrick >> VoxelDimensions.RegionEdgeLog2;
+            int3 localBrick = worldBrick & VoxelDimensions.RegionEdgeMask;
+            if (!_table.TryGetRegion(regionCoord, out var region)) return default;
+            BrickRef brick = region.GetBrick(localBrick.x, localBrick.y, localBrick.z);
+            int firstY = math.max(0, minimumVoxelY
+                                  - (worldBrick.y << VoxelDimensions.BrickEdgeLog2));
+            if (firstY >= VoxelDimensions.BrickEdge || brick.IsEmpty) return default;
+
+            if (brick.IsUniform)
+            {
+                byte material = brick.UniformMaterial;
+                if (!_palette.IsDestructible(material)) return default;
+                return new BrickCollapseInfo
+                {
+                    OccupiedCount = (VoxelDimensions.BrickEdge - firstY)
+                                    * VoxelDimensions.BrickEdge * VoxelDimensions.BrickEdge,
+                    HasStructuralMarker = IsStructuralMaterial(material),
+                };
+            }
+
+            int count = 0;
+            bool marker = false;
+            for (int z = 0; z < VoxelDimensions.BrickEdge; z++)
+            for (int y = firstY; y < VoxelDimensions.BrickEdge; y++)
+            for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
+            {
+                int index = VoxelEngine.Core.Occupancy.OccupancyMask.VoxelIndex(x, y, z);
+                byte material = _pool.GetVoxel(brick.PoolIndex, index);
+                if (material == VoxelDimensions.MaterialEmpty
+                    || !_palette.IsDestructible(material)) continue;
+                count++;
+                marker |= IsStructuralMaterial(material);
+            }
+            return new BrickCollapseInfo
+            {
+                OccupiedCount = count,
+                HasStructuralMarker = marker,
+            };
+        }
+
+        private int DetachBrickComponent(List<int3> component, int minimumVoxelY, int3 impact,
+                                         float3 impulseDirection)
+        {
+            var buckets = new List<VisualBucket>(component.Count);
+            var touchedRegions = new HashSet<int3>();
+            int detached = 0;
+
+            for (int b = 0; b < component.Count; b++)
+            {
+                int3 worldBrick = component[b];
+                int3 regionCoord = worldBrick >> VoxelDimensions.RegionEdgeLog2;
+                int3 localBrick = worldBrick & VoxelDimensions.RegionEdgeMask;
+                if (!_table.TryGetRegion(regionCoord, out var region)) continue;
+                int brickIndex = Region.BrickIndex(localBrick.x, localBrick.y, localBrick.z);
+                BrickRef brick = region.BrickRefs[brickIndex];
+                if (brick.IsEmpty) continue;
+
+                int firstY = math.max(0, minimumVoxelY
+                                      - (worldBrick.y << VoxelDimensions.BrickEdgeLog2));
+                var visual = new VisualBucket { Priority = VisualHash(worldBrick) };
+
+                if (brick.IsUniform && firstY == 0 && _palette.IsDestructible(brick.UniformMaterial))
+                {
+                    byte material = brick.UniformMaterial;
+                    for (int z = 0; z < VoxelDimensions.BrickEdge; z++)
+                    for (int y = 0; y < VoxelDimensions.BrickEdge; y++)
+                    for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
+                    {
+                        int3 position = (worldBrick << VoxelDimensions.BrickEdgeLog2)
+                                      + new int3(x, y, z);
+                        AddVisualSample(visual,
+                            new FallingVoxel { Position = position, Material = material });
+                    }
+                    region.BrickRefs[brickIndex] = BrickRef.Empty;
+                    detached += visual.SourceVoxelCount;
+                }
+                else
+                {
+                    if (brick.IsUniform)
+                    {
+                        if (!_palette.IsDestructible(brick.UniformMaterial)) continue;
+                        int poolIndex = _pool.Allocate();
+                        _pool.FillBrick(poolIndex, brick.UniformMaterial);
+                        brick = BrickRef.FromPoolIndex(poolIndex);
+                        region.BrickRefs[brickIndex] = brick;
+                    }
+
+                    for (int z = 0; z < VoxelDimensions.BrickEdge; z++)
+                    for (int y = firstY; y < VoxelDimensions.BrickEdge; y++)
+                    for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
+                    {
+                        int index = VoxelEngine.Core.Occupancy.OccupancyMask.VoxelIndex(x, y, z);
+                        byte material = _pool.GetVoxel(brick.PoolIndex, index);
+                        if (material == VoxelDimensions.MaterialEmpty
+                            || !_palette.IsDestructible(material)) continue;
+                        int3 position = (worldBrick << VoxelDimensions.BrickEdgeLog2)
+                                      + new int3(x, y, z);
+                        AddVisualSample(visual,
+                            new FallingVoxel { Position = position, Material = material });
+                        _pool.SetVoxel(brick.PoolIndex, index, VoxelDimensions.MaterialEmpty);
+                    }
+
+                    if (_pool.TryGetUniformMaterial(brick.PoolIndex, out byte uniform))
+                    {
+                        _pool.Free(brick.PoolIndex);
+                        region.BrickRefs[brickIndex] = BrickRef.Uniform(uniform);
+                    }
+                    detached += visual.SourceVoxelCount;
+                }
+
+                if (visual.SourceVoxelCount == 0) continue;
+                buckets.Add(visual);
+                touchedRegions.Add(regionCoord);
+                MarkDirtyBrick(regionCoord, localBrick);
+            }
+
+            foreach (int3 regionCoord in touchedRegions)
+            {
+                if (!_table.TryGetRegion(regionCoord, out var region)) continue;
+                region.Dirty = true;
+                _table.CommitRegion(region);
+            }
+
+            buckets.Sort((a, b) => a.Priority.CompareTo(b.Priority));
+            int visualCount = math.min(MaxVisualChunksPerCollapse,
+                                       MaxQueuedDetachedChunks - _detachedChunks.Count);
+            visualCount = math.min(visualCount, buckets.Count);
+            int represented = 0;
+            for (int b = 0; b < visualCount; b++) represented += buckets[b].SourceVoxelCount;
+            float coverageScale = represented > 0 ? detached / (float)represented : 1f;
+            for (int b = 0; b < visualCount; b++)
+            {
+                VisualBucket bucket = buckets[b];
+                var chunk = new DetachedVoxelChunk
+                {
+                    Voxels = new int3[bucket.Samples.Count],
+                    Materials = new byte[bucket.Samples.Count],
+                    SourceVoxelCount = math.max(bucket.SourceVoxelCount,
+                                                (int)math.ceil(bucket.SourceVoxelCount
+                                                               * coverageScale)),
+                    ImpactMetres = ((float3)impact + 0.5f) * VoxelSurfaceRenderer.VoxelSize,
+                    ImpulseDirection = impulseDirection,
+                };
+                for (int i = 0; i < bucket.Samples.Count; i++)
+                {
+                    chunk.Voxels[i] = bucket.Samples[i].Position;
+                    chunk.Materials[i] = bucket.Samples[i].Material;
+                }
+                _detachedChunks.Enqueue(chunk);
+            }
+
+            return detached;
+        }
+
+        private static void AddVisualSample(VisualBucket bucket, FallingVoxel voxel)
+        {
+            bucket.SourceVoxelCount++;
+            int capacity = GpuDebrisSystem.RenderInstancesPerChunk;
+            if (bucket.Samples.Count < capacity)
+            {
+                bucket.Samples.Add(voxel);
+                return;
+            }
+
+            uint sampleHash = VisualHash(voxel.Position)
+                            ^ (uint)bucket.SourceVoxelCount * 0x9E3779B9u;
+            uint selected = sampleHash % (uint)bucket.SourceVoxelCount;
+            if (selected < capacity) bucket.Samples[(int)selected] = voxel;
         }
 
         private int CountVerticalContacts(int centreX, int centreZ, int planeY, int radius)
@@ -990,45 +1256,58 @@ namespace VoxelEngine.Showcase
         private int DetachComponent(List<FallingVoxel> component, int3 impact,
                                     float3 impulseDirection)
         {
-            // Authoritative geometry disappears immediately. Keep only a tiny, spatially spread
-            // sample for the short-lived GPU effect; retaining every voxel duplicated a large
-            // tower in managed arrays and then fed thousands of chunks into later frames.
-            var buckets = new Dictionary<int3, List<FallingVoxel>>();
-            int detachedCount = 0;
+            int detachedCount = ClearVoxelsBulk(component);
+            if (detachedCount == 0) return 0;
+
+            // Preserve the whole silhouette, not merely the first part visited by the flood
+            // fill. Every spatial bucket gets a tiny reservoir sample, then a deterministic
+            // subset of buckets spanning the component is handed to the GPU.
+            var buckets = new Dictionary<int3, VisualBucket>();
             for (int i = 0; i < component.Count; i++)
             {
                 var voxel = component[i];
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel.Position,
-                                         VoxelDimensions.MaterialEmpty))
+                int3 p = voxel.Position;
+                int3 bucketCoord = new int3(FloorDiv(p.x, FallingChunkEdge),
+                                            FloorDiv(p.y, FallingChunkEdge),
+                                            FloorDiv(p.z, FallingChunkEdge));
+                if (!buckets.TryGetValue(bucketCoord, out var bucket))
                 {
-                    MarkDirty(voxel.Position);
-                    detachedCount++;
+                    bucket = new VisualBucket { Priority = VisualHash(bucketCoord) };
+                    buckets.Add(bucketCoord, bucket);
+                }
 
-                    int3 p = voxel.Position;
-                    int3 bucket = new int3(FloorDiv(p.x, FallingChunkEdge),
-                                           FloorDiv(p.y, FallingChunkEdge),
-                                           FloorDiv(p.z, FallingChunkEdge));
-                    if (!buckets.TryGetValue(bucket, out var visualVoxels))
-                    {
-                        if (buckets.Count >= MaxVisualChunksPerCollapse
-                            || _detachedChunks.Count + buckets.Count
-                               >= MaxQueuedDetachedChunks) continue;
-                        buckets.Add(bucket, visualVoxels =
-                            new List<FallingVoxel>(GpuDebrisSystem.MaxVoxelsPerChunk));
-                    }
-                    if (visualVoxels.Count < GpuDebrisSystem.MaxVoxelsPerChunk)
-                        visualVoxels.Add(voxel);
+                bucket.SourceVoxelCount++;
+                int capacity = GpuDebrisSystem.RenderInstancesPerChunk;
+                if (bucket.Samples.Count < capacity)
+                    bucket.Samples.Add(voxel);
+                else
+                {
+                    uint sampleHash = VisualHash(p) ^ (uint)bucket.SourceVoxelCount * 0x9E3779B9u;
+                    uint selected = sampleHash % (uint)bucket.SourceVoxelCount;
+                    if (selected < capacity) bucket.Samples[(int)selected] = voxel;
                 }
             }
-            if (detachedCount == 0) return 0;
 
-            foreach (var pair in buckets)
+            var selectedBuckets = new List<VisualBucket>(buckets.Values);
+            selectedBuckets.Sort((a, b) => a.Priority.CompareTo(b.Priority));
+            int visualCount = math.min(MaxVisualChunksPerCollapse,
+                                       MaxQueuedDetachedChunks - _detachedChunks.Count);
+            visualCount = math.min(visualCount, selectedBuckets.Count);
+            int represented = 0;
+            for (int b = 0; b < visualCount; b++)
+                represented += selectedBuckets[b].SourceVoxelCount;
+            float coverageScale = represented > 0 ? detachedCount / (float)represented : 1f;
+            for (int b = 0; b < visualCount; b++)
             {
-                var voxels = pair.Value;
+                VisualBucket bucket = selectedBuckets[b];
+                var voxels = bucket.Samples;
                 var chunk = new DetachedVoxelChunk
                 {
                     Voxels = new int3[voxels.Count],
                     Materials = new byte[voxels.Count],
+                    SourceVoxelCount = math.max(bucket.SourceVoxelCount,
+                                                (int)math.ceil(bucket.SourceVoxelCount
+                                                               * coverageScale)),
                     ImpactMetres = ((float3)impact + 0.5f) * VoxelSurfaceRenderer.VoxelSize,
                     ImpulseDirection = impulseDirection,
                 };
@@ -1041,6 +1320,18 @@ namespace VoxelEngine.Showcase
             }
 
             return detachedCount;
+        }
+
+        private static uint VisualHash(int3 value)
+        {
+            uint hash = (uint)(value.x * 73856093)
+                      ^ (uint)(value.y * 19349663)
+                      ^ (uint)(value.z * 83492791);
+            hash ^= hash >> 16;
+            hash *= 0x7FEB352Du;
+            hash ^= hash >> 15;
+            hash *= 0x846CA68Bu;
+            return hash ^ (hash >> 16);
         }
 
         private static int FloorDiv(int value, int divisor) =>

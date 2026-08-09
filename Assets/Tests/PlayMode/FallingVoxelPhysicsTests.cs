@@ -184,22 +184,45 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.Greater(towerVoxels, 262144,
                     "fixture no longer exceeds the former conservative traversal cap");
 
+                var collapseTimer = Stopwatch.StartNew();
                 world.RemoveAndResolveCollapse(new int3(cx + radius, 10, cz));
+                collapseTimer.Stop();
 
                 int detached = 0;
                 int chunks = 0;
+                int representedVoxels = 0;
+                int minVisualY = int.MaxValue;
+                int maxVisualY = int.MinValue;
                 while (world.TryDequeueDetachedChunk(out var chunk))
                 {
                     detached += chunk.Voxels.Length;
+                    representedVoxels += chunk.SourceVoxelCount;
                     chunks++;
+                    for (int i = 0; i < chunk.Voxels.Length; i++)
+                    {
+                        minVisualY = math.min(minVisualY, chunk.Voxels[i].y);
+                        maxVisualY = math.max(maxVisualY, chunk.Voxels[i].y);
+                    }
                 }
                 Assert.Greater(detached, 0, "tower collapse produced no visual feedback sample");
                 Assert.Less(detached, towerVoxels,
                     "visual debris retained every voxel instead of applying its lossy budget");
+                Assert.Greater(representedVoxels, detached,
+                    "visual chunks did not aggregate the discarded tower voxels");
+                Assert.LessOrEqual(minVisualY, 32,
+                    "debris sampling omitted the tower's lower structure");
+                Assert.GreaterOrEqual(maxVisualY, 140,
+                    "debris sampling omitted the tower's upper silhouette");
                 Assert.LessOrEqual(chunks, ShowcaseWorld.MaxQueuedDetachedChunks,
                     "tower collapse exceeded the bounded visual queue");
+                Assert.Less(collapseTimer.Elapsed.TotalMilliseconds, 150,
+                    "castle-scale collapse exceeded its synchronous frame budget");
                 Assert.AreEqual(VoxelDimensions.MaterialEmpty,
                     Get(world, new int3(cx, 160, cz + radius)));
+                UnityEngine.Debug.Log($"### CASTLE_COLLAPSE collapse=" +
+                                      $"{collapseTimer.Elapsed.TotalMilliseconds:0.0}ms " +
+                                      $"tower={towerVoxels} samples={detached} chunks={chunks} " +
+                                      $"visualY={minVisualY}..{maxVisualY}");
             }
             finally
             {
@@ -235,7 +258,7 @@ namespace VoxelEngine.Tests.PlayMode
                     world.RemoveAndResolveCollapse(new int3(21 + structure * 12, 10, 20));
                 collapseTimer.Stop();
                 Assert.Greater(world.PendingDetachedChunks, 8);
-                Assert.Less(collapseTimer.Elapsed.TotalMilliseconds, 1000,
+                Assert.Less(collapseTimer.Elapsed.TotalMilliseconds, 100,
                     "bounded structural classification regressed into a multi-second stall");
 
                 double worstSubmitMs = 0;
@@ -253,7 +276,7 @@ namespace VoxelEngine.Tests.PlayMode
                     "one destruction frame submitted more visual chunks than its GPU budget");
                 Assert.Zero(world.PendingDetachedChunks,
                     "one collapse kept emitting delayed secondary debris bursts");
-                Assert.Less(worstSubmitMs, 100,
+                Assert.Less(worstSubmitMs, 10,
                     "GPU submission exceeded its per-frame budget under eight rapid failures");
                 UnityEngine.Debug.Log($"### GPU_DEBRIS_STRESS collapse={collapseTimer.Elapsed.TotalMilliseconds:0.0}ms " +
                                       $"worstSubmit={worstSubmitMs:0.0}ms active={debris.ActiveChunks} " +
