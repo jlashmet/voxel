@@ -359,6 +359,50 @@ namespace VoxelEngine.Structures
             RavineWaterfall(ref brush, in plan, terrainSeed, top);
             TreeBelt(ref brush, in plan, top);
             ApproachPlanting(ref brush, in plan, top);
+            WallFootingOvergrowth(ref brush, in plan, top);
+        }
+
+        private static void WallFootingOvergrowth(ref VoxelBrush brush, in CastlePlan plan, int top)
+        {
+            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
+            var rng = new Random(plan.Seed ^ 0xB07A11u);
+
+            // Low vegetation, fallen blocks, and damp stone overlap the wall silhouette at
+            // ground level. Keep the central bridge lane completely clear and bias the larger
+            // pieces toward buttresses, where real collapse debris naturally accumulates.
+            for (int side = -1; side <= 1; side += 2)
+            for (int bay = 0; bay < 7; bay++)
+            {
+                int x = plan.Centre.x + side * (96 + bay * 24);
+                if (math.abs(x - plan.Centre.x) >= plan.BaileyHalfX - plan.TowerRadius) continue;
+                int z = gateZ - 17 - rng.NextInt(0, 10);
+                int surface = HighestSolid(ref brush, x, z, top + 12, top - 80);
+                int shrubRadius = rng.NextInt(4, 8);
+                brush.Cone(x, surface + 1, z, shrubRadius, rng.NextInt(5, 11),
+                           (bay & 1) == 0 ? Mat.Moss : Mat.Grass);
+
+                int rubbleX = x + side * rng.NextInt(8, 15);
+                int rubbleZ = z - rng.NextInt(2, 10);
+                int rubbleY = HighestSolid(ref brush, rubbleX, rubbleZ, top + 12, top - 80);
+                brush.Box(new int3(rubbleX, rubbleY + 1, rubbleZ),
+                          new int3(rng.NextInt(4, 9), rng.NextInt(3, 7), rng.NextInt(4, 8)),
+                          bay % 3 == 0 ? Mat.Stone : Mat.DarkStone);
+            }
+
+            // Two irregular foreground copses create depth layers in the hero view without
+            // hiding the gate or repeating the evenly spaced procedural tree belt.
+            int2[] copseOffsets =
+            {
+                new(-260, -82), new(-282, -48), new(266, -62), new(292, -30),
+            };
+            for (int i = 0; i < copseOffsets.Length; i++)
+            {
+                int x = plan.Centre.x + copseOffsets[i].x;
+                int z = gateZ + copseOffsets[i].y;
+                int surface = HighestSolid(ref brush, x, z, top + 18, top - 120);
+                Pine(ref brush, x, surface + 1, z, 44 + i * 5, 13 + (i & 1) * 3,
+                     i == 1 ? Mat.Moss : Mat.Grass);
+            }
         }
 
         private static void RavineWaterfall(ref VoxelBrush brush, in CastlePlan plan,
@@ -682,6 +726,35 @@ namespace VoxelEngine.Structures
                            16, 32, Mat.Slate);
                 brush.Box(new int3(x, wallTop + 60, gateZ + plan.WallThickness / 2),
                           new int3(2, 15, 2), Mat.Gold);
+            }
+
+            // Timber hoardings make the curtain feel accumulated rather than generated as one
+            // uninterrupted stone operation. Their deep overhangs, posts, rails, and lean-to
+            // roofs add the mid-scale shadow rhythm missing between buttresses and crenellations.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                const int width = 58;
+                int galleryX = plan.Centre.x + side * (hx * 3 / 5) - width / 2;
+                int galleryY = wallTop - 34;
+                int galleryZ = gateZ - 17;
+
+                brush.Box(new int3(galleryX, galleryY, galleryZ),
+                          new int3(width, 4, 20), Mat.Wood);
+                for (int post = 4; post < width - 2; post += 16)
+                {
+                    brush.Box(new int3(galleryX + post, galleryY + 4, galleryZ + 2),
+                              new int3(3, 21, 3), Mat.Wood);
+                    brush.Box(new int3(galleryX + post, galleryY - 10, galleryZ + 13),
+                              new int3(4, 12, 4), Mat.DarkStone);
+                }
+                brush.Box(new int3(galleryX + 2, galleryY + 13, galleryZ),
+                          new int3(width - 4, 3, 3), Mat.Wood);
+                brush.Box(new int3(galleryX - 3, galleryY + 24, galleryZ - 2),
+                          new int3(width + 6, 3, 24), Mat.Tile);
+                brush.Box(new int3(galleryX + 3, galleryY + 7, galleryZ + 3),
+                          new int3(4, 7, 4), Mat.Glass);
+                brush.Box(new int3(galleryX + width - 7, galleryY + 7, galleryZ + 3),
+                          new int3(4, 7, 4), Mat.Glass);
             }
 
             // Narrow buttresses on the side curtains keep the same architectural language in

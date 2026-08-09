@@ -319,7 +319,7 @@ float Occlusion(float3 hitVoxel, float3 normal)
     }
 
     // Never fully black: a corner in daylight is dark, not absent.
-    return lerp(1.0, 0.12, occluded / total);
+    return lerp(1.0, 0.24, occluded / total);
 }
 
 float3 SkyColour(float3 dir)
@@ -337,7 +337,7 @@ float3 PresentationSky(float3 dir)
     float3 paintedSky = g_SkyTexture.SampleLevel(sampler_g_StoneTexture, skyUv, 0.0).rgb;
     float paintedLuminance = dot(paintedSky, float3(0.2126, 0.7152, 0.0722));
     paintedSky = lerp(paintedLuminance.xxx, paintedSky, 0.46);
-    float3 sky = lerp(paintedSky, SkyColour(dir), 0.68);
+    float3 sky = lerp(paintedSky, SkyColour(dir), 0.48);
 
     // The direct sun is behind the player in the hero approach, but its broad warm halo still
     // gives the upper sky a lighting direction and matches the warm/cool split used indoors.
@@ -569,18 +569,38 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     }
 
     float ndotl = saturate(dot(normal, g_SunDirection));
-    float fill = saturate(dot(normal, -g_SunDirection)) * 0.18;
+    float fill = saturate(dot(normal, -g_SunDirection)) * 0.06;
 
-    float3 groundBounce = float3(0.26, 0.23, 0.19);
+    float3 groundBounce = float3(0.20, 0.18, 0.16);
     float hemi = normal.y * 0.5 + 0.5;
-    float3 ambient = lerp(groundBounce, SkyColour(normal), hemi) * 0.37;
+    float3 ambient = lerp(groundBounce, SkyColour(normal), hemi) * 0.32;
 
     // Shadows cut the sun only; ambient still reaches a shadowed wall, or a north face would go
-    // black again the moment it fell into shade.
-    float shadow = ndotl > 0.0 ? SunShadow(hitVoxel, normal) : 1.0;
+    // black again the moment it fell into shade. Launch with the actual hit face: a smoothed
+    // cylinder normal can point through the stair-stepped voxel skin and self-shadow every other
+    // column, which was the source of the towers' black vertical striping.
+    float shadow = ndotl > 0.0 ? SunShadow(hitVoxel, faceNormal) : 1.0;
     float ao = Occlusion(hitVoxel, normal);
+    float3 sunColour = float3(1.00, 0.78, 0.57);
 
-    float3 lit = albedo * (ambient * ao + ndotl * shadow * 1.16 + fill * ao);
+    float3 lit = albedo * (ambient * lerp(0.58, 1.0, ao)
+                         + sunColour * ndotl * shadow * 0.88
+                         + fill * ao);
+
+    // Even rough stone has a broad grazing response; slate, glass, wet moss, and water carry a
+    // tighter highlight. This gives material changes a lighting consequence instead of making
+    // every surface differ only by its base colour.
+    float3 viewToCamera = normalize(g_CameraPos / g_VoxelSize - hitVoxel);
+    float3 halfVector = normalize(g_SunDirection + viewToCamera);
+    float roughness = material == 4u ? 0.24
+                    : material == 7u || material == 8u ? 0.42
+                    : material == 11u ? 0.18
+                    : material == 14u ? 0.48 : 0.76;
+    float specularPower = lerp(96.0, 9.0, roughness);
+    float specularAmount = lerp(0.42, 0.035, roughness);
+    float specular = pow(saturate(dot(normal, halfVector)), specularPower)
+                   * specularAmount * shadow * ndotl;
+    lit += sunColour * specular;
 
     // Authored room/cave lights. Unity's lighting buffers cannot shade this compute-owned colour
     // target, so a small fixed array is cheaper and more predictable than pretending point-light
@@ -628,8 +648,11 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
 
     // Tone map. Without it the bright faces clip flat and the whole image reads as washed-out
     // pastel, which no amount of geometry fixes.
-    lit = lit * 1.45;
-    lit = lit / (1.0 + lit * 0.38);
+    lit *= 1.02;
+    lit = saturate((lit * (2.51 * lit + 0.03))
+                 / (lit * (2.43 * lit + 0.59) + 0.14));
+    float gradedLuminance = dot(lit, float3(0.2126, 0.7152, 0.0722));
+    lit = lerp(gradedLuminance.xxx, lit, 0.88);
 
     // URP fog cannot affect this compute-owned colour target. Apply restrained aerial
     // perspective here so the streamed landscape and distant masonry settle into the same sky
