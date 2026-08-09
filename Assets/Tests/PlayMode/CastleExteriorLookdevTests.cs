@@ -45,11 +45,21 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.Render();
                 yield return null;
             }
+            Assert.Zero(world.Pool.DirtyBricks.Length);
+            Assert.Zero(world.RegionsNeedingUpload.Count);
+
+            // Density invalidation includes neighbouring bricks, so the final voxel-upload frame
+            // may leave a small coalesced GPU-only tail. Give that bounded queue several render
+            // dispatches before judging pixels; this is still dramatically cheaper than building
+            // the entire castle as the first-line functional test.
+            for (int densityDrainFrame = 0; densityDrainFrame < 4; densityDrainFrame++)
+            {
+                camera.Render();
+                yield return null;
+            }
             camera.targetTexture = null;
             uploadTarget.Release();
             Object.DestroyImmediate(uploadTarget);
-            Assert.Zero(world.Pool.DirtyBricks.Length);
-            Assert.Zero(world.RegionsNeedingUpload.Count);
 
             typeof(VoxelShowcase).GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
                 .SetValue(showcase, true);
@@ -71,6 +81,10 @@ namespace VoxelEngine.Tests.PlayMode
                                          trapZ - 386) * 0.1f;
             Vector3 farCamera = centre + new Vector3(-24f, 28f, -76f);
             Vector3 farTarget = centre + new Vector3(0f, 19f, 44f);
+            Vector3 SurfacePoint(int x, int z, int aboveVoxels) =>
+                new Vector3(x, world.OccupiedSurfaceHeight(x, z) + aboveVoxels, z) * 0.1f;
+            Vector3 smoothTerrainCamera = SurfacePoint(446, -220, 22);
+            Vector3 smoothTerrainTarget = SurfacePoint(330, 40, 8);
             float orbitScale = math.max(plan.BaileyHalfX, plan.BaileyHalfZ) / 175f;
             var views = new (string name, Vector3 position, Vector3 target)[]
             {
@@ -78,6 +92,9 @@ namespace VoxelEngine.Tests.PlayMode
                              centre + new Vector3(0f, 10f, 0f)),
                 ("terrain_layers", centre + new Vector3(-42f, 21f, -72f),
                                    centre + new Vector3(4f, 3f, -15f)),
+                ("smooth_terrain", smoothTerrainCamera, smoothTerrainTarget),
+                ("smooth_ravine", waterfall + new Vector3(7f, 8f, -18f),
+                                   waterfall + new Vector3(-1f, -3f, 2f)),
                 ("waterfall_east", waterfall + new Vector3(18f, 12f, -18f),
                                    waterfall + new Vector3(0f, 0f, 0f)),
                 ("waterfall_south", waterfall + new Vector3(3f, 11f, -24f),

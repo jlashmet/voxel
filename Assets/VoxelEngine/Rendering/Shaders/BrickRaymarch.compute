@@ -1,4 +1,5 @@
 #pragma kernel CSBrickRaymarch
+#pragma kernel CSBuildDensity
 
 // Brickmap raymarch.
 //
@@ -20,6 +21,9 @@ StructuredBuffer<int> g_BrickRefs;
 
 // Voxel bytes of the brick pool, four materials per uint.
 StructuredBuffer<uint> g_BrickVoxels;
+RWStructuredBuffer<uint> g_BrickDensity;
+StructuredBuffer<int4> g_DensityJobs;
+uint g_DensityJobCount;
 
 RWTexture2D<float4> g_Colour;
 
@@ -149,10 +153,8 @@ bool PresentationClipped(int3 voxel)
 // Material at an arbitrary voxel. Keeping this lookup separate from SolidAt lets presentation
 // shading distinguish terrain caps from foliage without changing traversal or authoritative
 // occupancy.
-uint MaterialAt(int3 voxel)
+uint StorageMaterialAt(int3 voxel)
 {
-    if (PresentationClipped(voxel)) return 0u;
-
     int3 brick = voxel >> 3;
     int brickRef = BrickRefAt(brick);
 
@@ -162,6 +164,11 @@ uint MaterialAt(int3 voxel)
     return VoxelMaterial(brickRef, voxel & 7);
 }
 
+uint MaterialAt(int3 voxel)
+{
+    return PresentationClipped(voxel) ? 0u : StorageMaterialAt(voxel);
+}
+
 // True when a voxel is solid. Used by the shadow and occlusion rays, which need to sample the
 // world at arbitrary points rather than walk it.
 bool SolidAt(int3 voxel)
@@ -169,26 +176,145 @@ bool SolidAt(int3 voxel)
     return MaterialAt(voxel) != 0u;
 }
 
-// Trilinearly filtered occupancy is the implicit scalar field used for large connected stone
-// volumes. Its 0.5 isosurface joins adjacent voxels before intersection, so a cylindrical tower
-// or carved cavern is one continuous surface rather than a collection of separately rounded
-// cubes. The analytic derivative is also the real field normal and avoids six extra probes.
-void OccupancyField(float3 p, out float density, out float3 gradient)
+float CachedDensityAt(int3 voxel)
 {
-    float3 samplePosition = p - 0.5;
-    int3 baseVoxel = int3(floor(samplePosition));
-    float3 f = frac(samplePosition);
-    float3 s = f * f * (3.0 - 2.0 * f);
-    float3 ds = 6.0 * f * (1.0 - f);
+    if (PresentationClipped(voxel)) return 0.0;
 
-    float v000 = SolidAt(baseVoxel + int3(0, 0, 0)) ? 1.0 : 0.0;
-    float v100 = SolidAt(baseVoxel + int3(1, 0, 0)) ? 1.0 : 0.0;
-    float v010 = SolidAt(baseVoxel + int3(0, 1, 0)) ? 1.0 : 0.0;
-    float v110 = SolidAt(baseVoxel + int3(1, 1, 0)) ? 1.0 : 0.0;
-    float v001 = SolidAt(baseVoxel + int3(0, 0, 1)) ? 1.0 : 0.0;
-    float v101 = SolidAt(baseVoxel + int3(1, 0, 1)) ? 1.0 : 0.0;
-    float v011 = SolidAt(baseVoxel + int3(0, 1, 1)) ? 1.0 : 0.0;
-    float v111 = SolidAt(baseVoxel + int3(1, 1, 1)) ? 1.0 : 0.0;
+    int brickRef = BrickRefAt(voxel >> 3);
+    if (brickRef == -1) return 0.0;
+    if (brickRef < -1) return 1.0;
+
+    int3 v = voxel & 7;
+    int voxelIndex = v.x | (v.y << 3) | (v.z << 6);
+    uint packed = g_BrickDensity[brickRef * 128 + (voxelIndex >> 2)];
+    uint value = (packed >> ((voxelIndex & 3) * 8)) & 0xFFu;
+    return value * (1.0 / 255.0);
+}
+
+bool IsTerrainDensityMaterial(uint material)
+{
+    // Stone is shared by procedural terrain and castle masonry. Treating it as a broad field is
+    // what removes carved-cave stair rings; castle walls are thick enough to remain while their
+    // silhouette gains the same rounding. Thin authored timber/roof materials use the other path.
+    return material == 1u || material == 3u || material == 5u || material == 6u || material == 10u
+        || material == 13u || material == 14u;
+}
+
+// One brick group shares a 2-voxel halo. Loading that 12^3 tile once is still far cheaper than
+// repeating sparse brickmap lookups for every output voxel, while the wider terrain kernel
+// removes the one-voxel stair rings visible in caves and cliffs. Materials are retained (rather
+// than reducing the tile to occupancy) so masonry can preserve thin authored details.
+groupshared uint g_DensityMaterial[1728];
+
+[numthreads(8, 8, 2)]
+void CSBuildDensity(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
+{
+    if (groupId.x >= g_DensityJobCount) return;
+
+    int4 job = g_DensityJobs[groupId.x];
+    int poolIndex = job.x;
+    int3 worldBrick = job.yzw;
+
+    for (uint tileIndex = groupIndex; tileIndex < 1728u; tileIndex += 128u)
+    {
+        int tx = (int)(tileIndex % 12u);
+        int ty = (int)((tileIndex / 12u) % 12u);
+        int tz = (int)(tileIndex / 144u);
+        int3 localVoxel = int3(tx, ty, tz) - 2;
+        bool insideBrick = all(localVoxel >= 0) && all(localVoxel < k_BrickEdge);
+        uint material = insideBrick
+                      ? VoxelMaterial(poolIndex, localVoxel)
+                      : StorageMaterialAt(worldBrick * k_BrickEdge + localVoxel);
+        g_DensityMaterial[tileIndex] = material;
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    int firstVoxelIndex = (int)groupIndex * 4;
+    uint packedDensity = 0u;
+
+    [unroll]
+    for (int lane = 0; lane < 4; lane++)
+    {
+        int voxelIndex = firstVoxelIndex + lane;
+        int3 localVoxel = int3(voxelIndex & 7, (voxelIndex >> 3) & 7,
+                               voxelIndex >> 6);
+        int tileCentre = (localVoxel.x + 2)
+                       + 12 * ((localVoxel.y + 2) + 12 * (localVoxel.z + 2));
+        uint centreMaterial = g_DensityMaterial[tileCentre];
+        float occupied = centreMaterial != 0u ? 1.0 : 0.0;
+        uint neighbourhood = 0u;
+        uint terrainNeighbours = 0u;
+
+        [unroll]
+        for (int z = -2; z <= 2; z++)
+        [unroll]
+        for (int y = -2; y <= 2; y++)
+        [unroll]
+        for (int x = -2; x <= 2; x++)
+        {
+            uint neighbourMaterial = g_DensityMaterial[tileCentre + x + 12 * y + 144 * z];
+            neighbourhood += neighbourMaterial != 0u ? 1u : 0u;
+            terrainNeighbours += IsTerrainDensityMaterial(neighbourMaterial) ? 1u : 0u;
+        }
+
+        // Authored non-terrain materials keep enough self-weight for a one-voxel feature to
+        // survive. Natural masses favour the neighbourhood instead, allowing unsupported specks
+        // to disappear and large cliffs/caves to form one broad surface.
+        bool terrainField = IsTerrainDensityMaterial(centreMaterial) || terrainNeighbours > 0u;
+        // 0.40 keeps a one-voxel sheet above the 0.5 isolevel (0.40 + 25/125*0.60 = 0.52)
+        // while an isolated speck remains below it (about 0.405). That distinction preserves
+        // cave ceilings and terrain lips without retaining detached destruction noise.
+        float selfWeight = terrainField ? 0.40 : 0.55;
+        float density = occupied * selfWeight
+                      + ((float)neighbourhood / 125.0) * (1.0 - selfWeight);
+        uint encoded = (uint)round(saturate(density) * 255.0);
+        packedDensity |= encoded << (lane * 8);
+    }
+
+    g_BrickDensity[poolIndex * 128 + groupIndex] = packedDensity;
+}
+
+bool VolumeSampleAt(int3 voxel, uint material)
+{
+    if (material == 11u || material == 16u)
+    {
+        uint sampled = MaterialAt(voxel);
+        return sampled == 11u || sampled == 16u;
+    }
+    return SolidAt(voxel);
+}
+
+float DensitySampleAt(int3 voxel, uint material)
+{
+    // Water needs its own boundary rather than the density of the rock touching its shore.
+    if (material == 11u || material == 16u)
+        return VolumeSampleAt(voxel, material) ? 1.0 : 0.0;
+    return CachedDensityAt(voxel);
+}
+
+// Trilinear reconstruction of the cached density generated by CSBuildDensity. Every neighbouring
+// ray samples the same field, unlike a tangent patch authored per hit voxel, so the isosurface
+// cannot split into horizontal gaps. Spacing remains explicit for future density LODs.
+void DensityFieldAtScale(float3 p, uint material, float spacing,
+                         out float density, out float3 gradient)
+{
+    float3 grid = (p - 0.5) / spacing;
+    int3 baseCell = int3(floor(grid));
+    float3 f = frac(grid);
+    float3 s = f * f * (3.0 - 2.0 * f);
+    float3 ds = 6.0 * f * (1.0 - f) / spacing;
+    int latticeStep = (int)spacing;
+    int3 baseVoxel = baseCell * latticeStep;
+
+    float v000 = DensitySampleAt(baseVoxel + int3(0, 0, 0), material);
+    float v100 = DensitySampleAt(baseVoxel + int3(latticeStep, 0, 0), material);
+    float v010 = DensitySampleAt(baseVoxel + int3(0, latticeStep, 0), material);
+    float v110 = DensitySampleAt(baseVoxel + int3(latticeStep, latticeStep, 0), material);
+    float v001 = DensitySampleAt(baseVoxel + int3(0, 0, latticeStep), material);
+    float v101 = DensitySampleAt(baseVoxel + int3(latticeStep, 0, latticeStep), material);
+    float v011 = DensitySampleAt(baseVoxel + int3(0, latticeStep, latticeStep), material);
+    float v111 = DensitySampleAt(baseVoxel + int3(latticeStep, latticeStep, latticeStep), material);
 
     float c00 = lerp(v000, v100, s.x);
     float c10 = lerp(v010, v110, s.x);
@@ -207,30 +333,45 @@ void OccupancyField(float3 p, out float density, out float3 gradient)
     gradient.z = (c1 - c0) * ds.z;
 }
 
-bool RefineConnectedSdfHit(float3 entryPoint, float3 dir,
-                           out float advance, out float3 normal)
+bool RefineContinuousSdfHit(uint material, float3 entryPoint, float3 dir,
+                            out float advance, out float3 normal)
 {
-    float3 gradient;
     float density;
-    OccupancyField(entryPoint, density, gradient);
-    if (density >= 0.5)
+    float3 gradient;
+    const float isoLevel = 0.5;
+    // The cached field rounds beyond the authoritative voxel face. A voxel DDA therefore often
+    // discovers the occupied cell *after* the smooth isosurface has already crossed the ray.
+    // Search a short interval on both sides of that face; a forward-only search drops those hits
+    // and produces dark slits between otherwise continuous terrain patches.
+    const float searchStart = -0.72;
+    const float searchStep = 0.36;
+    float lo = searchStart;
+    float hi = searchStart;
+    DensityFieldAtScale(entryPoint + dir * lo, material, 1.0, density, gradient);
+    bool below = density < isoLevel;
+    bool bracketed = false;
+
+    if (!below)
     {
-        advance = 0.0;
-        normal = dot(gradient, gradient) > 1e-6 ? normalize(-gradient) : -dir;
-        return true;
+        // The ray was already inside at the conservative search start. Returning that point is
+        // preferable to punching a hole; the interval is shorter than one voxel and cannot jump
+        // in front of a separate DDA cell.
+        advance = searchStart;
+        bracketed = true;
+    }
+    else
+    {
+        [unroll]
+        for (uint stepIndex = 1u; stepIndex <= 5u; stepIndex++)
+        {
+            hi = searchStart + stepIndex * searchStep;
+            DensityFieldAtScale(entryPoint + dir * hi, material, 1.0,
+                                density, gradient);
+            if (density >= isoLevel) { bracketed = true; break; }
+            lo = hi;
+        }
     }
 
-    float lo = 0.0;
-    float hi = 0.0;
-    bool bracketed = false;
-    [unroll]
-    for (uint stepIndex = 1u; stepIndex <= 3u; stepIndex++)
-    {
-        hi = stepIndex * 0.28;
-        OccupancyField(entryPoint + dir * hi, density, gradient);
-        if (density >= 0.5) { bracketed = true; break; }
-        lo = hi;
-    }
     if (!bracketed)
     {
         advance = 0.0;
@@ -238,16 +379,23 @@ bool RefineConnectedSdfHit(float3 entryPoint, float3 dir,
         return false;
     }
 
-    [unroll]
-    for (uint iteration = 0u; iteration < 2u; iteration++)
+    if (below)
     {
-        float mid = (lo + hi) * 0.5;
-        OccupancyField(entryPoint + dir * mid, density, gradient);
-        if (density >= 0.5) hi = mid; else lo = mid;
+        [unroll]
+        for (uint iteration = 0u; iteration < 3u; iteration++)
+        {
+            float mid = (lo + hi) * 0.5;
+            DensityFieldAtScale(entryPoint + dir * mid, material, 1.0,
+                                density, gradient);
+            if (density >= isoLevel) hi = mid; else lo = mid;
+        }
+        advance = hi;
     }
-    advance = hi;
-    OccupancyField(entryPoint + dir * advance, density, gradient);
-    normal = dot(gradient, gradient) > 1e-6 ? normalize(-gradient) : -dir;
+
+    DensityFieldAtScale(entryPoint + dir * advance, material, 1.0,
+                        density, gradient);
+
+    normal = dot(gradient, gradient) > 1e-7 ? normalize(-gradient) : -dir;
     return true;
 }
 
@@ -276,8 +424,14 @@ void LocalVoxelSdfFrame(int3 voxel, out float3 centre, out float3 halfExtent)
 bool RefineVoxelSdfHit(int3 voxel, uint material, float3 entryPoint, float3 dir,
                        out float advance, out float3 normal)
 {
-    if (material == 1u || material == 6u)
-        return RefineConnectedSdfHit(entryPoint, dir, advance, normal);
+    bool continuousVolume = material == 1u || material == 3u || material == 5u
+                         || material == 6u || material == 10u || material == 13u
+                         || material == 14u || material == 11u || material == 16u;
+    if (continuousVolume)
+    {
+        return RefineContinuousSdfHit(material, entryPoint, dir,
+                                      advance, normal);
+    }
 
     float3 centre, halfExtent;
     LocalVoxelSdfFrame(voxel, centre, halfExtent);
@@ -325,6 +479,19 @@ bool NaturalTerrainCap(uint material, int3 voxel)
     // Procedural terrain writes its cap at this exact canonical height. Trees, roofs, courtyard
     // planting, and the raised castle crag do not, so they retain their authored voxel normals.
     return abs(voxel.y - FarSurfaceHeight(voxel.x, voxel.z)) <= 1;
+}
+
+bool TerrainMassSurface(uint material, int3 voxel)
+{
+    if (material == 3u || material == 13u) return true;
+    if (material != 10u && material != 14u) return false;
+    if (NaturalTerrainCap(material, voxel)) return true;
+
+    // Raised plateaux, ravine banks, and authored overgrowth do not lie on the canonical world
+    // heightfield. A deep occupied column distinguishes them from a tree crown that happens to
+    // reuse the grass/moss palette, so organic ground gets the smooth volume path without
+    // flattening every leaf cluster into terrain.
+    return SolidAt(voxel - int3(0, 4, 0)) && SolidAt(voxel - int3(0, 10, 0));
 }
 
 float3 SmoothNaturalTerrainNormal(int3 voxel)
@@ -546,6 +713,20 @@ float3 SampleSurfaceTexture(uint material, float2 uv, float3 hitVoxel,
     return texel;
 }
 
+float3 SampleTriplanarSurfaceTexture(uint material, float3 hitVoxel, float3 normal,
+                                     float hitDistance, float3 fallback, float lod)
+{
+    float3 weights = pow(abs(normal), 4.0);
+    weights /= max(weights.x + weights.y + weights.z, 0.0001);
+    float3 alongX = SampleSurfaceTexture(material, hitVoxel.zy / 36.0, hitVoxel,
+                                         hitDistance, fallback, lod);
+    float3 alongY = SampleSurfaceTexture(material, hitVoxel.xz / 36.0, hitVoxel,
+                                         hitDistance, fallback, lod);
+    float3 alongZ = SampleSurfaceTexture(material, hitVoxel.xy / 36.0, hitVoxel,
+                                         hitDistance, fallback, lod);
+    return alongX * weights.x + alongY * weights.y + alongZ * weights.z;
+}
+
 float3 SampleSurfaceNormal(uint material, float2 uv, float3 hitVoxel,
                            float hitDistance, float3 surfaceNormal, float lod)
 {
@@ -630,8 +811,9 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
         }
     }
 
-    bool naturalTerrainSurface = NaturalTerrainCap(material, terrainVoxel);
-    if (naturalTerrainSurface)
+    bool canonicalTerrainSurface = NaturalTerrainCap(material, terrainVoxel);
+    bool naturalTerrainSurface = TerrainMassSurface(material, terrainVoxel);
+    if (canonicalTerrainSurface)
     {
         float3 terrainNormal = SmoothNaturalTerrainNormal(terrainVoxel);
         // Preserve a hint of the close voxel face for material readability, then converge to the
@@ -639,15 +821,9 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
         float terrainBlend = lerp(0.72, 0.94, smoothstep(5.0, 28.0, hitDistance));
         normal = normalize(lerp(normal, terrainNormal, terrainBlend));
     }
-    else if (material == 1u || material == 6u)
-    {
-        // Structural masonry should read as one carved volume, especially on cylindrical towers
-        // and cave walls. Fade only at extreme range, where a voxel is already sub-pixel and the
-        // extra occupancy probes cannot affect the silhouette.
-        float3 volumeNormal = MasonryVolumeNormal(solidVoxel, faceNormal);
-        float volumeBlend = 0.84 * (1.0 - smoothstep(180.0, 360.0, hitDistance));
-        normal = normalize(lerp(faceNormal, volumeNormal, volumeBlend));
-    }
+    // Stone and dark-stone already carry the analytic gradient of the cached density field.
+    // The former six-probe masonry normal sampled binary occupancy and reintroduced 10 cm bands
+    // across caves and towers, undoing the continuous intersection directly before shading.
     float3 albedo = g_MaterialColours[min(material, 17u)].rgb;
     bool foliageSurface = (material == 10u || material == 14u) && !naturalTerrainSurface;
 
@@ -657,15 +833,20 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // zero made distant terrain shimmer while turning wall detail into high-frequency noise.
     float textureLod = clamp(log2(max(1.0, hitDistance * 0.36)), 0.0, 8.0);
     float2 surfaceUv = SurfaceUV(normal, hitVoxel);
+    bool smoothMaterial = material == 1u || material == 3u || material == 5u
+                       || material == 6u || naturalTerrainSurface;
     float3 mappedNormal = SampleSurfaceNormal(material, surfaceUv, hitVoxel,
                                                hitDistance, normal, textureLod);
     float normalStrength = foliageSurface ? 0.04
-                         : (material == 1u || material == 6u) ? 0.32 : 0.22;
+                         : (material == 1u || material == 6u) ? 0.18 : 0.16;
     normalStrength *= 1.0 - smoothstep(18.0, 64.0, hitDistance);
     normal = normalize(lerp(normal, mappedNormal, normalStrength));
 
-    float3 textured = SampleSurfaceTexture(material, surfaceUv, hitVoxel,
-                                           hitDistance, albedo, textureLod);
+    float3 textured = smoothMaterial
+        ? SampleTriplanarSurfaceTexture(material, hitVoxel, normal,
+                                        hitDistance, albedo, textureLod)
+        : SampleSurfaceTexture(material, surfaceUv, hitVoxel,
+                               hitDistance, albedo, textureLod);
     float textureWeight = lerp(0.28, 0.12, saturate(hitDistance / 350.0));
 
     if (foliageSurface)
@@ -673,11 +854,9 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
         // Tree crowns use the grass/moss palette but should not inherit a stretched terrain
         // painting. Broad per-cluster and fine leaf values make overlapping lobes readable while
         // keeping the renderer to one opaque voxel material.
-        int3 leafCell = int3(floor(hitVoxel / 3.0));
-        uint leafHash = FarHash((uint)leafCell.x * 73856093u
-                              ^ (uint)leafCell.y * 19349663u
-                              ^ (uint)leafCell.z * 83492791u);
-        float leafValue = 0.76 + ((leafHash >> 24) & 255u) * (0.34 / 255.0);
+        float leafNoise = sin(dot(hitVoxel, float3(0.47, 0.31, 0.53)))
+                        * sin(dot(hitVoxel, float3(-0.19, 0.41, 0.23)));
+        float leafValue = 0.91 + leafNoise * 0.13;
         float upwardValue = lerp(0.82, 1.08, saturate(normal.y * 0.5 + 0.5));
         albedo *= leafValue * upwardValue;
         albedo = lerp(albedo, textured, 0.08);
@@ -716,17 +895,12 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // keeps repetition from returning without turning a tower into salt-and-pepper noise.
     if (material == 1u || material == 6u)
     {
-        int3 cell = int3(floor(hitVoxel));
-        uint h = FarHash((uint)cell.x * 73856093u ^ (uint)cell.y * 19349663u
-                         ^ (uint)cell.z * 83492791u ^ material * 2654435761u);
-        float fineVariation = 0.98 + ((h >> 24) & 255u) * (0.04 / 255.0);
-
-        int3 macroCell = int3(floor(hitVoxel / 24.0));
-        uint macroHash = FarHash((uint)macroCell.x * 1597334677u
-                               ^ (uint)macroCell.y * 3812015801u
-                               ^ (uint)macroCell.z * 958282787u
-                               ^ material * 1103515245u);
-        float macroVariation = 0.91 + ((macroHash >> 24) & 255u) * (0.16 / 255.0);
+        float fineNoise = sin(dot(hitVoxel, float3(0.33, 0.27, 0.39)) + material * 0.71)
+                        * sin(dot(hitVoxel, float3(-0.21, 0.43, 0.17)) - material * 0.37);
+        float macroNoise = sin(dot(hitVoxel, float3(0.041, 0.029, 0.037)) + material)
+                         * sin(dot(hitVoxel, float3(-0.023, 0.035, 0.031)));
+        float fineVariation = 0.99 + fineNoise * 0.018;
+        float macroVariation = 0.97 + macroNoise * 0.075;
         albedo *= fineVariation * macroVariation;
     }
 

@@ -37,7 +37,7 @@ namespace VoxelEngine.Tests.EditMode
         private const int Cycles = 25;
 
         /// <summary>ComputeBuffers one <see cref="VoxelGpuBuffers"/> holds when allocated.</summary>
-        private const int BuffersPerSet = 3;
+        private const int BuffersPerSet = 5;
 
         [Test]
         public void CreatingAndDisposingGpuBuffersReturnsEveryBuffer()

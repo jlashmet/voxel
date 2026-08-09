@@ -69,14 +69,20 @@ namespace VoxelEngine.Rendering
         private ComputeBuffer _windowBuffer;   // WindowCells ints: slot index or -1
         private ComputeBuffer _brickRefBuffer; // MaxSlots * BricksPerRegion ints
         private ComputeBuffer _voxelBuffer;    // poolCapacity * 128 uints
+        private ComputeBuffer _densityBuffer;  // poolCapacity * 128 packed density uints
+        private ComputeBuffer _densityJobBuffer; // pool index + world brick coordinate
 
         private readonly int[] _window = new int[WindowCells];
         private readonly Dictionary<int3, int> _slotOfRegion = new();
         private readonly int3[] _regionOfSlot = new int3[MaxSlots];
         private readonly bool[] _slotUsed = new bool[MaxSlots];
+        private readonly Dictionary<int, int3> _worldBrickOfPool = new();
+        private readonly Dictionary<int3, int> _poolOfWorldBrick = new();
+        private readonly HashSet<int> _pendingDensity = new();
 
         private NativeArray<int> _brickRefScratch;
         private NativeArray<uint> _voxelScratch;
+        private NativeArray<int4> _densityJobScratch;
 
         private int3 _windowOrigin;
         private int _poolCapacity;
@@ -84,7 +90,11 @@ namespace VoxelEngine.Rendering
         public ComputeBuffer WindowBuffer => _windowBuffer;
         public ComputeBuffer BrickRefBuffer => _brickRefBuffer;
         public ComputeBuffer VoxelBuffer => _voxelBuffer;
+        public ComputeBuffer DensityBuffer => _densityBuffer;
+        public ComputeBuffer DensityJobBuffer => _densityJobBuffer;
         public int3 WindowOrigin => _windowOrigin;
+        public int DensityJobCount { get; private set; }
+        public int PendingDensityCount => _pendingDensity.Count;
 
         /// <summary>Region slots currently mapped.</summary>
         public int ResidentSlots { get; private set; }
@@ -147,15 +157,24 @@ namespace VoxelEngine.Rendering
                                        ComputeBufferType.Structured);
             _voxelBuffer = Allocate(poolCapacity * UintsPerBrick, sizeof(uint),
                                     ComputeBufferType.Structured);
+            _densityBuffer = Allocate(poolCapacity * UintsPerBrick, sizeof(uint),
+                                      ComputeBufferType.Structured);
+            _densityJobBuffer = Allocate(MaxBricksPerSync, sizeof(int) * 4,
+                                         ComputeBufferType.Structured);
 
             _brickRefScratch = new NativeArray<int>(VoxelDimensions.BricksPerRegion, Allocator.Persistent,
                                                     NativeArrayOptions.UninitializedMemory);
             _voxelScratch = new NativeArray<uint>(MaxBricksPerSync * UintsPerBrick, Allocator.Persistent,
                                                   NativeArrayOptions.UninitializedMemory);
+            _densityJobScratch = new NativeArray<int4>(MaxBricksPerSync, Allocator.Persistent,
+                                                       NativeArrayOptions.UninitializedMemory);
 
             for (var i = 0; i < WindowCells; i++) _window[i] = -1;
             for (var i = 0; i < MaxSlots; i++) _slotUsed[i] = false;
             _slotOfRegion.Clear();
+            _worldBrickOfPool.Clear();
+            _poolOfWorldBrick.Clear();
+            _pendingDensity.Clear();
             ResidentSlots = 0;
         }
 
@@ -178,6 +197,7 @@ namespace VoxelEngine.Rendering
 
             LastRegionsUploaded = 0;
             LastBricksUploaded = 0;
+            DensityJobCount = 0;
 
             ReleaseSlotsOutsideWindow();
             AssignSlots(ref table, regionsNeedingRefresh);
@@ -187,6 +207,7 @@ namespace VoxelEngine.Rendering
             regionsNeedingRefresh?.Clear();
 
             UploadDirtyBricks(ref pool);
+            UploadDensityJobs();
 
             _windowBuffer.SetData(_window);
         }
@@ -251,7 +272,17 @@ namespace VoxelEngine.Rendering
         {
             var refs = region.BrickRefs;
             for (var i = 0; i < VoxelDimensions.BricksPerRegion; i++)
+            {
                 _brickRefScratch[i] = refs[i].Value;
+                if (!refs[i].IsMixed) continue;
+
+                int bx = i & VoxelDimensions.RegionEdgeMask;
+                int by = (i >> VoxelDimensions.RegionEdgeLog2)
+                       & VoxelDimensions.RegionEdgeMask;
+                int bz = i >> (VoxelDimensions.RegionEdgeLog2 * 2);
+                MapPoolBrick(refs[i].PoolIndex, region.Coord * VoxelDimensions.RegionEdge
+                                                   + new int3(bx, by, bz));
+            }
 
             _brickRefBuffer.SetData(_brickRefScratch, 0, slot * VoxelDimensions.BricksPerRegion,
                                     VoxelDimensions.BricksPerRegion);
@@ -330,6 +361,9 @@ namespace VoxelEngine.Rendering
 
             LastBricksUploaded = consumed;
 
+            for (var i = 0; i < consumed; i++)
+                QueueDensityWithNeighbours(_sortScratch[i]);
+
             if (consumed >= dirty.Length)
             {
                 pool.ClearDirtyBricks();
@@ -344,6 +378,63 @@ namespace VoxelEngine.Rendering
                     dirty[i] = dirty[i + consumed];
 
                 dirty.Length -= consumed;
+            }
+        }
+
+        private void UploadDensityJobs()
+        {
+            if (_pendingDensity.Count == 0) return;
+
+            int count = 0;
+            var consumed = new List<int>(math.min(_pendingDensity.Count, MaxBricksPerSync));
+            foreach (int poolIndex in _pendingDensity)
+            {
+                if (count >= MaxBricksPerSync) break;
+                consumed.Add(poolIndex);
+                if (!_worldBrickOfPool.TryGetValue(poolIndex, out int3 worldBrick)) continue;
+
+                _densityJobScratch[count++] = new int4(poolIndex, worldBrick.x,
+                                                        worldBrick.y, worldBrick.z);
+            }
+
+            foreach (int poolIndex in consumed) _pendingDensity.Remove(poolIndex);
+            if (count == 0) return;
+
+            _densityJobBuffer.SetData(_densityJobScratch, 0, 0, count);
+            DensityJobCount = count;
+        }
+
+        private void MapPoolBrick(int poolIndex, int3 worldBrick)
+        {
+            if (_worldBrickOfPool.TryGetValue(poolIndex, out int3 oldCoord)
+                && oldCoord.Equals(worldBrick) == false
+                && _poolOfWorldBrick.TryGetValue(oldCoord, out int oldPool)
+                && oldPool == poolIndex)
+                _poolOfWorldBrick.Remove(oldCoord);
+
+            _worldBrickOfPool[poolIndex] = worldBrick;
+            _poolOfWorldBrick[worldBrick] = poolIndex;
+        }
+
+        /// <summary>
+        /// A one-voxel density halo crosses brick boundaries. Rebuilding only the edited brick
+        /// leaves its neighbours sampling stale edge values, which appears as a seam after
+        /// destruction. Queue the mapped 3x3x3 brick neighbourhood; the hash set coalesces bursts.
+        /// </summary>
+        private void QueueDensityWithNeighbours(int poolIndex)
+        {
+            if (!_worldBrickOfPool.TryGetValue(poolIndex, out int3 centre)) return;
+
+            for (int z = -1; z <= 1; z++)
+            for (int y = -1; y <= 1; y++)
+            for (int x = -1; x <= 1; x++)
+            {
+                int3 coord = centre + new int3(x, y, z);
+                if (!_poolOfWorldBrick.TryGetValue(coord, out int neighbourPool)) continue;
+                if (!_worldBrickOfPool.TryGetValue(neighbourPool, out int3 mapped)
+                    || !mapped.Equals(coord))
+                    continue;
+                _pendingDensity.Add(neighbourPool);
             }
         }
 
@@ -383,11 +474,17 @@ namespace VoxelEngine.Rendering
             ReleaseTracked(ref _windowBuffer);
             ReleaseTracked(ref _brickRefBuffer);
             ReleaseTracked(ref _voxelBuffer);
+            ReleaseTracked(ref _densityBuffer);
+            ReleaseTracked(ref _densityJobBuffer);
 
             if (_brickRefScratch.IsCreated) _brickRefScratch.Dispose();
             if (_voxelScratch.IsCreated) _voxelScratch.Dispose();
+            if (_densityJobScratch.IsCreated) _densityJobScratch.Dispose();
 
             _slotOfRegion.Clear();
+            _worldBrickOfPool.Clear();
+            _poolOfWorldBrick.Clear();
+            _pendingDensity.Clear();
             ResidentSlots = 0;
         }
     }

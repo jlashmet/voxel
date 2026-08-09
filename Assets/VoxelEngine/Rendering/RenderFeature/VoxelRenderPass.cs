@@ -24,6 +24,9 @@ namespace VoxelEngine.Rendering
         private static readonly int s_RegionWindow = Shader.PropertyToID("g_RegionWindow");
         private static readonly int s_BrickRefs = Shader.PropertyToID("g_BrickRefs");
         private static readonly int s_BrickVoxels = Shader.PropertyToID("g_BrickVoxels");
+        private static readonly int s_BrickDensity = Shader.PropertyToID("g_BrickDensity");
+        private static readonly int s_DensityJobs = Shader.PropertyToID("g_DensityJobs");
+        private static readonly int s_DensityJobCount = Shader.PropertyToID("g_DensityJobCount");
         private static readonly int s_Colour = Shader.PropertyToID("g_Colour");
         private static readonly int s_InvViewProj = Shader.PropertyToID("g_InvViewProj");
         private static readonly int s_CameraPos = Shader.PropertyToID("g_CameraPos");
@@ -78,6 +81,7 @@ namespace VoxelEngine.Rendering
         private readonly VoxelGpuBuffers _buffers = new();
         private ComputeShader _raymarch;
         private int _kernel = -1;
+        private int _densityKernel = -1;
         private Texture2D _stoneTexture;
         private Texture2D _woodTexture;
         private Texture2D _sandTexture;
@@ -144,12 +148,16 @@ namespace VoxelEngine.Rendering
             _kernel = raymarch != null && raymarch.HasKernel("CSBrickRaymarch")
                 ? raymarch.FindKernel("CSBrickRaymarch")
                 : -1;
+            _densityKernel = raymarch != null && raymarch.HasKernel("CSBuildDensity")
+                ? raymarch.FindKernel("CSBuildDensity")
+                : -1;
         }
 
         private class PassData
         {
             public ComputeShader Raymarch;
             public int Kernel;
+            public int DensityKernel;
             public VoxelGpuBuffers Buffers;
             public TextureHandle Colour;
             public TextureHandle CameraColour;
@@ -218,6 +226,7 @@ namespace VoxelEngine.Rendering
 
             passData.Raymarch = _raymarch;
             passData.Kernel = _kernel;
+            passData.DensityKernel = _densityKernel;
             passData.Buffers = _buffers;
             passData.Colour = renderGraph.CreateTexture(colourDesc);
             passData.CameraColour = resourceData.activeColorTexture;
@@ -261,6 +270,8 @@ namespace VoxelEngine.Rendering
                 cmd.SetComputeBufferParam(data.Raymarch, data.Kernel, s_RegionWindow, data.Buffers.WindowBuffer);
                 cmd.SetComputeBufferParam(data.Raymarch, data.Kernel, s_BrickRefs, data.Buffers.BrickRefBuffer);
                 cmd.SetComputeBufferParam(data.Raymarch, data.Kernel, s_BrickVoxels, data.Buffers.VoxelBuffer);
+                cmd.SetComputeBufferParam(data.Raymarch, data.Kernel, s_BrickDensity,
+                                          data.Buffers.DensityBuffer);
                 cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_Colour, data.Colour);
                 if (data.StoneTexture != null)
                     cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_StoneTexture, data.StoneTexture);
@@ -351,6 +362,24 @@ namespace VoxelEngine.Rendering
                                          VoxelRenderBridge.FlashlightInnerCos);
                 cmd.SetComputeFloatParam(data.Raymarch, s_FlashlightOuterCos,
                                          VoxelRenderBridge.FlashlightOuterCos);
+
+                if (data.DensityKernel >= 0 && data.Buffers.DensityJobCount > 0)
+                {
+                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_RegionWindow,
+                                              data.Buffers.WindowBuffer);
+                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_BrickRefs,
+                                              data.Buffers.BrickRefBuffer);
+                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_BrickVoxels,
+                                              data.Buffers.VoxelBuffer);
+                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_BrickDensity,
+                                              data.Buffers.DensityBuffer);
+                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_DensityJobs,
+                                              data.Buffers.DensityJobBuffer);
+                    cmd.SetComputeIntParam(data.Raymarch, s_DensityJobCount,
+                                           data.Buffers.DensityJobCount);
+                    cmd.DispatchCompute(data.Raymarch, data.DensityKernel,
+                                        data.Buffers.DensityJobCount, 1, 1);
+                }
 
                 // Seed the target with what URP has drawn so far, so rays that miss composite
                 // as "unchanged" rather than as this shader's idea of the sky.
