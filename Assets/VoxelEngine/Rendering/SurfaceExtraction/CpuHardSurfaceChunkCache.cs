@@ -13,13 +13,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
     ///
     /// This is not a second renderer. It produces the same SmoothSurfaceVertex/index buffers as
     /// the smooth extractor and is drawn by the same material/depth pass. The only difference is
-    /// the polygonizer: authored structure chunks use exact greedy voxel faces while natural
-    /// chunks continue through the smooth extractor until Transvoxel replaces Surface Nets.
+    /// the polygonizer: semantically hard bricks use exact greedy voxel faces while natural
+    /// bricks in the same render chunk remain available to the smooth polygonizer.
     ///
     /// Replacement meshes are built into scratch and swapped only when complete. A newly tagged
-    /// hard chunk therefore keeps its old smooth representation until the exact replacement is
-    /// ready; dirty hard chunks keep their previous exact mesh until the rebuild finishes. This is
-    /// the same no-hole handoff invariant used by mature voxel LOD systems.
+    /// hard chunk therefore keeps its old representation until the exact replacement is ready;
+    /// dirty hard chunks keep their previous exact mesh until the rebuild finishes. This is the
+    /// same no-hole handoff invariant used by mature voxel LOD systems.
     /// </summary>
     public sealed class CpuHardSurfaceChunkCache : IDisposable
     {
@@ -159,8 +159,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public int PendingCount => _pending.Count + (_build.Active ? 1 : 0);
 
         /// <summary>
-        /// True only after an exact replacement mesh is complete. Until then the smooth chunk is
-        /// deliberately left visible, preventing a representation swap from creating a hole.
+        /// True after this chunk has a complete hard layer. It no longer implies exclusive
+        /// ownership of the whole render chunk: smooth terrain may coexist in the same coordinate.
         /// </summary>
         public bool OwnsRenderedChunk(int3 coordinate) =>
             _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
@@ -328,6 +328,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 int bz = i / (_bricksPerAxis * _bricksPerAxis);
                 int3 worldBrick = chunkBrickOrigin + new int3(bx, by, bz);
 
+                // Hard semantics are brick-local. A castle wall and the grass immediately beside
+                // it are allowed to live in the same 12.8 m render chunk without forcing the
+                // terrain through the greedy mesher.
+                if (!IsHardWorldBrick(ref table, worldBrick)) continue;
                 if (!TryGetBrick(ref table, worldBrick, out BrickRef brick) || brick.IsEmpty)
                     continue;
                 if (brick.IsUniform && !IsRenderableSolid(brick.UniformMaterial))
@@ -373,6 +377,19 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             int bz = worldBrick.z & VoxelDimensions.RegionEdgeMask;
             brick = region.GetBrick(bx, by, bz);
             return true;
+        }
+
+        private static bool IsHardWorldBrick(ref RegionTable table, int3 worldBrick)
+        {
+            int3 regionCoord = new(worldBrick.x >> VoxelDimensions.RegionEdgeLog2,
+                                   worldBrick.y >> VoxelDimensions.RegionEdgeLog2,
+                                   worldBrick.z >> VoxelDimensions.RegionEdgeLog2);
+            if (!table.TryGetRegion(regionCoord, out Region region)) return false;
+
+            int bx = worldBrick.x & VoxelDimensions.RegionEdgeMask;
+            int by = worldBrick.y & VoxelDimensions.RegionEdgeMask;
+            int bz = worldBrick.z & VoxelDimensions.RegionEdgeMask;
+            return region.IsHardSurfaceBrick(Region.BrickIndex(bx, by, bz));
         }
 
         private static bool NeighboursAllRenderableSolid(ref RegionTable table, int3 worldBrick)
