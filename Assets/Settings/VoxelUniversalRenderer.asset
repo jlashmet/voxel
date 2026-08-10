@@ -9,47 +9,30 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8457dbee6b3d468e21f108001d5b553a, type: 3}
+  m_Script: {fileID: 11500000, guid: de640fe3d0db1804a85f9fc8f5cadab6, type: 3}
   m_Name: VoxelUniversalRenderer
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalRendererData
   debugShaders:
     debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7, type: 3}
-    hdrDebugViewPS: {fileID: 4800000, guid: 3ca621b4539b5e143a30c103fb5b924c, type: 3}
-  probeVolumeDebugResources:
-    probeVolumeDebugShader: {fileID: 4800000, guid: d7a3868098213d444b4309ab64aaac02, type: 3}
-    probeVolumeFragmentationDebugShader: {fileID: 4800000, guid: 03df752b999872c47af15fe436a63d8e, type: 3}
-    probeVolumeOffsetDebugShader: {fileID: 4800000, guid: 53a57de494bd59c4eb0929d37e255fa1, type: 3}
-    probeSamplingDebugMesh: {fileID: 4300000, guid: 7d9e295cb41d17f429e19a90bdbfdb85, type: 3}
-    probeSamplingDebugTexture: {fileID: 2800000, guid: 32644fd2b49567645829faddb5e5d513, type: 3}
-    probeVolumeBlendStatesCS: {fileID: 7200000, guid: 8419e98290d67df45a1b898dd0737513, type: 3}
-  decalProjectorResources:
-    decalProjectorMesh: {fileID: 4300000, guid: 1f73b99bc59b65b4c895f6866bc0f7da, type: 3}
-    decalDrawScreenSpace: {fileID: 4800000, guid: d2a55d9f08435834db6eeb62542e97a0, type: 3}
-    decalDrawGBuffer: {fileID: 4800000, guid: 85505be68bda40e47bd35d76a911cda2, type: 3}
-    decalNormalReconstruction: {fileID: 4800000, guid: 61072d8962192a54aa4ae67ead78073a, type: 3}
+    hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
+    probeVolumeSamplingDebugComputeShader: {fileID: 7200000, guid: 53626a513ea68ce47b59dc1299fe3959, type: 3}
+  probeVolumeResources:
+    probeVolumeDebugShader: {fileID: 0}
+    probeVolumeFragmentationDebugShader: {fileID: 0}
+    probeVolumeOffsetDebugShader: {fileID: 0}
+    probeVolumeSamplingDebugShader: {fileID: 0}
+    probeSamplingDebugMesh: {fileID: 0}
+    probeSamplingDebugTexture: {fileID: 0}
+    probeVolumeBlendStatesCS: {fileID: 0}
   m_RendererFeatures:
   - {fileID: 237938664101530764}
-  m_RendererFeatureMap: a0ab341673df4d5f
-  useNativeRenderPass: 0
-  postProcessData: {fileID: 11400000, guid: 81eb3fda5f7e4f14ab0c7f554a255051, type: 2}
-  xrSystemData: {fileID: 11400000, guid: e9242471336974865bf8e8bc2be4df54, type: 2}
-  shaders:
-    blitPS: {fileID: 4800000, guid: 7a32db2229ca59042a20d7543b7e7626, type: 3}
-    blitColorAndDepthPS: {fileID: 4800000, guid: 0f4bcf05d2e39f8449642f82e9f76fca, type: 3}
-    samplingPS: {fileID: 4800000, guid: 3d7c506e117ac407dbd56b349ee28847, type: 3}
-    stencilDeferredPS: {fileID: 4800000, guid: e9155b26e1bc55942a41e518703fe0d5, type: 3}
-    fallbackErrorPS: {fileID: 4800000, guid: 5250526504f4e9d46b0d4d24bbd5f1e3, type: 3}
-    fallbackLoadingPS: {fileID: 4800000, guid: 170a25d6c7bcb864cafe13f33b732a1a, type: 3}
-    materialErrorPS: {fileID: 4800000, guid: 6affd9a42bd102c49a874bba2a051f15, type: 3}
-    coreBlitPS: {fileID: 4800000, guid: 970d6827f4b018741a579a11f8120c93, type: 3}
-    coreBlitColorAndDepthPS: {fileID: 4800000, guid: 0f4bcf05d2e39f8449642f82e9f76fca, type: 3}
-    cameraMotionVector: {fileID: 4800000, guid: 29f647d0b29421e46a64383f807bcf84, type: 3}
-    objectMotionVector: {fileID: 4800000, guid: e6220ca3c4b9b9c49a3344b94ed7f33d, type: 3}
-    screenSpaceShadowPS: {fileID: 4800000, guid: 4d33f2b6a9276d74abdd4e43a6e6e2f8, type: 3}
-    screenSpaceAmbientOcclusionPS: {fileID: 4800000, guid: 0c06e194f1646f34a99e09b550b383cc, type: 3}
-    screenSpaceAmbientOcclusionBlueNoiseCS: {fileID: 7200000, guid: 4764c4be2b2fdfd42b8b6a43ffbd36f4, type: 3}
-    screenSpaceAmbientOcclusionBlueNoise: {fileID: 2800000, guid: 233380b96d9a6344b9e10e6ba949d46b, type: 3}
-    screenSpaceAmbientOcclusionBlueNoise2: {fileID: 2800000, guid: 4b8be67f9c9d5734b8945ab3ca328b0f, type: 3}
+  m_RendererFeatureMap: 
+  xrSystemData: {fileID: 0}
+  postProcessData: {fileID: 0}
+  m_AssetVersion: 3
+  m_PrepassLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   m_OpaqueLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -60,13 +43,13 @@ MonoBehaviour:
     overrideStencilState: 0
     stencilReference: 0
     stencilCompareFunction: 8
-    passOperation: 0
+    passOperation: 2
     failOperation: 0
     zFailOperation: 0
   m_ShadowTransparentReceive: 1
   m_RenderingMode: 0
   m_DepthPrimingMode: 0
-  m_CopyDepthMode: 0
+  m_CopyDepthMode: 1
   m_DepthAttachmentFormat: 0
   m_DepthTextureFormat: 0
   m_AccurateGbufferNormals: 0
