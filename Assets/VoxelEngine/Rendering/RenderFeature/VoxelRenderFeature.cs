@@ -21,6 +21,8 @@ namespace VoxelEngine.Rendering
         [SerializeField] private ComputeShader m_SurfaceExtraction;
         [Tooltip("Hidden/VoxelEngine/SmoothSurface")]
         [SerializeField] private Shader m_SurfaceShader;
+        [Tooltip("BrickRaymarch.compute; temporary owner of CSBuildDensity during the surface migration.")]
+        [SerializeField] private ComputeShader m_DensityCompute;
 
         [Header("Stylized surface textures")]
         [SerializeField] private Texture2D m_StoneTexture;
@@ -73,7 +75,8 @@ namespace VoxelEngine.Rendering
                          m_RockTexture, m_SlateTexture, m_GrassTexture, m_DirtTexture,
                          m_StoneNormal, m_WoodNormal, m_SandNormal, m_RockNormal,
                          m_SlateNormal, m_GrassNormal, m_DirtNormal,
-                         m_DarkStoneTexture, m_DarkStoneNormal, m_SkyTexture);
+                         m_DarkStoneTexture, m_DarkStoneNormal, m_SkyTexture,
+                         m_DensityCompute);
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
