@@ -85,7 +85,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         private byte ReadMaterial(int3 p)
         {
             // Arithmetic right shift gives floor division for negative world coordinates.
-            int3 worldBrick = p >> 3;
+            int3 worldBrick = new int3(p.x >> 3, p.y >> 3, p.z >> 3);
             int3 localBrick = worldBrick - BrickCacheOrigin;
             if ((uint)localBrick.x >= (uint)BrickCacheEdge
                 || (uint)localBrick.y >= (uint)BrickCacheEdge
