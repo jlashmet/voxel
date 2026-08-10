@@ -4,19 +4,23 @@ using UnityEngine.SceneManagement;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Tiny FPS-only diagnostic for the showcase. Kept deliberately separate from the old
-    /// full-screen diagnostics HUD so performance can be watched without covering the scene.
+    /// Small performance diagnostic for the showcase. Shows current FPS plus rolling min/max
+    /// without bringing back the old large diagnostics HUD.
     /// </summary>
     public sealed class CompactFpsOverlay : MonoBehaviour
     {
         private const float SampleSeconds = 0.25f;
+        private const float StatsWindowSeconds = 5f;
         private const float Margin = 6f;
-        private const float Width = 78f;
+        private const float Width = 164f;
         private const float Height = 22f;
 
         private float _elapsed;
         private int _frames;
-        private string _label = "FPS --";
+        private float _windowElapsed;
+        private float _minFps = float.PositiveInfinity;
+        private float _maxFps;
+        private string _label = "FPS --   MIN --   MAX --";
         private GUIStyle _style;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -34,12 +38,27 @@ namespace VoxelEngine.Showcase
 
         private void Update()
         {
-            _elapsed += Time.unscaledDeltaTime;
+            float dt = Time.unscaledDeltaTime;
+            _elapsed += dt;
+            _windowElapsed += dt;
             _frames++;
             if (_elapsed < SampleSeconds) return;
 
             float fps = _elapsed > 0f ? _frames / _elapsed : 0f;
-            _label = $"FPS {fps:0}";
+
+            if (_windowElapsed >= StatsWindowSeconds)
+            {
+                _windowElapsed = 0f;
+                _minFps = fps;
+                _maxFps = fps;
+            }
+            else
+            {
+                _minFps = Mathf.Min(_minFps, fps);
+                _maxFps = Mathf.Max(_maxFps, fps);
+            }
+
+            _label = $"FPS {fps:0}   MIN {_minFps:0}   MAX {_maxFps:0}";
             _elapsed = 0f;
             _frames = 0;
         }
