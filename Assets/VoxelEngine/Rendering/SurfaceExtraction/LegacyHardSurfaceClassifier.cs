@@ -11,21 +11,20 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
     /// structure graph. The showcase castle cannot do that yet, so unmistakably authored accent
     /// materials bootstrap a local search for architectural surface bricks.
     ///
-    /// Earlier revisions marked one representative brick in every neighbouring 12.8 m render
-    /// chunk. The hard mesher then treated the entire chunk as architectural geometry, which is
-    /// why terrain near the castle became blocky. This shim now tags the actual surface bricks
-    /// instead. Natural cap materials veto masonry inference so grass/dirt/moss/sand/water stay on
-    /// the smooth path even when they share a render chunk with a wall.
+    /// This classifier is intentionally one-shot. It is legacy migration work, not part of the
+    /// renderer's steady-state frame loop. Re-running the scan while streaming caused repeated
+    /// allocations, semantic rescans, and repeated long hard-mesh bootstrap slices.
     /// </summary>
     public static class LegacyHardSurfaceClassifier
     {
         private const int RenderChunkShift = 4; // 16 bricks = 12.8 m
         private const int LegacyChunkExpansion = 1;
+        private static bool s_Bootstrapped;
 
         public static int TagAuthoredSurfaceBricks(ref RegionTable table, in BrickPool pool,
                                                    IReadOnlyList<int3> worldBricks)
         {
-            if (worldBricks == null || worldBricks.Count == 0) return 0;
+            if (s_Bootstrapped || worldBricks == null || worldBricks.Count == 0) return 0;
 
             var seedChunks = new HashSet<int3>();
             int minimumSeedY = int.MaxValue;
@@ -49,6 +48,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                     seedChunks.Add(centreChunk + new int3(dx, dy, dz));
             }
 
+            // No authored material has reached the GPU mirror yet. Do not latch: a later first
+            // upload still gets one chance to migrate the showcase castle.
             if (seedChunks.Count == 0) return 0;
 
             int minimumArchitecturalY = minimumSeedY - 1;
@@ -68,6 +69,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 if (MarkActualBrick(ref table, worldBrick)) tagged++;
             }
 
+            s_Bootstrapped = true;
             return tagged;
         }
 
