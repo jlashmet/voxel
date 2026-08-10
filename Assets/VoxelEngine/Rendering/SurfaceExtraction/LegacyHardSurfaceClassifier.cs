@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction
@@ -20,6 +21,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private const int RenderChunkShift = 4; // 16 bricks = 12.8 m
         private const int LegacyChunkExpansion = 1;
         private static bool s_Bootstrapped;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetForPlaySession() => s_Bootstrapped = false;
 
         public static int TagAuthoredSurfaceBricks(ref RegionTable table, in BrickPool pool,
                                                    IReadOnlyList<int3> worldBricks)
