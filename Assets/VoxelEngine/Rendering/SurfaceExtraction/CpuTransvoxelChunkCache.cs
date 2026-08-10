@@ -17,10 +17,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
     /// LOD boundary yet; transition cells are the next milestone after this regular-cell path has
     /// been runtime-validated.
     ///
-    /// Meshes use exact-sized buffers and the same SmoothSurfaceVertex/indirect draw contract as
-    /// both the hard mesher and the previous GPU extractor. A finished entry atomically takes
-    /// ownership of its render chunk, so the old smooth mesh can remain visible while this cache
-    /// fills without deliberately creating sky holes.
+    /// Hard semantic bricks are treated as empty by this field. That allows a crisp wall and
+    /// smooth terrain to coexist inside the same render chunk without double-rendering the wall.
+    /// Both layers still use the same SmoothSurfaceVertex/indirect draw contract and raster pass.
     /// </summary>
     public sealed class CpuTransvoxelChunkCache : IDisposable
     {
@@ -410,21 +409,20 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// Small signed field around authoritative occupancy. The regular Transvoxel grid is four
         /// voxels apart, so interpolation supplies the large-scale smooth surface while this local
         /// 13-tap kernel prevents the field from becoming a binary staircase at each sample.
-        /// Positive is inside and negative is outside. The imported regular-cell tables use their
-        /// negative case bits for the exterior side; keeping that convention gives outward Unity
-        /// triangle winding and makes the existing central-difference expression point outward.
+        /// Positive is inside and negative is outside. Hard semantic bricks are deliberately
+        /// absent from this field; the exact hard mesher owns those voxels instead.
         /// </summary>
         private static float SampleField(ref RegionTable table, in BrickPool pool, int3 p,
                                          out byte dominantMaterial)
         {
-            byte centre = VoxelAccess.GetVoxel(ref table, in pool, p);
+            byte centre = SmoothMaterialAt(ref table, in pool, p);
             float mass = IsSmoothFieldMaterial(centre) ? 0.40f : 0f;
             dominantMaterial = IsSmoothFieldMaterial(centre) ? centre : (byte)0;
 
             static float Add(ref RegionTable t, in BrickPool b, int3 q, float weight,
                              ref byte material)
             {
-                byte m = VoxelAccess.GetVoxel(ref t, in b, q);
+                byte m = SmoothMaterialAt(ref t, in b, q);
                 if (!IsSmoothFieldMaterial(m)) return 0f;
                 if (material == 0) material = m;
                 return weight;
@@ -445,6 +443,20 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             mass += Add(ref table, in pool, p + new int3(0,0,-2), 0.04f, ref dominantMaterial);
 
             return mass - 0.5f;
+        }
+
+        private static byte SmoothMaterialAt(ref RegionTable table, in BrickPool pool, int3 p)
+        {
+            VoxelAccess.Decompose(p, out int3 regionCoord, out int3 brickInRegion,
+                                  out int3 voxelInBrick);
+            if (table.TryGetRegion(regionCoord, out Region region))
+            {
+                int brickIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y,
+                                                   brickInRegion.z);
+                if (region.IsHardSurfaceBrick(brickIndex)) return VoxelDimensions.MaterialEmpty;
+            }
+
+            return VoxelAccess.GetVoxel(ref table, in pool, p);
         }
 
         private static bool IsSmoothFieldMaterial(byte material) =>
