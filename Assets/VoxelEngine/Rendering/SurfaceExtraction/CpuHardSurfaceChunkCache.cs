@@ -25,7 +25,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
     {
         private const int MaterialCount = 18;
         private const int E = VoxelDimensions.BrickEdge;
-        private const int BricksPerSlice = 512;
+        private const int BricksPerSlice = 128;
         private const uint FullyLitOcclusion = 0x0000FF00u;
 
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
@@ -127,6 +127,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly Dictionary<int3, Entry> _entries = new();
         private readonly HashSet<int3> _knownHardChunks = new();
         private readonly HashSet<int3> _pending = new();
+        private readonly HashSet<int3> _scannedRegions = new();
         private readonly List<Entry> _visible = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
         private readonly List<SmoothSurfaceVertex> _vertices = new(16_384);
@@ -167,13 +168,24 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         public void Sync(ref RegionTable table, in BrickPool pool,
                          HashSet<int3> dirtyRegions, Vector3 cameraWorldPosition,
-                         float voxelSize, double budgetMs = 1.25)
+                         float voxelSize, double budgetMs = 0.20)
         {
+            if (dirtyRegions != null)
+                foreach (int3 dirtyRegion in dirtyRegions)
+                    _scannedRegions.Remove(dirtyRegion);
+
             DiscoverHardChunks(ref table);
             QueueDirtyRegions(dirtyRegions);
             DropNoLongerResident(ref table);
 
-            double deadline = Time.realtimeSinceStartupAsDouble + math.max(0.0, budgetMs) * 0.001;
+            // The render pass uses an explicit >=10 ms budget only for the legacy showcase
+            // bootstrap. Treat that as a request to finish as much of the initial castle as
+            // possible in one startup hitch rather than leaking a 1+ ms tax over many frames.
+            // Normal destruction/edit rebuilds stay tiny and cooperative.
+            bool bootstrap = budgetMs >= 10.0;
+            double effectiveBudgetMs = bootstrap ? 60.0 : math.max(0.0, budgetMs);
+            double deadline = Time.realtimeSinceStartupAsDouble + effectiveBudgetMs * 0.001;
+
             do
             {
                 if (!_build.Active && !BeginNearestBuild(cameraWorldPosition, voxelSize)) break;
@@ -205,6 +217,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             for (int i = 0; i < resident.Length; i++)
             {
                 int3 regionCoord = resident[i];
+                if (!_scannedRegions.Add(regionCoord)) continue;
                 if (!table.TryGetRegion(regionCoord, out Region region) || !region.HasHardSurfaceBricks())
                     continue;
 
@@ -275,6 +288,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             for (int i = 0; i < gone.Count; i++)
             {
                 int3 chunk = gone[i];
+                int3 region = new(chunk.x >> regionShift, chunk.y >> regionShift, chunk.z >> regionShift);
+                _scannedRegions.Remove(region);
                 _knownHardChunks.Remove(chunk);
                 _pending.Remove(chunk);
                 if (_entries.TryGetValue(chunk, out Entry entry))
@@ -578,6 +593,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _entries.Clear();
             _knownHardChunks.Clear();
             _pending.Clear();
+            _scannedRegions.Clear();
             _visible.Clear();
             _vertices.Clear();
             _indices.Clear();
