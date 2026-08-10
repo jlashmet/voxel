@@ -240,6 +240,17 @@ namespace VoxelEngine.Rendering
 
             _buffers.Sync(ref world.Table, ref world.Pool, world.CameraRegion, dirtyRegions);
 
+            // The showcase castle predates explicit surface semantics. Bootstrap only from
+            // unmistakably authored materials surfaced by the GPU mirror, then immediately give
+            // the hard cache a small extra slice so a newly discovered replacement starts this
+            // frame. New semantic world generation should emit the bit directly and remove this
+            // migration shim.
+            int newlyTagged = LegacyHardSurfaceClassifier.TagAuthoredSurfaceBricks(
+                ref world.Table, in world.Pool, _buffers.LastSurfaceWorldBricks);
+            if (newlyTagged > 0)
+                _hardSurfaceCache.Sync(ref world.Table, in world.Pool, null,
+                                       camera.transform.position, VoxelSize, 0.75);
+
             if (_surfaceExtraction == null || _surfaceMaterial == null) return;
 
             EnsureSurfaceArena();
