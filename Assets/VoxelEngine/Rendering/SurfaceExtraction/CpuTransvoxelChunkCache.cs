@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
+using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
 
@@ -31,8 +32,14 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private const int Padding = 1;
         private const int GridSize = CellsPerAxis + 3;
         private const int GridSampleCount = GridSize * GridSize * GridSize;
-        private const int DensitySamplesPerSlice = 2048;
-        private const int CellsPerSlice = 2048;
+
+        // The first prototype processed 2048 samples/cells per slice and then deliberately spent
+        // up to 1.5 ms per frame in Prepare. That is acceptable at 60 FPS and disastrous when the
+        // rest of the renderer is ~1.4 ms total. Keep the main-thread prototype cooperative while
+        // the Burst version is being integrated: small slices bound overshoot and the default
+        // budget is only a fraction of a millisecond.
+        private const int DensitySamplesPerSlice = 256;
+        private const int CellsPerSlice = 512;
         private const uint FullyLitOcclusion = 0x0000FF00u;
 
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
@@ -217,7 +224,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         }
 
         public void Prepare(ref RegionTable table, in BrickPool pool, Camera camera,
-                            float voxelSize, int frame, double budgetMs = 1.5)
+                            float voxelSize, int frame, double budgetMs = 0.20)
         {
             DropNoLongerResident(ref table);
             EnforceCapacity(camera, voxelSize);
@@ -445,18 +452,29 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             return mass - 0.5f;
         }
 
+        /// <summary>
+        /// Reads material and hard semantics in one region/brick lookup. The previous coexistence
+        /// fix first decomposed/looked up the Region to test the hard bit and then called
+        /// VoxelAccess.GetVoxel, which repeated the same decomposition and RegionTable lookup for
+        /// every one of the 13 field taps.
+        /// </summary>
         private static byte SmoothMaterialAt(ref RegionTable table, in BrickPool pool, int3 p)
         {
             VoxelAccess.Decompose(p, out int3 regionCoord, out int3 brickInRegion,
                                   out int3 voxelInBrick);
-            if (table.TryGetRegion(regionCoord, out Region region))
-            {
-                int brickIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y,
-                                                   brickInRegion.z);
-                if (region.IsHardSurfaceBrick(brickIndex)) return VoxelDimensions.MaterialEmpty;
-            }
+            if (!table.TryGetRegion(regionCoord, out Region region))
+                return VoxelDimensions.MaterialEmpty;
 
-            return VoxelAccess.GetVoxel(ref table, in pool, p);
+            int brickIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y,
+                                               brickInRegion.z);
+            if (region.IsHardSurfaceBrick(brickIndex))
+                return VoxelDimensions.MaterialEmpty;
+
+            BrickRef brick = region.BrickRefs[brickIndex];
+            if (brick.IsUniform) return brick.UniformMaterial;
+
+            return pool.GetVoxel(brick.PoolIndex,
+                OccupancyMask.VoxelIndex(voxelInBrick.x, voxelInBrick.y, voxelInBrick.z));
         }
 
         private static bool IsSmoothFieldMaterial(byte material) =>
