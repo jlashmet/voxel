@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
 
@@ -32,14 +33,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private const int Padding = 1;
         private const int GridSize = CellsPerAxis + 3;
         private const int GridSampleCount = GridSize * GridSize * GridSize;
-
-        // The first prototype processed 2048 samples/cells per slice and then deliberately spent
-        // up to 1.5 ms per frame in Prepare. That is acceptable at 60 FPS and disastrous when the
-        // rest of the renderer is ~1.4 ms total. Keep the main-thread prototype cooperative while
-        // the Burst version is being integrated: small slices bound overshoot and the default
-        // budget is only a fraction of a millisecond.
-        private const int DensitySamplesPerSlice = 256;
         private const int CellsPerSlice = 512;
+        private const int BrickCachePadding = 1;
+        private const int BrickCacheEdge = BricksPerAxis + BrickCachePadding * 2;
+        private const int BrickCacheCount = BrickCacheEdge * BrickCacheEdge * BrickCacheEdge;
         private const uint FullyLitOcclusion = 0x0000FF00u;
 
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
@@ -133,7 +130,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         {
             public bool Active;
             public int3 Coordinate;
-            public int Phase;   // 0 density lattice, 1 regular cells
+            public int Phase;   // 0 density job, 1 regular cells
             public int Cursor;
         }
 
@@ -143,13 +140,29 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly List<Entry> _visible = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
 
-        private readonly float[] _density = new float[GridSampleCount];
-        private readonly byte[] _materials = new byte[GridSampleCount];
+        private readonly NativeArray<float> _density;
+        private readonly NativeArray<byte> _materials;
+        private readonly NativeArray<TransvoxelDensityBrick> _densityBricks;
+        private NativeList<byte> _densityMixedVoxels;
+        private JobHandle _densityJobHandle;
+        private bool _densityJobScheduled;
+
         private readonly float[] _cellDensity = new float[8];
         private readonly byte[] _cellMaterial = new byte[8];
         private readonly List<SmoothSurfaceVertex> _vertices = new(16_384);
         private readonly List<uint> _indices = new(24_576);
         private BuildState _build;
+
+        public CpuTransvoxelChunkCache()
+        {
+            _density = new NativeArray<float>(GridSampleCount, Allocator.Persistent,
+                                              NativeArrayOptions.UninitializedMemory);
+            _materials = new NativeArray<byte>(GridSampleCount, Allocator.Persistent,
+                                               NativeArrayOptions.UninitializedMemory);
+            _densityBricks = new NativeArray<TransvoxelDensityBrick>(
+                BrickCacheCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            _densityMixedVoxels = new NativeList<byte>(64 * 1024, Allocator.Persistent);
+        }
 
         public int MaxResidentChunks { get; set; } = 768;
         public int ResidentCount => _entries.Count;
@@ -237,19 +250,23 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             {
                 if (!_build.Active && !BeginNearestBuild(camera.transform.position, voxelSize)) break;
 
-                bool finished = _build.Phase == 0
-                    ? StepDensity(ref table, in pool)
-                    : StepCells(voxelSize);
-
-                if (finished && _build.Phase == 0)
+                if (_build.Phase == 0)
                 {
+                    if (!_densityJobScheduled)
+                        ScheduleDensityJob(ref table, in pool);
+
+                    // Never wait for worker threads on the render thread. A later frame will see
+                    // completion and continue directly into polygonization.
+                    if (!_densityJobHandle.IsCompleted) break;
+
+                    _densityJobHandle.Complete();
+                    _densityJobScheduled = false;
                     _build.Phase = 1;
                     _build.Cursor = 0;
+                    continue;
                 }
-                else if (finished)
-                {
-                    FinishBuild(frame);
-                }
+
+                if (StepCells(voxelSize)) FinishBuild(frame);
             }
             while (Time.realtimeSinceStartupAsDouble < deadline);
         }
@@ -295,22 +312,89 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             return true;
         }
 
-        private bool StepDensity(ref RegionTable table, in BrickPool pool)
+        /// <summary>
+        /// Resolves the 18^3 brick neighbourhood around the chunk once and copies only mixed
+        /// voxel payloads. This snapshot is immutable until the Burst density job completes, so
+        /// gameplay may continue editing/evicting authoritative storage without racing the job.
+        /// </summary>
+        private void ScheduleDensityJob(ref RegionTable table, in BrickPool pool)
         {
-            int end = math.min(GridSampleCount, _build.Cursor + DensitySamplesPerSlice);
-            int3 chunkOrigin = _build.Coordinate * VoxelsPerAxis;
+            _densityMixedVoxels.Clear();
 
-            for (int index = _build.Cursor; index < end; index++)
+            int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
+            int3 chunkBrickOrigin = new(chunkOriginVoxel.x >> VoxelDimensions.BrickEdgeLog2,
+                                        chunkOriginVoxel.y >> VoxelDimensions.BrickEdgeLog2,
+                                        chunkOriginVoxel.z >> VoxelDimensions.BrickEdgeLog2);
+            int3 cacheOrigin = chunkBrickOrigin - BrickCachePadding;
+
+            for (int z = 0; z < BrickCacheEdge; z++)
+            for (int y = 0; y < BrickCacheEdge; y++)
+            for (int x = 0; x < BrickCacheEdge; x++)
             {
-                GridCoordinate(index, out int gx, out int gy, out int gz);
-                int3 worldVoxel = chunkOrigin
-                                + (new int3(gx, gy, gz) - Padding) * SourceStep;
-                _density[index] = SampleField(ref table, in pool, worldVoxel,
-                                              out _materials[index]);
+                int cacheIndex = x + BrickCacheEdge * (y + BrickCacheEdge * z);
+                int3 worldBrick = cacheOrigin + new int3(x, y, z);
+                _densityBricks[cacheIndex] = SnapshotBrick(ref table, in pool, worldBrick);
             }
 
-            _build.Cursor = end;
-            return end >= GridSampleCount;
+            var job = new TransvoxelDensityJob
+            {
+                Bricks = _densityBricks,
+                MixedVoxels = _densityMixedVoxels.AsArray(),
+                Density = _density,
+                Materials = _materials,
+                ChunkOriginVoxel = chunkOriginVoxel,
+                BrickCacheOrigin = cacheOrigin,
+                BrickCacheEdge = BrickCacheEdge,
+                GridSize = GridSize,
+                Padding = Padding,
+                SourceStep = SourceStep
+            };
+
+            _densityJobHandle = job.Schedule(GridSampleCount, 64);
+            _densityJobScheduled = true;
+        }
+
+        private TransvoxelDensityBrick SnapshotBrick(ref RegionTable table, in BrickPool pool,
+                                                      int3 worldBrick)
+        {
+            int3 regionCoord = new(worldBrick.x >> VoxelDimensions.RegionEdgeLog2,
+                                   worldBrick.y >> VoxelDimensions.RegionEdgeLog2,
+                                   worldBrick.z >> VoxelDimensions.RegionEdgeLog2);
+            if (!table.TryGetRegion(regionCoord, out Region region)) return default;
+
+            int bx = worldBrick.x & VoxelDimensions.RegionEdgeMask;
+            int by = worldBrick.y & VoxelDimensions.RegionEdgeMask;
+            int bz = worldBrick.z & VoxelDimensions.RegionEdgeMask;
+            int brickIndex = Region.BrickIndex(bx, by, bz);
+            if (region.IsHardSurfaceBrick(brickIndex)) return default;
+
+            BrickRef brick = region.BrickRefs[brickIndex];
+            if (brick.IsUniform)
+            {
+                byte material = brick.UniformMaterial;
+                if (material == VoxelDimensions.MaterialEmpty) return default;
+                return new TransvoxelDensityBrick
+                {
+                    Kind = 1,
+                    UniformMaterial = material,
+                    MixedOffset = 0
+                };
+            }
+
+            int mixedOffset = _densityMixedVoxels.Length;
+            int nextLength = mixedOffset + VoxelDimensions.VoxelsPerBrick;
+            _densityMixedVoxels.ResizeUninitialized(nextLength);
+            NativeArray<byte> packed = _densityMixedVoxels.AsArray();
+            int sourceOffset = pool.VoxelOffset(brick.PoolIndex);
+            for (int i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
+                packed[mixedOffset + i] = pool.Voxels[sourceOffset + i];
+
+            return new TransvoxelDensityBrick
+            {
+                Kind = 2,
+                UniformMaterial = 0,
+                MixedOffset = mixedOffset
+            };
         }
 
         private bool StepCells(float voxelSize)
@@ -412,71 +496,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             return _density[GridIndex(x, y, z)];
         }
 
-        /// <summary>
-        /// Small signed field around authoritative occupancy. The regular Transvoxel grid is four
-        /// voxels apart, so interpolation supplies the large-scale smooth surface while this local
-        /// 13-tap kernel prevents the field from becoming a binary staircase at each sample.
-        /// Positive is inside and negative is outside. Hard semantic bricks are deliberately
-        /// absent from this field; the exact hard mesher owns those voxels instead.
-        /// </summary>
-        private static float SampleField(ref RegionTable table, in BrickPool pool, int3 p,
-                                         out byte dominantMaterial)
-        {
-            byte centre = SmoothMaterialAt(ref table, in pool, p);
-            float mass = IsSmoothFieldMaterial(centre) ? 0.40f : 0f;
-            dominantMaterial = IsSmoothFieldMaterial(centre) ? centre : (byte)0;
-
-            static float Add(ref RegionTable t, in BrickPool b, int3 q, float weight,
-                             ref byte material)
-            {
-                byte m = SmoothMaterialAt(ref t, in b, q);
-                if (!IsSmoothFieldMaterial(m)) return 0f;
-                if (material == 0) material = m;
-                return weight;
-            }
-
-            mass += Add(ref table, in pool, p + new int3( 1,0,0), 0.06f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(-1,0,0), 0.06f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(0, 1,0), 0.06f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(0,-1,0), 0.06f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(0,0, 1), 0.06f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(0,0,-1), 0.06f, ref dominantMaterial);
-
-            mass += Add(ref table, in pool, p + new int3( 2,0,0), 0.04f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(-2,0,0), 0.04f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(0, 2,0), 0.04f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(0,-2,0), 0.04f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(0,0, 2), 0.04f, ref dominantMaterial);
-            mass += Add(ref table, in pool, p + new int3(0,0,-2), 0.04f, ref dominantMaterial);
-
-            return mass - 0.5f;
-        }
-
-        /// <summary>
-        /// Reads material and hard semantics in one region/brick lookup. The previous coexistence
-        /// fix first decomposed/looked up the Region to test the hard bit and then called
-        /// VoxelAccess.GetVoxel, which repeated the same decomposition and RegionTable lookup for
-        /// every one of the 13 field taps.
-        /// </summary>
-        private static byte SmoothMaterialAt(ref RegionTable table, in BrickPool pool, int3 p)
-        {
-            VoxelAccess.Decompose(p, out int3 regionCoord, out int3 brickInRegion,
-                                  out int3 voxelInBrick);
-            if (!table.TryGetRegion(regionCoord, out Region region))
-                return VoxelDimensions.MaterialEmpty;
-
-            int brickIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y,
-                                               brickInRegion.z);
-            if (region.IsHardSurfaceBrick(brickIndex))
-                return VoxelDimensions.MaterialEmpty;
-
-            BrickRef brick = region.BrickRefs[brickIndex];
-            if (brick.IsUniform) return brick.UniformMaterial;
-
-            return pool.GetVoxel(brick.PoolIndex,
-                OccupancyMask.VoxelIndex(voxelInBrick.x, voxelInBrick.y, voxelInBrick.z));
-        }
-
         private static bool IsSmoothFieldMaterial(byte material) =>
             material == 1 || material == 3 || material == 5 || material == 6
             || material == 10 || material == 13 || material == 14;
@@ -547,10 +566,18 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
             if (_build.Active && _build.Coordinate.Equals(chunk))
             {
+                CompleteDensityJob();
                 _build = default;
                 _vertices.Clear();
                 _indices.Clear();
             }
+        }
+
+        private void CompleteDensityJob()
+        {
+            if (!_densityJobScheduled) return;
+            _densityJobHandle.Complete();
+            _densityJobScheduled = false;
         }
 
         private static int3 ChunkRegion(int3 chunk)
@@ -561,14 +588,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         private static int GridIndex(int x, int y, int z) =>
             x + GridSize * (y + GridSize * z);
-
-        private static void GridCoordinate(int index, out int x, out int y, out int z)
-        {
-            x = index % GridSize;
-            int yz = index / GridSize;
-            y = yz % GridSize;
-            z = yz / GridSize;
-        }
 
         private static int FloorDiv(int value, int divisor)
         {
@@ -585,6 +604,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         public void Dispose()
         {
+            CompleteDensityJob();
             foreach (Entry entry in _entries.Values) entry.Dispose();
             _entries.Clear();
             _known.Clear();
@@ -592,6 +612,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _visible.Clear();
             _vertices.Clear();
             _indices.Clear();
+            if (_density.IsCreated) _density.Dispose();
+            if (_materials.IsCreated) _materials.Dispose();
+            if (_densityBricks.IsCreated) _densityBricks.Dispose();
+            if (_densityMixedVoxels.IsCreated) _densityMixedVoxels.Dispose();
             _build = default;
         }
     }
