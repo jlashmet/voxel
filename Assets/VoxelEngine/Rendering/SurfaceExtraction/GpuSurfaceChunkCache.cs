@@ -87,25 +87,30 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public IReadOnlyList<Entry> Scheduled => _scheduled;
         public IReadOnlyList<Entry> Visible => _visible;
 
+        /// <summary>
+        /// A density brick is consumed by more than the chunk that contains it. Every extraction
+        /// chunk samples a one-sample halo (SampleOrigin is one SourceStep before the owned
+        /// volume), so a density brick on a chunk face/edge/corner can change the neighbouring
+        /// chunk too. The old containing-chunk-only invalidation let a chunk extract while its
+        /// halo density was still uninitialised, become Ready with missing triangles, and then
+        /// never rebuild when that neighbouring density job finally completed.
+        /// </summary>
         public void InvalidateDensityBricks(IReadOnlyList<int3> worldBricks)
         {
-            if (worldBricks == null) return;
-            for (int i = 0; i < worldBricks.Count; i++)
-            {
-                int3 brick = worldBricks[i];
-                int3 chunk = BrickToChunk(brick);
-                _known.Add(chunk);
-                _dirty.Add(chunk);
-            }
+            InvalidateBricksWithExtractionHalo(worldBricks);
         }
 
         /// <summary>
         /// Adds chunks discovered from the resident brick-pointer grid, independently of density
-        /// jobs. A surface brick can affect the neighbouring chunk when it lies on a chunk face,
-        /// edge, or corner because extraction samples a one-sample halo. Add exactly those
-        /// neighbours rather than relying on density-job side effects to discover geometry.
+        /// jobs. Surface discovery and density completion use the same extraction-footprint rule:
+        /// a boundary brick can affect the neighbouring chunk because of the sample halo.
         /// </summary>
         public void InvalidateSurfaceBricks(IReadOnlyList<int3> worldBricks)
+        {
+            InvalidateBricksWithExtractionHalo(worldBricks);
+        }
+
+        private void InvalidateBricksWithExtractionHalo(IReadOnlyList<int3> worldBricks)
         {
             if (worldBricks == null) return;
 
