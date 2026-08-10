@@ -8,7 +8,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
     /// Migration shim for worlds generated before explicit surface semantics existed.
     ///
     /// New procedural generation should mark hard/smooth geometry directly from its semantic
-    /// structure graph. The showcase castle cannot do that yet, so unmistakably authored
+    /// structure graph. The showcase castle cannot do that yet, so unmistakably authored accent
     /// materials bootstrap a local search for architectural surface bricks.
     ///
     /// Earlier revisions marked one representative brick in every neighbouring 12.8 m render
@@ -30,13 +30,14 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             var seedChunks = new HashSet<int3>();
             int minimumSeedY = int.MaxValue;
 
-            // Find real authored accents first. Already-tagged seeds still participate so later
-            // region uploads can classify newly surfaced neighbouring masonry after an edit.
+            // Wood is deliberately not a seed: the showcase trees use the same timber material.
+            // Roof/window/trim materials locate the castle first; timber is accepted only inside
+            // that already-authored neighbourhood.
             for (int i = 0; i < worldBricks.Count; i++)
             {
                 int3 worldBrick = worldBricks[i];
                 if (!TryGetBrick(ref table, worldBrick, out BrickRef brick)) continue;
-                if (!ContainsAuthoredMaterial(in pool, brick)) continue;
+                if (!ContainsSeedMaterial(in pool, brick)) continue;
 
                 minimumSeedY = math.min(minimumSeedY, worldBrick.y);
                 int3 centreChunk = new(worldBrick.x >> RenderChunkShift,
@@ -50,9 +51,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
             if (seedChunks.Count == 0) return 0;
 
-            // Gate timber/windows reach essentially to the architectural base. Keeping inferred
-            // masonry at or above that band prevents the stone mass beneath the grass plateau and
-            // exposed cliff from being reclassified as a castle wall.
             int minimumArchitecturalY = minimumSeedY - 1;
             int tagged = 0;
 
@@ -105,13 +103,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             return region.MarkHardSurfaceBrick(brickIndex);
         }
 
-        private static bool ContainsAuthoredMaterial(in BrickPool pool, BrickRef brick)
+        private static bool ContainsSeedMaterial(in BrickPool pool, BrickRef brick)
         {
-            if (brick.IsUniform) return IsAuthoredSeedMaterial(brick.UniformMaterial);
+            if (brick.IsUniform) return IsSeedMaterial(brick.UniformMaterial);
 
             int offset = pool.VoxelOffset(brick.PoolIndex);
             for (int i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
-                if (IsAuthoredSeedMaterial(pool.Voxels[offset + i]))
+                if (IsSeedMaterial(pool.Voxels[offset + i]))
                     return true;
             return false;
         }
@@ -119,8 +117,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private static bool LooksArchitectural(in BrickPool pool, BrickRef brick)
         {
             if (brick.IsEmpty) return false;
-            if (brick.IsUniform) return IsMasonryMaterial(brick.UniformMaterial)
-                                     || IsAuthoredSeedMaterial(brick.UniformMaterial);
+            if (brick.IsUniform) return IsArchitecturalMaterial(brick.UniformMaterial);
 
             int offset = pool.VoxelOffset(brick.PoolIndex);
             bool sawSolid = false;
@@ -128,28 +125,34 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             {
                 byte material = pool.Voxels[offset + i];
                 if (material == VoxelDimensions.MaterialEmpty) continue;
-                if (IsAuthoredSeedMaterial(material)) return true;
 
-                // A mixed brick containing a natural cap/bank material is terrain. This is the
-                // important distinction for the plateau immediately underneath castle walls.
+                // Do this before accepting timber/masonry. A mixed tree/ground brick or a grass
+                // capped plateau brick stays smooth even if it also contains wood/stone.
                 if (IsNaturalSurfaceMaterial(material)) return false;
-                if (!IsMasonryMaterial(material)) return false;
+                if (!IsArchitecturalMaterial(material)) return false;
                 sawSolid = true;
             }
             return sawSolid;
         }
 
-        private static bool IsAuthoredSeedMaterial(byte material) =>
-            material == 2   // timber
-            || material == 4   // warm glass
+        private static bool IsSeedMaterial(byte material) =>
+            material == 4   // warm glass
             || material == 7   // slate
             || material == 8   // roof tile
             || material == 9   // cloth
             || material == 12  // gold / metal trim
             || material == 15; // leaded window
 
-        private static bool IsMasonryMaterial(byte material) =>
-            material == 1 || material == 6 || material == 7 || material == 8;
+        private static bool IsArchitecturalMaterial(byte material) =>
+            material == 1   // stone masonry
+            || material == 2   // timber, but only after a non-tree seed located the castle
+            || material == 4
+            || material == 6   // dark stone masonry
+            || material == 7
+            || material == 8
+            || material == 9
+            || material == 12
+            || material == 15;
 
         private static bool IsNaturalSurfaceMaterial(byte material) =>
             material == 3   // sand
