@@ -195,14 +195,14 @@ namespace VoxelEngine.Rendering
                 _window[cell] = slot;
                 bool refresh = isNew || (regionsNeedingRefresh != null && regionsNeedingRefresh.Contains(coord));
                 if (refresh && table.TryGetRegion(coord, out var region))
-                    UploadRegionPointers(slot, region, isNew, ref pool);
+                    UploadRegionPointers(slot, region, isNew, ref table, ref pool);
             }
 
             resident.Dispose();
         }
 
         private void UploadRegionPointers(int slot, in Region region, bool ensureVoxelUpload,
-                                          ref BrickPool pool)
+                                          ref RegionTable table, ref BrickPool pool)
         {
             var refs = region.BrickRefs;
             int edge = VoxelDimensions.RegionEdge;
@@ -223,7 +223,11 @@ namespace VoxelEngine.Rendering
                 // Surface discovery must not depend on density jobs. Mixed bricks always contain a
                 // surface by storage contract. Uniform solid bricks can also own an exposed face
                 // when the solid/air boundary happens to align exactly with a brick boundary.
-                if (IsPotentialSurfaceBrick(refs, i, bx, by, bz, yStride, zStride))
+                // Region-edge neighbours must be inspected through RegionTable as well; stopping
+                // at this region's pointer array silently classified some cross-region terrain and
+                // masonry faces as interior, so their extraction chunks were never discovered.
+                if (IsPotentialSurfaceBrick(ref table, refs, i, worldBrick,
+                                            bx, by, bz, yStride, zStride))
                     _lastSurfaceWorldBricks.Add(worldBrick);
 
                 if (!brick.IsMixed) continue;
@@ -242,29 +246,56 @@ namespace VoxelEngine.Rendering
             LastRegionsUploaded++;
         }
 
-        private static bool IsPotentialSurfaceBrick(NativeArray<BrickRef> refs, int index,
-                                                     int bx, int by, int bz,
+        private static bool IsPotentialSurfaceBrick(ref RegionTable table,
+                                                     NativeArray<BrickRef> refs, int index,
+                                                     int3 worldBrick, int bx, int by, int bz,
                                                      int yStride, int zStride)
         {
             BrickRef brick = refs[index];
             if (brick.IsEmpty) return false;
             if (brick.IsMixed) return true;
 
-            // Uniform solid bricks normally represent interior mass. They become surface-bearing
-            // when any in-region face touches air or a mixed brick. Checking this during the
-            // pointer-grid scan is cheap and catches brick-aligned castle walls/floors that never
-            // allocate a mixed brick and therefore never produce a density job.
+            // Fast path for neighbours inside the same pointer grid.
             if (bx > 0 && IsBoundaryNeighbour(refs[index - 1])) return true;
             if (bx + 1 < VoxelDimensions.RegionEdge && IsBoundaryNeighbour(refs[index + 1])) return true;
             if (by > 0 && IsBoundaryNeighbour(refs[index - yStride])) return true;
             if (by + 1 < VoxelDimensions.RegionEdge && IsBoundaryNeighbour(refs[index + yStride])) return true;
             if (bz > 0 && IsBoundaryNeighbour(refs[index - zStride])) return true;
             if (bz + 1 < VoxelDimensions.RegionEdge && IsBoundaryNeighbour(refs[index + zStride])) return true;
+
+            // On a region face, the neighbour lives in another Region.BrickRefs array. Treat a
+            // nonresident neighbour as exposed: the scalar-field fallback represents the world
+            // outside the detailed resident set, so suppressing this chunk entirely is worse than
+            // allowing extraction to decide whether a crossing actually exists.
+            int last = VoxelDimensions.RegionEdge - 1;
+            if (bx == 0 && IsBoundaryNeighbour(ref table, worldBrick + new int3(-1, 0, 0))) return true;
+            if (bx == last && IsBoundaryNeighbour(ref table, worldBrick + new int3(1, 0, 0))) return true;
+            if (by == 0 && IsBoundaryNeighbour(ref table, worldBrick + new int3(0, -1, 0))) return true;
+            if (by == last && IsBoundaryNeighbour(ref table, worldBrick + new int3(0, 1, 0))) return true;
+            if (bz == 0 && IsBoundaryNeighbour(ref table, worldBrick + new int3(0, 0, -1))) return true;
+            if (bz == last && IsBoundaryNeighbour(ref table, worldBrick + new int3(0, 0, 1))) return true;
             return false;
         }
 
         private static bool IsBoundaryNeighbour(BrickRef neighbour)
             => neighbour.IsEmpty || neighbour.IsMixed;
+
+        private static bool IsBoundaryNeighbour(ref RegionTable table, int3 worldBrick)
+        {
+            int log2 = VoxelDimensions.RegionEdgeLog2;
+            int mask = VoxelDimensions.RegionEdgeMask;
+            int3 regionCoord = new(worldBrick.x >> log2,
+                                   worldBrick.y >> log2,
+                                   worldBrick.z >> log2);
+
+            if (!table.TryGetRegion(regionCoord, out Region region)) return true;
+
+            int lx = worldBrick.x & mask;
+            int ly = worldBrick.y & mask;
+            int lz = worldBrick.z & mask;
+            BrickRef neighbour = region.BrickRefs[Region.BrickIndex(lx, ly, lz)];
+            return IsBoundaryNeighbour(neighbour);
+        }
 
         public int LastUploadCalls { get; private set; }
         private int[] _sortScratch = new int[MaxBricksPerSync];
