@@ -12,11 +12,10 @@ namespace VoxelEngine.Rendering
     /// <summary>
     /// Draws voxel geometry as derived meshes through one raster path.
     ///
-    /// Authored structure chunks use the exact greedy hard mesher. Smooth chunks are migrating
-    /// from the temporary GPU Surface Nets cache to a CPU regular-cell Transvoxel cache; the old
-    /// smooth representation stays active until the initial Transvoxel working set is complete.
-    /// All representations share the same vertex/index contract, material, depth target and
-    /// raster pass.
+    /// Authored hard bricks use the exact greedy mesher while natural bricks use Transvoxel.
+    /// Those layers may coexist inside the same 12.8 m render chunk; geometry semantics, not the
+    /// render-chunk coordinate, decide which polygonizer owns a voxel. The temporary Surface Nets
+    /// cache remains only as a migration source until the initial Transvoxel working set is ready.
     /// </summary>
     public sealed class VoxelRenderPass : ScriptableRenderPass, IDisposable
     {
@@ -245,16 +244,15 @@ namespace VoxelEngine.Rendering
 
             _buffers.Sync(ref world.Table, ref world.Pool, world.CameraRegion, dirtyRegions);
 
-            // The showcase castle predates explicit surface semantics. Bootstrap only from
-            // unmistakably authored materials surfaced by the GPU mirror, then immediately give
-            // the hard cache a small extra slice so a newly discovered replacement starts this
-            // frame. New semantic world generation should emit the bit directly and remove this
-            // migration shim.
+            // The showcase castle predates explicit surface semantics. Bootstrap from authored
+            // accent materials, but tag actual structure-looking bricks rather than claiming the
+            // surrounding render chunks. Give the first classification a larger one-frame build
+            // slice so the spawn view does not visibly linger on the old melted castle.
             int newlyTagged = LegacyHardSurfaceClassifier.TagAuthoredSurfaceBricks(
                 ref world.Table, in world.Pool, _buffers.LastSurfaceWorldBricks);
             if (newlyTagged > 0)
                 _hardSurfaceCache.Sync(ref world.Table, in world.Pool, null,
-                                       camera.transform.position, VoxelSize, 0.75);
+                                       camera.transform.position, VoxelSize, 12.0);
 
             if (_surfaceExtraction == null || _surfaceMaterial == null) return;
 
@@ -266,11 +264,6 @@ namespace VoxelEngine.Rendering
             var transvoxelVisible = _transvoxelCache.CollectVisible(camera, VoxelSize,
                                                                     Time.frameCount);
 
-            // Do not mix the two smooth polygonizers throughout the initial working set. That
-            // would turn a harmless background cache warmup into visible 80cm/40cm boundary
-            // seams. Once every currently known smooth chunk has a completed Transvoxel entry,
-            // latch the new path on. Later edits retain their previous Transvoxel mesh while the
-            // replacement builds, so this latch never needs to fall back globally.
             if (!_transvoxelActivated
                 && _transvoxelCache.KnownCount > 0
                 && _transvoxelCache.ResidentCount >= _transvoxelCache.KnownCount
@@ -285,13 +278,23 @@ namespace VoxelEngine.Rendering
             _surfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
             var hardVisible = _hardSurfaceCache.CollectVisible(camera, VoxelSize);
 
+            // A hard layer no longer owns an entire render chunk. Where a Transvoxel mesh for the
+            // same coordinate is ready, draw both: its field has already removed hard semantic
+            // bricks, while the greedy mesh contains only those hard bricks. Before the global
+            // Transvoxel latch, hard-containing chunks are allowed to adopt Transvoxel early so
+            // their adjacent grass/terrain does not disappear or become blocky.
             int coarseVisibleCount = 0;
             for (int i = 0; i < _surfaceCache.Visible.Count; i++)
             {
                 int3 coordinate = _surfaceCache.Visible[i].Coordinate;
-                if (_hardSurfaceCache.OwnsRenderedChunk(coordinate)) continue;
-                if (_transvoxelActivated && _transvoxelCache.OwnsRenderedChunk(coordinate))
-                    continue;
+                bool hardReady = _hardSurfaceCache.OwnsRenderedChunk(coordinate);
+                bool transvoxelReady = _transvoxelCache.OwnsRenderedChunk(coordinate);
+                bool drawTransvoxel = transvoxelReady && (_transvoxelActivated || hardReady);
+
+                if (drawTransvoxel) continue;
+                // Surface Nets cannot read the CPU hard-semantic mask, so once the exact hard
+                // layer is visible it must not draw the melted castle underneath it.
+                if (hardReady) continue;
                 coarseVisibleCount++;
             }
 
@@ -300,30 +303,29 @@ namespace VoxelEngine.Rendering
             for (int i = 0; i < _surfaceCache.Visible.Count; i++)
             {
                 var entry = _surfaceCache.Visible[i];
-                if (_hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate)) continue;
-                if (_transvoxelActivated && _transvoxelCache.OwnsRenderedChunk(entry.Coordinate))
-                    continue;
+                bool hardReady = _hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate);
+                bool transvoxelReady = _transvoxelCache.OwnsRenderedChunk(entry.Coordinate);
+                bool drawTransvoxel = transvoxelReady && (_transvoxelActivated || hardReady);
+                if (drawTransvoxel || hardReady) continue;
                 visibleEntries[coarseWrite++] = entry;
             }
 
             int transvoxelCount = 0;
-            if (_transvoxelActivated)
+            for (int i = 0; i < transvoxelVisible.Count; i++)
             {
-                for (int i = 0; i < transvoxelVisible.Count; i++)
-                    if (!_hardSurfaceCache.OwnsRenderedChunk(transvoxelVisible[i].Coordinate))
-                        transvoxelCount++;
+                int3 coordinate = transvoxelVisible[i].Coordinate;
+                if (_transvoxelActivated || _hardSurfaceCache.OwnsRenderedChunk(coordinate))
+                    transvoxelCount++;
             }
 
             var transvoxelEntries = new CpuTransvoxelChunkCache.Entry[transvoxelCount];
             int transvoxelWrite = 0;
-            if (_transvoxelActivated)
+            for (int i = 0; i < transvoxelVisible.Count; i++)
             {
-                for (int i = 0; i < transvoxelVisible.Count; i++)
-                {
-                    var entry = transvoxelVisible[i];
-                    if (_hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate)) continue;
-                    transvoxelEntries[transvoxelWrite++] = entry;
-                }
+                var entry = transvoxelVisible[i];
+                if (!_transvoxelActivated
+                    && !_hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate)) continue;
+                transvoxelEntries[transvoxelWrite++] = entry;
             }
 
             var hardEntries = new CpuHardSurfaceChunkCache.Entry[hardVisible.Count];
