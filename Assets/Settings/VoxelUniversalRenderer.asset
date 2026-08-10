@@ -69,7 +69,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: VoxelEngine.Rendering::VoxelEngine.Rendering.VoxelRenderFeature
   m_Active: 1
   m_Enabled: 1
-  m_Raymarch: {fileID: 7200000, guid: 825fb4c425c9e494ba58a7902329ec83, type: 3}
+  m_SurfaceExtraction: {fileID: 7200000, guid: 1fef77ab4de244487938c428f1ddd90f, type: 3}
+  m_SurfaceShader: {fileID: 4800000, guid: 05dec70ba2cd64aa5a38bf4a5ddf3da8, type: 3}
   m_StoneTexture: {fileID: 2800000, guid: 49eecdec39cc444b4bffa6b12f91ec59, type: 3}
   m_WoodTexture: {fileID: 2800000, guid: ee14c298293634d288c4190b04d44563, type: 3}
   m_SandTexture: {fileID: 2800000, guid: 8b64781c16d5545cba6b95f4e9fb12ac, type: 3}
@@ -90,5 +91,3 @@ MonoBehaviour:
   m_Event: 450
   m_RenderScale: 1.25
   m_VoxelSize: 0.1
-  m_MaxDistance: 400
-  m_MaxSteps: 256

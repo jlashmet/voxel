@@ -79,6 +79,7 @@ namespace VoxelEngine.Rendering
         private readonly Dictionary<int, int3> _worldBrickOfPool = new();
         private readonly Dictionary<int3, int> _poolOfWorldBrick = new();
         private readonly HashSet<int> _pendingDensity = new();
+        private readonly List<int3> _lastDensityWorldBricks = new(MaxBricksPerSync);
 
         private NativeArray<int> _brickRefScratch;
         private NativeArray<uint> _voxelScratch;
@@ -95,6 +96,13 @@ namespace VoxelEngine.Rendering
         public int3 WindowOrigin => _windowOrigin;
         public int DensityJobCount { get; private set; }
         public int PendingDensityCount => _pendingDensity.Count;
+
+        /// <summary>
+        /// World-brick coordinates whose filtered density is rebuilt by this frame's command
+        /// stream. The surface cache consumes this exact list to invalidate intersecting chunks;
+        /// deriving it again from CPU edits would miss the density halo and create seams.
+        /// </summary>
+        public IReadOnlyList<int3> LastDensityWorldBricks => _lastDensityWorldBricks;
 
         /// <summary>Region slots currently mapped.</summary>
         public int ResidentSlots { get; private set; }
@@ -198,6 +206,7 @@ namespace VoxelEngine.Rendering
             LastRegionsUploaded = 0;
             LastBricksUploaded = 0;
             DensityJobCount = 0;
+            _lastDensityWorldBricks.Clear();
 
             ReleaseSlotsOutsideWindow();
             AssignSlots(ref table, regionsNeedingRefresh);
@@ -395,6 +404,7 @@ namespace VoxelEngine.Rendering
 
                 _densityJobScratch[count++] = new int4(poolIndex, worldBrick.x,
                                                         worldBrick.y, worldBrick.z);
+                _lastDensityWorldBricks.Add(worldBrick);
             }
 
             foreach (int poolIndex in consumed) _pendingDensity.Remove(poolIndex);
@@ -485,6 +495,7 @@ namespace VoxelEngine.Rendering
             _worldBrickOfPool.Clear();
             _poolOfWorldBrick.Clear();
             _pendingDensity.Clear();
+            _lastDensityWorldBricks.Clear();
             ResidentSlots = 0;
         }
     }

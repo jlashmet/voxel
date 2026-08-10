@@ -1,0 +1,585 @@
+#pragma kernel CSBuildSurfaceVertices
+#pragma kernel CSBuildSurfaceTriangles
+#pragma kernel CSClearSurfaceArgs
+#pragma kernel CSFinalizeSurfaceArgs
+
+// GPU Surface Nets / dual-contouring-style extraction for a scalar lattice. The authoritative
+// voxels remain integer storage; this buffer is presentation geometry only.
+//
+// Winding is consistent across all three lattice axes. It was not: the X and Z quads wound
+// opposite to the Y quads, so walls faced inward while ground faced outward. Cull Off hid that
+// until backfaces started showing through as flat shelves with normals pointing anywhere, which
+// is what made the surface look wrong in motion.
+
+struct SurfaceVertex
+{
+    float3 position;
+    float3 normal;
+    uint material;
+    uint active;
+};
+
+StructuredBuffer<float> g_SurfaceDensity;
+StructuredBuffer<uint> g_SurfaceMaterials;
+RWStructuredBuffer<SurfaceVertex> g_SurfaceVertices;
+RWStructuredBuffer<uint> g_SurfaceIndices;
+RWStructuredBuffer<uint> g_SurfaceArgs;
+uint g_SurfaceIndexCapacity;
+
+// Arena offsets. Every resident chunk shares one vertex, index and args buffer, so each kernel
+// writes at its own slot's base. Zero reproduces the standalone single-chunk layout the isolated
+// tests use, so both paths run the same code.
+uint g_SurfaceVertexBase;
+uint g_SurfaceIndexBase;
+uint g_SurfaceArgsBase;
+
+// Sparse source bindings. Source 0 reads the isolated dense fixture; source 1 reads the same GPU
+// brick mirror used by the live world, so production extraction never round-trips density to CPU.
+StructuredBuffer<int> g_RegionWindow;
+StructuredBuffer<int> g_BrickRefs;
+StructuredBuffer<uint> g_BrickVoxels;
+StructuredBuffer<uint> g_BrickDensity;
+
+int3 g_SurfaceGridSize;
+float3 g_SurfaceOrigin;
+float g_SurfaceSpacing;
+float g_SurfaceIsoLevel;
+uint g_SurfaceSource;
+uint g_SurfaceSourceStep;
+int3 g_SurfaceVoxelOrigin;
+int3 g_WindowOrigin;
+uint g_WindowX;
+uint g_WindowY;
+uint g_WindowZ;
+
+// Implicit far field, the same seed-driven heightfield the raymarch marches beyond residency.
+// Where no region is mirrored on the GPU the extracted field continues into it, so the resident
+// volume's edge blends into the horizon instead of standing as a black cross-section wall.
+uint g_TerrainSeed;
+uint g_FarBaseHeight;
+uint g_FarEnabled;
+
+static const int k_BrickEdge = 8;
+static const int k_RegionEdgeLog2 = 6;
+static const int k_RegionEdgeMask = 63;
+static const int k_BricksPerRegion = 64 * 64 * 64;
+
+int SampleIndex(int3 p)
+{
+    return p.x + g_SurfaceGridSize.x * (p.y + g_SurfaceGridSize.y * p.z);
+}
+
+int3 CellSize()
+{
+    return g_SurfaceGridSize - 1;
+}
+
+int CellIndex(int3 p)
+{
+    int3 size = CellSize();
+    return p.x + size.x * (p.y + size.y * p.z);
+}
+
+int RegionSlot(int3 regionCoord)
+{
+    int3 p = regionCoord - g_WindowOrigin;
+    bool inside = all(p >= 0) && p.x < (int)g_WindowX && p.y < (int)g_WindowY
+               && p.z < (int)g_WindowZ;
+    return inside ? g_RegionWindow[p.x + (int)g_WindowX * (p.y + (int)g_WindowY * p.z)] : -1;
+}
+
+int BrickRefAt(int3 brickCoord)
+{
+    int slot = RegionSlot(brickCoord >> k_RegionEdgeLog2);
+    if (slot < 0) return -1;
+    int3 b = brickCoord & k_RegionEdgeMask;
+    int index = b.x | (b.y << k_RegionEdgeLog2) | (b.z << (k_RegionEdgeLog2 * 2));
+    return g_BrickRefs[slot * k_BricksPerRegion + index];
+}
+
+uint VoxelMaterial(int poolIndex, int3 v)
+{
+    int voxelIndex = v.x | (v.y << 3) | (v.z << 6);
+    uint packed = g_BrickVoxels[poolIndex * 128 + (voxelIndex >> 2)];
+    return (packed >> ((voxelIndex & 3) * 8)) & 0xFFu;
+}
+
+bool RegionResident(int3 brickCoord)
+{
+    return RegionSlot(brickCoord >> k_RegionEdgeLog2) >= 0;
+}
+
+// -- implicit far field, ported from BrickRaymarch so both paths agree on the horizon ---------
+
+uint FarHash(uint v)
+{
+    v ^= v >> 16; v *= 0x85ebca6bu;
+    v ^= v >> 13; v *= 0xc2b2ae35u;
+    v ^= v >> 16;
+    return v;
+}
+
+int FarCorner(int x, int z, int salt)
+{
+    uint h = FarHash((uint)x * 2654435761u ^ (uint)z * 2246822519u ^ g_TerrainSeed ^ ((uint)salt << 24));
+    return (int)((h >> 8) & 0x3FFu);
+}
+
+int FarSmoothInt(int f, int cell)
+{
+    uint t = (uint)((f * 1024) / cell);
+    return (int)((t * t * (3u * 1024u - 2u * t)) >> 20);
+}
+
+int FarOctave(int wx, int wz, int log2Cell, int amplitude)
+{
+    int cell = 1 << log2Cell;
+    int x0 = wx >> log2Cell, z0 = wz >> log2Cell;
+    int fx = wx & (cell - 1), fz = wz & (cell - 1);
+
+    int c00 = FarCorner(x0,     z0,     log2Cell);
+    int c10 = FarCorner(x0 + 1, z0,     log2Cell);
+    int c01 = FarCorner(x0,     z0 + 1, log2Cell);
+    int c11 = FarCorner(x0 + 1, z0 + 1, log2Cell);
+
+    int tx = FarSmoothInt(fx, cell);
+    int tz = FarSmoothInt(fz, cell);
+
+    int a = c00 + (((c10 - c00) * tx) >> 10);
+    int b = c01 + (((c11 - c01) * tx) >> 10);
+    int v = a + (((b - a) * tz) >> 10);
+
+    return ((v * amplitude) >> 10) - (amplitude >> 1);
+}
+
+int FarSurfaceHeight(int wx, int wz)
+{
+    int h = (int)g_FarBaseHeight;
+    h += FarOctave(wx, wz, 9, 70);
+    h += FarOctave(wx, wz, 7, 24);
+    h += FarOctave(wx, wz, 5, 6);
+    h += FarOctave(wx, wz, 4, 4);
+    return clamp(h, 8, 512 - 24);
+}
+
+float FarOctaveContinuous(float2 voxelXZ, int log2Cell, float amplitude)
+{
+    float cellSize = (float)(1 << log2Cell);
+    float2 grid = voxelXZ / cellSize;
+    int2 cell = int2(floor(grid));
+    float2 f = frac(grid);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float c00 = (float)FarCorner(cell.x,     cell.y,     log2Cell);
+    float c10 = (float)FarCorner(cell.x + 1, cell.y,     log2Cell);
+    float c01 = (float)FarCorner(cell.x,     cell.y + 1, log2Cell);
+    float c11 = (float)FarCorner(cell.x + 1, cell.y + 1, log2Cell);
+    float value = lerp(lerp(c00, c10, f.x), lerp(c01, c11, f.x), f.y);
+    return value * (amplitude / 1024.0) - amplitude * 0.5;
+}
+
+// Surface height in voxels at a world voxel column, including the presentation-only mountain
+// envelope. Mirrors FarHeightMetres divided by the voxel size.
+float FarHeightVoxels(int3 voxel)
+{
+    float2 voxelXZ = float2(voxel.x, voxel.z);
+    int2 baseCell = int2(floor(voxelXZ));
+    float2 fraction = frac(voxelXZ);
+    fraction = fraction * fraction * (3.0 - 2.0 * fraction);
+    float h00 = (float)FarSurfaceHeight(baseCell.x,     baseCell.y);
+    float h10 = (float)FarSurfaceHeight(baseCell.x + 1, baseCell.y);
+    float h01 = (float)FarSurfaceHeight(baseCell.x,     baseCell.y + 1);
+    float h11 = (float)FarSurfaceHeight(baseCell.x + 1, baseCell.y + 1);
+    float terrain = lerp(lerp(h00, h10, fraction.x), lerp(h01, h11, fraction.x), fraction.y);
+
+    float voxelSize = g_SurfaceSpacing / max((float)g_SurfaceSourceStep, 1.0);
+    float castleRadius = length(voxelXZ * voxelSize - float2(25.6, 37.6));
+    float mountainEnvelope = smoothstep(105.0, 285.0, castleRadius);
+
+    float broad = FarOctaveContinuous(voxelXZ, 11, 1024.0) / 1024.0 + 0.5;
+    float medium = FarOctaveContinuous(voxelXZ, 9, 1024.0) / 1024.0 + 0.5;
+    float fine = FarOctaveContinuous(voxelXZ, 7, 1024.0) / 1024.0 + 0.5;
+    float ridge = 1.0 - abs(broad * 2.0 - 1.0);
+    float peaks = pow(saturate(ridge * 0.78 + medium * 0.32 + fine * 0.12 - 0.24), 1.65);
+    return terrain + mountainEnvelope * (12.0 + peaks * 108.0);
+}
+
+// Broad signed-distance-style band matching the cached field's 4-voxel linear range, so the
+// transition from mirrored density to far field carries a usable gradient for extraction.
+float FarFieldDensity(int3 voxel)
+{
+    if (g_FarEnabled == 0u) return 0.0;
+    return saturate(0.5 + (FarHeightVoxels(voxel) - (float)voxel.y) * 0.25);
+}
+
+uint FarFieldMaterial(int3 voxel)
+{
+    if (g_FarEnabled == 0u) return 0u;
+    float voxelSize = g_SurfaceSpacing / max((float)g_SurfaceSourceStep, 1.0);
+    float castleRadius = length(float2(voxel.x, voxel.z) * voxelSize - float2(25.6, 37.6));
+    float mountainBlend = smoothstep(125.0, 325.0, castleRadius);
+    return mountainBlend > 0.42 ? 6u
+         : ((float)voxel.y < (float)g_FarBaseHeight ? 3u : 10u);
+}
+
+float DensityAt(int3 p)
+{
+    p = clamp(p, 0, g_SurfaceGridSize - 1);
+    if (g_SurfaceSource == 0u) return g_SurfaceDensity[SampleIndex(p)];
+
+    int3 voxel = g_SurfaceVoxelOrigin + p * (int)g_SurfaceSourceStep;
+    int brickRef = BrickRefAt(voxel >> 3);
+    // An empty brick inside a resident region is air; a missing region is beyond the mirrored
+    // set, where the field continues into the implicit far field instead of walling off.
+    if (brickRef == -1) return RegionResident(voxel >> 3) ? 0.0 : FarFieldDensity(voxel);
+    if (brickRef < -1) return 1.0;
+    int3 local = voxel & 7;
+    int voxelIndex = local.x | (local.y << 3) | (local.z << 6);
+    uint packed = g_BrickDensity[brickRef * 128 + (voxelIndex >> 2)];
+    return ((packed >> ((voxelIndex & 3) * 8)) & 0xFFu) * (1.0 / 255.0);
+}
+
+// Field sampling for occlusion, which needs to reach past the chunk's own lattice. The clamped
+// sampler above would fold every out-of-range probe back onto the boundary sample and draw a
+// dark rim around every chunk; the sparse source can be read at any world position, so it is.
+float DensityAtUnclamped(float3 p)
+{
+    if (g_SurfaceSource == 0u) return DensityAt(int3(round(p)));
+
+    int3 voxel = g_SurfaceVoxelOrigin + int3(round(p)) * (int)g_SurfaceSourceStep;
+    int brickRef = BrickRefAt(voxel >> 3);
+    if (brickRef == -1) return RegionResident(voxel >> 3) ? 0.0 : FarFieldDensity(voxel);
+    if (brickRef < -1) return 1.0;
+    int3 local = voxel & 7;
+    int voxelIndex = local.x | (local.y << 3) | (local.z << 6);
+    uint packed = g_BrickDensity[brickRef * 128 + (voxelIndex >> 2)];
+    return ((packed >> ((voxelIndex & 3) * 8)) & 0xFFu) * (1.0 / 255.0);
+}
+
+// Ambient occlusion, sampled from the same field that produced the vertex.
+//
+// Voxel scenes live or die on this: every inside corner, every joint between wall and ground,
+// every window reveal has to darken, or flat colour and no occlusion read as printed cardboard.
+// Computing it here costs one gather per vertex instead of one per fragment, and the extractor
+// is the only place with both the field and the brickmap already bound.
+float SurfaceOcclusion(float3 latticePosition, float3 normal)
+{
+    // Any vector not parallel to the normal seeds the basis; the second cross fixes handedness.
+    float3 tangent = abs(normal.y) < 0.9 ? float3(0, 1, 0) : float3(1, 0, 0);
+    float3 bitangent = normalize(cross(normal, tangent));
+    tangent = cross(bitangent, normal);
+
+    float occluded = 0.0;
+    float total = 0.0;
+
+    [unroll]
+    for (uint shell = 1u; shell <= 2u; shell++)
+    {
+        float radius = shell * 1.75;
+        [unroll]
+        for (uint step = 0u; step < 6u; step++)
+        {
+            // Six directions tilted off the normal: near-normal samples catch creases, the
+            // wider ring catches cavities like a gate passage or a courtyard corner.
+            float angle = step * 1.0471975; // 60 degrees
+            float tilt = 0.62;
+            float3 direction = normalize(normal
+                                       + (tangent * cos(angle) + bitangent * sin(angle)) * tilt);
+            float sampled = DensityAtUnclamped(latticePosition + direction * radius);
+            // The field is a signed distance, so an unoccluded probe at this range reads well
+            // below the isolevel. Anything approaching it has geometry in the way.
+            occluded += saturate((sampled - g_SurfaceIsoLevel * 0.55) * 3.0) / (float)shell;
+            total += 1.0 / (float)shell;
+        }
+    }
+
+    return saturate(1.0 - occluded / max(total, 1e-5));
+}
+
+uint MaterialAt(int3 p)
+{
+    p = clamp(p, 0, g_SurfaceGridSize - 1);
+    if (g_SurfaceSource == 0u) return g_SurfaceMaterials[SampleIndex(p)];
+
+    int3 voxel = g_SurfaceVoxelOrigin + p * (int)g_SurfaceSourceStep;
+    int brickRef = BrickRefAt(voxel >> 3);
+    if (brickRef == -1) return RegionResident(voxel >> 3) ? 0u : FarFieldMaterial(voxel);
+    if (brickRef < -1) return (uint)(-brickRef - 1);
+    return VoxelMaterial(brickRef, voxel & 7);
+}
+
+uint MaterialWorldAt(int3 voxel)
+{
+    int brickRef = BrickRefAt(voxel >> 3);
+    if (brickRef == -1) return RegionResident(voxel >> 3) ? 0u : FarFieldMaterial(voxel);
+    if (brickRef < -1) return (uint)(-brickRef - 1);
+    return VoxelMaterial(brickRef, voxel & 7);
+}
+
+float3 TrilinearGradient(float values[8], float3 f)
+{
+    // Both sources reconstruct linearly: the dense fixture by design, the live signed-distance
+    // field because that is what makes it a distance in the first place.
+    float3 interpolation = f;
+    float3 derivative = 1.0;
+    float dx0 = lerp(values[1] - values[0], values[3] - values[2], interpolation.y);
+    float dx1 = lerp(values[5] - values[4], values[7] - values[6], interpolation.y);
+    float dy0 = lerp(values[2] - values[0], values[3] - values[1], interpolation.x);
+    float dy1 = lerp(values[6] - values[4], values[7] - values[5], interpolation.x);
+    float c0 = lerp(lerp(values[0], values[1], interpolation.x),
+                    lerp(values[2], values[3], interpolation.x), interpolation.y);
+    float c1 = lerp(lerp(values[4], values[5], interpolation.x),
+                    lerp(values[6], values[7], interpolation.x), interpolation.y);
+    return float3(lerp(dx0, dx1, interpolation.z) * derivative.x,
+                  lerp(dy0, dy1, interpolation.z) * derivative.y,
+                  (c1 - c0) * derivative.z) / g_SurfaceSpacing;
+}
+
+[numthreads(4, 4, 4)]
+void CSBuildSurfaceVertices(uint3 id : SV_DispatchThreadID)
+{
+    int3 cell = int3(id);
+    int3 cellSize = CellSize();
+    if (any(cell >= cellSize)) return;
+
+    static const int3 corners[8] =
+    {
+        int3(0, 0, 0), int3(1, 0, 0), int3(0, 1, 0), int3(1, 1, 0),
+        int3(0, 0, 1), int3(1, 0, 1), int3(0, 1, 1), int3(1, 1, 1)
+    };
+    static const int2 edges[12] =
+    {
+        int2(0, 1), int2(2, 3), int2(4, 5), int2(6, 7),
+        int2(0, 2), int2(1, 3), int2(4, 6), int2(5, 7),
+        int2(0, 4), int2(1, 5), int2(2, 6), int2(3, 7)
+    };
+
+    float values[8];
+    uint materials[8];
+    uint insideMask = 0u;
+    uint strongestCorner = 0u;
+    float strongestDensity = -1e20;
+
+    [unroll]
+    for (uint corner = 0u; corner < 8u; corner++)
+    {
+        int3 samplePoint = cell + corners[corner];
+        values[corner] = DensityAt(samplePoint);
+        materials[corner] = MaterialAt(samplePoint);
+        if (values[corner] >= g_SurfaceIsoLevel) insideMask |= 1u << corner;
+        if (values[corner] > strongestDensity)
+        {
+            strongestDensity = values[corner];
+            strongestCorner = corner;
+        }
+    }
+
+    SurfaceVertex output;
+    output.position = 0.0;
+    output.normal = float3(0, 1, 0);
+    output.material = 0u;
+    output.active = 0u;
+
+    if (insideMask != 0u && insideMask != 255u)
+    {
+        float3 intersectionSum = 0.0;
+        uint crossingCount = 0u;
+        [unroll]
+        for (uint edge = 0u; edge < 12u; edge++)
+        {
+            uint a = (uint)edges[edge].x;
+            uint b = (uint)edges[edge].y;
+            bool insideA = values[a] >= g_SurfaceIsoLevel;
+            bool insideB = values[b] >= g_SurfaceIsoLevel;
+            if (insideA == insideB) continue;
+
+            float denominator = values[b] - values[a];
+            float t = abs(denominator) > 1e-7
+                    ? saturate((g_SurfaceIsoLevel - values[a]) / denominator)
+                    : 0.5;
+            // Linear is exact here. The live field is a signed distance, so the crossing sits
+            // where the two samples say it does; the raymarch reconstructs the same field the
+            // same way. The smoothstep inversion this replaces was compensating for a cubic
+            // reconstruction that no longer exists.
+            intersectionSum += lerp(float3(corners[a]), float3(corners[b]), t);
+            crossingCount++;
+        }
+
+        float3 localPosition = intersectionSum / max((float)crossingCount, 1.0);
+        float3 gradient = TrilinearGradient(values, saturate(localPosition));
+        output.position = g_SurfaceOrigin + (float3(cell) + localPosition) * g_SurfaceSpacing;
+        output.normal = dot(gradient, gradient) > 1e-10
+                      ? normalize(-gradient) : float3(0, 1, 0);
+        // Material attribution has to resolve at world voxel resolution, not at the extraction
+        // lattice. Terrain caps are one voxel of grass or moss over dirt, and a step-two lattice
+        // steps straight over them: sampling the corners alone paints the stone underneath and
+        // leaves grey blotches across open field.
+        //
+        // So take the nearest solid voxel to the extracted vertex. No fixed offset and no
+        // dependence on the normal, which is what made the previous inward probe land in the
+        // neighbouring block along cell boundaries and draw a lattice of seams.
+        uint chosenMaterial = 0u;
+        if (g_SurfaceSource == 1u)
+        {
+            float3 sourcePosition = float3(g_SurfaceVoxelOrigin)
+                                  + (float3(cell) + localPosition) * (float)g_SurfaceSourceStep;
+            int3 baseVoxel = int3(floor(sourcePosition - 0.5));
+            float nearestSolidSq = 1e20;
+            [unroll]
+            for (uint probe = 0u; probe < 8u; probe++)
+            {
+                int3 probeVoxel = baseVoxel + int3(probe & 1u, (probe >> 1) & 1u,
+                                                   (probe >> 2) & 1u);
+                uint probed = MaterialWorldAt(probeVoxel);
+                if (probed == 0u) continue;
+                float3 offset = float3(probeVoxel) + 0.5 - sourcePosition;
+                float distanceSq = dot(offset, offset);
+                if (distanceSq >= nearestSolidSq) continue;
+                nearestSolidSq = distanceSq;
+                chosenMaterial = probed;
+            }
+        }
+
+        // The filtered field is slightly dilated, so a corner can read as inside while the voxel
+        // it sits on is air. Falling back through the corners rather than trusting the density
+        // sign is what keeps those cells off material zero, which the palette renders magenta.
+        if (chosenMaterial == 0u)
+        {
+            float nearestInsideSq = 1e20;
+            [unroll]
+            for (uint voteCorner = 0u; voteCorner < 8u; voteCorner++)
+            {
+                uint candidate = materials[voteCorner];
+                if (candidate == 0u) continue;
+                float3 offset = float3(corners[voteCorner]) - localPosition;
+                float distanceSq = dot(offset, offset);
+                // Corners the surface encloses describe it better; bias the others behind them.
+                if (values[voteCorner] < g_SurfaceIsoLevel) distanceSq += 16.0;
+                if (distanceSq >= nearestInsideSq) continue;
+                nearestInsideSq = distanceSq;
+                chosenMaterial = candidate;
+            }
+        }
+
+        // Last resort: never emit material zero, which reads as the palette's magenta marker.
+        output.material = chosenMaterial != 0u ? chosenMaterial : materials[strongestCorner];
+        // Bit 0 is the active flag; bits 8..15 carry occlusion. Packing keeps the vertex at 32
+        // bytes, so the arena layout and every existing binding are unchanged.
+        uint occlusionByte = (uint)round(saturate(
+            SurfaceOcclusion(float3(cell) + localPosition, output.normal)) * 255.0);
+        output.active = 1u | (occlusionByte << 8);
+    }
+
+    g_SurfaceVertices[g_SurfaceVertexBase + (uint)CellIndex(cell)] = output;
+}
+
+void EmitQuad(int a, int b, int c, int d, bool flip)
+{
+    uint va = g_SurfaceVertexBase + (uint)a;
+    uint vb = g_SurfaceVertexBase + (uint)b;
+    uint vc = g_SurfaceVertexBase + (uint)c;
+    uint vd = g_SurfaceVertexBase + (uint)d;
+    if ((g_SurfaceVertices[va].active & 1u) == 0u || (g_SurfaceVertices[vb].active & 1u) == 0u
+        || (g_SurfaceVertices[vc].active & 1u) == 0u || (g_SurfaceVertices[vd].active & 1u) == 0u)
+        return;
+
+    uint firstIndex;
+    InterlockedAdd(g_SurfaceArgs[g_SurfaceArgsBase], 6u, firstIndex);
+    if (firstIndex + 5u >= g_SurfaceIndexCapacity) return;
+    // Arena-global vertex numbers, so the index data stands on its own and a compacted
+    // single-draw pass stays possible later.
+    firstIndex += g_SurfaceIndexBase;
+
+    if (flip)
+    {
+        g_SurfaceIndices[firstIndex + 0u] = va;
+        g_SurfaceIndices[firstIndex + 1u] = vd;
+        g_SurfaceIndices[firstIndex + 2u] = vc;
+        g_SurfaceIndices[firstIndex + 3u] = va;
+        g_SurfaceIndices[firstIndex + 4u] = vc;
+        g_SurfaceIndices[firstIndex + 5u] = vb;
+    }
+    else
+    {
+        g_SurfaceIndices[firstIndex + 0u] = va;
+        g_SurfaceIndices[firstIndex + 1u] = vb;
+        g_SurfaceIndices[firstIndex + 2u] = vc;
+        g_SurfaceIndices[firstIndex + 3u] = va;
+        g_SurfaceIndices[firstIndex + 4u] = vc;
+        g_SurfaceIndices[firstIndex + 5u] = vd;
+    }
+}
+
+[numthreads(1, 1, 1)]
+void CSClearSurfaceArgs(uint3 id : SV_DispatchThreadID)
+{
+    g_SurfaceArgs[g_SurfaceArgsBase + 0u] = 0u;
+    g_SurfaceArgs[g_SurfaceArgsBase + 1u] = 1u;
+    g_SurfaceArgs[g_SurfaceArgsBase + 2u] = 0u;
+    g_SurfaceArgs[g_SurfaceArgsBase + 3u] = 0u;
+}
+
+[numthreads(1, 1, 1)]
+void CSFinalizeSurfaceArgs(uint3 id : SV_DispatchThreadID)
+{
+    // Overflowing chunks remain safe and draw only complete quads. The scheduler can inspect the
+    // overflow flag later and grant a larger arena slice without ever issuing an out-of-bounds
+    // indirect draw.
+    uint completeCapacity = (g_SurfaceIndexCapacity / 6u) * 6u;
+    g_SurfaceArgs[g_SurfaceArgsBase + 0u] = min(g_SurfaceArgs[g_SurfaceArgsBase], completeCapacity);
+    g_SurfaceArgs[g_SurfaceArgsBase + 1u] = 1u;
+    g_SurfaceArgs[g_SurfaceArgsBase + 2u] = 0u;
+    g_SurfaceArgs[g_SurfaceArgsBase + 3u] = 0u;
+}
+
+[numthreads(4, 4, 4)]
+void CSBuildSurfaceTriangles(uint3 id : SV_DispatchThreadID)
+{
+    int3 p = int3(id);
+    if (any(p >= g_SurfaceGridSize)) return;
+
+    int3 cells = CellSize();
+    float startDensity = DensityAt(p);
+
+    // X lattice edge: the surrounding dual cells lie in the YZ plane.
+    if (p.x < cells.x && p.y > 0 && p.y < cells.y && p.z > 0 && p.z < cells.z)
+    {
+        float endDensity = DensityAt(p + int3(1, 0, 0));
+        if ((startDensity >= g_SurfaceIsoLevel) != (endDensity >= g_SurfaceIsoLevel))
+        {
+            int a = CellIndex(int3(p.x, p.y, p.z));
+            int b = CellIndex(int3(p.x, p.y - 1, p.z));
+            int c = CellIndex(int3(p.x, p.y - 1, p.z - 1));
+            int d = CellIndex(int3(p.x, p.y, p.z - 1));
+            EmitQuad(a, b, c, d, startDensity < g_SurfaceIsoLevel);
+        }
+    }
+
+    // Y lattice edge: surrounding dual cells lie in XZ.
+    if (p.y < cells.y && p.x > 0 && p.x < cells.x && p.z > 0 && p.z < cells.z)
+    {
+        float endDensity = DensityAt(p + int3(0, 1, 0));
+        if ((startDensity >= g_SurfaceIsoLevel) != (endDensity >= g_SurfaceIsoLevel))
+        {
+            int a = CellIndex(int3(p.x, p.y, p.z));
+            int b = CellIndex(int3(p.x, p.y, p.z - 1));
+            int c = CellIndex(int3(p.x - 1, p.y, p.z - 1));
+            int d = CellIndex(int3(p.x - 1, p.y, p.z));
+            EmitQuad(a, b, c, d, startDensity < g_SurfaceIsoLevel);
+        }
+    }
+
+    // Z lattice edge: surrounding dual cells lie in XY.
+    if (p.z < cells.z && p.x > 0 && p.x < cells.x && p.y > 0 && p.y < cells.y)
+    {
+        float endDensity = DensityAt(p + int3(0, 0, 1));
+        if ((startDensity >= g_SurfaceIsoLevel) != (endDensity >= g_SurfaceIsoLevel))
+        {
+            int a = CellIndex(int3(p.x, p.y, p.z));
+            int b = CellIndex(int3(p.x - 1, p.y, p.z));
+            int c = CellIndex(int3(p.x - 1, p.y - 1, p.z));
+            int d = CellIndex(int3(p.x, p.y - 1, p.z));
+            EmitQuad(a, b, c, d, startDensity < g_SurfaceIsoLevel);
+        }
+    }
+}

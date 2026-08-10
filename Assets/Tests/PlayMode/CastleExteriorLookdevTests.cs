@@ -9,6 +9,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures;
+using VoxelEngine.Rendering;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -19,34 +20,43 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class CastleExteriorLookdevTests
     {
         private const string OutputDirectory = "/tmp/castle_lookdev";
+        private const string MotionDirectory = "/tmp/castle_lookdev/motion";
 
-        [UnityTest]
-        public IEnumerator CaptureExteriorLookdevViews()
+        private ShowcaseWorld _world;
+        private Camera _camera;
+
+        /// <summary>
+        /// Loads the showcase, drains every pending voxel and density upload, and puts the
+        /// camera under test control. Shared so the moving-camera sequence starts from exactly
+        /// the same world state the fixed views do.
+        /// </summary>
+        private IEnumerator PrepareShowcase()
         {
-            Directory.CreateDirectory(OutputDirectory);
-            var timer = Stopwatch.StartNew();
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
             yield return null;
 
             var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             Assert.NotNull(showcase);
-            var world = (ShowcaseWorld)typeof(VoxelShowcase)
+            _world = (ShowcaseWorld)typeof(VoxelShowcase)
                 .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
-            var camera = Camera.main;
-            Assert.NotNull(camera);
+            _camera = Camera.main;
+            Assert.NotNull(_camera);
 
-            float deadline = Time.realtimeSinceStartup + 30f;
-            var uploadTarget = new RenderTexture(32, 32, 0, RenderTextureFormat.ARGB32);
-            camera.targetTexture = uploadTarget;
-            while ((world.Pool.DirtyBricks.Length > 0 || world.RegionsNeedingUpload.Count > 0)
+            // Generous because the first render after a shader edit blocks on compilation, which
+            // can take minutes and has nothing to do with upload progress. A tight deadline here
+            // failed the whole suite every time a shader changed.
+            float deadline = Time.realtimeSinceStartup + 240f;
+            var uploadTarget = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGB32);
+            _camera.targetTexture = uploadTarget;
+            while ((_world.Pool.DirtyBricks.Length > 0 || _world.RegionsNeedingUpload.Count > 0)
                    && Time.realtimeSinceStartup < deadline)
             {
-                camera.Render();
+                _camera.Render();
                 yield return null;
             }
-            Assert.Zero(world.Pool.DirtyBricks.Length);
-            Assert.Zero(world.RegionsNeedingUpload.Count);
+            Assert.Zero(_world.Pool.DirtyBricks.Length);
+            Assert.Zero(_world.RegionsNeedingUpload.Count);
 
             // Density invalidation includes neighbouring bricks, so the final voxel-upload frame
             // may leave a small coalesced GPU-only tail. Give that bounded queue several render
@@ -54,10 +64,10 @@ namespace VoxelEngine.Tests.PlayMode
             // the entire castle as the first-line functional test.
             for (int densityDrainFrame = 0; densityDrainFrame < 4; densityDrainFrame++)
             {
-                camera.Render();
+                _camera.Render();
                 yield return null;
             }
-            camera.targetTexture = null;
+            _camera.targetTexture = null;
             uploadTarget.Release();
             Object.DestroyImmediate(uploadTarget);
 
@@ -65,6 +75,86 @@ namespace VoxelEngine.Tests.PlayMode
                 .SetValue(showcase, true);
             typeof(VoxelShowcase).GetField("_mouseLook", BindingFlags.NonPublic | BindingFlags.Instance)
                 .SetValue(showcase, false);
+        }
+
+        /// <summary>
+        /// Flies the camera along a continuous path, rendering every frame and capturing at a
+        /// fixed stride.
+        ///
+        /// The fixed views cannot see any of this. They teleport, render once, and judge the
+        /// result, which hides everything the incremental surface cache does over time: chunks
+        /// arriving behind the camera, the coarse level retiring before the fine level has filled
+        /// in, geometry from the previous viewpoint still resident. Those are the artefacts that
+        /// only appear in motion, and they need a moving camera to reproduce.
+        /// </summary>
+        [UnityTest, Timeout(900000)]
+        public IEnumerator CaptureMovingCameraSequence()
+        {
+            Directory.CreateDirectory(MotionDirectory);
+            IEnumerator setup = PrepareShowcase();
+            while (setup.MoveNext()) yield return setup.Current;
+
+            Vector3 centre = CastleCentre(_world);
+            // A long approach that also strafes, so both radial and lateral streaming are
+            // exercised: distance drives LOD selection, lateral motion drives residency churn.
+            Vector3 start = centre + new Vector3(-58f, 20f, -104f);
+            Vector3 end = centre + new Vector3(34f, 12f, -30f);
+            Vector3 lookAt = centre + new Vector3(0f, 6f, 0f);
+
+            const int frames = 96;
+            const int captureStride = 8;
+            int captureIndex = 0;
+            var motionTarget = new RenderTexture(1280, 720, 24, RenderTextureFormat.ARGB32);
+            try
+            {
+                for (int frame = 0; frame < frames; frame++)
+                {
+                    float t = frame / (float)(frames - 1);
+                    _camera.transform.position = Vector3.Lerp(start, end, t);
+                    _camera.transform.LookAt(lookAt);
+
+                    // Render every frame, never only the captured ones. The cache advances by a
+                    // bounded number of builds per frame, so skipping frames would hand it a
+                    // budget no player ever gives it.
+                    _camera.targetTexture = motionTarget;
+                    _camera.Render();
+                    _camera.targetTexture = null;
+                    yield return null;
+
+                    if (frame % captureStride != 0) continue;
+                    Capture(_camera, Path.Combine(MotionDirectory,
+                        $"motion_{captureIndex:D2}.png"));
+                    captureIndex++;
+                }
+            }
+            finally
+            {
+                motionTarget.Release();
+                Object.DestroyImmediate(motionTarget);
+            }
+
+            Assert.Greater(captureIndex, 4, "The motion sequence needs enough frames to compare.");
+        }
+
+        private static Vector3 CastleCentre(ShowcaseWorld world)
+        {
+            int ground = world.SurfaceHeight(256, 376);
+            CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
+            return new Vector3(plan.Centre.x, plan.Centre.y + plan.PlateauHeight,
+                               plan.Centre.z) * 0.1f;
+        }
+
+        // Generating the castle and capturing every view exceeds the 180 s default. Set
+        // VOXEL_LOOKDEV_FILTER to capture a single view when iterating on look.
+        [UnityTest, Timeout(900000)]
+        public IEnumerator CaptureExteriorLookdevViews()
+        {
+            Directory.CreateDirectory(OutputDirectory);
+            var timer = Stopwatch.StartNew();
+            IEnumerator prepare = PrepareShowcase();
+            while (prepare.MoveNext()) yield return prepare.Current;
+            ShowcaseWorld world = _world;
+            Camera camera = _camera;
 
             int ground = world.SurfaceHeight(256, 376);
             CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
@@ -121,6 +211,13 @@ namespace VoxelEngine.Tests.PlayMode
             };
 
             string viewFilter = System.Environment.GetEnvironmentVariable("VOXEL_LOOKDEV_FILTER");
+            VoxelRenderBridge.SurfaceDebugTint = string.IsNullOrEmpty(
+                System.Environment.GetEnvironmentVariable("VOXEL_SURFACE_DEBUG"))
+                ? Color.white : new Color(0.05f, 1f, 0.9f, 1f);
+            int warmupFrames = 1;
+            string warmupValue = System.Environment.GetEnvironmentVariable("VOXEL_LOOKDEV_WARMUP_FRAMES");
+            if (!string.IsNullOrEmpty(warmupValue) && int.TryParse(warmupValue, out int parsedWarmup))
+                warmupFrames = Mathf.Clamp(parsedWarmup, 1, 120);
             for (int i = 0; i < views.Length; i++)
             {
                 if (!string.IsNullOrEmpty(viewFilter)
@@ -129,11 +226,24 @@ namespace VoxelEngine.Tests.PlayMode
                     continue;
                 camera.transform.position = views[i].position;
                 camera.transform.LookAt(views[i].target);
-                yield return null;
+                // A teleported lookdev camera has none of the approach time a player supplies.
+                // Optional tiny-target warmup renders let the incremental GPU surface cache
+                // converge around that viewpoint before the expensive full-resolution capture.
+                var warmupTarget = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGB32);
+                camera.targetTexture = warmupTarget;
+                for (int warmup = 0; warmup < warmupFrames; warmup++)
+                {
+                    camera.Render();
+                    yield return null;
+                }
+                camera.targetTexture = null;
+                warmupTarget.Release();
+                Object.DestroyImmediate(warmupTarget);
                 Capture(camera, Path.Combine(OutputDirectory, views[i].name + ".png"));
             }
 
             timer.Stop();
+            VoxelRenderBridge.SurfaceDebugTint = Color.white;
             UnityEngine.Debug.Log($"### CASTLE_LOOKDEV {timer.Elapsed.TotalSeconds:0.0}s " +
                                   $"voxels={world.CastleVoxels:N0}");
         }

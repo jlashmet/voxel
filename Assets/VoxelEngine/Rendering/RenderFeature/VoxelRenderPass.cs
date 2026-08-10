@@ -4,84 +4,112 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
+using VoxelEngine.Rendering.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering
 {
     /// <summary>
-    /// Dispatches the brickmap raymarch and composites the result into the camera colour target.
+    /// Draws voxel geometry as continuous GPU-authored surface meshes, one per resident chunk.
     ///
-    /// There is no geometry: the world reaches the screen as a compute dispatch that walks the
-    /// same brick storage collision and replication use (Constitution Principle II). Cost scales
-    /// with rays and steps, not with surface area, which is what makes distance affordable.
-    ///
-    /// The parameters this pass carries — render scale, step budget, detail radius — are
-    /// presentation-only and come from DeviceTierBudget. Nothing here feeds world state.
+    /// The coarse level covers all visible chunks; the near field fills gaps at close range.
+    /// Both paths share depth with the rest of the scene and use identical lighting to the
+    /// raymarch for seamless parity when both are active (Constitution Principle II).
+    /// The parameters this pass carries — render scale, voxel size — are presentation-only.
+    /// Nothing here feeds world state.
     /// </summary>
     public sealed class VoxelRenderPass : ScriptableRenderPass, IDisposable
     {
-        private const string k_PassName = "VoxelEngine.BrickRaymarch";
+        private const string k_PassName = "VoxelEngine.ContinuousSurface";
 
+        // Shader property names for GPU buffer binding (used by surface shader and density path).
+        // These strings must match exactly what the HLSL shaders expect.
         private static readonly int s_RegionWindow = Shader.PropertyToID("g_RegionWindow");
         private static readonly int s_BrickRefs = Shader.PropertyToID("g_BrickRefs");
         private static readonly int s_BrickVoxels = Shader.PropertyToID("g_BrickVoxels");
-        private static readonly int s_BrickDensity = Shader.PropertyToID("g_BrickDensity");
         private static readonly int s_DensityJobs = Shader.PropertyToID("g_DensityJobs");
         private static readonly int s_DensityJobCount = Shader.PropertyToID("g_DensityJobCount");
-        private static readonly int s_Colour = Shader.PropertyToID("g_Colour");
-        private static readonly int s_InvViewProj = Shader.PropertyToID("g_InvViewProj");
-        private static readonly int s_CameraPos = Shader.PropertyToID("g_CameraPos");
-        private static readonly int s_WindowOrigin = Shader.PropertyToID("g_WindowOrigin");
-        private static readonly int s_SunDirection = Shader.PropertyToID("g_SunDirection");
-        private static readonly int s_SkyHorizon = Shader.PropertyToID("g_SkyHorizon");
-        private static readonly int s_SkyZenith = Shader.PropertyToID("g_SkyZenith");
-        private static readonly int s_TargetSize = Shader.PropertyToID("g_TargetSize");
-        private static readonly int s_VoxelSize = Shader.PropertyToID("g_VoxelSize");
-        private static readonly int s_MaxDistance = Shader.PropertyToID("g_MaxDistance");
-        private static readonly int s_MaxSteps = Shader.PropertyToID("g_MaxSteps");
-        private static readonly int s_WindowX = Shader.PropertyToID("g_WindowX");
-        private static readonly int s_WindowY = Shader.PropertyToID("g_WindowY");
-        private static readonly int s_WindowZ = Shader.PropertyToID("g_WindowZ");
-        private static readonly int s_MaterialColours = Shader.PropertyToID("g_MaterialColours");
-        private static readonly int s_StoneTexture = Shader.PropertyToID("g_StoneTexture");
-        private static readonly int s_WoodTexture = Shader.PropertyToID("g_WoodTexture");
-        private static readonly int s_SandTexture = Shader.PropertyToID("g_SandTexture");
-        private static readonly int s_RockTexture = Shader.PropertyToID("g_RockTexture");
-        private static readonly int s_SlateTexture = Shader.PropertyToID("g_SlateTexture");
-        private static readonly int s_GrassTexture = Shader.PropertyToID("g_GrassTexture");
-        private static readonly int s_DirtTexture = Shader.PropertyToID("g_DirtTexture");
-        private static readonly int s_DarkStoneTexture = Shader.PropertyToID("g_DarkStoneTexture");
-        private static readonly int s_StoneNormal = Shader.PropertyToID("g_StoneNormal");
-        private static readonly int s_WoodNormal = Shader.PropertyToID("g_WoodNormal");
-        private static readonly int s_SandNormal = Shader.PropertyToID("g_SandNormal");
-        private static readonly int s_RockNormal = Shader.PropertyToID("g_RockNormal");
-        private static readonly int s_SlateNormal = Shader.PropertyToID("g_SlateNormal");
-        private static readonly int s_GrassNormal = Shader.PropertyToID("g_GrassNormal");
-        private static readonly int s_DirtNormal = Shader.PropertyToID("g_DirtNormal");
-        private static readonly int s_DarkStoneNormal = Shader.PropertyToID("g_DarkStoneNormal");
-        private static readonly int s_SkyTexture = Shader.PropertyToID("g_SkyTexture");
-        private static readonly int s_DebugMode = Shader.PropertyToID("g_DebugMode");
-        private static readonly int s_TerrainSeed = Shader.PropertyToID("g_TerrainSeed");
-        private static readonly int s_FarDistance = Shader.PropertyToID("g_FarDistance");
-        private static readonly int s_FarBaseHeight = Shader.PropertyToID("g_FarBaseHeight");
-        private static readonly int s_FarEnabled = Shader.PropertyToID("g_FarEnabled");
-        private static readonly int s_CutawayEnabled = Shader.PropertyToID("g_CutawayEnabled");
-        private static readonly int s_CutawayMinVoxel = Shader.PropertyToID("g_CutawayMinVoxel");
-        private static readonly int s_CutawayMaxVoxel = Shader.PropertyToID("g_CutawayMaxVoxel");
-        private static readonly int s_LocalLightCount = Shader.PropertyToID("g_LocalLightCount");
-        private static readonly int s_LocalLights = Shader.PropertyToID("g_LocalLights");
-        private static readonly int s_LocalLightColours = Shader.PropertyToID("g_LocalLightColours");
-        private static readonly int s_FlashlightEnabled = Shader.PropertyToID("g_FlashlightEnabled");
-        private static readonly int s_FlashlightPosition = Shader.PropertyToID("g_FlashlightPosition");
-        private static readonly int s_FlashlightDirection = Shader.PropertyToID("g_FlashlightDirection");
-        private static readonly int s_FlashlightColour = Shader.PropertyToID("g_FlashlightColour");
-        private static readonly int s_FlashlightRange = Shader.PropertyToID("g_FlashlightRange");
-        private static readonly int s_FlashlightInnerCos = Shader.PropertyToID("g_FlashlightInnerCos");
-        private static readonly int s_FlashlightOuterCos = Shader.PropertyToID("g_FlashlightOuterCos");
+
+        // Scalar and array shader properties bound through MaterialPropertyBlock.
+        private static readonly int s_WindowOrigin = Shader.PropertyToID("_WindowOrigin");
+        private static readonly int s_WindowX = Shader.PropertyToID("_WindowX");
+        private static readonly int s_WindowY = Shader.PropertyToID("_WindowY");
+        private static readonly int s_WindowZ = Shader.PropertyToID("_WindowZ");
+        private static readonly int s_CutawayEnabled = Shader.PropertyToID("_CutawayEnabled");
+        private static readonly int s_CutawayMinVoxel = Shader.PropertyToID("_CutawayMinVoxel");
+        private static readonly int s_CutawayMaxVoxel = Shader.PropertyToID("_CutawayMaxVoxel");
+        private static readonly int s_LocalLightCount = Shader.PropertyToID("_LocalLightCount");
+        private static readonly int s_LocalLights = Shader.PropertyToID("_LocalLights");
+        private static readonly int s_LocalLightColours = Shader.PropertyToID("_LocalLightColours");
+        private static readonly int s_FlashlightEnabled = Shader.PropertyToID("_FlashlightEnabled");
+        private static readonly int s_FlashlightPosition = Shader.PropertyToID("_FlashlightPosition");
+        private static readonly int s_FlashlightDirection = Shader.PropertyToID("_FlashlightDirection");
+        private static readonly int s_FlashlightColour = Shader.PropertyToID("_FlashlightColour");
+        private static readonly int s_FlashlightRange = Shader.PropertyToID("_FlashlightRange");
+        private static readonly int s_FlashlightInnerCos = Shader.PropertyToID("_FlashlightInnerCos");
+        private static readonly int s_FlashlightOuterCos = Shader.PropertyToID("_FlashlightOuterCos");
+
+        // Shared lighting and shading properties.
+        private static readonly int s_SunDirection = Shader.PropertyToID("_SunDirection");
+        private static readonly int s_SkyHorizon = Shader.PropertyToID("_SkyHorizon");
+        private static readonly int s_SkyZenith = Shader.PropertyToID("_SkyZenith");
+        private static readonly int s_MaterialColours = Shader.PropertyToID("_MaterialColours");
+        private static readonly int s_BaseColor = Shader.PropertyToID("_BaseColor");
+        private static readonly int s_VoxelSize = Shader.PropertyToID("_VoxelSize");
+        private static readonly int s_DebugCoverage = Shader.PropertyToID("_DebugCoverage");
 
         private readonly VoxelGpuBuffers _buffers = new();
-        private ComputeShader _raymarch;
-        private int _kernel = -1;
-        private int _densityKernel = -1;
+        // The coarse level deliberately has no minimum distance: it covers the whole visible
+        // range so there is always a surface to draw, and the fine level suppresses it per chunk
+        // once every child is resident. Gating the coarse level by distance instead left holes
+        // wherever the fine level had not caught up.
+        private readonly GpuSurfaceChunkCache _surfaceCache = new();
+        private readonly GpuSurfaceChunkCache _nearSurfaceCache = new(2, 1)
+        {
+            MaxBuildsPerFrame = 8,
+            MaxDistance = 22f
+        };
+        private GpuSurfaceArena _surfaceArena;
+        private GpuSurfaceArena _nearSurfaceArena;
+
+        // Resident chunk counts are a declared memory budget, not a residency preference: each
+        // slot costs cells * 32 B of vertices plus its index arena. These two total roughly
+        // 100 MB, allocated once at startup and never churned.
+        private const int CoarseArenaSlots = 256;
+        private const int NearArenaSlots = 160;
+
+        public VoxelRenderPass()
+        {
+            _surfaceCache.Finer = _nearSurfaceCache;
+            _nearSurfaceCache.Coarser = _surfaceCache;
+        }
+
+        private void EnsureSurfaceArenas()
+        {
+            if (_surfaceArena is { IsCreated: true } && _nearSurfaceArena is { IsCreated: true })
+                return;
+
+            _surfaceArena?.Dispose();
+            _nearSurfaceArena?.Dispose();
+
+            int coarseCells = CellsPerChunk(_surfaceCache);
+            int nearCells = CellsPerChunk(_nearSurfaceCache);
+            _surfaceArena = new GpuSurfaceArena(CoarseArenaSlots, coarseCells,
+                                                _surfaceCache.MaxIndicesPerChunk);
+            _nearSurfaceArena = new GpuSurfaceArena(NearArenaSlots, nearCells,
+                                                    _nearSurfaceCache.MaxIndicesPerChunk);
+            _surfaceCache.Arena = _surfaceArena;
+            _nearSurfaceCache.Arena = _nearSurfaceArena;
+        }
+
+        private static int CellsPerChunk(GpuSurfaceChunkCache cache)
+        {
+            int cells = cache.GridSamplesPerAxis - 1;
+            return cells * cells * cells;
+        }
+
+        private ComputeShader _surfaceExtraction;
+        private Material _surfaceMaterial;
+        private readonly MaterialPropertyBlock _surfaceProperties = new();
         private Texture2D _stoneTexture;
         private Texture2D _woodTexture;
         private Texture2D _sandTexture;
@@ -102,8 +130,6 @@ namespace VoxelEngine.Rendering
 
         public float RenderScale { get; set; } = 1f;
         public float VoxelSize { get; set; } = 0.1f;
-        public float MaxDistance { get; set; } = 400f;
-        public int MaxSteps { get; set; } = 256;
         public bool Enabled { get; set; } = true;
 
         /// <summary>Bricks uploaded on the most recent frame — surfaced for the HUD.</summary>
@@ -117,7 +143,9 @@ namespace VoxelEngine.Rendering
         /// </summary>
         public VoxelGpuBuffers Buffers => _buffers;
 
-        public void Setup(ComputeShader raymarch, Texture2D stoneTexture = null,
+        public void Setup(ComputeShader surfaceExtraction = null,
+                          Shader surfaceShader = null,
+                          Texture2D stoneTexture = null,
                           Texture2D woodTexture = null, Texture2D sandTexture = null,
                           Texture2D rockTexture = null, Texture2D slateTexture = null,
                           Texture2D grassTexture = null, Texture2D dirtTexture = null,
@@ -127,7 +155,13 @@ namespace VoxelEngine.Rendering
                           Texture2D dirtNormal = null, Texture2D darkStoneTexture = null,
                           Texture2D darkStoneNormal = null, Texture2D skyTexture = null)
         {
-            _raymarch = raymarch;
+            _surfaceExtraction = surfaceExtraction;
+            UnityEngine.Debug.Log(
+                "VoxelRenderPass Setup: extr=" + (surfaceExtraction != null)
+                + " shader=" + (surfaceShader != null));
+            CoreUtils.Destroy(_surfaceMaterial);
+            _surfaceMaterial = surfaceShader != null
+                ? CoreUtils.CreateEngineMaterial(surfaceShader) : null;
             _stoneTexture = stoneTexture;
             _woodTexture = woodTexture;
             _sandTexture = sandTexture;
@@ -145,53 +179,96 @@ namespace VoxelEngine.Rendering
             _darkStoneTexture = darkStoneTexture;
             _darkStoneNormal = darkStoneNormal;
             _skyTexture = skyTexture;
-            _kernel = raymarch != null && raymarch.HasKernel("CSBrickRaymarch")
-                ? raymarch.FindKernel("CSBrickRaymarch")
-                : -1;
-            _densityKernel = raymarch != null && raymarch.HasKernel("CSBuildDensity")
-                ? raymarch.FindKernel("CSBuildDensity")
-                : -1;
+            if (_surfaceMaterial != null)
+            {
+                _surfaceMaterial.SetTexture("_StoneTexture", stoneTexture);
+                _surfaceMaterial.SetTexture("_WoodTexture", woodTexture);
+                _surfaceMaterial.SetTexture("_SandTexture", sandTexture);
+                _surfaceMaterial.SetTexture("_RockTexture", rockTexture);
+                _surfaceMaterial.SetTexture("_SlateTexture", slateTexture);
+                _surfaceMaterial.SetTexture("_GrassTexture", grassTexture);
+                _surfaceMaterial.SetTexture("_DirtTexture", dirtTexture);
+                _surfaceMaterial.SetTexture("_DarkStoneTexture", darkStoneTexture);
+                _surfaceMaterial.SetTexture("_StoneNormal", stoneNormal);
+                _surfaceMaterial.SetTexture("_WoodNormal", woodNormal);
+                _surfaceMaterial.SetTexture("_SandNormal", sandNormal);
+                _surfaceMaterial.SetTexture("_RockNormal", rockNormal);
+                _surfaceMaterial.SetTexture("_SlateNormal", slateNormal);
+                _surfaceMaterial.SetTexture("_GrassNormal", grassNormal);
+                _surfaceMaterial.SetTexture("_DirtNormal", dirtNormal);
+                _surfaceMaterial.SetTexture("_DarkStoneNormal", darkStoneNormal);
+            }
         }
 
-        private class PassData
+        // Per-frame state for surface mesh rendering: shared between preparation (outside
+        // the render function) and the combined set-render-func that does extraction + draw.
+        private class SurfaceComputeFrameData
         {
-            public ComputeShader Raymarch;
-            public int Kernel;
-            public int DensityKernel;
+            public ComputeShader SurfaceExtraction;
             public VoxelGpuBuffers Buffers;
-            public TextureHandle Colour;
-            public TextureHandle CameraColour;
-            public Matrix4x4 InvViewProj;
-            public Vector3 CameraPos;
-            public Vector3 WindowOrigin;
-            public Vector4 TargetSize;
             public float VoxelSize;
-            public float MaxDistance;
-            public int MaxSteps;
-            public int GroupsX;
-            public int GroupsY;
-            public Texture2D StoneTexture;
-            public Texture2D WoodTexture;
-            public Texture2D SandTexture;
-            public Texture2D RockTexture;
-            public Texture2D SlateTexture;
-            public Texture2D GrassTexture;
-            public Texture2D DirtTexture;
-            public Texture2D DarkStoneTexture;
-            public Texture2D StoneNormal;
-            public Texture2D WoodNormal;
-            public Texture2D SandNormal;
-            public Texture2D RockNormal;
-            public Texture2D SlateNormal;
-            public Texture2D GrassNormal;
-            public Texture2D DirtNormal;
-            public Texture2D DarkStoneNormal;
-            public Texture2D SkyTexture;
+            public GpuSurfaceChunkCache SurfaceCache;
+            public GpuSurfaceChunkCache NearSurfaceCache;
+            // Material and lighting state set each frame via MaterialPropertyBlock.
+            public Material Material;
+            public MaterialPropertyBlock Properties;
+            public Vector4[] MaterialColours;
+            public Color BaseColor;
+            public Vector4 SunDirection;
+            public Vector4 SkyHorizon;
+            public Vector4 SkyZenith;
+            public Vector4 WindowOrigin;
+            public Vector4 CutawayMinVoxel;
+            public Vector4 CutawayMaxVoxel;
+            public bool CutawayEnabled;
+            public int LocalLightCount;
+            public Vector4[] LocalLights;
+            public Vector4[] LocalLightColours;
+            public bool FlashlightEnabled;
+            public Vector4 FlashlightPosition;
+            public Vector4 FlashlightDirection;
+            public Vector4 FlashlightColour;
+            public float FlashlightRange;
+            public float FlashlightInnerCos;
+            public float FlashlightOuterCos;
+            // Per-chunk workspace. vertexCounts[i] = index count for chunk i;
+            // visibleEntries[i] = the compact visible-chunk list (populated outside the
+            // render function, read from within).
+            public int[] VertexCounts;
+            public GpuSurfaceChunkCache.Entry[] VisibleEntries;
+        }
+
+        private class SurfacePassData
+        {
+            public GpuSurfaceChunkCache.Entry[] Entries;
+            public Material Material;
+            public MaterialPropertyBlock Properties;
+            public Vector4[] MaterialColours;
+            public Color BaseColor;
+            public Vector4 SunDirection;
+            public Vector4 SkyHorizon;
+            public Vector4 SkyZenith;
+            public float VoxelSize;
+            public VoxelGpuBuffers Buffers;
+            public Vector4 WindowOrigin;
+            public Vector4 CutawayMinVoxel;
+            public Vector4 CutawayMaxVoxel;
+            public bool CutawayEnabled;
+            public int LocalLightCount;
+            public Vector4[] LocalLights;
+            public Vector4[] LocalLightColours;
+            public bool FlashlightEnabled;
+            public Vector4 FlashlightPosition;
+            public Vector4 FlashlightDirection;
+            public Vector4 FlashlightColour;
+            public float FlashlightRange;
+            public float FlashlightInnerCos;
+            public float FlashlightOuterCos;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            if (!Enabled || _raymarch == null || _kernel < 0) return;
+            if (!Enabled) return;
             if (!VoxelRenderBridge.TryGetWorld(out var world)) return;
 
             var cameraData = frameData.Get<UniversalCameraData>();
@@ -204,193 +281,156 @@ namespace VoxelEngine.Rendering
             _buffers.Sync(ref world.Table, ref world.Pool, world.CameraRegion,
                           VoxelRenderBridge.RegionsNeedingUpload);
 
-            var desc = cameraData.cameraTargetDescriptor;
-            int width = Mathf.Max(1, Mathf.RoundToInt(desc.width * RenderScale));
-            int height = Mathf.Max(1, Mathf.RoundToInt(desc.height * RenderScale));
-
-            var resourceData = frameData.Get<UniversalResourceData>();
-
-            var colourDesc = new TextureDesc(width, height)
+            bool drawContinuousSurface = _surfaceExtraction != null && _surfaceMaterial != null;
+            if (drawContinuousSurface)
             {
-                format = GraphicsFormat.R16G16B16A16_SFloat,
-                enableRandomWrite = true,
-                // The presentation tier may raymarch above native resolution. Bilinear resolve
-                // turns that extra coverage into stable sub-pixel edges instead of point-sampled
-                // stair steps when the compute target is composited back to the camera.
-                filterMode = FilterMode.Bilinear,
-                clearBuffer = false,
-                name = "_VoxelRaymarch",
-            };
+                EnsureSurfaceArenas();
+                _surfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
+                _nearSurfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
+                _surfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
+                _nearSurfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
+                // Coarse level first: it decides, per chunk, whether to keep drawing or hand its
+                // ground to the finer level. The finer level then draws only where it was handed.
+                _surfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
+                _nearSurfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
+            }
 
-            using var builder = renderGraph.AddUnsafePass<PassData>(k_PassName, out var passData);
+            if (!drawContinuousSurface) return;
 
-            passData.Raymarch = _raymarch;
-            passData.Kernel = _kernel;
-            passData.DensityKernel = _densityKernel;
-            passData.Buffers = _buffers;
-            passData.Colour = renderGraph.CreateTexture(colourDesc);
-            passData.CameraColour = resourceData.activeColorTexture;
-            passData.InvViewProj = (GL.GetGPUProjectionMatrix(camera.projectionMatrix, true)
-                                    * camera.worldToCameraMatrix).inverse;
-            passData.CameraPos = camera.transform.position;
-            passData.WindowOrigin = new Vector3(_buffers.WindowOrigin.x, _buffers.WindowOrigin.y,
-                                                _buffers.WindowOrigin.z);
-            passData.TargetSize = new Vector4(width, height, 1f / width, 1f / height);
-            passData.VoxelSize = VoxelSize;
-            passData.MaxDistance = MaxDistance;
-            passData.MaxSteps = MaxSteps;
-            passData.GroupsX = (width + 7) / 8;
-            passData.GroupsY = (height + 7) / 8;
-            passData.StoneTexture = _stoneTexture;
-            passData.WoodTexture = _woodTexture;
-            passData.SandTexture = _sandTexture;
-            passData.RockTexture = _rockTexture;
-            passData.SlateTexture = _slateTexture;
-            passData.GrassTexture = _grassTexture;
-            passData.DirtTexture = _dirtTexture;
-            passData.DarkStoneTexture = _darkStoneTexture;
-            passData.StoneNormal = _stoneNormal;
-            passData.WoodNormal = _woodNormal;
-            passData.SandNormal = _sandNormal;
-            passData.RockNormal = _rockNormal;
-            passData.SlateNormal = _slateNormal;
-            passData.GrassNormal = _grassNormal;
-            passData.DirtNormal = _dirtNormal;
-            passData.DarkStoneNormal = _darkStoneNormal;
-            passData.SkyTexture = _skyTexture;
+            int visibleChunks = _surfaceCache.Visible.Count + _nearSurfaceCache.Visible.Count;
+            UnityEngine.Debug.Log(
+                "VoxelRenderPass SURFACE: visible=" + _surfaceCache.Visible.Count
+                + "+" + _nearSurfaceCache.Visible.Count
+                + " arenas=" + (_surfaceArena != null && _surfaceArena.IsCreated));
 
-            builder.UseTexture(passData.Colour, AccessFlags.Write);
-            builder.UseTexture(passData.CameraColour, AccessFlags.Write);
+            // Count visible chunks once — shared between arena buffer sizing and the command
+            // buffer loop below. Must match exactly what Extractor.Draw() will emit.
+            using var builder = renderGraph.AddUnsafePass(
+                "VoxelEngine.ContinuousSurface", out SurfaceComputeFrameData data);
+
+            // Allocate per-frame work buffers and arrays outside the render function so they are
+            // built once per frame rather than every draw call. The visible-chunk entries hold a
+            // compact list of which arena slots contribute geometry this frame.
+            int[] vertexCounts = new int[visibleChunks];
+            var visibleEntries = new GpuSurfaceChunkCache.Entry[visibleChunks];
+            int entryCursor = 0;
+            for (int i = 0; i < _surfaceCache.Visible.Count; i++)
+                visibleEntries[entryCursor++] = _surfaceCache.Visible[i];
+            entryCursor = 0;
+            for (int i = 0; i < _nearSurfaceCache.Visible.Count; i++)
+                visibleEntries[visibleChunks - _nearSurfaceCache.Visible.Count + i]
+                    = _nearSurfaceCache.Visible[i];
+
+            data.Material = _surfaceMaterial;
+            data.Properties = _surfaceProperties;
+            data.Buffers = _buffers;
+            data.SunDirection = VoxelRenderBridge.SunDirection;
+            data.SkyHorizon = VoxelRenderBridge.SkyHorizon;
+            data.SkyZenith = VoxelRenderBridge.SkyZenith;
+            data.WindowOrigin = new Vector4(_buffers.WindowOrigin.x,
+                                            _buffers.WindowOrigin.y,
+                                            _buffers.WindowOrigin.z, 0f);
+            data.CutawayMinVoxel = VoxelRenderBridge.CutawayMinVoxel;
+            data.CutawayMaxVoxel = VoxelRenderBridge.CutawayMaxVoxel;
+            data.CutawayEnabled = VoxelRenderBridge.CutawayEnabled;
+            data.MaterialColours = VoxelRenderBridge.MaterialColours;
+            data.LocalLightCount = Mathf.Min(20,
+                VoxelRenderBridge.LocalLights?.Length ?? 0,
+                VoxelRenderBridge.LocalLightColours?.Length ?? 0);
+            data.LocalLights = VoxelRenderBridge.LocalLights;
+            data.LocalLightColours = VoxelRenderBridge.LocalLightColours;
+            data.FlashlightEnabled = VoxelRenderBridge.FlashlightEnabled;
+            data.FlashlightPosition = VoxelRenderBridge.FlashlightPosition;
+            data.FlashlightDirection = VoxelRenderBridge.FlashlightDirection.normalized;
+            Color flashlight = VoxelRenderBridge.FlashlightColour.linear;
+            data.FlashlightColour = new Vector4(flashlight.r, flashlight.g,
+                                                flashlight.b,
+                                                VoxelRenderBridge.FlashlightIntensity);
+            data.FlashlightRange = VoxelRenderBridge.FlashlightRange;
+            data.FlashlightInnerCos = VoxelRenderBridge.FlashlightInnerCos;
+            data.FlashlightOuterCos = VoxelRenderBridge.FlashlightOuterCos;
+            data.BaseColor = VoxelRenderBridge.SurfaceDebugTint;
+            data.VoxelSize = VoxelSize;
+            data.SurfaceExtraction = _surfaceExtraction;
+            data.SurfaceCache = _surfaceCache;
+            data.NearSurfaceCache = _nearSurfaceCache;
+            data.VertexCounts = vertexCounts;
+            data.VisibleEntries = visibleEntries;
+
             builder.AllowPassCulling(false);
 
-            builder.SetRenderFunc<PassData>(static (data, ctx) =>
+            // Single pass does both: dispatches compute to fill arena buffers with extracted
+            // geometry, then draws from those arenas as procedural mesh. Keeping them together
+            // avoids the render graph crash that occurs when AddRasterRenderPass follows
+            // AddUnsafePass within the same RecordRenderGraph call — URP's internal state
+            // management for top-level passes does not permit mixing these APIs.
+            builder.SetRenderFunc<SurfaceComputeFrameData>(static (passData, ctx) =>
             {
+                UnityEngine.Debug.Log(
+                    "VoxelRenderPass RENDER_FUNC: visible_entries=" + passData.VisibleEntries.Length);
                 var cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
 
-                cmd.SetComputeBufferParam(data.Raymarch, data.Kernel, s_RegionWindow, data.Buffers.WindowBuffer);
-                cmd.SetComputeBufferParam(data.Raymarch, data.Kernel, s_BrickRefs, data.Buffers.BrickRefBuffer);
-                cmd.SetComputeBufferParam(data.Raymarch, data.Kernel, s_BrickVoxels, data.Buffers.VoxelBuffer);
-                cmd.SetComputeBufferParam(data.Raymarch, data.Kernel, s_BrickDensity,
-                                          data.Buffers.DensityBuffer);
-                cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_Colour, data.Colour);
-                if (data.StoneTexture != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_StoneTexture, data.StoneTexture);
-                if (data.WoodTexture != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_WoodTexture, data.WoodTexture);
-                if (data.SandTexture != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_SandTexture, data.SandTexture);
-                if (data.RockTexture != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_RockTexture, data.RockTexture);
-                if (data.SlateTexture != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_SlateTexture, data.SlateTexture);
-                if (data.GrassTexture != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_GrassTexture, data.GrassTexture);
-                if (data.DirtTexture != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DirtTexture, data.DirtTexture);
-                if (data.DarkStoneTexture != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DarkStoneTexture,
-                                               data.DarkStoneTexture);
-                if (data.StoneNormal != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_StoneNormal, data.StoneNormal);
-                if (data.WoodNormal != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_WoodNormal, data.WoodNormal);
-                if (data.SandNormal != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_SandNormal, data.SandNormal);
-                if (data.RockNormal != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_RockNormal, data.RockNormal);
-                if (data.SlateNormal != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_SlateNormal, data.SlateNormal);
-                if (data.GrassNormal != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_GrassNormal, data.GrassNormal);
-                if (data.DirtNormal != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DirtNormal, data.DirtNormal);
-                if (data.DarkStoneNormal != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_DarkStoneNormal,
-                                               data.DarkStoneNormal);
-                if (data.SkyTexture != null)
-                    cmd.SetComputeTextureParam(data.Raymarch, data.Kernel, s_SkyTexture,
-                                               data.SkyTexture);
+                // Step 1: extract surface geometry into arena buffers on the GPU.
+                passData.SurfaceCache.RecordScheduled(cmd, passData.SurfaceExtraction,
+                                                      passData.Buffers, passData.VoxelSize);
+                passData.NearSurfaceCache?.RecordScheduled(cmd, passData.SurfaceExtraction,
+                                                           passData.Buffers, passData.VoxelSize);
 
-                cmd.SetComputeMatrixParam(data.Raymarch, s_InvViewProj, data.InvViewProj);
-                cmd.SetComputeVectorParam(data.Raymarch, s_CameraPos, data.CameraPos);
-                cmd.SetComputeVectorParam(data.Raymarch, s_WindowOrigin, data.WindowOrigin);
-                cmd.SetComputeVectorParam(data.Raymarch, s_SunDirection, VoxelRenderBridge.SunDirection);
-                cmd.SetComputeVectorParam(data.Raymarch, s_SkyHorizon, VoxelRenderBridge.SkyHorizon);
-                cmd.SetComputeVectorParam(data.Raymarch, s_SkyZenith, VoxelRenderBridge.SkyZenith);
-                cmd.SetComputeVectorParam(data.Raymarch, s_TargetSize, data.TargetSize);
-                cmd.SetComputeFloatParam(data.Raymarch, s_VoxelSize, data.VoxelSize);
-                cmd.SetComputeFloatParam(data.Raymarch, s_MaxDistance, data.MaxDistance);
-                cmd.SetComputeIntParam(data.Raymarch, s_MaxSteps, data.MaxSteps);
-                cmd.SetComputeIntParam(data.Raymarch, s_WindowX, VoxelGpuBuffers.WindowX);
-                cmd.SetComputeIntParam(data.Raymarch, s_WindowY, VoxelGpuBuffers.WindowY);
-                cmd.SetComputeIntParam(data.Raymarch, s_WindowZ, VoxelGpuBuffers.WindowZ);
-                cmd.SetComputeIntParam(data.Raymarch, s_DebugMode, VoxelRenderBridge.DebugMode);
-                cmd.SetComputeIntParam(data.Raymarch, s_TerrainSeed, unchecked((int)VoxelRenderBridge.TerrainSeed));
-                cmd.SetComputeFloatParam(data.Raymarch, s_FarDistance, VoxelRenderBridge.FarDistance);
-                cmd.SetComputeIntParam(data.Raymarch, s_FarBaseHeight, VoxelRenderBridge.FarBaseHeight);
-                cmd.SetComputeIntParam(data.Raymarch, s_FarEnabled, VoxelRenderBridge.FarFieldEnabled ? 1 : 0);
-                cmd.SetComputeIntParam(data.Raymarch, s_CutawayEnabled,
-                                       VoxelRenderBridge.CutawayEnabled ? 1 : 0);
-                cmd.SetComputeVectorParam(data.Raymarch, s_CutawayMinVoxel,
-                                          VoxelRenderBridge.CutawayMinVoxel);
-                cmd.SetComputeVectorParam(data.Raymarch, s_CutawayMaxVoxel,
-                                          VoxelRenderBridge.CutawayMaxVoxel);
-                cmd.SetComputeVectorArrayParam(data.Raymarch, s_MaterialColours, VoxelRenderBridge.MaterialColours);
-                int localLightCount = Mathf.Min(20, VoxelRenderBridge.LocalLights?.Length ?? 0,
-                                                VoxelRenderBridge.LocalLightColours?.Length ?? 0);
-                cmd.SetComputeIntParam(data.Raymarch, s_LocalLightCount, localLightCount);
-                if (localLightCount > 0)
+                // Step 2: populate the material block — every frame the visible chunk set changes.
+                passData.Properties.SetVectorArray(s_MaterialColours, passData.MaterialColours);
+                passData.Properties.SetColor(s_BaseColor, passData.BaseColor);
+                passData.Properties.SetVector(s_SunDirection, passData.SunDirection);
+                passData.Properties.SetVector(s_SkyHorizon, passData.SkyHorizon);
+                passData.Properties.SetVector(s_SkyZenith, passData.SkyZenith);
+                passData.Properties.SetFloat(s_VoxelSize, passData.VoxelSize);
+                passData.Properties.SetFloat(s_DebugCoverage,
+                    passData.BaseColor == Color.white ? 0f : 1f);
+                passData.Properties.SetBuffer(s_RegionWindow, passData.Buffers.WindowBuffer);
+                passData.Properties.SetBuffer(s_BrickRefs, passData.Buffers.BrickRefBuffer);
+                passData.Properties.SetBuffer(s_BrickVoxels, passData.Buffers.VoxelBuffer);
+                passData.Properties.SetVector(s_WindowOrigin, passData.WindowOrigin);
+                passData.Properties.SetInt(s_WindowX, VoxelGpuBuffers.WindowX);
+                passData.Properties.SetInt(s_WindowY, VoxelGpuBuffers.WindowY);
+                passData.Properties.SetInt(s_WindowZ, VoxelGpuBuffers.WindowZ);
+                passData.Properties.SetInt(s_CutawayEnabled,
+                    passData.CutawayEnabled ? 1 : 0);
+                passData.Properties.SetVector(s_CutawayMinVoxel, passData.CutawayMinVoxel);
+                passData.Properties.SetVector(s_CutawayMaxVoxel, passData.CutawayMaxVoxel);
+                passData.Properties.SetInt(s_LocalLightCount, passData.LocalLightCount);
+                if (passData.LocalLightCount > 0)
                 {
-                    cmd.SetComputeVectorArrayParam(data.Raymarch, s_LocalLights,
-                                                   VoxelRenderBridge.LocalLights);
-                    cmd.SetComputeVectorArrayParam(data.Raymarch, s_LocalLightColours,
-                                                   VoxelRenderBridge.LocalLightColours);
+                    passData.Properties.SetVectorArray(s_LocalLights, passData.LocalLights);
+                    passData.Properties.SetVectorArray(s_LocalLightColours,
+                                                       passData.LocalLightColours);
                 }
-                cmd.SetComputeIntParam(data.Raymarch, s_FlashlightEnabled,
-                                       VoxelRenderBridge.FlashlightEnabled ? 1 : 0);
-                cmd.SetComputeVectorParam(data.Raymarch, s_FlashlightPosition,
-                                          VoxelRenderBridge.FlashlightPosition);
-                cmd.SetComputeVectorParam(data.Raymarch, s_FlashlightDirection,
-                                          VoxelRenderBridge.FlashlightDirection.normalized);
-                Color flashlight = VoxelRenderBridge.FlashlightColour.linear;
-                cmd.SetComputeVectorParam(data.Raymarch, s_FlashlightColour,
-                    new Vector4(flashlight.r, flashlight.g, flashlight.b,
-                                VoxelRenderBridge.FlashlightIntensity));
-                cmd.SetComputeFloatParam(data.Raymarch, s_FlashlightRange,
-                                         VoxelRenderBridge.FlashlightRange);
-                cmd.SetComputeFloatParam(data.Raymarch, s_FlashlightInnerCos,
-                                         VoxelRenderBridge.FlashlightInnerCos);
-                cmd.SetComputeFloatParam(data.Raymarch, s_FlashlightOuterCos,
-                                         VoxelRenderBridge.FlashlightOuterCos);
+                passData.Properties.SetInt(s_FlashlightEnabled,
+                    passData.FlashlightEnabled ? 1 : 0);
+                passData.Properties.SetVector(s_FlashlightPosition, passData.FlashlightPosition);
+                passData.Properties.SetVector(s_FlashlightDirection, passData.FlashlightDirection);
+                passData.Properties.SetVector(s_FlashlightColour, passData.FlashlightColour);
+                passData.Properties.SetFloat(s_FlashlightRange, passData.FlashlightRange);
+                passData.Properties.SetFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
+                passData.Properties.SetFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
 
-                if (data.DensityKernel >= 0 && data.Buffers.DensityJobCount > 0)
-                {
-                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_RegionWindow,
-                                              data.Buffers.WindowBuffer);
-                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_BrickRefs,
-                                              data.Buffers.BrickRefBuffer);
-                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_BrickVoxels,
-                                              data.Buffers.VoxelBuffer);
-                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_BrickDensity,
-                                              data.Buffers.DensityBuffer);
-                    cmd.SetComputeBufferParam(data.Raymarch, data.DensityKernel, s_DensityJobs,
-                                              data.Buffers.DensityJobBuffer);
-                    cmd.SetComputeIntParam(data.Raymarch, s_DensityJobCount,
-                                           data.Buffers.DensityJobCount);
-                    cmd.DispatchCompute(data.Raymarch, data.DensityKernel,
-                                        data.Buffers.DensityJobCount, 1, 1);
-                }
-
-                // Seed the target with what URP has drawn so far, so rays that miss composite
-                // as "unchanged" rather than as this shader's idea of the sky.
-                Blitter.BlitCameraTexture(cmd, data.CameraColour, data.Colour);
-
-                cmd.DispatchCompute(data.Raymarch, data.Kernel, data.GroupsX, data.GroupsY, 1);
-
-                Blitter.BlitCameraTexture(cmd, data.Colour, data.CameraColour);
+                // Step 3: draw every visible chunk's extracted geometry from the arena buffers.
+                for (int i = 0; i < passData.VisibleEntries.Length; i++)
+                    passData.VisibleEntries[i].Extractor.Draw(cmd, passData.Material,
+                                                              passData.Properties);
             });
         }
 
-        public void Dispose() => _buffers.Dispose();
+        public void Dispose()
+        {
+            // Chunks first: each returns its slot to the arena before the arena goes away.
+            _surfaceCache.Dispose();
+            _nearSurfaceCache.Dispose();
+            _surfaceArena?.Dispose();
+            _nearSurfaceArena?.Dispose();
+            _surfaceArena = null;
+            _nearSurfaceArena = null;
+            _buffers.Dispose();
+            CoreUtils.Destroy(_surfaceMaterial);
+            _surfaceMaterial = null;
+        }
     }
 }

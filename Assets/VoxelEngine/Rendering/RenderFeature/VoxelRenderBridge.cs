@@ -46,6 +46,12 @@ namespace VoxelEngine.Rendering
         /// </summary>
         public static int DebugMode;
 
+        /// <summary>
+        /// Diagnostic tint for continuous extracted geometry. White is production; fixed-view
+        /// tests can use a loud colour to prove exactly which pixels have left the fallback.
+        /// </summary>
+        public static Color SurfaceDebugTint = Color.white;
+
         /// <summary>World seed, so the far field can evaluate the same terrain the CPU generates.</summary>
         public static uint TerrainSeed;
 
@@ -69,10 +75,17 @@ namespace VoxelEngine.Rendering
         public static Vector3 CutawayMaxVoxel;
 
         /// <summary>Direction light points *from* the surface toward the sun.</summary>
-        public static Vector3 SunDirection = new Vector3(-0.62f, 0.56f, -0.55f).normalized;
+        /// <remarks>
+        /// Roughly 50 degrees of elevation, matching the reference board's midday key. The
+        /// previous 34 degrees put long raking shadows across the whole approach and, combined
+        /// with the dusk sky below, was most of why the castle read as flat and mauve rather than
+        /// as sunlit stone.
+        /// </remarks>
+        public static Vector3 SunDirection = new Vector3(-0.48f, 0.76f, -0.44f).normalized;
 
-        public static Color SkyHorizon = new(0.46f, 0.56f, 0.70f);
-        public static Color SkyZenith = new(0.12f, 0.27f, 0.50f);
+        // Bright open daylight: a pale, slightly hazy horizon under a saturated zenith.
+        public static Color SkyHorizon = new(0.66f, 0.75f, 0.85f);
+        public static Color SkyZenith = new(0.24f, 0.45f, 0.76f);
 
         /// <summary>
         /// Presentation lights consumed directly by the compute shader. xyz is world metres and

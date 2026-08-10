@@ -27,6 +27,11 @@ uint g_DensityJobCount;
 
 RWTexture2D<float4> g_Colour;
 
+// World-space hit position in metres; w is 1 on a hit and 0 on a miss. The depth-restore pass
+// converts this into the depth buffer so rasterised continuous chunks occlude against (and are
+// occluded by) the raymarched water, foliage, and authored detail they interpenetrate.
+RWTexture2D<float4> g_HitPosition;
+
 Texture2D<float4> g_StoneTexture;
 Texture2D<float4> g_WoodTexture;
 Texture2D<float4> g_SandTexture;
@@ -200,10 +205,69 @@ bool IsTerrainDensityMaterial(uint material)
         || material == 13u || material == 14u;
 }
 
+// Water carries its own boundary through DensitySampleAt, so counting it as occupancy here would
+// weld a lake to its shore and mesh the surface as opaque rock.
+bool IsFieldOccupied(uint material)
+{
+    return material != 0u && material != 11u && material != 16u;
+}
+
+int FarSurfaceHeight(int wx, int wz);
+bool NaturalTerrainCap(uint material, int3 voxel);
+bool TerrainMassSurface(uint material, int3 voxel);
+
+// The continuous field owns terrain masses only. Water keeps its raymarched surface, authored
+// timber/slate/glass keep their voxel-crisp presentation, and tree crowns keep their foliage
+// shading; the depth-restore pass lets those raymarched details occlude the meshed terrain.
+// Meshing them into the broad field was what blobbed exactly the details the raymarch vocabulary
+// was built for.
+bool IsFieldMass(uint material, int3 voxel)
+{
+    if (!IsTerrainDensityMaterial(material)) return false;
+    if (material != 10u && material != 14u) return true;
+    return NaturalTerrainCap(material, voxel);
+}
+
+// Separable binomial, and its derivative. The pair converts binary occupancy into a coverage
+// value and the coverage gradient in one gather, which is what makes a signed distance
+// recoverable: for an axis-aligned half-space (coverage 11/16, gradient 0.375) the quotient
+// below returns exactly 0.5 voxels, the true distance to the voxel face.
+// Two kernel widths, gathered together, because they are good at different things.
+//
+// Radius one holds a 90 degree corner to 0.46 voxels where radius two rounds it to 0.69, and is
+// better on curved ground too — smooth should mean "not built out of cubes", not "every edge
+// melted". But its coverage saturates within about 1.5 voxels of the surface, and the mid-field
+// chunk cache samples every second voxel: both ends of a lattice edge then read fully saturated,
+// every crossing snaps to the edge midpoint, and the reconstructed gradient turns to noise. That
+// is visible as flat shelves with normals pointing in arbitrary directions.
+//
+// So use radius one wherever it is well conditioned, and let radius two fill the rest of the
+// band. Near the surface the sharp kernel wins; further out the wide one keeps the field linear
+// enough for half-rate sampling.
+static const float k_Binomial1[3] = { 1.0, 2.0, 1.0 };
+static const float k_BinomialDerivative1[3] = { -1.0, 0.0, 1.0 };
+static const float k_CoverageNorm1 = 4.0 * 4.0 * 4.0;
+static const float k_GradientNorm1 = 2.0 * 4.0 * 4.0;
+
+static const float k_Binomial[5] = { 1.0, 4.0, 6.0, 4.0, 1.0 };
+static const float k_BinomialDerivative[5] = { -1.0, -2.0, 0.0, 2.0, 1.0 };
+static const float k_CoverageNorm = 16.0 * 16.0 * 16.0;
+static const float k_GradientNorm = 8.0 * 16.0 * 16.0;
+static const float k_CoverageTaps = 125.0;
+
+// Voxels spanned by the encoded range. Wide and linear on purpose: the mid-field chunk cache
+// samples this field every second voxel, and a narrow band aliases into terraces when it does.
+static const float k_DensityBand = 4.0;
+
+// Below this the coverage gradient carries no usable direction — an isolated speck, or a sheet
+// thin enough to be symmetric about its own centre. Real surfaces sit near 0.375, so this is
+// far enough below them to never divert a surface that the distance branch could have handled.
+static const float k_MinCoverageGradient = 0.05;
+
 // One brick group shares a 2-voxel halo. Loading that 12^3 tile once is still far cheaper than
-// repeating sparse brickmap lookups for every output voxel, while the wider terrain kernel
-// removes the one-voxel stair rings visible in caves and cliffs. Materials are retained (rather
-// than reducing the tile to occupancy) so masonry can preserve thin authored details.
+// repeating sparse brickmap lookups for every output voxel, and radius two is exactly the
+// support the binomial kernel needs. Materials are retained (rather than reducing the tile to
+// occupancy) so masonry can preserve thin authored details.
 groupshared uint g_DensityMaterial[1728];
 
 [numthreads(8, 8, 2)]
@@ -233,7 +297,10 @@ void CSBuildDensity(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
     int firstVoxelIndex = (int)groupIndex * 4;
     uint packedDensity = 0u;
 
-    [unroll]
+    // Not [unroll]: the body contains a nested 5x5x5 neighbourhood scan, and forcing this
+    // outer loop to unroll on top of that blew past Metal's unroll budget ("forced to unroll
+    // loop, but unrolling failed"). A real loop over groupshared memory is fine here — the
+    // index is dynamic either way once the inner scan isn't unrolled.
     for (int lane = 0; lane < 4; lane++)
     {
         int voxelIndex = firstVoxelIndex + lane;
@@ -242,32 +309,90 @@ void CSBuildDensity(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
         int tileCentre = (localVoxel.x + 2)
                        + 12 * ((localVoxel.y + 2) + 12 * (localVoxel.z + 2));
         uint centreMaterial = g_DensityMaterial[tileCentre];
-        float occupied = centreMaterial != 0u ? 1.0 : 0.0;
+        int3 centreVoxel = worldBrick * k_BrickEdge + localVoxel;
+        float occupied = IsFieldMass(centreMaterial, centreVoxel) ? 1.0 : 0.0;
         uint neighbourhood = 0u;
         uint terrainNeighbours = 0u;
+        float coverage = 0.0;
+        float3 coverageGradient = 0.0;
 
-        [unroll]
+        float sharpCoverage = 0.0;
+        float3 sharpGradient = 0.0;
+
+        // Not [unroll]: 125 taps per lane, four lanes per thread — the fully unrolled form is
+        // what Metal rejected ("unrolled loop is too large"). The bounds are compile-time
+        // constants so the driver compiler can still unroll it if it judges that profitable.
         for (int z = -2; z <= 2; z++)
-        [unroll]
         for (int y = -2; y <= 2; y++)
-        [unroll]
         for (int x = -2; x <= 2; x++)
         {
             uint neighbourMaterial = g_DensityMaterial[tileCentre + x + 12 * y + 144 * z];
-            neighbourhood += neighbourMaterial != 0u ? 1u : 0u;
             terrainNeighbours += IsTerrainDensityMaterial(neighbourMaterial) ? 1u : 0u;
+            if (!IsFieldMass(neighbourMaterial, centreVoxel + int3(x, y, z))) continue;
+
+            neighbourhood += 1u;
+            float bx = k_Binomial[x + 2];
+            float by = k_Binomial[y + 2];
+            float bz = k_Binomial[z + 2];
+            coverage += bx * by * bz;
+            coverageGradient += float3(k_BinomialDerivative[x + 2] * by * bz,
+                                       bx * k_BinomialDerivative[y + 2] * bz,
+                                       bx * by * k_BinomialDerivative[z + 2]);
+
+            // The radius-one kernel is a strict subset of the same taps.
+            if (abs(x) > 1 || abs(y) > 1 || abs(z) > 1) continue;
+            float sx = k_Binomial1[x + 1];
+            float sy = k_Binomial1[y + 1];
+            float sz = k_Binomial1[z + 1];
+            sharpCoverage += sx * sy * sz;
+            sharpGradient += float3(k_BinomialDerivative1[x + 1] * sy * sz,
+                                    sx * k_BinomialDerivative1[y + 1] * sz,
+                                    sx * sy * k_BinomialDerivative1[z + 1]);
         }
 
-        // Authored non-terrain materials keep enough self-weight for a one-voxel feature to
-        // survive. Natural masses favour the neighbourhood instead, allowing unsupported specks
-        // to disappear and large cliffs/caves to form one broad surface.
-        bool terrainField = IsTerrainDensityMaterial(centreMaterial) || terrainNeighbours > 0u;
-        // 0.40 keeps a one-voxel sheet above the 0.5 isolevel (0.40 + 25/125*0.60 = 0.52)
-        // while an isolated speck remains below it (about 0.405). That distinction preserves
-        // cave ceilings and terrain lips without retaining detached destruction noise.
-        float selfWeight = terrainField ? 0.40 : 0.55;
-        float density = occupied * selfWeight
-                      + ((float)neighbourhood / 125.0) * (1.0 - selfWeight);
+        coverage /= k_CoverageNorm;
+        coverageGradient /= k_GradientNorm;
+        sharpCoverage /= k_CoverageNorm1;
+        sharpGradient /= k_GradientNorm1;
+
+        // Prefer the sharp kernel, but only while it still resolves the surface. Once its
+        // coverage saturates it carries no distance, and the wide kernel takes over.
+        float sharpMagnitude = length(sharpGradient);
+        bool sharpUsable = sharpMagnitude > k_MinCoverageGradient
+                        && sharpCoverage > 0.02 && sharpCoverage < 0.98;
+        if (sharpUsable)
+        {
+            coverage = sharpCoverage;
+            coverageGradient = sharpGradient;
+        }
+        float gradientMagnitude = length(coverageGradient);
+
+        float density;
+        if (gradientMagnitude > k_MinCoverageGradient)
+        {
+            // Binary occupancy holds no sub-voxel surface position on its own, but the pattern
+            // of which voxel centres fall inside encodes it across a neighbourhood, and
+            // normalising coverage by its own gradient recovers it. Measured against analytic
+            // surfaces this lands roughly five times closer than the occupancy average on a
+            // slanted plane, and it stays linear across the band so half-rate LOD sampling does
+            // not terrace. See the shingled ground in the castle lookdev captures.
+            float signedVoxels = (coverage - 0.5) / gradientMagnitude;
+            density = saturate(0.5 + signedVoxels / (2.0 * k_DensityBand));
+        }
+        else
+        {
+            // Specks and one-voxel sheets are symmetric about their own centre, so the gradient
+            // vanishes and no distance is recoverable. Fall back to the support-weighted average,
+            // which is what preserved cave ceilings and terrain lips before this kernel gained a
+            // distance branch. Over the 27-tap neighbourhood, 0.40 keeps a one-voxel sheet above
+            // the isolevel (0.40 + 9/27 * 0.60 = 0.60) while an isolated speck stays well below
+            // it (0.42), a wider margin than the radius-two kernel gave.
+            bool terrainField = IsTerrainDensityMaterial(centreMaterial) || terrainNeighbours > 0u;
+            float selfWeight = terrainField ? 0.40 : 0.55;
+            density = occupied * selfWeight
+                    + ((float)neighbourhood / k_CoverageTaps) * (1.0 - selfWeight);
+        }
+
         uint encoded = (uint)round(saturate(density) * 255.0);
         packedDensity |= encoded << (lane * 8);
     }
@@ -302,8 +427,11 @@ void DensityFieldAtScale(float3 p, uint material, float spacing,
     float3 grid = (p - 0.5) / spacing;
     int3 baseCell = int3(floor(grid));
     float3 f = frac(grid);
-    float3 s = f * f * (3.0 - 2.0 * f);
-    float3 ds = 6.0 * f * (1.0 - f) / spacing;
+    // Linear, not cubic. The cubic ramp existed to hide the steps in an occupancy average; the
+    // field is now a signed distance, which is already linear across the band, and smoothstepping
+    // it would reintroduce a flat spot at every lattice sample — the terracing this replaced.
+    float3 s = f;
+    float3 ds = 1.0 / spacing;
     int latticeStep = (int)spacing;
     int3 baseVoxel = baseCell * latticeStep;
 
@@ -424,9 +552,13 @@ void LocalVoxelSdfFrame(int3 voxel, out float3 centre, out float3 halfExtent)
 bool RefineVoxelSdfHit(int3 voxel, uint material, float3 entryPoint, float3 dir,
                        out float advance, out float3 normal)
 {
+    // Grass and moss are continuous only where they form terrain mass; crowns and planted caps
+    // keep the rounded-box presentation that reads as foliage rather than as ground.
     bool continuousVolume = material == 1u || material == 3u || material == 5u
-                         || material == 6u || material == 10u || material == 13u
-                         || material == 14u || material == 11u || material == 16u;
+                         || material == 6u || material == 13u
+                         || material == 11u || material == 16u
+                         || ((material == 10u || material == 14u)
+                             && TerrainMassSurface(material, voxel));
     if (continuousVolume)
     {
         return RefineContinuousSdfHit(material, entryPoint, dir,
@@ -656,8 +788,10 @@ float3 PresentationSky(float3 dir)
                           asin(clamp(dir.y, -1.0, 1.0)) * 0.318309886 + 0.5);
     float3 paintedSky = g_SkyTexture.SampleLevel(sampler_g_SkyTexture, skyUv, 0.0).rgb;
     float paintedLuminance = dot(paintedSky, float3(0.2126, 0.7152, 0.0722));
-    paintedSky = lerp(paintedLuminance.xxx, paintedSky, 0.46);
-    float3 sky = lerp(paintedSky, SkyColour(dir), 0.48);
+    // The authored panorama is a mauve dusk; the reference board is open midday blue. Keep the
+    // painted cloud structure but re-grade its hue toward the procedural daylight sky.
+    paintedSky = lerp(paintedLuminance.xxx, paintedSky, 0.40);
+    float3 sky = lerp(paintedSky, SkyColour(dir), 0.66);
 
     // The direct sun is behind the player in the hero approach, but its broad warm halo still
     // gives the upper sky a lighting direction and matches the warm/cool split used indoors.
@@ -907,9 +1041,11 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     float ndotl = saturate(dot(normal, g_SunDirection));
     float fill = saturate(dot(normal, -g_SunDirection)) * 0.06;
 
-    float3 groundBounce = float3(0.20, 0.18, 0.16);
+    // Midday key. A warm low sun over a dim ambient was reading as dusk; the reference board is
+    // an open, brightly lit exterior where sky fill carries the shadowed faces.
+    float3 groundBounce = float3(0.26, 0.24, 0.21);
     float hemi = normal.y * 0.5 + 0.5;
-    float3 ambient = lerp(groundBounce, SkyColour(normal), hemi) * 0.32;
+    float3 ambient = lerp(groundBounce, SkyColour(normal), hemi) * 0.42;
 
     // Shadows cut the sun only; ambient still reaches a shadowed wall, or a north face would go
     // black again the moment it fell into shade. Launch with the actual hit face: a smoothed
@@ -917,7 +1053,7 @@ float3 Shade(uint material, float3 normal, float3 hitVoxel)
     // column, which was the source of the towers' black vertical striping.
     float shadow = ndotl > 0.0 ? SunShadow(hitVoxel, faceNormal) : 1.0;
     float ao = Occlusion(hitVoxel, normal);
-    float3 sunColour = float3(1.00, 0.78, 0.57);
+    float3 sunColour = float3(1.00, 0.95, 0.86);
     float3 viewToCamera = normalize(g_CameraPos / g_VoxelSize - hitVoxel);
 
     float3 lit = albedo * (ambient * lerp(0.58, 1.0, ao)
@@ -1156,9 +1292,10 @@ float FarHeightMetres(float3 p)
 
 // Marches the procedural heightfield from tStart outward. Steps grow with distance: near the
 // transition the surface must be met precisely, far away a pixel covers many metres.
-bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
+bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour, out float3 hitPos)
 {
     colour = float3(0, 0, 0);
+    hitPos = float3(0, 0, 0);
 
     // Canonical terrain tops out around 49 m, while the presentation-only background can reach
     // roughly 165 m. This is only an early-out ceiling; it does not change the voxel world bounds.
@@ -1204,6 +1341,7 @@ bool MarchFarField(float3 origin, float3 dir, float tStart, out float3 colour)
             float hD = FarHeightMetres(p - float3(0, 0, e));
             float hU = FarHeightMetres(p + float3(0, 0, e));
             float3 normal = normalize(float3(hL - hR, 2.0 * e, hD - hU));
+            hitPos = p;
 
             float castleRadius = length(p.xz - float2(25.6, 37.6));
             float mountainBlend = smoothstep(125.0, 325.0, castleRadius);
@@ -1331,6 +1469,7 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
 
     float3 colour = SkyColour(dir);
     bool hit = false;
+    float3 hitPosition = float3(0, 0, 0);
 
     // Traversal telemetry, reported by the debug modes below.
     float sawSlot = 0.0;      // the ray entered a region that is mirrored on the GPU
@@ -1373,6 +1512,7 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
             {
                 colour = Shade(material, hitNormal,
                                (origin + dir * t) * k_BrickEdge + dir * tInner);
+                hitPosition = ((origin + dir * t) * k_BrickEdge + dir * tInner) * g_VoxelSize;
                 hit = true;
                 break;
             }
@@ -1387,12 +1527,18 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
     if (!hit && g_FarEnabled != 0u && g_FarDistance > 0.0)
     {
         float3 farColour;
-        if (MarchFarField(g_CameraPos, dir, 1.0, farColour))
+        float3 farPosition;
+        if (MarchFarField(g_CameraPos, dir, 1.0, farColour, farPosition))
         {
             colour = farColour;
+            hitPosition = farPosition;
             hit = true;
         }
     }
+
+    // Captured before the diagnostic overwrites below, so debug frames restore far depth rather
+    // than a bogus surface at the origin.
+    float hitWeight = hit ? 1.0 : 0.0;
 
     if (g_DebugMode == 1u) { colour = float3(sawSlot, sawRef, sawMixed); hit = true; }
     else if (g_DebugMode == 2u) { colour = float3(sawVoxel, steps / max(1.0, (float)g_MaxSteps), 0.0); hit = true; }
@@ -1410,4 +1556,5 @@ void CSBrickRaymarch(uint3 id : SV_DispatchThreadID)
     // correct as constructed, it is the target's row order that disagrees with the blit. Doing
     // it on the uv instead aims every ray at the sky, which is how that mistake presents.
     g_Colour[uint2(id.x, (uint)g_TargetSize.y - 1u - id.y)] = float4(colour, 1.0);
+    g_HitPosition[uint2(id.x, (uint)g_TargetSize.y - 1u - id.y)] = float4(hitPosition, hitWeight);
 }
