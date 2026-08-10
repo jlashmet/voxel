@@ -47,8 +47,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
 
             StructuredBuffer<SurfaceVertex> _SurfaceVertices;
             StructuredBuffer<uint> _SurfaceIndices;
-            // Arena slot base. Index data already carries arena-global vertex numbers, so only
-            // the index range needs rebasing per draw.
             uint _SurfaceIndexBase;
             float4 _BaseColor;
             float4 _MaterialColours[18];
@@ -75,9 +73,10 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             float _VoxelSize;
             float _DebugCoverage;
 
-            // Sparse brick mirror, bound per frame, so the shadow march below walks the same
-            // storage the raymarch walks. Two paths, one world: a tower's shadow has to fall on
-            // extracted ground exactly where it falls on raymarched ground.
+            // These remain bound because cutaway/material helpers and future cheap shadowing use
+            // the authoritative sparse world. The old fragment-time 48-step voxel shadow march
+            // is intentionally not used: doing dozens of brick lookups for every covered pixel
+            // defeated the point of rasterising the extracted surface.
             StructuredBuffer<int> _RegionWindow;
             StructuredBuffer<int> _BrickRefs;
             StructuredBuffer<uint> _BrickVoxels;
@@ -99,75 +98,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             float _FlashlightInnerCos;
             float _FlashlightOuterCos;
 
-            static const int k_BrickEdge = 8;
-            static const int k_RegionEdgeLog2 = 6;
-            static const int k_RegionEdgeMask = 63;
-            static const int k_BricksPerRegion = 64 * 64 * 64;
-
-            int RegionSlot(int3 regionCoord)
-            {
-                int slot = -1;
-                int3 w = regionCoord - int3(_WindowOrigin.xyz);
-                bool inside = w.x >= 0 && w.y >= 0 && w.z >= 0
-                           && w.x < (int)_WindowX && w.y < (int)_WindowY && w.z < (int)_WindowZ;
-                if (inside)
-                    slot = _RegionWindow[w.x + (int)_WindowX * (w.y + (int)_WindowY * w.z)];
-                return slot;
-            }
-
-            int BrickRefAt(int3 brickCoord)
-            {
-                int result = -1;
-                int slot = RegionSlot(brickCoord >> k_RegionEdgeLog2);
-                if (slot >= 0)
-                {
-                    int3 b = brickCoord & k_RegionEdgeMask;
-                    int indexInRegion = b.x | (b.y << k_RegionEdgeLog2) | (b.z << (k_RegionEdgeLog2 * 2));
-                    result = _BrickRefs[slot * k_BricksPerRegion + indexInRegion];
-                }
-                return result;
-            }
-
-            uint VoxelMaterial(int poolIndex, int3 v)
-            {
-                int voxelIndex = v.x | (v.y << 3) | (v.z << 6);
-                uint packed = _BrickVoxels[poolIndex * 128 + (voxelIndex >> 2)];
-                return (packed >> ((voxelIndex & 3) * 8)) & 0xFFu;
-            }
-
-            bool PresentationClipped(int3 voxel)
-            {
-                if (_CutawayEnabled == 0u) return false;
-                float3 p = float3(voxel);
-                return all(p >= _CutawayMinVoxel.xyz) && all(p < _CutawayMaxVoxel.xyz);
-            }
-
-            uint MaterialAt(int3 voxel)
-            {
-                if (PresentationClipped(voxel)) return 0u;
-                int3 brick = voxel >> 3;
-                int brickRef = BrickRefAt(brick);
-                if (brickRef == -1) return 0u;
-                if (brickRef < -1) return (uint)(-brickRef - 1);
-                return VoxelMaterial(brickRef, voxel & 7);
-            }
-
-            bool SolidAt(int3 voxel) { return MaterialAt(voxel) != 0u; }
-
-            // The raymarch's shadow march, verbatim: same start offset, same growing stride, same
-            // 48-step budget, so both paths agree on every tower and tree shadow.
-            float SunShadow(float3 startVoxel, float3 normal)
-            {
-                float3 p = startVoxel + normal * 1.5 + _SunDirection.xyz * 1.5;
-                [loop]
-                for (uint i = 0u; i < 48u; i++)
-                {
-                    if (SolidAt(int3(floor(p)))) return 0.0;
-                    p += _SunDirection.xyz * (1.6 + i * 0.35);
-                }
-                return 1.0;
-            }
-
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
@@ -185,7 +115,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 output.positionWS = vertex.position;
                 output.normalNS = normalize(vertex.normal);
                 output.material = vertex.material;
-                // Bit 0 is the active flag; bits 8..15 are occlusion baked at extraction time.
                 output.occlusion = ((vertex.active >> 8) & 0xFFu) * (1.0 / 255.0);
                 return output;
             }
@@ -209,8 +138,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 return 1.0;
             }
 
-            // The raymarch's SurfaceUV: one tile per 36 voxels on the dominant axis. Matching it
-            // exactly is what keeps texture scale continuous across the path boundary.
             float2 SurfaceUV(float3 normal, float3 hitVoxel)
             {
                 float3 a = abs(normal);
@@ -231,9 +158,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                     float3 agedMasonry = SAMPLE_TEXTURE2D(_DarkStoneTexture, sampler_StoneTexture, uv).rgb;
                     texel = lerp(caveRock, agedMasonry, exteriorWeathering);
                 }
-                // Bedrock and the unmapped emissive/glass materials deliberately have no authored
-                // map: the raymarch shades them as flat palette, and matching that keeps surfaces
-                // continuous across the path boundary.
                 else if (material == 1u || material == 2u || material == 3u || material == 7u
                       || material == 8u || material == 10u || material == 13u || material == 14u)
                 {
@@ -281,7 +205,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                                        float3 hitVoxel, float hitDistance)
             {
                 float3 packed = SamplePackedNormal(material, uv, hitVoxel, hitDistance);
-
                 float3 tangentNormal = normalize(packed * 2.0 - 1.0);
                 float3 a = abs(surfaceNormal);
                 float3 tangent;
@@ -308,8 +231,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                // Diagnostic: geometric normals, so ripples in the extracted surface can be told
-                // apart from ripples contributed by texture and relief. A flat tint could not.
                 if (_DebugCoverage > 0.5)
                     return half4(normalize(input.normalNS) * 0.5 + 0.5, 1.0);
 
@@ -317,14 +238,11 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 float3 normal = faceNormal;
                 uint material = min(input.material, 17u);
                 float3 albedo = _MaterialColours[material].rgb;
-                // Isolated tests and diagnostic users do not have to bind the gameplay palette.
-                // A zero-initialised constant array means "use the material's base colour".
                 if (dot(albedo, albedo) < 1e-6) albedo = 1.0;
 
                 float3 hitVoxel = input.positionWS / max(_VoxelSize, 1e-4);
                 float hitDistance = length(input.positionWS - GetCameraPositionWS());
 
-                // -- albedo: the raymarch's per-material recipes, mirrored -------------------
                 float textureLod = clamp(log2(max(1.0, hitDistance * 0.36)), 0.0, 8.0);
                 float2 surfaceUv = SurfaceUV(normal, hitVoxel);
                 bool smoothMaterial = material == 1u || material == 3u || material == 5u
@@ -372,7 +290,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                     albedo *= (0.99 + fineNoise * 0.018) * (0.97 + macroNoise * 0.075);
                 }
 
-                // -- lighting: the raymarch's Shade(), term for term -------------------------
                 float ndotl = saturate(dot(normal, _SunDirection.xyz));
                 float fill = saturate(dot(normal, -_SunDirection.xyz)) * 0.06;
 
@@ -380,9 +297,11 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 float hemi = normal.y * 0.5 + 0.5;
                 float3 ambient = lerp(groundBounce, SkyColour(normal), hemi) * 0.42;
 
-                float shadow = ndotl > 0.0 ? SunShadow(hitVoxel, faceNormal) : 1.0;
-                // The extractor stores 1 for unoccluded; the raymarch's Occlusion floors at 0.24
-                // so a corner in daylight is dark, not absent. Remap to the same range.
+                // Do not raymarch voxel shadows in the fragment shader. That was up to 48 sparse
+                // brick/voxel lookups for every covered pixel and made the raster path nearly as
+                // expensive as the renderer it replaced. Proper cheap/cached shadows can be
+                // layered back later without coupling them to surface visibility.
+                float shadow = 1.0;
                 float ao = lerp(0.24, 1.0, input.occlusion);
                 float3 sunColour = float3(1.00, 0.95, 0.86);
 
@@ -430,7 +349,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                     lit += albedo * _FlashlightColour.rgb * (_FlashlightColour.w * flashlightShape);
                 }
 
-                // Close-range camera-side bounce, mirroring the raymarch's eye-adaptation stand-in.
                 float3 toCamera = GetCameraPositionWS() - input.positionWS;
                 float cameraDistance = length(toCamera);
                 float cameraBounce = saturate(dot(normal, normalize(toCamera)))
@@ -440,7 +358,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 if (material == 4u) lit += albedo * 0.10;
                 if (material == 12u) lit += albedo * 0.34;
 
-                // -- grade: the same tonemap, desaturation, and aerial perspective ------------
                 lit *= 1.02;
                 lit = saturate((lit * (2.51 * lit + 0.03))
                              / (lit * (2.43 * lit + 0.59) + 0.14));
