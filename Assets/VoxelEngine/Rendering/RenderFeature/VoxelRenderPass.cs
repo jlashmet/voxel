@@ -20,8 +20,6 @@ namespace VoxelEngine.Rendering
     {
         private const string k_PassName = "VoxelEngine.ContinuousSurface";
 
-        // BrickRaymarch.compute still owns CSBuildDensity during the surface-mesh migration.
-        // These names are compute-shader bindings and therefore intentionally use the g_ prefix.
         private static readonly int s_DensityRegionWindow = Shader.PropertyToID("g_RegionWindow");
         private static readonly int s_DensityBrickRefs = Shader.PropertyToID("g_BrickRefs");
         private static readonly int s_DensityBrickVoxels = Shader.PropertyToID("g_BrickVoxels");
@@ -35,7 +33,6 @@ namespace VoxelEngine.Rendering
         private static readonly int s_DensityTerrainSeed = Shader.PropertyToID("g_TerrainSeed");
         private static readonly int s_DensityFarBaseHeight = Shader.PropertyToID("g_FarBaseHeight");
 
-        // SmoothSurface.shader uses material properties with an underscore prefix.
         private static readonly int s_MaterialRegionWindow = Shader.PropertyToID("_RegionWindow");
         private static readonly int s_MaterialBrickRefs = Shader.PropertyToID("_BrickRefs");
         private static readonly int s_MaterialBrickVoxels = Shader.PropertyToID("_BrickVoxels");
@@ -57,7 +54,6 @@ namespace VoxelEngine.Rendering
         private static readonly int s_FlashlightInnerCos = Shader.PropertyToID("_FlashlightInnerCos");
         private static readonly int s_FlashlightOuterCos = Shader.PropertyToID("_FlashlightOuterCos");
 
-        // Shared lighting and shading properties.
         private static readonly int s_SunDirection = Shader.PropertyToID("_SunDirection");
         private static readonly int s_SkyHorizon = Shader.PropertyToID("_SkyHorizon");
         private static readonly int s_SkyZenith = Shader.PropertyToID("_SkyZenith");
@@ -71,7 +67,11 @@ namespace VoxelEngine.Rendering
         // gives 78,336. The old 24,576 cap silently dropped every quad after the cap and was a
         // direct source of giant holes through dense castle chunks.
         private const int MaxIndicesPerChunk = 78336;
-        private const int SurfaceArenaSlots = 256;
+
+        // A 3.2 m chunk means 256 slots can barely cover a flat 51 m x 51 m sheet, before any
+        // vertical castle surface or terrain variation is counted. Keep one LOD for correctness,
+        // but give that level enough residency to avoid evicting geometry that is still on screen.
+        private const int SurfaceArenaSlots = 512;
 
         private readonly VoxelGpuBuffers _buffers = new();
         private readonly GpuSurfaceChunkCache _surfaceCache = new()
@@ -244,8 +244,7 @@ namespace VoxelEngine.Rendering
             for (int i = 0; i < visibleChunks; i++)
                 visibleEntries[i] = _surfaceCache.Visible[i];
 
-            using var builder = renderGraph.AddUnsafePass(
-                k_PassName, out SurfaceComputeFrameData data);
+            using var builder = renderGraph.AddUnsafePass(k_PassName, out SurfaceComputeFrameData data);
 
             data.Material = _surfaceMaterial;
             data.Properties = _surfaceProperties;
@@ -295,20 +294,15 @@ namespace VoxelEngine.Rendering
                     && passData.Buffers.DensityJobCount > 0)
                 {
                     cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
-                                              s_DensityRegionWindow,
-                                              passData.Buffers.WindowBuffer);
+                                              s_DensityRegionWindow, passData.Buffers.WindowBuffer);
                     cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
-                                              s_DensityBrickRefs,
-                                              passData.Buffers.BrickRefBuffer);
+                                              s_DensityBrickRefs, passData.Buffers.BrickRefBuffer);
                     cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
-                                              s_DensityBrickVoxels,
-                                              passData.Buffers.VoxelBuffer);
+                                              s_DensityBrickVoxels, passData.Buffers.VoxelBuffer);
                     cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
-                                              s_BrickDensity,
-                                              passData.Buffers.DensityBuffer);
+                                              s_BrickDensity, passData.Buffers.DensityBuffer);
                     cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
-                                              s_DensityJobs,
-                                              passData.Buffers.DensityJobBuffer);
+                                              s_DensityJobs, passData.Buffers.DensityJobBuffer);
                     cmd.SetComputeIntParam(passData.DensityCompute, s_DensityJobCount,
                                            passData.Buffers.DensityJobCount);
                     cmd.SetComputeVectorParam(passData.DensityCompute, s_DensityWindowOrigin,
@@ -348,8 +342,7 @@ namespace VoxelEngine.Rendering
                 passData.Properties.SetInt(s_WindowX, VoxelGpuBuffers.WindowX);
                 passData.Properties.SetInt(s_WindowY, VoxelGpuBuffers.WindowY);
                 passData.Properties.SetInt(s_WindowZ, VoxelGpuBuffers.WindowZ);
-                passData.Properties.SetInt(s_CutawayEnabled,
-                    passData.CutawayEnabled ? 1 : 0);
+                passData.Properties.SetInt(s_CutawayEnabled, passData.CutawayEnabled ? 1 : 0);
                 passData.Properties.SetVector(s_CutawayMinVoxel, passData.CutawayMinVoxel);
                 passData.Properties.SetVector(s_CutawayMaxVoxel, passData.CutawayMaxVoxel);
                 passData.Properties.SetInt(s_LocalLightCount, passData.LocalLightCount);
