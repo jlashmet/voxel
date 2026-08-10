@@ -189,6 +189,7 @@ namespace VoxelEngine.Rendering
             public ComputeShader DensityCompute;
             public int DensityKernel;
             public TextureHandle CameraColor;
+            public TextureHandle CameraDepth;
             public VoxelGpuBuffers Buffers;
             public float VoxelSize;
             public GpuSurfaceChunkCache SurfaceCache;
@@ -248,6 +249,7 @@ namespace VoxelEngine.Rendering
             data.Properties = _surfaceProperties;
             data.Buffers = _buffers;
             data.CameraColor = resourceData.activeColorTexture;
+            data.CameraDepth = resourceData.activeDepthTexture;
             data.DensityCompute = _densityCompute;
             data.DensityKernel = _densityKernel;
             data.SunDirection = VoxelRenderBridge.SunDirection;
@@ -281,7 +283,12 @@ namespace VoxelEngine.Rendering
             data.SurfaceCache = _surfaceCache;
             data.VisibleEntries = visibleEntries;
 
-            builder.UseTexture(data.CameraColor, AccessFlags.Write);
+            // This pass preserves the camera contents and appends opaque voxel geometry to them,
+            // so both attachments are read/write resources. Binding only color left the shader's
+            // ZWrite/ZTest with no camera depth attachment, allowing underground surfaces and
+            // later chunk draws to appear through nearer terrain.
+            builder.UseTexture(data.CameraColor, AccessFlags.ReadWrite);
+            builder.UseTexture(data.CameraDepth, AccessFlags.ReadWrite);
             builder.AllowPassCulling(false);
 
             builder.SetRenderFunc<SurfaceComputeFrameData>(static (passData, ctx) =>
@@ -359,7 +366,7 @@ namespace VoxelEngine.Rendering
                 passData.Properties.SetFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
                 passData.Properties.SetFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
 
-                ctx.cmd.SetRenderTarget(passData.CameraColor);
+                ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
                 for (int i = 0; i < passData.VisibleEntries.Length; i++)
                     passData.VisibleEntries[i].Extractor.Draw(cmd, passData.Material,
