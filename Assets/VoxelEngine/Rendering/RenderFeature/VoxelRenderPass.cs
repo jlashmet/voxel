@@ -62,15 +62,7 @@ namespace VoxelEngine.Rendering
         private static readonly int s_VoxelSize = Shader.PropertyToID("_VoxelSize");
         private static readonly int s_DebugCoverage = Shader.PropertyToID("_DebugCoverage");
 
-        // An 18^3 lattice can emit at most 13,056 quads with the current triangle kernel:
-        // 3 axes * 17 edge positions * 16 * 16 surrounding-cell positions. Six indices per quad
-        // gives 78,336. The old 24,576 cap silently dropped every quad after the cap and was a
-        // direct source of giant holes through dense castle chunks.
         private const int MaxIndicesPerChunk = 78336;
-
-        // A 3.2 m chunk means 256 slots can barely cover a flat 51 m x 51 m sheet, before any
-        // vertical castle surface or terrain variation is counted. Keep one LOD for correctness,
-        // but give that level enough residency to avoid evicting geometry that is still on screen.
         private const int SurfaceArenaSlots = 512;
 
         private readonly VoxelGpuBuffers _buffers = new();
@@ -235,6 +227,7 @@ namespace VoxelEngine.Rendering
             if (_surfaceExtraction == null || _surfaceMaterial == null) return;
 
             EnsureSurfaceArena();
+            _surfaceCache.InvalidateSurfaceBricks(_buffers.LastSurfaceWorldBricks);
             _surfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
             _surfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
             _surfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
