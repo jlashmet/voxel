@@ -9,12 +9,12 @@ using VoxelEngine.Rendering.SurfaceExtraction;
 namespace VoxelEngine.Rendering
 {
     /// <summary>
-    /// Draws voxel geometry as continuous GPU-authored surface meshes, one per resident chunk.
+    /// Draws voxel geometry as derived meshes through one raster path.
     ///
-    /// The current recovery path deliberately uses one extraction resolution only. The previous
-    /// two-level path switched independently generated 10 cm and 20 cm meshes without stitching
-    /// their shared boundary, which produced visible cracks. A second level should only return
-    /// once the transition itself is watertight.
+    /// Natural chunks currently use the GPU smooth extractor while authored structure chunks use
+    /// an exact greedy hard-surface mesher. Both produce the same vertex/index vocabulary and are
+    /// drawn by the same material/depth pass. Transvoxel will replace the temporary smooth
+    /// extractor without changing this ownership model.
     /// </summary>
     public sealed class VoxelRenderPass : ScriptableRenderPass, IDisposable
     {
@@ -64,6 +64,7 @@ namespace VoxelEngine.Rendering
 
         private const int MaxIndicesPerChunk = 78336;
         private const int SurfaceArenaSlots = 512;
+        private const int RecoveryBricksPerChunkAxis = 16;
 
         private readonly VoxelGpuBuffers _buffers = new();
         // Recovery LOD: keep the existing 18^3 extraction lattice/arena footprint but cover
@@ -71,12 +72,14 @@ namespace VoxelEngine.Rendering
         // needed 256 mesh slots per 51.2 m terrain region, so the 512-slot arena could not even
         // represent the nine regions preloaded around the showcase castle. 16 bricks at step 8
         // still gives 128 / 8 + 2 = 18 lattice samples, while covering 16x more ground per slot.
-        private readonly GpuSurfaceChunkCache _surfaceCache = new(16, 8)
+        private readonly GpuSurfaceChunkCache _surfaceCache = new(RecoveryBricksPerChunkAxis, 8)
         {
             MaxBuildsPerFrame = 16,
             MaxResidentChunks = SurfaceArenaSlots,
             MaxIndicesPerChunk = MaxIndicesPerChunk
         };
+        private readonly CpuHardSurfaceChunkCache _hardSurfaceCache =
+            new(RecoveryBricksPerChunkAxis);
         private GpuSurfaceArena _surfaceArena;
 
         private ComputeShader _surfaceExtraction;
@@ -215,6 +218,7 @@ namespace VoxelEngine.Rendering
             public float FlashlightInnerCos;
             public float FlashlightOuterCos;
             public GpuSurfaceChunkCache.Entry[] VisibleEntries;
+            public CpuHardSurfaceChunkCache.Entry[] HardEntries;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -227,8 +231,14 @@ namespace VoxelEngine.Rendering
             var camera = cameraData.camera;
             if (camera.cameraType == CameraType.Preview) return;
 
-            _buffers.Sync(ref world.Table, ref world.Pool, world.CameraRegion,
-                          VoxelRenderBridge.RegionsNeedingUpload);
+            // Consume authored-structure semantics before VoxelGpuBuffers clears the shared dirty
+            // region set. New exact meshes are swapped atomically when complete; until then the
+            // old smooth chunk remains visible.
+            var dirtyRegions = VoxelRenderBridge.RegionsNeedingUpload;
+            _hardSurfaceCache.Sync(ref world.Table, in world.Pool, dirtyRegions,
+                                   camera.transform.position, VoxelSize);
+
+            _buffers.Sync(ref world.Table, ref world.Pool, world.CameraRegion, dirtyRegions);
 
             if (_surfaceExtraction == null || _surfaceMaterial == null) return;
 
@@ -237,11 +247,26 @@ namespace VoxelEngine.Rendering
             _surfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
             _surfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
             _surfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
+            var hardVisible = _hardSurfaceCache.CollectVisible(camera, VoxelSize);
 
-            int visibleChunks = _surfaceCache.Visible.Count;
+            // Representation ownership is disjoint. Only suppress a smooth chunk once its exact
+            // replacement is Ready; this prevents the transition itself from making a hole.
+            int visibleChunks = 0;
+            for (int i = 0; i < _surfaceCache.Visible.Count; i++)
+                if (!_hardSurfaceCache.OwnsRenderedChunk(_surfaceCache.Visible[i].Coordinate))
+                    visibleChunks++;
+
             var visibleEntries = new GpuSurfaceChunkCache.Entry[visibleChunks];
-            for (int i = 0; i < visibleChunks; i++)
-                visibleEntries[i] = _surfaceCache.Visible[i];
+            int visibleWrite = 0;
+            for (int i = 0; i < _surfaceCache.Visible.Count; i++)
+            {
+                var entry = _surfaceCache.Visible[i];
+                if (_hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate)) continue;
+                visibleEntries[visibleWrite++] = entry;
+            }
+
+            var hardEntries = new CpuHardSurfaceChunkCache.Entry[hardVisible.Count];
+            for (int i = 0; i < hardVisible.Count; i++) hardEntries[i] = hardVisible[i];
 
             using var builder = renderGraph.AddUnsafePass(k_PassName, out SurfaceComputeFrameData data);
 
@@ -282,6 +307,7 @@ namespace VoxelEngine.Rendering
             data.SurfaceExtraction = _surfaceExtraction;
             data.SurfaceCache = _surfaceCache;
             data.VisibleEntries = visibleEntries;
+            data.HardEntries = hardEntries;
 
             // This pass preserves the camera contents and appends opaque voxel geometry to them,
             // so both attachments are read/write resources. Binding only color left the shader's
@@ -368,6 +394,9 @@ namespace VoxelEngine.Rendering
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
+                for (int i = 0; i < passData.HardEntries.Length; i++)
+                    passData.HardEntries[i].Draw(cmd, passData.Material, passData.Properties);
+
                 for (int i = 0; i < passData.VisibleEntries.Length; i++)
                     passData.VisibleEntries[i].Extractor.Draw(cmd, passData.Material,
                                                               passData.Properties);
@@ -376,6 +405,7 @@ namespace VoxelEngine.Rendering
 
         public void Dispose()
         {
+            _hardSurfaceCache.Dispose();
             _surfaceCache.Dispose();
             _surfaceArena?.Dispose();
             _surfaceArena = null;
