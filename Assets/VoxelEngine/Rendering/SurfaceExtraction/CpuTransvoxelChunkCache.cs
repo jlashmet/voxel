@@ -410,7 +410,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// Small signed field around authoritative occupancy. The regular Transvoxel grid is four
         /// voxels apart, so interpolation supplies the large-scale smooth surface while this local
         /// 13-tap kernel prevents the field from becoming a binary staircase at each sample.
-        /// Negative means inside, matching the Transvoxel reference implementation.
+        /// Positive is inside and negative is outside. The imported regular-cell tables use their
+        /// negative case bits for the exterior side; keeping that convention gives outward Unity
+        /// triangle winding and makes the existing central-difference expression point outward.
         /// </summary>
         private static float SampleField(ref RegionTable table, in BrickPool pool, int3 p,
                                          out byte dominantMaterial)
@@ -442,7 +444,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             mass += Add(ref table, in pool, p + new int3(0,0, 2), 0.04f, ref dominantMaterial);
             mass += Add(ref table, in pool, p + new int3(0,0,-2), 0.04f, ref dominantMaterial);
 
-            return 0.5f - mass;
+            return mass - 0.5f;
         }
 
         private static bool IsSmoothFieldMaterial(byte material) =>
