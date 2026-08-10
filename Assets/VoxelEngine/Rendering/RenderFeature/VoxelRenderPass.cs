@@ -66,9 +66,14 @@ namespace VoxelEngine.Rendering
         private const int SurfaceArenaSlots = 512;
 
         private readonly VoxelGpuBuffers _buffers = new();
-        private readonly GpuSurfaceChunkCache _surfaceCache = new()
+        // Recovery LOD: keep the existing 18^3 extraction lattice/arena footprint but cover
+        // 128 authoritative voxels (12.8 m) per chunk instead of 32 (3.2 m). The old layout
+        // needed 256 mesh slots per 51.2 m terrain region, so the 512-slot arena could not even
+        // represent the nine regions preloaded around the showcase castle. 16 bricks at step 8
+        // still gives 128 / 8 + 2 = 18 lattice samples, while covering 16x more ground per slot.
+        private readonly GpuSurfaceChunkCache _surfaceCache = new(16, 8)
         {
-            MaxBuildsPerFrame = 8,
+            MaxBuildsPerFrame = 16,
             MaxResidentChunks = SurfaceArenaSlots,
             MaxIndicesPerChunk = MaxIndicesPerChunk
         };
