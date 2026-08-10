@@ -11,10 +11,10 @@ namespace VoxelEngine.Rendering
     /// <summary>
     /// Draws voxel geometry as derived meshes through one raster path.
     ///
-    /// Natural chunks currently use the GPU smooth extractor while authored structure chunks use
-    /// an exact greedy hard-surface mesher. Both produce the same vertex/index vocabulary and are
-    /// drawn by the same material/depth pass. Transvoxel will replace the temporary smooth
-    /// extractor without changing this ownership model.
+    /// Authored structure chunks use the exact greedy hard mesher. Smooth chunks are migrating
+    /// from the temporary GPU Surface Nets cache to a CPU regular-cell Transvoxel cache; the old
+    /// smooth entry remains visible only until its replacement is complete. All representations
+    /// share the same vertex/index contract, material, depth target and raster pass.
     /// </summary>
     public sealed class VoxelRenderPass : ScriptableRenderPass, IDisposable
     {
@@ -67,17 +67,18 @@ namespace VoxelEngine.Rendering
         private const int RecoveryBricksPerChunkAxis = 16;
 
         private readonly VoxelGpuBuffers _buffers = new();
-        // Recovery LOD: keep the existing 18^3 extraction lattice/arena footprint but cover
-        // 128 authoritative voxels (12.8 m) per chunk instead of 32 (3.2 m). The old layout
-        // needed 256 mesh slots per 51.2 m terrain region, so the 512-slot arena could not even
-        // represent the nine regions preloaded around the showcase castle. 16 bricks at step 8
-        // still gives 128 / 8 + 2 = 18 lattice samples, while covering 16x more ground per slot.
+
+        // Temporary migration source. It keeps a coarse mesh alive until the corresponding
+        // Transvoxel entry is ready, then stops drawing that chunk. Once the new smooth cache has
+        // been validated this cache/arena and CSBuildDensity dependency can be removed entirely.
         private readonly GpuSurfaceChunkCache _surfaceCache = new(RecoveryBricksPerChunkAxis, 8)
         {
             MaxBuildsPerFrame = 16,
             MaxResidentChunks = SurfaceArenaSlots,
             MaxIndicesPerChunk = MaxIndicesPerChunk
         };
+
+        private readonly CpuTransvoxelChunkCache _transvoxelCache = new();
         private readonly CpuHardSurfaceChunkCache _hardSurfaceCache =
             new(RecoveryBricksPerChunkAxis);
         private GpuSurfaceArena _surfaceArena;
@@ -218,6 +219,7 @@ namespace VoxelEngine.Rendering
             public float FlashlightInnerCos;
             public float FlashlightOuterCos;
             public GpuSurfaceChunkCache.Entry[] VisibleEntries;
+            public CpuTransvoxelChunkCache.Entry[] TransvoxelEntries;
             public CpuHardSurfaceChunkCache.Entry[] HardEntries;
         }
 
@@ -231,12 +233,12 @@ namespace VoxelEngine.Rendering
             var camera = cameraData.camera;
             if (camera.cameraType == CameraType.Preview) return;
 
-            // Consume authored-structure semantics before VoxelGpuBuffers clears the shared dirty
-            // region set. New exact meshes are swapped atomically when complete; until then the
-            // old smooth chunk remains visible.
+            // Both CPU mesh caches consume edit invalidation before VoxelGpuBuffers drains the
+            // shared set. Their old ready meshes stay visible while a replacement is built.
             var dirtyRegions = VoxelRenderBridge.RegionsNeedingUpload;
             _hardSurfaceCache.Sync(ref world.Table, in world.Pool, dirtyRegions,
                                    camera.transform.position, VoxelSize);
+            _transvoxelCache.InvalidateDirtyRegions(dirtyRegions);
 
             _buffers.Sync(ref world.Table, ref world.Pool, world.CameraRegion, dirtyRegions);
 
@@ -254,26 +256,57 @@ namespace VoxelEngine.Rendering
             if (_surfaceExtraction == null || _surfaceMaterial == null) return;
 
             EnsureSurfaceArena();
+
+            // New smooth path: regular Transvoxel cells at 40 cm. Discovery remains sourced from
+            // the proven resident-surface scan during migration; the mesher itself reads only the
+            // authoritative CPU voxel world and does not read GPU density back.
+            _transvoxelCache.InvalidateSurfaceBricks(_buffers.LastSurfaceWorldBricks);
+            _transvoxelCache.Prepare(ref world.Table, in world.Pool, camera,
+                                     VoxelSize, Time.frameCount);
+            var transvoxelVisible = _transvoxelCache.CollectVisible(camera, VoxelSize,
+                                                                    Time.frameCount);
+
+            // Coarse migration source. Continue scheduling it until the replacement owns each
+            // chunk, so initial load cannot expose holes merely because CPU meshing is budgeted.
             _surfaceCache.InvalidateSurfaceBricks(_buffers.LastSurfaceWorldBricks);
             _surfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
             _surfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
             _surfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
             var hardVisible = _hardSurfaceCache.CollectVisible(camera, VoxelSize);
 
-            // Representation ownership is disjoint. Only suppress a smooth chunk once its exact
-            // replacement is Ready; this prevents the transition itself from making a hole.
-            int visibleChunks = 0;
+            int coarseVisibleCount = 0;
             for (int i = 0; i < _surfaceCache.Visible.Count; i++)
-                if (!_hardSurfaceCache.OwnsRenderedChunk(_surfaceCache.Visible[i].Coordinate))
-                    visibleChunks++;
+            {
+                int3CoordinateShim(_surfaceCache.Visible[i].Coordinate, out var coordinate);
+                if (_hardSurfaceCache.OwnsRenderedChunk(coordinate)
+                    || _transvoxelCache.OwnsRenderedChunk(coordinate))
+                    continue;
+                coarseVisibleCount++;
+            }
 
-            var visibleEntries = new GpuSurfaceChunkCache.Entry[visibleChunks];
-            int visibleWrite = 0;
+            var visibleEntries = new GpuSurfaceChunkCache.Entry[coarseVisibleCount];
+            int coarseWrite = 0;
             for (int i = 0; i < _surfaceCache.Visible.Count; i++)
             {
                 var entry = _surfaceCache.Visible[i];
+                if (_hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate)
+                    || _transvoxelCache.OwnsRenderedChunk(entry.Coordinate))
+                    continue;
+                visibleEntries[coarseWrite++] = entry;
+            }
+
+            int transvoxelCount = 0;
+            for (int i = 0; i < transvoxelVisible.Count; i++)
+                if (!_hardSurfaceCache.OwnsRenderedChunk(transvoxelVisible[i].Coordinate))
+                    transvoxelCount++;
+
+            var transvoxelEntries = new CpuTransvoxelChunkCache.Entry[transvoxelCount];
+            int transvoxelWrite = 0;
+            for (int i = 0; i < transvoxelVisible.Count; i++)
+            {
+                var entry = transvoxelVisible[i];
                 if (_hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate)) continue;
-                visibleEntries[visibleWrite++] = entry;
+                transvoxelEntries[transvoxelWrite++] = entry;
             }
 
             var hardEntries = new CpuHardSurfaceChunkCache.Entry[hardVisible.Count];
@@ -318,12 +351,9 @@ namespace VoxelEngine.Rendering
             data.SurfaceExtraction = _surfaceExtraction;
             data.SurfaceCache = _surfaceCache;
             data.VisibleEntries = visibleEntries;
+            data.TransvoxelEntries = transvoxelEntries;
             data.HardEntries = hardEntries;
 
-            // This pass preserves the camera contents and appends opaque voxel geometry to them,
-            // so both attachments are read/write resources. Binding only color left the shader's
-            // ZWrite/ZTest with no camera depth attachment, allowing underground surfaces and
-            // later chunk draws to appear through nearer terrain.
             builder.UseTexture(data.CameraColor, AccessFlags.ReadWrite);
             builder.UseTexture(data.CameraDepth, AccessFlags.ReadWrite);
             builder.AllowPassCulling(false);
@@ -405,18 +435,30 @@ namespace VoxelEngine.Rendering
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
-                for (int i = 0; i < passData.HardEntries.Length; i++)
-                    passData.HardEntries[i].Draw(cmd, passData.Material, passData.Properties);
-
+                // Migration fallback first, then the new smooth representation, then exact hard
+                // chunks. Ownership filtering above ensures these normally do not overlap.
                 for (int i = 0; i < passData.VisibleEntries.Length; i++)
                     passData.VisibleEntries[i].Extractor.Draw(cmd, passData.Material,
                                                               passData.Properties);
+
+                for (int i = 0; i < passData.TransvoxelEntries.Length; i++)
+                    passData.TransvoxelEntries[i].Draw(cmd, passData.Material,
+                                                       passData.Properties);
+
+                for (int i = 0; i < passData.HardEntries.Length; i++)
+                    passData.HardEntries[i].Draw(cmd, passData.Material, passData.Properties);
             });
         }
+
+        // Kept as a tiny no-op shim solely to make the ownership loop read clearly without
+        // introducing an implicit conversion dependency into the render-pass logic.
+        private static void int3CoordinateShim(Unity.Mathematics.int3 value,
+                                               out Unity.Mathematics.int3 result) => result = value;
 
         public void Dispose()
         {
             _hardSurfaceCache.Dispose();
+            _transvoxelCache.Dispose();
             _surfaceCache.Dispose();
             _surfaceArena?.Dispose();
             _surfaceArena = null;
