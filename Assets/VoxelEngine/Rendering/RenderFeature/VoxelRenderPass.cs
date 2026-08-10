@@ -11,11 +11,10 @@ namespace VoxelEngine.Rendering
     /// <summary>
     /// Draws voxel geometry as continuous GPU-authored surface meshes, one per resident chunk.
     ///
-    /// The coarse level covers all visible chunks; the near field fills gaps at close range.
-    /// Both paths share depth with the rest of the scene and use identical lighting to the
-    /// raymarch for seamless parity when both are active (Constitution Principle II).
-    /// The parameters this pass carries — render scale, voxel size — are presentation-only.
-    /// Nothing here feeds world state.
+    /// The current recovery path deliberately uses one extraction resolution only. The previous
+    /// two-level path switched independently generated 10 cm and 20 cm meshes without stitching
+    /// their shared boundary, which produced visible cracks. A second level should only return
+    /// once the transition itself is watertight.
     /// </summary>
     public sealed class VoxelRenderPass : ScriptableRenderPass, IDisposable
     {
@@ -67,55 +66,21 @@ namespace VoxelEngine.Rendering
         private static readonly int s_VoxelSize = Shader.PropertyToID("_VoxelSize");
         private static readonly int s_DebugCoverage = Shader.PropertyToID("_DebugCoverage");
 
+        // An 18^3 lattice can emit at most 13,056 quads with the current triangle kernel:
+        // 3 axes * 17 edge positions * 16 * 16 surrounding-cell positions. Six indices per quad
+        // gives 78,336. The old 24,576 cap silently dropped every quad after the cap and was a
+        // direct source of giant holes through dense castle chunks.
+        private const int MaxIndicesPerChunk = 78336;
+        private const int SurfaceArenaSlots = 256;
+
         private readonly VoxelGpuBuffers _buffers = new();
-        // The coarse level deliberately has no minimum distance: it covers the whole visible
-        // range so there is always a surface to draw, and the fine level suppresses it per chunk
-        // once every child is resident. Gating the coarse level by distance instead left holes
-        // wherever the fine level had not caught up.
-        private readonly GpuSurfaceChunkCache _surfaceCache = new();
-        private readonly GpuSurfaceChunkCache _nearSurfaceCache = new(2, 1)
+        private readonly GpuSurfaceChunkCache _surfaceCache = new()
         {
             MaxBuildsPerFrame = 8,
-            MaxDistance = 22f
+            MaxResidentChunks = SurfaceArenaSlots,
+            MaxIndicesPerChunk = MaxIndicesPerChunk
         };
         private GpuSurfaceArena _surfaceArena;
-        private GpuSurfaceArena _nearSurfaceArena;
-
-        // Resident chunk counts are a declared memory budget, not a residency preference: each
-        // slot costs cells * 32 B of vertices plus its index arena. These two total roughly
-        // 100 MB, allocated once at startup and never churned.
-        private const int CoarseArenaSlots = 256;
-        private const int NearArenaSlots = 160;
-
-        public VoxelRenderPass()
-        {
-            _surfaceCache.Finer = _nearSurfaceCache;
-            _nearSurfaceCache.Coarser = _surfaceCache;
-        }
-
-        private void EnsureSurfaceArenas()
-        {
-            if (_surfaceArena is { IsCreated: true } && _nearSurfaceArena is { IsCreated: true })
-                return;
-
-            _surfaceArena?.Dispose();
-            _nearSurfaceArena?.Dispose();
-
-            int coarseCells = CellsPerChunk(_surfaceCache);
-            int nearCells = CellsPerChunk(_nearSurfaceCache);
-            _surfaceArena = new GpuSurfaceArena(CoarseArenaSlots, coarseCells,
-                                                _surfaceCache.MaxIndicesPerChunk);
-            _nearSurfaceArena = new GpuSurfaceArena(NearArenaSlots, nearCells,
-                                                    _nearSurfaceCache.MaxIndicesPerChunk);
-            _surfaceCache.Arena = _surfaceArena;
-            _nearSurfaceCache.Arena = _nearSurfaceArena;
-        }
-
-        private static int CellsPerChunk(GpuSurfaceChunkCache cache)
-        {
-            int cells = cache.GridSamplesPerAxis - 1;
-            return cells * cells * cells;
-        }
 
         private ComputeShader _surfaceExtraction;
         private ComputeShader _densityCompute;
@@ -144,16 +109,21 @@ namespace VoxelEngine.Rendering
         public float VoxelSize { get; set; } = 0.1f;
         public bool Enabled { get; set; } = true;
 
-        /// <summary>Bricks uploaded on the most recent frame — surfaced for the HUD.</summary>
         public int LastBricksUploaded => _buffers.LastBricksUploaded;
-
         public int ResidentSlots => _buffers.ResidentSlots;
-
-        /// <summary>
-        /// The GPU mirror this pass owns. Public so a test can force allocation and then assert
-        /// the memory comes back — the leak that took a machine down was invisible from outside.
-        /// </summary>
         public VoxelGpuBuffers Buffers => _buffers;
+
+        private void EnsureSurfaceArena()
+        {
+            if (_surfaceArena is { IsCreated: true }) return;
+
+            _surfaceArena?.Dispose();
+            int cells = _surfaceCache.GridSamplesPerAxis - 1;
+            int cellsPerChunk = cells * cells * cells;
+            _surfaceArena = new GpuSurfaceArena(SurfaceArenaSlots, cellsPerChunk,
+                                                _surfaceCache.MaxIndicesPerChunk);
+            _surfaceCache.Arena = _surfaceArena;
+        }
 
         public void Setup(ComputeShader surfaceExtraction = null,
                           Shader surfaceShader = null,
@@ -172,13 +142,11 @@ namespace VoxelEngine.Rendering
             _densityCompute = densityCompute;
             _densityKernel = densityCompute != null && densityCompute.HasKernel("CSBuildDensity")
                 ? densityCompute.FindKernel("CSBuildDensity") : -1;
-            UnityEngine.Debug.Log(
-                "VoxelRenderPass Setup: extr=" + (surfaceExtraction != null)
-                + " shader=" + (surfaceShader != null)
-                + " density=" + (_densityKernel >= 0));
+
             CoreUtils.Destroy(_surfaceMaterial);
             _surfaceMaterial = surfaceShader != null
                 ? CoreUtils.CreateEngineMaterial(surfaceShader) : null;
+
             _stoneTexture = stoneTexture;
             _woodTexture = woodTexture;
             _sandTexture = sandTexture;
@@ -196,6 +164,7 @@ namespace VoxelEngine.Rendering
             _darkStoneTexture = darkStoneTexture;
             _darkStoneNormal = darkStoneNormal;
             _skyTexture = skyTexture;
+
             if (_surfaceMaterial != null)
             {
                 _surfaceMaterial.SetTexture("_StoneTexture", stoneTexture);
@@ -217,8 +186,6 @@ namespace VoxelEngine.Rendering
             }
         }
 
-        // Per-frame state for surface mesh rendering: shared between preparation (outside
-        // the render function) and the combined set-render-func that does extraction + draw.
         private class SurfaceComputeFrameData
         {
             public ComputeShader SurfaceExtraction;
@@ -228,8 +195,6 @@ namespace VoxelEngine.Rendering
             public VoxelGpuBuffers Buffers;
             public float VoxelSize;
             public GpuSurfaceChunkCache SurfaceCache;
-            public GpuSurfaceChunkCache NearSurfaceCache;
-            // Material and lighting state set each frame via MaterialPropertyBlock.
             public Material Material;
             public MaterialPropertyBlock Properties;
             public Vector4[] MaterialColours;
@@ -251,39 +216,7 @@ namespace VoxelEngine.Rendering
             public float FlashlightRange;
             public float FlashlightInnerCos;
             public float FlashlightOuterCos;
-            // Per-chunk workspace. vertexCounts[i] = index count for chunk i;
-            // visibleEntries[i] = the compact visible-chunk list (populated outside the
-            // render function, read from within).
-            public int[] VertexCounts;
             public GpuSurfaceChunkCache.Entry[] VisibleEntries;
-        }
-
-        private class SurfacePassData
-        {
-            public GpuSurfaceChunkCache.Entry[] Entries;
-            public Material Material;
-            public MaterialPropertyBlock Properties;
-            public Vector4[] MaterialColours;
-            public Color BaseColor;
-            public Vector4 SunDirection;
-            public Vector4 SkyHorizon;
-            public Vector4 SkyZenith;
-            public float VoxelSize;
-            public VoxelGpuBuffers Buffers;
-            public Vector4 WindowOrigin;
-            public Vector4 CutawayMinVoxel;
-            public Vector4 CutawayMaxVoxel;
-            public bool CutawayEnabled;
-            public int LocalLightCount;
-            public Vector4[] LocalLights;
-            public Vector4[] LocalLightColours;
-            public bool FlashlightEnabled;
-            public Vector4 FlashlightPosition;
-            public Vector4 FlashlightDirection;
-            public Vector4 FlashlightColour;
-            public float FlashlightRange;
-            public float FlashlightInnerCos;
-            public float FlashlightOuterCos;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -296,51 +229,23 @@ namespace VoxelEngine.Rendering
             var camera = cameraData.camera;
             if (camera.cameraType == CameraType.Preview) return;
 
-            // The GPU mirror is refreshed while recording rather than inside the render function:
-            // it uploads through ComputeBuffer.SetData, which is immediate and has no place in a
-            // deferred command list.
             _buffers.Sync(ref world.Table, ref world.Pool, world.CameraRegion,
                           VoxelRenderBridge.RegionsNeedingUpload);
 
-            bool drawContinuousSurface = _surfaceExtraction != null && _surfaceMaterial != null;
-            if (drawContinuousSurface)
-            {
-                EnsureSurfaceArenas();
-                _surfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
-                _nearSurfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
-                _surfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
-                _nearSurfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
-                // Coarse level first: it decides, per chunk, whether to keep drawing or hand its
-                // ground to the finer level. The finer level then draws only where it was handed.
-                _surfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
-                _nearSurfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
-            }
+            if (_surfaceExtraction == null || _surfaceMaterial == null) return;
 
-            if (!drawContinuousSurface) return;
+            EnsureSurfaceArena();
+            _surfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
+            _surfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
+            _surfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
 
-            int visibleChunks = _surfaceCache.Visible.Count + _nearSurfaceCache.Visible.Count;
-            UnityEngine.Debug.Log(
-                "VoxelRenderPass SURFACE: visible=" + _surfaceCache.Visible.Count
-                + "+" + _nearSurfaceCache.Visible.Count
-                + " arenas=" + (_surfaceArena != null && _surfaceArena.IsCreated));
-
-            // Count visible chunks once — shared between arena buffer sizing and the command
-            // buffer loop below. Must match exactly what Extractor.Draw() will emit.
-            using var builder = renderGraph.AddUnsafePass(
-                "VoxelEngine.ContinuousSurface", out SurfaceComputeFrameData data);
-
-            // Allocate per-frame work buffers and arrays outside the render function so they are
-            // built once per frame rather than every draw call. The visible-chunk entries hold a
-            // compact list of which arena slots contribute geometry this frame.
-            int[] vertexCounts = new int[visibleChunks];
+            int visibleChunks = _surfaceCache.Visible.Count;
             var visibleEntries = new GpuSurfaceChunkCache.Entry[visibleChunks];
-            int entryCursor = 0;
-            for (int i = 0; i < _surfaceCache.Visible.Count; i++)
-                visibleEntries[entryCursor++] = _surfaceCache.Visible[i];
-            entryCursor = 0;
-            for (int i = 0; i < _nearSurfaceCache.Visible.Count; i++)
-                visibleEntries[visibleChunks - _nearSurfaceCache.Visible.Count + i]
-                    = _nearSurfaceCache.Visible[i];
+            for (int i = 0; i < visibleChunks; i++)
+                visibleEntries[i] = _surfaceCache.Visible[i];
+
+            using var builder = renderGraph.AddUnsafePass(
+                k_PassName, out SurfaceComputeFrameData data);
 
             data.Material = _surfaceMaterial;
             data.Properties = _surfaceProperties;
@@ -377,27 +282,15 @@ namespace VoxelEngine.Rendering
             data.VoxelSize = VoxelSize;
             data.SurfaceExtraction = _surfaceExtraction;
             data.SurfaceCache = _surfaceCache;
-            data.NearSurfaceCache = _nearSurfaceCache;
-            data.VertexCounts = vertexCounts;
             data.VisibleEntries = visibleEntries;
 
             builder.UseTexture(data.CameraColor, AccessFlags.Write);
             builder.AllowPassCulling(false);
 
-            // Single pass does both: dispatches compute to fill arena buffers with extracted
-            // geometry, then draws from those arenas as procedural mesh. Keeping them together
-            // avoids the render graph crash that occurs when AddRasterRenderPass follows
-            // AddUnsafePass within the same RecordRenderGraph call — URP's internal state
-            // management for top-level passes does not permit mixing these APIs.
             builder.SetRenderFunc<SurfaceComputeFrameData>(static (passData, ctx) =>
             {
-                UnityEngine.Debug.Log(
-                    "VoxelRenderPass RENDER_FUNC: visible_entries=" + passData.VisibleEntries.Length
-                    + " density_jobs=" + passData.Buffers.DensityJobCount);
                 var cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
 
-                // The Surface Nets migration kept producing density jobs but removed the dispatch
-                // that consumes them. Rebuild the scalar field first so extraction sees crossings.
                 if (passData.DensityCompute != null && passData.DensityKernel >= 0
                     && passData.Buffers.DensityJobCount > 0)
                 {
@@ -434,13 +327,9 @@ namespace VoxelEngine.Rendering
                                         passData.Buffers.DensityJobCount, 1, 1);
                 }
 
-                // Step 1: extract surface geometry into arena buffers on the GPU.
                 passData.SurfaceCache.RecordScheduled(cmd, passData.SurfaceExtraction,
                                                       passData.Buffers, passData.VoxelSize);
-                passData.NearSurfaceCache?.RecordScheduled(cmd, passData.SurfaceExtraction,
-                                                           passData.Buffers, passData.VoxelSize);
 
-                // Step 2: populate the material block — every frame the visible chunk set changes.
                 passData.Properties.SetVectorArray(s_MaterialColours, passData.MaterialColours);
                 passData.Properties.SetColor(s_BaseColor, passData.BaseColor);
                 passData.Properties.SetVector(s_SunDirection, passData.SunDirection);
@@ -479,11 +368,8 @@ namespace VoxelEngine.Rendering
                 passData.Properties.SetFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
                 passData.Properties.SetFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
 
-                // An unsafe RenderGraph pass does not receive the camera attachment implicitly.
-                // Bind it explicitly before issuing the procedural raster draws.
                 ctx.cmd.SetRenderTarget(passData.CameraColor);
 
-                // Step 3: draw every visible chunk's extracted geometry from the arena buffers.
                 for (int i = 0; i < passData.VisibleEntries.Length; i++)
                     passData.VisibleEntries[i].Extractor.Draw(cmd, passData.Material,
                                                               passData.Properties);
@@ -492,13 +378,9 @@ namespace VoxelEngine.Rendering
 
         public void Dispose()
         {
-            // Chunks first: each returns its slot to the arena before the arena goes away.
             _surfaceCache.Dispose();
-            _nearSurfaceCache.Dispose();
             _surfaceArena?.Dispose();
-            _nearSurfaceArena?.Dispose();
             _surfaceArena = null;
-            _nearSurfaceArena = null;
             _buffers.Dispose();
             CoreUtils.Destroy(_surfaceMaterial);
             _surfaceMaterial = null;
