@@ -83,7 +83,11 @@ namespace VoxelEngine.Structures
                 return;
             }
 
-            if (VoxelAccess.SetVoxel(ref _table, ref _pool, new int3(x, y, z), material))
+            // VoxelBrush is the semantic boundary between authored structures and natural
+            // terrain. Preserve that information instead of trying to infer geometry vocabulary
+            // from material later (castle stone and cliff stone intentionally share a material).
+            if (VoxelAccess.SetVoxel(ref _table, ref _pool, new int3(x, y, z), material,
+                                     markHardSurface: true))
                 VoxelsWritten++;
         }
 
@@ -158,8 +162,18 @@ namespace VoxelEngine.Structures
                 var region = _table.LoadRegion(regionCoord);
                 int brickIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y, brickInRegion.z);
                 var brick = region.BrickRefs[brickIndex];
+                bool semanticChanged = region.MarkHardSurfaceBrick(brickIndex);
 
-                if (brick.IsUniform && brick.UniformMaterial == material) continue;
+                if (brick.IsUniform && brick.UniformMaterial == material)
+                {
+                    if (semanticChanged)
+                    {
+                        region.Dirty = true;
+                        _table.CommitRegion(region);
+                        BricksWritten++;
+                    }
+                    continue;
+                }
 
                 int poolIndex;
                 if (brick.IsUniform)
@@ -192,6 +206,12 @@ namespace VoxelEngine.Structures
                     {
                         _pool.Free(poolIndex);
                         region.BrickRefs[brickIndex] = brick;
+                    }
+                    if (semanticChanged)
+                    {
+                        region.Dirty = true;
+                        _table.CommitRegion(region);
+                        BricksWritten++;
                     }
                     continue;
                 }
@@ -231,6 +251,7 @@ namespace VoxelEngine.Structures
 
             int index = Region.BrickIndex(bx, by, bz);
             var existing = region.BrickRefs[index];
+            bool semanticChanged = region.MarkHardSurfaceBrick(index);
 
             // Hand back the pool slot, or the brick leaks for the life of the session.
             if (existing.IsMixed) _pool.Free(existing.PoolIndex);
@@ -244,8 +265,10 @@ namespace VoxelEngine.Structures
 
             // Counted separately: this is one pointer write, not 512 voxel writes, and charging
             // it as 512 would make the cheap path look expensive and push callers back onto the
-            // expensive one.
-            BricksWritten++;
+            // expensive one. A semantic-only write still counts because it changes derived mesh
+            // ownership even when the material reference already matched.
+            if (semanticChanged || existing.Value != region.BrickRefs[index].Value)
+                BricksWritten++;
         }
 
         public byte Get(int x, int y, int z) =>
