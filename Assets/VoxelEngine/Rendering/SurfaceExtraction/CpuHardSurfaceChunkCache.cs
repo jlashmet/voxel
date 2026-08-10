@@ -170,6 +170,14 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                          HashSet<int3> dirtyRegions, Vector3 cameraWorldPosition,
                          float voxelSize, double budgetMs = 0.20)
         {
+            bool bootstrap = budgetMs >= 10.0;
+
+            // The legacy classifier runs between the render pass's normal Sync and its explicit
+            // bootstrap Sync. Force a semantic rescan for that one startup call so regions cached
+            // as "already scanned" before the classifier ran can immediately expose their newly
+            // tagged castle bricks.
+            if (bootstrap) _scannedRegions.Clear();
+
             if (dirtyRegions != null)
                 foreach (int3 dirtyRegion in dirtyRegions)
                     _scannedRegions.Remove(dirtyRegion);
@@ -182,7 +190,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             // bootstrap. Treat that as a request to finish as much of the initial castle as
             // possible in one startup hitch rather than leaking a 1+ ms tax over many frames.
             // Normal destruction/edit rebuilds stay tiny and cooperative.
-            bool bootstrap = budgetMs >= 10.0;
             double effectiveBudgetMs = bootstrap ? 60.0 : math.max(0.0, budgetMs);
             double deadline = Time.realtimeSinceStartupAsDouble + effectiveBudgetMs * 0.001;
 
