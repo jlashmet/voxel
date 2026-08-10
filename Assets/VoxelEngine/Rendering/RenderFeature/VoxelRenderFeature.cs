@@ -19,8 +19,13 @@ namespace VoxelEngine.Rendering
         [Header("Continuous GPU surface")]
         [Tooltip("SmoothSurface.compute")]
         [SerializeField] private ComputeShader m_SurfaceExtraction;
+
         [Tooltip("Hidden/VoxelEngine/SmoothSurface")]
         [SerializeField] private Shader m_SurfaceShader;
+
+        // TEMP: density generation still lives in BrickRaymarch.compute.
+        [Tooltip("BrickRaymarch.compute (only CSBuildDensity kernel)")]
+        [SerializeField] private ComputeShader m_DensityCompute;
 
         [Header("Stylized surface textures")]
         [SerializeField] private Texture2D m_StoneTexture;
@@ -68,7 +73,7 @@ namespace VoxelEngine.Rendering
             m_Pass?.Dispose();
 
             m_Pass = new VoxelRenderPass();
-            m_Pass.Setup(m_SurfaceExtraction, m_SurfaceShader,
+            m_Pass.Setup(m_SurfaceExtraction, m_SurfaceShader, m_DensityCompute,
                          m_StoneTexture, m_WoodTexture, m_SandTexture,
                          m_RockTexture, m_SlateTexture, m_GrassTexture, m_DirtTexture,
                          m_StoneNormal, m_WoodNormal, m_SandNormal, m_RockNormal,

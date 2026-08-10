@@ -21,13 +21,19 @@ namespace VoxelEngine.Rendering
     {
         private const string k_PassName = "VoxelEngine.ContinuousSurface";
 
-        // Shader property names for GPU buffer binding (used by surface shader and density path).
-        // These strings must match exactly what the HLSL shaders expect.
+        // Compute-kernel buffer IDs — bound via SetComputeBufferParam to SmoothSurface.compute /
+        // BrickRaymarch.compute kernels.  Must match the g_ names declared in the HLSL files.
         private static readonly int s_RegionWindow = Shader.PropertyToID("g_RegionWindow");
         private static readonly int s_BrickRefs = Shader.PropertyToID("g_BrickRefs");
         private static readonly int s_BrickVoxels = Shader.PropertyToID("g_BrickVoxels");
         private static readonly int s_DensityJobs = Shader.PropertyToID("g_DensityJobs");
         private static readonly int s_DensityJobCount = Shader.PropertyToID("g_DensityJobCount");
+
+        // Material (shader) property IDs — SmoothSurface.shader declares these with _ prefix.
+        // Compute kernels use g_ prefix; material properties use _ prefix. They must be separate.
+        private static readonly int s_matRegionWindow = Shader.PropertyToID("_RegionWindow");
+        private static readonly int s_matBrickRefs = Shader.PropertyToID("_BrickRefs");
+        private static readonly int s_matBrickVoxels = Shader.PropertyToID("_BrickVoxels");
 
         // Scalar and array shader properties bound through MaterialPropertyBlock.
         private static readonly int s_WindowOrigin = Shader.PropertyToID("_WindowOrigin");
@@ -108,6 +114,8 @@ namespace VoxelEngine.Rendering
         }
 
         private ComputeShader _surfaceExtraction;
+        private ComputeShader _densityCompute;
+        private int _densityKernel = -1;
         private Material _surfaceMaterial;
         private readonly MaterialPropertyBlock _surfaceProperties = new();
         private Texture2D _stoneTexture;
@@ -145,6 +153,7 @@ namespace VoxelEngine.Rendering
 
         public void Setup(ComputeShader surfaceExtraction = null,
                           Shader surfaceShader = null,
+                          ComputeShader densityCompute = null,
                           Texture2D stoneTexture = null,
                           Texture2D woodTexture = null, Texture2D sandTexture = null,
                           Texture2D rockTexture = null, Texture2D slateTexture = null,
@@ -156,6 +165,9 @@ namespace VoxelEngine.Rendering
                           Texture2D darkStoneNormal = null, Texture2D skyTexture = null)
         {
             _surfaceExtraction = surfaceExtraction;
+            _densityCompute = densityCompute;
+            if (_densityCompute != null)
+                _densityKernel = _densityCompute.FindKernel("CSBuildDensity");
             UnityEngine.Debug.Log(
                 "VoxelRenderPass Setup: extr=" + (surfaceExtraction != null)
                 + " shader=" + (surfaceShader != null));
@@ -236,6 +248,9 @@ namespace VoxelEngine.Rendering
             // render function, read from within).
             public int[] VertexCounts;
             public GpuSurfaceChunkCache.Entry[] VisibleEntries;
+            // Density compute shader and kernel (BrickRaymarch.compute, not SmoothSurface.compute).
+            public ComputeShader DensityCompute;
+            public int DensityKernel;
         }
 
         private class SurfacePassData
@@ -357,6 +372,9 @@ namespace VoxelEngine.Rendering
             data.VertexCounts = vertexCounts;
             data.VisibleEntries = visibleEntries;
 
+            // Pass density compute through the static lambda boundary.
+            data.DensityCompute = _densityCompute;
+
             builder.AllowPassCulling(false);
 
             // Single pass does both: dispatches compute to fill arena buffers with extracted
@@ -369,6 +387,44 @@ namespace VoxelEngine.Rendering
                 UnityEngine.Debug.Log(
                     "VoxelRenderPass RENDER_FUNC: visible_entries=" + passData.VisibleEntries.Length);
                 var cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
+
+                // --- Part 1: dispatch density generation BEFORE surface extraction ---
+                // CSBuildDensity lives in BrickRaymarch.compute. It needs g_DensityJobs and
+                // g_DensityJobCount which SmoothSurface.compute does NOT declare.
+                if (passData.DensityCompute != null && passData.DensityKernel >= 0
+                    && passData.Buffers.DensityJobCount > 0)
+                {
+                    var densityCmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
+
+                    // Bind every buffer the density kernel reads or writes.
+                    densityCmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                        s_RegionWindow, passData.Buffers.WindowBuffer);
+                    densityCmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                        s_BrickRefs, passData.Buffers.BrickRefBuffer);
+                    densityCmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                        s_BrickVoxels, passData.Buffers.VoxelBuffer);
+
+                    var densityBuffer = passData.Buffers.DensityBuffer;
+                    if (densityBuffer != null)
+                        densityCmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                            Shader.PropertyToID("g_BrickDensity"), densityBuffer);
+
+                    densityCmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                        s_DensityJobs, passData.Buffers.DensityJobBuffer);
+                    densityCmd.SetComputeIntParam(passData.DensityCompute,
+                        Shader.PropertyToID("g_DensityJobCount"),
+                        passData.Buffers.DensityJobCount);
+
+                    int jobCount = passData.Buffers.DensityJobCount;
+                    densityCmd.DispatchCompute(passData.DensityCompute, passData.DensityKernel,
+                        (jobCount + 15) / 16, 1, 1);
+
+                    UnityEngine.Debug.Log(
+                        "VoxelRenderPass DENSITY: jobs=" + jobCount);
+                }
+
+                // --- Part 2: bind camera color target so DrawProceduralIndirect writes somewhere ---
+                ctx.cmd.SetRenderTarget(-1);
 
                 // Step 1: extract surface geometry into arena buffers on the GPU.
                 passData.SurfaceCache.RecordScheduled(cmd, passData.SurfaceExtraction,
@@ -385,9 +441,9 @@ namespace VoxelEngine.Rendering
                 passData.Properties.SetFloat(s_VoxelSize, passData.VoxelSize);
                 passData.Properties.SetFloat(s_DebugCoverage,
                     passData.BaseColor == Color.white ? 0f : 1f);
-                passData.Properties.SetBuffer(s_RegionWindow, passData.Buffers.WindowBuffer);
-                passData.Properties.SetBuffer(s_BrickRefs, passData.Buffers.BrickRefBuffer);
-                passData.Properties.SetBuffer(s_BrickVoxels, passData.Buffers.VoxelBuffer);
+                passData.Properties.SetBuffer(s_matRegionWindow, passData.Buffers.WindowBuffer);
+                passData.Properties.SetBuffer(s_matBrickRefs, passData.Buffers.BrickRefBuffer);
+                passData.Properties.SetBuffer(s_matBrickVoxels, passData.Buffers.VoxelBuffer);
                 passData.Properties.SetVector(s_WindowOrigin, passData.WindowOrigin);
                 passData.Properties.SetInt(s_WindowX, VoxelGpuBuffers.WindowX);
                 passData.Properties.SetInt(s_WindowY, VoxelGpuBuffers.WindowY);
