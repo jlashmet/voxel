@@ -23,17 +23,6 @@ namespace VoxelEngine.Rendering
     /// </summary>
     public sealed class VoxelGpuBuffers : IDisposable
     {
-        /// <summary>
-        /// ComputeBuffers alive right now, across every instance.
-        ///
-        /// A ledger rather than a memory measurement, because memory measurement does not work
-        /// here: Profiler.GetAllocatedMemoryForGraphicsDriver never decreases when a buffer is
-        /// released, and process RSS does not move at all for GPU allocations in a headless
-        /// editor. Both report a flat line for a real leak or a leak for correct code, depending
-        /// which one you pick. Counting create against release tests the actual contract — every
-        /// buffer this type allocates is handed back — and it can fail, which is the property
-        /// that matters.
-        /// </summary>
         public static int LiveBuffers { get; private set; }
 
         private static ComputeBuffer Allocate(int count, int stride, ComputeBufferType type)
@@ -46,31 +35,23 @@ namespace VoxelEngine.Rendering
         private static void ReleaseTracked(ref ComputeBuffer buffer)
         {
             if (buffer == null) return;
-
             buffer.Release();
             buffer = null;
             LiveBuffers--;
         }
 
-        /// <summary>Region slots along each window axis. Terrain is thin in y, so the window is too.</summary>
         public const int WindowX = 16;
-
         public const int WindowY = 4;
         public const int WindowZ = 16;
-
         private const int WindowCells = WindowX * WindowY * WindowZ;
-
-        /// <summary>Region slots held on the GPU. Each costs 1 MB of brick pointers.</summary>
         public const int MaxSlots = 48;
-
-        /// <summary>512 voxel bytes per brick, packed four to a uint.</summary>
         private const int UintsPerBrick = VoxelDimensions.VoxelsPerBrick / 4;
 
-        private ComputeBuffer _windowBuffer;   // WindowCells ints: slot index or -1
-        private ComputeBuffer _brickRefBuffer; // MaxSlots * BricksPerRegion ints
-        private ComputeBuffer _voxelBuffer;    // poolCapacity * 128 uints
-        private ComputeBuffer _densityBuffer;  // poolCapacity * 128 packed density uints
-        private ComputeBuffer _densityJobBuffer; // pool index + world brick coordinate
+        private ComputeBuffer _windowBuffer;
+        private ComputeBuffer _brickRefBuffer;
+        private ComputeBuffer _voxelBuffer;
+        private ComputeBuffer _densityBuffer;
+        private ComputeBuffer _densityJobBuffer;
 
         private readonly int[] _window = new int[WindowCells];
         private readonly Dictionary<int3, int> _slotOfRegion = new();
@@ -96,58 +77,20 @@ namespace VoxelEngine.Rendering
         public int3 WindowOrigin => _windowOrigin;
         public int DensityJobCount { get; private set; }
         public int PendingDensityCount => _pendingDensity.Count;
-
-        /// <summary>
-        /// World-brick coordinates whose filtered density is rebuilt by this frame's command
-        /// stream. The surface cache consumes this exact list to invalidate intersecting chunks;
-        /// deriving it again from CPU edits would miss the density halo and create seams.
-        /// </summary>
         public IReadOnlyList<int3> LastDensityWorldBricks => _lastDensityWorldBricks;
-
-        /// <summary>Region slots currently mapped.</summary>
         public int ResidentSlots { get; private set; }
-
-        /// <summary>Bricks uploaded during the most recent sync.</summary>
         public int LastBricksUploaded { get; private set; }
-
-        /// <summary>Regions whose pointer grid was uploaded during the most recent sync.</summary>
         public int LastRegionsUploaded { get; private set; }
-
         public bool IsCreated => _voxelBuffer != null;
 
-        /// <summary>
-        /// Bricks uploaded per sync, and the size of the staging scratch.
-        ///
-        /// Raising this to cover a whole region in one call was tried and made the raymarch
-        /// render nothing: a single 30 MB SetData does not land before the dispatch that reads it
-        /// in the same frame. Bricks not yet uploaded raymarch as empty, so the world fades in.
-        /// </summary>
         private const int MaxBricksPerSync = 8192;
-
-        /// <summary>
-        /// Hard cap on SetData calls per sync.
-        ///
-        /// This is the load-bearing limit. Each SetData is a driver staging allocation, and
-        /// issuing thousands per frame grows process memory without bound — a castle that dirtied
-        /// 130,000 scattered bricks took a machine to 200 GB while per-process RSS reporting
-        /// showed under 4 GB.
-        ///
-        /// Run coalescing helps when pool indices happen to be contiguous and does nothing when
-        /// they are not, so it cannot be relied on. Uploading contiguous *spans* — re-sending a
-        /// few clean bricks caught between dirty ones — costs bandwidth and bounds the call count
-        /// absolutely, which is the trade worth making.
-        /// </summary>
         private const int MaxUploadCallsPerSync = 4;
-
-        /// <summary>Refuses to mirror a pool larger than this. 262144 slots is 134 MB of VRAM.</summary>
         public const int MaxMirroredBricks = 262144;
 
         public void EnsureCreated(int poolCapacity)
         {
             if (_voxelBuffer != null && _poolCapacity == poolCapacity) return;
 
-            // A bad capacity here becomes a multi-gigabyte ComputeBuffer, which takes the whole
-            // machine with it rather than failing locally. Refuse instead.
             if (poolCapacity <= 0 || poolCapacity > MaxMirroredBricks)
             {
                 Debug.LogError($"VoxelGpuBuffers: refusing to mirror a pool of {poolCapacity} " +
@@ -186,13 +129,6 @@ namespace VoxelEngine.Rendering
             ResidentSlots = 0;
         }
 
-        /// <summary>
-        /// Brings the GPU mirror in line with the world around <paramref name="cameraRegion"/>.
-        ///
-        /// Regions that fell out of the window release their slot; regions that entered take one
-        /// and upload their pointer grid. Then the pool's dirty bricks go up, bounded per call so
-        /// that finishing a region does not produce a frame that uploads 5 MB.
-        /// </summary>
         public void Sync(ref RegionTable table, ref BrickPool pool, int3 cameraRegion,
                          HashSet<int3> regionsNeedingRefresh)
         {
@@ -209,22 +145,17 @@ namespace VoxelEngine.Rendering
             _lastDensityWorldBricks.Clear();
 
             ReleaseSlotsOutsideWindow();
-            AssignSlots(ref table, regionsNeedingRefresh);
-
-            // Consumed: whatever needed re-sending has been sent. Clearing here rather than at
-            // the producer is what keeps the signal alive long enough to be acted on.
+            AssignSlots(ref table, ref pool, regionsNeedingRefresh);
             regionsNeedingRefresh?.Clear();
 
             UploadDirtyBricks(ref pool);
             UploadDensityJobs();
-
             _windowBuffer.SetData(_window);
         }
 
         private void ReleaseSlotsOutsideWindow()
         {
             for (var i = 0; i < WindowCells; i++) _window[i] = -1;
-
             List<int3> dropped = null;
 
             foreach (var kv in _slotOfRegion)
@@ -234,12 +165,10 @@ namespace VoxelEngine.Rendering
                     _window[cell] = kv.Value;
                     continue;
                 }
-
                 (dropped ??= new List<int3>()).Add(kv.Key);
             }
 
             if (dropped == null) return;
-
             foreach (var coord in dropped)
             {
                 _slotUsed[_slotOfRegion[coord]] = false;
@@ -248,7 +177,8 @@ namespace VoxelEngine.Rendering
             }
         }
 
-        private void AssignSlots(ref RegionTable table, HashSet<int3> regionsNeedingRefresh)
+        private void AssignSlots(ref RegionTable table, ref BrickPool pool,
+                                 HashSet<int3> regionsNeedingRefresh)
         {
             var resident = table.GetResidentCoords(Allocator.Temp);
 
@@ -258,26 +188,25 @@ namespace VoxelEngine.Rendering
                 if (!TryWindowIndex(coord, out var cell)) continue;
 
                 bool isNew = !_slotOfRegion.TryGetValue(coord, out var slot);
-
                 if (isNew)
                 {
-                    if (!TryTakeSlot(out slot)) continue; // window is fuller than the slot budget
+                    if (!TryTakeSlot(out slot)) continue;
                     _slotOfRegion[coord] = slot;
                     _regionOfSlot[slot] = coord;
                     ResidentSlots++;
                 }
 
                 _window[cell] = slot;
-
                 bool refresh = isNew || (regionsNeedingRefresh != null && regionsNeedingRefresh.Contains(coord));
                 if (refresh && table.TryGetRegion(coord, out var region))
-                    UploadRegionPointers(slot, region);
+                    UploadRegionPointers(slot, region, isNew, ref pool);
             }
 
             resident.Dispose();
         }
 
-        private void UploadRegionPointers(int slot, in Region region)
+        private void UploadRegionPointers(int slot, in Region region, bool ensureVoxelUpload,
+                                          ref BrickPool pool)
         {
             var refs = region.BrickRefs;
             for (var i = 0; i < VoxelDimensions.BricksPerRegion; i++)
@@ -285,12 +214,18 @@ namespace VoxelEngine.Rendering
                 _brickRefScratch[i] = refs[i].Value;
                 if (!refs[i].IsMixed) continue;
 
+                int poolIndex = refs[i].PoolIndex;
                 int bx = i & VoxelDimensions.RegionEdgeMask;
-                int by = (i >> VoxelDimensions.RegionEdgeLog2)
-                       & VoxelDimensions.RegionEdgeMask;
+                int by = (i >> VoxelDimensions.RegionEdgeLog2) & VoxelDimensions.RegionEdgeMask;
                 int bz = i >> (VoxelDimensions.RegionEdgeLog2 * 2);
-                MapPoolBrick(refs[i].PoolIndex, region.Coord * VoxelDimensions.RegionEdge
-                                                   + new int3(bx, by, bz));
+                MapPoolBrick(poolIndex, region.Coord * VoxelDimensions.RegionEdge
+                                        + new int3(bx, by, bz));
+
+                // A fresh GPU mirror or newly resident region cannot assume BrickPool's gameplay
+                // dirty flag is still set. Force every referenced mixed brick through the bounded
+                // uploader at least once, otherwise the pointer grid can reference uninitialised
+                // voxel/density memory forever and Surface Nets renders whole chunks as holes.
+                if (ensureVoxelUpload) pool.MarkDirty(poolIndex);
             }
 
             _brickRefBuffer.SetData(_brickRefScratch, 0, slot * VoxelDimensions.BricksPerRegion,
@@ -298,25 +233,12 @@ namespace VoxelEngine.Rendering
             LastRegionsUploaded++;
         }
 
-        /// <summary>Upload calls issued on the most recent sync. One per contiguous run.</summary>
         public int LastUploadCalls { get; private set; }
-
         private int[] _sortScratch = new int[MaxBricksPerSync];
 
-        /// <summary>
-        /// Uploads changed bricks, packing four voxel bytes to a uint.
-        ///
-        /// Dirty bricks are sorted and uploaded as contiguous runs, one SetData per run. That
-        /// grouping is not a micro-optimisation: a SetData is a driver staging allocation, and
-        /// issuing thousands of them per frame grew process memory by gigabytes within seconds —
-        /// enough to be killed by the run guard at 6 GB. Pool indices are handed out
-        /// sequentially, so a freshly generated region is a handful of runs rather than
-        /// thousands of separate writes.
-        /// </summary>
         private void UploadDirtyBricks(ref BrickPool pool)
         {
             LastUploadCalls = 0;
-
             var dirty = pool.DirtyBricks;
             if (!dirty.IsCreated || dirty.Length == 0) return;
 
@@ -324,13 +246,16 @@ namespace VoxelEngine.Rendering
             for (var i = 0; i < count; i++) _sortScratch[i] = dirty[i];
             System.Array.Sort(_sortScratch, 0, count);
 
+            // Keep the NativeList prefix in the same sorted order we actually consume below.
+            // Previously we uploaded a sorted prefix but removed an unrelated prefix from the
+            // original unsorted list. Those removed-but-never-uploaded bricks kept stale GPU data
+            // forever because their dirty bookkeeping no longer matched the queue.
+            for (var i = 0; i < count; i++) dirty[i] = _sortScratch[i];
+
             var voxels = pool.Voxels;
             int consumed = 0;
-
-            // Walk the sorted indices, emitting at most MaxUploadCallsPerSync contiguous spans.
-            // A span may include clean bricks between dirty ones; re-uploading those is cheaper
-            // than the driver allocation another call would cost.
             int cursor = 0;
+
             while (cursor < count && LastUploadCalls < MaxUploadCallsPerSync)
             {
                 int spanStart = _sortScratch[cursor];
@@ -345,12 +270,10 @@ namespace VoxelEngine.Rendering
                 }
 
                 int spanLength = spanEnd - spanStart + 1;
-
                 for (var b = 0; b < spanLength; b++)
                 {
                     int src = pool.VoxelOffset(spanStart + b);
                     int dst = b * UintsPerBrick;
-
                     for (var u = 0; u < UintsPerBrick; u++)
                     {
                         int p = src + u * 4;
@@ -363,15 +286,12 @@ namespace VoxelEngine.Rendering
 
                 _voxelBuffer.SetData(_voxelScratch, 0, spanStart * UintsPerBrick,
                                      spanLength * UintsPerBrick);
-
                 LastUploadCalls++;
                 consumed += inSpan;
             }
 
             LastBricksUploaded = consumed;
-
-            for (var i = 0; i < consumed; i++)
-                QueueDensityWithNeighbours(_sortScratch[i]);
+            for (var i = 0; i < consumed; i++) QueueDensityWithNeighbours(_sortScratch[i]);
 
             if (consumed >= dirty.Length)
             {
@@ -379,13 +299,9 @@ namespace VoxelEngine.Rendering
             }
             else
             {
-                // Partial drain: the consumed prefix must have its flags cleared too, or those
-                // slots stay pinned as dirty and never accept another mark.
                 for (var i = 0; i < consumed; i++) pool.ClearDirty(_sortScratch[i]);
-
                 for (var i = 0; i < dirty.Length - consumed; i++)
                     dirty[i] = dirty[i + consumed];
-
                 dirty.Length -= consumed;
             }
         }
@@ -426,11 +342,6 @@ namespace VoxelEngine.Rendering
             _poolOfWorldBrick[worldBrick] = poolIndex;
         }
 
-        /// <summary>
-        /// A one-voxel density halo crosses brick boundaries. Rebuilding only the edited brick
-        /// leaves its neighbours sampling stale edge values, which appears as a seam after
-        /// destruction. Queue the mapped 3x3x3 brick neighbourhood; the hash set coalesces bursts.
-        /// </summary>
         private void QueueDensityWithNeighbours(int poolIndex)
         {
             if (!_worldBrickOfPool.TryGetValue(poolIndex, out int3 centre)) return;
@@ -453,12 +364,10 @@ namespace VoxelEngine.Rendering
             for (var i = 0; i < MaxSlots; i++)
             {
                 if (_slotUsed[i]) continue;
-
                 _slotUsed[i] = true;
                 slot = i;
                 return true;
             }
-
             slot = -1;
             return false;
         }
