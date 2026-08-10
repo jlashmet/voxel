@@ -7,20 +7,6 @@ using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Rendering
 {
-    /// <summary>
-    /// The GPU mirror of the sparse brickmap: a window of region slots, the brick pointer grids
-    /// for the regions occupying those slots, and the voxel bytes of the brick pool.
-    ///
-    /// The raymarch needs to answer "what brick is at this coordinate" per step, so the CPU-side
-    /// hash map is replaced by a flat window of region slots centred on the camera. A window
-    /// entry is a slot index or -1; a slot holds one region's 262,144 brick references. Regions
-    /// outside the window are simply not visible to the raymarch, which is the same statement as
-    /// residency — they hold no data to march through anyway.
-    ///
-    /// Uploads are incremental in both tiers. Brick pointers go up per region when that region's
-    /// contents change; voxel bytes go up per brick from <see cref="BrickPool.DirtyBricks"/>.
-    /// Re-uploading either tier wholesale would cost tens of megabytes per edit.
-    /// </summary>
     public sealed class VoxelGpuBuffers : IDisposable
     {
         public static int LiveBuffers { get; private set; }
@@ -61,6 +47,7 @@ namespace VoxelEngine.Rendering
         private readonly Dictionary<int3, int> _poolOfWorldBrick = new();
         private readonly HashSet<int> _pendingDensity = new();
         private readonly List<int3> _lastDensityWorldBricks = new(MaxBricksPerSync);
+        private readonly List<int3> _lastSurfaceWorldBricks = new(MaxBricksPerSync);
 
         private NativeArray<int> _brickRefScratch;
         private NativeArray<uint> _voxelScratch;
@@ -78,6 +65,14 @@ namespace VoxelEngine.Rendering
         public int DensityJobCount { get; private set; }
         public int PendingDensityCount => _pendingDensity.Count;
         public IReadOnlyList<int3> LastDensityWorldBricks => _lastDensityWorldBricks;
+
+        /// <summary>
+        /// Surface-bearing world bricks discovered directly from resident region pointer grids.
+        /// This is independent of density jobs: uniform solid bricks do not own density storage,
+        /// but a solid/air boundary aligned to a brick face still needs a Surface Nets chunk.
+        /// </summary>
+        public IReadOnlyList<int3> LastSurfaceWorldBricks => _lastSurfaceWorldBricks;
+
         public int ResidentSlots { get; private set; }
         public int LastBricksUploaded { get; private set; }
         public int LastRegionsUploaded { get; private set; }
@@ -94,7 +89,7 @@ namespace VoxelEngine.Rendering
             if (poolCapacity <= 0 || poolCapacity > MaxMirroredBricks)
             {
                 Debug.LogError($"VoxelGpuBuffers: refusing to mirror a pool of {poolCapacity} " +
-                               $"bricks (limit {MaxMirroredBricks}). The raymarch will not draw.");
+                               $"bricks (limit {MaxMirroredBricks}). The renderer will not draw.");
                 Dispose();
                 _poolCapacity = 0;
                 return;
@@ -143,6 +138,7 @@ namespace VoxelEngine.Rendering
             LastBricksUploaded = 0;
             DensityJobCount = 0;
             _lastDensityWorldBricks.Clear();
+            _lastSurfaceWorldBricks.Clear();
 
             ReleaseSlotsOutsideWindow();
             AssignSlots(ref table, ref pool, regionsNeedingRefresh);
@@ -209,22 +205,35 @@ namespace VoxelEngine.Rendering
                                           ref BrickPool pool)
         {
             var refs = region.BrickRefs;
+            int edge = VoxelDimensions.RegionEdge;
+            int yStride = edge;
+            int zStride = edge * edge;
+            int3 regionBrickOrigin = region.Coord * edge;
+
             for (var i = 0; i < VoxelDimensions.BricksPerRegion; i++)
             {
-                _brickRefScratch[i] = refs[i].Value;
-                if (!refs[i].IsMixed) continue;
+                BrickRef brick = refs[i];
+                _brickRefScratch[i] = brick.Value;
 
-                int poolIndex = refs[i].PoolIndex;
                 int bx = i & VoxelDimensions.RegionEdgeMask;
                 int by = (i >> VoxelDimensions.RegionEdgeLog2) & VoxelDimensions.RegionEdgeMask;
                 int bz = i >> (VoxelDimensions.RegionEdgeLog2 * 2);
-                MapPoolBrick(poolIndex, region.Coord * VoxelDimensions.RegionEdge
-                                        + new int3(bx, by, bz));
+                int3 worldBrick = regionBrickOrigin + new int3(bx, by, bz);
+
+                // Surface discovery must not depend on density jobs. Mixed bricks always contain a
+                // surface by storage contract. Uniform solid bricks can also own an exposed face
+                // when the solid/air boundary happens to align exactly with a brick boundary.
+                if (IsPotentialSurfaceBrick(refs, i, bx, by, bz, yStride, zStride))
+                    _lastSurfaceWorldBricks.Add(worldBrick);
+
+                if (!brick.IsMixed) continue;
+
+                int poolIndex = brick.PoolIndex;
+                MapPoolBrick(poolIndex, worldBrick);
 
                 // A fresh GPU mirror or newly resident region cannot assume BrickPool's gameplay
                 // dirty flag is still set. Force every referenced mixed brick through the bounded
-                // uploader at least once, otherwise the pointer grid can reference uninitialised
-                // voxel/density memory forever and Surface Nets renders whole chunks as holes.
+                // uploader at least once.
                 if (ensureVoxelUpload) pool.MarkDirty(poolIndex);
             }
 
@@ -232,6 +241,30 @@ namespace VoxelEngine.Rendering
                                     VoxelDimensions.BricksPerRegion);
             LastRegionsUploaded++;
         }
+
+        private static bool IsPotentialSurfaceBrick(NativeArray<BrickRef> refs, int index,
+                                                     int bx, int by, int bz,
+                                                     int yStride, int zStride)
+        {
+            BrickRef brick = refs[index];
+            if (brick.IsEmpty) return false;
+            if (brick.IsMixed) return true;
+
+            // Uniform solid bricks normally represent interior mass. They become surface-bearing
+            // when any in-region face touches air or a mixed brick. Checking this during the
+            // pointer-grid scan is cheap and catches brick-aligned castle walls/floors that never
+            // allocate a mixed brick and therefore never produce a density job.
+            if (bx > 0 && IsBoundaryNeighbour(refs[index - 1])) return true;
+            if (bx + 1 < VoxelDimensions.RegionEdge && IsBoundaryNeighbour(refs[index + 1])) return true;
+            if (by > 0 && IsBoundaryNeighbour(refs[index - yStride])) return true;
+            if (by + 1 < VoxelDimensions.RegionEdge && IsBoundaryNeighbour(refs[index + yStride])) return true;
+            if (bz > 0 && IsBoundaryNeighbour(refs[index - zStride])) return true;
+            if (bz + 1 < VoxelDimensions.RegionEdge && IsBoundaryNeighbour(refs[index + zStride])) return true;
+            return false;
+        }
+
+        private static bool IsBoundaryNeighbour(BrickRef neighbour)
+            => neighbour.IsEmpty || neighbour.IsMixed;
 
         public int LastUploadCalls { get; private set; }
         private int[] _sortScratch = new int[MaxBricksPerSync];
@@ -245,11 +278,6 @@ namespace VoxelEngine.Rendering
             int count = math.min(dirty.Length, MaxBricksPerSync);
             for (var i = 0; i < count; i++) _sortScratch[i] = dirty[i];
             System.Array.Sort(_sortScratch, 0, count);
-
-            // Keep the NativeList prefix in the same sorted order we actually consume below.
-            // Previously we uploaded a sorted prefix but removed an unrelated prefix from the
-            // original unsorted list. Those removed-but-never-uploaded bricks kept stale GPU data
-            // forever because their dirty bookkeeping no longer matched the queue.
             for (var i = 0; i < count; i++) dirty[i] = _sortScratch[i];
 
             var voxels = pool.Voxels;
@@ -405,6 +433,7 @@ namespace VoxelEngine.Rendering
             _poolOfWorldBrick.Clear();
             _pendingDensity.Clear();
             _lastDensityWorldBricks.Clear();
+            _lastSurfaceWorldBricks.Clear();
             ResidentSlots = 0;
         }
     }
