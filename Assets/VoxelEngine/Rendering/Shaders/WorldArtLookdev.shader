@@ -89,34 +89,31 @@ Shader "VoxelEngine/WorldArtLookdev"
                 half3 zSample = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.positionWS.xy * s).rgb;
                 half3 textureSample = xSample * weights.x + ySample * weights.y + zSample * weights.z;
 
-                // The downloaded stylized textures are intentionally a whisper rather than the
-                // identity of the surface. Large colour masses and silhouettes do the visual work.
                 half textureValue = dot(textureSample, half3(0.299h, 0.587h, 0.114h));
-                half detail = lerp(1.0h, lerp(0.84h, 1.14h, textureValue), _TextureInfluence);
-                half macro = 1.0h + 0.025h
+                half detail = lerp(1.0h, lerp(0.90h, 1.08h, textureValue), _TextureInfluence);
+                half macro = 1.0h + 0.018h
                     * sin(input.positionWS.x * 0.72h + input.positionWS.z * 0.31h)
                     * sin(input.positionWS.z * 0.47h + input.positionWS.y * 0.28h);
                 half3 albedo = _Tint.rgb * detail * macro;
 
+                // Keep the top planes sunny without allowing linear-space lighting to push the
+                // broad colour masses into neon. The generated reference reads almost like a
+                // painted diorama, so the dynamic range is intentionally compressed here.
                 half top = saturate(normalWS.y);
-                albedo *= lerp(1.0h - _TopLight * 0.22h,
-                               1.0h + _TopLight * 0.52h, top);
+                albedo *= lerp(0.94h, 1.0h + _TopLight * 0.22h, top);
 
                 Light mainLight = GetMainLight(input.shadowCoord);
                 half ndl = saturate(dot(normalWS, mainLight.direction));
                 half shadow = mainLight.shadowAttenuation * mainLight.distanceAttenuation;
-                half3 direct = mainLight.color * (0.34h + ndl * 0.66h)
-                             * lerp(0.56h, 1.0h, shadow) * 0.86h;
-                half3 ambient = SampleSH(normalWS) * 1.08h;
+                half shade = 0.58h + 0.30h * ndl * lerp(0.52h, 1.0h, shadow);
 
                 half3 viewDirection = SafeNormalize(_WorldSpaceCameraPos.xyz - input.positionWS);
                 half3 halfDirection = SafeNormalize(mainLight.direction + viewDirection);
                 half specular = pow(saturate(dot(normalWS, halfDirection)),
-                                    lerp(10.0h, 80.0h, _Smoothness))
-                              * _Smoothness * shadow * 0.16h;
+                                    lerp(12.0h, 70.0h, _Smoothness))
+                              * _Smoothness * shadow * 0.08h;
 
-                half3 colour = saturate(albedo * (ambient + direct)
-                                      + specular * mainLight.color);
+                half3 colour = albedo * shade + specular * mainLight.color;
                 colour = MixFog(colour, input.fogFactor);
                 return half4(colour, 1.0h);
             }
