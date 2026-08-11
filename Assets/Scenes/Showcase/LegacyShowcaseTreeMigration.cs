@@ -18,8 +18,8 @@ namespace VoxelEngine.Showcase
     /// TreeInstance records.
     ///
     /// The legacy timber/foliage voxels remain the gameplay collision/destruction proxy for this
-    /// migration milestone. Their timber bricks are explicitly hidden from the hard renderer and
-    /// the procedural tree polls a sparse subset of those voxels for foliage loss/trunk severing.
+    /// migration milestone. Both halves are presentation-invisible: timber/scaffold bricks are
+    /// excluded from the hard renderer and foliage crown bricks are excluded from the smooth field.
     /// Delete this class once world generation emits semantic trees and their destruction graph
     /// directly.
     /// </summary>
@@ -86,26 +86,31 @@ namespace VoxelEngine.Showcase
 
             var instances = new List<TreeInstance>(48);
             var hiddenHardBricks = new HashSet<int3>();
+            var hiddenSmoothBricks = new HashSet<int3>();
             _proxies.Clear();
             int ordinal = 0;
 
-            AddTreeBelt(in plan, top, worldSeed, instances, hiddenHardBricks, ref ordinal);
+            AddTreeBelt(in plan, top, worldSeed, instances, hiddenHardBricks,
+                        hiddenSmoothBricks, ref ordinal);
             AddApproachTrees(in plan, gateZ, ref view.Table, in view.Pool,
-                             worldSeed, instances, hiddenHardBricks, ref ordinal);
+                             worldSeed, instances, hiddenHardBricks, hiddenSmoothBricks,
+                             ref ordinal);
             AddForegroundCopse(in plan, gateZ, ref view.Table, in view.Pool,
-                               worldSeed, instances, hiddenHardBricks, ref ordinal);
+                               worldSeed, instances, hiddenHardBricks, hiddenSmoothBricks,
+                               ref ordinal);
             AddWaterfallTrees(in plan, ref view.Table, in view.Pool,
-                              worldSeed, instances, hiddenHardBricks, ref ordinal);
+                              worldSeed, instances, hiddenHardBricks, hiddenSmoothBricks,
+                              ref ordinal);
 
             CaptureFoliageProbes(ref view.Table, in view.Pool);
-            ProceduralTreeRegistry.Replace(instances, hiddenHardBricks);
+            ProceduralTreeRegistry.Replace(instances, hiddenHardBricks, hiddenSmoothBricks);
             _published = true;
             _nextDamagePoll = Time.realtimeSinceStartupAsDouble + DamagePollSeconds;
         }
 
         private void AddTreeBelt(in CastlePlan plan, int top, uint worldSeed,
                                  List<TreeInstance> instances, HashSet<int3> hiddenHardBricks,
-                                 ref int ordinal)
+                                 HashSet<int3> hiddenSmoothBricks, ref int ordinal)
         {
             var rng = new Random(plan.Seed ^ 0x7EE5u);
             int built = 0;
@@ -134,7 +139,7 @@ namespace VoxelEngine.Showcase
                 TreeSpecies species = BroadleafSpecies(built);
                 AddInstance(plan.Centre.x + ox, top + 1, plan.Centre.z + oz,
                             height, canopyRadius, false, species, worldSeed,
-                            instances, hiddenHardBricks, ref ordinal);
+                            instances, hiddenHardBricks, hiddenSmoothBricks, ref ordinal);
                 built++;
             }
         }
@@ -142,7 +147,8 @@ namespace VoxelEngine.Showcase
         private void AddApproachTrees(in CastlePlan plan, int gateZ,
                                       ref RegionTable table, in BrickPool pool,
                                       uint worldSeed, List<TreeInstance> instances,
-                                      HashSet<int3> hiddenHardBricks, ref int ordinal)
+                                      HashSet<int3> hiddenHardBricks,
+                                      HashSet<int3> hiddenSmoothBricks, ref int ordinal)
         {
             int2[] offsets =
             {
@@ -161,14 +167,15 @@ namespace VoxelEngine.Showcase
                 {
                     int height = 58 + (i % 3) * 8;
                     AddInstance(x, y, z, height, 18, true, TreeSpecies.Pine, worldSeed,
-                                instances, hiddenHardBricks, ref ordinal);
+                                instances, hiddenHardBricks, hiddenSmoothBricks, ref ordinal);
                 }
                 else
                 {
                     int height = 44 + (i % 3) * 6;
                     int radius = 15 + (i % 2) * 3;
                     AddInstance(x, y, z, height, radius, false, BroadleafSpecies(i + 3),
-                                worldSeed, instances, hiddenHardBricks, ref ordinal);
+                                worldSeed, instances, hiddenHardBricks, hiddenSmoothBricks,
+                                ref ordinal);
                 }
             }
         }
@@ -176,7 +183,8 @@ namespace VoxelEngine.Showcase
         private void AddForegroundCopse(in CastlePlan plan, int gateZ,
                                         ref RegionTable table, in BrickPool pool,
                                         uint worldSeed, List<TreeInstance> instances,
-                                        HashSet<int3> hiddenHardBricks, ref int ordinal)
+                                        HashSet<int3> hiddenHardBricks,
+                                        HashSet<int3> hiddenSmoothBricks, ref int ordinal)
         {
             int2[] offsets =
             {
@@ -191,14 +199,15 @@ namespace VoxelEngine.Showcase
                 if (y < 0) continue;
                 int radius = 13 + (i & 1) * 3;
                 AddInstance(x, y, z, 44 + i * 5, radius, true, TreeSpecies.Pine, worldSeed,
-                            instances, hiddenHardBricks, ref ordinal);
+                            instances, hiddenHardBricks, hiddenSmoothBricks, ref ordinal);
             }
         }
 
         private void AddWaterfallTrees(in CastlePlan plan,
                                        ref RegionTable table, in BrickPool pool,
                                        uint worldSeed, List<TreeInstance> instances,
-                                       HashSet<int3> hiddenHardBricks, ref int ordinal)
+                                       HashSet<int3> hiddenHardBricks,
+                                       HashSet<int3> hiddenSmoothBricks, ref int ordinal)
         {
             int streamX = CastleBuilder.WaterfallStreamX(in plan);
             int riverZ = CastleBuilder.LowerRiverZAt(in plan, streamX);
@@ -216,10 +225,12 @@ namespace VoxelEngine.Showcase
                 if ((i & 1) == 0)
                     AddInstance(x, y, z, 40 + i * 3, 15, false,
                                 i == 0 ? TreeSpecies.Sakura : TreeSpecies.Willow,
-                                worldSeed, instances, hiddenHardBricks, ref ordinal);
+                                worldSeed, instances, hiddenHardBricks, hiddenSmoothBricks,
+                                ref ordinal);
                 else
                     AddInstance(x, y, z, 45 + i * 3, 14, true, TreeSpecies.Pine,
-                                worldSeed, instances, hiddenHardBricks, ref ordinal);
+                                worldSeed, instances, hiddenHardBricks, hiddenSmoothBricks,
+                                ref ordinal);
             }
         }
 
@@ -227,7 +238,7 @@ namespace VoxelEngine.Showcase
                                  int legacyRadiusVoxels, bool pine,
                                  TreeSpecies species, uint worldSeed,
                                  List<TreeInstance> instances, HashSet<int3> hiddenHardBricks,
-                                 ref int ordinal)
+                                 HashSet<int3> hiddenSmoothBricks, ref int ordinal)
         {
             TreeSpeciesProfile profile = TreeSpeciesProfiles.Get(species);
             float desiredHeight = math.max(2.5f, legacyHeightVoxels * VoxelSize);
@@ -252,6 +263,7 @@ namespace VoxelEngine.Showcase
             };
             _proxies.Add(proxy);
             AddHiddenHardBricks(proxy, hiddenHardBricks);
+            AddHiddenSmoothBricks(proxy, hiddenSmoothBricks);
             ordinal++;
         }
 
@@ -272,6 +284,23 @@ namespace VoxelEngine.Showcase
                         new int3(proxy.Root.x + branchLength, branchY + 10, proxy.Root.z + 4), hidden);
             AddBrickBox(new int3(proxy.Root.x - 4, branchY - 2, proxy.Root.z - branchLength),
                         new int3(proxy.Root.x + 4, branchY + 15, proxy.Root.z + branchLength), hidden);
+        }
+
+        private static void AddHiddenSmoothBricks(LegacyTreeProxy proxy, HashSet<int3> hidden)
+        {
+            // This mask is deliberately crown-only. Wood never participates in the Transvoxel
+            // material field anyway, while masking the root brick would also erase the terrain
+            // surface the tree grows from. A conservative crown box is preferable to trying to
+            // rediscover every old cone/ellipsoid lobe in the renderer.
+            int crownStart = proxy.Pine
+                ? proxy.Root.y + proxy.HeightVoxels / 4
+                : proxy.Root.y + math.max(proxy.HeightVoxels / 2,
+                                          proxy.HeightVoxels - proxy.RadiusVoxels * 2);
+            int crownTop = proxy.Root.y + proxy.HeightVoxels
+                         + (proxy.Pine ? 2 : proxy.RadiusVoxels / 2 + 3);
+            int radius = proxy.RadiusVoxels + 3;
+            AddBrickBox(new int3(proxy.Root.x - radius, crownStart, proxy.Root.z - radius),
+                        new int3(proxy.Root.x + radius, crownTop, proxy.Root.z + radius), hidden);
         }
 
         private static void AddBrickBox(int3 minVoxel, int3 maxVoxel, HashSet<int3> hidden)
