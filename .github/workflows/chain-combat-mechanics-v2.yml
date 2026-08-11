@@ -1,0 +1,75 @@
+name: Chain Combat Mechanics V2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - prototype/chain-combat
+    paths:
+      - "Assets/CombatPrototype/**"
+      - "Assets/Tests/PlayMode/ChainCombatMechanicsV2Tests.cs"
+      - "Assets/Tests/PlayMode/ChainCombatMechanicsV2Tests.cs.meta"
+      - "Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef"
+      - ".github/workflows/chain-combat-mechanics-v2.yml"
+
+jobs:
+  chain-combat-mechanics-v2:
+    name: Exercise branching claims and cascades
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          echo "Unity version: ${UNITY_VERSION}"
+          echo "Unity path: ${UNITY_PATH}"
+          if [[ ! -x "${UNITY_PATH}" ]]; then
+            echo "Unity executable was not found at ${UNITY_PATH}" >&2
+            exit 1
+          fi
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Run branching chain combat PlayMode tests
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts/ChainCombatV2"
+
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform PlayMode \
+            -testFilter VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/ChainCombatV2/results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/ChainCombatV2/unity.log"
+          status=$?
+
+          if [[ -f "$GITHUB_WORKSPACE/Artifacts/ChainCombatV2/unity.log" ]]; then
+            cat "$GITHUB_WORKSPACE/Artifacts/ChainCombatV2/unity.log"
+          fi
+
+          if [[ $status -ne 0 ]]; then
+            exit $status
+          fi
+
+          test -s "$GITHUB_WORKSPACE/Artifacts/ChainCombatV2/results.xml"
+
+      - name: Upload chain combat V2 test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chain-combat-v2-${{ github.sha }}
+          path: Artifacts/ChainCombatV2/
+          if-no-files-found: warn
+          retention-days: 14
