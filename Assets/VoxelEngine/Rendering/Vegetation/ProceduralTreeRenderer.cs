@@ -16,6 +16,8 @@ namespace VoxelEngine.Rendering.Vegetation
     {
         private const float RecoveryRenderChunkMetres = 12.8f;
         private const float LegacyProxyBoundsPadding = 0.75f;
+        private const float FallDuration = 1.25f;
+        private const float FallenHoldDuration = 0.75f;
 
         private sealed class TreePresentation
         {
@@ -37,6 +39,7 @@ namespace VoxelEngine.Rendering.Vegetation
             public readonly HashSet<int> ResolvedRemovedBranches = new();
             public int DirectCutCount;
             public bool Falling;
+            public bool Retired;
             public float FallStartTime;
             public Vector3 FallAxis;
             public int3 RenderChunkMin;
@@ -184,6 +187,7 @@ namespace VoxelEngine.Rendering.Vegetation
                     BarkIndexOwners = new int[3][],
                     LeafIndexOwners = new int[3][],
                     Falling = false,
+                    Retired = false,
                     RenderChunkMin = renderChunkMin,
                     RenderChunkMax = renderChunkMax,
                 };
@@ -363,7 +367,7 @@ namespace VoxelEngine.Rendering.Vegetation
                         renderer.SetPropertyBlock(_damageProperties, 1);
                 }
 
-                if (state.Severed && !tree.Falling)
+                if (state.Severed && !tree.Falling && !tree.Retired)
                 {
                     tree.Falling = true;
                     tree.FallStartTime = Time.time;
@@ -401,7 +405,7 @@ namespace VoxelEngine.Rendering.Vegetation
                     break;
                 }
 
-                bool shouldBeActive = !coarseProxyVisible;
+                bool shouldBeActive = !tree.Retired && !coarseProxyVisible;
                 if (tree.Root.activeSelf != shouldBeActive)
                     tree.Root.SetActive(shouldBeActive);
             }
@@ -412,9 +416,17 @@ namespace VoxelEngine.Rendering.Vegetation
             for (int i = 0; i < _trees.Count; i++)
             {
                 TreePresentation tree = _trees[i];
-                if (!tree.Falling || tree.Root == null) continue;
+                if (!tree.Falling || tree.Retired || tree.Root == null) continue;
 
-                float t = Mathf.Clamp01((Time.time - tree.FallStartTime) / 1.25f);
+                float elapsed = Time.time - tree.FallStartTime;
+                if (elapsed >= FallDuration + FallenHoldDuration)
+                {
+                    tree.Retired = true;
+                    tree.Root.SetActive(false);
+                    continue;
+                }
+
+                float t = Mathf.Clamp01(elapsed / FallDuration);
                 float angle = Mathf.SmoothStep(0f, 88f, t);
                 tree.Root.transform.localRotation = Quaternion.AngleAxis(angle, tree.FallAxis);
             }
