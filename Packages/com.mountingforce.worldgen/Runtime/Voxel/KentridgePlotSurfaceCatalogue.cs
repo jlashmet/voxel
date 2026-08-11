@@ -15,10 +15,11 @@ namespace MountingForce.WorldGen.Voxel
     /// rule: the lowest sampled point under the semantic footprint. Keeping one altitude rule
     /// means adding terrain preparation cannot move buildings, doors, or gameplay anchors.
     ///
-    /// The grading rectangle is deliberately smaller than the semantic placement footprint: it
-    /// hugs the actual building envelope plus a small yard margin, so generation does not stamp a
-    /// giant rectangular terrace around every house. Subsoil is dirt and the exposed top is moss /
-    /// grass-like ground cover. The market well is excluded because the plaza owns that ground.
+    /// The flat core hugs the real building envelope. Three 40 cm terraces rise away from it so
+    /// the smooth terrain mesher sees a feathered shoulder rather than one tall vertical cut. The
+    /// 4 dm step intentionally matches CpuTransvoxelChunkCache.SourceStep (four 10 cm voxels).
+    /// Subsoil is dirt and every exposed terrace has green ground cover. The market well is
+    /// excluded because the plaza already owns that ground.
     /// </summary>
     public static class KentridgePlotSurfaceCatalogue
     {
@@ -26,7 +27,11 @@ namespace MountingForce.WorldGen.Voxel
         private const int FillDepthDm = 12;
         private const int SurfaceThicknessDm = 1;
         private const int ClearAboveDm = 56;
-        private const int FootprintHeightDm = FillDepthDm + SurfaceThicknessDm + ClearAboveDm;
+        private const int TerraceStepDm = 4;
+        private const int TerraceCount = 3;
+        private const int MaxTerraceRiseDm = TerraceStepDm * TerraceCount;
+        private const int FootprintHeightDm =
+            FillDepthDm + SurfaceThicknessDm + MaxTerraceRiseDm + ClearAboveDm;
 
         private readonly struct PadRect
         {
@@ -115,7 +120,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 3,
+                    MaxPrimitives = (TerraceCount + 1) * 3,
                 };
 
                 List<BuildingPlot> plots = byArchetype[id];
@@ -208,25 +213,45 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
+        private static PadRect Expand(PadRect source, int amount, Int3 footprint)
+        {
+            int x0 = math.max(0, source.X - amount);
+            int z0 = math.max(0, source.Z - amount);
+            int x1 = math.min(footprint.X, source.X + source.Width + amount);
+            int z1 = math.min(footprint.Z, source.Z + source.Depth + amount);
+            return new PadRect(x0, z0, math.max(1, x1 - x0), math.max(1, z1 - z0));
+        }
+
         private static int[] PadProgram(StructureArchetype archetype,
                                         VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
-            PadRect pad = PadFor(archetype);
-            int subsoilHeight = FillDepthDm * s;
-            int topHeight = SurfaceThicknessDm * s;
-            int clearY = subsoilHeight + topHeight;
-            int clearHeight = ClearAboveDm * s;
+            Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
+            PadRect core = PadFor(archetype);
             byte dirt = settings.Materials.Resolve(MaterialRole.RoadSurface);
             byte groundCover = settings.Materials.Resolve(MaterialRole.Moss);
 
             var b = new ProgramBuilder();
-            b.Carve(pad.X * s, clearY, pad.Z * s,
-                    pad.Width * s, clearHeight, pad.Depth * s);
-            b.Box(pad.X * s, 0, pad.Z * s,
-                  pad.Width * s, subsoilHeight, pad.Depth * s, dirt);
-            b.Box(pad.X * s, subsoilHeight, pad.Z * s,
-                  pad.Width * s, topHeight, pad.Depth * s, groundCover);
+
+            // Work from the outside inward. Every inner terrace carves the previous, higher fill
+            // back down, leaving four nested plateaux only one Transvoxel sample-step apart.
+            for (int terrace = TerraceCount; terrace >= 0; terrace--)
+            {
+                int expandDm = terrace * TerraceStepDm;
+                int riseDm = terrace * TerraceStepDm;
+                PadRect rect = Expand(core, expandDm, footprint);
+                int subsoilHeight = (FillDepthDm + riseDm) * s;
+                int topY = subsoilHeight + SurfaceThicknessDm * s;
+
+                b.Carve(rect.X * s, topY, rect.Z * s,
+                        rect.Width * s, ClearAboveDm * s, rect.Depth * s);
+                b.Box(rect.X * s, 0, rect.Z * s,
+                      rect.Width * s, subsoilHeight, rect.Depth * s, dirt);
+                b.Box(rect.X * s, subsoilHeight, rect.Z * s,
+                      rect.Width * s, SurfaceThicknessDm * s, rect.Depth * s,
+                      groundCover);
+            }
+
             return b.Finish();
         }
 
