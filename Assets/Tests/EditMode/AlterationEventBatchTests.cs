@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
+using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Tests.EditMode
@@ -24,7 +25,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             const uint tick = 9001u;
             var region = new int3(3, -1, 8);
-            int3 regionOrigin = region << 9; // VoxelDimensions.RegionVoxelEdgeLog2 == 9.
+            int3 regionOrigin = region << VoxelDimensions.RegionVoxelEdgeLog2;
 
             var explosion = Explosion(tick, regionOrigin + new int3(10, 20, 30), 1);
 
@@ -60,7 +61,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(S_AlterationEventBatch.TryDecodeHeader(wire, out var batch));
             Assert.AreEqual(region, batch.regionCoord);
             Assert.AreEqual(tick, batch.tick);
-            Assert.AreEqual(events.Length, batch.count);
+            Assert.AreEqual((ushort)events.Length, batch.count);
 
             for (int i = 0; i < events.Length; i++)
             {
