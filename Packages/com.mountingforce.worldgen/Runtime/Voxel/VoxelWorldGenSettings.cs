@@ -19,10 +19,19 @@ namespace MountingForce.WorldGen.Voxel
         public readonly byte Cloth;
         public readonly byte Moss;
         public readonly byte Water;
+        public readonly byte RoadSurface;
 
         public VoxelMaterialMap(byte foundationStone, byte masonry, byte darkMasonry,
                                 byte timber, byte glass, byte warmWindow, byte roofTile,
                                 byte slate, byte cloth, byte moss, byte water)
+            : this(foundationStone, masonry, darkMasonry, timber, glass, warmWindow, roofTile,
+                   slate, cloth, moss, water, darkMasonry)
+        {
+        }
+
+        public VoxelMaterialMap(byte foundationStone, byte masonry, byte darkMasonry,
+                                byte timber, byte glass, byte warmWindow, byte roofTile,
+                                byte slate, byte cloth, byte moss, byte water, byte roadSurface)
         {
             FoundationStone = foundationStone;
             Masonry = masonry;
@@ -35,6 +44,7 @@ namespace MountingForce.WorldGen.Voxel
             Cloth = cloth;
             Moss = moss;
             Water = water;
+            RoadSurface = roadSurface;
         }
 
         public byte Resolve(MaterialRole role)
@@ -52,6 +62,7 @@ namespace MountingForce.WorldGen.Voxel
                 MaterialRole.Cloth => Cloth,
                 MaterialRole.Moss => Moss,
                 MaterialRole.Water => Water,
+                MaterialRole.RoadSurface => RoadSurface,
                 _ => Masonry,
             };
         }

@@ -19,6 +19,7 @@ namespace MountingForce.WorldGen
         Cloth,
         Moss,
         Water,
+        RoadSurface,
     }
 
     /// <summary>Reusable structural grammars available to a conventional human settlement.</summary>
@@ -32,6 +33,36 @@ namespace MountingForce.WorldGen
         Mansion,
         Church,
         Well,
+    }
+
+    /// <summary>Large-scale land-use identity used by settlement planning and later dressing passes.</summary>
+    public enum DistrictKind : byte
+    {
+        Civic,
+        Market,
+        Residential,
+        Working,
+        Noble,
+    }
+
+    /// <summary>Semantic street hierarchy. The voxel backend decides how each becomes geometry.</summary>
+    public enum StreetKind : byte
+    {
+        MainRoad,
+        Secondary,
+        Service,
+    }
+
+    /// <summary>
+    /// Which side of a plot contains its public frontage. Values intentionally match the quarter
+    /// turns required to rotate the current building grammar, whose authored front faces south.
+    /// </summary>
+    public enum FrontageDirection : byte
+    {
+        South = 0,
+        West = 1,
+        North = 2,
+        East = 3,
     }
 
     /// <summary>
@@ -100,27 +131,86 @@ namespace MountingForce.WorldGen
         }
     }
 
-    /// <summary>One semantically identified site in a generated settlement.</summary>
+    /// <summary>A semantic street centreline. The first planner slice uses orthogonal polylines.</summary>
+    public sealed class PlannedStreet
+    {
+        public string Id { get; }
+        public StreetKind Kind { get; }
+        public int WidthDm { get; }
+        public IReadOnlyList<Int2> Points => _points;
+
+        private readonly List<Int2> _points;
+
+        public PlannedStreet(string id, StreetKind kind, int widthDm, params Int2[] points)
+        {
+            Id = id;
+            Kind = kind;
+            WidthDm = widthDm;
+            _points = new List<Int2>(points);
+        }
+    }
+
+    /// <summary>Open civic space that later passes can furnish with stalls, signs, props, and NPCs.</summary>
+    public readonly struct PlannedPlaza
+    {
+        public readonly string Id;
+        public readonly Int2 CentreDm;
+        public readonly Int2 SizeDm;
+
+        public PlannedPlaza(string id, Int2 centreDm, Int2 sizeDm)
+        {
+            Id = id;
+            CentreDm = centreDm;
+            SizeDm = sizeDm;
+        }
+    }
+
+    /// <summary>
+    /// A street-facing plot allocated to a stable gameplay role. Gameplay binds to RoleId; layout
+    /// can move the plot without changing quest identity.
+    /// </summary>
+    public readonly struct BuildingPlot
+    {
+        public readonly int RoleId;
+        public readonly StructureArchetype Archetype;
+        public readonly DistrictKind District;
+        public readonly Int2 PositionDm;
+        public readonly FrontageDirection Frontage;
+
+        public BuildingPlot(int roleId, StructureArchetype archetype, DistrictKind district,
+                            Int2 positionDm, FrontageDirection frontage)
+        {
+            RoleId = roleId;
+            Archetype = archetype;
+            District = district;
+            PositionDm = positionDm;
+            Frontage = frontage;
+        }
+    }
+
+    /// <summary>
+    /// Backend-friendly view of a plot. Kept as a separate type so gameplay can continue binding to
+    /// stable role ids while adapters consume a compact position/orientation pair.
+    /// </summary>
     public readonly struct PlannedSite
     {
-        /// <summary>Stable content-defined role id. Gameplay binds to this, never PositionDm.</summary>
         public readonly int RoleId;
         public readonly StructureArchetype Archetype;
         public readonly Int2 PositionDm;
         public readonly byte Orientation;
 
-        public PlannedSite(int roleId, StructureArchetype archetype, Int2 positionDm, byte orientation)
+        public PlannedSite(BuildingPlot plot)
         {
-            RoleId = roleId;
-            Archetype = archetype;
-            PositionDm = positionDm;
-            Orientation = (byte)(orientation & 3);
+            RoleId = plot.RoleId;
+            Archetype = plot.Archetype;
+            PositionDm = plot.PositionDm;
+            Orientation = (byte)plot.Frontage;
         }
     }
 
     /// <summary>
-    /// Renderer-independent result of settlement planning. It says what exists and where its plot
-    /// is; it contains no voxels, GameObjects, material bytes, meshes, or renderer references.
+    /// Renderer-independent result of settlement planning. It contains streets, civic space, and
+    /// street-facing plots but no voxels, GameObjects, material bytes, meshes, or renderer references.
     /// </summary>
     public sealed class SettlementPlan
     {
@@ -128,18 +218,30 @@ namespace MountingForce.WorldGen
         public uint Seed { get; }
         public Int2 CentreDm { get; }
         public ArchitectureTheme Theme { get; }
+        public IReadOnlyList<PlannedStreet> Streets => _streets;
+        public PlannedPlaza Plaza { get; }
+        public IReadOnlyList<BuildingPlot> Plots => _plots;
         public IReadOnlyList<PlannedSite> Sites => _sites;
 
+        private readonly List<PlannedStreet> _streets;
+        private readonly List<BuildingPlot> _plots;
         private readonly List<PlannedSite> _sites;
 
-        public SettlementPlan(string id, uint seed, Int2 centreDm,
-                              ArchitectureTheme theme, List<PlannedSite> sites)
+        public SettlementPlan(string id, uint seed, Int2 centreDm, ArchitectureTheme theme,
+                              List<PlannedStreet> streets, PlannedPlaza plaza,
+                              List<BuildingPlot> plots)
         {
             Id = id;
             Seed = seed;
             CentreDm = centreDm;
             Theme = theme;
-            _sites = sites;
+            _streets = streets;
+            Plaza = plaza;
+            _plots = plots;
+            _sites = new List<PlannedSite>(plots.Count);
+
+            for (int i = 0; i < plots.Count; i++)
+                _sites.Add(new PlannedSite(plots[i]));
         }
     }
 }
