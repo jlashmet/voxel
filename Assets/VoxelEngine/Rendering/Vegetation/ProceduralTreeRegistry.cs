@@ -23,11 +23,18 @@ namespace VoxelEngine.Rendering.Vegetation
             public bool Severed;
         }
 
+        // The recovery Surface Nets cache and both CPU mesh caches use 16 bricks = 12.8 m per
+        // render chunk. Keep the legacy proxy ownership in that same coordinate space so the
+        // renderer can make the coarse->Transvoxel handoff exclusive on a chunk-by-chunk basis.
+        private const int LegacyRenderChunkBrickShift = 4;
+
         private static readonly List<TreeInstance> s_Instances = new();
         private static readonly List<TreeDamageState> s_Damage = new();
         private static readonly List<HashSet<int>> s_RemovedBranches = new();
         private static readonly HashSet<int3> s_LegacyHiddenHardBricks = new();
         private static readonly HashSet<int3> s_LegacyHiddenSmoothBricks = new();
+        private static readonly HashSet<int3> s_LegacyProxyRenderChunks = new();
+        private static readonly HashSet<int3> s_CoarseLegacyProxyRenderChunks = new();
         private static int s_Version;
         private static int s_DamageVersion;
 
@@ -44,6 +51,8 @@ namespace VoxelEngine.Rendering.Vegetation
             s_RemovedBranches.Clear();
             s_LegacyHiddenHardBricks.Clear();
             s_LegacyHiddenSmoothBricks.Clear();
+            s_LegacyProxyRenderChunks.Clear();
+            s_CoarseLegacyProxyRenderChunks.Clear();
             unchecked
             {
                 s_Version++;
@@ -78,18 +87,27 @@ namespace VoxelEngine.Rendering.Vegetation
                 }
             }
 
+            s_LegacyProxyRenderChunks.Clear();
+            s_CoarseLegacyProxyRenderChunks.Clear();
+
             s_LegacyHiddenHardBricks.Clear();
             if (legacyHiddenHardBricks != null)
             {
                 foreach (int3 brick in legacyHiddenHardBricks)
+                {
                     s_LegacyHiddenHardBricks.Add(brick);
+                    s_LegacyProxyRenderChunks.Add(RenderChunkForBrick(brick));
+                }
             }
 
             s_LegacyHiddenSmoothBricks.Clear();
             if (legacyHiddenSmoothBricks != null)
             {
                 foreach (int3 brick in legacyHiddenSmoothBricks)
+                {
                     s_LegacyHiddenSmoothBricks.Add(brick);
+                    s_LegacyProxyRenderChunks.Add(RenderChunkForBrick(brick));
+                }
             }
 
             unchecked
@@ -104,6 +122,37 @@ namespace VoxelEngine.Rendering.Vegetation
 
         public static bool IsLegacyHiddenSmoothBrick(int3 worldBrick) =>
             s_LegacyHiddenSmoothBricks.Contains(worldBrick);
+
+        /// <summary>
+        /// True when a 12.8 m recovery render chunk contains any part of the old voxel tree proxy.
+        /// This is used only during migration so Surface Nets and the procedural tree never own the
+        /// same visible tree at the same time.
+        /// </summary>
+        public static bool IsLegacyProxyRenderChunk(int3 renderChunk) =>
+            s_LegacyProxyRenderChunks.Contains(renderChunk);
+
+        /// <summary>
+        /// The render pass publishes exactly which legacy-proxy chunks are still being shown by
+        /// coarse Surface Nets this frame. Procedural tree roots overlapping those chunks stay
+        /// hidden until the equivalent Transvoxel chunk is ready, preventing a double tree while
+        /// preserving the warmup terrain fallback.
+        /// </summary>
+        public static bool IsCoarseLegacyProxyRenderChunk(int3 renderChunk) =>
+            s_CoarseLegacyProxyRenderChunks.Contains(renderChunk);
+
+        public static void ClearCoarseLegacyProxyRenderChunks() =>
+            s_CoarseLegacyProxyRenderChunks.Clear();
+
+        public static void MarkCoarseLegacyProxyRenderChunk(int3 renderChunk)
+        {
+            if (s_LegacyProxyRenderChunks.Contains(renderChunk))
+                s_CoarseLegacyProxyRenderChunks.Add(renderChunk);
+        }
+
+        private static int3 RenderChunkForBrick(int3 worldBrick) =>
+            new(worldBrick.x >> LegacyRenderChunkBrickShift,
+                worldBrick.y >> LegacyRenderChunkBrickShift,
+                worldBrick.z >> LegacyRenderChunkBrickShift);
 
         /// <summary>
         /// Returns the directly cut branches for one tree. Descendant removal is derived from the
