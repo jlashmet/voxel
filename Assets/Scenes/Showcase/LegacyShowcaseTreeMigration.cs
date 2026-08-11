@@ -54,18 +54,9 @@ namespace VoxelEngine.Showcase
 
         private void Update()
         {
+            if (_published) return;
             if (!VoxelRenderBridge.TryGetWorld(out VoxelWorldView view)) return;
-
-            if (!_published)
-            {
-                TryPublish(ref view);
-                return;
-            }
-
-            double now = Time.realtimeSinceStartupAsDouble;
-            if (now < _nextDamagePoll) return;
-            _nextDamagePoll = now + DamagePollSeconds;
-            PollDamage(ref view);
+            TryPublish(ref view);
         }
 
         private void TryPublish(ref VoxelWorldView view)
@@ -102,10 +93,14 @@ namespace VoxelEngine.Showcase
                               worldSeed, instances, hiddenHardBricks, hiddenSmoothBricks,
                               ref ordinal);
 
-            CaptureFoliageProbes(ref view.Table, in view.Pool);
+            // Placement migration ends here. The old voxel polling below is intentionally no
+            // longer part of runtime ownership: tornado/explosion events map directly onto the
+            // semantic branch graph through ProceduralTreeDamageBridge. Disabling this component
+            // at the source prevents the proxy-cleanup rewrite from ever being interpreted as
+            // pre-existing tree damage.
             ProceduralTreeRegistry.Replace(instances, hiddenHardBricks, hiddenSmoothBricks);
             _published = true;
-            _nextDamagePoll = Time.realtimeSinceStartupAsDouble + DamagePollSeconds;
+            enabled = false;
         }
 
         private void AddTreeBelt(in CastlePlan plan, int top, uint worldSeed,
