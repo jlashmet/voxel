@@ -12,60 +12,58 @@ using VoxelEngine.Showcase;
 namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
-    /// Do the catalogue's cottages actually exist in the world the player walks into?
-    ///
-    /// Checked against the brickmap rather than the screen: a structure that generates but does
-    /// not render is a different bug from one that never generated, and the two look identical
-    /// from a screenshot.
+    /// Does the renderer-independent MountingForce worldgen package actually compile Kentridge into
+    /// the same voxel storage the player walks through? Geometry is checked in the brickmap so a
+    /// generation failure is distinguishable from a rendering failure.
     /// </summary>
     public sealed class ShowcaseFeatureTests
     {
         [UnityTest]
-        public IEnumerator CottagesGenerateOnTheGround()
+        public IEnumerator KentridgeChurchGeneratesAsHollowStructure()
         {
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
-            yield return new WaitForSeconds(4f);
+            yield return new WaitForSeconds(5f);
 
             var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             var world = (ShowcaseWorld)typeof(VoxelShowcase)
                 .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
 
-            Debug.Log($"### FEATURES built={world.FeatureInstancesBuilt} " +
-                      $"voxels={world.FeatureVoxelsBuilt} ms={world.LastFeatureMs:0.0}");
+            Assert.Greater(world.FeatureInstancesBuilt, 0, "Kentridge generated no feature instances");
+            Assert.Greater(world.FeatureVoxelsBuilt, 10000, "Kentridge wrote implausibly few voxels");
 
-            Assert.Greater(world.FeatureInstancesBuilt, 0, "no cottage was generated");
-            Assert.Greater(world.FeatureVoxelsBuilt, 1000, "cottages generated but wrote almost nothing");
-
-            // Wall material at the south face of the first cottage, just above its foundation.
-            int3 origin = ShowcaseCatalogue.FirstCottageOrigin;
+            // The prototype church is a stable landmark at 1000dm,100dm. The worldgen package owns
+            // that semantic plot; this integration test only reproduces the adapter's temporary
+            // lowest-ground placement so it can inspect the generated brickmap.
+            const int originX = 1000;
+            const int originZ = 100;
+            const int footprint = 164;
             int lowest = int.MaxValue;
-            for (var z = 0; z <= 96; z += 16)
-            for (var x = 0; x <= 96; x += 16)
+            for (int z = 0; z <= footprint; z += 16)
+            for (int x = 0; x <= footprint; x += 16)
             {
-                int h = TerrainSampler.HeightAt(origin.x + x, origin.z + z, world.Seed);
+                int h = TerrainSampler.HeightAt(originX + x, originZ + z, world.Seed);
                 if (h < lowest) lowest = h;
             }
 
-            int baseY = lowest - 4;
-            int wallY = baseY + 12;
+            int baseY = lowest - 5;
 
+            // Church grammar: local nave begins at (22,8,18), with 5-voxel walls. Probe the west
+            // wall and then the carved nave beyond it at the same height.
             byte wall = VoxelAccess.GetVoxel(ref world.Table, in world.Pool,
-                                             new int3(origin.x + 2, wallY, origin.z + 2));
+                new int3(originX + 24, baseY + 18, originZ + 22));
             byte interior = VoxelAccess.GetVoxel(ref world.Table, in world.Pool,
-                                                 new int3(origin.x + 32, wallY, origin.z + 32));
-
-            Debug.Log($"### COTTAGE baseY={baseY} wallVoxel={wall} interiorVoxel={interior}");
-
-            Assert.AreNotEqual(VoxelDimensions.MaterialEmpty, wall, "the cottage has no wall");
-            Assert.AreEqual(VoxelDimensions.MaterialEmpty, interior,
-                "the cottage interior was not carved — it is a solid block");
-
-            // The roof must be above the walls and below the footprint ceiling.
+                new int3(originX + 82, baseY + 18, originZ + 84));
             byte roof = VoxelAccess.GetVoxel(ref world.Table, in world.Pool,
-                                             new int3(origin.x + 32, baseY + 50, origin.z + 32));
-            Debug.Log($"### ROOF voxel={roof}");
-            Assert.AreNotEqual(VoxelDimensions.MaterialEmpty, roof, "the cottage has no roof");
+                new int3(originX + 82, baseY + 80, originZ + 84));
+
+            Debug.Log($"### KENTRIDGE features={world.FeatureInstancesBuilt} " +
+                      $"voxels={world.FeatureVoxelsBuilt} wall={wall} interior={interior} roof={roof}");
+
+            Assert.AreNotEqual(VoxelDimensions.MaterialEmpty, wall, "Kentridge church has no wall");
+            Assert.AreEqual(VoxelDimensions.MaterialEmpty, interior,
+                "Kentridge church interior was not carved");
+            Assert.AreNotEqual(VoxelDimensions.MaterialEmpty, roof, "Kentridge church has no roof");
         }
     }
 }

@@ -1,0 +1,10 @@
+{
+  "name": "com.mountingforce.worldgen",
+  "version": "0.1.0",
+  "displayName": "MountingForce World Generation",
+  "description": "Deterministic semantic world, settlement, and themed structure generation for MountingForce.",
+  "unity": "6000.5",
+  "author": {
+    "name": "MountingForce"
+  }
+}

@@ -8,6 +8,7 @@
     "VoxelEngine.Structures",
     "VoxelEngine.Streaming",
     "VoxelEngine.Tiering",
+    "MountingForce.WorldGen.Voxel",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics"

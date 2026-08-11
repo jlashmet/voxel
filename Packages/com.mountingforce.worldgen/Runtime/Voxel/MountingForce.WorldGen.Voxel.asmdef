@@ -1,0 +1,19 @@
+{
+  "name": "MountingForce.WorldGen.Voxel",
+  "rootNamespace": "MountingForce.WorldGen.Voxel",
+  "references": [
+    "MountingForce.WorldGen.Core",
+    "VoxelEngine.Core",
+    "Unity.Collections",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
