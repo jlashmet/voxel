@@ -18,6 +18,8 @@ namespace MountingForce.WorldGen.Voxel
     /// Authoring happens in the same canonical local frame as buildings (front = south). Placement
     /// rectangles are then rotated by the plot frontage, so the dressing follows the town planner
     /// when a building moves or changes street side instead of preserving another coordinate map.
+    /// Dressing also reproduces the plot terrace profile when choosing its Y coordinate, so fences
+    /// on the raised parcel edge and props on the flat core both sit on the surface they actually see.
     /// </summary>
     public static class KentridgePlotDressingCatalogue
     {
@@ -35,6 +37,8 @@ namespace MountingForce.WorldGen.Voxel
         private const int DefinitionCount = 7;
         private const int FenceLengthDm = 32;
         private const int FenceDepthDm = 4;
+        private const int TerraceStepDm = 4;
+        private const int TerraceCount = 3;
 
         private readonly struct DressingPlacement
         {
@@ -201,24 +205,24 @@ namespace MountingForce.WorldGen.Voxel
                 if (plot.Archetype == StructureArchetype.Well) continue;
 
                 Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
-                int surfaceY = PlotSurfaceY(plot, seed, scale) + scale;
+                int baseSurfaceY = PlotSurfaceY(plot, seed, scale) + scale;
 
                 switch (plot.District)
                 {
                     case DistrictKind.Residential:
-                        AddResidential(result, plot, footprint, surfaceY);
+                        AddResidential(result, plot, footprint, baseSurfaceY, scale);
                         break;
                     case DistrictKind.Market:
-                        AddMarket(result, plot, footprint, surfaceY);
+                        AddMarket(result, plot, footprint, baseSurfaceY, scale);
                         break;
                     case DistrictKind.Working:
-                        AddWorking(result, plot, footprint, surfaceY);
+                        AddWorking(result, plot, footprint, baseSurfaceY, scale);
                         break;
                     case DistrictKind.Noble:
-                        AddNoble(result, plot, footprint, surfaceY);
+                        AddNoble(result, plot, footprint, baseSurfaceY, scale);
                         break;
                     case DistrictKind.Civic:
-                        AddCivic(result, plot, footprint, surfaceY);
+                        AddCivic(result, plot, footprint, baseSurfaceY, scale);
                         break;
                 }
             }
@@ -231,129 +235,201 @@ namespace MountingForce.WorldGen.Voxel
         }
 
         private static void AddResidential(List<DressingPlacement> result, BuildingPlot plot,
-                                           Int3 footprint, int surfaceY)
+                                           Int3 footprint, int baseSurfaceY, int scale)
         {
-            // A low rear fence establishes plot ownership without walling off the street frontage.
+            RectDm core = CorePadFor(plot.Archetype);
+
             AddFence(result, plot, footprint, 8, footprint.Z - FenceDepthDm,
-                     FenceLengthDm, FenceDepthDm, surfaceY);
+                     FenceLengthDm, FenceDepthDm, baseSurfaceY, scale);
             AddFence(result, plot, footprint,
                      footprint.X - 8 - FenceLengthDm, footprint.Z - FenceDepthDm,
-                     FenceLengthDm, FenceDepthDm, surfaceY);
+                     FenceLengthDm, FenceDepthDm, baseSurfaceY, scale);
 
             if ((KentridgeRole)plot.RoleId == KentridgeRole.AbandonedHouse)
             {
-                // The abandoned lot keeps the same parcel language but reads neglected rather than
-                // domestic: goods/debris replace the tended garden.
                 AddSquare(result, plot, footprint, DressingKind.CargoStack,
-                          8, footprint.Z - 24, 20, surfaceY);
+                          core.X + 2, core.Z + core.Depth - 15, 14, baseSurfaceY, scale);
                 return;
             }
 
-            int gardenX = (plot.RoleId & 1) == 0 ? 8 : footprint.X - 24;
+            int gardenX = (plot.RoleId & 1) == 0
+                ? core.X + 2
+                : core.X + core.Width - 10;
             AddSquare(result, plot, footprint, DressingKind.GardenBed,
-                      gardenX, footprint.Z - 22, 16, surfaceY);
+                      gardenX, core.Z + core.Depth - 9, 8, baseSurfaceY, scale);
         }
 
         private static void AddMarket(List<DressingPlacement> result, BuildingPlot plot,
-                                      Int3 footprint, int surfaceY)
+                                      Int3 footprint, int baseSurfaceY, int scale)
         {
-            // Signs sit beside the public entrance instead of blocking the frontage path itself.
+            RectDm core = CorePadFor(plot.Archetype);
+
             AddSquare(result, plot, footprint, DressingKind.Signpost,
-                      footprint.X - 14, 1, 12, surfaceY);
-
-            // Rear service clutter differentiates the commercial lane from residential gardens.
+                      core.X + core.Width - 9, core.Z + 1, 8, baseSurfaceY, scale);
             AddSquare(result, plot, footprint, DressingKind.CargoStack,
-                      5, footprint.Z - 22, 20, surfaceY);
+                      core.X + 1, core.Z + core.Depth - 15, 14, baseSurfaceY, scale);
 
-            // Inns and pubs accumulate more deliveries than the specialist shops.
             if (plot.Archetype == StructureArchetype.Inn)
                 AddSquare(result, plot, footprint, DressingKind.CargoStack,
-                          footprint.X - 25, footprint.Z - 22, 20, surfaceY);
+                          core.X + core.Width - 15, core.Z + core.Depth - 15,
+                          14, baseSurfaceY, scale);
         }
 
         private static void AddWorking(List<DressingPlacement> result, BuildingPlot plot,
-                                       Int3 footprint, int surfaceY)
+                                       Int3 footprint, int baseSurfaceY, int scale)
         {
+            RectDm core = CorePadFor(plot.Archetype);
+            int z = core.Z + core.Depth - 15;
+
             AddSquare(result, plot, footprint, DressingKind.CargoStack,
-                      6, footprint.Z - 22, 20, surfaceY);
+                      core.X + 2, z, 14, baseSurfaceY, scale);
             AddSquare(result, plot, footprint, DressingKind.CargoStack,
-                      32, footprint.Z - 22, 20, surfaceY);
+                      core.X + 24, z, 14, baseSurfaceY, scale);
             AddSquare(result, plot, footprint, DressingKind.CargoStack,
-                      footprint.X - 52, footprint.Z - 22, 20, surfaceY);
+                      core.X + core.Width - 38, z, 14, baseSurfaceY, scale);
             AddSquare(result, plot, footprint, DressingKind.CargoStack,
-                      footprint.X - 26, footprint.Z - 22, 20, surfaceY);
+                      core.X + core.Width - 16, z, 14, baseSurfaceY, scale);
 
             AddFence(result, plot, footprint, 5, footprint.Z - FenceDepthDm,
-                     FenceLengthDm, FenceDepthDm, surfaceY);
+                     FenceLengthDm, FenceDepthDm, baseSurfaceY, scale);
             AddFence(result, plot, footprint,
                      footprint.X - 5 - FenceLengthDm, footprint.Z - FenceDepthDm,
-                     FenceLengthDm, FenceDepthDm, surfaceY);
+                     FenceLengthDm, FenceDepthDm, baseSurfaceY, scale);
         }
 
         private static void AddNoble(List<DressingPlacement> result, BuildingPlot plot,
-                                     Int3 footprint, int surfaceY)
+                                     Int3 footprint, int baseSurfaceY, int scale)
         {
-            // A formal rear boundary and clipped hedge rhythm makes Radcliffe's estate read as a
-            // different social tier without introducing one-off mansion geometry.
+            RectDm core = CorePadFor(plot.Archetype);
             int[] fenceX = { 24, 82, 140, 198 };
             for (int i = 0; i < fenceX.Length; i++)
                 AddFence(result, plot, footprint, fenceX[i], footprint.Z - FenceDepthDm,
-                         FenceLengthDm, FenceDepthDm, surfaceY);
+                         FenceLengthDm, FenceDepthDm, baseSurfaceY, scale);
 
-            int[] hedgeX = { 30, footprint.X / 2 - 10, footprint.X - 50 };
+            int[] hedgeX =
+            {
+                core.X + 18,
+                core.X + core.Width / 2 - 8,
+                core.X + core.Width - 34,
+            };
             for (int i = 0; i < hedgeX.Length; i++)
                 AddSquare(result, plot, footprint, DressingKind.HedgeCluster,
-                          hedgeX[i], footprint.Z - 28, 20, surfaceY);
+                          hedgeX[i], core.Z + core.Depth - 17, 16, baseSurfaceY, scale);
         }
 
         private static void AddCivic(List<DressingPlacement> result, BuildingPlot plot,
-                                     Int3 footprint, int surfaceY)
+                                     Int3 footprint, int baseSurfaceY, int scale)
         {
+            RectDm core = CorePadFor(plot.Archetype);
+
             if (plot.Archetype == StructureArchetype.Church)
             {
-                // The church has very little rear setback, so the graveyard occupies the quiet
-                // canonical west strip beside the nave and rotates with the church frontage.
                 int[] graveZ = { 48, 72, 96, 120 };
                 for (int i = 0; i < graveZ.Length; i++)
                     AddSquare(result, plot, footprint, DressingKind.GraveMarker,
-                              5, graveZ[i], 10, surfaceY);
+                              core.X + 1, graveZ[i], 8, baseSurfaceY, scale);
 
                 AddFence(result, plot, footprint, 2, 38,
-                         FenceDepthDm, FenceLengthDm, surfaceY);
+                         FenceDepthDm, FenceLengthDm, baseSurfaceY, scale);
                 AddFence(result, plot, footprint, 2, 104,
-                         FenceDepthDm, FenceLengthDm, surfaceY);
+                         FenceDepthDm, FenceLengthDm, baseSurfaceY, scale);
                 return;
             }
 
-            // The mayor's house follows the residential parcel vocabulary but gets two gardens.
             AddFence(result, plot, footprint, 8, footprint.Z - FenceDepthDm,
-                     FenceLengthDm, FenceDepthDm, surfaceY);
+                     FenceLengthDm, FenceDepthDm, baseSurfaceY, scale);
             AddFence(result, plot, footprint,
                      footprint.X - 8 - FenceLengthDm, footprint.Z - FenceDepthDm,
-                     FenceLengthDm, FenceDepthDm, surfaceY);
+                     FenceLengthDm, FenceDepthDm, baseSurfaceY, scale);
             AddSquare(result, plot, footprint, DressingKind.GardenBed,
-                      8, footprint.Z - 22, 16, surfaceY);
+                      core.X + 2, core.Z + core.Depth - 9, 8, baseSurfaceY, scale);
             AddSquare(result, plot, footprint, DressingKind.GardenBed,
-                      footprint.X - 24, footprint.Z - 22, 16, surfaceY);
+                      core.X + core.Width - 10, core.Z + core.Depth - 9,
+                      8, baseSurfaceY, scale);
         }
 
         private static void AddFence(List<DressingPlacement> result, BuildingPlot plot,
                                      Int3 footprint, int localX, int localZ,
-                                     int width, int depth, int surfaceY)
+                                     int width, int depth, int baseSurfaceY, int scale)
         {
             RectDm world = RotateRect(plot, footprint, localX, localZ, width, depth);
             DressingKind kind = world.Width >= world.Depth
                 ? DressingKind.FenceX
                 : DressingKind.FenceZ;
+            int surfaceY = baseSurfaceY
+                         + MaxTerraceRiseDm(plot.Archetype, footprint,
+                                           localX, localZ, width, depth) * scale;
             result.Add(new DressingPlacement(kind, world.X, world.Z, surfaceY));
         }
 
         private static void AddSquare(List<DressingPlacement> result, BuildingPlot plot,
                                       Int3 footprint, DressingKind kind,
-                                      int localX, int localZ, int size, int surfaceY)
+                                      int localX, int localZ, int size,
+                                      int baseSurfaceY, int scale)
         {
             RectDm world = RotateRect(plot, footprint, localX, localZ, size, size);
+            int surfaceY = baseSurfaceY
+                         + MaxTerraceRiseDm(plot.Archetype, footprint,
+                                           localX, localZ, size, size) * scale;
             result.Add(new DressingPlacement(kind, world.X, world.Z, surfaceY));
+        }
+
+        private static int MaxTerraceRiseDm(StructureArchetype archetype, Int3 footprint,
+                                            int x, int z, int width, int depth)
+        {
+            int x1 = x + width - 1;
+            int z1 = z + depth - 1;
+            int rise = TerraceRiseDm(archetype, footprint, x, z);
+            rise = Math.Max(rise, TerraceRiseDm(archetype, footprint, x1, z));
+            rise = Math.Max(rise, TerraceRiseDm(archetype, footprint, x, z1));
+            rise = Math.Max(rise, TerraceRiseDm(archetype, footprint, x1, z1));
+            return rise;
+        }
+
+        private static int TerraceRiseDm(StructureArchetype archetype, Int3 footprint,
+                                         int x, int z)
+        {
+            RectDm core = CorePadFor(archetype);
+            for (int terrace = 0; terrace <= TerraceCount; terrace++)
+            {
+                RectDm rect = Expand(core, terrace * TerraceStepDm, footprint);
+                if (Contains(rect, x, z)) return terrace * TerraceStepDm;
+            }
+
+            return TerraceCount * TerraceStepDm;
+        }
+
+        private static bool Contains(RectDm rect, int x, int z) =>
+            x >= rect.X && z >= rect.Z
+            && x < rect.X + rect.Width
+            && z < rect.Z + rect.Depth;
+
+        // Keep the usable core in sync with KentridgePlotSurfaceCatalogue.PadFor. Dressing only
+        // needs this small architectural contract; the cut/fill implementation remains in the
+        // surface catalogue.
+        private static RectDm CorePadFor(StructureArchetype archetype)
+        {
+            switch (archetype)
+            {
+                case StructureArchetype.Townhouse: return new RectDm(6, 4, 90, 88);
+                case StructureArchetype.WideHouse: return new RectDm(6, 4, 116, 100);
+                case StructureArchetype.Shop: return new RectDm(4, 0, 116, 102);
+                case StructureArchetype.Inn: return new RectDm(6, 6, 166, 158);
+                case StructureArchetype.Warehouse: return new RectDm(7, 10, 182, 174);
+                case StructureArchetype.Mansion: return new RectDm(12, 0, 244, 236);
+                case StructureArchetype.Church: return new RectDm(12, 8, 140, 148);
+                case StructureArchetype.Well: return new RectDm(0, 0, 56, 56);
+                default: return new RectDm(4, 4, 96, 96);
+            }
+        }
+
+        private static RectDm Expand(RectDm source, int amount, Int3 footprint)
+        {
+            int x0 = math.max(0, source.X - amount);
+            int z0 = math.max(0, source.Z - amount);
+            int x1 = math.min(footprint.X, source.X + source.Width + amount);
+            int z1 = math.min(footprint.Z, source.Z + source.Depth + amount);
+            return new RectDm(x0, z0, math.max(1, x1 - x0), math.max(1, z1 - z0));
         }
 
         private static RectDm RotateRect(BuildingPlot plot, Int3 footprint,
@@ -399,8 +475,6 @@ namespace MountingForce.WorldGen.Voxel
             int lowest = int.MaxValue;
             int sampleStep = math.max(8, 16 * scale);
 
-            // Keep this identical to plot grading and building placement. The returned voxel is the
-            // green top layer of the prepared core, so callers place props one voxel above it.
             for (int z = 0; z <= depth; z += sampleStep)
             for (int x = 0; x <= width; x += sampleStep)
             {
@@ -420,15 +494,15 @@ namespace MountingForce.WorldGen.Voxel
                 case DressingKind.FenceZ:
                     return new int3(FenceDepthDm * scale, 18 * scale, FenceLengthDm * scale);
                 case DressingKind.GardenBed:
-                    return new int3(16 * scale, 8 * scale, 16 * scale);
+                    return new int3(8 * scale, 8 * scale, 8 * scale);
                 case DressingKind.Signpost:
-                    return new int3(12 * scale, 32 * scale, 12 * scale);
+                    return new int3(8 * scale, 32 * scale, 8 * scale);
                 case DressingKind.CargoStack:
-                    return new int3(20 * scale, 18 * scale, 20 * scale);
+                    return new int3(14 * scale, 18 * scale, 14 * scale);
                 case DressingKind.GraveMarker:
-                    return new int3(10 * scale, 18 * scale, 10 * scale);
+                    return new int3(8 * scale, 18 * scale, 8 * scale);
                 case DressingKind.HedgeCluster:
-                    return new int3(20 * scale, 18 * scale, 20 * scale);
+                    return new int3(16 * scale, 18 * scale, 16 * scale);
                 default:
                     throw new ArgumentOutOfRangeException(nameof(kind));
             }
@@ -481,11 +555,11 @@ namespace MountingForce.WorldGen.Voxel
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
             byte green = settings.Materials.Resolve(MaterialRole.Moss);
             var b = new ProgramBuilder();
-            b.Box(0, 0, 0, 16 * s, 3 * s, 3 * s, stone);
-            b.Box(0, 0, 13 * s, 16 * s, 3 * s, 3 * s, stone);
-            b.Box(0, 0, 3 * s, 3 * s, 3 * s, 10 * s, stone);
-            b.Box(13 * s, 0, 3 * s, 3 * s, 3 * s, 10 * s, stone);
-            b.Box(3 * s, 0, 3 * s, 10 * s, 2 * s, 10 * s, green);
+            b.Box(0, 0, 0, 8 * s, 3 * s, 2 * s, stone);
+            b.Box(0, 0, 6 * s, 8 * s, 3 * s, 2 * s, stone);
+            b.Box(0, 0, 2 * s, 2 * s, 3 * s, 4 * s, stone);
+            b.Box(6 * s, 0, 2 * s, 2 * s, 3 * s, 4 * s, stone);
+            b.Box(2 * s, 0, 2 * s, 4 * s, 2 * s, 4 * s, green);
             return b.Finish();
         }
 
@@ -496,11 +570,10 @@ namespace MountingForce.WorldGen.Voxel
             byte timber = settings.Materials.Resolve(MaterialRole.Timber);
             byte sign = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             var b = new ProgramBuilder();
-            b.Cylinder(6 * s, 0, 6 * s, 3 * s, 3 * s, 1, stone);
-            b.Box(5 * s, 2 * s, 5 * s, 3 * s, 25 * s, 3 * s, timber);
-            // Crossed boards remain readable no matter which street side the plot occupies.
-            b.Box(1 * s, 18 * s, 4 * s, 10 * s, 7 * s, 2 * s, sign);
-            b.Box(4 * s, 18 * s, 1 * s, 2 * s, 7 * s, 10 * s, sign);
+            b.Cylinder(4 * s, 0, 4 * s, 3 * s, 3 * s, 1, stone);
+            b.Box(3 * s, 2 * s, 3 * s, 3 * s, 25 * s, 3 * s, timber);
+            b.Box(0, 18 * s, 2 * s, 8 * s, 7 * s, 2 * s, sign);
+            b.Box(2 * s, 18 * s, 0, 2 * s, 7 * s, 8 * s, sign);
             return b.Finish();
         }
 
@@ -510,12 +583,12 @@ namespace MountingForce.WorldGen.Voxel
             byte timber = settings.Materials.Resolve(MaterialRole.Timber);
             byte dark = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             var b = new ProgramBuilder();
-            b.Box(0, 0, 0, 10 * s, 9 * s, 10 * s, timber);
-            b.Box(10 * s, 0, 3 * s, 9 * s, 7 * s, 9 * s, timber);
-            b.Box(5 * s, 8 * s, 1 * s, 9 * s, 8 * s, 9 * s, timber);
-            b.Cylinder(4 * s, 0, 15 * s, 4 * s, 10 * s, 1, timber);
-            b.Cylinder(13 * s, 0, 15 * s, 4 * s, 8 * s, 1, timber);
-            b.Box(0, 3 * s, 0, 10 * s, 1 * s, 10 * s, dark);
+            b.Box(0, 0, 0, 7 * s, 8 * s, 7 * s, timber);
+            b.Box(7 * s, 0, 2 * s, 7 * s, 6 * s, 7 * s, timber);
+            b.Box(4 * s, 7 * s, 1 * s, 7 * s, 7 * s, 7 * s, timber);
+            b.Cylinder(3 * s, 0, 11 * s, 3 * s, 9 * s, 1, timber);
+            b.Cylinder(10 * s, 0, 11 * s, 3 * s, 7 * s, 1, timber);
+            b.Box(0, 3 * s, 0, 7 * s, 1 * s, 7 * s, dark);
             return b.Finish();
         }
 
@@ -524,9 +597,9 @@ namespace MountingForce.WorldGen.Voxel
             int s = settings.VoxelsPerDecimetre;
             byte stone = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             var b = new ProgramBuilder();
-            b.Box(1 * s, 0, 1 * s, 8 * s, 3 * s, 8 * s, stone);
-            b.Box(4 * s, 3 * s, 3 * s, 3 * s, 13 * s, 4 * s, stone);
-            b.Box(2 * s, 9 * s, 3 * s, 7 * s, 3 * s, 4 * s, stone);
+            b.Box(1 * s, 0, 1 * s, 6 * s, 3 * s, 6 * s, stone);
+            b.Box(3 * s, 3 * s, 2 * s, 3 * s, 13 * s, 4 * s, stone);
+            b.Box(1 * s, 9 * s, 2 * s, 7 * s, 3 * s, 4 * s, stone);
             return b.Finish();
         }
 
@@ -536,10 +609,10 @@ namespace MountingForce.WorldGen.Voxel
             byte green = settings.Materials.Resolve(MaterialRole.Moss);
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
             var b = new ProgramBuilder();
-            b.Box(1 * s, 0, 1 * s, 18 * s, 2 * s, 18 * s, stone);
-            b.Cylinder(6 * s, 2 * s, 7 * s, 6 * s, 12 * s, 1, green);
-            b.Cylinder(14 * s, 2 * s, 7 * s, 6 * s, 13 * s, 1, green);
-            b.Cylinder(10 * s, 2 * s, 14 * s, 6 * s, 11 * s, 1, green);
+            b.Box(1 * s, 0, 1 * s, 14 * s, 2 * s, 14 * s, stone);
+            b.Cylinder(5 * s, 2 * s, 6 * s, 5 * s, 12 * s, 1, green);
+            b.Cylinder(11 * s, 2 * s, 6 * s, 5 * s, 13 * s, 1, green);
+            b.Cylinder(8 * s, 2 * s, 11 * s, 5 * s, 11 * s, 1, green);
             return b.Finish();
         }
 
