@@ -166,6 +166,15 @@ namespace VoxelEngine.CI
             Assert.That(CountDetachedBodies(), Is.GreaterThan(detachedBeforeTrunk));
             Assert.That(Quaternion.Angle(treeRoot.localRotation, Quaternion.identity), Is.LessThan(1f),
                         "The rooted presentation should remain the stump, not rotate as a whole tree.");
+
+            // Semantic severing and detached debris can complete before the standing-tree renderer
+            // consumes its dirty event on Update. Wait for the actual mesh result instead of racing
+            // that subscriber in the same frame.
+            for (int frame = 0;
+                 frame < 8 && (int)liveMesh.GetIndexCount(0) / 3 >= barkAfterBranch;
+                 frame++)
+                yield return null;
+
             int barkAfterTrunk = (int)liveMesh.GetIndexCount(0) / 3;
             Assert.That(barkAfterTrunk, Is.LessThan(barkAfterBranch));
             Assert.That(CountBreakCaps(), Is.GreaterThan(0));
@@ -211,7 +220,7 @@ namespace VoxelEngine.CI
 
         private static int SelectActiveTree(ProceduralTreeRenderer renderer)
         {
-            int count = math.min(renderer.transform.childCount, TreeWorldState.Instances.Count);
+            int count = math.min(renderer.PresentationCount, TreeWorldState.Instances.Count);
             for (int i = 0; i < count; i++)
             {
                 if (!renderer.transform.GetChild(i).gameObject.activeSelf) continue;
