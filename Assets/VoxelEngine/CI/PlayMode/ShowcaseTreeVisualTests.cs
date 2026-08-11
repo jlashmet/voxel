@@ -5,6 +5,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Rendering.Vegetation;
 using VoxelEngine.Showcase;
 using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
@@ -12,9 +13,9 @@ using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Loads the real Showcase and captures one semantic tree with all production voxel render
-    /// features active. This is intentionally the first test that includes the legacy migration,
-    /// proxy cleanup, Surface Nets/Transvoxel ownership, and ProceduralTreeRenderer together.
+    /// Loads the real Showcase and captures one semantic tree with production voxel rendering and
+    /// the semantic vegetation presentation active together. The assertions prove that worldgen
+    /// publishes one clean tree identity and presentation per root with no startup damage/fall.
     /// </summary>
     public sealed class ShowcaseTreeVisualTests
     {
@@ -45,13 +46,10 @@ namespace VoxelEngine.CI
             Assert.That(TreeWorldState.Instances.Count, Is.GreaterThan(0),
                         "Showcase never published semantic tree instances.");
 
-            // Wait for the cleanup's explicit completion flag rather than trying to rediscover
-            // hidden DontSave migration components from the Test Runner. Production code owns the
-            // lifecycle invariant; the test only observes that the rewrite completed.
             while (!ShowcaseTreePopulation.Completed
                    && Time.realtimeSinceStartup < deadline)
                 yield return null;
-            bool cleanupComplete = ShowcaseTreePopulation.Completed;
+            bool populationComplete = ShowcaseTreePopulation.Completed;
 
             List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
             while (renderers.Count == 1
@@ -66,8 +64,6 @@ namespace VoxelEngine.CI
                         "Showcase must have exactly one ProceduralTreeRenderer singleton.");
             ProceduralTreeRenderer treeRenderer = renderers[0];
 
-            // Give fallback ownership and LOD selection a short time to settle. We still record
-            // startup damage/rotation below, so an accidentally severed tree cannot hide from this.
             for (int i = 0; i < 60; i++) yield return null;
 
             int instanceCount = TreeWorldState.Instances.Count;
@@ -96,8 +92,6 @@ namespace VoxelEngine.CI
                 }
             }
 
-            // Prefer a tree currently owned by the semantic renderer. If fallback ownership keeps
-            // every semantic root hidden, still capture tree zero so the artifact documents it.
             if (selectedTreeIndex < 0 && presentationRoots > 0) selectedTreeIndex = 0;
 
             Transform selectedRoot = selectedTreeIndex >= 0
@@ -140,8 +134,6 @@ namespace VoxelEngine.CI
                 cameraObject.transform.position = focus + viewDirection * (radius * 2.65f);
                 cameraObject.transform.LookAt(focus + Vector3.up * (selectedBounds.extents.y * 0.04f));
 
-                // Let the render feature observe this camera and update chunk ownership before the
-                // explicit capture. This is important for the Surface Nets -> Transvoxel handoff.
                 yield return null;
                 yield return null;
 
@@ -195,7 +187,7 @@ namespace VoxelEngine.CI
             }
 
             string metadata =
-                $"cleanupComplete={cleanupComplete}\n" +
+                $"populationComplete={populationComplete}\n" +
                 $"registryInstances={instanceCount}\n" +
                 $"damageStates={damageCount}\n" +
                 $"rendererInstances={renderers.Count}\n" +
@@ -216,7 +208,7 @@ namespace VoxelEngine.CI
             File.WriteAllText(Path.Combine(outputDirectory, "showcase-tree.txt"), metadata);
             Debug.Log($"CI showcase-tree capture written to {outputDirectory}\n{metadata}");
 
-            Assert.That(cleanupComplete, Is.True,
+            Assert.That(populationComplete, Is.True,
                         "Semantic Showcase tree population did not complete before the visual checkpoint.");
             Assert.That(damageCount, Is.EqualTo(instanceCount),
                         "Every semantic tree must have exactly one damage state.");
