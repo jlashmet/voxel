@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Unity.Mathematics;
 
 namespace MountingForce.WorldGen
 {
@@ -107,10 +106,10 @@ namespace MountingForce.WorldGen
         /// <summary>Stable content-defined role id. Gameplay binds to this, never PositionDm.</summary>
         public readonly int RoleId;
         public readonly StructureArchetype Archetype;
-        public readonly int2 PositionDm;
+        public readonly Int2 PositionDm;
         public readonly byte Orientation;
 
-        public PlannedSite(int roleId, StructureArchetype archetype, int2 positionDm, byte orientation)
+        public PlannedSite(int roleId, StructureArchetype archetype, Int2 positionDm, byte orientation)
         {
             RoleId = roleId;
             Archetype = archetype;
@@ -127,13 +126,13 @@ namespace MountingForce.WorldGen
     {
         public string Id { get; }
         public uint Seed { get; }
-        public int2 CentreDm { get; }
+        public Int2 CentreDm { get; }
         public ArchitectureTheme Theme { get; }
         public IReadOnlyList<PlannedSite> Sites => _sites;
 
         private readonly List<PlannedSite> _sites;
 
-        public SettlementPlan(string id, uint seed, int2 centreDm,
+        public SettlementPlan(string id, uint seed, Int2 centreDm,
                               ArchitectureTheme theme, List<PlannedSite> sites)
         {
             Id = id;
