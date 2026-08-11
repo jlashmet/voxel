@@ -7,8 +7,8 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Composes Kentridge generation stages into the single immutable catalogue understood by the
     /// voxel engine. Ordering is intentional and observable: themed ground cover first, roads and
-    /// plaza second, prepared building plots third, frontage paths fourth, town dressing fifth,
-    /// structures last.
+    /// plaza second, prepared building plots third, frontage paths fourth, private plot dressing
+    /// fifth, public-square dressing sixth, and structures last.
     /// </summary>
     public static class KentridgeCombinedVoxelCatalogue
     {
@@ -23,6 +23,8 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgePlotSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue frontagePaths =
                 KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp);
+            FeatureCatalogue plotDressing =
+                KentridgePlotDressingCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue townDressing =
                 KentridgeTownDressingCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue buildings =
@@ -35,54 +37,63 @@ namespace MountingForce.WorldGen.Voxel
                                + publicSpaces.Definitions.Length
                                + plotSurfaces.Definitions.Length
                                + frontagePaths.Definitions.Length
+                               + plotDressing.Definitions.Length
                                + townDressing.Definitions.Length
                                + buildings.Definitions.Length,
                     rules: groundCover.Rules.Length
                          + publicSpaces.Rules.Length
                          + plotSurfaces.Rules.Length
                          + frontagePaths.Rules.Length
+                         + plotDressing.Rules.Length
                          + townDressing.Rules.Length
                          + buildings.Rules.Length,
                     parameters: groundCover.Parameters.Length
                               + publicSpaces.Parameters.Length
                               + plotSurfaces.Parameters.Length
                               + frontagePaths.Parameters.Length
+                              + plotDressing.Parameters.Length
                               + townDressing.Parameters.Length
                               + buildings.Parameters.Length,
                     anchors: groundCover.Anchors.Length
                            + publicSpaces.Anchors.Length
                            + plotSurfaces.Anchors.Length
                            + frontagePaths.Anchors.Length
+                           + plotDressing.Anchors.Length
                            + townDressing.Anchors.Length
                            + buildings.Anchors.Length,
                     slots: groundCover.Slots.Length
                          + publicSpaces.Slots.Length
                          + plotSurfaces.Slots.Length
                          + frontagePaths.Slots.Length
+                         + plotDressing.Slots.Length
                          + townDressing.Slots.Length
                          + buildings.Slots.Length,
                     programLength: groundCover.Program.Length
                                  + publicSpaces.Program.Length
                                  + plotSurfaces.Program.Length
                                  + frontagePaths.Program.Length
+                                 + plotDressing.Program.Length
                                  + townDressing.Program.Length
                                  + buildings.Program.Length,
                     materials: groundCover.Materials.Length
                              + publicSpaces.Materials.Length
                              + plotSurfaces.Materials.Length
                              + frontagePaths.Materials.Length
+                             + plotDressing.Materials.Length
                              + townDressing.Materials.Length
                              + buildings.Materials.Length,
                     explicitPlacements: groundCover.ExplicitPlacements.Length
                                       + publicSpaces.ExplicitPlacements.Length
                                       + plotSurfaces.ExplicitPlacements.Length
                                       + frontagePaths.ExplicitPlacements.Length
+                                      + plotDressing.ExplicitPlacements.Length
                                       + townDressing.ExplicitPlacements.Length
                                       + buildings.ExplicitPlacements.Length,
                     overrides: groundCover.ParameterOverrides.Length
                              + publicSpaces.ParameterOverrides.Length
                              + plotSurfaces.ParameterOverrides.Length
                              + frontagePaths.ParameterOverrides.Length
+                             + plotDressing.ParameterOverrides.Length
                              + townDressing.ParameterOverrides.Length
                              + buildings.ParameterOverrides.Length,
                     allocator);
@@ -113,6 +124,10 @@ namespace MountingForce.WorldGen.Voxel
                     ref definitionOffset, ref ruleOffset, ref parameterOffset,
                     ref anchorOffset, ref slotOffset, ref programOffset,
                     ref materialOffset, ref placementOffset, ref overrideOffset);
+                Append(in plotDressing, ref result,
+                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
+                    ref anchorOffset, ref slotOffset, ref programOffset,
+                    ref materialOffset, ref placementOffset, ref overrideOffset);
                 Append(in townDressing, ref result,
                     ref definitionOffset, ref ruleOffset, ref parameterOffset,
                     ref anchorOffset, ref slotOffset, ref programOffset,
@@ -138,6 +153,7 @@ namespace MountingForce.WorldGen.Voxel
                 publicSpaces.Dispose();
                 plotSurfaces.Dispose();
                 frontagePaths.Dispose();
+                plotDressing.Dispose();
                 townDressing.Dispose();
                 buildings.Dispose();
             }
