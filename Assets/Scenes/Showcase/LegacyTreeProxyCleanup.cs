@@ -20,6 +20,12 @@ namespace VoxelEngine.Showcase
     /// the unsupported volume as non-terrain and the existing legacy-hard mask suppresses any stale
     /// hard ownership on the old timber bricks.
     ///
+    /// The recovery Surface Nets path has one important legacy quirk: a uniform brick bypasses the
+    /// cached smooth field and is treated as fully solid. Tree proxy bricks therefore deliberately
+    /// remain mixed even when every voxel in them becomes moss. That forces both recovery and
+    /// Transvoxel extraction through the same unsupported-foliage density rule instead of letting a
+    /// uniform moss brick reconstruct the old tree.
+    ///
     /// This class is intentionally temporary. The final tree system should collide against the
     /// semantic branch graph directly and CastleBuilder should stop authoring voxel trees entirely.
     /// </summary>
@@ -114,52 +120,58 @@ namespace VoxelEngine.Showcase
                 if (brick.IsEmpty) continue;
 
                 int3 brickOrigin = worldBrick * VoxelDimensions.BrickEdge;
-                bool brickChanged = false;
+                if (!BrickIntersectsProxyCylinder(brickOrigin, root)) continue;
 
                 if (brick.IsUniform)
                 {
                     byte material = brick.UniformMaterial;
                     if (!IsLegacyTreeMaterial(material)) continue;
 
-                    // A uniform matching brick inside this tightly-scoped tree volume is old tree
-                    // mass. Converting the whole reference avoids allocating a mixed brick merely
-                    // to change one non-empty collision material into another.
-                    region.BrickRefs[brickIndex] = BrickRef.Uniform(Mat.Moss);
-                    brickChanged = true;
-                    changed += VoxelDimensions.VoxelsPerBrick;
+                    // Do not collapse this back to a uniform moss reference. Surface Nets treats
+                    // uniform authored materials as full mass without consulting cached density;
+                    // keeping the proxy mixed is what lets unsupported moss evaluate to zero.
+                    int poolIndex = pool.Allocate();
+                    pool.FillBrick(poolIndex, material);
+                    brick = BrickRef.FromPoolIndex(poolIndex);
+                    region.BrickRefs[brickIndex] = brick;
                 }
-                else
+
+                int offset = pool.VoxelOffset(brick.PoolIndex);
+                bool brickChanged = false;
+                for (int vz = 0; vz < VoxelDimensions.BrickEdge; vz++)
+                for (int vy = 0; vy < VoxelDimensions.BrickEdge; vy++)
+                for (int vx = 0; vx < VoxelDimensions.BrickEdge; vx++)
                 {
-                    int offset = pool.VoxelOffset(brick.PoolIndex);
-                    for (int vz = 0; vz < VoxelDimensions.BrickEdge; vz++)
-                    for (int vy = 0; vy < VoxelDimensions.BrickEdge; vy++)
-                    for (int vx = 0; vx < VoxelDimensions.BrickEdge; vx++)
-                    {
-                        int3 worldVoxel = brickOrigin + new int3(vx, vy, vz);
-                        if (worldVoxel.y < minVoxel.y || worldVoxel.y > maxVoxel.y
-                            || worldVoxel.x < minVoxel.x || worldVoxel.x > maxVoxel.x
-                            || worldVoxel.z < minVoxel.z || worldVoxel.z > maxVoxel.z)
-                            continue;
+                    int3 worldVoxel = brickOrigin + new int3(vx, vy, vz);
+                    if (worldVoxel.y < minVoxel.y || worldVoxel.y > maxVoxel.y
+                        || worldVoxel.x < minVoxel.x || worldVoxel.x > maxVoxel.x
+                        || worldVoxel.z < minVoxel.z || worldVoxel.z > maxVoxel.z)
+                        continue;
 
-                        int dx = worldVoxel.x - root.x;
-                        int dz = worldVoxel.z - root.z;
-                        if (dx * dx + dz * dz
-                            > HorizontalRadiusVoxels * HorizontalRadiusVoxels)
-                            continue;
+                    int dx = worldVoxel.x - root.x;
+                    int dz = worldVoxel.z - root.z;
+                    if (dx * dx + dz * dz
+                        > HorizontalRadiusVoxels * HorizontalRadiusVoxels)
+                        continue;
 
-                        int voxelIndex = vx | (vy << 3) | (vz << 6);
-                        byte material = pool.Voxels[offset + voxelIndex];
-                        if (!IsLegacyTreeMaterial(material)) continue;
+                    int voxelIndex = vx | (vy << 3) | (vz << 6);
+                    byte material = pool.Voxels[offset + voxelIndex];
+                    if (!IsLegacyTreeMaterial(material)) continue;
+                    if (material == Mat.Moss) continue;
 
-                        pool.Voxels[offset + voxelIndex] = Mat.Moss;
-                        changed++;
-                        brickChanged = true;
-                    }
-
-                    if (brickChanged) pool.MarkDirty(brick.PoolIndex);
+                    pool.Voxels[offset + voxelIndex] = Mat.Moss;
+                    changed++;
+                    brickChanged = true;
                 }
+
+                // A newly split uniform moss brick may already contain only moss, so there can be
+                // no byte-level change even though the pointer changed from uniform to mixed. It
+                // still needs upload/density invalidation for the fallback to stop drawing it.
+                if (!brickChanged && brick.IsMixed)
+                    brickChanged = brick.IsMixed && brick.UniformMaterialSafeForProxySplit(in pool);
 
                 if (!brickChanged) continue;
+                pool.MarkDirty(brick.PoolIndex);
                 region.Dirty = true;
                 table.CommitRegion(region);
                 dirtyRegions.Add(regionCoord);
@@ -168,7 +180,31 @@ namespace VoxelEngine.Showcase
             return changed;
         }
 
+        private static bool BrickIntersectsProxyCylinder(int3 brickOrigin, int3 root)
+        {
+            int maxX = brickOrigin.x + VoxelDimensions.BrickEdge - 1;
+            int maxZ = brickOrigin.z + VoxelDimensions.BrickEdge - 1;
+            int dx = root.x < brickOrigin.x ? brickOrigin.x - root.x
+                   : root.x > maxX ? root.x - maxX : 0;
+            int dz = root.z < brickOrigin.z ? brickOrigin.z - root.z
+                   : root.z > maxZ ? root.z - maxZ : 0;
+            return dx * dx + dz * dz <= HorizontalRadiusVoxels * HorizontalRadiusVoxels;
+        }
+
         private static bool IsLegacyTreeMaterial(byte material) =>
             material == Mat.Wood || material == Mat.Grass || material == Mat.Moss;
+    }
+
+    internal static class LegacyTreeProxyBrickExtensions
+    {
+        public static bool UniformMaterialSafeForProxySplit(this BrickRef brick, in BrickPool pool)
+        {
+            if (!brick.IsMixed) return false;
+            int offset = pool.VoxelOffset(brick.PoolIndex);
+            for (int i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
+                if (pool.Voxels[offset + i] != Mat.Moss)
+                    return false;
+            return true;
+        }
     }
 }
