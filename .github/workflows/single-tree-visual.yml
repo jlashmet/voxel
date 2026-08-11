@@ -70,6 +70,20 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/RegistryTree/registry-tree.png"
           test -s "$GITHUB_WORKSPACE/Artifacts/RegistryTree/registry-tree.txt"
 
+      - name: Run batched forest rendering contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.TreeBatchRenderingTests.HealthyForest_BatchesVisibly_AndDamageReleasesOneTree" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/RegistryTree/batch-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/RegistryTree/batch-unity.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/RegistryTree/batch-results.xml"
+
       - name: Run semantic destruction visual proof
         shell: bash
         run: |
