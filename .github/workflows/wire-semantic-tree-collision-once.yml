@@ -1,0 +1,83 @@
+name: Wire Semantic Tree Collision Once
+
+on:
+  push:
+    branches:
+      - tree-rendering
+    paths:
+      - .github/workflows/wire-semantic-tree-collision-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  rewrite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tree-rendering
+          fetch-depth: 0
+          clean: true
+
+      - name: Wire tornado to procedural tree collision
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/Scenes/Showcase/VoxelShowcase.cs')
+          text = path.read_text()
+
+          old_call = 'if (TryTornadoImpact(previous, shot.Position, out int3 hit))'
+          new_call = 'if (TryTornadoImpact(previous, shot.Position, out int3 hit, out bool semanticTreeHit))'
+          if old_call not in text:
+              raise SystemExit('tornado impact call not found')
+          text = text.replace(old_call, new_call, 1)
+
+          old_explosion = '''int changed = _world.Explode(hit, (ushort)shot.ImpactRadius,\n                                                 (float3)shot.Direction);\n                    if (changed > 0)\n                        ProceduralTreeDamageBridge.ApplyExplosion(hit, shot.ImpactRadius);'''
+          new_explosion = '''int changed = 0;\n                    if (!semanticTreeHit)\n                    {\n                        changed = _world.Explode(hit, (ushort)shot.ImpactRadius,\n                                                 (float3)shot.Direction);\n                    }\n                    if (semanticTreeHit || changed > 0)\n                        ProceduralTreeDamageBridge.ApplyExplosion(hit, shot.ImpactRadius);'''
+          if old_explosion not in text:
+              raise SystemExit('tornado explosion block not found')
+          text = text.replace(old_explosion, new_explosion, 1)
+
+          signature = 'private bool TryTornadoImpact(Vector3 from, Vector3 to, out int3 hit)'
+          replacement_signature = ('private bool TryTornadoImpact(Vector3 from, Vector3 to, out int3 hit, '
+                                   'out bool semanticTreeHit)')
+          if signature not in text:
+              raise SystemExit('TryTornadoImpact signature not found')
+          text = text.replace(signature, replacement_signature, 1)
+
+          method_start = text.index(replacement_signature)
+          method_end = text.index('\n        private void ConsiderTornadoLine', method_start)
+          method = text[method_start:method_end]
+
+          old_init = '''bool found = false;\n            float nearestDistance = float.MaxValue;\n            hit = default;'''
+          new_init = '''bool found = false;\n            float nearestDistance = float.MaxValue;\n            hit = default;\n            semanticTreeHit = false;'''
+          if old_init not in method:
+              raise SystemExit('TryTornadoImpact initialization block not found')
+          method = method.replace(old_init, new_init, 1)
+
+          old_return = '            return found;\n        }\n'
+          semantic_tail = '''            if (ProceduralTreeDamageBridge.TrySweepImpact(\n                    (float3)from, (float3)to, sweepRadius,\n                    out float3 treeHitMetres, out _))\n            {\n                float treeDistance = math.lengthsq(treeHitMetres - (float3)from);\n                if (!found || treeDistance < nearestDistance)\n                {\n                    hit = (int3)math.round(treeHitMetres / VoxelSurfaceRenderer.VoxelSize);\n                    semanticTreeHit = true;\n                    found = true;\n                }\n            }\n            return found;\n        }\n'''
+          if old_return not in method:
+              raise SystemExit('TryTornadoImpact return not found')
+          method = method.replace(old_return, semantic_tail, 1)
+          text = text[:method_start] + method + text[method_end:]
+          path.write_text(text)
+          PY
+
+          git diff --check
+          git diff -- Assets/Scenes/Showcase/VoxelShowcase.cs
+
+      - name: Commit semantic collision wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "tree-rendering-ci"
+          git config user.email "tree-rendering-ci@users.noreply.github.com"
+          git add Assets/Scenes/Showcase/VoxelShowcase.cs
+          git commit -m "Route tornado impacts through semantic tree collision"
+          git push origin HEAD:tree-rendering
