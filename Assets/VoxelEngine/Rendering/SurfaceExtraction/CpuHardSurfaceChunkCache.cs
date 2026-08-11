@@ -5,6 +5,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Rendering.Vegetation;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction
 {
@@ -135,6 +136,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly byte[] _brickMaterials = new byte[VoxelDimensions.VoxelsPerBrick];
         private readonly byte[] _mask = new byte[E * E];
         private BuildState _build;
+        private int _treeRegistryVersion = int.MinValue;
 
         private static readonly int[] s_Strides = { 1, E, E * E };
         private static readonly int3[] s_BrickNeighbours =
@@ -185,6 +187,16 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             DiscoverHardChunks(ref table);
             QueueDirtyRegions(dirtyRegions);
             DropNoLongerResident(ref table);
+
+            // Semantic trees are published after the legacy castle classifier can already have
+            // baked nearby timber proxy bricks into an exact mesh. Rebuild ready hard chunks once
+            // when that tree snapshot changes so the migration-only proxy disappears immediately.
+            int treeRegistryVersion = ProceduralTreeRegistry.Version;
+            if (_treeRegistryVersion != treeRegistryVersion)
+            {
+                _treeRegistryVersion = treeRegistryVersion;
+                foreach (int3 chunk in _knownHardChunks) _pending.Add(chunk);
+            }
 
             // The render pass uses an explicit >=10 ms budget only for the legacy showcase
             // bootstrap. Treat that as a request to finish as much of the initial castle as
@@ -352,7 +364,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
                 // Hard semantics are brick-local. A castle wall and the grass immediately beside
                 // it are allowed to live in the same 12.8 m render chunk without forcing the
-                // terrain through the greedy mesher.
+                // terrain through the greedy mesher. Legacy tree timber can share the same hard
+                // bit because the old classifier only knew materials; semantic trees explicitly
+                // suppress those gameplay proxy bricks here.
+                if (ProceduralTreeRegistry.IsLegacyHiddenHardBrick(worldBrick)) continue;
                 if (!IsHardWorldBrick(ref table, worldBrick)) continue;
                 if (!TryGetBrick(ref table, worldBrick, out BrickRef brick) || brick.IsEmpty)
                     continue;
