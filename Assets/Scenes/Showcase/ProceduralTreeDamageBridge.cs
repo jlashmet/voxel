@@ -8,20 +8,14 @@ namespace VoxelEngine.Showcase
     /// <summary>
     /// Migration bridge between the showcase's voxel destruction command and semantic trees.
     ///
-    /// The old voxel tree remains the collision/debris proxy for now, but it no longer decides
-    /// whether a new procedural branch exists. The exact blast centre/radius is tested against the
-    /// deterministic procedural skeleton itself, so a branch hit by the same gameplay edit is cut
-    /// immediately and its connected descendants disappear from every visual LOD.
+    /// Legacy voxel trees are still the collision/debris proxy, but their scaffold does not match
+    /// the new procedural skeleton. Exact semantic intersections are preferred; when the proxy is
+    /// what was hit, a bounded nearest-limb fallback maps that edit onto the same visible tree.
     /// </summary>
     public static class ProceduralTreeDamageBridge
     {
         private const float VoxelSize = 0.1f;
 
-        /// <summary>
-        /// Applies the same radial edit used by <see cref="ShowcaseWorld.Explode"/> to semantic
-        /// vegetation. The operation is intentionally cheap enough to run once per impact: the
-        /// showcase has only tens of trees and at most a few hundred branch segments per tree.
-        /// </summary>
         public static void ApplyExplosion(int3 centreVoxel, int radiusVoxels)
         {
             IReadOnlyList<TreeInstance> instances = ProceduralTreeRegistry.Instances;
@@ -39,51 +33,89 @@ namespace VoxelEngine.Showcase
                     ProceduralTreeMeshBuilder.GenerateSkeleton(in instance);
                 float3 root = instance.PositionMetres;
 
-                // Height is also a conservative crown-radius bound for every current species.
-                // This rejects nearly every tree before the branch/leaf loops on a normal impact.
                 float broadRadius = skeleton.Height + blastRadius + 1f;
                 if (math.lengthsq(root - impact) > broadRadius * broadRadius) continue;
 
                 bool severed = false;
+                bool removedAny = false;
                 int hitLeaves = 0;
+                int nearestBranch = -1;
+                float nearestBranchSq = float.PositiveInfinity;
 
                 for (int branchIndex = 0; branchIndex < skeleton.Branches.Count; branchIndex++)
                 {
                     ProceduralTreeMeshBuilder.BranchSegment branch = skeleton.Branches[branchIndex];
+                    float distanceSq =
+                        DistanceToSegmentSq(impact, root + branch.Start, root + branch.End);
+
+                    if (distanceSq < nearestBranchSq)
+                    {
+                        nearestBranchSq = distanceSq;
+                        nearestBranch = branchIndex;
+                    }
+
                     float branchRadius = math.max(branch.RadiusStart, branch.RadiusEnd);
                     float radius = blastRadius + branchRadius;
-                    if (DistanceToSegmentSq(impact, root + branch.Start, root + branch.End)
-                        > radius * radius)
-                        continue;
+                    if (distanceSq > radius * radius) continue;
 
-                    // A low trunk hit should detach/fall the tree rather than deleting its crown
-                    // in place. Upper trunk sections and side branches are ordinary cut points.
-                    float midpointY = (branch.Start.y + branch.End.y) * 0.5f;
-                    if (branch.Level == 0 && midpointY < skeleton.Height * 0.48f)
+                    if (IsLowerTrunk(in branch, skeleton.Height))
                     {
                         severed = true;
                         continue;
                     }
 
-                    ProceduralTreeRegistry.RemoveBranch(treeIndex, branchIndex);
+                    removedAny |= ProceduralTreeRegistry.RemoveBranch(treeIndex, branchIndex);
                 }
 
-                // Leaf-only impacts still need visible feedback even when the blast misses a woody
-                // segment. The current leaf shader represents aggregate crown loss; branch-linked
-                // leaves disappear geometrically whenever their parent branch is cut.
                 for (int leafIndex = 0; leafIndex < skeleton.Leaves.Count; leafIndex++)
                 {
                     ProceduralTreeMeshBuilder.LeafAnchor leaf = skeleton.Leaves[leafIndex];
                     float radius = blastRadius + leaf.Size * 0.35f;
-                    if (math.lengthsq(root + leaf.Position - impact) <= radius * radius)
-                        hitLeaves++;
+                    if (math.lengthsq(root + leaf.Position - impact) > radius * radius) continue;
+
+                    hitLeaves++;
+
+                    // Leaf damage has to change topology too. Cutting the owning twig removes the
+                    // leaf cluster from the rebuilt mesh instead of relying on a subtle whole-crown
+                    // shader threshold to communicate the hit.
+                    int parent = skeleton.LeafParents != null
+                              && leafIndex < skeleton.LeafParents.Length
+                        ? skeleton.LeafParents[leafIndex] : -1;
+                    if ((uint)parent >= (uint)skeleton.Branches.Count) continue;
+
+                    ProceduralTreeMeshBuilder.BranchSegment parentBranch = skeleton.Branches[parent];
+                    if (IsLowerTrunk(in parentBranch, skeleton.Height))
+                        severed = true;
+                    else
+                        removedAny |= ProceduralTreeRegistry.RemoveBranch(treeIndex, parent);
                 }
 
-                float foliageHealth = treeIndex < damage.Count ? damage[treeIndex].FoliageHealth : 1f;
+                // Migration-only reconciliation. The old voxel scaffold and new semantic tree are
+                // deliberately different shapes, so the projectile can visibly pass through a new
+                // limb and hit an old proxy voxel a few metres behind it. If that proxy impact is
+                // still close to this tree, map it to the nearest procedural limb rather than doing
+                // nothing. Remove this once tornado collision queries semantic vegetation directly.
+                if (!removedAny && !severed && hitLeaves == 0 && nearestBranch >= 0)
+                {
+                    float fallbackRadius = math.max(
+                        3.0f, math.max(blastRadius * 2.5f, skeleton.Height * 0.35f));
+                    if (nearestBranchSq <= fallbackRadius * fallbackRadius)
+                    {
+                        ProceduralTreeMeshBuilder.BranchSegment nearest =
+                            skeleton.Branches[nearestBranch];
+                        if (IsLowerTrunk(in nearest, skeleton.Height))
+                            severed = true;
+                        else
+                            removedAny =
+                                ProceduralTreeRegistry.RemoveBranch(treeIndex, nearestBranch);
+                    }
+                }
+
+                float foliageHealth =
+                    treeIndex < damage.Count ? damage[treeIndex].FoliageHealth : 1f;
                 if (hitLeaves > 0 && skeleton.Leaves.Count > 0)
                 {
                     float fraction = hitLeaves / (float)skeleton.Leaves.Count;
-                    // Small blasts must be noticeable, but one grazing hit must not erase a crown.
                     float loss = math.clamp(fraction * 2.5f, 0.06f, 0.45f);
                     foliageHealth = math.max(0f, foliageHealth - loss);
                 }
@@ -91,6 +123,13 @@ namespace VoxelEngine.Showcase
                 if (severed || hitLeaves > 0)
                     ProceduralTreeRegistry.SetDamage(treeIndex, foliageHealth, severed);
             }
+        }
+
+        private static bool IsLowerTrunk(
+            in ProceduralTreeMeshBuilder.BranchSegment branch, float treeHeight)
+        {
+            float midpointY = (branch.Start.y + branch.End.y) * 0.5f;
+            return branch.Level == 0 && midpointY < treeHeight * 0.48f;
         }
 
         private static float DistanceToSegmentSq(float3 point, float3 a, float3 b)
