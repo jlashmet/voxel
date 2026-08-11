@@ -27,6 +27,7 @@ namespace VoxelEngine.Rendering.Vegetation
         // render chunk. Keep the legacy proxy ownership in that same coordinate space so the
         // renderer can make the coarse->Transvoxel handoff exclusive on a chunk-by-chunk basis.
         private const int LegacyRenderChunkBrickShift = 4;
+        private const float LegacyVoxelSize = 0.1f;
 
         private static readonly List<TreeInstance> s_Instances = new();
         private static readonly List<TreeDamageState> s_Damage = new();
@@ -73,11 +74,21 @@ namespace VoxelEngine.Rendering.Vegetation
             s_Instances.Clear();
             s_Damage.Clear();
             s_RemovedBranches.Clear();
+            int duplicateRoots = 0;
+            var authoredRoots = new HashSet<int3>();
             if (instances != null)
             {
                 for (int i = 0; i < instances.Count; i++)
                 {
-                    s_Instances.Add(instances[i]);
+                    TreeInstance instance = instances[i];
+                    int3 root = (int3)math.round(instance.PositionMetres / LegacyVoxelSize);
+                    if (!authoredRoots.Add(root))
+                    {
+                        duplicateRoots++;
+                        continue;
+                    }
+
+                    s_Instances.Add(instance);
                     s_Damage.Add(new TreeDamageState
                     {
                         FoliageHealth = 1f,
@@ -86,6 +97,9 @@ namespace VoxelEngine.Rendering.Vegetation
                     s_RemovedBranches.Add(new HashSet<int>());
                 }
             }
+
+            if (duplicateRoots > 0)
+                Debug.LogWarning($"Procedural vegetation: discarded {duplicateRoots} duplicate tree roots before rendering.");
 
             s_LegacyProxyRenderChunks.Clear();
             s_CoarseLegacyProxyRenderChunks.Clear();
