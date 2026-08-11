@@ -82,6 +82,11 @@ namespace VoxelEngine.CI
             try
             {
                 SettlementPlan plan = KentridgeDefinition.Build(Seed);
+                if (plan.Plots.Count != 17)
+                    throw new InvalidOperationException($"Expected 17 Kentridge plots, got {plan.Plots.Count}.");
+                if (plan.Streets.Count == 0)
+                    throw new InvalidOperationException("Kentridge plan contains no streets.");
+
                 TownBounds(plan, out int minX, out int maxX, out int minZ, out int maxZ);
 
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(
@@ -111,10 +116,14 @@ namespace VoxelEngine.CI
                 if (featureInstances == 0 || featureVoxels == 0)
                     throw new InvalidOperationException("Kentridge produced no isolated voxel geometry.");
 
-                // This isolated storage contains only Kentridge output, so every non-empty brick is
-                // authored town geometry. Tagging it here lets the production hard-surface mesher
-                // extract exact walls/roofs/roads without changing runtime semantic ownership.
-                MarkAllGeneratedBricksHard(ref table);
+                // This is deliberately a runtime-semantics assertion, not a capture workaround.
+                // Kentridge structures must mark their own bricks hard during feature generation.
+                // If this becomes zero, the town would fall back to legacy material classification
+                // in-game and the diagnostic images would no longer match what the player sees.
+                int hardBricks = CountHardBricks(ref table);
+                if (hardBricks == 0)
+                    throw new InvalidOperationException(
+                        "Kentridge generated no semantic hard-surface bricks.");
 
                 cameraObject = new GameObject("CI Kentridge Camera");
                 Camera camera = cameraObject.AddComponent<Camera>();
@@ -138,8 +147,8 @@ namespace VoxelEngine.CI
                 // hard-surface cache only exposes visible entries, so this produces one stable set
                 // of meshes that every later diagnostic camera renders from a different angle.
                 camera.fieldOfView = 55f;
-                cameraObject.transform.position = overviewFocus + new Vector3(0f, overviewDistance * 1.15f,
-                                                                               -overviewDistance * 0.12f);
+                cameraObject.transform.position = overviewFocus + new Vector3(
+                    0f, overviewDistance * 1.15f, -overviewDistance * 0.12f);
                 cameraObject.transform.LookAt(overviewFocus);
                 camera.farClipPlane = overviewDistance * 4f;
 
@@ -209,6 +218,7 @@ namespace VoxelEngine.CI
                     $"streets={plan.Streets.Count}\n" +
                     $"featureInstances={featureInstances}\n" +
                     $"featureVoxels={featureVoxels}\n" +
+                    $"hardBricks={hardBricks}\n" +
                     $"hardChunks={visible.Count}\n" +
                     $"hardTriangles={hardTriangles}\n" +
                     $"boundsDm={minX},{minZ}..{maxX},{maxZ}\n" +
@@ -325,6 +335,33 @@ namespace VoxelEngine.CI
             return new VoxelWorldGenSettings(1, materials);
         }
 
+        private static int CountHardBricks(ref RegionTable table)
+        {
+            int count = 0;
+            NativeArray<int3> resident = table.GetResidentCoords(Allocator.Temp);
+            try
+            {
+                for (int r = 0; r < resident.Length; r++)
+                {
+                    if (!table.TryGetRegion(resident[r], out Region region)) continue;
+                    for (int i = 0; i < region.HardSurfaceWords.Length; i++)
+                    {
+                        ulong word = region.HardSurfaceWords[i];
+                        while (word != 0UL)
+                        {
+                            count++;
+                            word &= word - 1UL;
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                resident.Dispose();
+            }
+            return count;
+        }
+
         private static void TownBounds(SettlementPlan plan,
                                        out int minX, out int maxX, out int minZ, out int maxZ)
         {
@@ -359,29 +396,6 @@ namespace VoxelEngine.CI
 
             const int padding = 96;
             minX -= padding; maxX += padding; minZ -= padding; maxZ += padding;
-        }
-
-        private static void MarkAllGeneratedBricksHard(ref RegionTable table)
-        {
-            NativeArray<int3> resident = table.GetResidentCoords(Allocator.Temp);
-            try
-            {
-                for (int r = 0; r < resident.Length; r++)
-                {
-                    if (!table.TryGetRegion(resident[r], out Region region)) continue;
-                    bool changed = false;
-                    for (int i = 0; i < region.BrickRefs.Length; i++)
-                    {
-                        if (region.BrickRefs[i].IsEmpty) continue;
-                        changed |= region.MarkHardSurfaceBrick(i);
-                    }
-                    if (changed) table.CommitRegion(region);
-                }
-            }
-            finally
-            {
-                resident.Dispose();
-            }
         }
 
         private static Mesh BuildTerrainMesh(int minX, int maxX, int minZ, int maxZ)
