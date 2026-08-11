@@ -47,7 +47,6 @@ namespace VoxelEngine.CI
                 $"graphics={SystemInfo.graphicsDeviceName}",
             };
 
-            // Warm deterministic code paths before the first measurement.
             TreeInstance warm = MakeInstance(0);
             ProceduralTreeSkeletonBuilder.Generate(in warm);
 
@@ -153,11 +152,13 @@ namespace VoxelEngine.CI
             int x = index % columns;
             int z = index / columns;
             TreeSpecies species = (TreeSpecies)(index % 7);
+            uint seed = 0x9E3779B9u ^ ((uint)index * 747796405u + 2891336453u);
+            if (seed == 0) seed = 1u;
             return new TreeInstance
             {
                 PositionMetres = new float3(x * 4.5f, 0f, z * 4.5f),
                 Species = species,
-                Seed = 0x9E3779B9u ^ (uint)(index * 747796405 + 2891336453u),
+                Seed = seed,
                 Scale = 0.88f + (index % 9) * 0.03f,
             };
         }
