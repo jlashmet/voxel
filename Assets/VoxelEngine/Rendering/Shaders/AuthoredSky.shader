@@ -38,7 +38,6 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
 
             Varyings Vert(uint vertexID : SV_VertexID)
             {
-                // Full-screen triangle, no mesh allocation.
                 float2 uv = float2((vertexID << 1) & 2, vertexID & 2);
                 Varyings output;
                 output.positionCS = float4(uv * 2.0 - 1.0, 0.0, 1.0);
@@ -61,8 +60,6 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
                 painted = lerp(luminance.xxx, painted, 0.46);
                 float3 sky = lerp(painted, GradientSky(direction), 0.48);
 
-                // Preserve the broad warm sun treatment from the old raymarch presentation
-                // without making sky rendering depend on the voxel renderer itself.
                 float sunDot = saturate(dot(direction, normalize(_SunDirection.xyz)));
                 float broadHalo = pow(sunDot, 18.0);
                 float innerHalo = pow(sunDot, 96.0);
@@ -75,14 +72,12 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
 
             float4 Frag(Varyings input) : SV_Target
             {
+                // Match the old raymarch exactly: one valid clip-space depth is enough to recover
+                // a point in front of the camera, and 0.5 is independent of reversed-Z.
                 float2 ndc = input.uv * 2.0 - 1.0;
-#if UNITY_UV_STARTS_AT_TOP
-                ndc.y = -ndc.y;
-#endif
-                float4 worldFar = mul(_InvViewProj,
-                    float4(ndc, UNITY_RAW_FAR_CLIP_VALUE, 1.0));
-                float3 world = worldFar.xyz / max(abs(worldFar.w), 1e-6);
-                float3 direction = normalize(world - _CameraPosition.xyz);
+                float4 h = mul(_InvViewProj, float4(ndc, 0.5, 1.0));
+                float3 target = h.xyz / h.w;
+                float3 direction = normalize(target - _CameraPosition.xyz);
                 return float4(AuthoredSky(direction), 1.0);
             }
             ENDHLSL
