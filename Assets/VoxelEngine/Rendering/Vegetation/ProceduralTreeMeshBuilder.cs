@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Vegetation;
 using Random = Unity.Mathematics.Random;
+using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 
 namespace VoxelEngine.Rendering.Vegetation
 {
