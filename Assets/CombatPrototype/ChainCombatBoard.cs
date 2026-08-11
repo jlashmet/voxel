@@ -76,11 +76,20 @@ namespace MountingForce.CombatPrototype
         public GridPos Position { get; }
         public bool Standing { get; internal set; } = true;
         public GridPos FallDirection { get; internal set; }
+        public int Stress { get; internal set; }
     }
 
     public sealed class ChainReactionOpportunity
     {
-        internal ChainReactionOpportunity(int id, ChainReactionKind kind, int primaryUnitId, int secondaryUnitId, int treeId, GridPos position, string description)
+        internal ChainReactionOpportunity(
+            int id,
+            ChainReactionKind kind,
+            int primaryUnitId,
+            int secondaryUnitId,
+            int treeId,
+            GridPos position,
+            int impactForce,
+            string description)
         {
             Id = id;
             Kind = kind;
@@ -88,6 +97,7 @@ namespace MountingForce.CombatPrototype
             SecondaryUnitId = secondaryUnitId;
             TreeId = treeId;
             Position = position;
+            ImpactForce = impactForce;
             Description = description;
         }
 
@@ -97,6 +107,7 @@ namespace MountingForce.CombatPrototype
         public int SecondaryUnitId { get; }
         public int TreeId { get; }
         public GridPos Position { get; }
+        public int ImpactForce { get; }
         public string Description { get; }
         public int ClaimedByUnitId { get; internal set; }
         public int ClaimedByCommandGroup { get; internal set; }
@@ -113,9 +124,9 @@ namespace MountingForce.CombatPrototype
     }
 
     /// <summary>
-    /// Second combat experiment: physical events are public facts, but compatible reactions are never enumerated.
-    /// Players must select a recruit, attempt to claim an event with a capability they remember, then aim/execute it.
-    /// Claims are authoritative and exclusive, matching the eventual multiplayer ownership model.
+    /// Deterministic combat sandbox for discovering and executing physical cascades.
+    /// The server exposes physical facts, not compatible reactions. Clients attempt to claim a fact with a recruit
+    /// and capability they believe applies; the first valid claim owns the next decision until execution/release.
     /// </summary>
     public sealed class ChainCombatBoard
     {
@@ -126,6 +137,8 @@ namespace MountingForce.CombatPrototype
         private const int ConstructRange = 6;
         private const int PortalPairMaxDistance = 9;
         private const int MaximumMotionForce = 12;
+        private const int TreeReactionMinimumForce = 2;
+        private const int TreeBreakStress = 7;
 
         private readonly List<ChainUnitState> _units = new List<ChainUnitState>();
         private readonly List<ChainTreeState> _trees = new List<ChainTreeState>();
@@ -138,6 +151,7 @@ namespace MountingForce.CombatPrototype
         private int _nextTreeId;
         private int _nextOpportunityId;
         private bool _cascadeActive;
+        private int _lastCascadeCommandGroup;
 
         public ChainCombatBoard()
         {
@@ -161,6 +175,9 @@ namespace MountingForce.CombatPrototype
         public int LastCascadePlayers { get; private set; }
         public int BestCascadeSteps { get; private set; }
         public int BestCascadePlayers { get; private set; }
+        public int CurrentHandoffs { get; private set; }
+        public int LastHandoffs { get; private set; }
+        public int BestHandoffs { get; private set; }
 
         public void Reset()
         {
@@ -174,6 +191,7 @@ namespace MountingForce.CombatPrototype
             _nextTreeId = 1;
             _nextOpportunityId = 1;
             _cascadeActive = false;
+            _lastCascadeCommandGroup = 0;
             PortalA = null;
             PortalB = null;
             PendingReaction = null;
@@ -186,8 +204,10 @@ namespace MountingForce.CombatPrototype
             LastCascadePlayers = 0;
             BestCascadeSteps = 0;
             BestCascadePlayers = 0;
+            CurrentHandoffs = 0;
+            LastHandoffs = 0;
+            BestHandoffs = 0;
 
-            // Four command groups. The initial geometry intentionally admits more than one reaction path.
             AddFriendly("Stephen", ChainRecruitKind.Stephen, 1, new GridPos(2, 4), 7);
             AddFriendly("Brutus", ChainRecruitKind.Brutus, 1, new GridPos(4, 6), 8);
             AddFriendly("Weldon", ChainRecruitKind.Weldon, 2, new GridPos(4, 2), 6);
@@ -196,26 +216,22 @@ namespace MountingForce.CombatPrototype
             AddFriendly("Grom", ChainRecruitKind.Grom, 4, new GridPos(10, 7), 8);
             AddFriendly("Skitter", ChainRecruitKind.Skitter, 4, new GridPos(8, 6), 6);
 
-            AddEnemy("Ogre", ChainRecruitKind.Ogre, new GridPos(3, 4), 9);
-            AddEnemy("Goblin A", ChainRecruitKind.Goblin, new GridPos(8, 4), 5);
-            AddEnemy("Goblin B", ChainRecruitKind.Goblin, new GridPos(10, 6), 5);
+            AddEnemy("Ogre", ChainRecruitKind.Ogre, new GridPos(3, 4), 11);
+            AddEnemy("Goblin A", ChainRecruitKind.Goblin, new GridPos(8, 4), 7);
+            AddEnemy("Goblin B", ChainRecruitKind.Goblin, new GridPos(10, 6), 7);
 
             AddTree(new GridPos(11, 4));
             AddTree(new GridPos(11, 8));
 
-            WriteLog("Round 1. Read the roster, inspect the geometry, and make your own plan. Reaction compatibility is never listed for you.");
+            WriteLog("Round 1. The world reports what physically happened, never which recruit should answer it.");
         }
 
         public ChainUnitState GetUnit(int id)
         {
             for (int i = 0; i < _units.Count; i++)
             {
-                if (_units[i].Id == id)
-                {
-                    return _units[i];
-                }
+                if (_units[i].Id == id) return _units[i];
             }
-
             return null;
         }
 
@@ -223,12 +239,8 @@ namespace MountingForce.CombatPrototype
         {
             for (int i = 0; i < _trees.Count; i++)
             {
-                if (_trees[i].Id == id)
-                {
-                    return _trees[i];
-                }
+                if (_trees[i].Id == id) return _trees[i];
             }
-
             return null;
         }
 
@@ -237,12 +249,8 @@ namespace MountingForce.CombatPrototype
             for (int i = 0; i < _units.Count; i++)
             {
                 ChainUnitState unit = _units[i];
-                if (unit.IsAlive && unit.Position.Equals(position))
-                {
-                    return unit;
-                }
+                if (unit.IsAlive && unit.Position.Equals(position)) return unit;
             }
-
             return null;
         }
 
@@ -251,36 +259,17 @@ namespace MountingForce.CombatPrototype
             for (int i = 0; i < _trees.Count; i++)
             {
                 ChainTreeState tree = _trees[i];
-                if (tree.Standing && tree.Position.Equals(position))
-                {
-                    return tree;
-                }
+                if (tree.Standing && tree.Position.Equals(position)) return tree;
             }
-
             return null;
         }
 
         public bool TryMove(int unitId, GridPos destination)
         {
-            if (!TryGetNormalActor(unitId, out ChainUnitState unit))
-            {
-                return false;
-            }
-
-            if (!IsInBounds(destination))
-            {
-                return Fail("That cell is outside the battle board.");
-            }
-
-            if (Distance(unit.Position, destination) > MoveRange)
-            {
-                return Fail($"Move reaches at most {MoveRange} cells.");
-            }
-
-            if (!IsCellOpen(destination))
-            {
-                return Fail("That cell is occupied.");
-            }
+            if (!TryGetNormalActor(unitId, out ChainUnitState unit)) return false;
+            if (!IsInBounds(destination)) return Fail("That cell is outside the battle board.");
+            if (Distance(unit.Position, destination) > MoveRange) return Fail($"Move reaches at most {MoveRange} cells.");
+            if (!IsCellOpen(destination)) return Fail("That cell is occupied.");
 
             unit.Position = destination;
             unit.ActionSpent = true;
@@ -290,16 +279,10 @@ namespace MountingForce.CombatPrototype
 
         public bool TryBasicHit(int unitId, int targetId)
         {
-            if (!TryGetNormalActor(unitId, out ChainUnitState unit))
-            {
-                return false;
-            }
-
+            if (!TryGetNormalActor(unitId, out ChainUnitState unit)) return false;
             ChainUnitState target = GetUnit(targetId);
             if (!IsEnemyTarget(unit, target) || Distance(unit.Position, target.Position) != 1)
-            {
                 return Fail("Strike needs an adjacent living enemy.");
-            }
 
             unit.ActionSpent = true;
             Damage(target, 1, $"{unit.Name} struck {target.Name}");
@@ -310,46 +293,36 @@ namespace MountingForce.CombatPrototype
         public bool TryUppercut(int stephenId, int targetId)
         {
             if (!TryGetNormalActor(stephenId, out ChainUnitState stephen) || stephen.Kind != ChainRecruitKind.Stephen)
-            {
                 return Fail("Stephen is required for Uppercut.");
-            }
 
             ChainUnitState target = GetUnit(targetId);
             if (!IsEnemyTarget(stephen, target) || Distance(stephen.Position, target.Position) != 1)
-            {
                 return Fail("Uppercut needs an adjacent living enemy.");
-            }
 
             GridPos direction = CardinalDirection(stephen.Position, target.Position);
             stephen.ActionSpent = true;
             target.Airborne = true;
-            _motion = new ChainMotionState { UnitId = target.Id, Direction = direction, RemainingForce = 5, Airborne = true };
+            _motion = NewMotion(target.Id, direction, 5, true);
             BeginCascade(stephen.CommandGroup, $"{stephen.Name} launched {target.Name}");
-            OpenOpportunity(ChainReactionKind.Airborne, target.Id, 0, 0, target.Position, $"{target.Name} is airborne and moving {DirectionName(direction)}.");
+            OpenOpportunity(ChainReactionKind.Airborne, target.Id, 0, 0, target.Position, 5,
+                $"{target.Name} is airborne, moving {DirectionName(direction)}, with force 5 ({ForceWord(5)}).");
             return true;
         }
 
         public bool TryShoulderHurl(int brutusId, int targetId, GridPos aim)
         {
             if (!TryGetNormalActor(brutusId, out ChainUnitState brutus) || brutus.Kind != ChainRecruitKind.Brutus)
-            {
                 return Fail("Brutus is required for Shoulder Hurl.");
-            }
 
             ChainUnitState target = GetUnit(targetId);
             if (!IsEnemyTarget(brutus, target) || Distance(brutus.Position, target.Position) != 1)
-            {
                 return Fail("Shoulder Hurl needs an adjacent living enemy.");
-            }
 
             GridPos direction = CardinalDirection(target.Position, aim);
-            if (IsZero(direction))
-            {
-                return Fail("Aim away from the target to choose the hurl direction.");
-            }
+            if (IsZero(direction)) return Fail("Aim away from the target to choose the hurl direction.");
 
             brutus.ActionSpent = true;
-            _motion = new ChainMotionState { UnitId = target.Id, Direction = direction, RemainingForce = 4, Airborne = false };
+            _motion = NewMotion(target.Id, direction, 5, false);
             BeginCascade(brutus.CommandGroup, $"{brutus.Name} shoulder-hurled {target.Name}");
             ResolveMotion();
             CheckBattleEnd();
@@ -359,24 +332,17 @@ namespace MountingForce.CombatPrototype
         public bool TryGust(int weldonId, int targetId)
         {
             if (!TryGetNormalActor(weldonId, out ChainUnitState weldon) || weldon.Kind != ChainRecruitKind.Weldon)
-            {
                 return Fail("Weldon is required for Gust.");
-            }
 
             ChainUnitState target = GetUnit(targetId);
             if (!IsEnemyTarget(weldon, target) || Distance(weldon.Position, target.Position) > 4)
-            {
                 return Fail("Gust needs a living enemy within 4 cells.");
-            }
 
             GridPos direction = CardinalDirection(weldon.Position, target.Position);
-            if (IsZero(direction))
-            {
-                return Fail("Gust needs a direction away from Weldon.");
-            }
+            if (IsZero(direction)) return Fail("Gust needs a direction away from Weldon.");
 
             weldon.ActionSpent = true;
-            _motion = new ChainMotionState { UnitId = target.Id, Direction = direction, RemainingForce = 3, Airborne = false };
+            _motion = NewMotion(target.Id, direction, 3, false);
             BeginCascade(weldon.CommandGroup, $"{weldon.Name} gusted {target.Name}");
             ResolveMotion();
             CheckBattleEnd();
@@ -386,66 +352,39 @@ namespace MountingForce.CombatPrototype
         public bool TryPlacePortalPair(int miraId, GridPos entrance, GridPos exit)
         {
             if (!TryGetNormalActor(miraId, out ChainUnitState mira) || mira.Kind != ChainRecruitKind.Mira)
-            {
                 return Fail("Mira is required to place portals.");
-            }
-
             if (!IsInBounds(entrance) || !IsInBounds(exit) || entrance.Equals(exit))
-            {
                 return Fail("Choose two different cells on the board for the portals.");
-            }
-
             if (Distance(mira.Position, entrance) > ConstructRange || Distance(mira.Position, exit) > ConstructRange)
-            {
                 return Fail($"Each portal must be within {ConstructRange} cells of Mira.");
-            }
-
             if (Distance(entrance, exit) > PortalPairMaxDistance)
-            {
                 return Fail($"The portal pair can span at most {PortalPairMaxDistance} cells.");
-            }
-
             if (!IsCellOpenForConstruct(entrance) || !IsCellOpenForConstruct(exit))
-            {
                 return Fail("Portals need empty cells.");
-            }
 
             PortalA = entrance;
             PortalB = exit;
             mira.ActionSpent = true;
-            WriteLog($"{mira.Name} linked portals at {entrance} and {exit}. Moving bodies preserve direction and momentum.");
+            WriteLog($"{mira.Name} linked portals at {entrance} and {exit}. Travel through a portal costs no extra force.");
             return true;
         }
 
         public bool TryPlaceAmplifier(int miraId, GridPos position)
         {
             if (!TryGetNormalActor(miraId, out ChainUnitState mira) || mira.Kind != ChainRecruitKind.Mira)
-            {
                 return Fail("Mira is required to place a force multiplier.");
-            }
-
             if (!IsInBounds(position) || Distance(mira.Position, position) > ConstructRange || !IsCellOpenForConstruct(position))
-            {
                 return Fail("The multiplier needs an empty cell within Mira's 6-cell placement range.");
-            }
 
             _amplifiers.Add(position);
             mira.ActionSpent = true;
-            WriteLog($"{mira.Name} placed a force multiplier at {position}. Anything driven through it gains momentum.");
+            WriteLog($"{mira.Name} placed a force multiplier at {position}. Moving bodies crossing it amplify their remaining force.");
             return true;
         }
 
-        /// <summary>
-        /// Multiplayer-style reservation. The board never exposes a list of valid reactors; a client must name the recruit
-        /// and capability it believes applies. First valid claim wins until executed or released.
-        /// </summary>
         public bool TryClaimReaction(int unitId, ChainReactionAbility ability)
         {
-            if (BattleOver || PendingReaction == null)
-            {
-                return Fail("There is no unresolved physical event to claim.");
-            }
-
+            if (BattleOver || PendingReaction == null) return Fail("There is no unresolved physical event to claim.");
             if (PendingReaction.IsClaimed)
             {
                 ChainUnitState owner = GetUnit(PendingReaction.ClaimedByUnitId);
@@ -454,14 +393,9 @@ namespace MountingForce.CombatPrototype
 
             ChainUnitState unit = GetUnit(unitId);
             if (unit == null || !unit.IsAlive || unit.Team != CombatTeam.Friendly || unit.ReactionSpent)
-            {
                 return Fail("That recruit cannot claim a reaction right now.");
-            }
-
             if (!CanClaim(unit, ability, PendingReaction))
-            {
                 return Fail($"{unit.Name} cannot claim this event from the current position with that capability.");
-            }
 
             PendingReaction.ClaimedByUnitId = unit.Id;
             PendingReaction.ClaimedByCommandGroup = unit.CommandGroup;
@@ -472,15 +406,8 @@ namespace MountingForce.CombatPrototype
 
         public bool TryReleaseClaim(int unitId)
         {
-            if (PendingReaction == null || !PendingReaction.IsClaimed)
-            {
-                return Fail("There is no reaction claim to release.");
-            }
-
-            if (PendingReaction.ClaimedByUnitId != unitId)
-            {
-                return Fail("Only the recruit holding this claim can release it.");
-            }
+            if (PendingReaction == null || !PendingReaction.IsClaimed) return Fail("There is no reaction claim to release.");
+            if (PendingReaction.ClaimedByUnitId != unitId) return Fail("Only the recruit holding this claim can release it.");
 
             ChainUnitState unit = GetUnit(unitId);
             WriteLog($"{unit?.Name ?? "A recruit"} released event #{PendingReaction.Id}. Another player may claim it.");
@@ -492,19 +419,15 @@ namespace MountingForce.CombatPrototype
 
         public bool TryCrosswind(int weldonId, GridPos aim)
         {
-            if (!TryGetClaimedActor(weldonId, ChainRecruitKind.Weldon, ChainReactionAbility.Crosswind, out ChainUnitState weldon, out ChainReactionOpportunity reaction))
-            {
-                return false;
-            }
+            if (!TryGetClaimedActor(weldonId, ChainRecruitKind.Weldon, ChainReactionAbility.Crosswind,
+                    out ChainUnitState weldon, out ChainReactionOpportunity reaction)) return false;
 
             ChainUnitState target = GetUnit(reaction.PrimaryUnitId);
-            GridPos direction = target == null ? new GridPos(0, 0) : CardinalDirection(target.Position, aim);
+            GridPos direction = target == null ? Zero : CardinalDirection(target.Position, aim);
             if (target == null || IsZero(direction) || _motion == null)
-            {
                 return Fail("Crosswind needs an aimed direction while the airborne body still has momentum.");
-            }
 
-            ConsumeClaim(weldon, "redirected the airborne body with Crosswind");
+            ConsumeClaim(weldon, $"redirected {target.Name} with Crosswind");
             _motion.Direction = direction;
             ResolveMotion();
             CheckBattleEnd();
@@ -513,27 +436,18 @@ namespace MountingForce.CombatPrototype
 
         public bool TryCatchThrow(int brutusId, GridPos aim)
         {
-            if (!TryGetClaimedActor(brutusId, ChainRecruitKind.Brutus, ChainReactionAbility.CatchThrow, out ChainUnitState brutus, out ChainReactionOpportunity reaction))
-            {
-                return false;
-            }
+            if (!TryGetClaimedActor(brutusId, ChainRecruitKind.Brutus, ChainReactionAbility.CatchThrow,
+                    out ChainUnitState brutus, out ChainReactionOpportunity reaction)) return false;
 
             ChainUnitState target = GetUnit(reaction.PrimaryUnitId);
-            GridPos direction = target == null ? new GridPos(0, 0) : CardinalDirection(target.Position, aim);
-            if (target == null || IsZero(direction))
-            {
-                return Fail("Catch & Throw needs a direction for Brutus's throw.");
-            }
-
-            if (!TryFindCatchCell(brutus, target, out GridPos catchCell))
-            {
-                return Fail("Brutus has no open adjacent cell to complete the catch.");
-            }
+            GridPos direction = target == null ? Zero : CardinalDirection(target.Position, aim);
+            if (target == null || IsZero(direction)) return Fail("Catch & Throw needs a throw direction.");
+            if (!TryFindCatchCell(brutus, target, out GridPos catchCell)) return Fail("Brutus has no open adjacent cell to complete the catch.");
 
             target.Position = catchCell;
             target.Airborne = true;
-            _motion = new ChainMotionState { UnitId = target.Id, Direction = direction, RemainingForce = 7, Airborne = true };
-            ConsumeClaim(brutus, $"caught {target.Name} and threw it from {catchCell}");
+            _motion = NewMotion(target.Id, direction, 7, true);
+            ConsumeClaim(brutus, $"caught {target.Name} and rethrew it with force 7");
             ResolveMotion();
             CheckBattleEnd();
             return true;
@@ -541,25 +455,18 @@ namespace MountingForce.CombatPrototype
 
         public bool TryRepulse(int madelineId, int targetId, GridPos aim)
         {
-            if (!TryGetClaimedActor(madelineId, ChainRecruitKind.Madeline, ChainReactionAbility.Repulse, out ChainUnitState madeline, out ChainReactionOpportunity reaction))
-            {
-                return false;
-            }
-
+            if (!TryGetClaimedActor(madelineId, ChainRecruitKind.Madeline, ChainReactionAbility.Repulse,
+                    out ChainUnitState madeline, out ChainReactionOpportunity reaction)) return false;
             if (targetId != reaction.PrimaryUnitId && targetId != reaction.SecondaryUnitId)
-            {
                 return Fail("Repulse must target one of the two collision participants.");
-            }
 
             ChainUnitState target = GetUnit(targetId);
-            GridPos direction = target == null ? new GridPos(0, 0) : CardinalDirection(target.Position, aim);
+            GridPos direction = target == null ? Zero : CardinalDirection(target.Position, aim);
             if (target == null || !target.IsAlive || IsZero(direction))
-            {
                 return Fail("Choose a living collision participant and an outward direction.");
-            }
 
-            _motion = new ChainMotionState { UnitId = target.Id, Direction = direction, RemainingForce = 4, Airborne = false };
-            ConsumeClaim(madeline, $"repulsed {target.Name} from the collision");
+            _motion = NewMotion(target.Id, direction, 4, false);
+            ConsumeClaim(madeline, $"repulsed {target.Name} with force 4");
             ResolveMotion();
             CheckBattleEnd();
             return true;
@@ -567,25 +474,18 @@ namespace MountingForce.CombatPrototype
 
         public bool TryFollowThrough(int stephenId, int targetId, GridPos aim)
         {
-            if (!TryGetClaimedActor(stephenId, ChainRecruitKind.Stephen, ChainReactionAbility.FollowThrough, out ChainUnitState stephen, out ChainReactionOpportunity reaction))
-            {
-                return false;
-            }
-
+            if (!TryGetClaimedActor(stephenId, ChainRecruitKind.Stephen, ChainReactionAbility.FollowThrough,
+                    out ChainUnitState stephen, out ChainReactionOpportunity reaction)) return false;
             if (targetId != reaction.PrimaryUnitId && targetId != reaction.SecondaryUnitId)
-            {
                 return Fail("Follow Through must target one of the collision participants.");
-            }
 
             ChainUnitState target = GetUnit(targetId);
-            GridPos direction = target == null ? new GridPos(0, 0) : CardinalDirection(target.Position, aim);
+            GridPos direction = target == null ? Zero : CardinalDirection(target.Position, aim);
             if (target == null || !target.IsAlive || IsZero(direction))
-            {
                 return Fail("Choose a living collision participant and a kick direction.");
-            }
 
-            _motion = new ChainMotionState { UnitId = target.Id, Direction = direction, RemainingForce = 5, Airborne = false };
-            ConsumeClaim(stephen, $"followed the collision with a kick on {target.Name}");
+            _motion = NewMotion(target.Id, direction, 5, false);
+            ConsumeClaim(stephen, $"followed the collision with a force-5 kick on {target.Name}");
             ResolveMotion();
             CheckBattleEnd();
             return true;
@@ -593,32 +493,23 @@ namespace MountingForce.CombatPrototype
 
         public bool TryHookYank(int skitterId, int targetId, GridPos aim)
         {
-            if (!TryGetClaimedActor(skitterId, ChainRecruitKind.Skitter, ChainReactionAbility.HookYank, out ChainUnitState skitter, out ChainReactionOpportunity reaction))
-            {
-                return false;
-            }
+            if (!TryGetClaimedActor(skitterId, ChainRecruitKind.Skitter, ChainReactionAbility.HookYank,
+                    out ChainUnitState skitter, out ChainReactionOpportunity reaction)) return false;
 
-            bool validTarget = targetId == reaction.PrimaryUnitId || (reaction.Kind == ChainReactionKind.Collision && targetId == reaction.SecondaryUnitId);
-            if (!validTarget)
-            {
-                return Fail("Hook Yank must grab a creature involved in the claimed event.");
-            }
+            bool validTarget = targetId == reaction.PrimaryUnitId ||
+                               (reaction.Kind == ChainReactionKind.Collision && targetId == reaction.SecondaryUnitId);
+            if (!validTarget) return Fail("Hook Yank must grab a creature involved in the claimed event.");
 
             ChainUnitState target = GetUnit(targetId);
-            GridPos direction = target == null ? new GridPos(0, 0) : CardinalDirection(target.Position, aim);
-            if (target == null || !target.IsAlive || IsZero(direction))
-            {
-                return Fail("Hook Yank needs a living event participant and a pull direction.");
-            }
+            GridPos direction = target == null ? Zero : CardinalDirection(target.Position, aim);
+            if (target == null || !target.IsAlive || IsZero(direction)) return Fail("Hook Yank needs a living event participant and a pull direction.");
 
             GridPos oneStep = target.Position + direction;
             if (Distance(oneStep, skitter.Position) >= Distance(target.Position, skitter.Position))
-            {
                 return Fail("Skitter's hook must pull the target closer to Skitter.");
-            }
 
-            _motion = new ChainMotionState { UnitId = target.Id, Direction = direction, RemainingForce = 5, Airborne = false };
-            ConsumeClaim(skitter, $"hook-yanked {target.Name}");
+            _motion = NewMotion(target.Id, direction, 5, false);
+            ConsumeClaim(skitter, $"hook-yanked {target.Name} with force 5");
             ResolveMotion();
             CheckBattleEnd();
             return true;
@@ -626,48 +517,34 @@ namespace MountingForce.CombatPrototype
 
         public bool TryTimber(int gromId, GridPos aim)
         {
-            if (!TryGetClaimedActor(gromId, ChainRecruitKind.Grom, ChainReactionAbility.Timber, out ChainUnitState grom, out ChainReactionOpportunity reaction))
-            {
-                return false;
-            }
+            if (!TryGetClaimedActor(gromId, ChainRecruitKind.Grom, ChainReactionAbility.Timber,
+                    out ChainUnitState grom, out ChainReactionOpportunity reaction)) return false;
 
             ChainTreeState tree = GetTree(reaction.TreeId);
-            GridPos direction = tree == null ? new GridPos(0, 0) : CardinalDirection(tree.Position, aim);
-            if (tree == null || !tree.Standing || IsZero(direction))
-            {
-                return Fail("Timber needs the struck standing tree and a fall direction.");
-            }
+            GridPos direction = tree == null ? Zero : CardinalDirection(tree.Position, aim);
+            if (tree == null || !tree.Standing || IsZero(direction)) return Fail("Timber needs the struck standing tree and a fall direction.");
 
             tree.Standing = false;
             tree.FallDirection = direction;
-            ConsumeClaim(grom, $"finished tree #{tree.Id} and chose its fall direction");
+            ConsumeClaim(grom, $"committed tree #{tree.Id} to a {DirectionName(direction)} fall");
 
-            ChainUnitState firstSurvivorHit = null;
+            ChainUnitState carried = null;
             for (int step = 1; step <= 4; step++)
             {
                 GridPos cell = tree.Position + direction * step;
-                if (!IsInBounds(cell))
-                {
-                    break;
-                }
-
+                if (!IsInBounds(cell)) break;
                 ChainUnitState hit = FindUnitAt(cell);
-                if (hit == null)
-                {
-                    continue;
-                }
+                if (hit == null) continue;
 
-                Damage(hit, 3, $"The falling tree crushed {hit.Name}");
-                if (firstSurvivorHit == null && hit.IsAlive)
-                {
-                    firstSurvivorHit = hit;
-                }
+                int damage = step <= 2 ? 5 : 4;
+                Damage(hit, damage, $"The falling tree crushed {hit.Name}");
+                if (carried == null && hit.IsAlive) carried = hit;
             }
 
-            if (firstSurvivorHit != null)
+            if (carried != null)
             {
-                _motion = new ChainMotionState { UnitId = firstSurvivorHit.Id, Direction = direction, RemainingForce = 3, Airborne = false };
-                WriteLog($"The tree's force carries {firstSurvivorHit.Name} onward.");
+                _motion = NewMotion(carried.Id, direction, 4, false);
+                WriteLog($"The tree carries {carried.Name} onward with force 4.");
                 ResolveMotion();
             }
             else
@@ -682,9 +559,13 @@ namespace MountingForce.CombatPrototype
 
         public bool PassReaction()
         {
-            if (PendingReaction == null)
+            if (PendingReaction == null) return Fail("There is no reaction window to pass.");
+            if (PendingReaction.IsClaimed)
             {
-                return Fail("There is no reaction window to pass.");
+                ChainUnitState owner = GetUnit(PendingReaction.ClaimedByUnitId);
+                return Fail(owner == null
+                    ? "A claimed event must be released before the group can pass."
+                    : $"P{owner.CommandGroup} {owner.Name} owns this event. Execute it or release the claim before passing.");
             }
 
             string description = PendingReaction.Description;
@@ -708,22 +589,12 @@ namespace MountingForce.CombatPrototype
 
         public bool EndRound()
         {
-            if (BattleOver)
-            {
-                return Fail("The battle is over. Reset to play again.");
-            }
-
-            if (PendingReaction != null)
-            {
-                return Fail("Resolve or pass the physical event before ending the round.");
-            }
+            if (BattleOver) return Fail("The battle is over. Reset to play again.");
+            if (PendingReaction != null) return Fail("Resolve or pass the physical event before ending the round.");
 
             RunEnemyTurn();
             CheckBattleEnd();
-            if (BattleOver)
-            {
-                return true;
-            }
+            if (BattleOver) return true;
 
             Round++;
             for (int i = 0; i < _units.Count; i++)
@@ -750,6 +621,29 @@ namespace MountingForce.CombatPrototype
             return Math.Abs(a.X - b.X) + Math.Abs(a.Z - b.Z);
         }
 
+        public static string AbilityName(ChainReactionAbility ability)
+        {
+            switch (ability)
+            {
+                case ChainReactionAbility.Crosswind: return "Crosswind";
+                case ChainReactionAbility.CatchThrow: return "Catch & Throw";
+                case ChainReactionAbility.Repulse: return "Repulse";
+                case ChainReactionAbility.FollowThrough: return "Follow Through";
+                case ChainReactionAbility.HookYank: return "Hook Yank";
+                case ChainReactionAbility.Timber: return "Timber";
+                default: return "None";
+            }
+        }
+
+        public static string ForceWord(int force)
+        {
+            if (force <= 1) return "weak";
+            if (force <= 3) return "solid";
+            if (force <= 5) return "hard";
+            if (force <= 8) return "violent";
+            return "devastating";
+        }
+
         private bool CanClaim(ChainUnitState unit, ChainReactionAbility ability, ChainReactionOpportunity reaction)
         {
             switch (ability)
@@ -763,7 +657,9 @@ namespace MountingForce.CombatPrototype
                 case ChainReactionAbility.FollowThrough:
                     return unit.Kind == ChainRecruitKind.Stephen && reaction.Kind == ChainReactionKind.Collision && Distance(unit.Position, reaction.Position) <= 4;
                 case ChainReactionAbility.HookYank:
-                    return unit.Kind == ChainRecruitKind.Skitter && (reaction.Kind == ChainReactionKind.Collision || reaction.Kind == ChainReactionKind.TreeImpact) && Distance(unit.Position, reaction.Position) <= 6;
+                    return unit.Kind == ChainRecruitKind.Skitter &&
+                           (reaction.Kind == ChainReactionKind.Collision || reaction.Kind == ChainReactionKind.TreeImpact) &&
+                           Distance(unit.Position, reaction.Position) <= 6;
                 case ChainReactionAbility.Timber:
                     return unit.Kind == ChainRecruitKind.Grom && reaction.Kind == ChainReactionKind.TreeImpact && Distance(unit.Position, reaction.Position) <= 5;
                 default:
@@ -771,20 +667,18 @@ namespace MountingForce.CombatPrototype
             }
         }
 
-        private bool TryGetClaimedActor(int unitId, ChainRecruitKind kind, ChainReactionAbility ability, out ChainUnitState unit, out ChainReactionOpportunity reaction)
+        private bool TryGetClaimedActor(
+            int unitId,
+            ChainRecruitKind kind,
+            ChainReactionAbility ability,
+            out ChainUnitState unit,
+            out ChainReactionOpportunity reaction)
         {
             unit = GetUnit(unitId);
             reaction = PendingReaction;
-            if (BattleOver || reaction == null || !reaction.IsClaimed)
-            {
-                return Fail("Claim a physical event before executing a reaction.");
-            }
-
+            if (BattleOver || reaction == null || !reaction.IsClaimed) return Fail("Claim a physical event before executing a reaction.");
             if (unit == null || !unit.IsAlive || unit.Kind != kind || reaction.ClaimedByUnitId != unit.Id || reaction.ClaimedAbility != ability)
-            {
                 return Fail("That recruit does not own this reaction claim.");
-            }
-
             return true;
         }
 
@@ -809,10 +703,12 @@ namespace MountingForce.CombatPrototype
                     return;
                 }
 
+                int impactForce = _motion.RemainingForce;
                 GridPos next = mover.Position + _motion.Direction;
                 if (!IsInBounds(next))
                 {
-                    Damage(mover, 1, $"{mover.Name} slammed into the arena edge");
+                    int damage = ImpactDamage(impactForce);
+                    Damage(mover, damage, $"{mover.Name} slammed into the arena edge at force {impactForce} ({ForceWord(impactForce)})");
                     StopMotion(mover);
                     FinishCascadeIfIdle();
                     return;
@@ -821,37 +717,59 @@ namespace MountingForce.CombatPrototype
                 ChainTreeState tree = FindStandingTreeAt(next);
                 if (tree != null)
                 {
-                    Damage(mover, 1, $"{mover.Name} struck a tree");
+                    int damage = ImpactDamage(impactForce);
+                    Damage(mover, damage, $"{mover.Name} struck tree #{tree.Id} at force {impactForce} ({ForceWord(impactForce)})");
+                    tree.Stress = Math.Min(TreeBreakStress, tree.Stress + impactForce);
                     mover.Airborne = false;
                     _motion = null;
-                    OpenOpportunity(ChainReactionKind.TreeImpact, mover.Id, 0, tree.Id, tree.Position, $"{mover.Name} slammed into tree #{tree.Id} at {tree.Position}.");
+
+                    if (impactForce >= TreeReactionMinimumForce && mover.IsAlive)
+                    {
+                        OpenOpportunity(ChainReactionKind.TreeImpact, mover.Id, 0, tree.Id, tree.Position, impactForce,
+                            $"{mover.Name} hit tree #{tree.Id} with force {impactForce} ({ForceWord(impactForce)}). Tree stress: {tree.Stress}/{TreeBreakStress}.");
+                    }
+                    else
+                    {
+                        WriteLog($"The tree flexed, but the force was too weak to create a meaningful tree-impact opportunity.");
+                        FinishCascadeIfIdle();
+                    }
                     return;
                 }
 
                 ChainUnitState occupant = FindUnitAt(next);
                 if (occupant != null && occupant.Id != mover.Id)
                 {
-                    Damage(mover, 1, $"{mover.Name} collided with {occupant.Name}");
-                    Damage(occupant, 1, $"{occupant.Name} took the collision");
+                    int damage = ImpactDamage(impactForce);
+                    int moverDamage = Math.Max(1, damage - 1);
+                    Damage(mover, moverDamage, $"{mover.Name} collided with {occupant.Name} at force {impactForce} ({ForceWord(impactForce)})");
+                    Damage(occupant, damage, $"{occupant.Name} absorbed the impact");
                     mover.Airborne = false;
                     _motion = null;
-                    OpenOpportunity(ChainReactionKind.Collision, mover.Id, occupant.Id, 0, next, $"{mover.Name} collided with {occupant.Name} at {next}.");
+
+                    if (mover.IsAlive || occupant.IsAlive)
+                    {
+                        OpenOpportunity(ChainReactionKind.Collision, mover.Id, occupant.Id, 0, next, impactForce,
+                            $"{mover.Name} collided with {occupant.Name} at force {impactForce} ({ForceWord(impactForce)}). Impact damage: {damage}.");
+                    }
+                    else
+                    {
+                        FinishCascadeIfIdle();
+                    }
                     return;
                 }
 
                 mover.Position = next;
                 _motion.RemainingForce--;
-
                 TryTeleport(mover);
 
-                if (_amplifiers.Contains(mover.Position))
+                if (_motion != null && _amplifiers.Contains(mover.Position))
                 {
                     int before = _motion.RemainingForce;
                     _motion.RemainingForce = Math.Min(MaximumMotionForce, Math.Max(before + 1, before * 2));
-                    WriteLog($"{mover.Name} crossed a force multiplier: momentum {before} -> {_motion.RemainingForce}.");
+                    WriteLog($"{mover.Name} crossed a force multiplier: {before} -> {_motion.RemainingForce} ({ForceWord(_motion.RemainingForce)}).");
                 }
 
-                if (_motion.RemainingForce <= 0)
+                if (_motion != null && _motion.RemainingForce <= 0)
                 {
                     StopMotion(mover);
                     FinishCascadeIfIdle();
@@ -859,32 +777,28 @@ namespace MountingForce.CombatPrototype
             }
         }
 
-        private void OpenOpportunity(ChainReactionKind kind, int primaryId, int secondaryId, int treeId, GridPos position, string description)
+        private void OpenOpportunity(
+            ChainReactionKind kind,
+            int primaryId,
+            int secondaryId,
+            int treeId,
+            GridPos position,
+            int impactForce,
+            string description)
         {
-            PendingReaction = new ChainReactionOpportunity(_nextOpportunityId++, kind, primaryId, secondaryId, treeId, position, description);
+            PendingReaction = new ChainReactionOpportunity(
+                _nextOpportunityId++, kind, primaryId, secondaryId, treeId, position, impactForce, description);
             WriteLog($"Physical event #{PendingReaction.Id}: {description} It is unclaimed.");
         }
 
         private bool TryTeleport(ChainUnitState mover)
         {
-            if (!PortalA.HasValue || !PortalB.HasValue)
-            {
-                return false;
-            }
+            if (!PortalA.HasValue || !PortalB.HasValue || _motion == null) return false;
 
             GridPos destination;
-            if (mover.Position.Equals(PortalA.Value))
-            {
-                destination = PortalB.Value;
-            }
-            else if (mover.Position.Equals(PortalB.Value))
-            {
-                destination = PortalA.Value;
-            }
-            else
-            {
-                return false;
-            }
+            if (mover.Position.Equals(PortalA.Value)) destination = PortalB.Value;
+            else if (mover.Position.Equals(PortalB.Value)) destination = PortalA.Value;
+            else return false;
 
             ChainUnitState occupant = FindUnitAt(destination);
             ChainTreeState tree = FindStandingTreeAt(destination);
@@ -896,21 +810,40 @@ namespace MountingForce.CombatPrototype
 
             GridPos source = mover.Position;
             mover.Position = destination;
-            WriteLog($"{mover.Name} teleported {source} -> {destination}, preserving direction and momentum.");
+            WriteLog($"{mover.Name} teleported {source} -> {destination} with force {_motion.RemainingForce} preserved.");
             return true;
+        }
+
+        private static int ImpactDamage(int force)
+        {
+            if (force <= 2) return 1;
+            if (force <= 4) return 2;
+            if (force <= 6) return 3;
+            if (force <= 8) return 4;
+            return 5;
+        }
+
+        private static ChainMotionState NewMotion(int unitId, GridPos direction, int force, bool airborne)
+        {
+            return new ChainMotionState
+            {
+                UnitId = unitId,
+                Direction = direction,
+                RemainingForce = Math.Max(0, Math.Min(MaximumMotionForce, force)),
+                Airborne = airborne
+            };
         }
 
         private void BeginCascade(int commandGroup, string description)
         {
-            if (_cascadeActive)
-            {
-                FinishCascade();
-            }
+            if (_cascadeActive) FinishCascade();
 
             _cascadeActive = true;
             _cascadeGroups.Clear();
             _cascadeGroups.Add(commandGroup);
             CurrentCascadeSteps = 1;
+            CurrentHandoffs = 0;
+            _lastCascadeCommandGroup = commandGroup;
             WriteLog($"Cascade started by P{commandGroup}: {description}.");
         }
 
@@ -921,47 +854,51 @@ namespace MountingForce.CombatPrototype
                 _cascadeActive = true;
                 _cascadeGroups.Clear();
                 CurrentCascadeSteps = 0;
+                CurrentHandoffs = 0;
+                _lastCascadeCommandGroup = 0;
             }
 
+            if (_lastCascadeCommandGroup != 0 && _lastCascadeCommandGroup != commandGroup) CurrentHandoffs++;
+            _lastCascadeCommandGroup = commandGroup;
             CurrentCascadeSteps++;
             _cascadeGroups.Add(commandGroup);
-            WriteLog($"Cascade step {CurrentCascadeSteps} / {_cascadeGroups.Count} player(s): {description}.");
+            WriteLog($"Cascade step {CurrentCascadeSteps}: P{commandGroup} {description}. Handoffs: {CurrentHandoffs}.");
         }
 
         private void FinishCascadeIfIdle()
         {
-            if (_cascadeActive && PendingReaction == null && _motion == null)
-            {
-                FinishCascade();
-            }
+            if (_cascadeActive && PendingReaction == null && _motion == null) FinishCascade();
         }
 
         private void FinishCascade()
         {
             LastCascadeSteps = CurrentCascadeSteps;
             LastCascadePlayers = _cascadeGroups.Count;
-            if (LastCascadeSteps > BestCascadeSteps || (LastCascadeSteps == BestCascadeSteps && LastCascadePlayers > BestCascadePlayers))
+            LastHandoffs = CurrentHandoffs;
+
+            bool newBest = LastCascadeSteps > BestCascadeSteps ||
+                           (LastCascadeSteps == BestCascadeSteps && LastCascadePlayers > BestCascadePlayers) ||
+                           (LastCascadeSteps == BestCascadeSteps && LastCascadePlayers == BestCascadePlayers && LastHandoffs > BestHandoffs);
+            if (newBest)
             {
                 BestCascadeSteps = LastCascadeSteps;
                 BestCascadePlayers = LastCascadePlayers;
+                BestHandoffs = LastHandoffs;
             }
 
             if (LastCascadeSteps > 0)
-            {
-                WriteLog($"Cascade ended: {LastCascadeSteps} deliberate step(s), {LastCascadePlayers} command group(s). Best: {BestCascadeSteps}/{BestCascadePlayers}.");
-            }
+                WriteLog($"Cascade ended: {LastCascadeSteps} deliberate steps, {LastCascadePlayers} players, {LastHandoffs} handoffs.");
 
             _cascadeActive = false;
             _cascadeGroups.Clear();
+            _lastCascadeCommandGroup = 0;
             CurrentCascadeSteps = 0;
+            CurrentHandoffs = 0;
         }
 
         private void StopMotion(ChainUnitState mover)
         {
-            if (mover != null)
-            {
-                mover.Airborne = false;
-            }
+            if (mover != null) mover.Airborne = false;
             _motion = null;
         }
 
@@ -988,7 +925,7 @@ namespace MountingForce.CombatPrototype
                 }
             }
 
-            catchCell = new GridPos(0, 0);
+            catchCell = Zero;
             return false;
         }
 
@@ -997,10 +934,7 @@ namespace MountingForce.CombatPrototype
             List<ChainUnitState> enemies = new List<ChainUnitState>();
             for (int i = 0; i < _units.Count; i++)
             {
-                if (_units[i].Team == CombatTeam.Enemy && _units[i].IsAlive)
-                {
-                    enemies.Add(_units[i]);
-                }
+                if (_units[i].Team == CombatTeam.Enemy && _units[i].IsAlive) enemies.Add(_units[i]);
             }
 
             enemies.Sort((a, b) => a.Id.CompareTo(b.Id));
@@ -1008,10 +942,7 @@ namespace MountingForce.CombatPrototype
             {
                 ChainUnitState enemy = enemies[i];
                 ChainUnitState target = FindNearestFriendly(enemy.Position);
-                if (target == null)
-                {
-                    return;
-                }
+                if (target == null) return;
 
                 if (Distance(enemy.Position, target.Position) == 1)
                 {
@@ -1023,26 +954,15 @@ namespace MountingForce.CombatPrototype
                 GridPos zStep = new GridPos(0, Sign(target.Position.Z - enemy.Position.Z));
                 GridPos first = (Round + enemy.Id) % 2 == 0 ? xStep : zStep;
                 GridPos second = (Round + enemy.Id) % 2 == 0 ? zStep : xStep;
-                if (TryEnemyStep(enemy, first) || TryEnemyStep(enemy, second))
-                {
-                    WriteLog($"{enemy.Name} advanced toward {target.Name}.");
-                }
+                if (TryEnemyStep(enemy, first) || TryEnemyStep(enemy, second)) WriteLog($"{enemy.Name} advanced toward {target.Name}.");
             }
         }
 
         private bool TryEnemyStep(ChainUnitState enemy, GridPos step)
         {
-            if (IsZero(step))
-            {
-                return false;
-            }
-
+            if (IsZero(step)) return false;
             GridPos destination = enemy.Position + step;
-            if (!IsInBounds(destination) || !IsCellOpen(destination))
-            {
-                return false;
-            }
-
+            if (!IsInBounds(destination) || !IsCellOpen(destination)) return false;
             enemy.Position = destination;
             return true;
         }
@@ -1054,11 +974,7 @@ namespace MountingForce.CombatPrototype
             for (int i = 0; i < _units.Count; i++)
             {
                 ChainUnitState candidate = _units[i];
-                if (candidate.Team != CombatTeam.Friendly || !candidate.IsAlive)
-                {
-                    continue;
-                }
-
+                if (candidate.Team != CombatTeam.Friendly || !candidate.IsAlive) continue;
                 int distance = Distance(from, candidate.Position);
                 if (distance < bestDistance || (distance == bestDistance && (best == null || candidate.Id < best.Id)))
                 {
@@ -1072,22 +988,10 @@ namespace MountingForce.CombatPrototype
         private bool TryGetNormalActor(int unitId, out ChainUnitState unit)
         {
             unit = GetUnit(unitId);
-            if (BattleOver)
-            {
-                return Fail("The battle is over. Reset to play again.");
-            }
-            if (PendingReaction != null)
-            {
-                return Fail("A physical event is unresolved. Someone must claim it or the group must pass.");
-            }
-            if (unit == null || !unit.IsAlive || unit.Team != CombatTeam.Friendly)
-            {
-                return Fail("Choose a living friendly recruit.");
-            }
-            if (unit.ActionSpent)
-            {
-                return Fail($"{unit.Name} already used a normal action this round.");
-            }
+            if (BattleOver) return Fail("The battle is over. Reset to play again.");
+            if (PendingReaction != null) return Fail("A physical event is unresolved. Someone must claim it or the group must pass.");
+            if (unit == null || !unit.IsAlive || unit.Team != CombatTeam.Friendly) return Fail("Choose a living friendly recruit.");
+            if (unit.ActionSpent) return Fail($"{unit.Name} already used a normal action this round.");
             return true;
         }
 
@@ -1103,18 +1007,9 @@ namespace MountingForce.CombatPrototype
 
         private bool IsCellOpenForConstruct(GridPos position)
         {
-            if (!IsCellOpen(position) || _amplifiers.Contains(position))
-            {
-                return false;
-            }
-            if (PortalA.HasValue && PortalA.Value.Equals(position))
-            {
-                return false;
-            }
-            if (PortalB.HasValue && PortalB.Value.Equals(position))
-            {
-                return false;
-            }
+            if (!IsCellOpen(position) || _amplifiers.Contains(position)) return false;
+            if (PortalA.HasValue && PortalA.Value.Equals(position)) return false;
+            if (PortalB.HasValue && PortalB.Value.Equals(position)) return false;
             return true;
         }
 
@@ -1125,10 +1020,7 @@ namespace MountingForce.CombatPrototype
             for (int i = 0; i < _units.Count; i++)
             {
                 ChainUnitState unit = _units[i];
-                if (!unit.IsAlive)
-                {
-                    continue;
-                }
+                if (!unit.IsAlive) continue;
                 if (unit.Team == CombatTeam.Friendly) anyFriendly = true;
                 else anyEnemy = true;
             }
@@ -1143,10 +1035,7 @@ namespace MountingForce.CombatPrototype
                 BattleOver = true;
                 BattleResult = "Defeat — the command groups were wiped out.";
             }
-            else
-            {
-                return;
-            }
+            else return;
 
             PendingReaction = null;
             _motion = null;
@@ -1156,12 +1045,8 @@ namespace MountingForce.CombatPrototype
 
         private void Damage(ChainUnitState target, int amount, string reason)
         {
-            if (target == null || !target.IsAlive)
-            {
-                return;
-            }
-
-            target.Hp = Math.Max(0, target.Hp - amount);
+            if (target == null || !target.IsAlive) return;
+            target.Hp = Math.Max(0, target.Hp - Math.Max(0, amount));
             WriteLog($"{reason} for {amount}. {target.Name}: {target.Hp}/{target.MaxHp} HP.");
             if (!target.IsAlive)
             {
@@ -1195,25 +1080,16 @@ namespace MountingForce.CombatPrototype
         {
             LastMessage = message;
             _log.Add(message);
-            if (_log.Count > 120)
-            {
-                _log.RemoveAt(0);
-            }
+            if (_log.Count > 140) _log.RemoveAt(0);
         }
 
         private static GridPos CardinalDirection(GridPos from, GridPos toward)
         {
             int dx = toward.X - from.X;
             int dz = toward.Z - from.Z;
-            if (Math.Abs(dx) >= Math.Abs(dz) && dx != 0)
-            {
-                return new GridPos(Sign(dx), 0);
-            }
-            if (dz != 0)
-            {
-                return new GridPos(0, Sign(dz));
-            }
-            return new GridPos(0, 0);
+            if (Math.Abs(dx) >= Math.Abs(dz) && dx != 0) return new GridPos(Sign(dx), 0);
+            if (dz != 0) return new GridPos(0, Sign(dz));
+            return Zero;
         }
 
         private static int Sign(int value)
@@ -1236,18 +1112,6 @@ namespace MountingForce.CombatPrototype
             return "south";
         }
 
-        public static string AbilityName(ChainReactionAbility ability)
-        {
-            switch (ability)
-            {
-                case ChainReactionAbility.Crosswind: return "Crosswind";
-                case ChainReactionAbility.CatchThrow: return "Catch & Throw";
-                case ChainReactionAbility.Repulse: return "Repulse";
-                case ChainReactionAbility.FollowThrough: return "Follow Through";
-                case ChainReactionAbility.HookYank: return "Hook Yank";
-                case ChainReactionAbility.Timber: return "Timber";
-                default: return "None";
-            }
-        }
+        private static readonly GridPos Zero = new GridPos(0, 0);
     }
 }
