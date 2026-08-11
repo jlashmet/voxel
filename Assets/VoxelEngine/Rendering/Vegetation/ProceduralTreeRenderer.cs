@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Vegetation;
@@ -13,6 +14,9 @@ namespace VoxelEngine.Rendering.Vegetation
     /// </summary>
     public sealed class ProceduralTreeRenderer : MonoBehaviour
     {
+        private const float RecoveryRenderChunkMetres = 12.8f;
+        private const float LegacyProxyBoundsPadding = 0.75f;
+
         private sealed class TreePresentation
         {
             public TreeInstance Instance;
@@ -35,6 +39,8 @@ namespace VoxelEngine.Rendering.Vegetation
             public bool Falling;
             public float FallStartTime;
             public Vector3 FallAxis;
+            public int3 RenderChunkMin;
+            public int3 RenderChunkMax;
         }
 
         private static ProceduralTreeRenderer s_Instance;
@@ -97,6 +103,7 @@ namespace VoxelEngine.Rendering.Vegetation
                 ApplyDamage();
             }
 
+            UpdateFallbackVisibility();
             UpdateFallingTrees();
         }
 
@@ -154,6 +161,8 @@ namespace VoxelEngine.Rendering.Vegetation
                 TreeInstance instance = instances[i];
                 ProceduralTreeMeshBuilder.TreeSkeleton skeleton =
                     ProceduralTreeMeshBuilder.GenerateSkeleton(in instance);
+                CalculateRenderChunkBounds(in instance, skeleton,
+                    out int3 renderChunkMin, out int3 renderChunkMax);
 
                 var root = new GameObject($"Tree {i:000} {instance.Species}")
                 {
@@ -175,6 +184,8 @@ namespace VoxelEngine.Rendering.Vegetation
                     BarkIndexOwners = new int[3][],
                     LeafIndexOwners = new int[3][],
                     Falling = false,
+                    RenderChunkMin = renderChunkMin,
+                    RenderChunkMax = renderChunkMax,
                 };
 
                 for (int lod = 0; lod < 3; lod++)
@@ -363,6 +374,39 @@ namespace VoxelEngine.Rendering.Vegetation
             }
         }
 
+        /// <summary>
+        /// Surface Nets is still allowed to cover terrain while Transvoxel warms up, but it also
+        /// contains the showcase's old voxel tree proxy. Never draw the semantic tree at the same
+        /// time as that coarse proxy. Once every render chunk touched by this tree has handed off,
+        /// the exact same procedural root becomes visible; no geometry is rebuilt or cloned.
+        /// </summary>
+        private void UpdateFallbackVisibility()
+        {
+            for (int i = 0; i < _trees.Count; i++)
+            {
+                TreePresentation tree = _trees[i];
+                if (tree.Root == null) continue;
+
+                bool coarseProxyVisible = false;
+                for (int z = tree.RenderChunkMin.z;
+                     z <= tree.RenderChunkMax.z && !coarseProxyVisible; z++)
+                for (int y = tree.RenderChunkMin.y;
+                     y <= tree.RenderChunkMax.y && !coarseProxyVisible; y++)
+                for (int x = tree.RenderChunkMin.x;
+                     x <= tree.RenderChunkMax.x; x++)
+                {
+                    if (!ProceduralTreeRegistry.IsCoarseLegacyProxyRenderChunk(new int3(x, y, z)))
+                        continue;
+                    coarseProxyVisible = true;
+                    break;
+                }
+
+                bool shouldBeActive = !coarseProxyVisible;
+                if (tree.Root.activeSelf != shouldBeActive)
+                    tree.Root.SetActive(shouldBeActive);
+            }
+        }
+
         private void UpdateFallingTrees()
         {
             for (int i = 0; i < _trees.Count; i++)
@@ -374,6 +418,37 @@ namespace VoxelEngine.Rendering.Vegetation
                 float angle = Mathf.SmoothStep(0f, 88f, t);
                 tree.Root.transform.localRotation = Quaternion.AngleAxis(angle, tree.FallAxis);
             }
+        }
+
+        private static void CalculateRenderChunkBounds(
+            in TreeInstance instance, ProceduralTreeMeshBuilder.TreeSkeleton skeleton,
+            out int3 chunkMin, out int3 chunkMax)
+        {
+            float3 root = instance.PositionMetres;
+            float3 min = root;
+            float3 max = root;
+
+            for (int i = 0; i < skeleton.Branches.Count; i++)
+            {
+                ProceduralTreeMeshBuilder.BranchSegment branch = skeleton.Branches[i];
+                float radius = math.max(branch.RadiusStart, branch.RadiusEnd);
+                float3 r = new(radius);
+                min = math.min(min, root + math.min(branch.Start, branch.End) - r);
+                max = math.max(max, root + math.max(branch.Start, branch.End) + r);
+            }
+
+            for (int i = 0; i < skeleton.Leaves.Count; i++)
+            {
+                ProceduralTreeMeshBuilder.LeafAnchor leaf = skeleton.Leaves[i];
+                float3 r = new(math.max(0.05f, leaf.Size));
+                min = math.min(min, root + leaf.Position - r);
+                max = math.max(max, root + leaf.Position + r);
+            }
+
+            min -= LegacyProxyBoundsPadding;
+            max += LegacyProxyBoundsPadding;
+            chunkMin = (int3)math.floor(min / RecoveryRenderChunkMetres);
+            chunkMax = (int3)math.floor(max / RecoveryRenderChunkMetres);
         }
 
         private void ClearGenerated()
