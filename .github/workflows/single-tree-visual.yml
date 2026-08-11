@@ -6,6 +6,10 @@ on:
     branches:
       - tree-rendering
 
+concurrency:
+  group: tree-rendering-visual-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tree-visual-isolation:
     name: Isolate procedural tree rendering
