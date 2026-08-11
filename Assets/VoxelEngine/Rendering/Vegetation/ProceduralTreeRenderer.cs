@@ -10,17 +10,34 @@ namespace VoxelEngine.Rendering.Vegetation
     /// Runtime presentation of semantic tree instances. This deliberately uses ordinary Unity
     /// meshes/LODGroup for the first milestone; the semantic registry and shared-skeleton mesher
     /// can later feed GPU instancing without changing world generation or species definitions.
+    ///
+    /// Damage is kept separate from identity. The same deterministic skeleton stays allocated;
+    /// authoritative gameplay/proxy state only changes foliage presentation and whether the tree
+    /// has been severed from its root.
     /// </summary>
     public sealed class ProceduralTreeRenderer : MonoBehaviour
     {
-        private static ProceduralTreeRenderer s_Instance;
+        private sealed class TreePresentation
+        {
+            public TreeInstance Instance;
+            public GameObject Root;
+            public MeshRenderer[] LodRenderers;
+            public bool Falling;
+            public float FallStartTime;
+            public Vector3 FallAxis;
+        }
 
-        private readonly List<GameObject> _treeRoots = new();
+        private static ProceduralTreeRenderer s_Instance;
+        private static readonly int s_Damage = Shader.PropertyToID("_Damage");
+
+        private readonly List<TreePresentation> _trees = new();
         private readonly List<Mesh> _meshes = new();
+        private readonly MaterialPropertyBlock _damageProperties = new();
         private Material _barkMaterial;
         private Material _leafMaterial;
         private Material[] _sharedMaterials;
         private int _seenVersion = int.MinValue;
+        private int _seenDamageVersion = int.MinValue;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatic() => s_Instance = null;
@@ -53,9 +70,21 @@ namespace VoxelEngine.Rendering.Vegetation
             ApplyLighting();
 
             int version = ProceduralTreeRegistry.Version;
-            if (_seenVersion == version) return;
-            _seenVersion = version;
-            Rebuild();
+            if (_seenVersion != version)
+            {
+                _seenVersion = version;
+                Rebuild();
+                _seenDamageVersion = int.MinValue;
+            }
+
+            int damageVersion = ProceduralTreeRegistry.DamageVersion;
+            if (_seenDamageVersion != damageVersion)
+            {
+                _seenDamageVersion = damageVersion;
+                ApplyDamage();
+            }
+
+            UpdateFallingTrees();
         }
 
         private void EnsureMaterials()
@@ -119,9 +148,8 @@ namespace VoxelEngine.Rendering.Vegetation
                 };
                 root.transform.SetParent(transform, false);
                 root.transform.position = (Vector3)instance.PositionMetres;
-                _treeRoots.Add(root);
 
-                var lodRenderers = new Renderer[3];
+                var lodRenderers = new MeshRenderer[3];
                 for (int lod = 0; lod < 3; lod++)
                 {
                     Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, lod);
@@ -146,19 +174,72 @@ namespace VoxelEngine.Rendering.Vegetation
                 group.fadeMode = LODFadeMode.None;
                 group.SetLODs(new[]
                 {
-                    new LOD(0.34f, new[] { lodRenderers[0] }),
-                    new LOD(0.13f, new[] { lodRenderers[1] }),
-                    new LOD(0.025f, new[] { lodRenderers[2] }),
+                    new LOD(0.34f, new Renderer[] { lodRenderers[0] }),
+                    new LOD(0.13f, new Renderer[] { lodRenderers[1] }),
+                    new LOD(0.025f, new Renderer[] { lodRenderers[2] }),
                 });
                 group.RecalculateBounds();
+
+                _trees.Add(new TreePresentation
+                {
+                    Instance = instance,
+                    Root = root,
+                    LodRenderers = lodRenderers,
+                    Falling = false,
+                });
+            }
+        }
+
+        private void ApplyDamage()
+        {
+            IReadOnlyList<ProceduralTreeRegistry.TreeDamageState> damage =
+                ProceduralTreeRegistry.Damage;
+            int count = Mathf.Min(_trees.Count, damage.Count);
+
+            for (int i = 0; i < count; i++)
+            {
+                TreePresentation tree = _trees[i];
+                ProceduralTreeRegistry.TreeDamageState state = damage[i];
+                float damageAmount = 1f - Mathf.Clamp01(state.FoliageHealth);
+
+                _damageProperties.Clear();
+                _damageProperties.SetFloat(s_Damage, damageAmount);
+                for (int lod = 0; lod < tree.LodRenderers.Length; lod++)
+                {
+                    MeshRenderer renderer = tree.LodRenderers[lod];
+                    if (renderer != null)
+                        renderer.SetPropertyBlock(_damageProperties, 1); // leaf submesh/material
+                }
+
+                if (state.Severed && !tree.Falling)
+                {
+                    tree.Falling = true;
+                    tree.FallStartTime = Time.time;
+                    uint seed = tree.Instance.Seed == 0 ? 1u : tree.Instance.Seed;
+                    float angle = (seed & 0xFFFFu) * (Mathf.PI * 2f / 65535f);
+                    tree.FallAxis = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                }
+            }
+        }
+
+        private void UpdateFallingTrees()
+        {
+            for (int i = 0; i < _trees.Count; i++)
+            {
+                TreePresentation tree = _trees[i];
+                if (!tree.Falling || tree.Root == null) continue;
+
+                float t = Mathf.Clamp01((Time.time - tree.FallStartTime) / 1.25f);
+                float angle = Mathf.SmoothStep(0f, 88f, t);
+                tree.Root.transform.localRotation = Quaternion.AngleAxis(angle, tree.FallAxis);
             }
         }
 
         private void ClearGenerated()
         {
-            for (int i = 0; i < _treeRoots.Count; i++)
-                if (_treeRoots[i] != null) Destroy(_treeRoots[i]);
-            _treeRoots.Clear();
+            for (int i = 0; i < _trees.Count; i++)
+                if (_trees[i].Root != null) Destroy(_trees[i].Root);
+            _trees.Clear();
 
             for (int i = 0; i < _meshes.Count; i++)
                 if (_meshes[i] != null) Destroy(_meshes[i]);
