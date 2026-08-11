@@ -46,6 +46,10 @@ namespace VoxelEngine.Core.Features
         /// Primitives are applied in the order given; later ones win where they overlap, which is
         /// how a window carves the wall that was filled a moment earlier.
         ///
+        /// <see cref="PrimitiveMode.PaintSolid"/> is occupancy-preserving: empty voxels remain
+        /// empty and existing solids change material only. This lets biome/theme passes repaint a
+        /// surface without changing collision, density, caves, or terrain silhouette.
+        ///
         /// When <paramref name="markHardSurface"/> is true, authored solid writes also tag the
         /// containing brick as hard architecture. Carves deliberately do not create hard semantics
         /// on their own: a structure fill already tagged those bricks, while a carve into natural
@@ -80,7 +84,9 @@ namespace VoxelEngine.Core.Features
                 int y0 = math.max(min.y, subVolumeMin.y), y1 = math.min(max.y, subVolumeMax.y - 1);
                 int z0 = math.max(min.z, subVolumeMin.z), z1 = math.min(max.z, subVolumeMax.z - 1);
 
-                bool hardWrite = markHardSurface && primitive.Mode != PrimitiveMode.Carve;
+                bool hardWrite = markHardSurface
+                              && primitive.Mode != PrimitiveMode.Carve
+                              && primitive.Mode != PrimitiveMode.PaintSolid;
 
                 for (int z = z0; z <= z1; z++)
                 for (int y = y0; y <= y1; y++)
@@ -89,8 +95,12 @@ namespace VoxelEngine.Core.Features
                     var voxel = new int3(x, y, z);
                     if (!Contains(in primitive, voxel)) continue;
 
-                    if (primitive.Mode == PrimitiveMode.FillIfEmpty &&
-                        VoxelAccess.IsSolid(ref table, in pool, voxel))
+                    if (primitive.Mode == PrimitiveMode.FillIfEmpty
+                        && VoxelAccess.IsSolid(ref table, in pool, voxel))
+                        continue;
+
+                    if (primitive.Mode == PrimitiveMode.PaintSolid
+                        && !VoxelAccess.IsSolid(ref table, in pool, voxel))
                         continue;
 
                     byte material = primitive.Mode == PrimitiveMode.Carve
