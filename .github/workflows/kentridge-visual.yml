@@ -15,6 +15,10 @@ on:
       - 'Assets/VoxelEngine/Rendering/SurfaceExtraction/**'
       - '.github/workflows/kentridge-visual.yml'
 
+concurrency:
+  group: kentridge-visual-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   capture-kentridge:
     name: Validate and render isolated Kentridge
