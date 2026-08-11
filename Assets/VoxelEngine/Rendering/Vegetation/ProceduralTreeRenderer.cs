@@ -11,17 +11,22 @@ namespace VoxelEngine.Rendering.Vegetation
     /// meshes/LODGroup for the first milestone; the semantic registry and shared-skeleton mesher
     /// can later feed GPU instancing without changing world generation or species definitions.
     ///
-    /// Damage is kept separate from identity. The same deterministic skeleton stays allocated;
-    /// authoritative gameplay/proxy state only changes foliage presentation and whether the tree
-    /// has been severed from its root.
+    /// Damage is kept separate from identity. Branch cuts rebuild only the affected tree from its
+    /// existing deterministic skeleton, while foliage health and root severing remain lightweight
+    /// presentation state.
     /// </summary>
     public sealed class ProceduralTreeRenderer : MonoBehaviour
     {
         private sealed class TreePresentation
         {
             public TreeInstance Instance;
+            public ProceduralTreeMeshBuilder.TreeSkeleton Skeleton;
             public GameObject Root;
+            public MeshFilter[] LodFilters;
             public MeshRenderer[] LodRenderers;
+            public Mesh[] LodMeshes;
+            public readonly HashSet<int> ResolvedRemovedBranches = new();
+            public int DirectCutCount;
             public bool Falling;
             public float FallStartTime;
             public Vector3 FallAxis;
@@ -31,8 +36,7 @@ namespace VoxelEngine.Rendering.Vegetation
         private static readonly int s_Damage = Shader.PropertyToID("_Damage");
 
         private readonly List<TreePresentation> _trees = new();
-        private readonly List<Mesh> _meshes = new();
-        private readonly MaterialPropertyBlock _damageProperties = new();
+        private MaterialPropertyBlock _damageProperties;
         private Material _barkMaterial;
         private Material _leafMaterial;
         private Material[] _sharedMaterials;
@@ -61,7 +65,13 @@ namespace VoxelEngine.Rendering.Vegetation
                 Destroy(gameObject);
                 return;
             }
+
             s_Instance = this;
+
+            // UnityEngine.Object-backed helpers cannot be constructed from a MonoBehaviour field
+            // initializer/constructor. Creating it here avoids CreateImpl during serialization and
+            // guarantees ApplyDamage never sees the half-initialized object reported by Unity.
+            _damageProperties = new MaterialPropertyBlock();
         }
 
         private void Update()
@@ -149,45 +159,67 @@ namespace VoxelEngine.Rendering.Vegetation
                 root.transform.SetParent(transform, false);
                 root.transform.position = (Vector3)instance.PositionMetres;
 
-                var lodRenderers = new MeshRenderer[3];
+                var presentation = new TreePresentation
+                {
+                    Instance = instance,
+                    Skeleton = skeleton,
+                    Root = root,
+                    LodFilters = new MeshFilter[3],
+                    LodRenderers = new MeshRenderer[3],
+                    LodMeshes = new Mesh[3],
+                    Falling = false,
+                };
+
                 for (int lod = 0; lod < 3; lod++)
                 {
-                    Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, lod);
-                    mesh.name = $"{instance.Species}_{instance.Seed}_LOD{lod}";
-                    mesh.hideFlags = HideFlags.DontSave;
-                    _meshes.Add(mesh);
-
                     var child = new GameObject($"LOD{lod}") { hideFlags = HideFlags.DontSave };
                     child.transform.SetParent(root.transform, false);
                     var filter = child.AddComponent<MeshFilter>();
-                    filter.sharedMesh = mesh;
                     var renderer = child.AddComponent<MeshRenderer>();
                     renderer.sharedMaterials = _sharedMaterials;
                     renderer.shadowCastingMode = ShadowCastingMode.On;
                     renderer.receiveShadows = true;
                     renderer.lightProbeUsage = LightProbeUsage.Off;
                     renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
-                    lodRenderers[lod] = renderer;
+                    presentation.LodFilters[lod] = filter;
+                    presentation.LodRenderers[lod] = renderer;
                 }
 
                 var group = root.AddComponent<LODGroup>();
                 group.fadeMode = LODFadeMode.None;
                 group.SetLODs(new[]
                 {
-                    new LOD(0.34f, new Renderer[] { lodRenderers[0] }),
-                    new LOD(0.13f, new Renderer[] { lodRenderers[1] }),
-                    new LOD(0.025f, new Renderer[] { lodRenderers[2] }),
+                    new LOD(0.34f, new Renderer[] { presentation.LodRenderers[0] }),
+                    new LOD(0.13f, new Renderer[] { presentation.LodRenderers[1] }),
+                    new LOD(0.025f, new Renderer[] { presentation.LodRenderers[2] }),
                 });
-                group.RecalculateBounds();
 
-                _trees.Add(new TreePresentation
-                {
-                    Instance = instance,
-                    Root = root,
-                    LodRenderers = lodRenderers,
-                    Falling = false,
-                });
+                IReadOnlyCollection<int> directCuts = ProceduralTreeRegistry.RemovedBranches(i);
+                ProceduralTreeMeshBuilder.ResolveRemovedBranches(
+                    skeleton, directCuts, presentation.ResolvedRemovedBranches);
+                presentation.DirectCutCount = directCuts.Count;
+                RebuildTreeMeshes(presentation);
+                group.RecalculateBounds();
+                _trees.Add(presentation);
             }
+        }
+
+        private void RebuildTreeMeshes(TreePresentation tree)
+        {
+            for (int lod = 0; lod < 3; lod++)
+            {
+                Mesh oldMesh = tree.LodMeshes[lod];
+                Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(
+                    tree.Skeleton, lod, tree.ResolvedRemovedBranches);
+                mesh.name = $"{tree.Instance.Species}_{tree.Instance.Seed}_LOD{lod}";
+                mesh.hideFlags = HideFlags.DontSave;
+                tree.LodMeshes[lod] = mesh;
+                tree.LodFilters[lod].sharedMesh = mesh;
+                if (oldMesh != null) Destroy(oldMesh);
+            }
+
+            LODGroup group = tree.Root != null ? tree.Root.GetComponent<LODGroup>() : null;
+            if (group != null) group.RecalculateBounds();
         }
 
         private void ApplyDamage()
@@ -196,9 +228,22 @@ namespace VoxelEngine.Rendering.Vegetation
                 ProceduralTreeRegistry.Damage;
             int count = Mathf.Min(_trees.Count, damage.Count);
 
+            // Awake normally owns this allocation. The guard also keeps edit/domain-reload edge
+            // cases from converting a leaf presentation problem into a tree-renderer exception.
+            if (_damageProperties == null) _damageProperties = new MaterialPropertyBlock();
+
             for (int i = 0; i < count; i++)
             {
                 TreePresentation tree = _trees[i];
+                IReadOnlyCollection<int> directCuts = ProceduralTreeRegistry.RemovedBranches(i);
+                if (tree.DirectCutCount != directCuts.Count)
+                {
+                    ProceduralTreeMeshBuilder.ResolveRemovedBranches(
+                        tree.Skeleton, directCuts, tree.ResolvedRemovedBranches);
+                    tree.DirectCutCount = directCuts.Count;
+                    RebuildTreeMeshes(tree);
+                }
+
                 ProceduralTreeRegistry.TreeDamageState state = damage[i];
                 float damageAmount = 1f - Mathf.Clamp01(state.FoliageHealth);
 
@@ -238,12 +283,16 @@ namespace VoxelEngine.Rendering.Vegetation
         private void ClearGenerated()
         {
             for (int i = 0; i < _trees.Count; i++)
-                if (_trees[i].Root != null) Destroy(_trees[i].Root);
+            {
+                TreePresentation tree = _trees[i];
+                if (tree.LodMeshes != null)
+                {
+                    for (int lod = 0; lod < tree.LodMeshes.Length; lod++)
+                        if (tree.LodMeshes[lod] != null) Destroy(tree.LodMeshes[lod]);
+                }
+                if (tree.Root != null) Destroy(tree.Root);
+            }
             _trees.Clear();
-
-            for (int i = 0; i < _meshes.Count; i++)
-                if (_meshes[i] != null) Destroy(_meshes[i]);
-            _meshes.Clear();
         }
 
         private void OnDestroy()
