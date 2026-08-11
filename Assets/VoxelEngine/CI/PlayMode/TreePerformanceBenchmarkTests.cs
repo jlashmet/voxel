@@ -12,21 +12,24 @@ using UnityEngine.TestTools;
 using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Rendering.Vegetation;
 using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
+using Object = UnityEngine.Object;
 
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Reproducible scaling report for semantic vegetation. Core generation is measured through
-    /// 5,000 identities without retaining generated skeletons; full runtime presentation is measured
-    /// through 1,000 trees so we can see when per-tree GameObjects/meshes become the next bottleneck.
-    /// This produces data, not hardware-specific pass/fail frame-time thresholds.
+    /// Bounded scaling report for semantic vegetation. Large counts measure domain and far-mesh
+    /// generation without materializing thousands of GameObjects; the full production presentation
+    /// path is measured at smaller counts and used to project object/mesh/draw pressure at 500-5000.
+    /// This keeps CI useful while still documenting where the current per-tree renderer stops scaling.
     /// </summary>
     public sealed class TreePerformanceBenchmarkTests
     {
         private static readonly int[] CoreCounts = { 10, 100, 500, 1000, 5000 };
-        private static readonly int[] RuntimeCounts = { 10, 100, 500, 1000 };
+        private static readonly int[] FarMeshCounts = { 10, 100, 500, 1000 };
+        private static readonly int[] RuntimeCounts = { 10, 50, 100, 250 };
+        private static readonly int[] ProjectionCounts = { 500, 1000, 5000 };
 
-        [UnityTest]
+        [UnityTest, Timeout(600000)]
         public IEnumerator TreeScaling_ProducesBenchmarkArtifact()
         {
             string projectRoot = Directory.GetParent(Application.dataPath)!.FullName;
@@ -37,7 +40,7 @@ namespace VoxelEngine.CI
 
             var csv = new List<string>
             {
-                "mode,count,elapsed_ms,branches,leaves,presentations,meshes,triangles_all_lods,allocated_memory_bytes,avg_frame_ms,max_frame_ms"
+                "mode,count,elapsed_ms,branches,leaves,presentations,meshes,triangles,allocated_memory_bytes,avg_frame_ms,max_frame_ms,projected_objects,projected_visible_draws"
             };
             var text = new List<string>
             {
@@ -45,10 +48,14 @@ namespace VoxelEngine.CI
                 $"platform={Application.platform}",
                 $"device={SystemInfo.deviceModel}",
                 $"graphics={SystemInfo.graphicsDeviceName}",
+                "note=large counts are domain/far-mesh measurements; full renderer is bounded to keep CI responsive",
             };
 
             TreeInstance warm = MakeInstance(0);
-            ProceduralTreeSkeletonBuilder.Generate(in warm);
+            ProceduralTreeSkeleton warmSkeleton = ProceduralTreeSkeletonBuilder.Generate(in warm);
+            Mesh warmMesh = ProceduralTreeMeshBuilder.BuildMesh(warmSkeleton, 2);
+            Object.Destroy(warmMesh);
+            yield return null;
 
             foreach (int count in CoreCounts)
             {
@@ -64,15 +71,39 @@ namespace VoxelEngine.CI
                     leaves += skeleton.Leaves.Count;
                 }
                 stopwatch.Stop();
-                long afterMemory = GC.GetTotalMemory(false);
-                long deltaMemory = Math.Max(0L, afterMemory - beforeMemory);
+                long deltaMemory = Math.Max(0L, GC.GetTotalMemory(false) - beforeMemory);
 
                 csv.Add(string.Join(",",
-                    "core", count,
-                    F(stopwatch.Elapsed.TotalMilliseconds),
-                    branches, leaves, 0, 0, 0, deltaMemory, "", ""));
+                    "core", count, F(stopwatch.Elapsed.TotalMilliseconds), branches, leaves,
+                    0, 0, 0, deltaMemory, "", "", 0, 0));
                 text.Add($"core {count}: {stopwatch.Elapsed.TotalMilliseconds:F2} ms, " +
                          $"branches={branches:N0}, leaves={leaves:N0}, transientDelta={deltaMemory:N0} B");
+                Flush(csvPath, txtPath, csv, text);
+                yield return null;
+            }
+
+            foreach (int count in FarMeshCounts)
+            {
+                long triangles = 0;
+                var stopwatch = Stopwatch.StartNew();
+                for (int i = 0; i < count; i++)
+                {
+                    TreeInstance instance = MakeInstance(i);
+                    ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                    Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 2);
+                    triangles += (long)mesh.GetIndexCount(0) / 3L;
+                    triangles += (long)mesh.GetIndexCount(1) / 3L;
+                    Object.Destroy(mesh);
+                    if ((i & 63) == 63) yield return null;
+                }
+                stopwatch.Stop();
+
+                csv.Add(string.Join(",",
+                    "far_mesh", count, F(stopwatch.Elapsed.TotalMilliseconds), "", "",
+                    0, count, triangles, "", "", "", 0, 0));
+                text.Add($"far mesh {count}: {stopwatch.Elapsed.TotalMilliseconds:F2} ms, " +
+                         $"LOD2 triangles={triangles:N0}");
+                Flush(csvPath, txtPath, csv, text);
                 yield return null;
             }
 
@@ -86,10 +117,11 @@ namespace VoxelEngine.CI
             Assert.That(renderer, Is.Not.Null,
                         "Production ProceduralTreeRenderer bootstrap was not available for benchmark.");
 
+            double trianglesPerTreeAllLods = 0.0;
             foreach (int count in RuntimeCounts)
             {
                 TreeWorldState.Replace(Array.Empty<TreeInstance>());
-                for (int frame = 0; frame < 5; frame++) yield return null;
+                for (int frame = 0; frame < 3; frame++) yield return null;
 
                 var instances = new TreeInstance[count];
                 for (int i = 0; i < count; i++) instances[i] = MakeInstance(i);
@@ -97,7 +129,7 @@ namespace VoxelEngine.CI
                 long beforeAllocated = Profiler.GetTotalAllocatedMemoryLong();
                 TreeWorldState.Replace(instances);
 
-                float deadline = Time.realtimeSinceStartup + 30f;
+                float deadline = Time.realtimeSinceStartup + 90f;
                 while (renderer.PresentationCount != count
                        && Time.realtimeSinceStartup < deadline)
                     yield return null;
@@ -107,7 +139,7 @@ namespace VoxelEngine.CI
 
                 double frameTotal = 0.0;
                 double frameMax = 0.0;
-                const int sampledFrames = 30;
+                const int sampledFrames = 15;
                 for (int frame = 0; frame < sampledFrames; frame++)
                 {
                     yield return null;
@@ -116,34 +148,53 @@ namespace VoxelEngine.CI
                     frameMax = Math.Max(frameMax, ms);
                 }
 
-                long afterAllocated = Profiler.GetTotalAllocatedMemoryLong();
-                long memoryDelta = Math.Max(0L, afterAllocated - beforeAllocated);
+                long memoryDelta = Math.Max(0L,
+                    Profiler.GetTotalAllocatedMemoryLong() - beforeAllocated);
                 double avgFrame = frameTotal / sampledFrames;
+                trianglesPerTreeAllLods = count > 0
+                    ? renderer.TotalTriangleCountAllLods / (double)count : 0.0;
 
                 csv.Add(string.Join(",",
-                    "runtime", count,
-                    F(renderer.LastRebuildMilliseconds),
-                    "", "",
-                    renderer.PresentationCount,
-                    renderer.GeneratedMeshCount,
-                    renderer.TotalTriangleCountAllLods,
-                    memoryDelta,
-                    F(avgFrame), F(frameMax)));
+                    "runtime", count, F(renderer.LastRebuildMilliseconds), "", "",
+                    renderer.PresentationCount, renderer.GeneratedMeshCount,
+                    renderer.TotalTriangleCountAllLods, memoryDelta,
+                    F(avgFrame), F(frameMax), count * 4L, count * 2L));
                 text.Add($"runtime {count}: rebuild={renderer.LastRebuildMilliseconds:F2} ms, " +
                          $"presentations={renderer.PresentationCount:N0}, meshes={renderer.GeneratedMeshCount:N0}, " +
                          $"triangles(all LODs)={renderer.TotalTriangleCountAllLods:N0}, " +
                          $"allocatedDelta={memoryDelta:N0} B, avgFrame={avgFrame:F2} ms, maxFrame={frameMax:F2} ms");
+                Flush(csvPath, txtPath, csv, text);
             }
+
+            foreach (int count in ProjectionCounts)
+            {
+                long projectedTriangles = (long)Math.Round(trianglesPerTreeAllLods * count);
+                long projectedObjects = count * 4L; // root + three LOD children
+                long projectedMeshes = count * 3L;
+                long projectedVisibleDraws = count * 2L; // bark + leaves for one visible LOD
+                csv.Add(string.Join(",",
+                    "projection", count, "", "", "", count, projectedMeshes,
+                    projectedTriangles, "", "", "", projectedObjects, projectedVisibleDraws));
+                text.Add($"projection {count}: objects≈{projectedObjects:N0}, meshes≈{projectedMeshes:N0}, " +
+                         $"all-LOD triangles≈{projectedTriangles:N0}, worst-case visible draws≈{projectedVisibleDraws:N0}");
+            }
+
+            text.Add("recommendation=large forests require chunk/instance batching and lazy LOD mesh realization; semantic state does not need redesign");
+            Flush(csvPath, txtPath, csv, text);
 
             TreeWorldState.Replace(Array.Empty<TreeInstance>());
             for (int frame = 0; frame < 3; frame++) yield return null;
 
-            File.WriteAllLines(csvPath, csv);
-            File.WriteAllLines(txtPath, text);
             UnityEngine.Debug.Log("Tree performance benchmark:\n" + string.Join("\n", text));
-
             Assert.That(File.Exists(csvPath), Is.True);
             Assert.That(File.Exists(txtPath), Is.True);
+        }
+
+        private static void Flush(string csvPath, string txtPath,
+                                  List<string> csv, List<string> text)
+        {
+            File.WriteAllLines(csvPath, csv);
+            File.WriteAllLines(txtPath, text);
         }
 
         private static TreeInstance MakeInstance(int index)
