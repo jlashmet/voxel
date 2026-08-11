@@ -15,8 +15,10 @@ namespace MountingForce.WorldGen.Voxel
     /// rule: the lowest sampled point under the semantic footprint. Keeping one altitude rule
     /// means adding terrain preparation cannot move buildings, doors, or gameplay anchors.
     ///
-    /// Pads are landforms, not structures, so their dirt remains on the smooth rendering path.
-    /// The market well is excluded because the market-square pass already owns that ground.
+    /// The grading rectangle is deliberately smaller than the semantic placement footprint: it
+    /// hugs the actual building envelope plus a small yard margin, so generation does not stamp a
+    /// giant rectangular terrace around every house. Subsoil is dirt and the exposed top is moss /
+    /// grass-like ground cover. The market well is excluded because the plaza owns that ground.
     /// </summary>
     public static class KentridgePlotSurfaceCatalogue
     {
@@ -25,6 +27,22 @@ namespace MountingForce.WorldGen.Voxel
         private const int SurfaceThicknessDm = 1;
         private const int ClearAboveDm = 56;
         private const int FootprintHeightDm = FillDepthDm + SurfaceThicknessDm + ClearAboveDm;
+
+        private readonly struct PadRect
+        {
+            public readonly int X;
+            public readonly int Z;
+            public readonly int Width;
+            public readonly int Depth;
+
+            public PadRect(int x, int z, int width, int depth)
+            {
+                X = x;
+                Z = z;
+                Width = width;
+                Depth = depth;
+            }
+        }
 
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
@@ -97,7 +115,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 2,
+                    MaxPrimitives = 3,
                 };
 
                 List<BuildingPlot> plots = byArchetype[id];
@@ -174,20 +192,41 @@ namespace MountingForce.WorldGen.Voxel
             };
         }
 
+        private static PadRect PadFor(StructureArchetype archetype)
+        {
+            switch (archetype)
+            {
+                case StructureArchetype.Townhouse: return new PadRect(6, 4, 90, 88);
+                case StructureArchetype.WideHouse: return new PadRect(6, 4, 116, 100);
+                case StructureArchetype.Shop:      return new PadRect(4, 0, 116, 102);
+                case StructureArchetype.Inn:       return new PadRect(6, 6, 166, 158);
+                case StructureArchetype.Warehouse: return new PadRect(7, 10, 182, 174);
+                case StructureArchetype.Mansion:   return new PadRect(12, 0, 244, 236);
+                case StructureArchetype.Church:    return new PadRect(12, 8, 140, 148);
+                case StructureArchetype.Well:      return new PadRect(0, 0, 56, 56);
+                default:                           return new PadRect(4, 4, 96, 96);
+            }
+        }
+
         private static int[] PadProgram(StructureArchetype archetype,
                                         VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
-            Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
-            int fillHeight = (FillDepthDm + SurfaceThicknessDm) * s;
+            PadRect pad = PadFor(archetype);
+            int subsoilHeight = FillDepthDm * s;
+            int topHeight = SurfaceThicknessDm * s;
+            int clearY = subsoilHeight + topHeight;
             int clearHeight = ClearAboveDm * s;
             byte dirt = settings.Materials.Resolve(MaterialRole.RoadSurface);
+            byte groundCover = settings.Materials.Resolve(MaterialRole.Moss);
 
             var b = new ProgramBuilder();
-            b.Carve(0, fillHeight, 0,
-                    footprint.X * s, clearHeight, footprint.Z * s);
-            b.Box(0, 0, 0,
-                  footprint.X * s, fillHeight, footprint.Z * s, dirt);
+            b.Carve(pad.X * s, clearY, pad.Z * s,
+                    pad.Width * s, clearHeight, pad.Depth * s);
+            b.Box(pad.X * s, 0, pad.Z * s,
+                  pad.Width * s, subsoilHeight, pad.Depth * s, dirt);
+            b.Box(pad.X * s, subsoilHeight, pad.Z * s,
+                  pad.Width * s, topHeight, pad.Depth * s, groundCover);
             return b.Finish();
         }
 
