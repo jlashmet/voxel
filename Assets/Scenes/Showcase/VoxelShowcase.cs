@@ -477,6 +477,8 @@ namespace VoxelEngine.Showcase
                     var start = Time.realtimeSinceStartupAsDouble;
                     int changed = _world.Explode(hit, (ushort)shot.ImpactRadius,
                                                  (float3)shot.Direction);
+                    if (changed > 0)
+                        ProceduralTreeDamageBridge.ApplyExplosion(hit, shot.ImpactRadius);
                     _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
                     _lastEditLabel = $"tornado impact r{shot.ImpactRadius}: {changed:N0} voxels, " +
                                      $"{(_gpuDebris?.ActiveVoxels ?? 0):N0} falling";
