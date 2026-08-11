@@ -122,6 +122,7 @@ namespace VoxelEngine.Showcase
                 int3 brickOrigin = worldBrick * VoxelDimensions.BrickEdge;
                 if (!BrickIntersectsProxyCylinder(brickOrigin, root)) continue;
 
+                bool pointerChanged = false;
                 if (brick.IsUniform)
                 {
                     byte material = brick.UniformMaterial;
@@ -134,6 +135,7 @@ namespace VoxelEngine.Showcase
                     pool.FillBrick(poolIndex, material);
                     brick = BrickRef.FromPoolIndex(poolIndex);
                     region.BrickRefs[brickIndex] = brick;
+                    pointerChanged = true;
                 }
 
                 int offset = pool.VoxelOffset(brick.PoolIndex);
@@ -156,21 +158,14 @@ namespace VoxelEngine.Showcase
 
                     int voxelIndex = vx | (vy << 3) | (vz << 6);
                     byte material = pool.Voxels[offset + voxelIndex];
-                    if (!IsLegacyTreeMaterial(material)) continue;
-                    if (material == Mat.Moss) continue;
+                    if (!IsLegacyTreeMaterial(material) || material == Mat.Moss) continue;
 
                     pool.Voxels[offset + voxelIndex] = Mat.Moss;
                     changed++;
                     brickChanged = true;
                 }
 
-                // A newly split uniform moss brick may already contain only moss, so there can be
-                // no byte-level change even though the pointer changed from uniform to mixed. It
-                // still needs upload/density invalidation for the fallback to stop drawing it.
-                if (!brickChanged && brick.IsMixed)
-                    brickChanged = brick.IsMixed && brick.UniformMaterialSafeForProxySplit(in pool);
-
-                if (!brickChanged) continue;
+                if (!pointerChanged && !brickChanged) continue;
                 pool.MarkDirty(brick.PoolIndex);
                 region.Dirty = true;
                 table.CommitRegion(region);
@@ -193,18 +188,5 @@ namespace VoxelEngine.Showcase
 
         private static bool IsLegacyTreeMaterial(byte material) =>
             material == Mat.Wood || material == Mat.Grass || material == Mat.Moss;
-    }
-
-    internal static class LegacyTreeProxyBrickExtensions
-    {
-        public static bool UniformMaterialSafeForProxySplit(this BrickRef brick, in BrickPool pool)
-        {
-            if (!brick.IsMixed) return false;
-            int offset = pool.VoxelOffset(brick.PoolIndex);
-            for (int i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
-                if (pool.Voxels[offset + i] != Mat.Moss)
-                    return false;
-            return true;
-        }
     }
 }
