@@ -168,6 +168,14 @@ namespace VoxelEngine.CI
                 Assert.That(Quaternion.Angle(treeRoot.localRotation, Quaternion.identity),
                             Is.LessThan(0.1f), "Standing semantic root should remain the rooted stump.");
 
+                // TreeWorldState and detached presenters can react synchronously, while the renderer
+                // intentionally applies index-buffer changes from Update. Wait for that rendering
+                // subscriber rather than racing it in the same frame as the semantic sever event.
+                for (int frame = 0;
+                     frame < 8 && (int)liveMesh.GetIndexCount(0) / 3 >= barkAfterBranch;
+                     frame++)
+                    yield return null;
+
                 int barkAfterTrunk = (int)liveMesh.GetIndexCount(0) / 3;
                 Assert.That(barkAfterTrunk, Is.LessThan(barkAfterBranch),
                             "Trunk sever did not remove the connected upper tree from the standing mesh.");
