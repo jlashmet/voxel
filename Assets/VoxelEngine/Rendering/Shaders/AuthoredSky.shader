@@ -13,7 +13,10 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
             Name "AuthoredVoxelSky"
             Cull Off
             ZWrite Off
-            ZTest Always
+            // This pass runs after URP's normal skybox. Draw only where opaque geometry left the
+            // depth buffer at its exact far-clear value, replacing the default sky without ever
+            // painting over terrain, castle meshes, or ordinary Unity opaque objects.
+            ZTest Equal
 
             HLSLPROGRAM
             #pragma target 4.5
@@ -41,6 +44,11 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
                 float2 uv = float2((vertexID << 1) & 2, vertexID & 2);
                 Varyings output;
                 output.positionCS = float4(uv * 2.0 - 1.0, 0.0, 1.0);
+#if UNITY_REVERSED_Z
+                output.positionCS.z = 0.0;
+#else
+                output.positionCS.z = output.positionCS.w;
+#endif
                 output.uv = uv;
                 return output;
             }
@@ -72,8 +80,8 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
 
             float4 Frag(Varyings input) : SV_Target
             {
-                // Match the old raymarch exactly: one valid clip-space depth is enough to recover
-                // a point in front of the camera, and 0.5 is independent of reversed-Z.
+                // Match the old raymarch direction reconstruction. Clip z=0.5 is only used to
+                // obtain a point along the camera ray; it is independent of this pass's far depth.
                 float2 ndc = input.uv * 2.0 - 1.0;
                 float4 h = mul(_InvViewProj, float4(ndc, 0.5, 1.0));
                 float3 target = h.xyz / h.w;
