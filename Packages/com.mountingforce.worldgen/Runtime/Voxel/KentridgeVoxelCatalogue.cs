@@ -69,7 +69,11 @@ namespace MountingForce.WorldGen.Voxel
                 for (int p = 0; p < program.Code.Length; p++)
                     catalogue.Program[programOffset + p] = program.Code[p];
 
-                int3 footprint = KentridgeDefinition.FootprintDm(archetype) * scale;
+                Int3 footprintDm = KentridgeDefinition.FootprintDm(archetype);
+                int3 footprint = new int3(
+                    footprintDm.X * scale,
+                    footprintDm.Y * scale,
+                    footprintDm.Z * scale);
                 catalogue.Anchors[id] = new AnchorSpec
                 {
                     Name = archetype == StructureArchetype.Well ? "interaction" : "door",
@@ -138,8 +142,8 @@ namespace MountingForce.WorldGen.Voxel
         private static ExplicitPlacement ResolvePlacement(PlannedSite site, int3 footprint,
                                                            uint seed, int scale)
         {
-            int ox = site.PositionDm.x * scale;
-            int oz = site.PositionDm.y * scale;
+            int ox = site.PositionDm.X * scale;
+            int oz = site.PositionDm.Y * scale;
             int lowest = int.MaxValue;
             int sampleStep = math.max(8, 16 * scale);
 
