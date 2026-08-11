@@ -69,7 +69,11 @@ jobs:
             -logFile "$GITHUB_WORKSPACE/Artifacts/Kentridge/unity.log" \
             -quit
 
-          test -s "$GITHUB_WORKSPACE/Artifacts/Kentridge/kentridge-overview.png"
+          for view in \
+            overview-ne overview-nw overview-se overview-sw \
+            street-north street-south street-east street-west; do
+            test -s "$GITHUB_WORKSPACE/Artifacts/Kentridge/kentridge-${view}.png"
+          done
           test -s "$GITHUB_WORKSPACE/Artifacts/Kentridge/kentridge-overview.txt"
 
       - name: Show Kentridge metadata
