@@ -6,6 +6,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Vegetation;
 
 namespace VoxelEngine.Rendering
 {
@@ -302,14 +303,19 @@ namespace VoxelEngine.Rendering
 
             // A hard layer no longer owns an entire render chunk. Where a Transvoxel mesh for the
             // same coordinate is ready, draw both: its field has already removed hard semantic
-            // bricks, while the greedy mesh contains only those hard bricks.
+            // bricks, while the greedy mesh contains only those hard bricks. Legacy tree-proxy
+            // chunks also hand off as soon as their own Transvoxel replacement is ready instead
+            // of waiting for the global smooth-working-set latch; otherwise Surface Nets would
+            // keep an upright copy of the old voxel tree underneath the procedural tree.
             int coarseVisibleCount = 0;
             for (int i = 0; i < _surfaceCache.Visible.Count; i++)
             {
                 int3 coordinate = _surfaceCache.Visible[i].Coordinate;
                 bool hardReady = _hardSurfaceCache.OwnsRenderedChunk(coordinate);
                 bool transvoxelReady = _transvoxelCache.OwnsRenderedChunk(coordinate);
-                bool drawTransvoxel = transvoxelReady && (_transvoxelActivated || hardReady);
+                bool legacyTreeProxy = ProceduralTreeRegistry.IsLegacyProxyRenderChunk(coordinate);
+                bool drawTransvoxel = transvoxelReady
+                    && (_transvoxelActivated || hardReady || legacyTreeProxy);
 
                 if (drawTransvoxel) continue;
                 if (hardReady) continue;
@@ -318,21 +324,29 @@ namespace VoxelEngine.Rendering
 
             var visibleEntries = new GpuSurfaceChunkCache.Entry[coarseVisibleCount];
             int coarseWrite = 0;
+            ProceduralTreeRegistry.ClearCoarseLegacyProxyRenderChunks();
             for (int i = 0; i < _surfaceCache.Visible.Count; i++)
             {
                 var entry = _surfaceCache.Visible[i];
                 bool hardReady = _hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate);
                 bool transvoxelReady = _transvoxelCache.OwnsRenderedChunk(entry.Coordinate);
-                bool drawTransvoxel = transvoxelReady && (_transvoxelActivated || hardReady);
+                bool legacyTreeProxy =
+                    ProceduralTreeRegistry.IsLegacyProxyRenderChunk(entry.Coordinate);
+                bool drawTransvoxel = transvoxelReady
+                    && (_transvoxelActivated || hardReady || legacyTreeProxy);
                 if (drawTransvoxel || hardReady) continue;
                 visibleEntries[coarseWrite++] = entry;
+                if (legacyTreeProxy)
+                    ProceduralTreeRegistry.MarkCoarseLegacyProxyRenderChunk(entry.Coordinate);
             }
 
             int transvoxelCount = 0;
             for (int i = 0; i < transvoxelVisible.Count; i++)
             {
                 int3 coordinate = transvoxelVisible[i].Coordinate;
-                if (_transvoxelActivated || _hardSurfaceCache.OwnsRenderedChunk(coordinate))
+                if (_transvoxelActivated
+                    || _hardSurfaceCache.OwnsRenderedChunk(coordinate)
+                    || ProceduralTreeRegistry.IsLegacyProxyRenderChunk(coordinate))
                     transvoxelCount++;
             }
 
@@ -342,7 +356,9 @@ namespace VoxelEngine.Rendering
             {
                 var entry = transvoxelVisible[i];
                 if (!_transvoxelActivated
-                    && !_hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate)) continue;
+                    && !_hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate)
+                    && !ProceduralTreeRegistry.IsLegacyProxyRenderChunk(entry.Coordinate))
+                    continue;
                 transvoxelEntries[transvoxelWrite++] = entry;
             }
 
@@ -510,6 +526,7 @@ namespace VoxelEngine.Rendering
 
         public void Dispose()
         {
+            ProceduralTreeRegistry.ClearCoarseLegacyProxyRenderChunks();
             _waterSurfaceCache.Dispose();
             _hardSurfaceCache.Dispose();
             _transvoxelCache.Dispose();
