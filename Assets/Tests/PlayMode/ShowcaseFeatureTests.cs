@@ -32,7 +32,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.Greater(world.FeatureInstancesBuilt, 0, "Kentridge generated no feature instances");
             Assert.Greater(world.FeatureVoxelsBuilt, 10000, "Kentridge wrote implausibly few voxels");
 
-            const int originX = 834;
+            const int originX = 954;
             const int originZ = 68;
             const int footprint = 164;
             const byte orientation = 3;
@@ -58,7 +58,7 @@ namespace VoxelEngine.Tests.PlayMode
             byte roof = VoxelAccess.GetVoxel(ref world.Table, in world.Pool,
                 new int3(originX + roofLocal.x, baseY + roofLocal.y, originZ + roofLocal.z));
 
-            const int roadX = 1050;
+            const int roadX = 1170;
             const int roadZ = 300;
             const int roadTileCentreZ = 312;
             int roadY = TerrainSampler.HeightAt(roadX, roadTileCentreZ, world.Seed);

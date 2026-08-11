@@ -33,7 +33,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
     public static class KentridgeDefinition
     {
         public const string Id = "kentridge";
-        public static readonly Int2 TownCentreDm = new Int2(1050, 520);
+        public static readonly Int2 TownCentreDm = new Int2(1170, 520);
 
         public static ArchitectureTheme Theme => new ArchitectureTheme(
             id: Id,

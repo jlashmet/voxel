@@ -12,10 +12,10 @@ namespace MountingForce.WorldGen.Content.Kentridge
     /// </summary>
     public static class KentridgeTownPlanner
     {
-        public const int MainSpineXDm = 1050;
+        public const int MainSpineXDm = 1170;
         public const int MarketStreetZDm = 520;
         public const int ResidentialStreetZDm = 900;
-        public const int EastLaneXDm = 1370;
+        public const int EastLaneXDm = 1490;
 
         public const int MainRoadWidthDm = 56;
         public const int SecondaryRoadWidthDm = 48;
@@ -37,15 +37,15 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     "market-street",
                     StreetKind.Secondary,
                     SecondaryRoadWidthDm,
-                    new Int2(520, MarketStreetZDm),
-                    new Int2(1540, MarketStreetZDm)),
+                    new Int2(700, MarketStreetZDm),
+                    new Int2(1660, MarketStreetZDm)),
 
                 new PlannedStreet(
                     "residential-street",
                     StreetKind.Secondary,
                     ResidentialRoadWidthDm,
-                    new Int2(500, ResidentialStreetZDm),
-                    new Int2(1510, ResidentialStreetZDm)),
+                    new Int2(650, ResidentialStreetZDm),
+                    new Int2(1630, ResidentialStreetZDm)),
 
                 new PlannedStreet(
                     "east-service-lane",
@@ -76,19 +76,19 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
                 AlongHorizontalStreet(
                     seed, 0, KentridgeRole.WeaponShop, StructureArchetype.Shop, DistrictKind.Market,
-                    650, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
+                    770, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
 
                 AlongHorizontalStreet(
                     seed, 0, KentridgeRole.ArmorShop, StructureArchetype.Shop, DistrictKind.Market,
-                    790, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
+                    910, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
 
                 AlongHorizontalStreet(
                     seed, 0, KentridgeRole.MagicShop, StructureArchetype.Shop, DistrictKind.Market,
-                    930, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
+                    1050, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
 
                 AlongHorizontalStreet(
                     seed, 31, KentridgeRole.RebeccaHouse, StructureArchetype.Townhouse, DistrictKind.Residential,
-                    1200, MarketStreetZDm, FrontageDirection.North, SecondaryRoadWidthDm, 18, 6),
+                    1320, MarketStreetZDm, FrontageDirection.North, SecondaryRoadWidthDm, 18, 6),
 
                 AlongVerticalStreet(
                     seed, 32, KentridgeRole.LoganHouse, StructureArchetype.Townhouse, DistrictKind.Residential,
@@ -100,19 +100,19 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
                 AlongHorizontalStreet(
                     seed, 41, KentridgeRole.SarahHouse, StructureArchetype.WideHouse, DistrictKind.Residential,
-                    600, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
+                    720, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
 
                 AlongHorizontalStreet(
                     seed, 42, KentridgeRole.KatieHouse, StructureArchetype.Townhouse, DistrictKind.Residential,
-                    760, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
+                    880, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
 
                 AlongHorizontalStreet(
                     seed, 43, KentridgeRole.MedrareHouse, StructureArchetype.WideHouse, DistrictKind.Residential,
-                    910, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
+                    1030, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
 
                 AlongHorizontalStreet(
                     seed, 44, KentridgeRole.AbandonedHouse, StructureArchetype.Townhouse, DistrictKind.Residential,
-                    1180, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
+                    1300, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
 
                 AlongVerticalStreet(
                     seed, 45, KentridgeRole.AwonHouse, StructureArchetype.WideHouse, DistrictKind.Residential,
