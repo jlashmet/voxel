@@ -704,45 +704,15 @@ namespace VoxelEngine.Structures
         private static void Pine(ref VoxelBrush brush, int x, int y, int z,
                                  int height, int radius, byte foliage)
         {
-            int trunkRadius = math.max(3, radius / 5);
-            brush.Cylinder(x, y, z, trunkRadius, height - 8, Mat.Wood);
-
-            // Overlapping tapered crowns keep every foliage mass tied into the trunk while
-            // producing a much richer outline than the broad ellipsoid deciduous trees.
-            brush.Cone(x, y + height / 4, z, radius, height * 3 / 5, foliage);
-            brush.Cone(x, y + height / 2, z, math.max(8, radius - 3), height / 2, foliage);
-            brush.Cone(x, y + height * 2 / 3, z, math.max(6, radius - 6), height / 3, foliage);
+            // Trees are semantic vegetation now. CastleBuilder no longer authors voxel
+            // trunks/crowns; ShowcaseTreePopulation publishes deterministic TreeInstances.
         }
 
         private static void Tree(ref VoxelBrush brush, int x, int y, int z,
                                  int height, int canopyRadius, byte foliage)
         {
-            int trunkRadius = math.max(3, canopyRadius / 5);
-            brush.Cylinder(x, y, z, trunkRadius, height, Mat.Wood);
-
-            // Two visible scaffold limbs give broadleaf trees a different construction grammar
-            // from conifers, especially where the irregular crown exposes concave gaps.
-            int branchY = y + height * 2 / 3;
-            int branchLength = math.max(8, canopyRadius - 3);
-            brush.Box(new int3(x - branchLength, branchY, z - 2),
-                      new int3(branchLength * 2, 4, 4), Mat.Wood);
-            brush.Box(new int3(x - 2, branchY + 5, z - branchLength),
-                      new int3(4, 4, branchLength * 2), Mat.Wood);
-
-            int centreY = y + height - canopyRadius / 2;
-            int lobeRadius = math.max(7, canopyRadius * 3 / 4);
-
-            // A clustered crown exposes concave gaps and overlapping silhouettes. The former
-            // single ellipsoid was mathematically smooth but read as one solid green boulder.
-            FoliageBlob(ref brush, x, centreY + 3, z, lobeRadius + 2, lobeRadius + 5, foliage);
-            FoliageBlob(ref brush, x - canopyRadius / 2, centreY - 2,
-                        z - canopyRadius / 4, lobeRadius, lobeRadius, foliage);
-            FoliageBlob(ref brush, x + canopyRadius / 2, centreY,
-                        z + canopyRadius / 5, lobeRadius, lobeRadius + 1, foliage);
-            FoliageBlob(ref brush, x + canopyRadius / 5, centreY + canopyRadius / 2,
-                        z - canopyRadius / 2, lobeRadius - 1, lobeRadius, foliage);
-            FoliageBlob(ref brush, x - canopyRadius / 4, centreY + canopyRadius / 3,
-                        z + canopyRadius / 2, lobeRadius - 2, lobeRadius - 1, foliage);
+            // Trees are semantic vegetation now. CastleBuilder no longer authors voxel
+            // trunks/crowns; ShowcaseTreePopulation publishes deterministic TreeInstances.
         }
 
         private static void FoliageBlob(ref VoxelBrush brush, int x, int y, int z,

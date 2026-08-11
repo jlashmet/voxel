@@ -48,10 +48,10 @@ namespace VoxelEngine.CI
             // Wait for the cleanup's explicit completion flag rather than trying to rediscover
             // hidden DontSave migration components from the Test Runner. Production code owns the
             // lifecycle invariant; the test only observes that the rewrite completed.
-            while (!LegacyTreeProxyCleanup.Completed
+            while (!ShowcaseTreePopulation.Completed
                    && Time.realtimeSinceStartup < deadline)
                 yield return null;
-            bool cleanupComplete = LegacyTreeProxyCleanup.Completed;
+            bool cleanupComplete = ShowcaseTreePopulation.Completed;
 
             List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
             while (renderers.Count == 1
@@ -217,7 +217,7 @@ namespace VoxelEngine.CI
             Debug.Log($"CI showcase-tree capture written to {outputDirectory}\n{metadata}");
 
             Assert.That(cleanupComplete, Is.True,
-                        "Legacy tree proxy cleanup did not complete before the visual checkpoint.");
+                        "Semantic Showcase tree population did not complete before the visual checkpoint.");
             Assert.That(damageCount, Is.EqualTo(instanceCount),
                         "Every semantic tree must have exactly one damage state.");
             Assert.That(presentationRoots, Is.EqualTo(instanceCount),
