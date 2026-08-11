@@ -90,11 +90,12 @@ Shader "VoxelEngine/SunlitSmooth"
                 half ndl = saturate(dot(normalWS, mainLight.direction));
                 half shadow = mainLight.shadowAttenuation * mainLight.distanceAttenuation;
 
-                // Soft compressed lighting: enough form for round character/foliage shapes while
-                // staying much closer to painted JRPG concept art than physically based Lit.
-                half shade = 0.64h + 0.28h * ndl * lerp(0.58h, 1.0h, shadow);
+                // High-key, compressed lighting. The reference is a sunlit painted JRPG scene:
+                // whites stay white, foliage stays colorful, and shadows describe form without
+                // turning the smooth layers gray or physically based.
+                half shade = 0.78h + 0.20h * ndl * lerp(0.62h, 1.0h, shadow);
                 half rim = pow(1.0h - saturate(dot(normalWS,
-                              SafeNormalize(_WorldSpaceCameraPos.xyz - input.positionWS))), 3.0h) * 0.06h;
+                              SafeNormalize(_WorldSpaceCameraPos.xyz - input.positionWS))), 3.0h) * 0.045h;
                 half3 colour = base.rgb * shade + rim * base.rgb + _EmissionColor.rgb;
                 colour = MixFog(colour, input.fogFactor);
                 return half4(colour, base.a);
