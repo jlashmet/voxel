@@ -104,6 +104,16 @@ namespace MountingForce.CombatPrototype
                 GameObject visual = GameObject.Find($"Chain Tree {tree.Id}");
                 if (visual == null) continue;
 
+                // While a tree-impact fact is unresolved, ChainCombatEventMarker owns the standing tree's shake/lean.
+                // We deliberately do not flatten that feedback back to Quaternion.identity here.
+                if (tree.Standing &&
+                    _board.PendingReaction != null &&
+                    _board.PendingReaction.Kind == ChainReactionKind.TreeImpact &&
+                    _board.PendingReaction.TreeId == tree.Id)
+                {
+                    continue;
+                }
+
                 if (!_trees.TryGetValue(tree.Id, out TreePlayback playback))
                 {
                     playback = new TreePlayback();
