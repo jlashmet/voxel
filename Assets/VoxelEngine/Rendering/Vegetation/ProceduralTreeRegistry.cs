@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using VoxelEngine.Core.Vegetation;
+using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 
 namespace VoxelEngine.Rendering.Vegetation
 {
