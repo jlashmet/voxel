@@ -6,9 +6,9 @@ namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
     /// Composes Kentridge generation stages into the single immutable catalogue understood by the
-    /// voxel engine. Ordering is intentional and observable: themed ground cover first, roads and
-    /// plaza second, prepared building plots third, frontage paths fourth, private plot dressing
-    /// fifth, public-square dressing sixth, and structures last.
+    /// voxel engine. Ordering is intentional and observable: themed ground cover first, authored
+    /// vertical roads/plaza second, masonry terrace supports third, prepared building plots fourth,
+    /// frontage paths fifth, private/public dressing next, and structures last.
     /// </summary>
     public static class KentridgeCombinedVoxelCatalogue
     {
@@ -18,23 +18,30 @@ namespace MountingForce.WorldGen.Voxel
             FeatureCatalogue groundCover =
                 KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue publicSpaces =
-                KentridgeTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
+                KentridgeVerticalTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
+            FeatureCatalogue terraceSupports =
+                KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue plotSurfaces =
-                KentridgePlotSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
+                KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(
+                    seed, settings, Allocator.Temp);
             FeatureCatalogue frontagePaths =
                 KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue plotDressing =
-                KentridgePlotDressingCatalogue.Build(seed, settings, Allocator.Temp);
+                KentridgeVerticalPlacementAdapter.BuildPlotDressing(
+                    seed, settings, Allocator.Temp);
             FeatureCatalogue townDressing =
-                KentridgeTownDressingCatalogue.Build(seed, settings, Allocator.Temp);
+                KentridgeVerticalPlacementAdapter.BuildTownDressing(
+                    seed, settings, Allocator.Temp);
             FeatureCatalogue buildings =
-                KentridgeVoxelCatalogue.Build(seed, settings, Allocator.Temp);
+                KentridgeVerticalPlacementAdapter.BuildStructures(
+                    seed, settings, Allocator.Temp);
 
             try
             {
                 FeatureCatalogue result = CatalogueLoader.Allocate(
                     definitions: groundCover.Definitions.Length
                                + publicSpaces.Definitions.Length
+                               + terraceSupports.Definitions.Length
                                + plotSurfaces.Definitions.Length
                                + frontagePaths.Definitions.Length
                                + plotDressing.Definitions.Length
@@ -42,6 +49,7 @@ namespace MountingForce.WorldGen.Voxel
                                + buildings.Definitions.Length,
                     rules: groundCover.Rules.Length
                          + publicSpaces.Rules.Length
+                         + terraceSupports.Rules.Length
                          + plotSurfaces.Rules.Length
                          + frontagePaths.Rules.Length
                          + plotDressing.Rules.Length
@@ -49,6 +57,7 @@ namespace MountingForce.WorldGen.Voxel
                          + buildings.Rules.Length,
                     parameters: groundCover.Parameters.Length
                               + publicSpaces.Parameters.Length
+                              + terraceSupports.Parameters.Length
                               + plotSurfaces.Parameters.Length
                               + frontagePaths.Parameters.Length
                               + plotDressing.Parameters.Length
@@ -56,6 +65,7 @@ namespace MountingForce.WorldGen.Voxel
                               + buildings.Parameters.Length,
                     anchors: groundCover.Anchors.Length
                            + publicSpaces.Anchors.Length
+                           + terraceSupports.Anchors.Length
                            + plotSurfaces.Anchors.Length
                            + frontagePaths.Anchors.Length
                            + plotDressing.Anchors.Length
@@ -63,6 +73,7 @@ namespace MountingForce.WorldGen.Voxel
                            + buildings.Anchors.Length,
                     slots: groundCover.Slots.Length
                          + publicSpaces.Slots.Length
+                         + terraceSupports.Slots.Length
                          + plotSurfaces.Slots.Length
                          + frontagePaths.Slots.Length
                          + plotDressing.Slots.Length
@@ -70,6 +81,7 @@ namespace MountingForce.WorldGen.Voxel
                          + buildings.Slots.Length,
                     programLength: groundCover.Program.Length
                                  + publicSpaces.Program.Length
+                                 + terraceSupports.Program.Length
                                  + plotSurfaces.Program.Length
                                  + frontagePaths.Program.Length
                                  + plotDressing.Program.Length
@@ -77,6 +89,7 @@ namespace MountingForce.WorldGen.Voxel
                                  + buildings.Program.Length,
                     materials: groundCover.Materials.Length
                              + publicSpaces.Materials.Length
+                             + terraceSupports.Materials.Length
                              + plotSurfaces.Materials.Length
                              + frontagePaths.Materials.Length
                              + plotDressing.Materials.Length
@@ -84,6 +97,7 @@ namespace MountingForce.WorldGen.Voxel
                              + buildings.Materials.Length,
                     explicitPlacements: groundCover.ExplicitPlacements.Length
                                       + publicSpaces.ExplicitPlacements.Length
+                                      + terraceSupports.ExplicitPlacements.Length
                                       + plotSurfaces.ExplicitPlacements.Length
                                       + frontagePaths.ExplicitPlacements.Length
                                       + plotDressing.ExplicitPlacements.Length
@@ -91,6 +105,7 @@ namespace MountingForce.WorldGen.Voxel
                                       + buildings.ExplicitPlacements.Length,
                     overrides: groundCover.ParameterOverrides.Length
                              + publicSpaces.ParameterOverrides.Length
+                             + terraceSupports.ParameterOverrides.Length
                              + plotSurfaces.ParameterOverrides.Length
                              + frontagePaths.ParameterOverrides.Length
                              + plotDressing.ParameterOverrides.Length
@@ -113,6 +128,10 @@ namespace MountingForce.WorldGen.Voxel
                     ref anchorOffset, ref slotOffset, ref programOffset,
                     ref materialOffset, ref placementOffset, ref overrideOffset);
                 Append(in publicSpaces, ref result,
+                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
+                    ref anchorOffset, ref slotOffset, ref programOffset,
+                    ref materialOffset, ref placementOffset, ref overrideOffset);
+                Append(in terraceSupports, ref result,
                     ref definitionOffset, ref ruleOffset, ref parameterOffset,
                     ref anchorOffset, ref slotOffset, ref programOffset,
                     ref materialOffset, ref placementOffset, ref overrideOffset);
@@ -151,6 +170,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 groundCover.Dispose();
                 publicSpaces.Dispose();
+                terraceSupports.Dispose();
                 plotSurfaces.Dispose();
                 frontagePaths.Dispose();
                 plotDressing.Dispose();
