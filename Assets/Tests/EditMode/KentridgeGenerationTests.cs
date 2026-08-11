@@ -68,7 +68,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(17, structures,
                     "Every stable Kentridge building role should compile once.");
                 Assert.Greater(instances, structures,
-                    "Road, plaza, paths, and dressing should accompany the buildings.");
+                    "Roads, terrace supports, paths, and dressing should accompany the buildings.");
                 Assert.Greater(primitiveCount, 100,
                     "Kentridge emitted implausibly little geometry.");
             }
@@ -77,6 +77,59 @@ namespace VoxelEngine.Tests.EditMode
                 primitives.Dispose();
                 anchors.Dispose();
                 catalogue.Dispose();
+            }
+        }
+
+        [Test]
+        public void MacroVerticalProfileCreatesARealTownClimb()
+        {
+            const int scale = 1;
+            int lower = KentridgeVerticalProfile.SurfaceYAtDm(
+                KentridgeTownPlanner.MainSpineXDm, 950, Seed, scale);
+            int market = KentridgeVerticalProfile.SurfaceYAtDm(
+                KentridgeDefinition.TownCentreDm.X,
+                KentridgeDefinition.TownCentreDm.Y,
+                Seed, scale);
+            int summit = KentridgeVerticalProfile.SurfaceYAtDm(
+                KentridgeTownPlanner.MainSpineXDm, 150, Seed, scale);
+
+            Assert.Greater(market - lower, 40,
+                "The market should sit visibly above the lower residential tier.");
+            Assert.Greater(summit - market, 90,
+                "The civic summit should dominate the market terrace by many metres.");
+            Assert.Greater(summit - lower, 150,
+                "Kentridge needs macro verticality, not decorative height variation.");
+        }
+
+        [Test]
+        public void RaisedPlotsReceiveVisibleMasonryTerraceSupport()
+        {
+            FeatureCatalogue supports = KentridgeTerraceSupportCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+
+            try
+            {
+                Assert.AreEqual(16, supports.Definitions.Length,
+                    "Every non-well parcel should have an independent retaining support.");
+                Assert.AreEqual(16, supports.ExplicitPlacements.Length);
+
+                int tallest = 0;
+                int shallowest = int.MaxValue;
+                for (int i = 0; i < supports.Definitions.Length; i++)
+                {
+                    int height = supports.Definitions[i].Footprint.y;
+                    if (height > tallest) tallest = height;
+                    if (height < shallowest) shallowest = height;
+                }
+
+                Assert.Greater(tallest, 100,
+                    "At least one upper parcel should expose a retaining face over ten metres tall.");
+                Assert.Less(shallowest, 30,
+                    "Lower parcels should remain close to the underlying terrain.");
+            }
+            finally
+            {
+                supports.Dispose();
             }
         }
 
