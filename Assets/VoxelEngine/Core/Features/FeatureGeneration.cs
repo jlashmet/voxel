@@ -38,6 +38,9 @@ namespace VoxelEngine.Core.Features
         /// The instance is evaluated in full and then clipped, rather than evaluated for the
         /// region's slice. That is the point of primitives: evaluation is cheap and analytic,
         /// clipping is exact, and the result cannot depend on which slice asked.
+        ///
+        /// Structure definitions carry hard-surface semantics into storage at generation time.
+        /// Landforms remain untagged so the renderer can keep roads and terrain on the smooth path.
         /// </summary>
         public static FeatureGenerationReport GenerateRegion(
             in FeatureCatalogue catalogue,
@@ -64,6 +67,7 @@ namespace VoxelEngine.Core.Features
                 if ((uint)rule.DefinitionId >= (uint)catalogue.DefinitionCount) continue;
 
                 var definition = catalogue.Definitions[rule.DefinitionId];
+                bool markHardSurface = definition.Kind == FeatureKind.Structure;
 
                 for (var e = 0; e < rule.ExplicitCount; e++)
                 {
@@ -100,7 +104,8 @@ namespace VoxelEngine.Core.Features
                     report.PrimitivesEmitted += primitives.Length;
 
                     var raster = PrimitiveRasteriser.Rasterise(
-                        primitives.AsArray(), regionMin, regionMax, ref table, ref pool);
+                        primitives.AsArray(), regionMin, regionMax,
+                        ref table, ref pool, markHardSurface);
 
                     report.VoxelsWritten += raster.VoxelsWritten;
                     report.BudgetExceeded |= raster.BudgetExceeded;
