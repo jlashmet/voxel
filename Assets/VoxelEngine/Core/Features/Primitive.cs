@@ -15,11 +15,18 @@ namespace VoxelEngine.Core.Features
         FillIfEmpty = 2,
 
         /// <summary>
-        /// Repaints existing solid voxels without changing occupancy. Used by biome/theme passes
-        /// that need to change the visible terrain vocabulary while preserving the exact density
-        /// field produced by terrain generation and earlier cut/fill stages.
+        /// Repaints every existing solid voxel inside the primitive without changing occupancy.
+        /// Useful for material-only edits to an already-bounded solid volume.
         /// </summary>
         PaintSolid = 3,
+
+        /// <summary>
+        /// For each horizontal column covered by the primitive, finds the highest solid voxel and
+        /// repaints the top four contiguous solid voxels without changing occupancy. This is the
+        /// terrain/biome operation: the material follows the actual density surface instead of a
+        /// guessed height band, while shallow repainting preserves mineral support underneath.
+        /// </summary>
+        PaintSurface = 4,
     }
 
     public enum PrimitiveShape : byte
