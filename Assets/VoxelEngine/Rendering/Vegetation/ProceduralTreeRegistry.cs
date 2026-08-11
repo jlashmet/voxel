@@ -24,13 +24,13 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private static readonly List<TreeInstance> s_Instances = new();
         private static readonly List<TreeDamageState> s_Damage = new();
+        private static readonly List<HashSet<int>> s_RemovedBranches = new();
         private static readonly HashSet<int3> s_LegacyHiddenHardBricks = new();
         private static int s_Version;
         private static int s_DamageVersion;
 
         public static IReadOnlyList<TreeInstance> Instances => s_Instances;
         public static IReadOnlyList<TreeDamageState> Damage => s_Damage;
-        public static IReadOnlyCollection<int3> LegacyHiddenHardBricks => s_LegacyHiddenHardBricks;
         public static int Version => s_Version;
         public static int DamageVersion => s_DamageVersion;
 
@@ -39,6 +39,7 @@ namespace VoxelEngine.Rendering.Vegetation
         {
             s_Instances.Clear();
             s_Damage.Clear();
+            s_RemovedBranches.Clear();
             s_LegacyHiddenHardBricks.Clear();
             unchecked
             {
@@ -57,6 +58,7 @@ namespace VoxelEngine.Rendering.Vegetation
         {
             s_Instances.Clear();
             s_Damage.Clear();
+            s_RemovedBranches.Clear();
             if (instances != null)
             {
                 for (int i = 0; i < instances.Count; i++)
@@ -67,6 +69,7 @@ namespace VoxelEngine.Rendering.Vegetation
                         FoliageHealth = 1f,
                         Severed = false,
                     });
+                    s_RemovedBranches.Add(new HashSet<int>());
                 }
             }
 
@@ -86,6 +89,31 @@ namespace VoxelEngine.Rendering.Vegetation
 
         public static bool IsLegacyHiddenHardBrick(int3 worldBrick) =>
             s_LegacyHiddenHardBricks.Contains(worldBrick);
+
+        /// <summary>
+        /// Returns the directly cut branches for one tree. Descendant removal is derived from the
+        /// deterministic skeleton topology by the renderer, so the registry only has to replicate
+        /// the small set of actual cut points rather than a render-specific expanded mask.
+        /// </summary>
+        public static IReadOnlyCollection<int> RemovedBranches(int treeIndex)
+        {
+            if ((uint)treeIndex >= (uint)s_RemovedBranches.Count)
+                return System.Array.Empty<int>();
+            return s_RemovedBranches[treeIndex];
+        }
+
+        /// <summary>
+        /// Records an authoritative branch cut. Calls are idempotent because a branch can be
+        /// observed by several proxy samples during one blast.
+        /// </summary>
+        public static bool RemoveBranch(int treeIndex, int branchIndex)
+        {
+            if ((uint)treeIndex >= (uint)s_RemovedBranches.Count || branchIndex < 0)
+                return false;
+            if (!s_RemovedBranches[treeIndex].Add(branchIndex)) return false;
+            unchecked { s_DamageVersion++; }
+            return true;
+        }
 
         /// <summary>
         /// Updates presentation damage without regenerating the deterministic tree identity.
