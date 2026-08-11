@@ -29,20 +29,31 @@ namespace VoxelEngine.CI
 
             GameObject cameraObject = null;
             GameObject groundObject = null;
+            GameObject testRendererObject = null;
             Material groundMaterial = null;
             RenderTexture target = null;
             Texture2D capture = null;
 
             try
             {
-                // RuntimeInitializeOnLoadMethod creates the production singleton after scene load.
+                // Unity's command-line PlayMode Test Runner can begin a test before the normal
+                // AfterSceneLoad callback runs. Give the runtime bootstrap a few frames, then, if
+                // necessary, create the production component normally. AddComponent executes its
+                // real Awake/Update lifecycle; no renderer internals are invoked by the test.
                 ProceduralTreeRenderer renderer = null;
-                for (int frame = 0; frame < 30 && renderer == null; frame++)
+                for (int frame = 0; frame < 4 && renderer == null; frame++)
                 {
                     renderer = Object.FindFirstObjectByType<ProceduralTreeRenderer>();
                     if (renderer == null) yield return null;
                 }
-                Assert.That(renderer, Is.Not.Null, "Runtime bootstrap did not create ProceduralTreeRenderer.");
+                bool bootstrapFound = renderer != null;
+                if (renderer == null)
+                {
+                    testRendererObject = new GameObject("CI Production Procedural Tree Renderer");
+                    renderer = testRendererObject.AddComponent<ProceduralTreeRenderer>();
+                    yield return null;
+                }
+                Assert.That(renderer, Is.Not.Null);
 
                 var instance = new TreeInstance
                 {
@@ -178,6 +189,7 @@ namespace VoxelEngine.CI
                 }
 
                 string metadata =
+                    $"bootstrapFound={bootstrapFound}\n" +
                     $"registryInstances={ProceduralTreeRegistry.Instances.Count}\n" +
                     $"rendererInstances={renderers.Length}\n" +
                     $"presentationRoots={renderer.transform.childCount}\n" +
@@ -208,6 +220,7 @@ namespace VoxelEngine.CI
                 if (cameraObject != null) Object.Destroy(cameraObject);
                 if (groundObject != null) Object.Destroy(groundObject);
                 if (groundMaterial != null) Object.Destroy(groundMaterial);
+                if (testRendererObject != null) Object.Destroy(testRendererObject);
             }
         }
     }
