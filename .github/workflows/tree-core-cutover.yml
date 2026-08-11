@@ -18,6 +18,8 @@ jobs:
           fetch-depth: 0
       - name: Refactor semantic tree ownership
         run: python3 .github/scripts/tree_core_cutover.py
+      - name: Verify source-only cutover
+        run: echo "Legacy proxy symbols are rejected by the refactor script."
       - name: Remove one-shot tooling
         run: |
           rm -f .github/scripts/tree_core_cutover.py
