@@ -103,8 +103,8 @@ namespace VoxelEngine.Rendering.Vegetation
         }
 
         /// <summary>
-        /// Records an authoritative branch cut. Calls are idempotent because a branch can be
-        /// observed by several proxy samples during one blast.
+        /// Records an authoritative branch cut. Calls are idempotent because one blast can overlap
+        /// several samples from the same connected limb.
         /// </summary>
         public static bool RemoveBranch(int treeIndex, int branchIndex)
         {
@@ -116,24 +116,25 @@ namespace VoxelEngine.Rendering.Vegetation
         }
 
         /// <summary>
-        /// Updates presentation damage without regenerating the deterministic tree identity.
-        /// Small foliage-health noise is ignored so polling the voxel proxy does not churn the
-        /// renderer when a coarse sample count toggles by one point.
+        /// Damage is monotonic inside one generated tree snapshot. The legacy voxel proxy and the
+        /// semantic destruction event are both temporary migration inputs; whichever observes the
+        /// stronger damage wins, and later polling can never heal leaves or reconnect a trunk.
         /// </summary>
         public static void SetDamage(int index, float foliageHealth, bool severed)
         {
             if ((uint)index >= (uint)s_Damage.Count) return;
 
-            foliageHealth = math.saturate(foliageHealth);
             TreeDamageState previous = s_Damage[index];
-            if (previous.Severed == severed
-                && math.abs(previous.FoliageHealth - foliageHealth) < 0.025f)
+            float nextFoliageHealth = math.min(previous.FoliageHealth, math.saturate(foliageHealth));
+            bool nextSevered = previous.Severed || severed;
+            if (previous.Severed == nextSevered
+                && math.abs(previous.FoliageHealth - nextFoliageHealth) < 0.025f)
                 return;
 
             s_Damage[index] = new TreeDamageState
             {
-                FoliageHealth = foliageHealth,
-                Severed = severed,
+                FoliageHealth = nextFoliageHealth,
+                Severed = nextSevered,
             };
             unchecked { s_DamageVersion++; }
         }
