@@ -113,7 +113,7 @@ namespace VoxelEngine.Showcase
                 BrickRef brick = region.BrickRefs[brickIndex];
                 if (brick.IsEmpty) continue;
 
-                int3 brickOrigin = worldBrick << VoxelDimensions.BrickEdgeLog2;
+                int3 brickOrigin = worldBrick * VoxelDimensions.BrickEdge;
                 bool brickChanged = false;
 
                 if (brick.IsUniform)
