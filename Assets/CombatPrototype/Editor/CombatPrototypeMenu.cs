@@ -25,6 +25,7 @@ namespace MountingForce.CombatPrototype.Editor
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             GameObject root = new GameObject("Chain Combat Cascade Lab");
             root.AddComponent<ChainCombatLabController>();
+            root.AddComponent<ChainCombatSetupActionsPanel>();
             root.AddComponent<ChainCombatEventMarker>();
             root.AddComponent<ChainCombatMotionPlayback>();
             EditorApplication.isPlaying = true;
