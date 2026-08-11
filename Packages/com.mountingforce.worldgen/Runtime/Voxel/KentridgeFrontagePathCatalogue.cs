@@ -24,6 +24,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int RoadOverlapDm = 3;
         private const int BuildingOverlapDm = 10;
         private const int VerticalSearchVoxels = TerrainSampler.MaxHeight + 32;
+        private const int ProgramLengthPerPath = 12;
 
         private readonly struct PathRect
         {
@@ -64,7 +65,7 @@ namespace MountingForce.WorldGen.Voxel
                 parameters: 0,
                 anchors: 0,
                 slots: 0,
-                programLength: count * 11,
+                programLength: count * ProgramLengthPerPath,
                 materials: 0,
                 explicitPlacements: count,
                 overrides: 0,
