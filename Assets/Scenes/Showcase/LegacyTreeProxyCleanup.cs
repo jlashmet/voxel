@@ -33,7 +33,6 @@ namespace VoxelEngine.Showcase
     public sealed class LegacyTreeProxyCleanup : MonoBehaviour
     {
         private const float VoxelSize = 0.1f;
-        private const string MigrationObjectName = "Legacy Showcase Tree Migration";
 
         // The largest legacy crown is under 2 m radius and the tallest showcase tree is under
         // 8 m. A little padding catches the broadleaf scaffold limbs and overlapping crown lobes
@@ -66,12 +65,11 @@ namespace VoxelEngine.Showcase
             IReadOnlyList<TreeInstance> instances = ProceduralTreeRegistry.Instances;
             if (instances == null || instances.Count == 0) return;
 
-            // Stop the legacy damage poller before changing any proxy material. The bootstrap
-            // object is HideFlags.DontSave and typed Unity object searches have proven unreliable
-            // for it in both the player and PlayMode Test Runner. The runtime GameObject name is
-            // unique, and Resources.FindObjectsOfTypeAll<GameObject>() does include hidden objects.
-            // Deactivating the owner guarantees its Update cannot observe the moss rewrite as a
-            // severed/missing wood trunk on a later frame.
+            // The migration bootstrap object is HideFlags.DontSave. Ordinary FindObjectOfType and
+            // FindFirstObjectByType calls can omit hidden runtime objects, but
+            // Resources.FindObjectsOfTypeAll<T>() is the same lookup proven by the renderer CI test
+            // to include them. Disable every live migration component before changing proxy material
+            // so its old wood-based damage polling can never observe the rewrite as a severed tree.
             int disabledMigrations = DisableLegacyMigrationObjects();
 
             var dirtyRegions = new HashSet<int3>();
@@ -103,15 +101,16 @@ namespace VoxelEngine.Showcase
 
         private static int DisableLegacyMigrationObjects()
         {
-            GameObject[] objects = Resources.FindObjectsOfTypeAll<GameObject>();
+            LegacyShowcaseTreeMigration[] migrations =
+                Resources.FindObjectsOfTypeAll<LegacyShowcaseTreeMigration>();
             int disabled = 0;
-            for (int i = 0; i < objects.Length; i++)
+            for (int i = 0; i < migrations.Length; i++)
             {
-                GameObject candidate = objects[i];
-                if (candidate == null || candidate.name != MigrationObjectName) continue;
-                if (!candidate.scene.IsValid()) continue;
-                if (!candidate.activeSelf) continue;
-                candidate.SetActive(false);
+                LegacyShowcaseTreeMigration migration = migrations[i];
+                if (migration == null || migration.gameObject == null) continue;
+                if (!migration.gameObject.scene.IsValid()) continue;
+                if (!migration.enabled) continue;
+                migration.enabled = false;
                 disabled++;
             }
             return disabled;
