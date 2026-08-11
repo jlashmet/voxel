@@ -6,6 +6,7 @@ Shader "VoxelEngine/ProceduralTreeLeaves"
         _SkyHorizon ("Sky Horizon", Color) = (0.66, 0.75, 0.85, 1)
         _SkyZenith ("Sky Zenith", Color) = (0.24, 0.45, 0.76, 1)
         _WindStrength ("Wind Strength", Range(0, 1)) = 0.18
+        _Damage ("Damage", Range(0, 1)) = 0
     }
 
     SubShader
@@ -38,6 +39,7 @@ Shader "VoxelEngine/ProceduralTreeLeaves"
             float4 _SkyHorizon;
             float4 _SkyZenith;
             float _WindStrength;
+            float _Damage;
 
             struct Attributes
             {
@@ -109,7 +111,12 @@ Shader "VoxelEngine/ProceduralTreeLeaves"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 float mask = LeafMask(input.uv, input.style);
-                clip(mask - 0.015);
+
+                // Damage is presentation-only but comes from the authoritative hidden voxel proxy.
+                // Raising the cutout threshold progressively strips foliage without rebuilding the
+                // branch mesh every time an explosion removes another handful of legacy leaves.
+                float damage = saturate(_Damage);
+                clip(mask - lerp(0.015, 0.52, damage));
 
                 float3 n = normalize(input.normalWS);
                 float3 sun = normalize(_SunDirection.xyz);
@@ -125,6 +132,7 @@ Shader "VoxelEngine/ProceduralTreeLeaves"
                     colour = lerp(colour, float3(1.0, 0.90, 0.72), centre * 0.62);
                 }
 
+                colour *= lerp(1.0, 0.72, damage);
                 float3 lit = colour * (ambient * 0.48 + (0.38 + ndl * 0.62));
                 return half4(lit, 1.0);
             }
