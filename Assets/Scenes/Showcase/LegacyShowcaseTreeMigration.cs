@@ -306,7 +306,7 @@ namespace VoxelEngine.Showcase
                     if (x * x + z * z > radius * radius) continue;
                     int3 p = new(proxy.Root.x + x, y, proxy.Root.z + z);
                     byte material = VoxelAccess.GetVoxel(ref table, in pool, p);
-                    if (material == ShowcaseWorld.MatGrass || material == ShowcaseWorld.MatMoss)
+                    if (material == Mat.Grass || material == Mat.Moss)
                         proxy.FoliageProbes.Add(p);
                 }
             }
@@ -368,7 +368,7 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < proxy.FoliageProbes.Count; i++)
             {
                 byte material = VoxelAccess.GetVoxel(ref table, in pool, proxy.FoliageProbes[i]);
-                if (material == ShowcaseWorld.MatGrass || material == ShowcaseWorld.MatMoss)
+                if (material == Mat.Grass || material == Mat.Moss)
                     remaining++;
             }
             return remaining / (float)proxy.FoliageProbes.Count;
