@@ -110,6 +110,13 @@ namespace VoxelEngine.Rendering.Vegetation
                 }
             }
 
+            // Until the render pass has observed the new registry snapshot, assume every proxy
+            // chunk is still owned by coarse Surface Nets. This prevents the procedural renderer
+            // from flashing a duplicate tree for one frame during startup/publication. The next
+            // render-graph record replaces this conservative set with the chunks actually drawn.
+            foreach (int3 chunk in s_LegacyProxyRenderChunks)
+                s_CoarseLegacyProxyRenderChunks.Add(chunk);
+
             unchecked
             {
                 s_Version++;
