@@ -48,8 +48,8 @@ namespace VoxelEngine.CI
                     Scale = 1f,
                 };
 
-                ProceduralTreeMeshBuilder.TreeSkeleton skeleton =
-                    ProceduralTreeMeshBuilder.GenerateSkeleton(in instance);
+                ProceduralTreeSkeleton skeleton =
+                    ProceduralTreeSkeletonBuilder.Generate(in instance);
                 mesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 0);
                 if (mesh == null || mesh.vertexCount == 0)
                     throw new InvalidOperationException("Procedural tree LOD0 produced no geometry.");

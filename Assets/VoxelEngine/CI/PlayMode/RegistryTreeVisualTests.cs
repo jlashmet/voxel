@@ -60,7 +60,7 @@ namespace VoxelEngine.CI
                     Seed = 0x00C0FFEEu,
                     Scale = 1f,
                 };
-                ProceduralTreeRegistry.Replace(new[] { instance });
+                TreeWorldState.Replace(new[] { instance });
 
                 // Give the production Update loop time to observe Version, build all three LODs,
                 // and run its normal fallback-visibility pass.
@@ -187,7 +187,7 @@ namespace VoxelEngine.CI
                 }
 
                 string metadata =
-                    $"registryInstances={ProceduralTreeRegistry.Instances.Count}\n" +
+                    $"registryInstances={TreeWorldState.Instances.Count}\n" +
                     $"rendererInstances={renderers.Count}\n" +
                     $"presentationRoots={renderer.transform.childCount}\n" +
                     $"rootName={treeRoot.name}\n" +
@@ -207,7 +207,7 @@ namespace VoxelEngine.CI
             }
             finally
             {
-                ProceduralTreeRegistry.Replace(System.Array.Empty<TreeInstance>());
+                TreeWorldState.Replace(System.Array.Empty<TreeInstance>());
                 if (capture != null) Object.Destroy(capture);
                 if (target != null)
                 {

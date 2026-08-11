@@ -70,7 +70,7 @@ namespace VoxelEngine.Showcase
             AddWaterfallTrees(in plan, top, ref view.Table, in view.Pool,
                               worldSeed, instances, ref ordinal);
 
-            ProceduralTreeRegistry.Replace(instances);
+            TreeWorldState.Replace(instances);
             _done = true;
             Completed = true;
             enabled = false;

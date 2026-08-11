@@ -38,11 +38,11 @@ namespace VoxelEngine.CI
             while (!load.isDone) yield return null;
 
             float deadline = Time.realtimeSinceStartup + StartupTimeoutSeconds;
-            while (ProceduralTreeRegistry.Instances.Count == 0
+            while (TreeWorldState.Instances.Count == 0
                    && Time.realtimeSinceStartup < deadline)
                 yield return null;
 
-            Assert.That(ProceduralTreeRegistry.Instances.Count, Is.GreaterThan(0),
+            Assert.That(TreeWorldState.Instances.Count, Is.GreaterThan(0),
                         "Showcase never published semantic tree instances.");
 
             // Wait for the cleanup's explicit completion flag rather than trying to rediscover
@@ -55,7 +55,7 @@ namespace VoxelEngine.CI
 
             List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
             while (renderers.Count == 1
-                   && renderers[0].transform.childCount < ProceduralTreeRegistry.Instances.Count
+                   && renderers[0].transform.childCount < TreeWorldState.Instances.Count
                    && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
@@ -70,8 +70,8 @@ namespace VoxelEngine.CI
             // startup damage/rotation below, so an accidentally severed tree cannot hide from this.
             for (int i = 0; i < 60; i++) yield return null;
 
-            int instanceCount = ProceduralTreeRegistry.Instances.Count;
-            int damageCount = ProceduralTreeRegistry.Damage.Count;
+            int instanceCount = TreeWorldState.Instances.Count;
+            int damageCount = TreeWorldState.Damage.Count;
             int presentationRoots = treeRenderer.transform.childCount;
             int severedCount = 0;
             int foliageDamagedCount = 0;
@@ -82,7 +82,7 @@ namespace VoxelEngine.CI
             int inspectCount = Mathf.Min(instanceCount, Mathf.Min(damageCount, presentationRoots));
             for (int i = 0; i < inspectCount; i++)
             {
-                ProceduralTreeRegistry.TreeDamageState damage = ProceduralTreeRegistry.Damage[i];
+                TreeWorldState.TreeDamageState damage = TreeWorldState.Damage[i];
                 if (damage.Severed) severedCount++;
                 if (damage.FoliageHealth < 0.999f) foliageDamagedCount++;
 
@@ -179,7 +179,7 @@ namespace VoxelEngine.CI
             float selectedFoliageHealth = 1f;
             if (selectedTreeIndex >= 0 && selectedTreeIndex < instanceCount)
             {
-                TreeInstance instance = ProceduralTreeRegistry.Instances[selectedTreeIndex];
+                TreeInstance instance = TreeWorldState.Instances[selectedTreeIndex];
                 selectedSpecies = instance.Species.ToString();
                 selectedPosition = (Vector3)instance.PositionMetres;
                 if (selectedRoot != null)
@@ -189,8 +189,8 @@ namespace VoxelEngine.CI
                 }
                 if (selectedTreeIndex < damageCount)
                 {
-                    selectedSevered = ProceduralTreeRegistry.Damage[selectedTreeIndex].Severed;
-                    selectedFoliageHealth = ProceduralTreeRegistry.Damage[selectedTreeIndex].FoliageHealth;
+                    selectedSevered = TreeWorldState.Damage[selectedTreeIndex].Severed;
+                    selectedFoliageHealth = TreeWorldState.Damage[selectedTreeIndex].FoliageHealth;
                 }
             }
 

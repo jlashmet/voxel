@@ -60,7 +60,7 @@ namespace VoxelEngine.CI
                     Seed = 0x00C0FFEEu,
                     Scale = 1f,
                 };
-                ProceduralTreeRegistry.Replace(new[] { instance });
+                TreeWorldState.Replace(new[] { instance });
 
                 for (int frame = 0; frame < 60 && renderer.transform.childCount == 0; frame++)
                     yield return null;
@@ -134,13 +134,13 @@ namespace VoxelEngine.CI
                 Capture(camera, target, ref capture,
                         Path.Combine(outputDirectory, "01-before.png"));
 
-                ProceduralTreeMeshBuilder.TreeSkeleton skeleton =
-                    ProceduralTreeMeshBuilder.GenerateSkeleton(in instance);
+                ProceduralTreeSkeleton skeleton =
+                    ProceduralTreeSkeletonBuilder.Generate(in instance);
                 int branchIndex = SelectLeafBearingUpperBranch(skeleton);
                 Assert.That(branchIndex, Is.GreaterThanOrEqualTo(0),
                             "Deterministic Oak did not contain a removable leaf-bearing upper branch.");
 
-                ProceduralTreeMeshBuilder.BranchSegment branch = skeleton.Branches[branchIndex];
+                TreeBranchSegment branch = skeleton.Branches[branchIndex];
                 float3 branchMidpoint = instance.PositionMetres + (branch.Start + branch.End) * 0.5f;
                 float3 branchSweep = PerpendicularSweepDirection(branch.End - branch.Start);
                 float branchSweepHalfLength = math.max(0.7f,
@@ -148,7 +148,7 @@ namespace VoxelEngine.CI
                 float3 branchFrom = branchMidpoint - branchSweep * branchSweepHalfLength;
                 float3 branchTo = branchMidpoint + branchSweep * branchSweepHalfLength;
 
-                bool branchCollision = ProceduralTreeDamageBridge.TrySweepImpact(
+                bool branchCollision = ProceduralTreeDamageService.TrySweepImpact(
                     branchFrom, branchTo, 0.12f, out float3 branchHit, out int branchTreeIndex);
                 Assert.That(branchCollision, Is.True,
                             "Semantic sweep failed to collide with the rendered upper branch.");
@@ -159,10 +159,10 @@ namespace VoxelEngine.CI
 
                 for (int frame = 0; frame < 5; frame++) yield return null;
 
-                int directCutsAfterBranch = ProceduralTreeRegistry.RemovedBranches(0).Count;
+                int directCutsAfterBranch = TreeWorldState.RemovedBranches(0).Count;
                 int barkTrianglesAfterBranch = (int)liveMesh.GetIndexCount(0) / 3;
                 int leafTrianglesAfterBranch = (int)liveMesh.GetIndexCount(1) / 3;
-                bool severedAfterBranch = ProceduralTreeRegistry.Damage[0].Severed;
+                bool severedAfterBranch = TreeWorldState.Damage[0].Severed;
 
                 Assert.That(directCutsAfterBranch, Is.GreaterThan(0),
                             "Upper-branch impact recorded no semantic branch cuts.");
@@ -178,7 +178,7 @@ namespace VoxelEngine.CI
 
                 int trunkIndex = SelectLowerTrunkBranch(skeleton);
                 Assert.That(trunkIndex, Is.GreaterThanOrEqualTo(0));
-                ProceduralTreeMeshBuilder.BranchSegment trunk = skeleton.Branches[trunkIndex];
+                TreeBranchSegment trunk = skeleton.Branches[trunkIndex];
                 float3 trunkMidpoint = instance.PositionMetres + (trunk.Start + trunk.End) * 0.5f;
                 float3 trunkSweep = PerpendicularSweepDirection(trunk.End - trunk.Start);
                 float trunkSweepHalfLength = math.max(0.9f,
@@ -186,7 +186,7 @@ namespace VoxelEngine.CI
                 float3 trunkFrom = trunkMidpoint - trunkSweep * trunkSweepHalfLength;
                 float3 trunkTo = trunkMidpoint + trunkSweep * trunkSweepHalfLength;
 
-                bool trunkCollision = ProceduralTreeDamageBridge.TrySweepImpact(
+                bool trunkCollision = ProceduralTreeDamageService.TrySweepImpact(
                     trunkFrom, trunkTo, 0.12f, out float3 trunkHit, out int trunkTreeIndex);
                 Assert.That(trunkCollision, Is.True,
                             "Semantic sweep failed to collide with the rendered lower trunk.");
@@ -197,7 +197,7 @@ namespace VoxelEngine.CI
                 yield return null;
                 yield return null;
 
-                Assert.That(ProceduralTreeRegistry.Damage[0].Severed, Is.True,
+                Assert.That(TreeWorldState.Damage[0].Severed, Is.True,
                             "Lower-trunk semantic impact did not mark the tree severed.");
 
                 yield return new WaitForSeconds(0.55f);
@@ -212,7 +212,7 @@ namespace VoxelEngine.CI
                         Path.Combine(outputDirectory, "03-after-trunk-hit.png"));
 
                 string metadata =
-                    $"registryInstances={ProceduralTreeRegistry.Instances.Count}\n" +
+                    $"registryInstances={TreeWorldState.Instances.Count}\n" +
                     $"presentationRoots={renderer.transform.childCount}\n" +
                     $"branchTarget={branchIndex}\n" +
                     $"branchCollision={branchCollision}\n" +
@@ -226,7 +226,7 @@ namespace VoxelEngine.CI
                     $"trunkTarget={trunkIndex}\n" +
                     $"trunkCollision={trunkCollision}\n" +
                     $"trunkHit={trunkHit}\n" +
-                    $"severedAfterTrunk={ProceduralTreeRegistry.Damage[0].Severed}\n" +
+                    $"severedAfterTrunk={TreeWorldState.Damage[0].Severed}\n" +
                     $"fallAngleDegrees={fallAngle:F2}\n";
                 File.WriteAllText(Path.Combine(outputDirectory, "tree-destruction.txt"), metadata);
                 Debug.Log($"CI tree destruction capture written to {outputDirectory}\n{metadata}");
@@ -237,7 +237,7 @@ namespace VoxelEngine.CI
             }
             finally
             {
-                ProceduralTreeRegistry.Replace(System.Array.Empty<TreeInstance>());
+                TreeWorldState.Replace(System.Array.Empty<TreeInstance>());
                 if (capture != null) Object.Destroy(capture);
                 if (target != null)
                 {
@@ -251,7 +251,7 @@ namespace VoxelEngine.CI
         }
 
         private static int SelectLeafBearingUpperBranch(
-            ProceduralTreeMeshBuilder.TreeSkeleton skeleton)
+            ProceduralTreeSkeleton skeleton)
         {
             int bestBranch = -1;
             int bestLeaves = -1;
@@ -261,7 +261,7 @@ namespace VoxelEngine.CI
             {
                 if (skeleton.Branches[branchIndex].Level <= 0) continue;
 
-                ProceduralTreeMeshBuilder.ResolveRemovedBranches(
+                ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
                     skeleton, new[] { branchIndex }, resolved);
 
                 int leaves = 0;
@@ -282,7 +282,7 @@ namespace VoxelEngine.CI
         }
 
         private static int SelectLowerTrunkBranch(
-            ProceduralTreeMeshBuilder.TreeSkeleton skeleton)
+            ProceduralTreeSkeleton skeleton)
         {
             int best = -1;
             float bestDistance = float.PositiveInfinity;
@@ -290,7 +290,7 @@ namespace VoxelEngine.CI
 
             for (int i = 0; i < skeleton.Branches.Count; i++)
             {
-                ProceduralTreeMeshBuilder.BranchSegment branch = skeleton.Branches[i];
+                TreeBranchSegment branch = skeleton.Branches[i];
                 if (branch.Level != 0) continue;
                 float midpointY = (branch.Start.y + branch.End.y) * 0.5f;
                 if (midpointY >= skeleton.Height * 0.45f) continue;

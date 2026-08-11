@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Collision;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering;
@@ -482,7 +483,12 @@ namespace VoxelEngine.Showcase
                                                  (float3)shot.Direction);
                     }
                     if (semanticTreeHit || changed > 0)
-                        ProceduralTreeDamageBridge.ApplyExplosion(hit, shot.ImpactRadius);
+                    {
+                        float3 impactMetres = (float3)hit * VoxelSurfaceRenderer.VoxelSize;
+                        ProceduralTreeDamageService.ApplyBlast(
+                            impactMetres, shot.ImpactRadius * VoxelSurfaceRenderer.VoxelSize,
+                            (float3)shot.Direction);
+                    }
                     _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
                     _lastEditLabel = $"tornado impact r{shot.ImpactRadius}: {changed:N0} voxels, " +
                                      $"{(_gpuDebris?.ActiveVoxels ?? 0):N0} falling";
@@ -536,7 +542,7 @@ namespace VoxelEngine.Showcase
                                 ref found, ref nearestDistance, ref hit);
             ConsiderTornadoLine(from, to, (-right - up) * diagonal,
                                 ref found, ref nearestDistance, ref hit);
-            if (ProceduralTreeDamageBridge.TrySweepImpact(
+            if (ProceduralTreeDamageService.TrySweepImpact(
                     (float3)from, (float3)to, sweepRadius,
                     out float3 treeHitMetres, out _))
             {

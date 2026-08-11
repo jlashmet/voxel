@@ -42,20 +42,20 @@ namespace VoxelEngine.CI
             while (!load.isDone) yield return null;
 
             float startupDeadline = Time.realtimeSinceStartup + StartupTimeoutSeconds;
-            while ((!ShowcaseTreePopulation.Completed || ProceduralTreeRegistry.Instances.Count == 0)
+            while ((!ShowcaseTreePopulation.Completed || TreeWorldState.Instances.Count == 0)
                    && Time.realtimeSinceStartup < startupDeadline)
                 yield return null;
 
             Assert.That(ShowcaseTreePopulation.Completed, Is.True,
                         "Semantic Showcase tree population never completed.");
-            Assert.That(ProceduralTreeRegistry.Instances.Count, Is.GreaterThan(0));
+            Assert.That(TreeWorldState.Instances.Count, Is.GreaterThan(0));
 
             VoxelShowcase showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             Assert.That(showcase, Is.Not.Null, "VoxelShowcase driver was not present in the scene.");
 
             List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
             while ((renderers.Count != 1
-                    || renderers[0].transform.childCount < ProceduralTreeRegistry.Instances.Count)
+                    || renderers[0].transform.childCount < TreeWorldState.Instances.Count)
                    && Time.realtimeSinceStartup < startupDeadline)
             {
                 yield return null;
@@ -65,7 +65,7 @@ namespace VoxelEngine.CI
             Assert.That(renderers.Count, Is.EqualTo(1));
             ProceduralTreeRenderer renderer = renderers[0];
             Assert.That(renderer.transform.childCount,
-                        Is.EqualTo(ProceduralTreeRegistry.Instances.Count));
+                        Is.EqualTo(TreeWorldState.Instances.Count));
 
             for (int frame = 0; frame < 30; frame++) yield return null;
 
@@ -73,10 +73,10 @@ namespace VoxelEngine.CI
             Assert.That(treeIndex, Is.GreaterThanOrEqualTo(0),
                         "No active semantic Showcase tree was available for the tornado test.");
 
-            TreeInstance instance = ProceduralTreeRegistry.Instances[treeIndex];
+            TreeInstance instance = TreeWorldState.Instances[treeIndex];
             Transform treeRoot = renderer.transform.GetChild(treeIndex);
             Assert.That(Quaternion.Angle(treeRoot.localRotation, Quaternion.identity), Is.LessThan(1f));
-            Assert.That(ProceduralTreeRegistry.Damage[treeIndex].Severed, Is.False);
+            Assert.That(TreeWorldState.Damage[treeIndex].Severed, Is.False);
 
             Transform lod0 = treeRoot.Find("LOD0");
             Assert.That(lod0, Is.Not.Null);
@@ -87,7 +87,7 @@ namespace VoxelEngine.CI
 
             int barkTrianglesBefore = (int)liveMesh.GetIndexCount(0) / 3;
             int leafTrianglesBefore = (int)liveMesh.GetIndexCount(1) / 3;
-            int cutsBefore = ProceduralTreeRegistry.RemovedBranches(treeIndex).Count;
+            int cutsBefore = TreeWorldState.RemovedBranches(treeIndex).Count;
 
             Bounds bounds = CalculateBounds(treeRoot);
             cameraObject = new GameObject("CI Showcase Tornado Tree Camera");
@@ -119,12 +119,12 @@ namespace VoxelEngine.CI
             Capture(camera, target, ref capture,
                     Path.Combine(outputDirectory, "01-showcase-before.png"));
 
-            ProceduralTreeMeshBuilder.TreeSkeleton skeleton =
-                ProceduralTreeMeshBuilder.GenerateSkeleton(in instance);
+            ProceduralTreeSkeleton skeleton =
+                ProceduralTreeSkeletonBuilder.Generate(in instance);
             int branchIndex = SelectLeafBearingUpperBranch(skeleton);
             Assert.That(branchIndex, Is.GreaterThanOrEqualTo(0));
 
-            ProceduralTreeMeshBuilder.BranchSegment branch = skeleton.Branches[branchIndex];
+            TreeBranchSegment branch = skeleton.Branches[branchIndex];
             float3 branchTarget = instance.PositionMetres + (branch.Start + branch.End) * 0.5f;
             float3 branchDirection = PerpendicularSweepDirection(branch.End - branch.Start);
             float branchOffset = math.max(1.1f,
@@ -136,11 +136,11 @@ namespace VoxelEngine.CI
             Assert.That(showcase.ActiveTornadoCount, Is.EqualTo(1));
 
             float branchDeadline = Time.realtimeSinceStartup + ImpactTimeoutSeconds;
-            while (ProceduralTreeRegistry.RemovedBranches(treeIndex).Count <= cutsBefore
+            while (TreeWorldState.RemovedBranches(treeIndex).Count <= cutsBefore
                    && Time.realtimeSinceStartup < branchDeadline)
                 yield return null;
 
-            int cutsAfterBranch = ProceduralTreeRegistry.RemovedBranches(treeIndex).Count;
+            int cutsAfterBranch = TreeWorldState.RemovedBranches(treeIndex).Count;
             Assert.That(cutsAfterBranch, Is.GreaterThan(cutsBefore),
                         "The real Showcase tornado did not record a semantic branch cut.");
 
@@ -148,7 +148,7 @@ namespace VoxelEngine.CI
 
             int barkTrianglesAfterBranch = (int)liveMesh.GetIndexCount(0) / 3;
             int leafTrianglesAfterBranch = (int)liveMesh.GetIndexCount(1) / 3;
-            Assert.That(ProceduralTreeRegistry.Damage[treeIndex].Severed, Is.False,
+            Assert.That(TreeWorldState.Damage[treeIndex].Severed, Is.False,
                         "Upper branch tornado incorrectly severed the trunk.");
             Assert.That(barkTrianglesAfterBranch, Is.LessThan(barkTrianglesBefore),
                         "The real Showcase tornado did not visibly remove bark triangles.");
@@ -160,7 +160,7 @@ namespace VoxelEngine.CI
 
             int trunkIndex = SelectLowerTrunkBranch(skeleton);
             Assert.That(trunkIndex, Is.GreaterThanOrEqualTo(0));
-            ProceduralTreeMeshBuilder.BranchSegment trunk = skeleton.Branches[trunkIndex];
+            TreeBranchSegment trunk = skeleton.Branches[trunkIndex];
             float3 trunkTarget = instance.PositionMetres + (trunk.Start + trunk.End) * 0.5f;
             float3 trunkDirection = PerpendicularSweepDirection(trunk.End - trunk.Start);
             float trunkOffset = math.max(1.2f,
@@ -176,11 +176,11 @@ namespace VoxelEngine.CI
             Assert.That(showcase.ActiveTornadoCount, Is.EqualTo(1));
 
             float trunkDeadline = Time.realtimeSinceStartup + ImpactTimeoutSeconds;
-            while (!ProceduralTreeRegistry.Damage[treeIndex].Severed
+            while (!TreeWorldState.Damage[treeIndex].Severed
                    && Time.realtimeSinceStartup < trunkDeadline)
                 yield return null;
 
-            Assert.That(ProceduralTreeRegistry.Damage[treeIndex].Severed, Is.True,
+            Assert.That(TreeWorldState.Damage[treeIndex].Severed, Is.True,
                         "The real Showcase tornado did not sever the lower trunk.");
 
             yield return new WaitForSeconds(0.55f);
@@ -202,7 +202,7 @@ namespace VoxelEngine.CI
                 $"barkTrianglesAfterBranch={barkTrianglesAfterBranch}\n" +
                 $"leafTrianglesBefore={leafTrianglesBefore}\n" +
                 $"leafTrianglesAfterBranch={leafTrianglesAfterBranch}\n" +
-                $"severedAfterTrunk={ProceduralTreeRegistry.Damage[treeIndex].Severed}\n" +
+                $"severedAfterTrunk={TreeWorldState.Damage[treeIndex].Severed}\n" +
                 $"fallAngleDegrees={fallAngle:F2}\n" +
                 $"activeTornadoesAtEnd={showcase.ActiveTornadoCount}\n";
             File.WriteAllText(Path.Combine(outputDirectory, "showcase-tree-destruction.txt"), metadata);
@@ -223,12 +223,12 @@ namespace VoxelEngine.CI
 
         private static int SelectActiveTree(ProceduralTreeRenderer renderer)
         {
-            int count = math.min(renderer.transform.childCount, ProceduralTreeRegistry.Instances.Count);
+            int count = math.min(renderer.transform.childCount, TreeWorldState.Instances.Count);
             for (int i = 0; i < count; i++)
             {
                 if (!renderer.transform.GetChild(i).gameObject.activeSelf) continue;
-                if (i < ProceduralTreeRegistry.Damage.Count
-                    && ProceduralTreeRegistry.Damage[i].Severed)
+                if (i < TreeWorldState.Damage.Count
+                    && TreeWorldState.Damage[i].Severed)
                     continue;
                 return i;
             }
@@ -236,7 +236,7 @@ namespace VoxelEngine.CI
         }
 
         private static int SelectLeafBearingUpperBranch(
-            ProceduralTreeMeshBuilder.TreeSkeleton skeleton)
+            ProceduralTreeSkeleton skeleton)
         {
             int bestBranch = -1;
             int bestLeaves = -1;
@@ -244,7 +244,7 @@ namespace VoxelEngine.CI
             for (int branchIndex = 0; branchIndex < skeleton.Branches.Count; branchIndex++)
             {
                 if (skeleton.Branches[branchIndex].Level <= 0) continue;
-                ProceduralTreeMeshBuilder.ResolveRemovedBranches(
+                ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
                     skeleton, new[] { branchIndex }, resolved);
                 int leaves = 0;
                 for (int leafIndex = 0; leafIndex < skeleton.Leaves.Count; leafIndex++)
@@ -262,14 +262,14 @@ namespace VoxelEngine.CI
         }
 
         private static int SelectLowerTrunkBranch(
-            ProceduralTreeMeshBuilder.TreeSkeleton skeleton)
+            ProceduralTreeSkeleton skeleton)
         {
             int best = -1;
             float bestDistance = float.PositiveInfinity;
             float targetY = skeleton.Height * 0.24f;
             for (int i = 0; i < skeleton.Branches.Count; i++)
             {
-                ProceduralTreeMeshBuilder.BranchSegment branch = skeleton.Branches[i];
+                TreeBranchSegment branch = skeleton.Branches[i];
                 if (branch.Level != 0) continue;
                 float midpointY = (branch.Start.y + branch.End.y) * 0.5f;
                 if (midpointY >= skeleton.Height * 0.45f) continue;
