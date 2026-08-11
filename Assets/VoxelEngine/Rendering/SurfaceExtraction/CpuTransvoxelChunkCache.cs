@@ -142,7 +142,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         private readonly NativeArray<float> _density;
         private readonly NativeArray<byte> _materials;
-        private readonly NativeArray<TransvoxelDensityBrick> _densityBricks;
+        private NativeArray<TransvoxelDensityBrick> _densityBricks;
         private NativeList<byte> _densityMixedVoxels;
         private JobHandle _densityJobHandle;
         private bool _densityJobScheduled;
