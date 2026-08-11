@@ -30,25 +30,19 @@ namespace VoxelEngine.CI
             foreach (Renderer renderer in Resources.FindObjectsOfTypeAll<Renderer>())
             {
                 if (renderer == null || renderer.sharedMaterials == null) continue;
-
                 Material[] materials = renderer.sharedMaterials;
                 bool changed = false;
                 for (int i = 0; i < materials.Length; i++)
                 {
                     Material material = materials[i];
                     if (material == null || material.shader == null) continue;
-                    if (material.shader.name != "Standard" &&
-                        material.shader.name != "Universal Render Pipeline/Lit") continue;
+                    if (material.shader.name != "Standard" && material.shader.name != "Universal Render Pipeline/Lit") continue;
 
-                    Color colour = material.HasProperty("_Color")
-                        ? material.GetColor("_Color")
-                        : material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.white;
+                    Color colour = material.HasProperty("_Color") ? material.GetColor("_Color") : material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.white;
                     Texture texture = material.HasProperty("_MainTex") ? material.GetTexture("_MainTex") : null;
                     Vector2 scale = material.HasProperty("_MainTex") ? material.GetTextureScale("_MainTex") : Vector2.one;
                     Vector2 offset = material.HasProperty("_MainTex") ? material.GetTextureOffset("_MainTex") : Vector2.zero;
-                    float smoothness = material.HasProperty("_Glossiness")
-                        ? material.GetFloat("_Glossiness")
-                        : material.HasProperty("_Smoothness") ? material.GetFloat("_Smoothness") : 0.05f;
+                    float smoothness = material.HasProperty("_Glossiness") ? material.GetFloat("_Glossiness") : material.HasProperty("_Smoothness") ? material.GetFloat("_Smoothness") : 0.05f;
                     Color emission = material.HasProperty("_EmissionColor") ? material.GetColor("_EmissionColor") : Color.black;
                     bool transparent = material.renderQueue >= (int)RenderQueue.Transparent || colour.a < 0.999f;
 
@@ -64,12 +58,12 @@ namespace VoxelEngine.CI
                     material.renderQueue = transparent ? (int)RenderQueue.Transparent : (int)RenderQueue.Geometry;
                     changed = true;
                 }
-
                 if (changed) renderer.sharedMaterials = materials;
             }
 
             SunlitWaterfallArtPass.Apply(camera);
             SunlitWaterfallTuningPass.Apply(camera);
+            SunlitWaterfallMatchPass.Apply(camera);
         }
     }
 }
