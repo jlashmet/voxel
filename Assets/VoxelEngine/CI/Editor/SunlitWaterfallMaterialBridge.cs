@@ -4,16 +4,6 @@ using UnityEngine.Rendering;
 
 namespace VoxelEngine.CI
 {
-    /// <summary>
-    /// Batch-mode material bridge for the environment-only lookdev camera. The capture builds
-    /// runtime Standard materials because they are convenient for generated textures; this swaps
-    /// them onto the project's pipeline-safe SunlitSmooth shader immediately before rendering.
-    ///
-    /// The ordinary showcase terrain renderer is hidden for this composition. The capture still
-    /// constructs the real destructible voxel substrate underneath, but this shot is specifically
-    /// evaluating the reusable presentation vocabulary that wraps it: smooth terrain skins,
-    /// chunky ashlar, water ribbons, moss, ivy, flowers and foliage.
-    /// </summary>
     [InitializeOnLoad]
     internal static class SunlitWaterfallMaterialBridge
     {
@@ -79,6 +69,7 @@ namespace VoxelEngine.CI
             }
 
             SunlitWaterfallArtPass.Apply(camera);
+            SunlitWaterfallTuningPass.Apply(camera);
         }
     }
 }
