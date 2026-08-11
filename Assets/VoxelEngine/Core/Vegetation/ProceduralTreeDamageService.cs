@@ -125,16 +125,18 @@ namespace VoxelEngine.Core.Vegetation
                                             cached.BoundsMin, cached.BoundsMax))
                     continue;
 
-                bool severed = false;
-                bool removedAny = false;
+                var cutCandidates = new List<int>(8);
+                int severBranch = -1;
+                float severBranchSq = float.PositiveInfinity;
                 int hitLeaves = 0;
                 int nearestBranch = -1;
                 float nearestBranchSq = float.PositiveInfinity;
+                IReadOnlyCollection<int> existingCuts = TreeWorldState.RemovedBranches(treeIndex);
 
                 for (int branchIndex = 0; branchIndex < skeleton.Branches.Count; branchIndex++)
                 {
                     if (ProceduralTreeSkeletonBuilder.IsBranchRemoved(
-                            skeleton, TreeWorldState.RemovedBranches(treeIndex), branchIndex))
+                            skeleton, existingCuts, branchIndex))
                         continue;
 
                     TreeBranchSegment branch = skeleton.Branches[branchIndex];
@@ -153,12 +155,15 @@ namespace VoxelEngine.Core.Vegetation
 
                     if (IsLowerTrunk(in branch, skeleton.Height))
                     {
-                        severed = true;
+                        if (distanceSq < severBranchSq)
+                        {
+                            severBranchSq = distanceSq;
+                            severBranch = branchIndex;
+                        }
                         continue;
                     }
 
-                    removedAny |= TreeWorldState.RemoveBranch(
-                        treeIndex, branchIndex, impactMetres, impulse);
+                    if (!cutCandidates.Contains(branchIndex)) cutCandidates.Add(branchIndex);
                 }
 
                 for (int leafIndex = 0; leafIndex < skeleton.Leaves.Count; leafIndex++)
@@ -176,21 +181,66 @@ namespace VoxelEngine.Core.Vegetation
 
                     TreeBranchSegment parentBranch = skeleton.Branches[parent];
                     if (IsLowerTrunk(in parentBranch, skeleton.Height))
-                        severed = true;
-                    else
-                        removedAny |= TreeWorldState.RemoveBranch(
-                            treeIndex, parent, impactMetres, impulse);
+                    {
+                        float distanceSq = DistanceToSegmentSq(
+                            impactMetres, root + parentBranch.Start, root + parentBranch.End);
+                        if (distanceSq < severBranchSq)
+                        {
+                            severBranchSq = distanceSq;
+                            severBranch = parent;
+                        }
+                    }
+                    else if (!cutCandidates.Contains(parent))
+                    {
+                        cutCandidates.Add(parent);
+                    }
                 }
 
-                if (!removedAny && !severed && hitLeaves == 0 && nearestBranch >= 0
-                    && nearestBranchSq <= fallbackRadius * fallbackRadius)
+                if (severBranch < 0 && cutCandidates.Count == 0 && hitLeaves == 0
+                    && nearestBranch >= 0 && nearestBranchSq <= fallbackRadius * fallbackRadius)
                 {
                     TreeBranchSegment nearest = skeleton.Branches[nearestBranch];
                     if (IsLowerTrunk(in nearest, skeleton.Height))
-                        severed = true;
+                        severBranch = nearestBranch;
                     else
-                        removedAny = TreeWorldState.RemoveBranch(
-                            treeIndex, nearestBranch, impactMetres, impulse);
+                        cutCandidates.Add(nearestBranch);
+                }
+
+                bool severed = severBranch >= 0;
+                bool removedAny = false;
+                if (severed)
+                {
+                    // A trunk sever is one connected semantic cut. The standing renderer keeps the
+                    // stump while the branch-cut presenter receives the entire upper subtree.
+                    removedAny = TreeWorldState.RemoveBranch(
+                        treeIndex, severBranch, impactMetres, impulse);
+                }
+                else
+                {
+                    // Remove only top-most candidates. If a parent is cut, descendants are derived
+                    // from topology and should not generate duplicate detached debris events.
+                    for (int i = 0; i < cutCandidates.Count; i++)
+                    {
+                        int candidate = cutCandidates[i];
+                        bool coveredByAnotherCandidate = false;
+                        int parent = skeleton.BranchParents != null
+                                  && candidate < skeleton.BranchParents.Length
+                            ? skeleton.BranchParents[candidate] : -1;
+                        while (parent >= 0)
+                        {
+                            if (cutCandidates.Contains(parent))
+                            {
+                                coveredByAnotherCandidate = true;
+                                break;
+                            }
+                            parent = skeleton.BranchParents != null
+                                  && parent < skeleton.BranchParents.Length
+                                ? skeleton.BranchParents[parent] : -1;
+                        }
+                        if (coveredByAnotherCandidate) continue;
+                        removedAny |= TreeWorldState.RemoveBranch(
+                            treeIndex, candidate, impactMetres, impulse);
+                    }
                 }
 
                 float foliageHealth =
@@ -202,7 +252,7 @@ namespace VoxelEngine.Core.Vegetation
                     foliageHealth = math.max(0f, foliageHealth - loss);
                 }
 
-                if (severed || hitLeaves > 0)
+                if (severed || hitLeaves > 0 || removedAny)
                     TreeWorldState.SetDamage(treeIndex, foliageHealth, severed,
                                              impactMetres, impulse);
             }
