@@ -66,6 +66,7 @@ namespace VoxelEngine.CI
             SunlitWaterfallMatchPass.Apply(camera);
             SunlitWaterfallOrganicPass.Apply(camera);
             SunlitWaterfallFinalShapePass.Apply(camera);
+            SunlitWaterfallPolishPass.Apply(camera);
         }
     }
 }
