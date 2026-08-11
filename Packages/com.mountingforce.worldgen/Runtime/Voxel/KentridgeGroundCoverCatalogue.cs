@@ -11,21 +11,25 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Repaints the existing terrain surface around Kentridge without changing occupancy.
     ///
-    /// The generic terrain generator intentionally knows nothing about individual fantasy lands,
-    /// so its sand/stone/grass mix can run straight through a settlement. Kentridge wants a
-    /// coherent temperate ground vocabulary. This pass adaptively tiles a rounded town envelope
-    /// and uses PaintSolid over at most the top six voxels of each local surface patch. Six is
-    /// deliberate: Transvoxel's grass/moss migration rule searches up to six voxels downward for
-    /// mineral support, so ground cover remains classified as terrain rather than unsupported
-    /// foliage.
+    /// Generic terrain intentionally knows nothing about individual fantasy lands, so its native
+    /// sand/stone/grass mix can run straight through a settlement. Kentridge wants a coherent
+    /// temperate ground vocabulary. This pass adaptively tiles a rounded town envelope and uses
+    /// PaintSurface: the rasteriser finds each column's true top solid and repaints only its top
+    /// four voxels. Density, collision, caves, and silhouette stay identical while Transvoxel sees
+    /// the themed material at every surface sample and still finds mineral support immediately
+    /// underneath.
     ///
-    /// This catalogue must run before roads, plot grading, and structures. Those later semantic
-    /// layers remain authoritative where they overlap the themed ground.
+    /// This catalogue runs before roads, plot grading, and structures. Those later semantic layers
+    /// remain authoritative where they overlap the themed ground.
     /// </summary>
     public static class KentridgeGroundCoverCatalogue
     {
         private const int LargestTileDm = 32;
-        private const int PaintDepthDm = 6;
+        private const int MaxSurfaceVariationDm = 16;
+        private const int SearchBelowDm = 4;
+        private const int SearchAboveDm = 4;
+        private const int SearchHeightDm =
+            SearchBelowDm + MaxSurfaceVariationDm + SearchAboveDm + 1;
         private const int PaddingDm = 72;
 
         private static readonly int[] s_TileSizesDm = { 32, 16, 8, 4, 2, 1 };
@@ -102,7 +106,7 @@ namespace MountingForce.WorldGen.Voxel
 
             int programOffset = 0;
             int placementOffset = 0;
-            int paintHeight = PaintDepthDm * scale;
+            int searchHeight = SearchHeightDm * scale;
 
             for (int id = 0; id < s_TileSizesDm.Length; id++)
             {
@@ -116,7 +120,7 @@ namespace MountingForce.WorldGen.Voxel
                     Kind = FeatureKind.Landform,
                     BasePlane = BasePlaneRule.FixedAltitude,
                     FixedAltitude = 0,
-                    Footprint = new int3(sizeDm * scale, paintHeight, sizeDm * scale),
+                    Footprint = new int3(sizeDm * scale, searchHeight, sizeDm * scale),
                     MaxSlope = 32,
                     Precedence = 5,
                     ParameterOffset = 0,
@@ -175,14 +179,12 @@ namespace MountingForce.WorldGen.Voxel
                 return;
 
             SurfaceRange(xDm, zDm, sizeDm, seed, scale, out int minY, out int maxY);
-            int paintHeight = PaintDepthDm * scale;
-            if (maxY - minY < paintHeight || sizeIndex == s_TileSizesDm.Length - 1)
+            int allowedVariation = MaxSurfaceVariationDm * scale;
+            if (maxY - minY <= allowedVariation
+                || sizeIndex == s_TileSizesDm.Length - 1)
             {
-                // The band ends at the highest sampled surface. The range test guarantees the
-                // lowest sampled surface still falls inside it, so every column is repainted no
-                // deeper than PaintDepthDm and mineral support remains immediately underneath.
                 bySize[sizeIndex].Add(new PaintTile(
-                    sizeDm, xDm, zDm, maxY - paintHeight + 1));
+                    sizeDm, xDm, zDm, minY - SearchBelowDm * scale));
                 return;
             }
 
@@ -204,7 +206,6 @@ namespace MountingForce.WorldGen.Voxel
             long rx2 = (long)radiusXdm * radiusXdm;
             long rz2 = (long)radiusZdm * radiusZdm;
 
-            // dx²/rx² + dz²/rz² <= 1, written without floating point.
             return dx * dx * rz2 + dz * dz * rx2 <= rx2 * rz2;
         }
 
@@ -284,8 +285,8 @@ namespace MountingForce.WorldGen.Voxel
             int s = settings.VoxelsPerDecimetre;
             byte ground = settings.Materials.Resolve(MaterialRole.Moss);
             var b = new ProgramBuilder();
-            b.PaintSolid(0, 0, 0,
-                         sizeDm * s, PaintDepthDm * s, sizeDm * s, ground);
+            b.PaintSurface(0, 0, 0,
+                           sizeDm * s, SearchHeightDm * s, sizeDm * s, ground);
             return b.Finish();
         }
 
@@ -332,10 +333,10 @@ namespace MountingForce.WorldGen.Voxel
         {
             private readonly List<int> _code = new List<int>();
 
-            public void PaintSolid(int x, int y, int z,
-                                   int sx, int sy, int sz, byte material) =>
+            public void PaintSurface(int x, int y, int z,
+                                     int sx, int sy, int sz, byte material) =>
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                   material, (int)PrimitiveMode.PaintSolid);
+                   material, (int)PrimitiveMode.PaintSurface);
 
             public int[] Finish()
             {
