@@ -6,14 +6,16 @@ namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
     /// Composes Kentridge generation stages into the single immutable catalogue understood by the
-    /// voxel engine. Ordering is intentional and observable: roads/plaza first, prepared building
-    /// plots second, structures last.
+    /// voxel engine. Ordering is intentional and observable: themed ground cover first, roads and
+    /// plaza second, prepared building plots third, structures last.
     /// </summary>
     public static class KentridgeCombinedVoxelCatalogue
     {
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
+            FeatureCatalogue groundCover =
+                KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue publicSpaces =
                 KentridgeTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue plotSurfaces =
@@ -24,31 +26,40 @@ namespace MountingForce.WorldGen.Voxel
             try
             {
                 FeatureCatalogue result = CatalogueLoader.Allocate(
-                    definitions: publicSpaces.Definitions.Length
+                    definitions: groundCover.Definitions.Length
+                               + publicSpaces.Definitions.Length
                                + plotSurfaces.Definitions.Length
                                + buildings.Definitions.Length,
-                    rules: publicSpaces.Rules.Length
+                    rules: groundCover.Rules.Length
+                         + publicSpaces.Rules.Length
                          + plotSurfaces.Rules.Length
                          + buildings.Rules.Length,
-                    parameters: publicSpaces.Parameters.Length
+                    parameters: groundCover.Parameters.Length
+                              + publicSpaces.Parameters.Length
                               + plotSurfaces.Parameters.Length
                               + buildings.Parameters.Length,
-                    anchors: publicSpaces.Anchors.Length
+                    anchors: groundCover.Anchors.Length
+                           + publicSpaces.Anchors.Length
                            + plotSurfaces.Anchors.Length
                            + buildings.Anchors.Length,
-                    slots: publicSpaces.Slots.Length
+                    slots: groundCover.Slots.Length
+                         + publicSpaces.Slots.Length
                          + plotSurfaces.Slots.Length
                          + buildings.Slots.Length,
-                    programLength: publicSpaces.Program.Length
+                    programLength: groundCover.Program.Length
+                                 + publicSpaces.Program.Length
                                  + plotSurfaces.Program.Length
                                  + buildings.Program.Length,
-                    materials: publicSpaces.Materials.Length
+                    materials: groundCover.Materials.Length
+                             + publicSpaces.Materials.Length
                              + plotSurfaces.Materials.Length
                              + buildings.Materials.Length,
-                    explicitPlacements: publicSpaces.ExplicitPlacements.Length
+                    explicitPlacements: groundCover.ExplicitPlacements.Length
+                                      + publicSpaces.ExplicitPlacements.Length
                                       + plotSurfaces.ExplicitPlacements.Length
                                       + buildings.ExplicitPlacements.Length,
-                    overrides: publicSpaces.ParameterOverrides.Length
+                    overrides: groundCover.ParameterOverrides.Length
+                             + publicSpaces.ParameterOverrides.Length
                              + plotSurfaces.ParameterOverrides.Length
                              + buildings.ParameterOverrides.Length,
                     allocator);
@@ -63,6 +74,10 @@ namespace MountingForce.WorldGen.Voxel
                 int placementOffset = 0;
                 int overrideOffset = 0;
 
+                Append(in groundCover, ref result,
+                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
+                    ref anchorOffset, ref slotOffset, ref programOffset,
+                    ref materialOffset, ref placementOffset, ref overrideOffset);
                 Append(in publicSpaces, ref result,
                     ref definitionOffset, ref ruleOffset, ref parameterOffset,
                     ref anchorOffset, ref slotOffset, ref programOffset,
@@ -88,6 +103,7 @@ namespace MountingForce.WorldGen.Voxel
             }
             finally
             {
+                groundCover.Dispose();
                 publicSpaces.Dispose();
                 plotSurfaces.Dispose();
                 buildings.Dispose();
