@@ -478,7 +478,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 float3 normal = math.normalizesafe(n0 * t0 + n1 * t1,
                                                     new float3(0f, 1f, 0f));
 
-                byte material = d0 < d1 ? _cellMaterial[corner0] : _cellMaterial[corner1];
+                // Positive density is the solid side of the Transvoxel crossing. Surface material
+                // must come from that side; choosing the lower-density endpoint sampled the empty
+                // side and caused authored dirt/grass surfaces to fall back to material 1 in
+                // seemingly random plates.
+                byte material = d0 > d1 ? _cellMaterial[corner0] : _cellMaterial[corner1];
                 if (!IsSmoothFieldMaterial(material)) material = 1;
 
                 _vertices.Add(new SmoothSurfaceVertex
@@ -556,7 +560,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 float farthest = -1f;
                 Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
                 float chunkMetres = VoxelsPerAxis * voxelSize;
-
                 foreach (var pair in _entries)
                 {
                     Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
