@@ -40,6 +40,7 @@ namespace VoxelEngine.Rendering
         private class PassData
         {
             public TextureHandle CameraColor;
+            public TextureHandle CameraDepth;
             public Material Material;
             public MaterialPropertyBlock Properties;
             public Matrix4x4 InvViewProj;
@@ -61,6 +62,7 @@ namespace VoxelEngine.Rendering
             using var builder = renderGraph.AddUnsafePass(k_PassName, out PassData data);
 
             data.CameraColor = resourceData.activeColorTexture;
+            data.CameraDepth = resourceData.activeDepthTexture;
             data.Material = _material;
             data.Properties = _properties;
             data.InvViewProj = (GL.GetGPUProjectionMatrix(camera.projectionMatrix, true)
@@ -73,6 +75,7 @@ namespace VoxelEngine.Rendering
             data.SkyZenith = VoxelRenderBridge.SkyZenith;
 
             builder.UseTexture(data.CameraColor, AccessFlags.Write);
+            builder.UseTexture(data.CameraDepth, AccessFlags.Read);
             builder.AllowPassCulling(false);
 
             builder.SetRenderFunc<PassData>(static (passData, ctx) =>
@@ -85,7 +88,9 @@ namespace VoxelEngine.Rendering
                 passData.Properties.SetVector(s_SkyHorizon, passData.SkyHorizon);
                 passData.Properties.SetVector(s_SkyZenith, passData.SkyZenith);
 
-                ctx.cmd.SetRenderTarget(passData.CameraColor);
+                // Use the same color+depth target binding overload as the proven voxel surface
+                // pass. The shader has ZWrite Off, so depth is merely bound, never changed.
+                ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
                 cmd.DrawProcedural(Matrix4x4.identity, passData.Material, 0,
                                    MeshTopology.Triangles, 3, 1, passData.Properties);
             });
