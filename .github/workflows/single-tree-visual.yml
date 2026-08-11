@@ -72,6 +72,27 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/RegistryTree/registry-tree.png"
           test -s "$GITHUB_WORKSPACE/Artifacts/RegistryTree/registry-tree.txt"
 
+      - name: Run semantic destruction visual proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$GITHUB_WORKSPACE/Artifacts/TreeDestruction"
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts/TreeDestruction"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.TreeDestructionVisualTests.SemanticTree_BranchBreaksAndTrunkFallsVisibly" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/unity.log"
+
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/results.xml"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/tree-destruction.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/01-before.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/02-after-branch-hit.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/03-after-trunk-hit.png"
+
       - name: Temporarily add Showcase scene to CI build settings
         shell: bash
         run: |
@@ -122,6 +143,10 @@ jobs:
           if [[ -f "$GITHUB_WORKSPACE/Artifacts/RegistryTree/registry-tree.txt" ]]; then
             cat "$GITHUB_WORKSPACE/Artifacts/RegistryTree/registry-tree.txt"
           fi
+          echo "--- Semantic destruction ---"
+          if [[ -f "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/tree-destruction.txt" ]]; then
+            cat "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/tree-destruction.txt"
+          fi
           echo "--- Real Showcase integration ---"
           if [[ -f "$GITHUB_WORKSPACE/Artifacts/ShowcaseTree/showcase-tree.txt" ]]; then
             cat "$GITHUB_WORKSPACE/Artifacts/ShowcaseTree/showcase-tree.txt"
@@ -142,6 +167,15 @@ jobs:
         with:
           name: registry-tree-${{ github.sha }}
           path: Artifacts/RegistryTree/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload tree-destruction artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tree-destruction-${{ github.sha }}
+          path: Artifacts/TreeDestruction/
           if-no-files-found: warn
           retention-days: 14
 
