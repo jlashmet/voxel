@@ -70,6 +70,7 @@ namespace MountingForce.CombatPrototype
             Id = id;
             Position = position;
             FallDirection = new GridPos(0, 0);
+            NotchedDirection = new GridPos(0, 0);
         }
 
         public int Id { get; }
@@ -77,6 +78,9 @@ namespace MountingForce.CombatPrototype
         public bool Standing { get; internal set; } = true;
         public GridPos FallDirection { get; internal set; }
         public int Stress { get; internal set; }
+        public GridPos NotchedDirection { get; internal set; }
+        public int NotchedByUnitId { get; internal set; }
+        public bool IsNotched => NotchedDirection.X != 0 || NotchedDirection.Z != 0;
     }
 
     public sealed class ChainReactionOpportunity
@@ -228,19 +232,13 @@ namespace MountingForce.CombatPrototype
 
         public ChainUnitState GetUnit(int id)
         {
-            for (int i = 0; i < _units.Count; i++)
-            {
-                if (_units[i].Id == id) return _units[i];
-            }
+            for (int i = 0; i < _units.Count; i++) if (_units[i].Id == id) return _units[i];
             return null;
         }
 
         public ChainTreeState GetTree(int id)
         {
-            for (int i = 0; i < _trees.Count; i++)
-            {
-                if (_trees[i].Id == id) return _trees[i];
-            }
+            for (int i = 0; i < _trees.Count; i++) if (_trees[i].Id == id) return _trees[i];
             return null;
         }
 
@@ -294,7 +292,6 @@ namespace MountingForce.CombatPrototype
         {
             if (!TryGetNormalActor(stephenId, out ChainUnitState stephen) || stephen.Kind != ChainRecruitKind.Stephen)
                 return Fail("Stephen is required for Uppercut.");
-
             ChainUnitState target = GetUnit(targetId);
             if (!IsEnemyTarget(stephen, target) || Distance(stephen.Position, target.Position) != 1)
                 return Fail("Uppercut needs an adjacent living enemy.");
@@ -313,11 +310,9 @@ namespace MountingForce.CombatPrototype
         {
             if (!TryGetNormalActor(brutusId, out ChainUnitState brutus) || brutus.Kind != ChainRecruitKind.Brutus)
                 return Fail("Brutus is required for Shoulder Hurl.");
-
             ChainUnitState target = GetUnit(targetId);
             if (!IsEnemyTarget(brutus, target) || Distance(brutus.Position, target.Position) != 1)
                 return Fail("Shoulder Hurl needs an adjacent living enemy.");
-
             GridPos direction = CardinalDirection(target.Position, aim);
             if (IsZero(direction)) return Fail("Aim away from the target to choose the hurl direction.");
 
@@ -333,11 +328,9 @@ namespace MountingForce.CombatPrototype
         {
             if (!TryGetNormalActor(weldonId, out ChainUnitState weldon) || weldon.Kind != ChainRecruitKind.Weldon)
                 return Fail("Weldon is required for Gust.");
-
             ChainUnitState target = GetUnit(targetId);
             if (!IsEnemyTarget(weldon, target) || Distance(weldon.Position, target.Position) > 4)
                 return Fail("Gust needs a living enemy within 4 cells.");
-
             GridPos direction = CardinalDirection(weldon.Position, target.Position);
             if (IsZero(direction)) return Fail("Gust needs a direction away from Weldon.");
 
@@ -346,6 +339,81 @@ namespace MountingForce.CombatPrototype
             BeginCascade(weldon.CommandGroup, $"{weldon.Name} gusted {target.Name}");
             ResolveMotion();
             CheckBattleEnd();
+            return true;
+        }
+
+        /// <summary>
+        /// Madeline proactively manufactures geometry: choose two enemies and drive the first toward the second.
+        /// If they are not aligned on the chosen cardinal axis, the attempt can miss; that is intentional spatial skill.
+        /// </summary>
+        public bool TryConverge(int madelineId, int movingTargetId, int anchorTargetId)
+        {
+            if (!TryGetNormalActor(madelineId, out ChainUnitState madeline) || madeline.Kind != ChainRecruitKind.Madeline)
+                return Fail("Madeline is required for Converge.");
+
+            ChainUnitState moving = GetUnit(movingTargetId);
+            ChainUnitState anchor = GetUnit(anchorTargetId);
+            if (!IsEnemyTarget(madeline, moving) || !IsEnemyTarget(madeline, anchor) || moving.Id == anchor.Id)
+                return Fail("Converge needs two different living enemies.");
+            if (Distance(madeline.Position, moving.Position) > 5 || Distance(madeline.Position, anchor.Position) > 5)
+                return Fail("Both Converge targets must be within 5 cells of Madeline.");
+
+            GridPos direction = CardinalDirection(moving.Position, anchor.Position);
+            if (IsZero(direction)) return Fail("Converge could not determine a direction between the targets.");
+
+            madeline.ActionSpent = true;
+            _motion = NewMotion(moving.Id, direction, 4, false);
+            BeginCascade(madeline.CommandGroup, $"{madeline.Name} converged {moving.Name} toward {anchor.Name}");
+            ResolveMotion();
+            CheckBattleEnd();
+            return true;
+        }
+
+        /// <summary>
+        /// Skitter can start a chain instead of waiting for one: a harpoon drags a target toward Skitter.
+        /// The pull still obeys the normal collision/environment rules.
+        /// </summary>
+        public bool TryHarpoon(int skitterId, int targetId)
+        {
+            if (!TryGetNormalActor(skitterId, out ChainUnitState skitter) || skitter.Kind != ChainRecruitKind.Skitter)
+                return Fail("Skitter is required for Harpoon.");
+
+            ChainUnitState target = GetUnit(targetId);
+            if (!IsEnemyTarget(skitter, target) || Distance(skitter.Position, target.Position) > 6)
+                return Fail("Harpoon needs a living enemy within 6 cells.");
+
+            GridPos direction = CardinalDirection(target.Position, skitter.Position);
+            if (IsZero(direction)) return Fail("Harpoon could not determine a pull direction.");
+
+            skitter.ActionSpent = true;
+            _motion = NewMotion(target.Id, direction, 4, false);
+            BeginCascade(skitter.CommandGroup, $"{skitter.Name} harpooned {target.Name} toward himself");
+            ResolveMotion();
+            CheckBattleEnd();
+            return true;
+        }
+
+        /// <summary>
+        /// Grom spends a normal action preparing a directional environmental payoff. The notch does nothing by itself;
+        /// the team must still arrange a hard enough impact and Grom must later claim/execute Timber.
+        /// </summary>
+        public bool TryNotchTree(int gromId, int treeId, GridPos aim)
+        {
+            if (!TryGetNormalActor(gromId, out ChainUnitState grom) || grom.Kind != ChainRecruitKind.Grom)
+                return Fail("Grom is required to notch a tree.");
+
+            ChainTreeState tree = GetTree(treeId);
+            if (tree == null || !tree.Standing) return Fail("Choose a standing tree to notch.");
+            if (Distance(grom.Position, tree.Position) > 5) return Fail("Grom must be within 5 cells of the tree to notch it.");
+
+            GridPos direction = CardinalDirection(tree.Position, aim);
+            if (IsZero(direction)) return Fail("Aim away from the tree to choose the prepared fall direction.");
+
+            tree.NotchedDirection = direction;
+            tree.NotchedByUnitId = grom.Id;
+            tree.Stress = Math.Min(TreeBreakStress, tree.Stress + 2);
+            grom.ActionSpent = true;
+            WriteLog($"{grom.Name} notched tree #{tree.Id} for a {DirectionName(direction)} fall. Stress is now {tree.Stress}/{TreeBreakStress}.");
             return true;
         }
 
@@ -524,27 +592,36 @@ namespace MountingForce.CombatPrototype
             GridPos direction = tree == null ? Zero : CardinalDirection(tree.Position, aim);
             if (tree == null || !tree.Standing || IsZero(direction)) return Fail("Timber needs the struck standing tree and a fall direction.");
 
+            bool followsNotch = tree.IsNotched && tree.NotchedDirection.Equals(direction);
+            int fallLength = followsNotch ? 6 : 4;
+            int nearDamage = followsNotch ? 7 : 5;
+            int farDamage = followsNotch ? 6 : 4;
+
             tree.Standing = false;
             tree.FallDirection = direction;
-            ConsumeClaim(grom, $"committed tree #{tree.Id} to a {DirectionName(direction)} fall");
+            ConsumeClaim(grom, followsNotch
+                ? $"released the prepared notch on tree #{tree.Id}; the fall surges {fallLength} cells {DirectionName(direction)}"
+                : $"committed tree #{tree.Id} to a {DirectionName(direction)} fall");
 
             ChainUnitState carried = null;
-            for (int step = 1; step <= 4; step++)
+            for (int step = 1; step <= fallLength; step++)
             {
                 GridPos cell = tree.Position + direction * step;
                 if (!IsInBounds(cell)) break;
                 ChainUnitState hit = FindUnitAt(cell);
                 if (hit == null) continue;
 
-                int damage = step <= 2 ? 5 : 4;
+                int damage = step <= 2 ? nearDamage : farDamage;
                 Damage(hit, damage, $"The falling tree crushed {hit.Name}");
                 if (carried == null && hit.IsAlive) carried = hit;
             }
 
+            if (followsNotch) WriteLog($"Prepared tree payoff: Grom's notch extended reach and impact because the team used the planned direction.");
+
             if (carried != null)
             {
-                _motion = NewMotion(carried.Id, direction, 4, false);
-                WriteLog($"The tree carries {carried.Name} onward with force 4.");
+                _motion = NewMotion(carried.Id, direction, followsNotch ? 6 : 4, false);
+                WriteLog($"The tree carries {carried.Name} onward with force {_motion.RemainingForce}.");
                 ResolveMotion();
             }
             else
@@ -573,10 +650,7 @@ namespace MountingForce.CombatPrototype
             PendingReaction = null;
             WriteLog($"Nobody claimed the event: {description}");
 
-            if (kind == ChainReactionKind.Airborne && _motion != null)
-            {
-                ResolveMotion();
-            }
+            if (kind == ChainReactionKind.Airborne && _motion != null) ResolveMotion();
             else
             {
                 _motion = null;
@@ -667,12 +741,8 @@ namespace MountingForce.CombatPrototype
             }
         }
 
-        private bool TryGetClaimedActor(
-            int unitId,
-            ChainRecruitKind kind,
-            ChainReactionAbility ability,
-            out ChainUnitState unit,
-            out ChainReactionOpportunity reaction)
+        private bool TryGetClaimedActor(int unitId, ChainRecruitKind kind, ChainReactionAbility ability,
+            out ChainUnitState unit, out ChainReactionOpportunity reaction)
         {
             unit = GetUnit(unitId);
             reaction = PendingReaction;
@@ -725,12 +795,13 @@ namespace MountingForce.CombatPrototype
 
                     if (impactForce >= TreeReactionMinimumForce && mover.IsAlive)
                     {
+                        string prepared = tree.IsNotched ? $" Prepared fall: {DirectionName(tree.NotchedDirection)}." : string.Empty;
                         OpenOpportunity(ChainReactionKind.TreeImpact, mover.Id, 0, tree.Id, tree.Position, impactForce,
-                            $"{mover.Name} hit tree #{tree.Id} with force {impactForce} ({ForceWord(impactForce)}). Tree stress: {tree.Stress}/{TreeBreakStress}.");
+                            $"{mover.Name} hit tree #{tree.Id} with force {impactForce} ({ForceWord(impactForce)}). Tree stress: {tree.Stress}/{TreeBreakStress}.{prepared}");
                     }
                     else
                     {
-                        WriteLog($"The tree flexed, but the force was too weak to create a meaningful tree-impact opportunity.");
+                        WriteLog("The tree flexed, but the force was too weak to create a meaningful tree-impact opportunity.");
                         FinishCascadeIfIdle();
                     }
                     return;
@@ -751,10 +822,7 @@ namespace MountingForce.CombatPrototype
                         OpenOpportunity(ChainReactionKind.Collision, mover.Id, occupant.Id, 0, next, impactForce,
                             $"{mover.Name} collided with {occupant.Name} at force {impactForce} ({ForceWord(impactForce)}). Impact damage: {damage}.");
                     }
-                    else
-                    {
-                        FinishCascadeIfIdle();
-                    }
+                    else FinishCascadeIfIdle();
                     return;
                 }
 
@@ -777,14 +845,8 @@ namespace MountingForce.CombatPrototype
             }
         }
 
-        private void OpenOpportunity(
-            ChainReactionKind kind,
-            int primaryId,
-            int secondaryId,
-            int treeId,
-            GridPos position,
-            int impactForce,
-            string description)
+        private void OpenOpportunity(ChainReactionKind kind, int primaryId, int secondaryId, int treeId,
+            GridPos position, int impactForce, string description)
         {
             PendingReaction = new ChainReactionOpportunity(
                 _nextOpportunityId++, kind, primaryId, secondaryId, treeId, position, impactForce, description);
@@ -837,7 +899,6 @@ namespace MountingForce.CombatPrototype
         private void BeginCascade(int commandGroup, string description)
         {
             if (_cascadeActive) FinishCascade();
-
             _cascadeActive = true;
             _cascadeGroups.Clear();
             _cascadeGroups.Add(commandGroup);
@@ -933,9 +994,7 @@ namespace MountingForce.CombatPrototype
         {
             List<ChainUnitState> enemies = new List<ChainUnitState>();
             for (int i = 0; i < _units.Count; i++)
-            {
                 if (_units[i].Team == CombatTeam.Enemy && _units[i].IsAlive) enemies.Add(_units[i]);
-            }
 
             enemies.Sort((a, b) => a.Id.CompareTo(b.Id));
             for (int i = 0; i < enemies.Count; i++)
