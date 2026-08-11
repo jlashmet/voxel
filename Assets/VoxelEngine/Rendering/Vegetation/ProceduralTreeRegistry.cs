@@ -11,8 +11,9 @@ namespace VoxelEngine.Rendering.Vegetation
     /// deterministic identity snapshot; render geometry and LODs are derived from these identities.
     ///
     /// The legacy showcase additionally publishes the brick coordinates occupied by its old timber
-    /// proxy. Those voxels remain authoritative for collision/destruction during migration, but
-    /// must never be emitted by the hard-surface renderer underneath the procedural tree.
+    /// and foliage proxies. Those voxels remain authoritative for collision/destruction during
+    /// migration, but must never be emitted underneath the procedural tree by either hard or smooth
+    /// mesh derivation.
     /// </summary>
     public static class ProceduralTreeRegistry
     {
@@ -26,6 +27,7 @@ namespace VoxelEngine.Rendering.Vegetation
         private static readonly List<TreeDamageState> s_Damage = new();
         private static readonly List<HashSet<int>> s_RemovedBranches = new();
         private static readonly HashSet<int3> s_LegacyHiddenHardBricks = new();
+        private static readonly HashSet<int3> s_LegacyHiddenSmoothBricks = new();
         private static int s_Version;
         private static int s_DamageVersion;
 
@@ -41,6 +43,7 @@ namespace VoxelEngine.Rendering.Vegetation
             s_Damage.Clear();
             s_RemovedBranches.Clear();
             s_LegacyHiddenHardBricks.Clear();
+            s_LegacyHiddenSmoothBricks.Clear();
             unchecked
             {
                 s_Version++;
@@ -49,12 +52,14 @@ namespace VoxelEngine.Rendering.Vegetation
         }
 
         /// <summary>
-        /// Atomically replaces the vegetation snapshot. <paramref name="legacyHiddenHardBricks"/>
-        /// is migration-only metadata: gameplay can still hit those old timber voxels, but the
-        /// exact castle mesher must not draw them as architecture.
+        /// Atomically replaces the vegetation snapshot. The legacy brick sets are migration-only
+        /// metadata: gameplay can still hit those old voxels, but they are presentation-invisible.
+        /// Timber/scaffold bricks are suppressed from the hard mesher; foliage crown bricks are
+        /// suppressed from the smooth field.
         /// </summary>
         public static void Replace(IReadOnlyList<TreeInstance> instances,
-                                   IEnumerable<int3> legacyHiddenHardBricks = null)
+                                   IEnumerable<int3> legacyHiddenHardBricks = null,
+                                   IEnumerable<int3> legacyHiddenSmoothBricks = null)
         {
             s_Instances.Clear();
             s_Damage.Clear();
@@ -80,6 +85,13 @@ namespace VoxelEngine.Rendering.Vegetation
                     s_LegacyHiddenHardBricks.Add(brick);
             }
 
+            s_LegacyHiddenSmoothBricks.Clear();
+            if (legacyHiddenSmoothBricks != null)
+            {
+                foreach (int3 brick in legacyHiddenSmoothBricks)
+                    s_LegacyHiddenSmoothBricks.Add(brick);
+            }
+
             unchecked
             {
                 s_Version++;
@@ -89,6 +101,9 @@ namespace VoxelEngine.Rendering.Vegetation
 
         public static bool IsLegacyHiddenHardBrick(int3 worldBrick) =>
             s_LegacyHiddenHardBricks.Contains(worldBrick);
+
+        public static bool IsLegacyHiddenSmoothBrick(int3 worldBrick) =>
+            s_LegacyHiddenSmoothBricks.Contains(worldBrick);
 
         /// <summary>
         /// Returns the directly cut branches for one tree. Descendant removal is derived from the
