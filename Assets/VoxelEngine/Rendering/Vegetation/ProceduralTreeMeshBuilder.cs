@@ -13,6 +13,8 @@ namespace VoxelEngine.Rendering.Vegetation
     ///
     /// Every LOD is produced from the same <see cref="TreeSkeleton"/>. Lower levels only reduce
     /// tube radial segments and foliage sampling; they never regenerate a different tree shape.
+    /// The generated skeleton also carries a derived connectivity graph so destruction can cut a
+    /// branch once and remove every dependent twig/leaf consistently across all visual LODs.
     /// </summary>
     public static class ProceduralTreeMeshBuilder
     {
@@ -41,6 +43,11 @@ namespace VoxelEngine.Rendering.Vegetation
             public readonly List<LeafAnchor> Leaves = new(768);
             public TreeSpeciesProfile Profile;
             public float Height;
+
+            // Derived after generation. Parents always precede children, which makes expanding a
+            // sparse set of cuts into a connected removal mask a single forward pass.
+            public int[] BranchParents;
+            public int[] LeafParents;
         }
 
         private const int MaxBranchSegments = 640;
@@ -118,6 +125,7 @@ namespace VoxelEngine.Rendering.Vegetation
                                trunkDirection, scale, math.max(3, profile.LeavesPerTip / 2));
             }
 
+            ResolveTopology(skeleton);
             return skeleton;
         }
 
@@ -247,7 +255,86 @@ namespace VoxelEngine.Rendering.Vegetation
             }
         }
 
-        public static Mesh BuildMesh(TreeSkeleton skeleton, int lod)
+        /// <summary>
+        /// Derives parent links from exact shared node positions. The grammar emits each parent
+        /// before its descendants, and branch starts are copied from existing node positions, so
+        /// this is deterministic and avoids storing render topology in the semantic TreeInstance.
+        /// </summary>
+        private static void ResolveTopology(TreeSkeleton skeleton)
+        {
+            int branchCount = skeleton.Branches.Count;
+            skeleton.BranchParents = new int[branchCount];
+            const float nodeEpsilonSq = 1e-8f;
+
+            for (int i = 0; i < branchCount; i++)
+            {
+                BranchSegment branch = skeleton.Branches[i];
+                int parent = -1;
+                int bestLevelDelta = int.MaxValue;
+
+                for (int j = i - 1; j >= 0; j--)
+                {
+                    BranchSegment candidate = skeleton.Branches[j];
+                    int levelDelta = branch.Level - candidate.Level;
+                    if (levelDelta < 0 || levelDelta > 1) continue;
+                    if (math.lengthsq(candidate.End - branch.Start) > nodeEpsilonSq) continue;
+
+                    // Same-level continuation is the strongest match. Otherwise this is the
+                    // first segment of a child branch attached to its parent's node.
+                    if (levelDelta < bestLevelDelta)
+                    {
+                        parent = j;
+                        bestLevelDelta = levelDelta;
+                        if (levelDelta == 0) break;
+                    }
+                }
+                skeleton.BranchParents[i] = parent;
+            }
+
+            skeleton.LeafParents = new int[skeleton.Leaves.Count];
+            for (int i = 0; i < skeleton.Leaves.Count; i++)
+            {
+                float3 p = skeleton.Leaves[i].Position;
+                int nearest = -1;
+                float nearestSq = float.PositiveInfinity;
+                for (int j = 0; j < branchCount; j++)
+                {
+                    BranchSegment branch = skeleton.Branches[j];
+                    float distanceSq = DistanceToSegmentSq(p, branch.Start, branch.End);
+                    if (distanceSq >= nearestSq) continue;
+                    nearestSq = distanceSq;
+                    nearest = j;
+                }
+                skeleton.LeafParents[i] = nearest;
+            }
+        }
+
+        /// <summary>
+        /// Expands directly cut branches through the skeleton connectivity. The caller can store
+        /// only actual cuts; all downstream branch/twig removal is reconstructed deterministically.
+        /// </summary>
+        public static void ResolveRemovedBranches(TreeSkeleton skeleton,
+                                                  IReadOnlyCollection<int> directCuts,
+                                                  HashSet<int> resolved)
+        {
+            resolved.Clear();
+            if (directCuts == null || directCuts.Count == 0) return;
+
+            foreach (int cut in directCuts)
+                if ((uint)cut < (uint)skeleton.Branches.Count)
+                    resolved.Add(cut);
+
+            int[] parents = skeleton.BranchParents;
+            if (parents == null || parents.Length != skeleton.Branches.Count) return;
+            for (int i = 0; i < parents.Length; i++)
+            {
+                int parent = parents[i];
+                if (parent >= 0 && resolved.Contains(parent)) resolved.Add(i);
+            }
+        }
+
+        public static Mesh BuildMesh(TreeSkeleton skeleton, int lod,
+                                     HashSet<int> removedBranches = null)
         {
             lod = math.clamp(lod, 0, 2);
             int radialSides = lod == 0 ? 8 : lod == 1 ? 5 : 3;
@@ -265,6 +352,7 @@ namespace VoxelEngine.Rendering.Vegetation
 
             for (int i = 0; i < skeleton.Branches.Count; i++)
             {
+                if (removedBranches != null && removedBranches.Contains(i)) continue;
                 BranchSegment branch = skeleton.Branches[i];
                 // The far mesh keeps the shared skeleton but drops the thinnest tertiary twigs.
                 // Their foliage remains and preserves the crown silhouette.
@@ -275,6 +363,10 @@ namespace VoxelEngine.Rendering.Vegetation
 
             for (int i = 0; i < skeleton.Leaves.Count; i += leafStride)
             {
+                int parent = skeleton.LeafParents != null && i < skeleton.LeafParents.Length
+                    ? skeleton.LeafParents[i] : -1;
+                if (removedBranches != null && parent >= 0 && removedBranches.Contains(parent))
+                    continue;
                 AddLeaf(skeleton.Leaves[i], leafScale, leafPlanes,
                         vertices, normals, colours, uv0, uv1, leafIndices);
             }
@@ -381,6 +473,15 @@ namespace VoxelEngine.Rendering.Vegetation
                 indices.Add(start); indices.Add(start + 1); indices.Add(start + 2);
                 indices.Add(start); indices.Add(start + 2); indices.Add(start + 3);
             }
+        }
+
+        private static float DistanceToSegmentSq(float3 point, float3 a, float3 b)
+        {
+            float3 ab = b - a;
+            float denom = math.lengthsq(ab);
+            if (denom <= 1e-10f) return math.lengthsq(point - a);
+            float t = math.saturate(math.dot(point - a, ab) / denom);
+            return math.lengthsq(point - (a + ab * t));
         }
 
         private static float3 RandomPerpendicular(ref Random rng, float3 direction)
