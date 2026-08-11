@@ -15,7 +15,8 @@ namespace VoxelEngine.CI
     /// <summary>
     /// Loads the real Showcase and captures one semantic tree with production voxel rendering and
     /// the semantic vegetation presentation active together. The assertions prove that worldgen
-    /// publishes one clean tree identity and presentation per root with no startup damage/fall.
+    /// publishes one clean tree identity and presentation per root with no startup damage/fall,
+    /// and that the production vegetation renderer contributes real pixels to the camera frame.
     /// </summary>
     public sealed class ShowcaseTreeVisualTests
     {
@@ -33,6 +34,7 @@ namespace VoxelEngine.CI
             GameObject cameraObject = null;
             RenderTexture target = null;
             Texture2D capture = null;
+            Texture2D noVegetationCapture = null;
 
             AsyncOperation load = SceneManager.LoadSceneAsync("VoxelShowcase", LoadSceneMode.Single);
             Assert.That(load, Is.Not.Null, "VoxelShowcase must be available to the CI PlayMode run.");
@@ -53,7 +55,7 @@ namespace VoxelEngine.CI
 
             List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
             while (renderers.Count == 1
-                   && renderers[0].transform.childCount < TreeWorldState.Instances.Count
+                   && renderers[0].PresentationCount < TreeWorldState.Instances.Count
                    && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
@@ -68,12 +70,14 @@ namespace VoxelEngine.CI
 
             int instanceCount = TreeWorldState.Instances.Count;
             int damageCount = TreeWorldState.Damage.Count;
-            int presentationRoots = treeRenderer.transform.childCount;
+            int presentationRoots = treeRenderer.PresentationCount;
+            int rendererChildren = treeRenderer.transform.childCount;
             int severedCount = 0;
             int foliageDamagedCount = 0;
             int rotatedRootCount = 0;
             int activeRootCount = 0;
             int selectedTreeIndex = -1;
+            int renderChangedPixels = 0;
 
             int inspectCount = Mathf.Min(instanceCount, Mathf.Min(damageCount, presentationRoots));
             for (int i = 0; i < inspectCount; i++)
@@ -82,6 +86,8 @@ namespace VoxelEngine.CI
                 if (damage.Severed) severedCount++;
                 if (damage.FoliageHealth < 0.999f) foliageDamagedCount++;
 
+                // Semantic tree roots are intentionally created first and remain index-stable.
+                // Spatial batch roots are additional renderer children appended after them.
                 Transform root = treeRenderer.transform.GetChild(i);
                 if (Quaternion.Angle(root.localRotation, Quaternion.identity) > 1f)
                     rotatedRootCount++;
@@ -145,6 +151,9 @@ namespace VoxelEngine.CI
                 target.Create();
                 camera.targetTexture = target;
 
+                MeshRenderer[] vegetationRenderers =
+                    treeRenderer.GetComponentsInChildren<MeshRenderer>(true);
+                bool[] enabled = new bool[vegetationRenderers.Length];
                 RenderTexture previous = RenderTexture.active;
                 try
                 {
@@ -153,11 +162,31 @@ namespace VoxelEngine.CI
                     capture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
                     capture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
                     capture.Apply(false, false);
-                    File.WriteAllBytes(Path.Combine(outputDirectory, "showcase-tree.png"),
-                                       capture.EncodeToPNG());
+                    byte[] png = capture.EncodeToPNG();
+                    Assert.That(png, Is.Not.Null);
+                    Assert.That(png.Length, Is.GreaterThan(0));
+                    File.WriteAllBytes(Path.Combine(outputDirectory, "showcase-tree.png"), png);
+
+                    for (int i = 0; i < vegetationRenderers.Length; i++)
+                    {
+                        enabled[i] = vegetationRenderers[i].enabled;
+                        vegetationRenderers[i].enabled = false;
+                    }
+
+                    camera.Render();
+                    RenderTexture.active = target;
+                    noVegetationCapture = new Texture2D(
+                        Width, Height, TextureFormat.RGBA32, false, false);
+                    noVegetationCapture.ReadPixels(
+                        new Rect(0, 0, Width, Height), 0, 0, false);
+                    noVegetationCapture.Apply(false, false);
+                    renderChangedPixels = CountChangedPixels(capture, noVegetationCapture, 8);
                 }
                 finally
                 {
+                    for (int i = 0; i < vegetationRenderers.Length; i++)
+                        if (vegetationRenderers[i] != null)
+                            vegetationRenderers[i].enabled = enabled[i];
                     RenderTexture.active = previous;
                     camera.targetTexture = null;
                 }
@@ -192,6 +221,10 @@ namespace VoxelEngine.CI
                 $"damageStates={damageCount}\n" +
                 $"rendererInstances={renderers.Count}\n" +
                 $"presentationRoots={presentationRoots}\n" +
+                $"rendererChildren={rendererChildren}\n" +
+                $"treeBatches={treeRenderer.BatchCount}\n" +
+                $"batchedTrees={treeRenderer.BatchedTreeCount}\n" +
+                $"estimatedVisibleTreeDraws={treeRenderer.EstimatedVisibleDrawCount}\n" +
                 $"activeRoots={activeRootCount}\n" +
                 $"severedAtStartup={severedCount}\n" +
                 $"foliageDamagedAtStartup={foliageDamagedCount}\n" +
@@ -204,7 +237,8 @@ namespace VoxelEngine.CI
                 $"selectedSevered={selectedSevered}\n" +
                 $"selectedFoliageHealth={selectedFoliageHealth:F3}\n" +
                 $"selectedBoundsCenter={(hasBounds ? selectedBounds.center : Vector3.zero):F3}\n" +
-                $"selectedBoundsSize={(hasBounds ? selectedBounds.size : Vector3.zero):F3}\n";
+                $"selectedBoundsSize={(hasBounds ? selectedBounds.size : Vector3.zero):F3}\n" +
+                $"renderChangedPixels={renderChangedPixels}\n";
             File.WriteAllText(Path.Combine(outputDirectory, "showcase-tree.txt"), metadata);
             Debug.Log($"CI showcase-tree capture written to {outputDirectory}\n{metadata}");
 
@@ -222,16 +256,41 @@ namespace VoxelEngine.CI
                         "No Showcase tree presentation may begin rotated/fallen.");
             Assert.That(selectedRoot, Is.Not.Null, "No semantic Showcase tree was available to capture.");
             Assert.That(hasBounds, Is.True, "Selected semantic Showcase tree had no render bounds.");
+            Assert.That(renderChangedPixels, Is.GreaterThan(512),
+                        "Disabling all production vegetation renderers did not materially change the " +
+                        "Showcase camera frame; semantic trees are not demonstrably visible.");
             Assert.That(File.Exists(Path.Combine(outputDirectory, "showcase-tree.png")), Is.True,
                         "Showcase tree PNG was not produced.");
 
             if (capture != null) Object.Destroy(capture);
+            if (noVegetationCapture != null) Object.Destroy(noVegetationCapture);
             if (target != null)
             {
                 target.Release();
                 Object.Destroy(target);
             }
             if (cameraObject != null) Object.Destroy(cameraObject);
+        }
+
+        private static int CountChangedPixels(Texture2D withVegetation,
+                                              Texture2D withoutVegetation,
+                                              int channelThreshold)
+        {
+            Color32[] withPixels = withVegetation.GetPixels32();
+            Color32[] withoutPixels = withoutVegetation.GetPixels32();
+            Assert.That(withPixels.Length, Is.EqualTo(withoutPixels.Length));
+
+            int changed = 0;
+            for (int i = 0; i < withPixels.Length; i++)
+            {
+                Color32 a = withPixels[i];
+                Color32 b = withoutPixels[i];
+                int maxDelta = Mathf.Max(
+                    Mathf.Abs(a.r - b.r),
+                    Mathf.Max(Mathf.Abs(a.g - b.g), Mathf.Abs(a.b - b.b)));
+                if (maxDelta >= channelThreshold) changed++;
+            }
+            return changed;
         }
 
         private static List<ProceduralTreeRenderer> FindRuntimeRenderers()
