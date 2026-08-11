@@ -33,6 +33,7 @@ namespace VoxelEngine.CI
             Material groundMaterial = null;
             RenderTexture target = null;
             Texture2D capture = null;
+            Texture2D noTreeCapture = null;
 
             try
             {
@@ -170,6 +171,8 @@ namespace VoxelEngine.CI
                 camera.targetTexture = target;
 
                 RenderTexture previous = RenderTexture.active;
+                bool[] rendererEnabled = new bool[treeRenderers.Length];
+                int changedPixels;
                 try
                 {
                     camera.Render();
@@ -177,14 +180,39 @@ namespace VoxelEngine.CI
                     capture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
                     capture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
                     capture.Apply(false, false);
-                    File.WriteAllBytes(Path.Combine(outputDirectory, "registry-tree.png"),
-                                       capture.EncodeToPNG());
+                    byte[] png = capture.EncodeToPNG();
+                    Assert.That(png, Is.Not.Null);
+                    Assert.That(png.Length, Is.GreaterThan(0));
+                    File.WriteAllBytes(Path.Combine(outputDirectory, "registry-tree.png"), png);
+
+                    // A non-empty PNG only proves the camera rendered something. Render the exact
+                    // same frame again with the production tree renderers disabled and require a
+                    // substantial pixel delta. This fails if the tree is transparent, black-holed by
+                    // the shader, culled/off-camera, or otherwise absent despite valid mesh objects.
+                    for (int i = 0; i < treeRenderers.Length; i++)
+                    {
+                        rendererEnabled[i] = treeRenderers[i].enabled;
+                        treeRenderers[i].enabled = false;
+                    }
+
+                    camera.Render();
+                    RenderTexture.active = target;
+                    noTreeCapture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
+                    noTreeCapture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
+                    noTreeCapture.Apply(false, false);
+                    changedPixels = CountChangedPixels(capture, noTreeCapture, 8);
                 }
                 finally
                 {
+                    for (int i = 0; i < treeRenderers.Length; i++)
+                        if (treeRenderers[i] != null) treeRenderers[i].enabled = rendererEnabled[i];
                     RenderTexture.active = previous;
                     camera.targetTexture = null;
                 }
+
+                Assert.That(changedPixels, Is.GreaterThan(512),
+                            "Disabling the production tree renderers did not remove enough pixels; " +
+                            "the tree is not demonstrably visible in the captured frame.");
 
                 string metadata =
                     $"registryInstances={TreeWorldState.Instances.Count}\n" +
@@ -201,7 +229,8 @@ namespace VoxelEngine.CI
                     $"leafTrianglesAllLods={leafTriangles}\n" +
                     $"boundsCenter={bounds.center:F3}\n" +
                     $"boundsSize={bounds.size:F3}\n" +
-                    $"boundsMinY={bounds.min.y:F3}\n";
+                    $"boundsMinY={bounds.min.y:F3}\n" +
+                    $"renderChangedPixels={changedPixels}\n";
                 File.WriteAllText(Path.Combine(outputDirectory, "registry-tree.txt"), metadata);
                 Debug.Log($"CI registry-tree capture written to {outputDirectory}\n{metadata}");
             }
@@ -209,6 +238,7 @@ namespace VoxelEngine.CI
             {
                 TreeWorldState.Replace(System.Array.Empty<TreeInstance>());
                 if (capture != null) Object.Destroy(capture);
+                if (noTreeCapture != null) Object.Destroy(noTreeCapture);
                 if (target != null)
                 {
                     target.Release();
@@ -218,6 +248,26 @@ namespace VoxelEngine.CI
                 if (groundObject != null) Object.Destroy(groundObject);
                 if (groundMaterial != null) Object.Destroy(groundMaterial);
             }
+        }
+
+        private static int CountChangedPixels(Texture2D withTree, Texture2D withoutTree,
+                                              int channelThreshold)
+        {
+            Color32[] withPixels = withTree.GetPixels32();
+            Color32[] withoutPixels = withoutTree.GetPixels32();
+            Assert.That(withPixels.Length, Is.EqualTo(withoutPixels.Length));
+
+            int changed = 0;
+            for (int i = 0; i < withPixels.Length; i++)
+            {
+                Color32 a = withPixels[i];
+                Color32 b = withoutPixels[i];
+                int maxDelta = Mathf.Max(
+                    Mathf.Abs(a.r - b.r),
+                    Mathf.Max(Mathf.Abs(a.g - b.g), Mathf.Abs(a.b - b.b)));
+                if (maxDelta >= channelThreshold) changed++;
+            }
+            return changed;
         }
 
         private static List<ProceduralTreeRenderer> FindRuntimeRenderers()
