@@ -39,12 +39,15 @@ namespace VoxelEngine.Core.Vegetation
     public readonly struct TreeSeveredEvent
     {
         public readonly int TreeIndex;
+        public readonly int BreakBranchIndex;
         public readonly float3 HitPointMetres;
         public readonly float3 Impulse;
 
-        public TreeSeveredEvent(int treeIndex, float3 hitPointMetres, float3 impulse)
+        public TreeSeveredEvent(int treeIndex, int breakBranchIndex,
+                                float3 hitPointMetres, float3 impulse)
         {
             TreeIndex = treeIndex;
+            BreakBranchIndex = breakBranchIndex;
             HitPointMetres = hitPointMetres;
             Impulse = impulse;
         }
@@ -162,7 +165,8 @@ namespace VoxelEngine.Core.Vegetation
 
         public static void SetDamage(int index, float foliageHealth, bool severed,
                                      float3 hitPointMetres = default,
-                                     float3 impulse = default)
+                                     float3 impulse = default,
+                                     int breakBranchIndex = -1)
         {
             if ((uint)index >= (uint)s_Damage.Count) return;
 
@@ -184,7 +188,8 @@ namespace VoxelEngine.Core.Vegetation
                                                               nextFoliageHealth,
                                                               nextSevered));
             if (!previous.Severed && nextSevered)
-                TreeSevered?.Invoke(new TreeSeveredEvent(index, hitPointMetres, impulse));
+                TreeSevered?.Invoke(new TreeSeveredEvent(
+                    index, breakBranchIndex, hitPointMetres, impulse));
         }
     }
 }
