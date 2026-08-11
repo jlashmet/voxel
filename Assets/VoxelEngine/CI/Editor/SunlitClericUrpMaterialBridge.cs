@@ -35,17 +35,22 @@ namespace VoxelEngine.CI
             TuneVoxelPalette();
             PullWaterOntoCliffFace();
             ReframeCamera(camera);
-            AddReferenceBackground(camera);
+            MoveHeroTreeOutOfCentre();
+            AddReferenceBackground();
+        }
+
+        private static Shader SmoothShader()
+        {
+            Shader shader = Shader.Find("VoxelEngine/SunlitSmooth");
+            if (shader == null)
+                Debug.LogError("Sunlit Cleric: VoxelEngine/SunlitSmooth was not found.");
+            return shader;
         }
 
         private static void UpgradeRuntimeStandardMaterials()
         {
-            Shader urpLit = Shader.Find("Universal Render Pipeline/Lit");
-            if (urpLit == null)
-            {
-                Debug.LogError("Sunlit Cleric: Universal Render Pipeline/Lit was not found.");
-                return;
-            }
+            Shader smooth = SmoothShader();
+            if (smooth == null) return;
 
             foreach (Renderer renderer in Resources.FindObjectsOfTypeAll<Renderer>())
             {
@@ -74,52 +79,23 @@ namespace VoxelEngine.CI
                     float smoothness = material.HasProperty("_Glossiness")
                         ? material.GetFloat("_Glossiness")
                         : 0.05f;
-                    float metallic = material.HasProperty("_Metallic")
-                        ? material.GetFloat("_Metallic")
-                        : 0f;
                     Color emission = material.HasProperty("_EmissionColor")
                         ? material.GetColor("_EmissionColor")
                         : Color.black;
                     bool transparent = material.renderQueue >= (int)RenderQueue.Transparent || colour.a < 0.999f;
 
-                    material.shader = urpLit;
-                    material.SetTexture("_BaseMap", texture != null ? texture : Texture2D.whiteTexture);
-                    material.SetTextureScale("_BaseMap", textureScale);
-                    material.SetTextureOffset("_BaseMap", textureOffset);
+                    material.shader = smooth;
+                    material.SetTexture("_MainTex", texture != null ? texture : Texture2D.whiteTexture);
+                    material.SetTextureScale("_MainTex", textureScale);
+                    material.SetTextureOffset("_MainTex", textureOffset);
                     material.SetColor("_BaseColor", colour);
-                    material.SetColor("_Color", colour);
                     material.SetFloat("_Smoothness", smoothness);
-                    material.SetFloat("_Metallic", metallic);
-
-                    if (emission.maxColorComponent > 0.001f)
-                    {
-                        material.EnableKeyword("_EMISSION");
-                        material.SetColor("_EmissionColor", emission);
-                    }
-
-                    if (transparent)
-                    {
-                        material.SetOverrideTag("RenderType", "Transparent");
-                        material.SetFloat("_Surface", 1f);
-                        material.SetFloat("_Blend", 0f);
-                        material.SetFloat("_AlphaClip", 0f);
-                        material.SetFloat("_Cull", 0f); // water ribbons must read from either side
-                        material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-                        material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-                        material.SetInt("_ZWrite", 0);
-                        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                        material.DisableKeyword("_ALPHATEST_ON");
-                        material.renderQueue = (int)RenderQueue.Transparent;
-                    }
-                    else
-                    {
-                        material.SetOverrideTag("RenderType", "Opaque");
-                        material.SetFloat("_Surface", 0f);
-                        material.SetFloat("_Cull", 2f);
-                        material.SetInt("_ZWrite", 1);
-                        material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                        material.renderQueue = (int)RenderQueue.Geometry;
-                    }
+                    material.SetColor("_EmissionColor", emission);
+                    material.SetFloat("_Cull", transparent ? 0f : 2f);
+                    material.SetFloat("_ZWrite", transparent ? 0f : 1f);
+                    material.renderQueue = transparent
+                        ? (int)RenderQueue.Transparent
+                        : (int)RenderQueue.Geometry;
 
                     materials[i] = material;
                     changed = true;
@@ -141,11 +117,11 @@ namespace VoxelEngine.CI
                         continue;
 
                     string n = material.name.ToLowerInvariant();
-                    if (n.Contains("sungrass")) SetTint(material, new Color(0.24f, 0.43f, 0.12f));
-                    else if (n.Contains("ruinmoss")) SetTint(material, new Color(0.18f, 0.34f, 0.09f));
-                    else if (n.Contains("sunstone")) SetTint(material, new Color(0.64f, 0.56f, 0.43f));
-                    else if (n.Contains("cliffrock")) SetTint(material, new Color(0.29f, 0.29f, 0.26f));
-                    else if (n.Contains("warmpath")) SetTint(material, new Color(0.34f, 0.39f, 0.20f));
+                    if (n.Contains("sungrass")) SetTint(material, new Color(0.25f, 0.45f, 0.13f));
+                    else if (n.Contains("ruinmoss")) SetTint(material, new Color(0.18f, 0.35f, 0.09f));
+                    else if (n.Contains("sunstone")) SetTint(material, new Color(0.67f, 0.59f, 0.45f));
+                    else if (n.Contains("cliffrock")) SetTint(material, new Color(0.31f, 0.30f, 0.27f));
+                    else if (n.Contains("warmpath")) SetTint(material, new Color(0.35f, 0.42f, 0.22f));
                     else if (n.Contains("rootwood")) SetTint(material, new Color(0.27f, 0.16f, 0.075f));
                 }
             }
@@ -166,23 +142,20 @@ namespace VoxelEngine.CI
 
                 if (go.name == "Waterfall Body" || go.name == "Waterfall Sun Streak")
                 {
-                    // The procedural cliff extends farther toward the camera than the initial
-                    // concept coordinates. Pull the ribbons onto its visible face.
-                    go.transform.position += new Vector3(0f, 0f, -5.6f);
+                    // Enough to clear the rock surface, but keep the falls in the background.
+                    go.transform.position += new Vector3(0f, 0f, -2.55f);
                 }
                 else if (go.name == "Turquoise Pool")
                 {
-                    go.transform.position += new Vector3(0.45f, 0.12f, -2.7f);
-                    go.transform.localScale = new Vector3(1.20f, 1f, 1.15f);
+                    go.transform.position += new Vector3(0.35f, 0.12f, -1.45f);
                 }
                 else if (go.name == "Foreground Stream")
                 {
-                    go.transform.position += new Vector3(0.6f, 0.10f, -1.4f);
-                    go.transform.localScale = new Vector3(1.24f, 1f, 1.18f);
+                    go.transform.position += new Vector3(0.45f, 0.10f, -0.75f);
                 }
                 else if (go.name == "Waterfall Mist")
                 {
-                    go.transform.position += new Vector3(0f, 0f, -4.9f);
+                    go.transform.position += new Vector3(0f, 0f, -2.15f);
                 }
             }
         }
@@ -195,56 +168,73 @@ namespace VoxelEngine.CI
             Vector3 feet = cleric.transform.position;
             Vector3 heroCentre = feet + new Vector3(0f, 1.05f, 0f);
 
-            // Match the generated reference: portrait lens, full-body hero occupying most of the
-            // vertical frame, arch over her left shoulder and waterfalls/castle over her right.
-            camera.fieldOfView = 31f;
-            camera.backgroundColor = new Color(0.11f, 0.50f, 0.86f, 1f);
-            camera.transform.position = heroCentre + new Vector3(2.55f, 1.70f, -8.35f);
-            camera.transform.LookAt(heroCentre + new Vector3(0.72f, 0.82f, 3.25f));
+            // Target composition: Madeline is the subject, not a scale reference. She occupies
+            // most of the portrait height while the ruin and waterfall remain readable behind.
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.fieldOfView = 29f;
+            camera.backgroundColor = new Color(0.08f, 0.48f, 0.86f, 1f);
+            camera.transform.position = heroCentre + new Vector3(0.85f, 1.45f, -6.45f);
+            camera.transform.LookAt(heroCentre + new Vector3(0.42f, 0.63f, 2.45f));
 
-            RenderSettings.fogColor = new Color(0.48f, 0.72f, 0.88f);
-            RenderSettings.fogStartDistance = 31f;
-            RenderSettings.fogEndDistance = 68f;
+            RenderSettings.skybox = null;
+            RenderSettings.fogColor = new Color(0.44f, 0.70f, 0.88f);
+            RenderSettings.fogStartDistance = 29f;
+            RenderSettings.fogEndDistance = 65f;
         }
 
-        private static void AddReferenceBackground(Camera camera)
+        private static void MoveHeroTreeOutOfCentre()
+        {
+            GameObject tree = GameObject.Find("Sunlit Oak");
+            if (tree == null) return;
+            tree.transform.position += new Vector3(-2.15f, -0.10f, 0.45f);
+            tree.transform.localScale *= 0.84f;
+        }
+
+        private static void AddReferenceBackground()
         {
             GameObject cleric = GameObject.Find("Madeline Lookdev Proxy");
             if (cleric == null) return;
             Vector3 hero = cleric.transform.position;
 
-            Material cloud = CreateUrpMaterial("Sunlit Cloud", new Color(0.96f, 0.97f, 0.94f), 0.16f);
-            Material castleStone = CreateUrpMaterial("Distant Castle Stone", new Color(0.68f, 0.66f, 0.58f), 0.04f);
-            Material castleRoof = CreateUrpMaterial("Distant Castle Roof", new Color(0.30f, 0.39f, 0.46f), 0.10f);
+            Material cloud = CreateSmoothMaterial("Sunlit Cloud", new Color(0.98f, 0.98f, 0.95f), 0.10f);
+            Material castleStone = CreateSmoothMaterial("Distant Castle Stone", new Color(0.70f, 0.67f, 0.57f), 0.04f);
+            Material castleRoof = CreateSmoothMaterial("Distant Castle Roof", new Color(0.29f, 0.38f, 0.48f), 0.08f);
+            Material moss = CreateSmoothMaterial("Smooth Moss Cushions", new Color(0.24f, 0.43f, 0.12f), 0.03f);
             Created.Add(cloud);
             Created.Add(castleStone);
             Created.Add(castleRoof);
+            Created.Add(moss);
 
-            CreateCloud(hero + new Vector3(-2.0f, 8.7f, 22.5f), new Vector3(1.35f, 1.0f, 0.75f), cloud);
-            CreateCloud(hero + new Vector3(8.2f, 9.6f, 25.5f), new Vector3(1.10f, 0.86f, 0.70f), cloud);
-            CreateCloud(hero + new Vector3(2.9f, 10.3f, 28.5f), new Vector3(1.55f, 1.08f, 0.82f), cloud);
+            CreateCloud(hero + new Vector3(-2.2f, 8.6f, 22.5f), new Vector3(1.35f, 1.0f, 0.75f), cloud);
+            CreateCloud(hero + new Vector3(7.7f, 9.4f, 25.0f), new Vector3(1.10f, 0.86f, 0.70f), cloud);
+            CreateCloud(hero + new Vector3(2.7f, 10.1f, 28.2f), new Vector3(1.55f, 1.08f, 0.82f), cloud);
 
-            // The far castle is intentionally simple because it is a composition proxy. The
-            // destructible foreground remains the real brickmap world; this gives the render the
-            // same vertical fantasy landmark as the target while that production asset is built.
             var castle = new GameObject("Distant Sunlit Castle Proxy");
-            castle.transform.position = hero + new Vector3(9.8f, 2.8f, 20.8f);
+            castle.transform.position = hero + new Vector3(8.9f, 6.2f, 21.8f);
             Created.Add(castle);
-            BuildCastleTower(castle.transform, new Vector3(0f, 2.25f, 0f), new Vector3(1.40f, 4.50f, 1.40f), castleStone, castleRoof, 4);
-            BuildCastleTower(castle.transform, new Vector3(-1.65f, 1.55f, 0.20f), new Vector3(1.00f, 3.10f, 1.00f), castleStone, castleRoof, 3);
-            BuildCastleTower(castle.transform, new Vector3(1.65f, 1.35f, 0.15f), new Vector3(0.92f, 2.70f, 0.92f), castleStone, castleRoof, 3);
-            BuildCastleTower(castle.transform, new Vector3(0.85f, 3.65f, 0.35f), new Vector3(0.72f, 2.15f, 0.72f), castleStone, castleRoof, 3);
+            BuildCastleTower(castle.transform, new Vector3(0f, 2.25f, 0f), new Vector3(1.40f, 4.50f, 1.40f), castleStone, castleRoof, 5);
+            BuildCastleTower(castle.transform, new Vector3(-1.65f, 1.55f, 0.20f), new Vector3(1.00f, 3.10f, 1.00f), castleStone, castleRoof, 4);
+            BuildCastleTower(castle.transform, new Vector3(1.65f, 1.35f, 0.15f), new Vector3(0.92f, 2.70f, 0.92f), castleStone, castleRoof, 4);
+            BuildCastleTower(castle.transform, new Vector3(0.85f, 3.65f, 0.35f), new Vector3(0.72f, 2.15f, 0.72f), castleStone, castleRoof, 4);
+
+            // Smooth moss pillows are deliberately sparse. They soften the hero island the same
+            // way the reference does without hiding the block-derived destructible substrate.
+            CreateMoss(hero + new Vector3(-2.15f, 0.04f, 1.65f), new Vector3(1.35f, 0.34f, 1.05f), moss);
+            CreateMoss(hero + new Vector3(2.10f, 0.02f, 2.35f), new Vector3(1.55f, 0.38f, 1.15f), moss);
+            CreateMoss(hero + new Vector3(-3.20f, 0.08f, 3.85f), new Vector3(1.10f, 0.30f, 0.95f), moss);
+            CreateMoss(hero + new Vector3(3.25f, 0.10f, 4.15f), new Vector3(1.25f, 0.32f, 1.00f), moss);
         }
 
-        private static Material CreateUrpMaterial(string name, Color colour, float smoothness)
+        private static Material CreateSmoothMaterial(string name, Color colour, float smoothness)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            Shader shader = SmoothShader();
             var material = new Material(shader) { name = name };
-            material.SetTexture("_BaseMap", Texture2D.whiteTexture);
+            material.SetTexture("_MainTex", Texture2D.whiteTexture);
             material.SetColor("_BaseColor", colour);
-            material.SetColor("_Color", colour);
             material.SetFloat("_Smoothness", smoothness);
-            material.SetFloat("_Metallic", 0f);
+            material.SetColor("_EmissionColor", Color.black);
+            material.SetFloat("_Cull", 2f);
+            material.SetFloat("_ZWrite", 1f);
             return material;
         }
 
@@ -280,6 +270,20 @@ namespace VoxelEngine.CI
             }
         }
 
+        private static void CreateMoss(Vector3 position, Vector3 scale, Material material)
+        {
+            GameObject moss = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            moss.name = "Smooth Moss Cushion";
+            moss.transform.position = position;
+            moss.transform.localScale = scale;
+            Object.DestroyImmediate(moss.GetComponent<Collider>());
+            var renderer = moss.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = ShadowCastingMode.On;
+            renderer.receiveShadows = true;
+            Created.Add(moss);
+        }
+
         private static void BuildCastleTower(Transform parent, Vector3 localPosition, Vector3 size,
                                              Material stone, Material roof, int roofSteps)
         {
@@ -295,12 +299,12 @@ namespace VoxelEngine.CI
             for (int i = 0; i < roofSteps; i++)
             {
                 float t = i / (float)roofSteps;
-                float width = size.x * Mathf.Lerp(0.90f, 0.18f, t);
+                float width = size.x * Mathf.Lerp(0.90f, 0.16f, t);
                 GameObject tier = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 tier.name = "Castle Spire Tier";
                 tier.transform.SetParent(parent, false);
-                tier.transform.localPosition = new Vector3(localPosition.x, y + 0.16f + i * 0.22f, localPosition.z);
-                tier.transform.localScale = new Vector3(width, 0.24f, width);
+                tier.transform.localPosition = new Vector3(localPosition.x, y + 0.15f + i * 0.21f, localPosition.z);
+                tier.transform.localScale = new Vector3(width, 0.23f, width);
                 Object.DestroyImmediate(tier.GetComponent<Collider>());
                 tier.GetComponent<MeshRenderer>().sharedMaterial = roof;
             }
