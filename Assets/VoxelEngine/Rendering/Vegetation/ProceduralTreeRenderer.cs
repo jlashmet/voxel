@@ -117,7 +117,7 @@ namespace VoxelEngine.Rendering.Vegetation
                     hideFlags = HideFlags.DontSave,
                 };
                 root.transform.SetParent(transform, false);
-                root.transform.position = instance.PositionMetres;
+                root.transform.position = (Vector3)instance.PositionMetres;
                 _treeRoots.Add(root);
 
                 var lodRenderers = new Renderer[3];
