@@ -13,8 +13,9 @@ namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Temporary bridge from the showcase's old voxel Tree/Pine calls to semantic procedural
-    /// vegetation. It reproduces those placements deterministically, publishes real TreeInstance
-    /// records, and masks only the old foliage-crown bricks out of the smooth terrain field.
+    /// vegetation. It reproduces those placements deterministically and publishes real
+    /// TreeInstance records. The Transvoxel legacy-support rule independently rejects the old
+    /// unsupported grass/moss crown volumes so they do not render underneath these trees.
     ///
     /// Delete this class once world generation emits TreeInstance directly.
     /// </summary>
@@ -52,25 +53,23 @@ namespace VoxelEngine.Showcase
             if (FindWoodRoot(ref view.Table, in view.Pool, probeX, probeZ) < 0) return;
 
             var instances = new List<TreeInstance>(48);
-            var excludedBricks = new HashSet<int3>();
             int ordinal = 0;
 
-            AddTreeBelt(in plan, top, worldSeed, instances, excludedBricks, ref ordinal);
+            AddTreeBelt(in plan, top, worldSeed, instances, ref ordinal);
             AddApproachTrees(in plan, gateZ, ref view.Table, in view.Pool,
-                             worldSeed, instances, excludedBricks, ref ordinal);
+                             worldSeed, instances, ref ordinal);
             AddForegroundCopse(in plan, gateZ, ref view.Table, in view.Pool,
-                               worldSeed, instances, excludedBricks, ref ordinal);
+                               worldSeed, instances, ref ordinal);
             AddWaterfallTrees(in plan, ref view.Table, in view.Pool,
-                              worldSeed, instances, excludedBricks, ref ordinal);
+                              worldSeed, instances, ref ordinal);
 
-            ProceduralTreeRegistry.Replace(instances, excludedBricks);
+            ProceduralTreeRegistry.Replace(instances);
             _published = true;
             Destroy(gameObject);
         }
 
         private static void AddTreeBelt(in CastlePlan plan, int top, uint worldSeed,
-                                        List<TreeInstance> instances, HashSet<int3> excluded,
-                                        ref int ordinal)
+                                        List<TreeInstance> instances, ref int ordinal)
         {
             var rng = new Random(plan.Seed ^ 0x7EE5u);
             int built = 0;
@@ -95,11 +94,10 @@ namespace VoxelEngine.Showcase
                 if (!outsideWalls || blocksGate || nearWaterfall) continue;
 
                 int height = rng.NextInt(34, 58);
-                int canopyRadius = rng.NextInt(12, 19);
+                rng.NextInt(12, 19); // consume legacy canopy-radius draw to preserve RNG sequence
                 TreeSpecies species = BroadleafSpecies(built);
-                AddLegacyBroadleaf(plan.Centre.x + ox, top + 1, plan.Centre.z + oz,
-                                   height, canopyRadius, species, worldSeed,
-                                   instances, excluded, ref ordinal);
+                AddInstance(plan.Centre.x + ox, top + 1, plan.Centre.z + oz,
+                            height, species, worldSeed, instances, ref ordinal);
                 built++;
             }
         }
@@ -107,7 +105,7 @@ namespace VoxelEngine.Showcase
         private static void AddApproachTrees(in CastlePlan plan, int gateZ,
                                              ref RegionTable table, in BrickPool pool,
                                              uint worldSeed, List<TreeInstance> instances,
-                                             HashSet<int3> excluded, ref int ordinal)
+                                             ref int ordinal)
         {
             int2[] offsets =
             {
@@ -125,16 +123,14 @@ namespace VoxelEngine.Showcase
                 if ((i & 1) == 0)
                 {
                     int height = 58 + (i % 3) * 8;
-                    int radius = 18 + (i & 1) * 3;
-                    AddLegacyPine(x, y, z, height, radius, worldSeed,
-                                  instances, excluded, ref ordinal);
+                    AddInstance(x, y, z, height, TreeSpecies.Pine, worldSeed,
+                                instances, ref ordinal);
                 }
                 else
                 {
                     int height = 44 + (i % 3) * 6;
-                    int radius = 15 + (i % 2) * 3;
-                    AddLegacyBroadleaf(x, y, z, height, radius, BroadleafSpecies(i + 3),
-                                       worldSeed, instances, excluded, ref ordinal);
+                    AddInstance(x, y, z, height, BroadleafSpecies(i + 3), worldSeed,
+                                instances, ref ordinal);
                 }
             }
         }
@@ -142,7 +138,7 @@ namespace VoxelEngine.Showcase
         private static void AddForegroundCopse(in CastlePlan plan, int gateZ,
                                                ref RegionTable table, in BrickPool pool,
                                                uint worldSeed, List<TreeInstance> instances,
-                                               HashSet<int3> excluded, ref int ordinal)
+                                               ref int ordinal)
         {
             int2[] offsets =
             {
@@ -155,15 +151,15 @@ namespace VoxelEngine.Showcase
                 int z = gateZ + offsets[i].y;
                 int y = FindWoodRoot(ref table, in pool, x, z);
                 if (y < 0) continue;
-                AddLegacyPine(x, y, z, 44 + i * 5, 13 + (i & 1) * 3, worldSeed,
-                              instances, excluded, ref ordinal);
+                AddInstance(x, y, z, 44 + i * 5, TreeSpecies.Pine, worldSeed,
+                            instances, ref ordinal);
             }
         }
 
         private static void AddWaterfallTrees(in CastlePlan plan,
                                               ref RegionTable table, in BrickPool pool,
                                               uint worldSeed, List<TreeInstance> instances,
-                                              HashSet<int3> excluded, ref int ordinal)
+                                              ref int ordinal)
         {
             int streamX = CastleBuilder.WaterfallStreamX(in plan);
             int riverZ = CastleBuilder.LowerRiverZAt(in plan, streamX);
@@ -179,39 +175,13 @@ namespace VoxelEngine.Showcase
                 if (y < 0) continue;
 
                 if ((i & 1) == 0)
-                    AddLegacyBroadleaf(x, y, z, 40 + i * 3, 15,
-                                       i == 0 ? TreeSpecies.Sakura : TreeSpecies.Willow,
-                                       worldSeed, instances, excluded, ref ordinal);
+                    AddInstance(x, y, z, 40 + i * 3,
+                                i == 0 ? TreeSpecies.Sakura : TreeSpecies.Willow,
+                                worldSeed, instances, ref ordinal);
                 else
-                    AddLegacyPine(x, y, z, 45 + i * 3, 14, worldSeed,
-                                  instances, excluded, ref ordinal);
+                    AddInstance(x, y, z, 45 + i * 3, TreeSpecies.Pine,
+                                worldSeed, instances, ref ordinal);
             }
-        }
-
-        private static void AddLegacyBroadleaf(int x, int y, int z, int height,
-                                               int canopyRadius, TreeSpecies species,
-                                               uint worldSeed, List<TreeInstance> instances,
-                                               HashSet<int3> excluded, ref int ordinal)
-        {
-            AddInstance(x, y, z, height, species, worldSeed, instances, ref ordinal);
-
-            int lobeRadius = math.max(7, canopyRadius * 3 / 4);
-            int crownRadius = canopyRadius / 2 + lobeRadius + 4;
-            int crownMinY = y + height - canopyRadius / 2 - lobeRadius - 3;
-            int crownMaxY = y + height - canopyRadius / 2 + lobeRadius + 9;
-            AddExcludedBrickBounds(excluded,
-                new int3(x - crownRadius, crownMinY, z - crownRadius),
-                new int3(x + crownRadius, crownMaxY, z + crownRadius));
-        }
-
-        private static void AddLegacyPine(int x, int y, int z, int height, int radius,
-                                          uint worldSeed, List<TreeInstance> instances,
-                                          HashSet<int3> excluded, ref int ordinal)
-        {
-            AddInstance(x, y, z, height, TreeSpecies.Pine, worldSeed, instances, ref ordinal);
-            AddExcludedBrickBounds(excluded,
-                new int3(x - radius - 2, y + height / 4, z - radius - 2),
-                new int3(x + radius + 2, y + height + 2, z + radius + 2));
         }
 
         private static void AddInstance(int x, int y, int z, int legacyHeightVoxels,
@@ -257,28 +227,6 @@ namespace VoxelEngine.Showcase
                     return y;
             }
             return -1;
-        }
-
-        private static void AddExcludedBrickBounds(HashSet<int3> excluded,
-                                                   int3 minVoxel, int3 maxVoxel)
-        {
-            int edge = VoxelDimensions.BrickEdge;
-            int3 minBrick = new(FloorDiv(minVoxel.x, edge), FloorDiv(minVoxel.y, edge),
-                                FloorDiv(minVoxel.z, edge));
-            int3 maxBrick = new(FloorDiv(maxVoxel.x, edge), FloorDiv(maxVoxel.y, edge),
-                                FloorDiv(maxVoxel.z, edge));
-
-            for (int z = minBrick.z; z <= maxBrick.z; z++)
-            for (int y = minBrick.y; y <= maxBrick.y; y++)
-            for (int x = minBrick.x; x <= maxBrick.x; x++)
-                excluded.Add(new int3(x, y, z));
-        }
-
-        private static int FloorDiv(int value, int divisor)
-        {
-            int quotient = value / divisor;
-            int remainder = value % divisor;
-            return remainder < 0 ? quotient - 1 : quotient;
         }
     }
 }
