@@ -180,7 +180,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 int z0 = length * i / flight.Steps;
                 int z1 = length * (i + 1) / flight.Steps;
-                int depth = Math.Max(1, z1 - z0 + 1);
+                int depth = Math.Max(1, z1 - z0);
                 int y = flight.Steps <= 1
                     ? flight.Rise
                     : flight.Rise * (flight.Steps - 1 - i) / (flight.Steps - 1);
