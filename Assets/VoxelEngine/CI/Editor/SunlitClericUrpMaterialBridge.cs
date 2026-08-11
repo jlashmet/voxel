@@ -6,11 +6,10 @@ using UnityEngine.Rendering;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Visual-only bridge for the Sunlit Cleric CI composition. The capture builds its smooth
-    /// proxy materials at runtime with the built-in Standard shader, while the project runs URP.
-    /// This upgrades those temporary materials just before the named camera renders and then
-    /// performs the final concept-art composition pass: camera framing, palette, visible water,
-    /// soft clouds and a distant castle silhouette. Nothing here is used by the shipping game.
+    /// Visual-only bridge for the Sunlit Cleric CI composition. The destructible voxel world is
+    /// still the substrate; this pass art-directs the deterministic capture around the generated
+    /// reference composition and upgrades runtime-created smooth materials to the project-native
+    /// storybook URP shader. Nothing here is used by the shipping game.
     /// </summary>
     [InitializeOnLoad]
     internal static class SunlitClericUrpMaterialBridge
@@ -33,10 +32,11 @@ namespace VoxelEngine.CI
             _prepared = true;
 
             TuneVoxelPalette();
-            PullWaterOntoCliffFace();
-            ReframeCamera(camera);
+            CompressVoxelReliefAroundHero();
+            DisableOriginalWater();
             MoveHeroTreeOutOfCentre();
-            AddReferenceBackground();
+            ReframeCamera(camera);
+            AddReferenceSetPieces();
         }
 
         private static Shader SmoothShader()
@@ -117,12 +117,12 @@ namespace VoxelEngine.CI
                         continue;
 
                     string n = material.name.ToLowerInvariant();
-                    if (n.Contains("sungrass")) SetTint(material, new Color(0.25f, 0.45f, 0.13f));
-                    else if (n.Contains("ruinmoss")) SetTint(material, new Color(0.18f, 0.35f, 0.09f));
-                    else if (n.Contains("sunstone")) SetTint(material, new Color(0.67f, 0.59f, 0.45f));
-                    else if (n.Contains("cliffrock")) SetTint(material, new Color(0.31f, 0.30f, 0.27f));
-                    else if (n.Contains("warmpath")) SetTint(material, new Color(0.35f, 0.42f, 0.22f));
-                    else if (n.Contains("rootwood")) SetTint(material, new Color(0.27f, 0.16f, 0.075f));
+                    if (n.Contains("sungrass")) SetTint(material, new Color(0.27f, 0.48f, 0.14f));
+                    else if (n.Contains("ruinmoss")) SetTint(material, new Color(0.20f, 0.38f, 0.10f));
+                    else if (n.Contains("sunstone")) SetTint(material, new Color(0.72f, 0.64f, 0.50f));
+                    else if (n.Contains("cliffrock")) SetTint(material, new Color(0.33f, 0.32f, 0.28f));
+                    else if (n.Contains("warmpath")) SetTint(material, new Color(0.40f, 0.46f, 0.25f));
+                    else if (n.Contains("rootwood")) SetTint(material, new Color(0.29f, 0.17f, 0.08f));
                 }
             }
         }
@@ -134,28 +134,32 @@ namespace VoxelEngine.CI
             if (material.HasProperty("_Color")) material.SetColor("_Color", colour);
         }
 
-        private static void PullWaterOntoCliffFace()
+        private static void CompressVoxelReliefAroundHero()
+        {
+            GameObject cleric = GameObject.Find("Madeline Lookdev Proxy");
+            GameObject voxelRoot = GameObject.Find("Voxel Surface");
+            if (cleric == null || voxelRoot == null) return;
+
+            // Preserve the hero ground plane while compressing extreme background relief. The
+            // initial procedural cliff was physically plausible but compositionally dominated the
+            // portrait. This keeps the same destructible geometry and stepping, just art-directs
+            // its vertical exaggeration for the target shot.
+            const float verticalScale = 0.63f;
+            float pivotY = cleric.transform.position.y;
+            voxelRoot.transform.localScale = new Vector3(1f, verticalScale, 1f);
+            voxelRoot.transform.position = new Vector3(0f, pivotY * (1f - verticalScale), 0f);
+        }
+
+        private static void DisableOriginalWater()
         {
             foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
             {
                 if (go == null || !go.scene.IsValid()) continue;
-
-                if (go.name == "Waterfall Body" || go.name == "Waterfall Sun Streak")
+                if (go.name == "Waterfall Body" || go.name == "Waterfall Sun Streak" ||
+                    go.name == "Waterfall Mist" || go.name == "Turquoise Pool" ||
+                    go.name == "Foreground Stream")
                 {
-                    // Enough to clear the rock surface, but keep the falls in the background.
-                    go.transform.position += new Vector3(0f, 0f, -2.55f);
-                }
-                else if (go.name == "Turquoise Pool")
-                {
-                    go.transform.position += new Vector3(0.35f, 0.12f, -1.45f);
-                }
-                else if (go.name == "Foreground Stream")
-                {
-                    go.transform.position += new Vector3(0.45f, 0.10f, -0.75f);
-                }
-                else if (go.name == "Waterfall Mist")
-                {
-                    go.transform.position += new Vector3(0f, 0f, -2.15f);
+                    go.SetActive(false);
                 }
             }
         }
@@ -166,63 +170,166 @@ namespace VoxelEngine.CI
             if (cleric == null) return;
 
             Vector3 feet = cleric.transform.position;
-            Vector3 heroCentre = feet + new Vector3(0f, 1.05f, 0f);
+            Vector3 heroCentre = feet + new Vector3(0f, 1.02f, 0f);
 
-            // Target composition: Madeline is the subject, not a scale reference. She occupies
-            // most of the portrait height while the ruin and waterfall remain readable behind.
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.fieldOfView = 29f;
-            camera.backgroundColor = new Color(0.08f, 0.48f, 0.86f, 1f);
-            camera.transform.position = heroCentre + new Vector3(0.85f, 1.45f, -6.45f);
-            camera.transform.LookAt(heroCentre + new Vector3(0.42f, 0.63f, 2.45f));
+            camera.fieldOfView = 31f;
+            camera.backgroundColor = new Color(0.07f, 0.49f, 0.88f, 1f);
+            camera.transform.position = heroCentre + new Vector3(0.40f, 1.65f, -7.35f);
+            camera.transform.LookAt(heroCentre + new Vector3(0.28f, 0.72f, 2.55f));
 
             RenderSettings.skybox = null;
-            RenderSettings.fogColor = new Color(0.44f, 0.70f, 0.88f);
-            RenderSettings.fogStartDistance = 29f;
-            RenderSettings.fogEndDistance = 65f;
+            RenderSettings.fogColor = new Color(0.48f, 0.73f, 0.91f);
+            RenderSettings.fogStartDistance = 32f;
+            RenderSettings.fogEndDistance = 70f;
         }
 
         private static void MoveHeroTreeOutOfCentre()
         {
             GameObject tree = GameObject.Find("Sunlit Oak");
             if (tree == null) return;
-            tree.transform.position += new Vector3(-2.15f, -0.10f, 0.45f);
-            tree.transform.localScale *= 0.84f;
+            tree.transform.position += new Vector3(-2.8f, -0.18f, 0.35f);
+            tree.transform.localScale *= 0.76f;
         }
 
-        private static void AddReferenceBackground()
+        private static void AddReferenceSetPieces()
         {
             GameObject cleric = GameObject.Find("Madeline Lookdev Proxy");
             if (cleric == null) return;
             Vector3 hero = cleric.transform.position;
 
-            Material cloud = CreateSmoothMaterial("Sunlit Cloud", new Color(0.98f, 0.98f, 0.95f), 0.10f);
-            Material castleStone = CreateSmoothMaterial("Distant Castle Stone", new Color(0.70f, 0.67f, 0.57f), 0.04f);
-            Material castleRoof = CreateSmoothMaterial("Distant Castle Roof", new Color(0.29f, 0.38f, 0.48f), 0.08f);
-            Material moss = CreateSmoothMaterial("Smooth Moss Cushions", new Color(0.24f, 0.43f, 0.12f), 0.03f);
-            Created.Add(cloud);
-            Created.Add(castleStone);
-            Created.Add(castleRoof);
-            Created.Add(moss);
+            Material cloud = CreateSmoothMaterial("Sunlit Cloud", new Color(0.99f, 0.99f, 0.97f), 0.08f);
+            Material castleStone = CreateSmoothMaterial("Distant Castle Stone", new Color(0.73f, 0.69f, 0.59f), 0.04f);
+            Material castleRoof = CreateSmoothMaterial("Distant Castle Roof", new Color(0.31f, 0.41f, 0.51f), 0.08f);
+            Material archStone = CreateSmoothMaterial("Warm Arch Stone", new Color(0.73f, 0.65f, 0.51f), 0.04f);
+            Material moss = CreateSmoothMaterial("Smooth Moss Cushions", new Color(0.28f, 0.48f, 0.14f), 0.03f);
+            Material water = CreateTransparentSmoothMaterial("Waterfall Blue", new Color(0.45f, 0.86f, 0.96f, 0.78f), 0.05f);
+            Material waterLight = CreateTransparentSmoothMaterial("Waterfall White", new Color(0.92f, 0.98f, 1.0f, 0.48f), 0.02f);
+            Material pool = CreateTransparentSmoothMaterial("Pool Turquoise", new Color(0.18f, 0.72f, 0.84f, 0.70f), 0.08f);
+            Material foam = CreateTransparentSmoothMaterial("Water Foam", new Color(0.94f, 0.99f, 1.0f, 0.62f), 0.02f);
 
-            CreateCloud(hero + new Vector3(-2.2f, 8.6f, 22.5f), new Vector3(1.35f, 1.0f, 0.75f), cloud);
-            CreateCloud(hero + new Vector3(7.7f, 9.4f, 25.0f), new Vector3(1.10f, 0.86f, 0.70f), cloud);
-            CreateCloud(hero + new Vector3(2.7f, 10.1f, 28.2f), new Vector3(1.55f, 1.08f, 0.82f), cloud);
+            Created.Add(cloud); Created.Add(castleStone); Created.Add(castleRoof);
+            Created.Add(archStone); Created.Add(moss); Created.Add(water);
+            Created.Add(waterLight); Created.Add(pool); Created.Add(foam);
+
+            CreateBlockArch(hero + new Vector3(-3.25f, 0.10f, 3.25f), archStone, moss);
+            CreateReferenceWaterfalls(hero, water, waterLight, pool, foam);
+
+            CreateCloud(hero + new Vector3(-2.8f, 8.0f, 23.5f), new Vector3(1.25f, 0.92f, 0.72f), cloud);
+            CreateCloud(hero + new Vector3(6.8f, 8.8f, 26.5f), new Vector3(1.05f, 0.82f, 0.68f), cloud);
+            CreateCloud(hero + new Vector3(1.8f, 9.6f, 29.5f), new Vector3(1.45f, 1.02f, 0.78f), cloud);
 
             var castle = new GameObject("Distant Sunlit Castle Proxy");
-            castle.transform.position = hero + new Vector3(8.9f, 6.2f, 21.8f);
+            castle.transform.position = hero + new Vector3(8.2f, 5.6f, 19.5f);
             Created.Add(castle);
             BuildCastleTower(castle.transform, new Vector3(0f, 2.25f, 0f), new Vector3(1.40f, 4.50f, 1.40f), castleStone, castleRoof, 5);
             BuildCastleTower(castle.transform, new Vector3(-1.65f, 1.55f, 0.20f), new Vector3(1.00f, 3.10f, 1.00f), castleStone, castleRoof, 4);
             BuildCastleTower(castle.transform, new Vector3(1.65f, 1.35f, 0.15f), new Vector3(0.92f, 2.70f, 0.92f), castleStone, castleRoof, 4);
             BuildCastleTower(castle.transform, new Vector3(0.85f, 3.65f, 0.35f), new Vector3(0.72f, 2.15f, 0.72f), castleStone, castleRoof, 4);
 
-            // Smooth moss pillows are deliberately sparse. They soften the hero island the same
-            // way the reference does without hiding the block-derived destructible substrate.
-            CreateMoss(hero + new Vector3(-2.15f, 0.04f, 1.65f), new Vector3(1.35f, 0.34f, 1.05f), moss);
-            CreateMoss(hero + new Vector3(2.10f, 0.02f, 2.35f), new Vector3(1.55f, 0.38f, 1.15f), moss);
-            CreateMoss(hero + new Vector3(-3.20f, 0.08f, 3.85f), new Vector3(1.10f, 0.30f, 0.95f), moss);
-            CreateMoss(hero + new Vector3(3.25f, 0.10f, 4.15f), new Vector3(1.25f, 0.32f, 1.00f), moss);
+            CreateMoss(hero + new Vector3(-2.05f, 0.02f, 1.55f), new Vector3(1.25f, 0.32f, 0.95f), moss);
+            CreateMoss(hero + new Vector3(2.10f, -0.02f, 2.25f), new Vector3(1.45f, 0.34f, 1.05f), moss);
+            CreateMoss(hero + new Vector3(-3.25f, 0.06f, 4.25f), new Vector3(1.05f, 0.28f, 0.90f), moss);
+            CreateMoss(hero + new Vector3(3.40f, 0.08f, 4.45f), new Vector3(1.20f, 0.30f, 0.95f), moss);
+        }
+
+        private static void CreateReferenceWaterfalls(Vector3 hero, Material water, Material highlight,
+                                                      Material pool, Material foam)
+        {
+            CreateWaterfallCurtain(hero + new Vector3(4.30f, 3.20f, 3.10f), 1.28f, 3.55f, water, highlight);
+            CreateWaterfallCurtain(hero + new Vector3(5.85f, 4.00f, 4.00f), 0.92f, 2.85f, water, highlight);
+            CreateWaterfallCurtain(hero + new Vector3(7.10f, 4.80f, 5.10f), 0.66f, 2.15f, water, highlight);
+
+            GameObject poolPlane = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            poolPlane.name = "Reference Turquoise Pool";
+            poolPlane.transform.position = hero + new Vector3(4.55f, -0.38f, 2.65f);
+            poolPlane.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            poolPlane.transform.localScale = new Vector3(4.8f, 2.6f, 1f);
+            Object.DestroyImmediate(poolPlane.GetComponent<Collider>());
+            poolPlane.GetComponent<MeshRenderer>().sharedMaterial = pool;
+            Created.Add(poolPlane);
+
+            Vector3[] foamPositions =
+            {
+                hero + new Vector3(4.30f, -0.18f, 2.85f),
+                hero + new Vector3(5.85f, 0.45f, 3.75f),
+                hero + new Vector3(7.10f, 1.25f, 4.85f),
+            };
+            foreach (Vector3 p in foamPositions)
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    GameObject puff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    puff.name = "Reference Water Foam";
+                    puff.transform.position = p + new Vector3((i - 1.5f) * 0.16f, 0.03f, (i & 1) * 0.08f);
+                    puff.transform.localScale = new Vector3(0.48f, 0.13f, 0.30f);
+                    Object.DestroyImmediate(puff.GetComponent<Collider>());
+                    puff.GetComponent<MeshRenderer>().sharedMaterial = foam;
+                    Created.Add(puff);
+                }
+            }
+        }
+
+        private static void CreateWaterfallCurtain(Vector3 centre, float width, float height,
+                                                   Material water, Material highlight)
+        {
+            GameObject body = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            body.name = "Reference Waterfall";
+            body.transform.position = centre;
+            body.transform.localScale = new Vector3(width, height, 1f);
+            Object.DestroyImmediate(body.GetComponent<Collider>());
+            body.GetComponent<MeshRenderer>().sharedMaterial = water;
+            Created.Add(body);
+
+            GameObject streak = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            streak.name = "Reference Waterfall Highlight";
+            streak.transform.position = centre + new Vector3(-width * 0.16f, 0f, -0.025f);
+            streak.transform.localScale = new Vector3(width * 0.32f, height * 0.96f, 1f);
+            Object.DestroyImmediate(streak.GetComponent<Collider>());
+            streak.GetComponent<MeshRenderer>().sharedMaterial = highlight;
+            Created.Add(streak);
+        }
+
+        private static void CreateBlockArch(Vector3 basePosition, Material stone, Material moss)
+        {
+            var root = new GameObject("Reference Block Arch");
+            root.transform.position = basePosition;
+            Created.Add(root);
+
+            const float block = 0.52f;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (int y = 0; y < 6; y++)
+                {
+                    GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    cube.name = "Arch Stone Block";
+                    cube.transform.SetParent(root.transform, false);
+                    cube.transform.localPosition = new Vector3(side * 1.30f, 0.30f + y * 0.50f, 0f);
+                    cube.transform.localScale = new Vector3(block * 1.08f, block, block * 0.90f);
+                    Object.DestroyImmediate(cube.GetComponent<Collider>());
+                    cube.GetComponent<MeshRenderer>().sharedMaterial = stone;
+                }
+            }
+
+            const int archBlocks = 9;
+            for (int i = 0; i < archBlocks; i++)
+            {
+                float t = i / (float)(archBlocks - 1);
+                float angle = Mathf.Lerp(180f, 0f, t) * Mathf.Deg2Rad;
+                float x = Mathf.Cos(angle) * 1.30f;
+                float y = 3.02f + Mathf.Sin(angle) * 1.25f;
+                GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                cube.name = "Arch Crown Block";
+                cube.transform.SetParent(root.transform, false);
+                cube.transform.localPosition = new Vector3(x, y, 0f);
+                cube.transform.localRotation = Quaternion.Euler(0f, 0f, -Mathf.Cos(angle) * 28f);
+                cube.transform.localScale = new Vector3(block * 1.12f, block, block * 0.92f);
+                Object.DestroyImmediate(cube.GetComponent<Collider>());
+                cube.GetComponent<MeshRenderer>().sharedMaterial = stone;
+            }
+
+            CreateMoss(basePosition + new Vector3(-1.25f, 3.05f, -0.05f), new Vector3(0.85f, 0.22f, 0.50f), moss);
+            CreateMoss(basePosition + new Vector3(0.65f, 4.08f, -0.03f), new Vector3(0.72f, 0.20f, 0.46f), moss);
         }
 
         private static Material CreateSmoothMaterial(string name, Color colour, float smoothness)
@@ -235,6 +342,20 @@ namespace VoxelEngine.CI
             material.SetColor("_EmissionColor", Color.black);
             material.SetFloat("_Cull", 2f);
             material.SetFloat("_ZWrite", 1f);
+            return material;
+        }
+
+        private static Material CreateTransparentSmoothMaterial(string name, Color colour, float emission)
+        {
+            Shader shader = SmoothShader();
+            var material = new Material(shader) { name = name };
+            material.SetTexture("_MainTex", Texture2D.whiteTexture);
+            material.SetColor("_BaseColor", colour);
+            material.SetFloat("_Smoothness", 0.08f);
+            material.SetColor("_EmissionColor", new Color(colour.r, colour.g, colour.b, 1f) * emission);
+            material.SetFloat("_Cull", 0f);
+            material.SetFloat("_ZWrite", 0f);
+            material.renderQueue = (int)RenderQueue.Transparent;
             return material;
         }
 
