@@ -7,8 +7,9 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Composes Kentridge generation stages into the single immutable catalogue understood by the
     /// voxel engine. Ordering is intentional and observable: themed ground cover first, authored
-    /// vertical roads/plaza second, masonry terrace supports third, prepared building plots fourth,
-    /// frontage paths fifth, private/public dressing next, and structures last.
+    /// vertical roads/plaza second, hillside stair connectors third, masonry terrace supports fourth,
+    /// prepared building plots fifth, frontage paths sixth, private/public dressing next, and
+    /// structures last.
     /// </summary>
     public static class KentridgeCombinedVoxelCatalogue
     {
@@ -19,6 +20,8 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue publicSpaces =
                 KentridgeVerticalTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
+            FeatureCatalogue verticalConnectors =
+                KentridgeVerticalConnectorCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue terraceSupports =
                 KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue plotSurfaces =
@@ -41,6 +44,7 @@ namespace MountingForce.WorldGen.Voxel
                 FeatureCatalogue result = CatalogueLoader.Allocate(
                     definitions: groundCover.Definitions.Length
                                + publicSpaces.Definitions.Length
+                               + verticalConnectors.Definitions.Length
                                + terraceSupports.Definitions.Length
                                + plotSurfaces.Definitions.Length
                                + frontagePaths.Definitions.Length
@@ -49,6 +53,7 @@ namespace MountingForce.WorldGen.Voxel
                                + buildings.Definitions.Length,
                     rules: groundCover.Rules.Length
                          + publicSpaces.Rules.Length
+                         + verticalConnectors.Rules.Length
                          + terraceSupports.Rules.Length
                          + plotSurfaces.Rules.Length
                          + frontagePaths.Rules.Length
@@ -57,6 +62,7 @@ namespace MountingForce.WorldGen.Voxel
                          + buildings.Rules.Length,
                     parameters: groundCover.Parameters.Length
                               + publicSpaces.Parameters.Length
+                              + verticalConnectors.Parameters.Length
                               + terraceSupports.Parameters.Length
                               + plotSurfaces.Parameters.Length
                               + frontagePaths.Parameters.Length
@@ -65,6 +71,7 @@ namespace MountingForce.WorldGen.Voxel
                               + buildings.Parameters.Length,
                     anchors: groundCover.Anchors.Length
                            + publicSpaces.Anchors.Length
+                           + verticalConnectors.Anchors.Length
                            + terraceSupports.Anchors.Length
                            + plotSurfaces.Anchors.Length
                            + frontagePaths.Anchors.Length
@@ -73,6 +80,7 @@ namespace MountingForce.WorldGen.Voxel
                            + buildings.Anchors.Length,
                     slots: groundCover.Slots.Length
                          + publicSpaces.Slots.Length
+                         + verticalConnectors.Slots.Length
                          + terraceSupports.Slots.Length
                          + plotSurfaces.Slots.Length
                          + frontagePaths.Slots.Length
@@ -81,6 +89,7 @@ namespace MountingForce.WorldGen.Voxel
                          + buildings.Slots.Length,
                     programLength: groundCover.Program.Length
                                  + publicSpaces.Program.Length
+                                 + verticalConnectors.Program.Length
                                  + terraceSupports.Program.Length
                                  + plotSurfaces.Program.Length
                                  + frontagePaths.Program.Length
@@ -89,6 +98,7 @@ namespace MountingForce.WorldGen.Voxel
                                  + buildings.Program.Length,
                     materials: groundCover.Materials.Length
                              + publicSpaces.Materials.Length
+                             + verticalConnectors.Materials.Length
                              + terraceSupports.Materials.Length
                              + plotSurfaces.Materials.Length
                              + frontagePaths.Materials.Length
@@ -97,6 +107,7 @@ namespace MountingForce.WorldGen.Voxel
                              + buildings.Materials.Length,
                     explicitPlacements: groundCover.ExplicitPlacements.Length
                                       + publicSpaces.ExplicitPlacements.Length
+                                      + verticalConnectors.ExplicitPlacements.Length
                                       + terraceSupports.ExplicitPlacements.Length
                                       + plotSurfaces.ExplicitPlacements.Length
                                       + frontagePaths.ExplicitPlacements.Length
@@ -105,6 +116,7 @@ namespace MountingForce.WorldGen.Voxel
                                       + buildings.ExplicitPlacements.Length,
                     overrides: groundCover.ParameterOverrides.Length
                              + publicSpaces.ParameterOverrides.Length
+                             + verticalConnectors.ParameterOverrides.Length
                              + terraceSupports.ParameterOverrides.Length
                              + plotSurfaces.ParameterOverrides.Length
                              + frontagePaths.ParameterOverrides.Length
@@ -128,6 +140,10 @@ namespace MountingForce.WorldGen.Voxel
                     ref anchorOffset, ref slotOffset, ref programOffset,
                     ref materialOffset, ref placementOffset, ref overrideOffset);
                 Append(in publicSpaces, ref result,
+                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
+                    ref anchorOffset, ref slotOffset, ref programOffset,
+                    ref materialOffset, ref placementOffset, ref overrideOffset);
+                Append(in verticalConnectors, ref result,
                     ref definitionOffset, ref ruleOffset, ref parameterOffset,
                     ref anchorOffset, ref slotOffset, ref programOffset,
                     ref materialOffset, ref placementOffset, ref overrideOffset);
@@ -170,6 +186,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 groundCover.Dispose();
                 publicSpaces.Dispose();
+                verticalConnectors.Dispose();
                 terraceSupports.Dispose();
                 plotSurfaces.Dispose();
                 frontagePaths.Dispose();
