@@ -33,6 +33,7 @@ namespace VoxelEngine.Showcase
     public sealed class LegacyTreeProxyCleanup : MonoBehaviour
     {
         private const float VoxelSize = 0.1f;
+        private const string MigrationObjectName = "Legacy Showcase Tree Migration";
 
         // The largest legacy crown is under 2 m radius and the tallest showcase tree is under
         // 8 m. A little padding catches the broadleaf scaffold limbs and overlapping crown lobes
@@ -41,6 +42,11 @@ namespace VoxelEngine.Showcase
         private const int HeightVoxels = 100;
 
         private bool _done;
+
+        public static bool Completed { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatic() => Completed = false;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Bootstrap()
@@ -59,6 +65,14 @@ namespace VoxelEngine.Showcase
 
             IReadOnlyList<TreeInstance> instances = ProceduralTreeRegistry.Instances;
             if (instances == null || instances.Count == 0) return;
+
+            // Stop the legacy damage poller before changing any proxy material. The bootstrap
+            // object is HideFlags.DontSave and typed Unity object searches have proven unreliable
+            // for it in both the player and PlayMode Test Runner. The runtime GameObject name is
+            // unique, and Resources.FindObjectsOfTypeAll<GameObject>() does include hidden objects.
+            // Deactivating the owner guarantees its Update cannot observe the moss rewrite as a
+            // severed/missing wood trunk on a later frame.
+            int disabledMigrations = DisableLegacyMigrationObjects();
 
             var dirtyRegions = new HashSet<int3>();
             int changedVoxels = 0;
@@ -82,33 +96,22 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            // Direct explosion->branch damage is now authoritative for procedural presentation.
-            // The old polling bridge expects a wood trunk and would interpret this hidden proxy
-            // rewrite as an already-severed tree, so retire every loaded runtime poller now.
-            //
-            // IMPORTANT: the migration bootstrap object is HideFlags.DontSave. Unity's normal
-            // FindObjectOfType path can omit DontSave objects, which previously left the poller
-            // alive. On its next 125 ms tick it saw the rewritten moss trunks as missing wood and
-            // marked every procedural tree severed at startup. Resources.FindObjectsOfTypeAll is
-            // required here, with a scene-validity filter to avoid touching assets/prefabs.
-            int disabledMigrations = DisableLegacyMigrationPollers();
-
             _done = true;
-            Debug.Log($"Procedural vegetation: hid legacy voxel tree proxies ({changedVoxels:N0} voxels across {dirtyRegions.Count} regions; disabled {disabledMigrations} legacy damage poller(s)).");
+            Completed = true;
+            Debug.Log($"Procedural vegetation: hid legacy voxel tree proxies ({changedVoxels:N0} voxels across {dirtyRegions.Count} regions; disabled {disabledMigrations} legacy damage poller object(s)).");
         }
 
-        private static int DisableLegacyMigrationPollers()
+        private static int DisableLegacyMigrationObjects()
         {
-            LegacyShowcaseTreeMigration[] migrations =
-                Resources.FindObjectsOfTypeAll<LegacyShowcaseTreeMigration>();
+            GameObject[] objects = Resources.FindObjectsOfTypeAll<GameObject>();
             int disabled = 0;
-            for (int i = 0; i < migrations.Length; i++)
+            for (int i = 0; i < objects.Length; i++)
             {
-                LegacyShowcaseTreeMigration migration = migrations[i];
-                if (migration == null || migration.gameObject == null) continue;
-                if (!migration.gameObject.scene.IsValid()) continue;
-                if (!migration.enabled) continue;
-                migration.enabled = false;
+                GameObject candidate = objects[i];
+                if (candidate == null || candidate.name != MigrationObjectName) continue;
+                if (!candidate.scene.IsValid()) continue;
+                if (!candidate.activeSelf) continue;
+                candidate.SetActive(false);
                 disabled++;
             }
             return disabled;
