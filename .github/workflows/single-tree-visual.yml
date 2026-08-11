@@ -112,7 +112,7 @@ jobs:
             m_configObjects: {}
           EOF
 
-      - name: Run real Showcase tree integration test
+      - name: Run real Showcase startup integration test
         shell: bash
         run: |
           set -euo pipefail
@@ -131,6 +131,27 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTree/showcase-tree.txt"
           test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTree/showcase-tree.png"
 
+      - name: Run real Showcase tornado destruction proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction"
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.ShowcaseTreeDestructionVisualTests.ShowcaseTornado_BreaksBranchAndSeversTreeVisibly" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/unity.log"
+
+          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/results.xml"
+          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/showcase-tree-destruction.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/01-showcase-before.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/02-showcase-after-branch.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/03-showcase-after-trunk.png"
+
       - name: Show visual metadata
         if: always()
         shell: bash
@@ -147,9 +168,13 @@ jobs:
           if [[ -f "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/tree-destruction.txt" ]]; then
             cat "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/tree-destruction.txt"
           fi
-          echo "--- Real Showcase integration ---"
+          echo "--- Real Showcase startup ---"
           if [[ -f "$GITHUB_WORKSPACE/Artifacts/ShowcaseTree/showcase-tree.txt" ]]; then
             cat "$GITHUB_WORKSPACE/Artifacts/ShowcaseTree/showcase-tree.txt"
+          fi
+          echo "--- Real Showcase tornado destruction ---"
+          if [[ -f "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/showcase-tree-destruction.txt" ]]; then
+            cat "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/showcase-tree-destruction.txt"
           fi
 
       - name: Upload direct-tree artifact
@@ -179,11 +204,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload Showcase tree artifact
+      - name: Upload Showcase startup artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: showcase-tree-${{ github.sha }}
           path: Artifacts/ShowcaseTree/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Showcase tornado destruction artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: showcase-tree-destruction-${{ github.sha }}
+          path: Artifacts/ShowcaseTreeDestruction/
           if-no-files-found: warn
           retention-days: 14
