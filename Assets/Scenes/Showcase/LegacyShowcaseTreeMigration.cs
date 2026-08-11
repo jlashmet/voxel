@@ -8,6 +8,7 @@ using VoxelEngine.Rendering;
 using VoxelEngine.Rendering.Vegetation;
 using VoxelEngine.Structures;
 using Random = Unity.Mathematics.Random;
+using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 
 namespace VoxelEngine.Showcase
 {
