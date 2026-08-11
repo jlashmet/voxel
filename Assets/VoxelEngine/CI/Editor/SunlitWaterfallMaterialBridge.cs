@@ -77,6 +77,8 @@ namespace VoxelEngine.CI
 
                 if (changed) renderer.sharedMaterials = materials;
             }
+
+            SunlitWaterfallArtPass.Apply(camera);
         }
     }
 }
