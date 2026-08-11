@@ -68,7 +68,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(17, structures,
                     "Every stable Kentridge building role should compile once.");
                 Assert.Greater(instances, structures,
-                    "Road and plaza instances should accompany the buildings.");
+                    "Road, plaza, paths, and dressing should accompany the buildings.");
                 Assert.Greater(primitiveCount, 100,
                     "Kentridge emitted implausibly little geometry.");
             }
@@ -77,6 +77,32 @@ namespace VoxelEngine.Tests.EditMode
                 primitives.Dispose();
                 anchors.Dispose();
                 catalogue.Dispose();
+            }
+        }
+
+        [Test]
+        public void MarketDressingHasStablePropVocabularyAndPlacements()
+        {
+            FeatureCatalogue dressing = KentridgeTownDressingCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+
+            try
+            {
+                Assert.AreEqual(4, dressing.Definitions.Length,
+                    "Market dressing should compile four reusable prop definitions.");
+                Assert.AreEqual(20, dressing.ExplicitPlacements.Length,
+                    "The first market-square dressing pass should place twenty props.");
+
+                int explicitCount = 0;
+                for (int i = 0; i < dressing.Rules.Length; i++)
+                    explicitCount += dressing.Rules[i].ExplicitCount;
+
+                Assert.AreEqual(20, explicitCount,
+                    "Every market dressing placement should be reachable by a rule.");
+            }
+            finally
+            {
+                dressing.Dispose();
             }
         }
 
