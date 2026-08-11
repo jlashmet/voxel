@@ -30,6 +30,7 @@ namespace VoxelEngine.Rendering.Vegetation
 
         public static IReadOnlyList<TreeInstance> Instances => s_Instances;
         public static IReadOnlyList<TreeDamageState> Damage => s_Damage;
+        public static IReadOnlyCollection<int3> LegacyHiddenHardBricks => s_LegacyHiddenHardBricks;
         public static int Version => s_Version;
         public static int DamageVersion => s_DamageVersion;
 
