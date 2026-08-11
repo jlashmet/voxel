@@ -52,8 +52,7 @@ jobs:
             -testPlatform PlayMode \
             -testFilter VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests \
             -testResults "$GITHUB_WORKSPACE/Artifacts/ChainCombat/results.xml" \
-            -logFile "$GITHUB_WORKSPACE/Artifacts/ChainCombat/unity.log" \
-            -quit
+            -logFile "$GITHUB_WORKSPACE/Artifacts/ChainCombat/unity.log"
           status=$?
 
           if [[ -f "$GITHUB_WORKSPACE/Artifacts/ChainCombat/unity.log" ]]; then
