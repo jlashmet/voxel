@@ -84,12 +84,34 @@ namespace VoxelEngine.Showcase
 
             // Direct explosion->branch damage is now authoritative for procedural presentation.
             // The old polling bridge expects a wood trunk and would interpret this hidden proxy
-            // rewrite as an already-severed tree, so retire it once its placement work is done.
-            LegacyShowcaseTreeMigration migration = FindObjectOfType<LegacyShowcaseTreeMigration>();
-            if (migration != null) migration.enabled = false;
+            // rewrite as an already-severed tree, so retire every loaded runtime poller now.
+            //
+            // IMPORTANT: the migration bootstrap object is HideFlags.DontSave. Unity's normal
+            // FindObjectOfType path can omit DontSave objects, which previously left the poller
+            // alive. On its next 125 ms tick it saw the rewritten moss trunks as missing wood and
+            // marked every procedural tree severed at startup. Resources.FindObjectsOfTypeAll is
+            // required here, with a scene-validity filter to avoid touching assets/prefabs.
+            int disabledMigrations = DisableLegacyMigrationPollers();
 
             _done = true;
-            Debug.Log($"Procedural vegetation: hid legacy voxel tree proxies ({changedVoxels:N0} voxels across {dirtyRegions.Count} regions).");
+            Debug.Log($"Procedural vegetation: hid legacy voxel tree proxies ({changedVoxels:N0} voxels across {dirtyRegions.Count} regions; disabled {disabledMigrations} legacy damage poller(s)).");
+        }
+
+        private static int DisableLegacyMigrationPollers()
+        {
+            LegacyShowcaseTreeMigration[] migrations =
+                Resources.FindObjectsOfTypeAll<LegacyShowcaseTreeMigration>();
+            int disabled = 0;
+            for (int i = 0; i < migrations.Length; i++)
+            {
+                LegacyShowcaseTreeMigration migration = migrations[i];
+                if (migration == null || migration.gameObject == null) continue;
+                if (!migration.gameObject.scene.IsValid()) continue;
+                if (!migration.enabled) continue;
+                migration.enabled = false;
+                disabled++;
+            }
+            return disabled;
         }
 
         private static int RewriteProxy(ref RegionTable table, ref BrickPool pool, int3 root,
