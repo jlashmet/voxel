@@ -1,35 +1,43 @@
 using System;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Vegetation;
 
 namespace VoxelEngine.Rendering
 {
     /// <summary>
-    /// Draws voxel geometry as continuous GPU-authored surface meshes, one per resident chunk.
+    /// Draws voxel geometry as derived meshes through one raster architecture.
     ///
-    /// The coarse level covers all visible chunks; the near field fills gaps at close range.
-    /// Both paths share depth with the rest of the scene and use identical lighting to the
-    /// raymarch for seamless parity when both are active (Constitution Principle II).
-    /// The parameters this pass carries — render scale, voxel size — are presentation-only.
-    /// Nothing here feeds world state.
+    /// Authored hard bricks use the exact greedy mesher, natural bricks use Transvoxel, and
+    /// liquid voxels use a dedicated exposed-water surface cache. Those layers may coexist inside
+    /// the same 12.8 m render chunk; geometry semantics, not render-chunk ownership, select the
+    /// presentation. The temporary Surface Nets cache remains only as a smooth migration source.
     /// </summary>
     public sealed class VoxelRenderPass : ScriptableRenderPass, IDisposable
     {
         private const string k_PassName = "VoxelEngine.ContinuousSurface";
 
-        // Shader property names for GPU buffer binding (used by surface shader and density path).
-        // These strings must match exactly what the HLSL shaders expect.
-        private static readonly int s_RegionWindow = Shader.PropertyToID("g_RegionWindow");
-        private static readonly int s_BrickRefs = Shader.PropertyToID("g_BrickRefs");
-        private static readonly int s_BrickVoxels = Shader.PropertyToID("g_BrickVoxels");
+        private static readonly int s_DensityRegionWindow = Shader.PropertyToID("g_RegionWindow");
+        private static readonly int s_DensityBrickRefs = Shader.PropertyToID("g_BrickRefs");
+        private static readonly int s_DensityBrickVoxels = Shader.PropertyToID("g_BrickVoxels");
+        private static readonly int s_BrickDensity = Shader.PropertyToID("g_BrickDensity");
         private static readonly int s_DensityJobs = Shader.PropertyToID("g_DensityJobs");
         private static readonly int s_DensityJobCount = Shader.PropertyToID("g_DensityJobCount");
+        private static readonly int s_DensityWindowOrigin = Shader.PropertyToID("g_WindowOrigin");
+        private static readonly int s_DensityWindowX = Shader.PropertyToID("g_WindowX");
+        private static readonly int s_DensityWindowY = Shader.PropertyToID("g_WindowY");
+        private static readonly int s_DensityWindowZ = Shader.PropertyToID("g_WindowZ");
+        private static readonly int s_DensityTerrainSeed = Shader.PropertyToID("g_TerrainSeed");
+        private static readonly int s_DensityFarBaseHeight = Shader.PropertyToID("g_FarBaseHeight");
 
-        // Scalar and array shader properties bound through MaterialPropertyBlock.
+        private static readonly int s_MaterialRegionWindow = Shader.PropertyToID("_RegionWindow");
+        private static readonly int s_MaterialBrickRefs = Shader.PropertyToID("_BrickRefs");
+        private static readonly int s_MaterialBrickVoxels = Shader.PropertyToID("_BrickVoxels");
         private static readonly int s_WindowOrigin = Shader.PropertyToID("_WindowOrigin");
         private static readonly int s_WindowX = Shader.PropertyToID("_WindowX");
         private static readonly int s_WindowY = Shader.PropertyToID("_WindowY");
@@ -48,7 +56,6 @@ namespace VoxelEngine.Rendering
         private static readonly int s_FlashlightInnerCos = Shader.PropertyToID("_FlashlightInnerCos");
         private static readonly int s_FlashlightOuterCos = Shader.PropertyToID("_FlashlightOuterCos");
 
-        // Shared lighting and shading properties.
         private static readonly int s_SunDirection = Shader.PropertyToID("_SunDirection");
         private static readonly int s_SkyHorizon = Shader.PropertyToID("_SkyHorizon");
         private static readonly int s_SkyZenith = Shader.PropertyToID("_SkyZenith");
@@ -56,60 +63,39 @@ namespace VoxelEngine.Rendering
         private static readonly int s_BaseColor = Shader.PropertyToID("_BaseColor");
         private static readonly int s_VoxelSize = Shader.PropertyToID("_VoxelSize");
         private static readonly int s_DebugCoverage = Shader.PropertyToID("_DebugCoverage");
+        private static readonly int s_CameraPosition = Shader.PropertyToID("_CameraPosition");
+        private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
+
+        private const int MaxIndicesPerChunk = 78336;
+        private const int SurfaceArenaSlots = 512;
+        private const int RecoveryBricksPerChunkAxis = 16;
 
         private readonly VoxelGpuBuffers _buffers = new();
-        // The coarse level deliberately has no minimum distance: it covers the whole visible
-        // range so there is always a surface to draw, and the fine level suppresses it per chunk
-        // once every child is resident. Gating the coarse level by distance instead left holes
-        // wherever the fine level had not caught up.
-        private readonly GpuSurfaceChunkCache _surfaceCache = new();
-        private readonly GpuSurfaceChunkCache _nearSurfaceCache = new(2, 1)
+
+        // Temporary migration source. It keeps the existing coarse mesh active until the regular
+        // Transvoxel cache has completed its first working set. Once the new smooth path is
+        // validated this cache/arena and CSBuildDensity dependency can be removed entirely.
+        private readonly GpuSurfaceChunkCache _surfaceCache = new(RecoveryBricksPerChunkAxis, 8)
         {
-            MaxBuildsPerFrame = 8,
-            MaxDistance = 22f
+            MaxBuildsPerFrame = 16,
+            MaxResidentChunks = SurfaceArenaSlots,
+            MaxIndicesPerChunk = MaxIndicesPerChunk
         };
+
+        private readonly CpuTransvoxelChunkCache _transvoxelCache = new();
+        private readonly CpuHardSurfaceChunkCache _hardSurfaceCache =
+            new(RecoveryBricksPerChunkAxis);
+        private readonly CpuWaterSurfaceChunkCache _waterSurfaceCache = new();
         private GpuSurfaceArena _surfaceArena;
-        private GpuSurfaceArena _nearSurfaceArena;
-
-        // Resident chunk counts are a declared memory budget, not a residency preference: each
-        // slot costs cells * 32 B of vertices plus its index arena. These two total roughly
-        // 100 MB, allocated once at startup and never churned.
-        private const int CoarseArenaSlots = 256;
-        private const int NearArenaSlots = 160;
-
-        public VoxelRenderPass()
-        {
-            _surfaceCache.Finer = _nearSurfaceCache;
-            _nearSurfaceCache.Coarser = _surfaceCache;
-        }
-
-        private void EnsureSurfaceArenas()
-        {
-            if (_surfaceArena is { IsCreated: true } && _nearSurfaceArena is { IsCreated: true })
-                return;
-
-            _surfaceArena?.Dispose();
-            _nearSurfaceArena?.Dispose();
-
-            int coarseCells = CellsPerChunk(_surfaceCache);
-            int nearCells = CellsPerChunk(_nearSurfaceCache);
-            _surfaceArena = new GpuSurfaceArena(CoarseArenaSlots, coarseCells,
-                                                _surfaceCache.MaxIndicesPerChunk);
-            _nearSurfaceArena = new GpuSurfaceArena(NearArenaSlots, nearCells,
-                                                    _nearSurfaceCache.MaxIndicesPerChunk);
-            _surfaceCache.Arena = _surfaceArena;
-            _nearSurfaceCache.Arena = _nearSurfaceArena;
-        }
-
-        private static int CellsPerChunk(GpuSurfaceChunkCache cache)
-        {
-            int cells = cache.GridSamplesPerAxis - 1;
-            return cells * cells * cells;
-        }
+        private bool _transvoxelActivated;
 
         private ComputeShader _surfaceExtraction;
+        private ComputeShader _densityCompute;
+        private int _densityKernel = -1;
         private Material _surfaceMaterial;
+        private Material _waterMaterial;
         private readonly MaterialPropertyBlock _surfaceProperties = new();
+        private readonly MaterialPropertyBlock _waterProperties = new();
         private Texture2D _stoneTexture;
         private Texture2D _woodTexture;
         private Texture2D _sandTexture;
@@ -132,19 +118,25 @@ namespace VoxelEngine.Rendering
         public float VoxelSize { get; set; } = 0.1f;
         public bool Enabled { get; set; } = true;
 
-        /// <summary>Bricks uploaded on the most recent frame — surfaced for the HUD.</summary>
         public int LastBricksUploaded => _buffers.LastBricksUploaded;
-
         public int ResidentSlots => _buffers.ResidentSlots;
-
-        /// <summary>
-        /// The GPU mirror this pass owns. Public so a test can force allocation and then assert
-        /// the memory comes back — the leak that took a machine down was invisible from outside.
-        /// </summary>
         public VoxelGpuBuffers Buffers => _buffers;
+
+        private void EnsureSurfaceArena()
+        {
+            if (_surfaceArena is { IsCreated: true }) return;
+
+            _surfaceArena?.Dispose();
+            int cells = _surfaceCache.GridSamplesPerAxis - 1;
+            int cellsPerChunk = cells * cells * cells;
+            _surfaceArena = new GpuSurfaceArena(SurfaceArenaSlots, cellsPerChunk,
+                                                _surfaceCache.MaxIndicesPerChunk);
+            _surfaceCache.Arena = _surfaceArena;
+        }
 
         public void Setup(ComputeShader surfaceExtraction = null,
                           Shader surfaceShader = null,
+                          Shader waterShader = null,
                           Texture2D stoneTexture = null,
                           Texture2D woodTexture = null, Texture2D sandTexture = null,
                           Texture2D rockTexture = null, Texture2D slateTexture = null,
@@ -153,15 +145,21 @@ namespace VoxelEngine.Rendering
                           Texture2D sandNormal = null, Texture2D rockNormal = null,
                           Texture2D slateNormal = null, Texture2D grassNormal = null,
                           Texture2D dirtNormal = null, Texture2D darkStoneTexture = null,
-                          Texture2D darkStoneNormal = null, Texture2D skyTexture = null)
+                          Texture2D darkStoneNormal = null, Texture2D skyTexture = null,
+                          ComputeShader densityCompute = null)
         {
             _surfaceExtraction = surfaceExtraction;
-            UnityEngine.Debug.Log(
-                "VoxelRenderPass Setup: extr=" + (surfaceExtraction != null)
-                + " shader=" + (surfaceShader != null));
+            _densityCompute = densityCompute;
+            _densityKernel = densityCompute != null && densityCompute.HasKernel("CSBuildDensity")
+                ? densityCompute.FindKernel("CSBuildDensity") : -1;
+
             CoreUtils.Destroy(_surfaceMaterial);
+            CoreUtils.Destroy(_waterMaterial);
             _surfaceMaterial = surfaceShader != null
                 ? CoreUtils.CreateEngineMaterial(surfaceShader) : null;
+            _waterMaterial = waterShader != null
+                ? CoreUtils.CreateEngineMaterial(waterShader) : null;
+
             _stoneTexture = stoneTexture;
             _woodTexture = woodTexture;
             _sandTexture = sandTexture;
@@ -179,6 +177,7 @@ namespace VoxelEngine.Rendering
             _darkStoneTexture = darkStoneTexture;
             _darkStoneNormal = darkStoneNormal;
             _skyTexture = skyTexture;
+
             if (_surfaceMaterial != null)
             {
                 _surfaceMaterial.SetTexture("_StoneTexture", stoneTexture);
@@ -198,25 +197,32 @@ namespace VoxelEngine.Rendering
                 _surfaceMaterial.SetTexture("_DirtNormal", dirtNormal);
                 _surfaceMaterial.SetTexture("_DarkStoneNormal", darkStoneNormal);
             }
+
+            if (_waterMaterial != null && skyTexture != null)
+                _waterMaterial.SetTexture("_SkyTexture", skyTexture);
         }
 
-        // Per-frame state for surface mesh rendering: shared between preparation (outside
-        // the render function) and the combined set-render-func that does extraction + draw.
         private class SurfaceComputeFrameData
         {
             public ComputeShader SurfaceExtraction;
+            public ComputeShader DensityCompute;
+            public int DensityKernel;
+            public TextureHandle CameraColor;
+            public TextureHandle CameraDepth;
             public VoxelGpuBuffers Buffers;
             public float VoxelSize;
             public GpuSurfaceChunkCache SurfaceCache;
-            public GpuSurfaceChunkCache NearSurfaceCache;
-            // Material and lighting state set each frame via MaterialPropertyBlock.
             public Material Material;
+            public Material WaterMaterial;
             public MaterialPropertyBlock Properties;
+            public MaterialPropertyBlock WaterProperties;
             public Vector4[] MaterialColours;
             public Color BaseColor;
             public Vector4 SunDirection;
             public Vector4 SkyHorizon;
             public Vector4 SkyZenith;
+            public Vector4 CameraPosition;
+            public float WaterTime;
             public Vector4 WindowOrigin;
             public Vector4 CutawayMinVoxel;
             public Vector4 CutawayMaxVoxel;
@@ -231,39 +237,10 @@ namespace VoxelEngine.Rendering
             public float FlashlightRange;
             public float FlashlightInnerCos;
             public float FlashlightOuterCos;
-            // Per-chunk workspace. vertexCounts[i] = index count for chunk i;
-            // visibleEntries[i] = the compact visible-chunk list (populated outside the
-            // render function, read from within).
-            public int[] VertexCounts;
             public GpuSurfaceChunkCache.Entry[] VisibleEntries;
-        }
-
-        private class SurfacePassData
-        {
-            public GpuSurfaceChunkCache.Entry[] Entries;
-            public Material Material;
-            public MaterialPropertyBlock Properties;
-            public Vector4[] MaterialColours;
-            public Color BaseColor;
-            public Vector4 SunDirection;
-            public Vector4 SkyHorizon;
-            public Vector4 SkyZenith;
-            public float VoxelSize;
-            public VoxelGpuBuffers Buffers;
-            public Vector4 WindowOrigin;
-            public Vector4 CutawayMinVoxel;
-            public Vector4 CutawayMaxVoxel;
-            public bool CutawayEnabled;
-            public int LocalLightCount;
-            public Vector4[] LocalLights;
-            public Vector4[] LocalLightColours;
-            public bool FlashlightEnabled;
-            public Vector4 FlashlightPosition;
-            public Vector4 FlashlightDirection;
-            public Vector4 FlashlightColour;
-            public float FlashlightRange;
-            public float FlashlightInnerCos;
-            public float FlashlightOuterCos;
+            public CpuTransvoxelChunkCache.Entry[] TransvoxelEntries;
+            public CpuHardSurfaceChunkCache.Entry[] HardEntries;
+            public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -272,61 +249,143 @@ namespace VoxelEngine.Rendering
             if (!VoxelRenderBridge.TryGetWorld(out var world)) return;
 
             var cameraData = frameData.Get<UniversalCameraData>();
+            var resourceData = frameData.Get<UniversalResourceData>();
             var camera = cameraData.camera;
             if (camera.cameraType == CameraType.Preview) return;
 
-            // The GPU mirror is refreshed while recording rather than inside the render function:
-            // it uploads through ComputeBuffer.SetData, which is immediate and has no place in a
-            // deferred command list.
-            _buffers.Sync(ref world.Table, ref world.Pool, world.CameraRegion,
-                          VoxelRenderBridge.RegionsNeedingUpload);
+            // Derived caches consume edit invalidation before VoxelGpuBuffers drains the shared set.
+            // Their old ready meshes stay visible while replacements are built.
+            var dirtyRegions = VoxelRenderBridge.RegionsNeedingUpload;
+            _hardSurfaceCache.Sync(ref world.Table, in world.Pool, dirtyRegions,
+                                   camera.transform.position, VoxelSize);
+            _transvoxelCache.InvalidateDirtyRegions(dirtyRegions);
+            _waterSurfaceCache.InvalidateDirtyRegions(dirtyRegions);
 
-            bool drawContinuousSurface = _surfaceExtraction != null && _surfaceMaterial != null;
-            if (drawContinuousSurface)
+            _buffers.Sync(ref world.Table, ref world.Pool, world.CameraRegion, dirtyRegions);
+
+            // The showcase castle predates explicit surface semantics. Bootstrap from authored
+            // accent materials, but tag actual structure-looking bricks rather than claiming the
+            // surrounding render chunks.
+            int newlyTagged = LegacyHardSurfaceClassifier.TagAuthoredSurfaceBricks(
+                ref world.Table, in world.Pool, _buffers.LastSurfaceWorldBricks);
+            if (newlyTagged > 0)
+                _hardSurfaceCache.Sync(ref world.Table, in world.Pool, null,
+                                       camera.transform.position, VoxelSize, 12.0);
+
+            if (_surfaceExtraction == null || _surfaceMaterial == null) return;
+
+            EnsureSurfaceArena();
+
+            _transvoxelCache.InvalidateSurfaceBricks(_buffers.LastSurfaceWorldBricks);
+            _transvoxelCache.Prepare(ref world.Table, in world.Pool, camera,
+                                     VoxelSize, Time.frameCount);
+            var transvoxelVisible = _transvoxelCache.CollectVisible(camera, VoxelSize,
+                                                                    Time.frameCount);
+
+            _waterSurfaceCache.InvalidateSurfaceBricks(ref world.Table, in world.Pool,
+                                                       _buffers.LastSurfaceWorldBricks);
+            _waterSurfaceCache.Prepare(ref world.Table, in world.Pool, camera, VoxelSize);
+            var waterVisible = _waterSurfaceCache.CollectVisible(camera, VoxelSize);
+
+            if (!_transvoxelActivated
+                && _transvoxelCache.KnownCount > 0
+                && _transvoxelCache.ResidentCount >= _transvoxelCache.KnownCount
+                && _transvoxelCache.DirtyCount == 0)
             {
-                EnsureSurfaceArenas();
-                _surfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
-                _nearSurfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
-                _surfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
-                _nearSurfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
-                // Coarse level first: it decides, per chunk, whether to keep drawing or hand its
-                // ground to the finer level. The finer level then draws only where it was handed.
-                _surfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
-                _nearSurfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
+                _transvoxelActivated = true;
             }
 
-            if (!drawContinuousSurface) return;
+            _surfaceCache.InvalidateSurfaceBricks(_buffers.LastSurfaceWorldBricks);
+            _surfaceCache.InvalidateDensityBricks(_buffers.LastDensityWorldBricks);
+            _surfaceCache.Prepare(camera, VoxelSize, Time.frameCount);
+            _surfaceCache.CollectVisible(camera, VoxelSize, Time.frameCount);
+            var hardVisible = _hardSurfaceCache.CollectVisible(camera, VoxelSize);
 
-            int visibleChunks = _surfaceCache.Visible.Count + _nearSurfaceCache.Visible.Count;
-            UnityEngine.Debug.Log(
-                "VoxelRenderPass SURFACE: visible=" + _surfaceCache.Visible.Count
-                + "+" + _nearSurfaceCache.Visible.Count
-                + " arenas=" + (_surfaceArena != null && _surfaceArena.IsCreated));
-
-            // Count visible chunks once — shared between arena buffer sizing and the command
-            // buffer loop below. Must match exactly what Extractor.Draw() will emit.
-            using var builder = renderGraph.AddUnsafePass(
-                "VoxelEngine.ContinuousSurface", out SurfaceComputeFrameData data);
-
-            // Allocate per-frame work buffers and arrays outside the render function so they are
-            // built once per frame rather than every draw call. The visible-chunk entries hold a
-            // compact list of which arena slots contribute geometry this frame.
-            int[] vertexCounts = new int[visibleChunks];
-            var visibleEntries = new GpuSurfaceChunkCache.Entry[visibleChunks];
-            int entryCursor = 0;
+            // A hard layer no longer owns an entire render chunk. Where a Transvoxel mesh for the
+            // same coordinate is ready, draw both: its field has already removed hard semantic
+            // bricks, while the greedy mesh contains only those hard bricks. Legacy tree-proxy
+            // chunks also hand off as soon as their own Transvoxel replacement is ready instead
+            // of waiting for the global smooth-working-set latch; otherwise Surface Nets would
+            // keep an upright copy of the old voxel tree underneath the procedural tree.
+            int coarseVisibleCount = 0;
             for (int i = 0; i < _surfaceCache.Visible.Count; i++)
-                visibleEntries[entryCursor++] = _surfaceCache.Visible[i];
-            entryCursor = 0;
-            for (int i = 0; i < _nearSurfaceCache.Visible.Count; i++)
-                visibleEntries[visibleChunks - _nearSurfaceCache.Visible.Count + i]
-                    = _nearSurfaceCache.Visible[i];
+            {
+                int3 coordinate = _surfaceCache.Visible[i].Coordinate;
+                bool hardReady = _hardSurfaceCache.OwnsRenderedChunk(coordinate);
+                bool transvoxelReady = _transvoxelCache.OwnsRenderedChunk(coordinate);
+                bool legacyTreeProxy = ProceduralTreeRegistry.IsLegacyProxyRenderChunk(coordinate);
+                bool drawTransvoxel = transvoxelReady
+                    && (_transvoxelActivated || hardReady || legacyTreeProxy);
+
+                if (drawTransvoxel) continue;
+                if (hardReady) continue;
+                coarseVisibleCount++;
+            }
+
+            var visibleEntries = new GpuSurfaceChunkCache.Entry[coarseVisibleCount];
+            int coarseWrite = 0;
+            ProceduralTreeRegistry.ClearCoarseLegacyProxyRenderChunks();
+            for (int i = 0; i < _surfaceCache.Visible.Count; i++)
+            {
+                var entry = _surfaceCache.Visible[i];
+                bool hardReady = _hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate);
+                bool transvoxelReady = _transvoxelCache.OwnsRenderedChunk(entry.Coordinate);
+                bool legacyTreeProxy =
+                    ProceduralTreeRegistry.IsLegacyProxyRenderChunk(entry.Coordinate);
+                bool drawTransvoxel = transvoxelReady
+                    && (_transvoxelActivated || hardReady || legacyTreeProxy);
+                if (drawTransvoxel || hardReady) continue;
+                visibleEntries[coarseWrite++] = entry;
+                if (legacyTreeProxy)
+                    ProceduralTreeRegistry.MarkCoarseLegacyProxyRenderChunk(entry.Coordinate);
+            }
+
+            int transvoxelCount = 0;
+            for (int i = 0; i < transvoxelVisible.Count; i++)
+            {
+                int3 coordinate = transvoxelVisible[i].Coordinate;
+                if (_transvoxelActivated
+                    || _hardSurfaceCache.OwnsRenderedChunk(coordinate)
+                    || ProceduralTreeRegistry.IsLegacyProxyRenderChunk(coordinate))
+                    transvoxelCount++;
+            }
+
+            var transvoxelEntries = new CpuTransvoxelChunkCache.Entry[transvoxelCount];
+            int transvoxelWrite = 0;
+            for (int i = 0; i < transvoxelVisible.Count; i++)
+            {
+                var entry = transvoxelVisible[i];
+                if (!_transvoxelActivated
+                    && !_hardSurfaceCache.OwnsRenderedChunk(entry.Coordinate)
+                    && !ProceduralTreeRegistry.IsLegacyProxyRenderChunk(entry.Coordinate))
+                    continue;
+                transvoxelEntries[transvoxelWrite++] = entry;
+            }
+
+            var hardEntries = new CpuHardSurfaceChunkCache.Entry[hardVisible.Count];
+            for (int i = 0; i < hardVisible.Count; i++) hardEntries[i] = hardVisible[i];
+
+            var waterEntries = new CpuWaterSurfaceChunkCache.Entry[waterVisible.Count];
+            for (int i = 0; i < waterVisible.Count; i++) waterEntries[i] = waterVisible[i];
+
+            using var builder = renderGraph.AddUnsafePass(k_PassName, out SurfaceComputeFrameData data);
 
             data.Material = _surfaceMaterial;
+            data.WaterMaterial = _waterMaterial;
             data.Properties = _surfaceProperties;
+            data.WaterProperties = _waterProperties;
             data.Buffers = _buffers;
+            data.CameraColor = resourceData.activeColorTexture;
+            data.CameraDepth = resourceData.activeDepthTexture;
+            data.DensityCompute = _densityCompute;
+            data.DensityKernel = _densityKernel;
             data.SunDirection = VoxelRenderBridge.SunDirection;
             data.SkyHorizon = VoxelRenderBridge.SkyHorizon;
             data.SkyZenith = VoxelRenderBridge.SkyZenith;
+            Vector3 cameraPosition = camera.transform.position;
+            data.CameraPosition = new Vector4(cameraPosition.x, cameraPosition.y,
+                                              cameraPosition.z, 1f);
+            data.WaterTime = Time.time;
             data.WindowOrigin = new Vector4(_buffers.WindowOrigin.x,
                                             _buffers.WindowOrigin.y,
                                             _buffers.WindowOrigin.z, 0f);
@@ -353,30 +412,53 @@ namespace VoxelEngine.Rendering
             data.VoxelSize = VoxelSize;
             data.SurfaceExtraction = _surfaceExtraction;
             data.SurfaceCache = _surfaceCache;
-            data.NearSurfaceCache = _nearSurfaceCache;
-            data.VertexCounts = vertexCounts;
             data.VisibleEntries = visibleEntries;
+            data.TransvoxelEntries = transvoxelEntries;
+            data.HardEntries = hardEntries;
+            data.WaterEntries = waterEntries;
 
+            builder.UseTexture(data.CameraColor, AccessFlags.ReadWrite);
+            builder.UseTexture(data.CameraDepth, AccessFlags.ReadWrite);
             builder.AllowPassCulling(false);
 
-            // Single pass does both: dispatches compute to fill arena buffers with extracted
-            // geometry, then draws from those arenas as procedural mesh. Keeping them together
-            // avoids the render graph crash that occurs when AddRasterRenderPass follows
-            // AddUnsafePass within the same RecordRenderGraph call — URP's internal state
-            // management for top-level passes does not permit mixing these APIs.
             builder.SetRenderFunc<SurfaceComputeFrameData>(static (passData, ctx) =>
             {
-                UnityEngine.Debug.Log(
-                    "VoxelRenderPass RENDER_FUNC: visible_entries=" + passData.VisibleEntries.Length);
                 var cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
 
-                // Step 1: extract surface geometry into arena buffers on the GPU.
+                if (passData.DensityCompute != null && passData.DensityKernel >= 0
+                    && passData.Buffers.DensityJobCount > 0)
+                {
+                    cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                                              s_DensityRegionWindow, passData.Buffers.WindowBuffer);
+                    cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                                              s_DensityBrickRefs, passData.Buffers.BrickRefBuffer);
+                    cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                                              s_DensityBrickVoxels, passData.Buffers.VoxelBuffer);
+                    cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                                              s_BrickDensity, passData.Buffers.DensityBuffer);
+                    cmd.SetComputeBufferParam(passData.DensityCompute, passData.DensityKernel,
+                                              s_DensityJobs, passData.Buffers.DensityJobBuffer);
+                    cmd.SetComputeIntParam(passData.DensityCompute, s_DensityJobCount,
+                                           passData.Buffers.DensityJobCount);
+                    cmd.SetComputeVectorParam(passData.DensityCompute, s_DensityWindowOrigin,
+                                              passData.WindowOrigin);
+                    cmd.SetComputeIntParam(passData.DensityCompute, s_DensityWindowX,
+                                           VoxelGpuBuffers.WindowX);
+                    cmd.SetComputeIntParam(passData.DensityCompute, s_DensityWindowY,
+                                           VoxelGpuBuffers.WindowY);
+                    cmd.SetComputeIntParam(passData.DensityCompute, s_DensityWindowZ,
+                                           VoxelGpuBuffers.WindowZ);
+                    cmd.SetComputeIntParam(passData.DensityCompute, s_DensityTerrainSeed,
+                                           unchecked((int)VoxelRenderBridge.TerrainSeed));
+                    cmd.SetComputeIntParam(passData.DensityCompute, s_DensityFarBaseHeight,
+                                           VoxelRenderBridge.FarBaseHeight);
+                    cmd.DispatchCompute(passData.DensityCompute, passData.DensityKernel,
+                                        passData.Buffers.DensityJobCount, 1, 1);
+                }
+
                 passData.SurfaceCache.RecordScheduled(cmd, passData.SurfaceExtraction,
                                                       passData.Buffers, passData.VoxelSize);
-                passData.NearSurfaceCache?.RecordScheduled(cmd, passData.SurfaceExtraction,
-                                                           passData.Buffers, passData.VoxelSize);
 
-                // Step 2: populate the material block — every frame the visible chunk set changes.
                 passData.Properties.SetVectorArray(s_MaterialColours, passData.MaterialColours);
                 passData.Properties.SetColor(s_BaseColor, passData.BaseColor);
                 passData.Properties.SetVector(s_SunDirection, passData.SunDirection);
@@ -385,15 +467,17 @@ namespace VoxelEngine.Rendering
                 passData.Properties.SetFloat(s_VoxelSize, passData.VoxelSize);
                 passData.Properties.SetFloat(s_DebugCoverage,
                     passData.BaseColor == Color.white ? 0f : 1f);
-                passData.Properties.SetBuffer(s_RegionWindow, passData.Buffers.WindowBuffer);
-                passData.Properties.SetBuffer(s_BrickRefs, passData.Buffers.BrickRefBuffer);
-                passData.Properties.SetBuffer(s_BrickVoxels, passData.Buffers.VoxelBuffer);
+                passData.Properties.SetBuffer(s_MaterialRegionWindow,
+                                              passData.Buffers.WindowBuffer);
+                passData.Properties.SetBuffer(s_MaterialBrickRefs,
+                                              passData.Buffers.BrickRefBuffer);
+                passData.Properties.SetBuffer(s_MaterialBrickVoxels,
+                                              passData.Buffers.VoxelBuffer);
                 passData.Properties.SetVector(s_WindowOrigin, passData.WindowOrigin);
                 passData.Properties.SetInt(s_WindowX, VoxelGpuBuffers.WindowX);
                 passData.Properties.SetInt(s_WindowY, VoxelGpuBuffers.WindowY);
                 passData.Properties.SetInt(s_WindowZ, VoxelGpuBuffers.WindowZ);
-                passData.Properties.SetInt(s_CutawayEnabled,
-                    passData.CutawayEnabled ? 1 : 0);
+                passData.Properties.SetInt(s_CutawayEnabled, passData.CutawayEnabled ? 1 : 0);
                 passData.Properties.SetVector(s_CutawayMinVoxel, passData.CutawayMinVoxel);
                 passData.Properties.SetVector(s_CutawayMaxVoxel, passData.CutawayMaxVoxel);
                 passData.Properties.SetInt(s_LocalLightCount, passData.LocalLightCount);
@@ -412,25 +496,48 @@ namespace VoxelEngine.Rendering
                 passData.Properties.SetFloat(s_FlashlightInnerCos, passData.FlashlightInnerCos);
                 passData.Properties.SetFloat(s_FlashlightOuterCos, passData.FlashlightOuterCos);
 
-                // Step 3: draw every visible chunk's extracted geometry from the arena buffers.
+                ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
+
                 for (int i = 0; i < passData.VisibleEntries.Length; i++)
                     passData.VisibleEntries[i].Extractor.Draw(cmd, passData.Material,
                                                               passData.Properties);
+
+                for (int i = 0; i < passData.TransvoxelEntries.Length; i++)
+                    passData.TransvoxelEntries[i].Draw(cmd, passData.Material,
+                                                       passData.Properties);
+
+                for (int i = 0; i < passData.HardEntries.Length; i++)
+                    passData.HardEntries[i].Draw(cmd, passData.Material, passData.Properties);
+
+                if (passData.WaterMaterial != null && passData.WaterEntries.Length > 0)
+                {
+                    passData.WaterProperties.Clear();
+                    passData.WaterProperties.SetVector(s_CameraPosition, passData.CameraPosition);
+                    passData.WaterProperties.SetVector(s_SunDirection, passData.SunDirection);
+                    passData.WaterProperties.SetVector(s_SkyHorizon, passData.SkyHorizon);
+                    passData.WaterProperties.SetVector(s_SkyZenith, passData.SkyZenith);
+                    passData.WaterProperties.SetFloat(s_WaterTime, passData.WaterTime);
+                    for (int i = 0; i < passData.WaterEntries.Length; i++)
+                        passData.WaterEntries[i].Draw(cmd, passData.WaterMaterial,
+                                                      passData.WaterProperties);
+                }
             });
         }
 
         public void Dispose()
         {
-            // Chunks first: each returns its slot to the arena before the arena goes away.
+            ProceduralTreeRegistry.ClearCoarseLegacyProxyRenderChunks();
+            _waterSurfaceCache.Dispose();
+            _hardSurfaceCache.Dispose();
+            _transvoxelCache.Dispose();
             _surfaceCache.Dispose();
-            _nearSurfaceCache.Dispose();
             _surfaceArena?.Dispose();
-            _nearSurfaceArena?.Dispose();
             _surfaceArena = null;
-            _nearSurfaceArena = null;
             _buffers.Dispose();
             CoreUtils.Destroy(_surfaceMaterial);
+            CoreUtils.Destroy(_waterMaterial);
             _surfaceMaterial = null;
+            _waterMaterial = null;
         }
     }
 }

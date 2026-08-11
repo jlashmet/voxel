@@ -1,0 +1,14 @@
+{
+  "name": "MountingForce.WorldGen.Core",
+  "rootNamespace": "MountingForce.WorldGen",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

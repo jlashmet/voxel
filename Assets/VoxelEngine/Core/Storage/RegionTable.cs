@@ -22,6 +22,15 @@ namespace VoxelEngine.Core.Storage
         private NativeList<int> _freeSlots;
         private readonly Allocator _allocator;
 
+        // Meshing probes are extremely spatially coherent: a Transvoxel density sample performs
+        // many neighbouring voxel reads that overwhelmingly hit the same 51.2 m region. Avoid
+        // paying NativeHashMap lookup cost for every one of those probes. The cached slot is
+        // validated against the live Region before use, so slot reuse after eviction cannot return
+        // stale data even if a copied RegionTable carries an old scalar cache.
+        private int3 _lastCoord;
+        private int _lastSlot;
+        private bool _hasLast;
+
         public int ResidentCount => _coordToSlot.Count;
         public bool IsCreated => _coordToSlot.IsCreated;
 
@@ -31,13 +40,33 @@ namespace VoxelEngine.Core.Storage
             _coordToSlot = new NativeHashMap<int3, int>(expectedResident, allocator);
             _regions = new NativeList<Region>(expectedResident, allocator);
             _freeSlots = new NativeList<int>(expectedResident >> 2, allocator);
+            _lastCoord = default;
+            _lastSlot = -1;
+            _hasLast = false;
         }
 
         public bool TryGetRegion(int3 coord, out Region region)
         {
+            if (_hasLast && coord.Equals(_lastCoord)
+                && (uint)_lastSlot < (uint)_regions.Length)
+            {
+                Region cached = _regions[_lastSlot];
+                if (cached.IsCreated && cached.Coord.Equals(coord))
+                {
+                    region = cached;
+                    return true;
+                }
+
+                _hasLast = false;
+                _lastSlot = -1;
+            }
+
             if (_coordToSlot.TryGetValue(coord, out var slot))
             {
                 region = _regions[slot];
+                _lastCoord = coord;
+                _lastSlot = slot;
+                _hasLast = true;
                 return true;
             }
 
@@ -53,8 +82,21 @@ namespace VoxelEngine.Core.Storage
         /// </summary>
         public Region LoadRegion(int3 coord)
         {
+            if (_hasLast && coord.Equals(_lastCoord)
+                && (uint)_lastSlot < (uint)_regions.Length)
+            {
+                Region cached = _regions[_lastSlot];
+                if (cached.IsCreated && cached.Coord.Equals(coord))
+                    return cached;
+            }
+
             if (_coordToSlot.TryGetValue(coord, out var existing))
+            {
+                _lastCoord = coord;
+                _lastSlot = existing;
+                _hasLast = true;
                 return _regions[existing];
+            }
 
             var region = new Region(coord, _allocator);
 
@@ -72,6 +114,9 @@ namespace VoxelEngine.Core.Storage
             }
 
             _coordToSlot.Add(coord, slot);
+            _lastCoord = coord;
+            _lastSlot = slot;
+            _hasLast = true;
             return region;
         }
 
@@ -83,7 +128,12 @@ namespace VoxelEngine.Core.Storage
         public void CommitRegion(in Region region)
         {
             if (_coordToSlot.TryGetValue(region.Coord, out var slot))
+            {
                 _regions[slot] = region;
+                _lastCoord = region.Coord;
+                _lastSlot = slot;
+                _hasLast = true;
+            }
         }
 
         /// <summary>
@@ -105,6 +155,12 @@ namespace VoxelEngine.Core.Storage
             _regions[slot] = default;
             _freeSlots.Add(slot);
             _coordToSlot.Remove(coord);
+
+            if (_hasLast && (_lastSlot == slot || _lastCoord.Equals(coord)))
+            {
+                _hasLast = false;
+                _lastSlot = -1;
+            }
         }
 
         public NativeArray<int3> GetResidentCoords(Allocator allocator) =>
@@ -125,6 +181,8 @@ namespace VoxelEngine.Core.Storage
 
             if (_coordToSlot.IsCreated) _coordToSlot.Dispose();
             if (_freeSlots.IsCreated) _freeSlots.Dispose();
+            _hasLast = false;
+            _lastSlot = -1;
         }
     }
 }
