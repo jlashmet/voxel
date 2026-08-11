@@ -10,8 +10,10 @@ on:
       - 'Assets/Tests/EditMode/KentridgeGenerationTests.cs'
       - 'Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef'
       - 'Assets/VoxelEngine/CI/Editor/KentridgeCapture.cs'
+      - 'Assets/VoxelEngine/CI/Editor/KentridgeRuntimeCapture.cs'
       - 'Assets/VoxelEngine/CI/Editor/VoxelEngine.CI.Editor.asmdef'
       - 'Assets/VoxelEngine/Core/Features/**'
+      - 'Assets/VoxelEngine/Core/Terrain/**'
       - 'Assets/VoxelEngine/Rendering/SurfaceExtraction/**'
       - '.github/workflows/kentridge-visual.yml'
 
@@ -54,7 +56,7 @@ jobs:
           "${{ steps.unity.outputs.path }}" \
             -batchmode \
             -projectPath "$GITHUB_WORKSPACE" \
-            -executeMethod VoxelEngine.CI.KentridgeCapture.Run \
+            -executeMethod VoxelEngine.CI.KentridgeRuntimeCapture.Run \
             -logFile "$GITHUB_WORKSPACE/Artifacts/Kentridge/unity.log" \
             -quit
 
