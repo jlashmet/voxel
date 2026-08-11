@@ -4,6 +4,8 @@
   "references": [
     "VoxelEngine.Core",
     "VoxelEngine.Rendering",
+    "VoxelEngine.Structures",
+    "VoxelEngine.Showcase",
     "Unity.Mathematics"
   ],
   "includePlatforms": ["Editor"],
