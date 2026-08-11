@@ -7,12 +7,12 @@ using UnityEngine.Rendering.Universal;
 namespace VoxelEngine.Rendering
 {
     /// <summary>
-    /// Draws the authored voxel-world panorama before opaque geometry.
+    /// Replaces URP's normal skybox pixels with the authored voxel-world panorama.
     ///
-    /// The old raymarch renderer owned every pixel and therefore painted the sky whenever a ray
-    /// missed. Mesh rasterization does not own background pixels, so sky is now an explicit cheap
-    /// full-screen raster pass. Keeping it before opaques prevents it from overwriting ordinary
-    /// Unity scene geometry while preserving the old panorama + procedural gradient presentation.
+    /// The old raymarch renderer owned every pixel and painted sky on ray misses. Mesh
+    /// rasterization does not own background pixels, so this is an explicit cheap full-screen
+    /// raster pass. It runs after the normal skybox and its shader passes only at untouched far
+    /// depth, so opaque scene geometry is never overwritten.
     /// </summary>
     public sealed class VoxelSkyPass : ScriptableRenderPass, IDisposable
     {
@@ -75,7 +75,9 @@ namespace VoxelEngine.Rendering
             data.SkyZenith = VoxelRenderBridge.SkyZenith;
 
             builder.UseTexture(data.CameraColor, AccessFlags.Write);
-            builder.UseTexture(data.CameraDepth, AccessFlags.Read);
+            // Unsafe SetRenderTarget binds the depth attachment just like the proven world pass.
+            // Declare the attachment conservatively even though the shader has ZWrite Off.
+            builder.UseTexture(data.CameraDepth, AccessFlags.ReadWrite);
             builder.AllowPassCulling(false);
 
             builder.SetRenderFunc<PassData>(static (passData, ctx) =>
@@ -88,8 +90,6 @@ namespace VoxelEngine.Rendering
                 passData.Properties.SetVector(s_SkyHorizon, passData.SkyHorizon);
                 passData.Properties.SetVector(s_SkyZenith, passData.SkyZenith);
 
-                // Use the same color+depth target binding overload as the proven voxel surface
-                // pass. The shader has ZWrite Off, so depth is merely bound, never changed.
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
                 cmd.DrawProcedural(Matrix4x4.identity, passData.Material, 0,
                                    MeshTopology.Triangles, 3, 1, passData.Properties);
