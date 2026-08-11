@@ -242,18 +242,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             DropNoLongerResident(ref table);
             EnforceCapacity(camera, voxelSize);
 
-            // Tree semantics can arrive a few frames after the first terrain chunks because the
-            // legacy showcase migration waits for authored planting voxels. Rebuild known smooth
-            // chunks once when that semantic snapshot changes so an already-cached old crown
-            // cannot survive underneath the procedural tree. Damage does not change Version, so
-            // this is not part of the contact hot path.
-            int treeRegistryVersion = TreeWorldState.Version;
-            if (_treeRegistryVersion != treeRegistryVersion)
-            {
-                _treeRegistryVersion = treeRegistryVersion;
-                foreach (int3 chunk in _known) _dirty.Add(chunk);
-            }
-
             if (camera == null || _dirty.Count == 0 && !_build.Active) return;
 
             double deadline = Time.realtimeSinceStartupAsDouble
@@ -369,10 +357,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private TransvoxelDensityBrick SnapshotBrick(ref RegionTable table, in BrickPool pool,
                                                       int3 worldBrick)
         {
-            // Legacy showcase crowns are gameplay proxies only. They use grass/moss materials that
-            // otherwise belong to terrain, so material alone cannot distinguish them from the
-            // ground. Semantic crown ownership is the authoritative presentation exclusion.
-
             int3 regionCoord = new(worldBrick.x >> VoxelDimensions.RegionEdgeLog2,
                                    worldBrick.y >> VoxelDimensions.RegionEdgeLog2,
                                    worldBrick.z >> VoxelDimensions.RegionEdgeLog2);
