@@ -27,15 +27,19 @@ namespace VoxelEngine.Core.Features
     /// </summary>
     public static class PrimitiveRasteriser
     {
-        private const int SurfacePaintDepth = 4;
+        // Six painted voxels still leave the seventh voxel as mineral support. The current smooth
+        // terrain migration rule searches through depth six, so a grass/moss sample at any of the
+        // painted levels remains grounded while the 4-voxel Transvoxel source step always lands in
+        // the themed surface layer rather than the old biome beneath it.
+        private const int SurfacePaintDepth = 6;
 
         /// <summary>
         /// Rasterises primitives clipped to the half-open volume [subVolumeMin, subVolumeMax).
         ///
         /// Primitives are applied in order; later ones win where they overlap. PaintSolid changes
         /// material on existing solids only. PaintSurface finds the real highest solid in each
-        /// horizontal column and repaints at most four contiguous solid voxels downward, preserving
-        /// both occupancy and shallow mineral support beneath biome ground cover.
+        /// horizontal column and repaints at most six contiguous solid voxels downward, preserving
+        /// occupancy and leaving mineral support directly beneath biome ground cover.
         /// </summary>
         public static RasterResult Rasterise(
             NativeArray<Primitive> primitives,
@@ -149,9 +153,7 @@ namespace VoxelEngine.Core.Features
             }
         }
 
-        /// <summary>
-        /// Membership test, dispatched by shape.
-        /// </summary>
+        /// <summary>Membership test, dispatched by shape.</summary>
         public static bool Contains(in Primitive primitive, int3 voxel)
         {
             switch (primitive.Shape)
