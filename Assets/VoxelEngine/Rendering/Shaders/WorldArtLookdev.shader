@@ -4,54 +4,44 @@ Shader "VoxelEngine/WorldArtLookdev"
     {
         _MainTex ("Surface Texture", 2D) = "white" {}
         _Tint ("Tint", Color) = (1,1,1,1)
-        _TextureScale ("World Texture Scale", Float) = 0.45
-        _TextureInfluence ("Texture Influence", Range(0,1)) = 0.14
-        _Smoothness ("Smoothness", Range(0,1)) = 0.08
-        _TopLight ("Upward Surface Lift", Range(0,0.4)) = 0.12
+        _TextureScale ("World Texture Scale", Float) = 0.18
+        _TextureInfluence ("Texture Influence", Range(0,1)) = 0.10
+        _Smoothness ("Smoothness", Range(0,1)) = 0.05
+        _TopLight ("Upward Surface Lift", Range(0,0.4)) = 0.16
     }
 
     SubShader
     {
-        Tags
-        {
-            "RenderPipeline"="UniversalPipeline"
-            "RenderType"="Opaque"
-            "Queue"="Geometry"
-        }
+        Tags { "RenderType"="Opaque" "Queue"="Geometry" }
 
         Pass
         {
-            Name "WorldArtForward"
-            Tags { "LightMode"="UniversalForward" }
+            Tags { "LightMode"="ForwardBase" }
             Cull Back
             ZWrite On
             ZTest LEqual
 
-            HLSLPROGRAM
-            #pragma target 3.5
+            CGPROGRAM
+            #pragma target 3.0
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fwdbase
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "UnityCG.cginc"
+            #include "Lighting.cginc"
+            #include "AutoLight.cginc"
 
-            TEXTURE2D(_MainTex);
-            SAMPLER(sampler_MainTex);
-
-            CBUFFER_START(UnityPerMaterial)
-                float4 _Tint;
-                float _TextureScale;
-                float _TextureInfluence;
-                float _Smoothness;
-                float _TopLight;
-            CBUFFER_END
+            sampler2D _MainTex;
+            float4 _Tint;
+            float _TextureScale;
+            float _TextureInfluence;
+            float _Smoothness;
+            float _TopLight;
 
             struct Attributes
             {
-                float4 positionOS : POSITION;
-                float3 normalOS : NORMAL;
+                float4 vertex : POSITION;
+                float3 normal : NORMAL;
             };
 
             struct Varyings
@@ -59,70 +49,66 @@ Shader "VoxelEngine/WorldArtLookdev"
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
-                float4 shadowCoord : TEXCOORD2;
+                SHADOW_COORDS(2)
             };
 
             Varyings Vert(Attributes input)
             {
                 Varyings output;
-                VertexPositionInputs positionInputs = GetVertexPositionInputs(input.positionOS.xyz);
-                VertexNormalInputs normalInputs = GetVertexNormalInputs(input.normalOS);
-                output.positionCS = positionInputs.positionCS;
-                output.positionWS = positionInputs.positionWS;
-                output.normalWS = normalize(normalInputs.normalWS);
-                output.shadowCoord = TransformWorldToShadowCoord(positionInputs.positionWS);
+                output.positionCS = UnityObjectToClipPos(input.vertex);
+                output.positionWS = mul(unity_ObjectToWorld, input.vertex).xyz;
+                output.normalWS = UnityObjectToWorldNormal(input.normal);
+                TRANSFER_SHADOW(output);
                 return output;
             }
 
-            half4 Frag(Varyings input) : SV_Target
+            fixed4 Frag(Varyings input) : SV_Target
             {
                 float3 normalWS = normalize(input.normalWS);
                 float3 weights = pow(abs(normalWS), 4.0);
                 weights /= max(weights.x + weights.y + weights.z, 0.0001);
 
                 float s = _TextureScale;
-                float3 xSample = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.positionWS.zy * s).rgb;
-                float3 ySample = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.positionWS.xz * s).rgb;
-                float3 zSample = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.positionWS.xy * s).rgb;
+                float3 xSample = tex2D(_MainTex, input.positionWS.zy * s).rgb;
+                float3 ySample = tex2D(_MainTex, input.positionWS.xz * s).rgb;
+                float3 zSample = tex2D(_MainTex, input.positionWS.xy * s).rgb;
                 float3 textureSample = xSample * weights.x + ySample * weights.y + zSample * weights.z;
 
-                // The source textures are allowed to supply only quiet value variation. Their hue
-                // and small-scale contrast are deliberately suppressed: from gameplay distance the
-                // eye should read "green mound" or "warm old stone" before it reads a texture.
+                // Preserve the broad concept-art colour. The source textures contribute only a
+                // quiet grayscale wobble so the scene reads as large painted forms, not tiling.
                 float textureValue = dot(textureSample, float3(0.299, 0.587, 0.114));
-                float detail = lerp(1.0, lerp(0.78, 1.18, textureValue), _TextureInfluence);
-                float macro = 1.0 + 0.035
-                    * sin(input.positionWS.x * 0.71 + input.positionWS.z * 0.37)
-                    * sin(input.positionWS.z * 0.53 + input.positionWS.y * 0.29);
-
-                // The capture's old tints predated this material model and can exceed 1. Keep the
-                // palette deliberately restrained instead of letting those values blow out.
-                float3 albedo = saturate(_Tint.rgb * 0.72) * detail * macro;
+                float detail = lerp(1.0, lerp(0.84, 1.14, textureValue), _TextureInfluence);
+                float macro = 1.0 + 0.025
+                    * sin(input.positionWS.x * 0.72 + input.positionWS.z * 0.31)
+                    * sin(input.positionWS.z * 0.47 + input.positionWS.y * 0.28);
+                float3 albedo = _Tint.rgb * detail * macro;
 
                 float top = saturate(normalWS.y);
-                albedo *= lerp(1.0 - _TopLight * 0.25, 1.0 + _TopLight * 0.55, top);
+                albedo *= lerp(1.0 - _TopLight * 0.22, 1.0 + _TopLight * 0.52, top);
 
-                Light mainLight = GetMainLight(input.shadowCoord);
-                float ndl = saturate(dot(normalWS, mainLight.direction));
-                float halfLambert = 0.38 + 0.62 * ndl;
-                float shadow = lerp(0.58, 1.0, mainLight.shadowAttenuation);
-                float3 direct = mainLight.color * halfLambert * shadow
-                              * mainLight.distanceAttenuation * 0.68;
-                float3 ambient = SampleSH(normalWS) * 0.48;
+                float3 lightDirection = normalize(_WorldSpaceLightPos0.xyz);
+                float ndl = saturate(dot(normalWS, lightDirection));
+                float attenuation = SHADOW_ATTENUATION(input);
+                float3 direct = _LightColor0.rgb * (0.38 + ndl * 0.62)
+                              * lerp(0.58, 1.0, attenuation) * 0.78;
+                float3 ambient = UNITY_LIGHTMODEL_AMBIENT.rgb * 1.18;
 
-                float3 viewDirection = GetWorldSpaceNormalizeViewDir(input.positionWS);
-                float3 halfDirection = normalize(mainLight.direction + viewDirection);
-                float specPower = lerp(10.0, 96.0, _Smoothness);
-                float specular = pow(saturate(dot(normalWS, halfDirection)), specPower)
-                               * _Smoothness * mainLight.shadowAttenuation * 0.24;
+                float3 viewDirection = normalize(_WorldSpaceCameraPos.xyz - input.positionWS);
+                float3 halfDirection = normalize(lightDirection + viewDirection);
+                float specular = pow(saturate(dot(normalWS, halfDirection)),
+                                     lerp(10.0, 80.0, _Smoothness))
+                               * _Smoothness * attenuation * 0.16;
 
-                return half4(saturate(albedo * (ambient + direct) + specular * mainLight.color), 1.0);
+                return fixed4(saturate(albedo * (ambient + direct)
+                                     + specular * _LightColor0.rgb), 1.0);
             }
-            ENDHLSL
+            ENDCG
         }
 
-        UsePass "Universal Render Pipeline/Lit/ShadowCaster"
+        // The ordinary voxel surface meshes already have simple geometry, so the built-in caster
+        // from Standard is enough for this visual experiment.
+        UsePass "Standard/SHADOWCASTER"
     }
 
-    FallBack Off
+    FallBack "Diffuse"
 }
