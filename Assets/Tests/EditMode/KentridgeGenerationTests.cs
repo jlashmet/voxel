@@ -107,6 +107,44 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void PlotDressingFollowsDistrictsAndFrontages()
+        {
+            FeatureCatalogue dressing = KentridgePlotDressingCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+
+            try
+            {
+                Assert.AreEqual(7, dressing.Definitions.Length,
+                    "Plot dressing should reuse a compact seven-prop vocabulary.");
+                Assert.AreEqual(56, dressing.ExplicitPlacements.Length,
+                    "Every non-well plot should receive its district-specific dressing set.");
+
+                int explicitCount = 0;
+                int horizontalFenceCount = dressing.Rules[0].ExplicitCount;
+                int verticalFenceCount = dressing.Rules[1].ExplicitCount;
+
+                for (int i = 0; i < dressing.Rules.Length; i++)
+                {
+                    explicitCount += dressing.Rules[i].ExplicitCount;
+                    Assert.AreEqual(FeatureKind.Landform,
+                        dressing.Definitions[dressing.Rules[i].DefinitionId].Kind,
+                        "Dressing must not inflate the semantic building count.");
+                }
+
+                Assert.AreEqual(56, explicitCount,
+                    "Every plot-dressing placement should be reachable by a rule.");
+                Assert.Greater(horizontalFenceCount, 0,
+                    "Frontage rotation should produce horizontal fence segments.");
+                Assert.Greater(verticalFenceCount, 0,
+                    "Frontage rotation should produce vertical fence segments.");
+            }
+            finally
+            {
+                dressing.Dispose();
+            }
+        }
+
+        [Test]
         public void PlanIsDeterministicForSameSeed()
         {
             SettlementPlan a = KentridgeDefinition.Build(Seed);
