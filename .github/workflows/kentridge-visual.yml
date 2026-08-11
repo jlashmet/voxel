@@ -7,6 +7,8 @@ on:
       - feature/kentridge-town-refinement
     paths:
       - 'Packages/com.mountingforce.worldgen/**'
+      - 'Assets/Tests/EditMode/KentridgeGenerationTests.cs'
+      - 'Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef'
       - 'Assets/VoxelEngine/CI/Editor/KentridgeCapture.cs'
       - 'Assets/VoxelEngine/CI/Editor/VoxelEngine.CI.Editor.asmdef'
       - 'Assets/VoxelEngine/Core/Features/**'
@@ -15,7 +17,7 @@ on:
 
 jobs:
   capture-kentridge:
-    name: Render isolated Kentridge
+    name: Test and render isolated Kentridge
     runs-on: [self-hosted, macOS]
     timeout-minutes: 20
 
@@ -40,11 +42,26 @@ jobs:
           fi
           echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
 
-      - name: Render deterministic Kentridge
+      - name: Run isolated Kentridge tests
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/Artifacts/Kentridge"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform EditMode \
+            -testFilter VoxelEngine.Tests.EditMode.KentridgeGenerationTests \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/Kentridge/test-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/Kentridge/tests.log"
+
+          test -s "$GITHUB_WORKSPACE/Artifacts/Kentridge/test-results.xml"
+
+      - name: Render deterministic Kentridge
+        shell: bash
+        run: |
+          set -euo pipefail
           "${{ steps.unity.outputs.path }}" \
             -batchmode \
             -projectPath "$GITHUB_WORKSPACE" \
