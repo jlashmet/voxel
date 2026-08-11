@@ -70,6 +70,7 @@ namespace VoxelEngine.CI
             SunlitWaterfallRebuildPass.Apply(camera);
             SunlitWaterfallTerrainMeshPass.Apply(camera);
             SunlitWaterfallStylePass.Apply(camera);
+            SunlitWaterfallLushPass.Apply(camera);
         }
     }
 }
