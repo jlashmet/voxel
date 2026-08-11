@@ -13,6 +13,13 @@ namespace VoxelEngine.Core.Features
 
         /// <summary>Writes only where the voxel is currently empty. Used to avoid overwriting detail.</summary>
         FillIfEmpty = 2,
+
+        /// <summary>
+        /// Repaints existing solid voxels without changing occupancy. Used by biome/theme passes
+        /// that need to change the visible terrain vocabulary while preserving the exact density
+        /// field produced by terrain generation and earlier cut/fill stages.
+        /// </summary>
+        PaintSolid = 3,
     }
 
     public enum PrimitiveShape : byte
