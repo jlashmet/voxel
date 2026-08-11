@@ -54,8 +54,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         private float SampleField(int3 p, out byte dominantMaterial)
         {
             byte centre = ReadMaterial(p);
-            float mass = IsSmoothFieldMaterial(centre) ? 0.40f : 0f;
-            dominantMaterial = IsSmoothFieldMaterial(centre) ? centre : (byte)0;
+            bool centreSmooth = IsSmoothSample(p, centre);
+            float mass = centreSmooth ? 0.40f : 0f;
+            dominantMaterial = centreSmooth ? centre : (byte)0;
 
             mass += Add(p + new int3( 1,0,0), 0.06f, ref dominantMaterial);
             mass += Add(p + new int3(-1,0,0), 0.06f, ref dominantMaterial);
@@ -77,9 +78,31 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         private float Add(int3 p, float weight, ref byte dominantMaterial)
         {
             byte material = ReadMaterial(p);
-            if (!IsSmoothFieldMaterial(material)) return 0f;
+            if (!IsSmoothSample(p, material)) return 0f;
             if (dominantMaterial == 0) dominantMaterial = material;
             return weight;
+        }
+
+        private bool IsSmoothSample(int3 p, byte material)
+        {
+            if (!IsSmoothFieldMaterial(material)) return false;
+
+            // Grass/moss are overloaded in the legacy showcase: they describe both terrain caps
+            // and old voxel tree crowns. A terrain surface has mineral/dirt support immediately
+            // below it; a crown is an unsupported foliage volume metres above the ground. Keep
+            // this migration rule local to the smooth field so procedural tree rendering can
+            // replace those crowns without turning all grass terrain into holes.
+            if (material == 10 || material == 14)
+            {
+                for (int d = 1; d <= 6; d++)
+                {
+                    byte below = ReadMaterial(p - new int3(0, d, 0));
+                    if (IsTerrainSupportMaterial(below)) return true;
+                }
+                return false;
+            }
+
+            return true;
         }
 
         private byte ReadMaterial(int3 p)
@@ -104,6 +127,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
             int voxelIndex = vx | (vy << 3) | (vz << 6);
             return MixedVoxels[brick.MixedOffset + voxelIndex];
         }
+
+        private static bool IsTerrainSupportMaterial(byte material) =>
+            material == 1 || material == 3 || material == 5 || material == 6 || material == 13;
 
         private static bool IsSmoothFieldMaterial(byte material) =>
             material == 1 || material == 3 || material == 5 || material == 6
