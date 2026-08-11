@@ -45,24 +45,13 @@ namespace VoxelEngine.CI
             Assert.That(ProceduralTreeRegistry.Instances.Count, Is.GreaterThan(0),
                         "Showcase never published semantic tree instances.");
 
-            // Proxy cleanup disables the migration poller after it has rewritten the old tree
-            // proxy. Waiting for that state gives us the same settled startup point the player sees.
-            bool cleanupComplete = false;
-            while (!cleanupComplete && Time.realtimeSinceStartup < deadline)
-            {
-                LegacyShowcaseTreeMigration[] migrations =
-                    Resources.FindObjectsOfTypeAll<LegacyShowcaseTreeMigration>();
-                for (int i = 0; i < migrations.Length; i++)
-                {
-                    LegacyShowcaseTreeMigration migration = migrations[i];
-                    if (migration != null && migration.gameObject.scene.IsValid() && !migration.enabled)
-                    {
-                        cleanupComplete = true;
-                        break;
-                    }
-                }
-                if (!cleanupComplete) yield return null;
-            }
+            // Wait for the cleanup's explicit completion flag rather than trying to rediscover
+            // hidden DontSave migration components from the Test Runner. Production code owns the
+            // lifecycle invariant; the test only observes that the rewrite completed.
+            while (!LegacyTreeProxyCleanup.Completed
+                   && Time.realtimeSinceStartup < deadline)
+                yield return null;
+            bool cleanupComplete = LegacyTreeProxyCleanup.Completed;
 
             List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
             while (renderers.Count == 1
