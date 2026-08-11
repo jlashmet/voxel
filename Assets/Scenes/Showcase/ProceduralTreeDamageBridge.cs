@@ -265,13 +265,21 @@ namespace VoxelEngine.Showcase
             int current = branchIndex;
             while (current >= 0)
             {
-                if (directCuts.Contains(current)) return true;
+                if (ContainsCut(directCuts, current)) return true;
                 if (skeleton.BranchParents == null || current >= skeleton.BranchParents.Length)
                     break;
                 int parent = skeleton.BranchParents[current];
                 if (parent == current) break;
                 current = parent;
             }
+            return false;
+        }
+
+        private static bool ContainsCut(IReadOnlyCollection<int> directCuts, int branchIndex)
+        {
+            foreach (int cut in directCuts)
+                if (cut == branchIndex)
+                    return true;
             return false;
         }
 
