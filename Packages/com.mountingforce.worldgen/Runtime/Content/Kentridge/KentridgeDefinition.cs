@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Unity.Mathematics;
 
 namespace MountingForce.WorldGen.Content.Kentridge
 {
@@ -36,9 +35,9 @@ namespace MountingForce.WorldGen.Content.Kentridge
     public static class KentridgeDefinition
     {
         public const string Id = "kentridge";
-        public static readonly int2 TownCentreDm = new(1050, 520);
+        public static readonly Int2 TownCentreDm = new Int2(1050, 520);
 
-        public static ArchitectureTheme Theme => new(
+        public static ArchitectureTheme Theme => new ArchitectureTheme(
             id: Id,
             foundation: MaterialRole.FoundationStone,
             wall: MaterialRole.Masonry,
@@ -80,37 +79,37 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 Jittered(seed, 17, KentridgeRole.AbandonedHouse, StructureArchetype.Townhouse, 1260, 940, 2),
                 Jittered(seed, 18, KentridgeRole.MedrareHouse,   StructureArchetype.WideHouse,  700, 980, 0),
 
-                new((int)KentridgeRole.WeaponShop, StructureArchetype.Shop, new int2(700, 500), 1),
-                new((int)KentridgeRole.ArmorShop,  StructureArchetype.Shop, new int2(700, 660), 1),
-                new((int)KentridgeRole.MagicShop,  StructureArchetype.Shop, new int2(700, 820), 1),
+                new PlannedSite((int)KentridgeRole.WeaponShop, StructureArchetype.Shop, new Int2(700, 500), 1),
+                new PlannedSite((int)KentridgeRole.ArmorShop,  StructureArchetype.Shop, new Int2(700, 660), 1),
+                new PlannedSite((int)KentridgeRole.MagicShop,  StructureArchetype.Shop, new Int2(700, 820), 1),
 
-                new((int)KentridgeRole.Inn,    StructureArchetype.Inn,    new int2(700, 250), 0),
-                new((int)KentridgeRole.Pub,    StructureArchetype.Inn,    new int2(900, 760), 3),
-                new((int)KentridgeRole.Church, StructureArchetype.Church, new int2(1000, 100), 0),
+                new PlannedSite((int)KentridgeRole.Inn,    StructureArchetype.Inn,    new Int2(700, 250), 0),
+                new PlannedSite((int)KentridgeRole.Pub,    StructureArchetype.Inn,    new Int2(900, 760), 3),
+                new PlannedSite((int)KentridgeRole.Church, StructureArchetype.Church, new Int2(1000, 100), 0),
 
-                new((int)KentridgeRole.Warehouse,         StructureArchetype.Warehouse, new int2(1300, 700), 2),
-                new((int)KentridgeRole.RadcliffeMansion, StructureArchetype.Mansion,   new int2(1300, 330), 2),
-                new((int)KentridgeRole.Well,              StructureArchetype.Well,      TownCentreDm, 0),
+                new PlannedSite((int)KentridgeRole.Warehouse,         StructureArchetype.Warehouse, new Int2(1300, 700), 2),
+                new PlannedSite((int)KentridgeRole.RadcliffeMansion, StructureArchetype.Mansion,   new Int2(1300, 330), 2),
+                new PlannedSite((int)KentridgeRole.Well,              StructureArchetype.Well,      TownCentreDm, 0),
             };
 
             return new SettlementPlan(Id, seed, TownCentreDm, Theme, sites);
         }
 
         /// <summary>Maximum authored envelope for an archetype, in decimetres.</summary>
-        public static int3 FootprintDm(StructureArchetype archetype)
+        public static Int3 FootprintDm(StructureArchetype archetype)
         {
-            return archetype switch
+            switch (archetype)
             {
-                StructureArchetype.Townhouse => new int3(104, 120, 104),
-                StructureArchetype.WideHouse => new int3(132, 120, 132),
-                StructureArchetype.Shop      => new int3(124, 120, 124),
-                StructureArchetype.Inn       => new int3(184, 120, 184),
-                StructureArchetype.Warehouse => new int3(196, 104, 196),
-                StructureArchetype.Mansion   => new int3(268, 156, 268),
-                StructureArchetype.Church    => new int3(164, 180, 164),
-                StructureArchetype.Well      => new int3( 56,  70,  56),
-                _ => new int3(128, 128, 128),
-            };
+                case StructureArchetype.Townhouse: return new Int3(104, 120, 104);
+                case StructureArchetype.WideHouse: return new Int3(132, 120, 132);
+                case StructureArchetype.Shop:      return new Int3(124, 120, 124);
+                case StructureArchetype.Inn:       return new Int3(184, 120, 184);
+                case StructureArchetype.Warehouse: return new Int3(196, 104, 196);
+                case StructureArchetype.Mansion:   return new Int3(268, 156, 268);
+                case StructureArchetype.Church:    return new Int3(164, 180, 164);
+                case StructureArchetype.Well:      return new Int3(56, 70, 56);
+                default:                           return new Int3(128, 128, 128);
+            }
         }
 
         private static PlannedSite Jittered(uint seed, uint salt, KentridgeRole role,
@@ -120,7 +119,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
             int dx = SignedJitter(seed, salt * 2, 12);
             int dz = SignedJitter(seed, salt * 2 + 1, 12);
             return new PlannedSite((int)role, archetype,
-                                   new int2(xDm + dx, zDm + dz), orientation);
+                                   new Int2(xDm + dx, zDm + dz), orientation);
         }
 
         /// <summary>
