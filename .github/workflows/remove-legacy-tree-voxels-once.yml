@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   rewrite:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
