@@ -45,13 +45,19 @@ namespace VoxelEngine.Core.Features
         ///
         /// Primitives are applied in the order given; later ones win where they overlap, which is
         /// how a window carves the wall that was filled a moment earlier.
+        ///
+        /// When <paramref name="markHardSurface"/> is true, authored solid writes also tag the
+        /// containing brick as hard architecture. Carves deliberately do not create hard semantics
+        /// on their own: a structure fill already tagged those bricks, while a carve into natural
+        /// terrain should not magically turn the exposed terrain into masonry.
         /// </summary>
         public static RasterResult Rasterise(
             NativeArray<Primitive> primitives,
             int3 subVolumeMin,
             int3 subVolumeMax,
             ref RegionTable table,
-            ref BrickPool pool)
+            ref BrickPool pool,
+            bool markHardSurface = false)
         {
             var result = new RasterResult();
 
@@ -74,6 +80,8 @@ namespace VoxelEngine.Core.Features
                 int y0 = math.max(min.y, subVolumeMin.y), y1 = math.min(max.y, subVolumeMax.y - 1);
                 int z0 = math.max(min.z, subVolumeMin.z), z1 = math.min(max.z, subVolumeMax.z - 1);
 
+                bool hardWrite = markHardSurface && primitive.Mode != PrimitiveMode.Carve;
+
                 for (int z = z0; z <= z1; z++)
                 for (int y = y0; y <= y1; y++)
                 for (int x = x0; x <= x1; x++)
@@ -89,7 +97,7 @@ namespace VoxelEngine.Core.Features
                         ? VoxelDimensions.MaterialEmpty
                         : primitive.Material;
 
-                    if (VoxelAccess.SetVoxel(ref table, ref pool, voxel, material))
+                    if (VoxelAccess.SetVoxel(ref table, ref pool, voxel, material, hardWrite))
                         result.VoxelsWritten++;
                 }
 
