@@ -1,9 +1,7 @@
 {
   "name": "MountingForce.WorldGen.Core",
   "rootNamespace": "MountingForce.WorldGen",
-  "references": [
-    "Unity.Mathematics"
-  ],
+  "references": [],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
