@@ -1,4 +1,4 @@
-name: World Art Kit Visual
+name: Sunlit Cleric Visual
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   capture-world-art:
-    name: Render storybook voxel ruin
+    name: Render Sunlit Cleric by the Waterfall
     runs-on: [self-hosted, macOS]
     timeout-minutes: 20
 
@@ -33,7 +33,7 @@ jobs:
           fi
           echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
 
-      - name: Render deterministic world art scene
+      - name: Render deterministic target scene
         shell: bash
         run: |
           set -euo pipefail
@@ -41,26 +41,26 @@ jobs:
           "${{ steps.unity.outputs.path }}" \
             -batchmode \
             -projectPath "$GITHUB_WORKSPACE" \
-            -executeMethod VoxelEngine.CI.WorldArtKitCapture.Run \
+            -executeMethod VoxelEngine.CI.SunlitClericCapture.Run \
             -logFile "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/unity.log" \
             -quit
 
-          test -s "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/world-art-ruin.png"
-          test -s "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/world-art-ruin.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/sunlit-cleric.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/sunlit-cleric.txt"
 
       - name: Show lookdev metadata
         if: always()
         shell: bash
         run: |
-          if [[ -f "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/world-art-ruin.txt" ]]; then
-            cat "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/world-art-ruin.txt"
+          if [[ -f "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/sunlit-cleric.txt" ]]; then
+            cat "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/sunlit-cleric.txt"
           fi
 
       - name: Upload world-art artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: world-art-kit-${{ github.sha }}
+          name: sunlit-cleric-${{ github.sha }}
           path: Artifacts/WorldArtKit/
           if-no-files-found: warn
           retention-days: 14
