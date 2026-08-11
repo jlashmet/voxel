@@ -243,7 +243,7 @@ namespace VoxelEngine.Showcase
                 };
                 _highestActiveSlot = math.max(_highestActiveSlot, slot);
                 ActiveChunks++;
-                ActiveVoxels += nonProxyCount;
+                ActiveVoxels += representedSourceVoxels;
                 minSlot = math.min(minSlot, slot);
                 maxSlot = math.max(maxSlot, slot);
                 submitted++;
