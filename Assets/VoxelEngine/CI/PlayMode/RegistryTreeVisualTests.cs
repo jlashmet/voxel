@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -29,31 +30,28 @@ namespace VoxelEngine.CI
 
             GameObject cameraObject = null;
             GameObject groundObject = null;
-            GameObject testRendererObject = null;
             Material groundMaterial = null;
             RenderTexture target = null;
             Texture2D capture = null;
 
             try
             {
-                // Unity's command-line PlayMode Test Runner can begin a test before the normal
-                // AfterSceneLoad callback runs. Give the runtime bootstrap a few frames, then, if
-                // necessary, create the production component normally. AddComponent executes its
-                // real Awake/Update lifecycle; no renderer internals are invoked by the test.
-                ProceduralTreeRenderer renderer = null;
-                for (int frame = 0; frame < 4 && renderer == null; frame++)
+                // The production bootstrap object is HideFlags.DontSave. Unity's normal
+                // FindFirstObjectByType path may omit it even though the static singleton sees it,
+                // so enumerate loaded runtime objects explicitly. This avoids accidentally creating
+                // a second component that Awake() immediately destroys as a duplicate.
+                List<ProceduralTreeRenderer> bootstrapRenderers = null;
+                for (int frame = 0; frame < 30; frame++)
                 {
-                    renderer = Object.FindFirstObjectByType<ProceduralTreeRenderer>();
-                    if (renderer == null) yield return null;
-                }
-                bool bootstrapFound = renderer != null;
-                if (renderer == null)
-                {
-                    testRendererObject = new GameObject("CI Production Procedural Tree Renderer");
-                    renderer = testRendererObject.AddComponent<ProceduralTreeRenderer>();
+                    bootstrapRenderers = FindRuntimeRenderers();
+                    if (bootstrapRenderers.Count > 0) break;
                     yield return null;
                 }
-                Assert.That(renderer, Is.Not.Null);
+
+                Assert.That(bootstrapRenderers, Is.Not.Null);
+                Assert.That(bootstrapRenderers.Count, Is.EqualTo(1),
+                            "Production bootstrap must create exactly one ProceduralTreeRenderer.");
+                ProceduralTreeRenderer renderer = bootstrapRenderers[0];
 
                 var instance = new TreeInstance
                 {
@@ -66,15 +64,15 @@ namespace VoxelEngine.CI
 
                 // Give the production Update loop time to observe Version, build all three LODs,
                 // and run its normal fallback-visibility pass.
-                for (int frame = 0; frame < 30 && renderer.transform.childCount == 0; frame++)
+                for (int frame = 0; frame < 30 && renderer != null && renderer.transform.childCount == 0; frame++)
                     yield return null;
                 yield return null;
                 yield return null;
 
-                ProceduralTreeRenderer[] renderers =
-                    Object.FindObjectsByType<ProceduralTreeRenderer>(FindObjectsSortMode.None);
-                Assert.That(renderers.Length, Is.EqualTo(1),
+                List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
+                Assert.That(renderers.Count, Is.EqualTo(1),
                             "Exactly one runtime ProceduralTreeRenderer must own vegetation.");
+                renderer = renderers[0];
                 Assert.That(renderer.transform.childCount, Is.EqualTo(1),
                             "One registry TreeInstance must produce exactly one presentation root.");
 
@@ -189,9 +187,8 @@ namespace VoxelEngine.CI
                 }
 
                 string metadata =
-                    $"bootstrapFound={bootstrapFound}\n" +
                     $"registryInstances={ProceduralTreeRegistry.Instances.Count}\n" +
-                    $"rendererInstances={renderers.Length}\n" +
+                    $"rendererInstances={renderers.Count}\n" +
                     $"presentationRoots={renderer.transform.childCount}\n" +
                     $"rootName={treeRoot.name}\n" +
                     $"rootActive={treeRoot.gameObject.activeSelf}\n" +
@@ -220,8 +217,20 @@ namespace VoxelEngine.CI
                 if (cameraObject != null) Object.Destroy(cameraObject);
                 if (groundObject != null) Object.Destroy(groundObject);
                 if (groundMaterial != null) Object.Destroy(groundMaterial);
-                if (testRendererObject != null) Object.Destroy(testRendererObject);
             }
+        }
+
+        private static List<ProceduralTreeRenderer> FindRuntimeRenderers()
+        {
+            ProceduralTreeRenderer[] all = Resources.FindObjectsOfTypeAll<ProceduralTreeRenderer>();
+            var result = new List<ProceduralTreeRenderer>(all.Length);
+            foreach (ProceduralTreeRenderer renderer in all)
+            {
+                if (renderer == null || renderer.gameObject == null) continue;
+                if (!renderer.gameObject.scene.IsValid()) continue;
+                result.Add(renderer);
+            }
+            return result;
         }
     }
 }
