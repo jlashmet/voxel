@@ -23,8 +23,8 @@ namespace MountingForce.CombatPrototype.Editor
             }
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            GameObject root = new GameObject("Chain Combat Prototype");
-            root.AddComponent<CombatPrototypeController>();
+            GameObject root = new GameObject("Chain Combat Cascade Lab");
+            root.AddComponent<ChainCombatLabController>();
             EditorApplication.isPlaying = true;
         }
     }
