@@ -47,7 +47,9 @@ namespace MountingForce.WorldGen.Voxel
 
             // Broad horizontal shelves are joined by authored ascent zones. Keeping a real plateau
             // around each major street lets the town read as stacked districts rather than one
-            // continuous procedural hill.
+            // continuous procedural hill. The civic climb is deliberately continuous all the way
+            // into the church shelf: earlier versions jumped at z=160, which made frontage heights
+            // disagree with the piecewise road ramps even though both consumed this same profile.
             if (zDm >= 900)
                 offset = LowerSouthOffsetDm;
             else if (zDm >= 760)
@@ -58,15 +60,21 @@ namespace MountingForce.WorldGen.Voxel
                 offset = MarketOffsetDm;
             else if (zDm >= 300)
                 offset = LerpDm(MarketOffsetDm, UpperShoulderOffsetDm, 440 - zDm, 140);
-            else if (zDm >= 160)
-                offset = LerpDm(UpperShoulderOffsetDm, UpperCivicOffsetDm, 300 - zDm, 140);
+            else if (zDm >= 150)
+                offset = LerpDm(UpperShoulderOffsetDm, SummitOffsetDm, 300 - zDm, 150);
             else
                 offset = SummitOffsetDm;
 
-            // The noble estate climbs a secondary ridge on the east side. This is intentionally
-            // modest: the church remains Kentridge's strongest skyline anchor.
-            if (xDm >= 1420 && zDm <= 360)
-                offset += EastRidgeBoostDm;
+            // The noble estate climbs a secondary east-side ridge. Fade the extra rise in over a
+            // full block instead of introducing a sudden 1.5 m contour step at z=360; the mansion
+            // still receives the full boost while the service lane remains continuously walkable.
+            if (xDm >= 1420)
+            {
+                if (zDm <= 300)
+                    offset += EastRidgeBoostDm;
+                else if (zDm < 420)
+                    offset += LerpDm(0, EastRidgeBoostDm, 420 - zDm, 120);
+            }
 
             return offset;
         }
