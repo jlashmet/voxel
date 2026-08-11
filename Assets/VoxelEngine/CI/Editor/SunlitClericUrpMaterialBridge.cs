@@ -105,21 +105,23 @@ namespace VoxelEngine.CI
 
         private static void ConfigureCamera(Camera camera, Vector3 hero)
         {
-            Vector3 centre = hero + new Vector3(0f, 1.05f, 0f);
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.05f, 0.48f, 0.90f, 1f);
             camera.fieldOfView = 33f;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 80f;
-            camera.transform.position = centre + new Vector3(0.35f, 1.05f, -6.75f);
-            camera.transform.LookAt(centre + new Vector3(0.18f, -0.05f, 2.1f));
+
+            // Screen-space matched against the portrait reference: the character now occupies
+            // about two thirds of the image height rather than reading like a tiny scale figure.
+            camera.transform.position = hero + new Vector3(0.25f, 2.00f, -4.50f);
+            camera.transform.LookAt(hero + new Vector3(0.10f, 0.50f, 2.00f));
 
             RenderSettings.skybox = null;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = new Color(0.27f, 0.66f, 0.91f);
-            RenderSettings.fogStartDistance = 26f;
-            RenderSettings.fogEndDistance = 55f;
+            RenderSettings.fogStartDistance = 24f;
+            RenderSettings.fogEndDistance = 52f;
         }
 
         // ------------------------------------------------------------------
@@ -135,7 +137,6 @@ namespace VoxelEngine.CI
             Material dark = Smooth("Detail Dark Brown", new Color(0.16f, 0.065f, 0.035f));
             Material mouth = Smooth("Detail Mouth", new Color(0.45f, 0.12f, 0.10f));
 
-            // Existing proxy eyes are intentionally enlarged to read as a JRPG face at this camera.
             Transform leftEye = hero.Find("Left Brown Eye");
             Transform rightEye = hero.Find("Right Brown Eye");
             if (leftEye != null) leftEye.localScale = new Vector3(0.060f, 0.048f, 0.025f);
@@ -145,8 +146,6 @@ namespace VoxelEngine.CI
             smile.transform.localPosition = new Vector3(0f, 1.475f, -0.302f);
             smile.transform.localScale = new Vector3(0.060f, 0.018f, 0.014f);
 
-            // Long layered blonde hair. The original proxy only had a cap + two locks; the target
-            // has a large soft hair silhouette around both shoulders.
             Vector3[] hairTop =
             {
                 new(-0.22f, 1.67f, 0.02f), new(-0.16f, 1.70f, 0.09f), new(-0.08f, 1.72f, 0.13f),
@@ -160,7 +159,6 @@ namespace VoxelEngine.CI
             for (int i = 0; i < hairTop.Length; i++)
                 CapsuleLocal($"Long Hair {i}", hairTop[i], hairBottom[i], 0.070f, hair, hero);
 
-            // Blue cape lining peeking around the white robe.
             Mesh cape = new Mesh { name = "Sunlit Cleric Cape" };
             cape.vertices = new[]
             {
@@ -170,10 +168,8 @@ namespace VoxelEngine.CI
             cape.triangles = new[] { 0,1,2, 0,2,3, 2,1,0, 3,2,0 };
             cape.RecalculateNormals();
             Created.Add(cape);
-            GameObject capeObject = MeshObject("Blue Cape Lining", cape, blue, hero);
-            capeObject.transform.localPosition = Vector3.zero;
+            MeshObject("Blue Cape Lining", cape, blue, hero);
 
-            // Gold vertical robe trim and clasp.
             GameObject stripe = Primitive(PrimitiveType.Cube, "Gold Robe Stripe", gold, hero);
             stripe.transform.localPosition = new Vector3(0f, 0.52f, -0.225f);
             stripe.transform.localScale = new Vector3(0.035f, 0.78f, 0.018f);
@@ -181,7 +177,6 @@ namespace VoxelEngine.CI
             clasp.transform.localPosition = new Vector3(0f, 1.19f, -0.25f);
             clasp.transform.localScale = Vector3.one * 0.085f;
 
-            // Visible boots below the robe and a small leather book/pouch at the hip.
             for (int side = -1; side <= 1; side += 2)
             {
                 GameObject boot = Primitive(PrimitiveType.Sphere, side < 0 ? "Left Boot" : "Right Boot", brown, hero);
@@ -196,25 +191,33 @@ namespace VoxelEngine.CI
             pouchCross.transform.localPosition = new Vector3(0.30f, 0.77f, -0.295f);
             pouchCross.transform.localScale = new Vector3(0.025f, 0.15f, 0.012f);
 
-            // Make the staff head more like the ornate circular cleric symbol in the reference.
-            Vector3 ringCentre = new(0.49f, 1.91f, -0.10f);
+            // The concept's staff head is almost level with Madeline's hair. The first proxy had
+            // it ~0.4 m too tall, which distorted the portrait framing. Shorten the shaft/head.
+            Transform shaft = hero.Find("Staff Shaft");
+            if (shaft != null)
+            {
+                shaft.localPosition = new Vector3(0.49f, 0.845f, -0.10f);
+                shaft.localScale = new Vector3(shaft.localScale.x, 0.805f, shaft.localScale.z);
+                Renderer r = shaft.GetComponent<Renderer>();
+                if (r != null) r.sharedMaterial = dark;
+            }
+            string[] headParts = { "Staff Sun Core", "Staff Blue Crystal", "Staff Ray Up", "Staff Ray Down", "Staff Ray Left", "Staff Ray Right" };
+            foreach (string part in headParts)
+            {
+                Transform t = hero.Find(part);
+                if (t != null) t.localPosition += Vector3.down * 0.21f;
+            }
+
+            Vector3 ringCentre = new(0.49f, 1.70f, -0.10f);
             const int segments = 12;
-            const float radius = 0.24f;
+            const float radius = 0.21f;
             for (int i = 0; i < segments; i++)
             {
                 float a0 = i * Mathf.PI * 2f / segments;
                 float a1 = (i + 1) * Mathf.PI * 2f / segments;
                 Vector3 p0 = ringCentre + new Vector3(Mathf.Cos(a0) * radius, Mathf.Sin(a0) * radius, 0f);
                 Vector3 p1 = ringCentre + new Vector3(Mathf.Cos(a1) * radius, Mathf.Sin(a1) * radius, 0f);
-                CapsuleLocal($"Staff Ring {i}", p0, p1, 0.018f, gold, hero);
-            }
-
-            // Slightly darken the staff shaft toward the target's walnut brown.
-            Transform shaft = hero.Find("Staff Shaft");
-            if (shaft != null)
-            {
-                Renderer r = shaft.GetComponent<Renderer>();
-                if (r != null) r.sharedMaterial = dark;
+                CapsuleLocal($"Staff Ring {i}", p0, p1, 0.016f, gold, hero);
             }
         }
 
@@ -238,84 +241,73 @@ namespace VoxelEngine.CI
             Material castleStone = Smooth("Reference Castle", new Color(0.67f, 0.67f, 0.61f));
             Material castleRoof = Smooth("Reference Castle Roof", new Color(0.31f, 0.40f, 0.48f));
 
-            // Blue physical backdrop avoids dependence on the scene skybox state in batch mode.
+            // Oversized physical backdrop guarantees a clean saturated blue frame in batch mode.
             GameObject skyPlane = Primitive(PrimitiveType.Quad, "Physical Blue Sky", sky, null);
-            skyPlane.transform.position = hero + new Vector3(0f, 6.4f, 20f);
-            skyPlane.transform.localScale = new Vector3(22f, 13f, 1f);
+            skyPlane.transform.position = hero + new Vector3(0f, 3.7f, 18f);
+            skyPlane.transform.localScale = new Vector3(28f, 22f, 1f);
 
-            CreateCloudCluster(hero + new Vector3(-3.2f, 6.5f, 14.5f), 1.15f, cloud);
-            CreateCloudCluster(hero + new Vector3(1.0f, 7.4f, 15.5f), 1.35f, cloud);
-            CreateCloudCluster(hero + new Vector3(6.2f, 6.6f, 14.0f), 1.10f, cloud);
+            CreateCloudCluster(hero + new Vector3(-1.15f, 1.85f, 14.5f), 0.92f, cloud);
+            CreateCloudCluster(hero + new Vector3(0.45f, 2.10f, 15.5f), 1.08f, cloud);
+            CreateCloudCluster(hero + new Vector3(1.90f, 1.75f, 14.0f), 0.86f, cloud);
 
-            // Hero island: stone block edges with broad, soft moss on top.
-            CreateIsland(hero + new Vector3(0f, -0.48f, 0.80f), new Vector3(5.7f, 0.75f, 4.1f), stone, moss, 9);
-            CreateBlock(hero + new Vector3(-2.35f, -0.60f, -0.25f), new Vector3(1.1f, 0.75f, 1.35f), stone, Quaternion.Euler(0f, 5f, 0f));
-            CreateBlock(hero + new Vector3(2.45f, -0.58f, 0.15f), new Vector3(1.25f, 0.78f, 1.10f), stone, Quaternion.Euler(0f, -7f, 0f));
+            CreateIsland(hero + new Vector3(0f, -0.48f, 0.80f), new Vector3(4.7f, 0.72f, 3.7f), stone, moss, 9);
+            CreateBlock(hero + new Vector3(-2.10f, -0.60f, -0.20f), new Vector3(0.90f, 0.72f, 1.10f), stone, Quaternion.Euler(0f, 5f, 0f));
+            CreateBlock(hero + new Vector3(2.05f, -0.58f, 0.15f), new Vector3(0.95f, 0.75f, 0.95f), stone, Quaternion.Euler(0f, -7f, 0f));
 
-            // Left ruin arch and a smaller broken arch behind it.
-            CreateArch(hero + new Vector3(-3.45f, 0.02f, 3.3f), 1.45f, 3.85f, stone, moss);
-            CreateArch(hero + new Vector3(-2.1f, -0.18f, 6.2f), 0.78f, 2.05f, stone, mossDark);
+            // Camera-space projected placements: these coordinates were chosen to land the major
+            // shapes at the same left/right bands as the 1120x1376 concept image.
+            CreateArch(hero + new Vector3(-1.20f, 0.00f, 3.30f), 0.90f, 2.40f, stone, moss);
+            CreateArch(hero + new Vector3(-1.45f, -0.10f, 6.20f), 0.52f, 1.45f, stone, mossDark);
+            CreateTree(hero + new Vector3(-2.00f, -0.10f, 4.00f), 0.62f, trunk, leaf, leafLight);
 
-            // Large storybook tree entering from the upper-left corner.
-            CreateTree(hero + new Vector3(-5.1f, -0.1f, 3.9f), 1.15f, trunk, leaf, leafLight);
+            CreateIsland(hero + new Vector3(0.90f, 0.00f, 4.20f), new Vector3(2.4f, 0.90f, 2.25f), darkStone, moss, 7);
+            CreateIsland(hero + new Vector3(1.20f, 0.50f, 6.80f), new Vector3(2.5f, 1.10f, 2.30f), stone, moss, 8);
+            CreateIsland(hero + new Vector3(1.50f, 1.00f, 9.10f), new Vector3(2.6f, 1.20f, 2.35f), stone, mossDark, 8);
 
-            // Right-hand garden terraces. Each level is a stone island with moss pillow on top.
-            CreateIsland(hero + new Vector3(3.9f, 0.10f, 4.2f), new Vector3(3.4f, 1.05f, 2.8f), darkStone, moss, 7);
-            CreateIsland(hero + new Vector3(5.4f, 1.28f, 6.8f), new Vector3(3.6f, 1.45f, 3.0f), stone, moss, 8);
-            CreateIsland(hero + new Vector3(6.5f, 2.82f, 9.1f), new Vector3(3.8f, 1.65f, 3.1f), stone, mossDark, 8);
+            CreatePool(hero + new Vector3(1.00f, -0.18f, 1.20f), new Vector3(3.5f, 1.65f, 1f), water);
+            CreatePool(hero + new Vector3(1.15f, 0.18f, 3.10f), new Vector3(2.8f, 1.15f, 1f), water);
+            CreateWaterfall(hero + new Vector3(1.00f, 1.00f, 2.78f), 0.95f, 1.55f, water, waterWhite);
+            CreateWaterfall(hero + new Vector3(1.20f, 1.10f, 5.32f), 0.78f, 1.35f, water, waterWhite);
+            CreateWaterfall(hero + new Vector3(1.50f, 1.30f, 7.58f), 0.62f, 1.12f, water, waterWhite);
 
-            // Water courses: broad flat stream segments + layered waterfall curtains.
-            CreatePool(hero + new Vector3(3.35f, -0.18f, 1.15f), new Vector3(4.8f, 2.0f, 1f), water);
-            CreatePool(hero + new Vector3(4.35f, 0.30f, 3.05f), new Vector3(3.8f, 1.35f, 1f), water);
-            CreateWaterfall(hero + new Vector3(4.25f, 1.45f, 2.78f), 1.35f, 2.55f, water, waterWhite);
-            CreateWaterfall(hero + new Vector3(5.45f, 2.72f, 5.32f), 1.05f, 2.20f, water, waterWhite);
-            CreateWaterfall(hero + new Vector3(6.55f, 4.33f, 7.58f), 0.82f, 1.95f, water, waterWhite);
+            CreateCastle(hero + new Vector3(1.80f, -0.80f, 11.80f), castleStone, castleRoof, mossDark);
+            CreateIsland(hero + new Vector3(0.62f, 1.15f, 11.50f), new Vector3(0.92f, 0.42f, 0.75f), darkStone, moss, 4);
 
-            // Distant fairy-tale castle, deliberately higher/right like the reference.
-            CreateCastle(hero + new Vector3(6.8f, 4.0f, 11.8f), castleStone, castleRoof, mossDark);
+            CreateShrub(hero + new Vector3(-1.95f, -0.02f, 0.10f), 0.66f, mossDark);
+            CreateShrub(hero + new Vector3(-1.65f, 0.02f, 1.10f), 0.56f, moss);
+            CreateShrub(hero + new Vector3(1.85f, -0.02f, 0.25f), 0.58f, mossDark);
+            CreateShrub(hero + new Vector3(1.95f, 0.10f, 2.00f), 0.50f, moss);
 
-            // Floating mossy rock provides the little impossible-fantasy beat in the original.
-            CreateIsland(hero + new Vector3(1.9f, 5.05f, 11.5f), new Vector3(1.20f, 0.55f, 0.95f), darkStone, moss, 4);
-
-            // Foreground/bank shrubs soften the otherwise geometric cube edges.
-            CreateShrub(hero + new Vector3(-3.25f, -0.02f, 0.15f), 0.85f, mossDark);
-            CreateShrub(hero + new Vector3(-2.75f, 0.02f, 1.20f), 0.72f, moss);
-            CreateShrub(hero + new Vector3(2.85f, -0.02f, 0.30f), 0.76f, mossDark);
-            CreateShrub(hero + new Vector3(3.15f, 0.10f, 2.10f), 0.62f, moss);
-
-            AddFlowerPatch(hero + new Vector3(-1.9f, 0.02f, 0.25f));
-            AddFlowerPatch(hero + new Vector3(1.8f, 0.03f, 0.50f));
-            AddFlowerPatch(hero + new Vector3(-2.7f, 0.15f, 2.2f));
+            AddFlowerPatch(hero + new Vector3(-1.45f, 0.02f, 0.20f));
+            AddFlowerPatch(hero + new Vector3(1.35f, 0.03f, 0.40f));
+            AddFlowerPatch(hero + new Vector3(-1.65f, 0.15f, 2.10f));
         }
 
         private static void CreateIsland(Vector3 centre, Vector3 size, Material stone, Material moss, int rimBlocks)
         {
             CreateBlock(centre, size, stone, Quaternion.identity);
-
-            // soft moss cap
             GameObject cap = Primitive(PrimitiveType.Sphere, "Moss Island Cap", moss, null);
             cap.transform.position = centre + new Vector3(0f, size.y * 0.48f, 0f);
             cap.transform.localScale = new Vector3(size.x * 0.53f, Mathf.Max(0.22f, size.y * 0.22f), size.z * 0.53f);
 
-            // imperfect block rim, emphasizing that built/eroded matter remains chunky
             for (int i = 0; i < rimBlocks; i++)
             {
                 float t = i / (float)Mathf.Max(1, rimBlocks - 1);
                 float x = Mathf.Lerp(-size.x * 0.46f, size.x * 0.46f, t);
                 float z = -size.z * 0.48f + ((i & 1) == 0 ? 0.05f : -0.03f);
                 CreateBlock(centre + new Vector3(x, size.y * 0.43f, z),
-                            new Vector3(size.x / rimBlocks * 1.05f, 0.38f, 0.42f),
+                            new Vector3(size.x / rimBlocks * 1.05f, 0.34f, 0.38f),
                             stone, Quaternion.Euler(0f, (i % 3 - 1) * 4f, (i & 1) * 2f));
             }
         }
 
         private static void CreateArch(Vector3 basePos, float radius, float height, Material stone, Material moss)
         {
-            float block = Mathf.Max(0.34f, radius * 0.34f);
+            float block = Mathf.Max(0.30f, radius * 0.34f);
+            int pillarCount = Mathf.Max(4, Mathf.RoundToInt(height * 0.70f / (block * 0.92f)));
             for (int side = -1; side <= 1; side += 2)
             {
-                int count = Mathf.Max(4, Mathf.RoundToInt(height / block));
-                for (int y = 0; y < count; y++)
+                for (int y = 0; y < pillarCount; y++)
                 {
                     Vector3 p = basePos + new Vector3(side * radius, block * 0.5f + y * block * 0.92f, 0f);
                     CreateBlock(p, new Vector3(block * 1.04f, block, block * 0.85f), stone,
@@ -324,7 +316,7 @@ namespace VoxelEngine.CI
             }
 
             int archBlocks = 11;
-            float springY = height * 0.70f;
+            float springY = height * 0.62f;
             for (int i = 0; i < archBlocks; i++)
             {
                 float t = i / (float)(archBlocks - 1);
@@ -335,38 +327,38 @@ namespace VoxelEngine.CI
                             Quaternion.Euler(0f, 0f, -Mathf.Cos(angle) * 26f));
             }
 
-            CreateShrub(basePos + new Vector3(-radius, springY + radius * 0.8f, -0.12f), radius * 0.44f, moss);
-            CreateShrub(basePos + new Vector3(radius * 0.25f, springY + radius + 0.10f, -0.10f), radius * 0.34f, moss);
+            CreateShrub(basePos + new Vector3(-radius, springY + radius * 0.75f, -0.12f), radius * 0.35f, moss);
+            CreateShrub(basePos + new Vector3(radius * 0.25f, springY + radius + 0.05f, -0.10f), radius * 0.28f, moss);
         }
 
         private static void CreateTree(Vector3 basePos, float scale, Material trunk, Material leaf, Material leafLight)
         {
-            CapsuleWorld("Storybook Tree Trunk", basePos, basePos + new Vector3(0.25f, 3.8f * scale, 0.05f), 0.28f * scale, trunk);
-            CapsuleWorld("Storybook Tree Branch", basePos + new Vector3(0.12f, 2.6f * scale, 0f), basePos + new Vector3(1.15f * scale, 3.55f * scale, 0.10f), 0.17f * scale, trunk);
-            CapsuleWorld("Storybook Tree Branch", basePos + new Vector3(0.05f, 2.75f * scale, 0f), basePos + new Vector3(-1.05f * scale, 3.65f * scale, 0.12f), 0.17f * scale, trunk);
+            CapsuleWorld("Storybook Tree Trunk", basePos, basePos + new Vector3(0.18f, 3.6f * scale, 0.05f), 0.25f * scale, trunk);
+            CapsuleWorld("Storybook Tree Branch", basePos + new Vector3(0.10f, 2.3f * scale, 0f), basePos + new Vector3(0.95f * scale, 3.25f * scale, 0.10f), 0.15f * scale, trunk);
+            CapsuleWorld("Storybook Tree Branch", basePos + new Vector3(0.05f, 2.4f * scale, 0f), basePos + new Vector3(-0.90f * scale, 3.30f * scale, 0.12f), 0.15f * scale, trunk);
 
-            Vector3 crown = basePos + new Vector3(0.1f, 4.0f * scale, 0.1f);
+            Vector3 crown = basePos + new Vector3(0.08f, 3.65f * scale, 0.1f);
             Vector3[] offsets =
             {
-                new(-1.25f,0.0f,0f), new(-0.65f,0.55f,0.05f), new(0f,0.72f,0f),
-                new(0.72f,0.55f,0.05f), new(1.28f,0.02f,0f), new(-0.15f,-0.20f,-0.05f)
+                new(-1.10f,0.0f,0f), new(-0.55f,0.48f,0.05f), new(0f,0.62f,0f),
+                new(0.62f,0.46f,0.05f), new(1.10f,0.02f,0f), new(-0.10f,-0.18f,-0.05f)
             };
             for (int i = 0; i < offsets.Length; i++)
             {
                 GameObject canopy = Primitive(PrimitiveType.Sphere, "Storybook Leaf Clump", (i & 1) == 0 ? leaf : leafLight, null);
                 canopy.transform.position = crown + offsets[i] * scale;
-                canopy.transform.localScale = new Vector3(1.45f, 1.08f, 1.15f) * scale;
+                canopy.transform.localScale = new Vector3(1.30f, 0.95f, 1.05f) * scale;
             }
         }
 
         private static void CreateCastle(Vector3 basePos, Material stone, Material roof, Material moss)
         {
-            BuildTower(basePos, new Vector3(1.15f, 4.3f, 1.15f), stone, roof, 6);
-            BuildTower(basePos + new Vector3(-1.35f, -0.65f, 0.25f), new Vector3(0.92f, 3.0f, 0.92f), stone, roof, 5);
-            BuildTower(basePos + new Vector3(1.35f, -0.85f, 0.20f), new Vector3(0.82f, 2.65f, 0.82f), stone, roof, 4);
-            BuildTower(basePos + new Vector3(0.78f, 1.15f, 0.38f), new Vector3(0.68f, 2.25f, 0.68f), stone, roof, 5);
-            CreateBlock(basePos + new Vector3(0f, -0.75f, 0f), new Vector3(3.3f, 1.25f, 1.7f), stone, Quaternion.identity);
-            CreateShrub(basePos + new Vector3(-1.25f, 0.55f, -0.50f), 0.42f, moss);
+            BuildTower(basePos, new Vector3(0.92f, 3.10f, 0.92f), stone, roof, 6);
+            BuildTower(basePos + new Vector3(-0.95f, -0.25f, 0.22f), new Vector3(0.70f, 2.20f, 0.70f), stone, roof, 5);
+            BuildTower(basePos + new Vector3(0.92f, -0.35f, 0.20f), new Vector3(0.62f, 1.90f, 0.62f), stone, roof, 4);
+            BuildTower(basePos + new Vector3(0.52f, 0.65f, 0.35f), new Vector3(0.52f, 1.60f, 0.52f), stone, roof, 5);
+            CreateBlock(basePos + new Vector3(0f, -0.48f, 0f), new Vector3(2.35f, 0.88f, 1.28f), stone, Quaternion.identity);
+            CreateShrub(basePos + new Vector3(-0.85f, 0.38f, -0.42f), 0.34f, moss);
         }
 
         private static void BuildTower(Vector3 basePos, Vector3 size, Material stone, Material roof, int roofSteps)
@@ -377,8 +369,8 @@ namespace VoxelEngine.CI
             {
                 float t = i / (float)roofSteps;
                 float width = size.x * Mathf.Lerp(1.05f, 0.14f, t);
-                CreateBlock(new Vector3(basePos.x, y + 0.12f + i * 0.19f, basePos.z),
-                            new Vector3(width, 0.22f, width), roof, Quaternion.Euler(0f, i * 3f, 0f));
+                CreateBlock(new Vector3(basePos.x, y + 0.10f + i * 0.15f, basePos.z),
+                            new Vector3(width, 0.18f, width), roof, Quaternion.Euler(0f, i * 3f, 0f));
             }
         }
 
@@ -396,7 +388,7 @@ namespace VoxelEngine.CI
             {
                 GameObject foam = Primitive(PrimitiveType.Sphere, "Waterfall Foam", white, null);
                 foam.transform.position = centre + new Vector3((i - 2) * width * 0.18f, -height * 0.51f, -0.05f);
-                foam.transform.localScale = new Vector3(width * 0.35f, 0.13f, 0.28f);
+                foam.transform.localScale = new Vector3(width * 0.35f, 0.11f, 0.24f);
             }
         }
 
@@ -455,18 +447,18 @@ namespace VoxelEngine.CI
 
             for (int i = 0; i < 5; i++)
             {
-                Vector3 p = basePos + new Vector3((i - 2) * 0.22f, 0f, ((i * 7) % 3 - 1) * 0.17f);
-                float h = 0.20f + (i % 3) * 0.035f;
-                CapsuleWorld("Flower Stem", p, p + Vector3.up * h, 0.012f, stem);
+                Vector3 p = basePos + new Vector3((i - 2) * 0.18f, 0f, ((i * 7) % 3 - 1) * 0.14f);
+                float h = 0.18f + (i % 3) * 0.030f;
+                CapsuleWorld("Flower Stem", p, p + Vector3.up * h, 0.010f, stem);
                 GameObject centre = Primitive(PrimitiveType.Sphere, "Flower Centre", yellow, null);
                 centre.transform.position = p + Vector3.up * h;
-                centre.transform.localScale = Vector3.one * 0.045f;
+                centre.transform.localScale = Vector3.one * 0.040f;
                 for (int petal = 0; petal < 5; petal++)
                 {
                     float a = petal * Mathf.PI * 2f / 5f;
                     GameObject petalObject = Primitive(PrimitiveType.Sphere, "Flower Petal", petals[i], null);
-                    petalObject.transform.position = p + Vector3.up * h + new Vector3(Mathf.Cos(a) * 0.065f, 0f, Mathf.Sin(a) * 0.065f);
-                    petalObject.transform.localScale = new Vector3(0.075f, 0.022f, 0.048f);
+                    petalObject.transform.position = p + Vector3.up * h + new Vector3(Mathf.Cos(a) * 0.055f, 0f, Mathf.Sin(a) * 0.055f);
+                    petalObject.transform.localScale = new Vector3(0.065f, 0.020f, 0.043f);
                 }
             }
         }
