@@ -90,7 +90,9 @@ namespace VoxelEngine.Rendering
 
             if (m_SkyPass != null)
             {
-                m_SkyPass.renderPassEvent = RenderPassEvent.BeforeRenderingOpaques;
+                // URP's normal skybox runs at BeforeRenderingSkybox. Draw immediately afterward
+                // and replace only pixels whose depth is still at the exact far-clear value.
+                m_SkyPass.renderPassEvent = RenderPassEvent.AfterRenderingSkybox;
                 m_SkyPass.Enabled = m_Enabled;
                 renderer.EnqueuePass(m_SkyPass);
             }
