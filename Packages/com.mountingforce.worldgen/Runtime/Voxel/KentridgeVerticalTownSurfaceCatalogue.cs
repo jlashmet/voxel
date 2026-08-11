@@ -341,14 +341,16 @@ namespace MountingForce.WorldGen.Voxel
             byte supportStone = settings.Materials.Resolve(MaterialRole.FoundationStone);
 
             var b = new ProgramBuilder();
+            // Clear first; later fills are authoritative at the road surface and cannot be erased by
+            // the same instance's excavation primitive.
+            b.Carve(0, road.SupportDepth + fillHeight, 0,
+                    sx, road.ClearHeight, sz);
             if (road.SupportDepth > 0)
                 b.Box(0, 0, 0, sx, road.SupportDepth, sz, supportStone);
             b.Box(0, road.SupportDepth, 0, sx, fillHeight, sz, roadSurface);
             if (road.HeightDelta > 0)
                 b.Ramp(0, road.SupportDepth + fillHeight, 0,
                        sx, road.HeightDelta, sz, road.Axis, roadSurface);
-            b.Carve(0, road.SupportDepth + fillHeight, 0,
-                    sx, road.ClearHeight, sz);
             return b.Finish();
         }
 
@@ -361,12 +363,12 @@ namespace MountingForce.WorldGen.Voxel
             byte supportStone = settings.Materials.Resolve(MaterialRole.FoundationStone);
 
             var b = new ProgramBuilder();
+            b.Carve(0, plaza.SupportDepth + fillHeight, 0,
+                    plaza.Width, plaza.ClearHeight, plaza.Depth);
             if (plaza.SupportDepth > 0)
                 b.Box(0, 0, 0, plaza.Width, plaza.SupportDepth, plaza.Depth, supportStone);
             b.Box(0, plaza.SupportDepth, 0,
                   plaza.Width, fillHeight, plaza.Depth, roadSurface);
-            b.Carve(0, plaza.SupportDepth + fillHeight, 0,
-                    plaza.Width, plaza.ClearHeight, plaza.Depth);
             return b.Finish();
         }
 
