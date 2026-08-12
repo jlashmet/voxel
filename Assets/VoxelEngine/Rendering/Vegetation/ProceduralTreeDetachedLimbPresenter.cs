@@ -111,8 +111,8 @@ namespace VoxelEngine.Rendering.Vegetation
             body.mass = trunkCut
                 ? Mathf.Clamp(bounds.size.y * 1.35f, 3f, 35f)
                 : Mathf.Clamp(bounds.size.magnitude * 0.35f, 0.35f, 12f);
-            body.linearDamping = trunkCut ? 0.22f : 0.12f;
-            body.angularDamping = trunkCut ? 0.32f : 0.18f;
+            body.linearDamping = trunkCut ? 0.30f : 0.12f;
+            body.angularDamping = trunkCut ? 0.38f : 0.18f;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
             Vector3 impulse = (Vector3)cut.Impulse;
@@ -162,17 +162,17 @@ namespace VoxelEngine.Rendering.Vegetation
             if (horizontal.sqrMagnitude < 1e-4f) horizontal = Vector3.right;
             horizontal.Normalize();
 
-            // Keep the centre of mass low and push well above it. That produces a recognizable
-            // hinge/topple instead of translating the whole crown like a projectile.
+            // A severed crown should fall, not launch. Keep its COM near the cut and give it only
+            // enough lateral motion/rotation to choose a fall direction; gravity does the rest.
             body.centerOfMass = new Vector3(0f, Mathf.Clamp(bounds.extents.y * 0.18f, 0.30f, 1.25f), 0f);
-            float leverHeight = Mathf.Clamp(bounds.size.y * 0.45f, 1.2f, 5.5f);
+            float leverHeight = Mathf.Clamp(bounds.size.y * 0.38f, 1.0f, 4.5f);
             Vector3 forcePoint = body.worldCenterOfMass + Vector3.up * leverHeight;
-            body.AddForceAtPosition(horizontal * 4.8f + Vector3.up * 0.20f,
+            body.AddForceAtPosition(horizontal * 0.85f,
                                     forcePoint, ForceMode.VelocityChange);
 
             Vector3 toppleAxis = Vector3.Cross(Vector3.up, horizontal).normalized;
             if (toppleAxis.sqrMagnitude < 0.1f) toppleAxis = Vector3.right;
-            body.angularVelocity = toppleAxis * 1.35f;
+            body.angularVelocity = toppleAxis * 0.90f;
         }
 
         private static void ApplyBranchThrow(Rigidbody body, uint seed, int branchIndex,
