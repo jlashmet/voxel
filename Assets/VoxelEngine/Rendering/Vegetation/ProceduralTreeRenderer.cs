@@ -69,6 +69,16 @@ namespace VoxelEngine.Rendering.Vegetation
         public long TotalTriangleCountAllLods { get; private set; }
         public int ResidentRenderObjectCount => (DynamicPresentationCount + BatchCount) * 4;
         public int EstimatedVisibleDrawCount => (DynamicPresentationCount + BatchCount) * 2;
+        public int ResidentSkeletonCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < _trees.Count; i++)
+                    if (_trees[i].Skeleton != null) count++;
+                return count;
+            }
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatic() => s_Instance = null;
@@ -156,15 +166,17 @@ namespace VoxelEngine.Rendering.Vegetation
             if ((uint)treeIndex >= (uint)_trees.Count) return false;
 
             TreePresentation tree = _trees[treeIndex];
+            ProceduralTreeSkeleton skeleton = tree.Skeleton
+                ?? ProceduralTreeSkeletonBuilder.Generate(in tree.Instance);
             Vector3 root = (Vector3)tree.Instance.PositionMetres;
             bool hasPoint = false;
             Vector3 min = root;
             Vector3 max = root;
 
-            for (int i = 0; i < tree.Skeleton.Branches.Count; i++)
+            for (int i = 0; i < skeleton.Branches.Count; i++)
             {
                 if (tree.ResolvedRemovedBranches.Contains(i)) continue;
-                TreeBranchSegment branch = tree.Skeleton.Branches[i];
+                TreeBranchSegment branch = skeleton.Branches[i];
                 float radius = Mathf.Max(branch.RadiusStart, branch.RadiusEnd);
                 Vector3 r = Vector3.one * radius;
                 Vector3 a = root + (Vector3)branch.Start;
@@ -184,12 +196,12 @@ namespace VoxelEngine.Rendering.Vegetation
                 }
             }
 
-            for (int i = 0; i < tree.Skeleton.Leaves.Count; i++)
+            for (int i = 0; i < skeleton.Leaves.Count; i++)
             {
-                int parent = tree.Skeleton.LeafParents != null && i < tree.Skeleton.LeafParents.Length
-                    ? tree.Skeleton.LeafParents[i] : -1;
+                int parent = skeleton.LeafParents != null && i < skeleton.LeafParents.Length
+                    ? skeleton.LeafParents[i] : -1;
                 if (parent >= 0 && tree.ResolvedRemovedBranches.Contains(parent)) continue;
-                TreeLeafAnchor leaf = tree.Skeleton.Leaves[i];
+                TreeLeafAnchor leaf = skeleton.Leaves[i];
                 Vector3 p = root + (Vector3)leaf.Position;
                 Vector3 r = Vector3.one * Mathf.Max(0.05f, leaf.Size);
                 if (!hasPoint)
@@ -274,6 +286,7 @@ namespace VoxelEngine.Rendering.Vegetation
         private void EnsureDynamicPresentation(TreePresentation tree)
         {
             if (tree.Root != null) return;
+            EnsureSkeleton(tree);
 
             var root = new GameObject($"Tree {tree.Index:000} {tree.Instance.Species}")
             {
@@ -317,7 +330,11 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private void DestroyDynamicPresentation(TreePresentation tree)
         {
-            if (tree.Root == null) return;
+            if (tree.Root == null)
+            {
+                ReleaseBatchedSkeleton(tree);
+                return;
+            }
             tree.Root.SetActive(false);
 
             if (tree.LodMeshes != null)
@@ -335,6 +352,23 @@ namespace VoxelEngine.Rendering.Vegetation
             tree.BarkIndexOwners = null;
             tree.LeafIndexOwners = null;
             DynamicPresentationCount = Mathf.Max(0, DynamicPresentationCount - 1);
+            ReleaseBatchedSkeleton(tree);
+        }
+
+        private static void EnsureSkeleton(TreePresentation tree)
+        {
+            if (tree.Skeleton != null) return;
+            tree.Skeleton = ProceduralTreeSkeletonBuilder.Generate(in tree.Instance);
+            IReadOnlyCollection<int> directCuts = TreeWorldState.RemovedBranches(tree.Index);
+            ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
+                tree.Skeleton, directCuts, tree.ResolvedRemovedBranches);
+            tree.DirectCutCount = directCuts.Count;
+        }
+
+        private static void ReleaseBatchedSkeleton(TreePresentation tree)
+        {
+            if (tree.IsBatched && tree.Root == null)
+                tree.Skeleton = null;
         }
 
         private void BuildDynamicTreeMeshes(TreePresentation tree)
@@ -460,6 +494,7 @@ namespace VoxelEngine.Rendering.Vegetation
             for (int i = 0; i < treeIndices.Count; i++)
             {
                 TreePresentation tree = _trees[treeIndices[i]];
+                EnsureSkeleton(tree);
                 Vector3 offset = (Vector3)tree.Instance.PositionMetres - batchOrigin;
                 ProceduralTreeMeshBuilder.AppendMeshData(
                     tree.Skeleton, lod, offset,
@@ -613,6 +648,7 @@ namespace VoxelEngine.Rendering.Vegetation
                 bool geometryChanged = tree.DirectCutCount != directCuts.Count;
                 if (geometryChanged)
                 {
+                    EnsureSkeleton(tree);
                     ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
                         tree.Skeleton, directCuts, tree.ResolvedRemovedBranches);
                     tree.DirectCutCount = directCuts.Count;
