@@ -85,6 +85,7 @@ namespace VoxelEngine.CI
             SunlitWaterfallCleanupPass.Apply(camera);
             SunlitWaterfallReferenceCorrectionPass.Apply(camera);
             SunlitWaterfallReferencePolishPass.Apply(camera);
+            SunlitWaterfallTurfCullFixPass.Apply(camera);
             SunlitWaterfallSurfacePass.Apply(camera);
         }
     }
