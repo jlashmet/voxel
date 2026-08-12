@@ -8,20 +8,14 @@ using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Server
 {
-    /// <summary>Transport-facing sink for ordered authoritative alteration batches.</summary>
     public interface IAlterationReplicationSink
     {
         void SendBatch(uint connectionId, int3 encodingRegion, uint tick, ReadOnlySpan<AlterationEvent> events);
     }
 
     /// <summary>
-    /// Converts the sealed authoritative event stream into minimal per-connection replication.
-    ///
-    /// Routing is event-driven and interest-filtered. A cross-region event is sent once to the
-    /// union of subscribers of every impacted region, then batched only with consecutive events
-    /// that share tick and encoding region. Preserving per-connection event order is more
-    /// important than maximizing batch size because the reliable EVENT stream carries server
-    /// arbitration order.
+    /// Interest-routes sealed authoritative events without changing their global order.
+    /// Cross-region fan-out uses the exact canonical effect bounds whenever the shape is known.
     /// </summary>
     public sealed class ReplicationRouter
     {
@@ -37,13 +31,10 @@ namespace VoxelEngine.Net.Server
             _subscriptions = subscriptions ?? throw new ArgumentNullException(nameof(subscriptions));
         }
 
-        /// <summary>Route one sealed server tick to interested connections in authoritative order.</summary>
         public void RouteTick(IReadOnlyList<AlterationEvent> events, IAlterationReplicationSink sink)
         {
-            if (events == null)
-                throw new ArgumentNullException(nameof(events));
-            if (sink == null)
-                throw new ArgumentNullException(nameof(sink));
+            if (events == null) throw new ArgumentNullException(nameof(events));
+            if (sink == null) throw new ArgumentNullException(nameof(sink));
 
             ResetRoutes();
 
@@ -89,7 +80,6 @@ namespace VoxelEngine.Net.Server
                         first.EncodingRegion,
                         first.Event.tick,
                         batchScratch.Slice(0, count));
-
                     index += count;
                 }
             }
@@ -112,7 +102,6 @@ namespace VoxelEngine.Net.Server
                 pair.Value.Clear();
                 _routeListPool.Push(pair.Value);
             }
-
             _routesByConnection.Clear();
         }
 
@@ -120,40 +109,44 @@ namespace VoxelEngine.Net.Server
         {
             destination.Clear();
 
-            int3 padding = int3.zero;
+            int3 minVoxel;
+            int3 maxVoxel;
             switch (evt.kind)
             {
                 case AlterationEvent.KindExplosion:
                 {
                     int radiusVoxels = evt.Radius() * VoxelDimensions.BrickEdge;
-                    padding = new int3(radiusVoxels);
+                    int3 padding = new int3(radiusVoxels);
+                    minVoxel = evt.origin - padding;
+                    maxVoxel = evt.origin + padding;
                     break;
                 }
-                case AlterationEvent.KindBrush:
-                {
-                    int3 extents = evt.BrushExtents();
-                    padding = extents * VoxelDimensions.BrickEdge;
+
+                case AlterationEvent.KindBrush when BrushShapeCodec.Validate(evt.shapeKind, evt.shapeData):
+                    BrushShapeCodec.GetCubeVoxelBounds(
+                        evt.origin,
+                        evt.BrushExtents(),
+                        out minVoxel,
+                        out maxVoxel);
                     break;
-                }
+
                 case AlterationEvent.KindRawBatch:
-                    // Raw-batch payload shape is not yet canonical. Route conservatively to the
-                    // primary region and its immediate neighbours until the wire format exposes
-                    // exact bounds.
-                    padding = new int3(1 << VoxelDimensions.RegionVoxelEdgeLog2);
+                default:
+                {
+                    int3 padding = new int3(1 << VoxelDimensions.RegionVoxelEdgeLog2);
+                    minVoxel = evt.origin - padding;
+                    maxVoxel = evt.origin + padding;
                     break;
+                }
             }
 
-            int3 minRegion = SimulationInterest.WorldVoxelToRegion(evt.origin - padding);
-            int3 maxRegion = SimulationInterest.WorldVoxelToRegion(evt.origin + padding);
+            int3 minRegion = SimulationInterest.WorldVoxelToRegion(minVoxel);
+            int3 maxRegion = SimulationInterest.WorldVoxelToRegion(maxVoxel);
 
             for (int x = minRegion.x; x <= maxRegion.x; x++)
-            {
-                for (int y = minRegion.y; y <= maxRegion.y; y++)
-                {
-                    for (int z = minRegion.z; z <= maxRegion.z; z++)
-                        destination.Add(new int3(x, y, z));
-                }
-            }
+            for (int y = minRegion.y; y <= maxRegion.y; y++)
+            for (int z = minRegion.z; z <= maxRegion.z; z++)
+                destination.Add(new int3(x, y, z));
         }
 
         private readonly struct RoutedAlteration
