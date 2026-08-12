@@ -1,10 +1,10 @@
 using System;
+using Unity.Mathematics;
 
 namespace VoxelEngine.Core.Storage
 {
     /// <summary>
     /// Cross-peer semantic fingerprint of region state.
-    ///
     /// Allocator-local BrickPool indices never enter the hash. Material bytes and the authored
     /// hard-surface semantic bit do, because both affect authoritative derived geometry.
     /// </summary>
@@ -15,10 +15,7 @@ namespace VoxelEngine.Core.Storage
 
         public static uint HashRegion(in Region region, in BrickPool pool)
         {
-            uint hash = FnvOffsetBasis;
-            hash = MixInt(hash, region.Coord.x);
-            hash = MixInt(hash, region.Coord.y);
-            hash = MixInt(hash, region.Coord.z);
+            uint hash = BeginRegionHash(region.Coord);
 
             if (!region.BrickRefs.IsCreated)
                 return hash;
@@ -52,6 +49,14 @@ namespace VoxelEngine.Core.Storage
             return hash;
         }
 
+        internal static uint BeginRegionHash(int3 coord)
+        {
+            uint hash = FnvOffsetBasis;
+            hash = MixInt(hash, coord.x);
+            hash = MixInt(hash, coord.y);
+            return MixInt(hash, coord.z);
+        }
+
         private static uint MixInt(uint hash, int value)
         {
             uint v = unchecked((uint)value);
@@ -61,7 +66,7 @@ namespace VoxelEngine.Core.Storage
             return MixByte(hash, (byte)(v >> 24));
         }
 
-        private static uint MixByte(uint hash, byte value)
+        internal static uint MixByte(uint hash, byte value)
         {
             hash ^= value;
             return hash * FnvPrime;
