@@ -7,17 +7,39 @@ namespace VoxelEngine.Core.Edits
 {
     /// <summary>
     /// Shared authoritative/client application of semantic alteration events.
-    ///
-    /// This is deliberately below networking so the server and every client execute the same
-    /// integer write algorithm. Explosion writes are batched per brick: a mixed brick is mutated
-    /// many times but tested for collapse only once, and RegionTable is committed once per touched
-    /// brick rather than once per voxel.
-    ///
-    /// Brush/raw-batch semantics are not canonical enough yet and fail closed instead of silently
-    /// applying a different shape on server and client.
+    /// Explosion writes are batched per brick and use integer-only geometry.
     /// </summary>
     public static class DeterministicAlterationApplier
     {
+        public static bool Supports(in AlterationEvent evt) => evt.kind == AlterationEvent.KindExplosion;
+
+        /// <summary>
+        /// True only when every region whose voxels may be touched by the event is resident.
+        /// Peers must not partially apply an event based on their current streaming set.
+        /// </summary>
+        public static bool HasRequiredResidency(ref RegionTable table, in AlterationEvent evt)
+        {
+            if (!Supports(in evt))
+                return false;
+
+            int radiusVoxels = evt.Radius() * VoxelDimensions.BrickEdge;
+            if (radiusVoxels <= 0)
+                return false;
+
+            int3 minVoxel = evt.origin - new int3(radiusVoxels);
+            int3 maxVoxel = evt.origin + new int3(radiusVoxels);
+            int3 minRegion = minVoxel >> VoxelDimensions.RegionVoxelEdgeLog2;
+            int3 maxRegion = maxVoxel >> VoxelDimensions.RegionVoxelEdgeLog2;
+
+            for (int rz = minRegion.z; rz <= maxRegion.z; rz++)
+            for (int ry = minRegion.y; ry <= maxRegion.y; ry++)
+            for (int rx = minRegion.x; rx <= maxRegion.x; rx++)
+                if (!table.IsResident(new int3(rx, ry, rz)))
+                    return false;
+
+            return true;
+        }
+
         public static bool TryApply(
             ref RegionTable table,
             ref BrickPool pool,
@@ -42,25 +64,12 @@ namespace VoxelEngine.Core.Edits
         {
             affectedBricks = new NativeList<int3>(64, Allocator.Temp);
             int radiusVoxels = evt.Radius() * VoxelDimensions.BrickEdge;
-            if (radiusVoxels <= 0)
+            if (radiusVoxels <= 0 || !HasRequiredResidency(ref table, in evt))
                 return false;
 
             long radiusSq = (long)radiusVoxels * radiusVoxels;
             int3 minVoxel = evt.origin - new int3(radiusVoxels);
             int3 maxVoxel = evt.origin + new int3(radiusVoxels);
-
-            // Residency is part of the application precondition. Applying only the loaded portion
-            // of an event would make identical packets produce different worlds on different peers.
-            int3 minRegion = minVoxel >> VoxelDimensions.RegionVoxelEdgeLog2;
-            int3 maxRegion = maxVoxel >> VoxelDimensions.RegionVoxelEdgeLog2;
-            for (int rz = minRegion.z; rz <= maxRegion.z; rz++)
-            for (int ry = minRegion.y; ry <= maxRegion.y; ry++)
-            for (int rx = minRegion.x; rx <= maxRegion.x; rx++)
-            {
-                if (!table.IsResident(new int3(rx, ry, rz)))
-                    return false;
-            }
-
             int3 minBrick = minVoxel >> VoxelDimensions.BrickEdgeLog2;
             int3 maxBrick = maxVoxel >> VoxelDimensions.BrickEdgeLog2;
             bool anyChanged = false;
