@@ -29,29 +29,27 @@ namespace VoxelEngine.Core.Features
     /// the region at once.** A castle spanning four regions is generated four times, once per
     /// region, and the seams have to line up without the regions communicating.
     ///
-    /// That guarantee is structural rather than tested-in. Membership — "is this voxel inside this
-    /// primitive?" — is a pure function of the world voxel coordinate and the primitive, with no
+    /// Membership is a pure function of the world voxel coordinate and the primitive, with no
     /// reference to the volume being filled. Clipping therefore cannot change the answer for any
     /// voxel, only which voxels get asked.
     ///
-    /// Writes go through <see cref="VoxelAccess.SetVoxel"/>, the same path edits and terrain use,
-    /// so brick allocation, collapse-to-uniform, and dirty tracking behave identically for a
-    /// generated castle and for a player's wall.
+    /// Writes go through <see cref="VoxelAccess.SetVoxel"/>, the same path edits and terrain use.
+    /// Passing <paramref name="markHardSurface"/> opts the written bricks into the exact hard-
+    /// surface mesh path; the default remains smooth so existing terrain/features are unchanged.
     /// </summary>
     public static class PrimitiveRasteriser
     {
         /// <summary>
         /// Rasterises primitives clipped to the half-open volume [subVolumeMin, subVolumeMax).
-        ///
-        /// Primitives are applied in the order given; later ones win where they overlap, which is
-        /// how a window carves the wall that was filled a moment earlier.
+        /// Primitives are applied in order; later ones win where they overlap.
         /// </summary>
         public static RasterResult Rasterise(
             NativeArray<Primitive> primitives,
             int3 subVolumeMin,
             int3 subVolumeMax,
             ref RegionTable table,
-            ref BrickPool pool)
+            ref BrickPool pool,
+            bool markHardSurface = false)
         {
             var result = new RasterResult();
 
@@ -89,7 +87,7 @@ namespace VoxelEngine.Core.Features
                         ? VoxelDimensions.MaterialEmpty
                         : primitive.Material;
 
-                    if (VoxelAccess.SetVoxel(ref table, ref pool, voxel, material))
+                    if (VoxelAccess.SetVoxel(ref table, ref pool, voxel, material, markHardSurface))
                         result.VoxelsWritten++;
                 }
 
@@ -100,11 +98,7 @@ namespace VoxelEngine.Core.Features
         }
 
         /// <summary>
-        /// Membership test, dispatched by shape.
-        ///
-        /// A pure function of the primitive and the world coordinate — deliberately taking no
-        /// sub-volume, so it is impossible to write a shape whose answer depends on which region
-        /// is asking.
+        /// Membership test, dispatched by shape. A pure function of primitive and world coordinate.
         /// </summary>
         public static bool Contains(in Primitive primitive, int3 voxel)
         {
@@ -119,12 +113,7 @@ namespace VoxelEngine.Core.Features
             }
         }
 
-        /// <summary>
-        /// Voxels a batch would write inside a volume, without writing them.
-        ///
-        /// Used by validation and by the authoring preview, where the question is "how much does
-        /// this cost" rather than "put it in the world".
-        /// </summary>
+        /// <summary>Voxels a batch would write inside a volume, without writing them.</summary>
         public static int CountVoxels(NativeArray<Primitive> primitives, int3 min, int3 max)
         {
             int count = 0;
