@@ -7,7 +7,6 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
-using VoxelEngine.Rendering.Vegetation;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction
 {
@@ -153,7 +152,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly List<SmoothSurfaceVertex> _vertices = new(16_384);
         private readonly List<uint> _indices = new(24_576);
         private BuildState _build;
-        private int _treeRegistryVersion = int.MinValue;
 
         public CpuTransvoxelChunkCache()
         {
@@ -243,18 +241,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         {
             DropNoLongerResident(ref table);
             EnforceCapacity(camera, voxelSize);
-
-            // Tree semantics can arrive a few frames after the first terrain chunks because the
-            // legacy showcase migration waits for authored planting voxels. Rebuild known smooth
-            // chunks once when that semantic snapshot changes so an already-cached old crown
-            // cannot survive underneath the procedural tree. Damage does not change Version, so
-            // this is not part of the contact hot path.
-            int treeRegistryVersion = ProceduralTreeRegistry.Version;
-            if (_treeRegistryVersion != treeRegistryVersion)
-            {
-                _treeRegistryVersion = treeRegistryVersion;
-                foreach (int3 chunk in _known) _dirty.Add(chunk);
-            }
 
             if (camera == null || _dirty.Count == 0 && !_build.Active) return;
 
@@ -371,11 +357,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private TransvoxelDensityBrick SnapshotBrick(ref RegionTable table, in BrickPool pool,
                                                       int3 worldBrick)
         {
-            // Legacy showcase crowns are gameplay proxies only. They use grass/moss materials that
-            // otherwise belong to terrain, so material alone cannot distinguish them from the
-            // ground. Semantic crown ownership is the authoritative presentation exclusion.
-            if (ProceduralTreeRegistry.IsLegacyHiddenSmoothBrick(worldBrick)) return default;
-
             int3 regionCoord = new(worldBrick.x >> VoxelDimensions.RegionEdgeLog2,
                                    worldBrick.y >> VoxelDimensions.RegionEdgeLog2,
                                    worldBrick.z >> VoxelDimensions.RegionEdgeLog2);
@@ -478,11 +459,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 float3 normal = math.normalizesafe(n0 * t0 + n1 * t1,
                                                     new float3(0f, 1f, 0f));
 
-                // Positive density is the solid side of the Transvoxel crossing. Surface material
-                // must come from that side; choosing the lower-density endpoint sampled the empty
-                // side and caused authored dirt/grass surfaces to fall back to material 1 in
-                // seemingly random plates.
-                byte material = d0 > d1 ? _cellMaterial[corner0] : _cellMaterial[corner1];
+                byte material = d0 < d1 ? _cellMaterial[corner0] : _cellMaterial[corner1];
                 if (!IsSmoothFieldMaterial(material)) material = 1;
 
                 _vertices.Add(new SmoothSurfaceVertex
@@ -560,6 +537,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 float farthest = -1f;
                 Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
                 float chunkMetres = VoxelsPerAxis * voxelSize;
+
                 foreach (var pair in _entries)
                 {
                     Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
