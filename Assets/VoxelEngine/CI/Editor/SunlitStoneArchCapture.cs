@@ -67,10 +67,6 @@ namespace VoxelEngine.CI
                 if (brush.BudgetExceeded)
                     throw new InvalidOperationException("Voxel hero arch exceeded VoxelBrush budget.");
 
-                // Stone and its painted joint material share one geometric reconstruction. The
-                // joint id controls surface appearance only; it must not change the silhouette.
-                // DressedStone blends tight and wide signed-distance recovery for continuous arch
-                // curves, then planarizes strongly axis-aligned cut faces.
                 var surfaceProfiles = new VoxelSurfaceProfileSet()
                     .Set(Mat.Stone, VoxelSurfaceProfile.DressedStone)
                     .Set(Mat.DarkStone, VoxelSurfaceProfile.DressedStone)
@@ -131,6 +127,7 @@ namespace VoxelEngine.CI
                     "capture=AAA voxel-only arch hero study\n" +
                     "geometry=VoxelBrush -> material-aware bounded voxel extraction\n" +
                     "surfaceProfile=stone+joint:s1.00/dr1.00/cr0.72/p0.78\n" +
+                    $"archivoltProjectionVoxels={spec.ArchivoltProjection}\n" +
                     "masonryDetail=component-driven seams + deterministic stone relief\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
@@ -225,7 +222,9 @@ namespace VoxelEngine.CI
             int shaftY = spec.BaseCentre.y + plinthHeight;
             int pierOffset = halfOpening + (pierWidth + 1) / 2;
             int frontZ = spec.BaseCentre.z - depth / 2;
-            int backingFrontZ = frontZ + math.min(2, depth - 2);
+            int projection = math.clamp(spec.ArchivoltProjection > 0 ? spec.ArchivoltProjection : 2,
+                                        1, depth - 2);
+            int backingFrontZ = frontZ + projection;
 
             SetFloat(material, "_ArchSeams", 1f);
             SetColor(material, "_ArchJointColor", new Color(0.305f, 0.278f, 0.235f, 1f));
