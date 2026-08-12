@@ -188,9 +188,9 @@ namespace VoxelEngine.Rendering.Vegetation
 
             float leverHeight = Mathf.Clamp(bounds.size.y * 0.38f, 1.0f, 4.5f);
             Vector3 forcePoint = body.worldCenterOfMass + Vector3.up * leverHeight;
-            body.AddForceAtPosition(horizontal * 0.45f,
+            body.AddForceAtPosition(horizontal * 0.55f,
                                     forcePoint, ForceMode.VelocityChange);
-            body.angularVelocity = toppleAxis * 0.55f;
+            body.angularVelocity = toppleAxis * 0.85f;
 
             UnityEngine.Object.Destroy(hinge, TrunkHingeSeconds);
         }
