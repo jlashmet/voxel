@@ -13,10 +13,7 @@ namespace VoxelEngine.Net.Server
     ///
     /// Fixed simulation tick:
     ///   ProcessAuthoritativeTick() -> begin event stream -> resolve authenticated identity ->
-    ///   validate -> apply -> publish -> interest route/batch -> flush UTP.
-    ///
-    /// Authentication remains an external game/session concern. A connection cannot influence
-    /// simulation until AuthenticateConnection succeeds here.
+    ///   validate -> shared deterministic apply -> publish -> interest route/batch -> flush UTP.
     /// </summary>
     public sealed class AuthoritativeServerSession : IDisposable
     {
@@ -25,6 +22,7 @@ namespace VoxelEngine.Net.Server
         private readonly AlterationRateLimiter _rateLimiter;
         private readonly ServerNetworkRuntime _network;
         private readonly ServerCommandProcessor _processor;
+        private readonly ServerDeterministicAlterationApplier _defaultAlterationApplier;
         private bool _disposed;
 
         public event Action<uint, NetworkEndpoint> ConnectionOpened;
@@ -48,6 +46,7 @@ namespace VoxelEngine.Net.Server
                 _rateLimiter,
                 serverSeed,
                 densityCap);
+            _defaultAlterationApplier = new ServerDeterministicAlterationApplier();
 
             _network.ConnectionOpened += OnConnectionOpened;
             _network.ConnectionClosed += OnConnectionClosed;
@@ -112,6 +111,29 @@ namespace VoxelEngine.Net.Server
             return true;
         }
 
+        /// <summary>
+        /// Production fixed-tick path. Uses the exact shared Core alteration applier that clients use.
+        /// </summary>
+        public void ProcessAuthoritativeTick(
+            uint serverTick,
+            ref RegionTable table,
+            ref BrickPool pool,
+            in ProtectedZones zones,
+            IAuthoritativePlayerInputSink inputSink)
+        {
+            ProcessAuthoritativeTick(
+                serverTick,
+                ref table,
+                ref pool,
+                in zones,
+                inputSink,
+                _defaultAlterationApplier);
+        }
+
+        /// <summary>
+        /// Injectable overload retained for tests or a game-owned composite applier. Any supplied
+        /// implementation is part of authority and therefore must preserve deterministic parity.
+        /// </summary>
         public void ProcessAuthoritativeTick(
             uint serverTick,
             ref RegionTable table,
@@ -121,6 +143,8 @@ namespace VoxelEngine.Net.Server
             IAuthoritativeAlterationApplier applier)
         {
             ThrowIfDisposed();
+            if (inputSink == null) throw new ArgumentNullException(nameof(inputSink));
+            if (applier == null) throw new ArgumentNullException(nameof(applier));
 
             _network.BeginTick(serverTick);
             _processor.ProcessTick(
