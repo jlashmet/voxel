@@ -44,24 +44,23 @@ namespace VoxelEngine.CI
 
                 int cx = RegionCoord.x * ShowcaseWorld.RegionVoxelEdge + ShowcaseWorld.RegionVoxelEdge / 2;
                 int cz = ShowcaseWorld.RegionVoxelEdge / 2;
-                int baseY = world.SurfaceHeight(cx, cz) + 7;
+                int baseY = world.SurfaceHeight(cx, cz) + 9;
 
                 var brush = new VoxelBrush(world.Table, world.Pool, 1_000_000);
-                brush.FillBulk(new int3(cx - 36, baseY - 6, cz - 24), new int3(72, 32, 48), Mat.Empty);
+                brush.FillBulk(new int3(cx - 36, baseY - 8, cz - 24), new int3(72, 34, 48), Mat.Empty);
 
-                // Quiet voxel plinth so the stones are judged against a stable horizontal reference.
-                brush.Box(new int3(cx - 28, baseY - 3, cz - 12), new int3(56, 3, 24), Mat.DarkStone);
-
+                // Isolate each test stone in air. Contact with a plinth previously fused occupancy and
+                // hid whether the reusable block itself was good enough.
                 WorldArtVoxelStoneSpec hero = WorldArtVoxelStoneSpec.DressedBlock(
                     new int3(cx - 8, baseY, cz - 6), new int3(16, 8, 12), Mat.Stone, seed + 1u, 1);
                 WorldArtVoxelStonePrimitives.DressedBlock(ref brush, in hero);
 
                 WorldArtVoxelStoneSpec left = WorldArtVoxelStoneSpec.DressedBlock(
-                    new int3(cx - 25, baseY, cz - 3), new int3(13, 7, 10), Mat.Stone, seed + 2u, 2);
+                    new int3(cx - 25, baseY + 2, cz - 2), new int3(13, 7, 10), Mat.Stone, seed + 2u, 2);
                 WorldArtVoxelStonePrimitives.DressedBlock(ref brush, in left);
 
                 WorldArtVoxelStoneSpec right = WorldArtVoxelStoneSpec.DressedBlock(
-                    new int3(cx + 13, baseY, cz - 2), new int3(12, 6, 9), Mat.Stone, seed + 3u, 1);
+                    new int3(cx + 13, baseY + 1, cz - 1), new int3(12, 6, 9), Mat.Stone, seed + 3u, 1);
                 WorldArtVoxelStonePrimitives.DressedBlock(ref brush, in right);
 
                 if (brush.BudgetExceeded)
@@ -69,23 +68,22 @@ namespace VoxelEngine.CI
 
                 var profiles = new VoxelSurfaceProfileSet()
                     .Set(Mat.Stone, new VoxelSurfaceProfile(
-                        smoothing: 0.84f,
+                        smoothing: 0.52f,
                         blurPasses: 0,
-                        densityBias: -0.002f,
-                        planarization: 0.56f,
-                        planarizationThreshold: 0.60f,
-                        distanceRecovery: 0.78f,
-                        curveRecovery: 0.14f,
-                        normalPlanarization: 0.68f,
-                        planarSnapDistanceVoxels: 0.13f,
-                        featurePreservation: 0.78f,
-                        featureNormalStrength: 0.62f,
-                        featureCurvatureThreshold: 0.075f))
-                    .Set(Mat.DarkStone, VoxelSurfaceProfile.HardManufactured);
+                        densityBias: 0f,
+                        planarization: 0.88f,
+                        planarizationThreshold: 0.46f,
+                        distanceRecovery: 0.28f,
+                        curveRecovery: 0.03f,
+                        normalPlanarization: 0.92f,
+                        planarSnapDistanceVoxels: 0.10f,
+                        featurePreservation: 0.52f,
+                        featureNormalStrength: 0.38f,
+                        featureCurvatureThreshold: 0.11f));
 
                 world.DirtyRegions.Add(RegionCoord);
                 surface = new VoxelHeroSurfaceRenderer(
-                    new int3(cx - 34, baseY - 5, cz - 18), new int3(68, 28, 36), profiles)
+                    new int3(cx - 34, baseY - 6, cz - 18), new int3(68, 30, 36), profiles)
                 {
                     CastShadows = true
                 };
@@ -129,10 +127,11 @@ namespace VoxelEngine.CI
                 string metadata =
                     "capture=reusable dressed voxel stone primitive quality gate\n" +
                     "geometry=VoxelBrush -> bounded voxel extraction\n" +
+                    "stones=3 isolated\n" +
+                    "surface=plane-first low-recovery dressed stone\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
                     "heroSurfaceSampleMetres=0.05\n" +
-                    "stones=3\n" +
                     $"voxelWrites={brush.VoxelsWritten}\n" +
                     $"surfaceVertices={surface.VertexCount}\n";
                 File.WriteAllText(Path.Combine(outDir, "sunlit-cleric.txt"), metadata);
@@ -169,22 +168,22 @@ namespace VoxelEngine.CI
             Material stone = new Material(shader) { name = "Dressed limestone primitive" };
             Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Textures/Stylized/stone_color.png");
             if (texture != null) stone.SetTexture("_MainTex", texture);
-            SetColor(stone, "_BaseColor", new Color(0.68f, 0.63f, 0.53f));
-            SetColor(stone, "_SecondaryColor", new Color(0.54f, 0.49f, 0.41f));
-            SetColor(stone, "_TopColor", new Color(0.79f, 0.74f, 0.64f));
+            SetColor(stone, "_BaseColor", new Color(0.66f, 0.60f, 0.49f));
+            SetColor(stone, "_SecondaryColor", new Color(0.50f, 0.45f, 0.37f));
+            SetColor(stone, "_TopColor", new Color(0.80f, 0.75f, 0.64f));
             SetFloat(stone, "_SurfaceKind", 2f);
-            SetFloat(stone, "_TextureScale", 0.62f);
-            SetFloat(stone, "_TextureStrength", 0.13f);
-            SetFloat(stone, "_DetailScale", 0.86f);
-            SetFloat(stone, "_DetailStrength", 0.022f);
-            SetFloat(stone, "_TopStrength", 0.10f);
-            SetFloat(stone, "_RimStrength", 0.004f);
-            SetFloat(stone, "_Smoothness", 0.008f);
-            SetFloat(stone, "_StoneReliefStrength", 0.20f);
+            SetFloat(stone, "_TextureScale", 0.54f);
+            SetFloat(stone, "_TextureStrength", 0.22f);
+            SetFloat(stone, "_DetailScale", 0.94f);
+            SetFloat(stone, "_DetailStrength", 0.030f);
+            SetFloat(stone, "_TopStrength", 0.12f);
+            SetFloat(stone, "_RimStrength", 0.003f);
+            SetFloat(stone, "_Smoothness", 0.006f);
+            SetFloat(stone, "_StoneReliefStrength", 0.12f);
             SetFloat(stone, "_StoneJointRelief", 0f);
-            SetFloat(stone, "_StoneBlockVariation", 0.10f);
-            SetFloat(stone, "_StoneWeathering", 0.16f);
-            SetFloat(stone, "_StoneFacePlanarization", 0.80f);
+            SetFloat(stone, "_StoneBlockVariation", 0.08f);
+            SetFloat(stone, "_StoneWeathering", 0.12f);
+            SetFloat(stone, "_StoneFacePlanarization", 0.94f);
             SetFloat(stone, "_ArchSeams", 0f);
             owned.Add(stone);
 
@@ -195,28 +194,28 @@ namespace VoxelEngine.CI
         private static void SetupLighting(out GameObject keyObject, out GameObject fillObject)
         {
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.27f, 0.30f, 0.34f);
-            RenderSettings.ambientEquatorColor = new Color(0.18f, 0.18f, 0.18f);
-            RenderSettings.ambientGroundColor = new Color(0.06f, 0.06f, 0.055f);
-            RenderSettings.ambientIntensity = 0.46f;
+            RenderSettings.ambientSkyColor = new Color(0.25f, 0.28f, 0.32f);
+            RenderSettings.ambientEquatorColor = new Color(0.16f, 0.16f, 0.16f);
+            RenderSettings.ambientGroundColor = new Color(0.05f, 0.05f, 0.045f);
+            RenderSettings.ambientIntensity = 0.42f;
             RenderSettings.fog = false;
 
             keyObject = new GameObject("Dressed stone warm key");
             Light key = keyObject.AddComponent<Light>();
             key.type = LightType.Directional;
-            key.color = new Color(1.0f, 0.88f, 0.70f);
-            key.intensity = 1.45f;
+            key.color = new Color(1.0f, 0.86f, 0.68f);
+            key.intensity = 1.55f;
             key.shadows = LightShadows.Soft;
-            key.shadowStrength = 0.78f;
-            keyObject.transform.rotation = Quaternion.Euler(36f, -42f, 0f);
+            key.shadowStrength = 0.80f;
+            keyObject.transform.rotation = Quaternion.Euler(38f, -44f, 0f);
 
             fillObject = new GameObject("Dressed stone cool fill");
             Light fill = fillObject.AddComponent<Light>();
             fill.type = LightType.Directional;
-            fill.color = new Color(0.58f, 0.68f, 0.84f);
-            fill.intensity = 0.20f;
+            fill.color = new Color(0.56f, 0.67f, 0.84f);
+            fill.intensity = 0.17f;
             fill.shadows = LightShadows.None;
-            fillObject.transform.rotation = Quaternion.Euler(25f, 138f, 0f);
+            fillObject.transform.rotation = Quaternion.Euler(24f, 140f, 0f);
         }
 
         private static void SetupCamera(int cx, int baseY, int cz, out GameObject cameraObject, out Camera camera)
@@ -226,14 +225,14 @@ namespace VoxelEngine.CI
             cameraObject = new GameObject("Dressed Stone Primitive Camera");
             camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.14f, 0.16f, 0.19f, 1f);
-            camera.fieldOfView = 29f;
+            camera.backgroundColor = new Color(0.13f, 0.15f, 0.18f, 1f);
+            camera.fieldOfView = 27f;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 60f;
             camera.allowHDR = false;
             camera.allowMSAA = true;
-            cameraObject.transform.position = focus + new Vector3(4.8f, 3.2f, -9.4f);
-            cameraObject.transform.LookAt(focus + new Vector3(0f, 0.05f, 0f));
+            cameraObject.transform.position = focus + new Vector3(4.5f, 3.0f, -8.7f);
+            cameraObject.transform.LookAt(focus + new Vector3(0f, 0.08f, 0f));
         }
 
         private static void SetColor(Material material, string property, Color value)
