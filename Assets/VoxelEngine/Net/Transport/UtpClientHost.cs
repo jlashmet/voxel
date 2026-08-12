@@ -14,10 +14,8 @@ namespace VoxelEngine.Net.Transport
     }
 
     /// <summary>
-    /// Concrete Unity Transport 6.5 client lifecycle.
-    ///
-    /// Owns the driver/connection, pumps transport independently of simulation ticks, and exposes
-    /// framed protocol packets to the client world layer without making that layer depend on UTP.
+    /// Concrete Unity Transport 6.5 client lifecycle. Transport is pumped independently from the
+    /// simulation clock; protocol/gameplay application remains behind IUtpClientPacketHandler.
     /// </summary>
     public sealed class UtpClientHost : IDisposable
     {
@@ -44,7 +42,6 @@ namespace VoxelEngine.Net.Transport
         public bool IsConnected => _connected && _connection.IsCreated;
         public NetworkEndpoint LocalEndpoint => IsCreated && _driver.Bound ? _driver.GetLocalEndpoint() : default;
 
-        /// <summary>Begin an asynchronous UTP connection attempt.</summary>
         public bool Connect(NetworkEndpoint endpoint)
         {
             ThrowIfDisposed();
@@ -56,10 +53,6 @@ namespace VoxelEngine.Net.Transport
             return _connection.IsCreated;
         }
 
-        /// <summary>
-        /// Pump UTP once from the Unity frame loop. Connect/disconnect/data events are consumed here;
-        /// decoded gameplay application remains behind IUtpClientPacketHandler.
-        /// </summary>
         public void Pump(IUtpClientPacketHandler handler)
         {
             ThrowIfDisposed();
@@ -70,7 +63,6 @@ namespace VoxelEngine.Net.Transport
             if (!_connection.IsCreated)
                 return;
 
-            // One reusable stack buffer per pump avoids byte[] allocations for EVENT/REPAIR/BULK.
             Span<byte> packetScratch = stackalloc byte[ChannelSetup.k_MaxBulkPacketBytes];
 
             NetworkEvent.Type eventType;
@@ -108,7 +100,7 @@ namespace VoxelEngine.Net.Transport
             }
         }
 
-        /// <summary>Encode and queue a canonical 34-byte alteration request on EVENT.</summary>
+        /// <summary>Encode and queue a canonical 34-byte durable alteration request on EVENT.</summary>
         public bool TrySendAlterationRequest(in C_AlterationRequest request)
         {
             Span<byte> packet = stackalloc byte[AlterationRequestPacket.PacketSize];
@@ -116,6 +108,16 @@ namespace VoxelEngine.Net.Transport
                 return false;
 
             return TrySend(UtpChannel.Event, packet);
+        }
+
+        /// <summary>Encode and queue an 18-byte loss-tolerant player command on EPHEMERAL.</summary>
+        public bool TrySendPlayerInput(in C_PlayerInput input)
+        {
+            Span<byte> packet = stackalloc byte[PlayerInputPacket.PacketSize];
+            if (!PlayerInputPacket.TryEncode(packet, in input))
+                return false;
+
+            return TrySend(UtpChannel.Ephemeral, packet);
         }
 
         public bool TrySend(UtpChannel channel, ReadOnlySpan<byte> packet)
@@ -163,7 +165,6 @@ namespace VoxelEngine.Net.Transport
                 return;
 
             _driver.Disconnect(_connection);
-            // UTP requires an update after Disconnect so the peer is notified immediately.
             _driver.ScheduleUpdate().Complete();
             _connection = default;
             _connected = false;
@@ -175,6 +176,12 @@ namespace VoxelEngine.Net.Transport
             if (pipeline.Equals(_channels.Event))
             {
                 channel = UtpChannel.Event;
+                return true;
+            }
+
+            if (pipeline.Equals(_channels.Ephemeral))
+            {
+                channel = UtpChannel.Ephemeral;
                 return true;
             }
 
@@ -199,6 +206,7 @@ namespace VoxelEngine.Net.Transport
             return channel switch
             {
                 UtpChannel.Event => _channels.Event,
+                UtpChannel.Ephemeral => _channels.Ephemeral,
                 UtpChannel.Repair => _channels.Repair,
                 UtpChannel.Bulk => _channels.Bulk,
                 _ => throw new ArgumentOutOfRangeException(nameof(channel)),
@@ -210,6 +218,7 @@ namespace VoxelEngine.Net.Transport
             return channel switch
             {
                 UtpChannel.Event => ChannelSetup.k_MaxEventPacketBytes,
+                UtpChannel.Ephemeral => ChannelSetup.k_MaxEphemeralPacketBytes,
                 UtpChannel.Repair => ChannelSetup.k_MaxRepairPacketBytes,
                 UtpChannel.Bulk => ChannelSetup.k_MaxBulkPacketBytes,
                 _ => 0,
