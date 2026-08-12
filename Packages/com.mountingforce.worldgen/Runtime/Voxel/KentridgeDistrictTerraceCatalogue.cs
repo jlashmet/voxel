@@ -9,18 +9,17 @@ namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
     /// Turns Kentridge's macro height profile into neighbourhood-scale urban shelves.
-    ///
-    /// The authored rectangle for each district is the flat buildable core. Four terrain shoulders
-    /// connect that core to the natural hillside. High transitions are resolved as a short stack of
-    /// contour ledges rather than one near-vertical ramp, preserving the strong elevation hierarchy
-    /// while giving the hillside the stepped urban section needed for retaining architecture.
+    /// District character controls transition depth: green edges stay compact while dense urban
+    /// shelves receive broad stepped contour bands that can read as real intermediate terraces.
     /// </summary>
     public static class KentridgeDistrictTerraceCatalogue
     {
         private const int BuriedFootingDm = 8;
         private const int ClearAboveDm = 48;
         private const int NaturalSampleStepDm = 64;
-        private const int ShoulderWidthDm = 36;
+        private const int GreenShoulderWidthDm = 36;
+        private const int MixedShoulderWidthDm = 54;
+        private const int UrbanShoulderWidthDm = 72;
         private const int ShoulderStepCount = 6;
 
         private const byte AxisX = 0;
@@ -56,6 +55,13 @@ namespace MountingForce.WorldGen.Voxel
                 AnchorZDm = anchorZDm;
                 Surface = surface;
             }
+
+            public int ShoulderWidthDm => Surface switch
+            {
+                SurfaceCharacter.Green => GreenShoulderWidthDm,
+                SurfaceCharacter.Mixed => MixedShoulderWidthDm,
+                _ => UrbanShoulderWidthDm,
+            };
         }
 
         private readonly struct TerraceBuild
@@ -208,22 +214,23 @@ namespace MountingForce.WorldGen.Voxel
                 terrace.AnchorXDm, terrace.AnchorZDm, seed, scale);
             TerrainRange(terrace, seed, scale, out int naturalMin, out int naturalMax);
 
+            int shoulderDm = terrace.ShoulderWidthDm;
             int centreXDm = terrace.XDm + terrace.WidthDm / 2;
             int centreZDm = terrace.ZDm + terrace.DepthDm / 2;
             int northEdge = TerrainSampler.HeightAt(
                 centreXDm * scale,
-                (terrace.ZDm - ShoulderWidthDm) * scale,
+                (terrace.ZDm - shoulderDm) * scale,
                 seed);
             int southEdge = TerrainSampler.HeightAt(
                 centreXDm * scale,
-                (terrace.ZDm + terrace.DepthDm + ShoulderWidthDm) * scale,
+                (terrace.ZDm + terrace.DepthDm + shoulderDm) * scale,
                 seed);
             int westEdge = TerrainSampler.HeightAt(
-                (terrace.XDm - ShoulderWidthDm) * scale,
+                (terrace.XDm - shoulderDm) * scale,
                 centreZDm * scale,
                 seed);
             int eastEdge = TerrainSampler.HeightAt(
-                (terrace.XDm + terrace.WidthDm + ShoulderWidthDm) * scale,
+                (terrace.XDm + terrace.WidthDm + shoulderDm) * scale,
                 centreZDm * scale,
                 seed);
 
@@ -233,18 +240,18 @@ namespace MountingForce.WorldGen.Voxel
                 Math.Max(Math.Max(northEdge, southEdge), Math.Max(westEdge, eastEdge)));
             int originY = Math.Min(lowestRelevant, naturalMin) - BuriedFootingDm * scale;
             int topY = Math.Max(highestRelevant, naturalMax) + ClearAboveDm * scale;
-            int shoulder = ShoulderWidthDm * scale;
+            int shoulder = shoulderDm * scale;
 
             return new TerraceBuild(
                 terrace,
                 new int3(
-                    (terrace.XDm - ShoulderWidthDm) * scale,
+                    (terrace.XDm - shoulderDm) * scale,
                     originY,
-                    (terrace.ZDm - ShoulderWidthDm) * scale),
+                    (terrace.ZDm - shoulderDm) * scale),
                 new int3(
-                    (terrace.WidthDm + ShoulderWidthDm * 2) * scale,
+                    (terrace.WidthDm + shoulderDm * 2) * scale,
                     Math.Max(1, topY - originY),
-                    (terrace.DepthDm + ShoulderWidthDm * 2) * scale),
+                    (terrace.DepthDm + shoulderDm * 2) * scale),
                 targetSurface - originY,
                 northEdge - originY,
                 southEdge - originY,
@@ -258,10 +265,11 @@ namespace MountingForce.WorldGen.Voxel
             minY = int.MaxValue;
             maxY = int.MinValue;
 
-            int minX = terrace.XDm - ShoulderWidthDm;
-            int maxX = terrace.XDm + terrace.WidthDm + ShoulderWidthDm;
-            int minZ = terrace.ZDm - ShoulderWidthDm;
-            int maxZ = terrace.ZDm + terrace.DepthDm + ShoulderWidthDm;
+            int shoulderDm = terrace.ShoulderWidthDm;
+            int minX = terrace.XDm - shoulderDm;
+            int maxX = terrace.XDm + terrace.WidthDm + shoulderDm;
+            int minZ = terrace.ZDm - shoulderDm;
+            int maxZ = terrace.ZDm + terrace.DepthDm + shoulderDm;
 
             for (int z = minZ; z <= maxZ; z += NaturalSampleStepDm)
             {
@@ -296,7 +304,7 @@ namespace MountingForce.WorldGen.Voxel
 
             int coreWidth = build.Seed.WidthDm * s;
             int coreDepth = build.Seed.DepthDm * s;
-            int shoulder = ShoulderWidthDm * s;
+            int shoulder = build.Seed.ShoulderWidthDm * s;
             int width = coreWidth + shoulder * 2;
             int depth = coreDepth + shoulder * 2;
             int coreInset = shoulder;
@@ -365,8 +373,6 @@ namespace MountingForce.WorldGen.Voxel
             int lowY = Math.Min(edgeY, coreY);
             int rise = Math.Abs(coreY - edgeY);
 
-            // Clear only above the lower endpoint. The terrain mass below that level remains intact;
-            // six shallow contour bands then rebuild the transition to the authored core height.
             b.Carve(x, lowY, z,
                     width, Math.Max(1, clearTop - lowY), depth);
 
