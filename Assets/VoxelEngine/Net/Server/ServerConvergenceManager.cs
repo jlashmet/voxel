@@ -11,11 +11,7 @@ namespace VoxelEngine.Net.Server
 {
     /// <summary>
     /// Periodic semantic drift detection plus exact-checkpoint repair.
-    ///
-    /// A hash is issued only when a bounded semantic snapshot for that exact region/tick was
-    /// retained. Verified mismatch reports enqueue that immutable snapshot for chunked REPAIR; the
-    /// client is paused at the matching hash barrier, so later EVENT authority resumes only after
-    /// the snapshot has been applied and re-hashed successfully.
+    /// A hash is issued only when its exact bounded semantic snapshot is retained.
     /// </summary>
     public sealed class ServerConvergenceManager
     {
@@ -38,9 +34,11 @@ namespace VoxelEngine.Net.Server
         private int _retainedSnapshotBytes;
 
         public event Action<VerifiedRegionMismatch> VerifiedMismatch;
+        public event Action<RegionResyncRequest> ResyncRequired;
 
         public long VerifiedMismatchCount { get; private set; }
         public long RejectedMismatchCount { get; private set; }
+        public long ResyncRequiredCount { get; private set; }
         public long HashPacketsSent { get; private set; }
         public long HashesSkippedNoSnapshot { get; private set; }
         public long RepairPacketsSent { get; private set; }
@@ -74,30 +72,56 @@ namespace VoxelEngine.Net.Server
             {
                 var queued = _mismatchDrain[i];
                 C_RegionHashMismatch report = queued.Mismatch;
-                var checkpointKey = new CheckpointKey(queued.ConnectionId, report.regionCoord, report.hashTick);
-                var snapshotKey = new SnapshotKey(report.regionCoord, report.hashTick);
 
-                bool valid =
+                bool authenticatedAndInterested =
                     _players.TryGetByConnection(queued.ConnectionId, out _) &&
                     subscriptions.IsSubscribed(queued.ConnectionId, report.regionCoord) &&
-                    report.clientHash != report.serverHash &&
-                    _issuedHashes.TryGetValue(checkpointKey, out uint issuedHash) &&
-                    issuedHash == report.serverHash &&
-                    _snapshots.TryGetValue(snapshotKey, out byte[] snapshot);
+                    report.clientHash != report.serverHash;
 
-                if (!valid)
+                if (!authenticatedAndInterested)
                 {
                     RejectedMismatchCount++;
                     continue;
                 }
 
+                var checkpointKey = new CheckpointKey(queued.ConnectionId, report.regionCoord, report.hashTick);
+                if (!_issuedHashes.TryGetValue(checkpointKey, out uint issuedHash))
+                {
+                    RequireFullResync(
+                        queued.ConnectionId,
+                        report.regionCoord,
+                        report.hashTick,
+                        S_RegionResyncRequired.Reason.CheckpointExpired);
+                    continue;
+                }
+
+                if (issuedHash != report.serverHash)
+                {
+                    // The connection is real but the report does not match the hash we issued.
+                    RejectedMismatchCount++;
+                    continue;
+                }
+
+                var snapshotKey = new SnapshotKey(report.regionCoord, report.hashTick);
+                if (!_snapshots.TryGetValue(snapshotKey, out byte[] snapshot))
+                {
+                    RequireFullResync(
+                        queued.ConnectionId,
+                        report.regionCoord,
+                        report.hashTick,
+                        S_RegionResyncRequired.Reason.SnapshotUnavailable);
+                    continue;
+                }
+
                 if (!HasPendingRepair(queued.ConnectionId, report.regionCoord, report.hashTick))
+                {
                     _pendingRepairs.Add(new PendingRepair(
                         queued.ConnectionId,
                         report.regionCoord,
                         report.hashTick,
                         report.serverHash,
                         snapshot));
+                }
 
                 verified++;
                 VerifiedMismatchCount++;
@@ -114,10 +138,6 @@ namespace VoxelEngine.Net.Server
             return verified;
         }
 
-        /// <summary>
-        /// Queue at most the configured number of REPAIR chunks this tick. Failed BeginSend/EndSend
-        /// leaves the cursor unchanged so a later tick retries instead of creating a partial repair.
-        /// </summary>
         public int FlushRepairPackets(ServerNetworkRuntime network)
         {
             if (network == null) throw new ArgumentNullException(nameof(network));
@@ -149,9 +169,7 @@ namespace VoxelEngine.Net.Server
                         repair.ConnectionId,
                         UtpChannel.Repair,
                         packet.Slice(0, bytesWritten)))
-                {
                     break;
-                }
 
                 repair.Offset += chunkLength;
                 sent++;
@@ -172,10 +190,6 @@ namespace VoxelEngine.Net.Server
             return sent;
         }
 
-        /// <summary>
-        /// Queue tick-scoped hashes after same-tick mutation EVENT packets. A checkpoint without a
-        /// retained exact snapshot is skipped, guaranteeing every advertised mismatch is repairable.
-        /// </summary>
         public int EmitHashes(
             uint serverTick,
             ref RegionTable table,
@@ -185,8 +199,7 @@ namespace VoxelEngine.Net.Server
         {
             if (subscriptions == null) throw new ArgumentNullException(nameof(subscriptions));
             if (network == null) throw new ArgumentNullException(nameof(network));
-            if (serverTick == 0 || serverTick % _hashIntervalTicks != 0)
-                return 0;
+            if (serverTick == 0 || serverTick % _hashIntervalTicks != 0) return 0;
 
             PruneCheckpoints(serverTick);
             NativeArray<int3> regions = table.GetResidentCoords(Allocator.Temp);
@@ -198,10 +211,8 @@ namespace VoxelEngine.Net.Server
                     int3 coord = regions[i];
                     _subscriberScratch.Clear();
                     subscriptions.AddSubscribers(coord, _subscriberScratch);
-                    if (_subscriberScratch.Count == 0)
-                        continue;
-                    if (!table.TryGetRegion(coord, out Region region) || !region.BrickRefs.IsCreated)
-                        continue;
+                    if (_subscriberScratch.Count == 0) continue;
+                    if (!table.TryGetRegion(coord, out Region region) || !region.BrickRefs.IsCreated) continue;
 
                     if (!SemanticRegionSnapshotCodec.TryEncode(
                             in region,
@@ -220,9 +231,7 @@ namespace VoxelEngine.Net.Server
 
                     foreach (uint connectionId in _subscriberScratch)
                     {
-                        if (!network.SendRegionHash(connectionId, in message))
-                            continue;
-
+                        if (!network.SendRegionHash(connectionId, in message)) continue;
                         _issuedHashes[new CheckpointKey(connectionId, coord, serverTick)] = semanticHash;
                         regionSent++;
                         sent++;
@@ -259,6 +268,16 @@ namespace VoxelEngine.Net.Server
                     _pendingRepairs.RemoveAt(i);
 
             _inbox.RemoveConnection(connectionId);
+        }
+
+        private void RequireFullResync(
+            uint connectionId,
+            int3 regionCoord,
+            uint failedTick,
+            S_RegionResyncRequired.Reason reason)
+        {
+            ResyncRequiredCount++;
+            ResyncRequired?.Invoke(new RegionResyncRequest(connectionId, regionCoord, failedTick, reason));
         }
 
         private bool HasPendingRepair(uint connectionId, int3 regionCoord, uint tick)
@@ -361,6 +380,22 @@ namespace VoxelEngine.Net.Server
                 ClientHash = clientHash;
                 ServerHash = serverHash;
                 RepairQueued = repairQueued;
+            }
+        }
+
+        public readonly struct RegionResyncRequest
+        {
+            public readonly uint ConnectionId;
+            public readonly int3 RegionCoord;
+            public readonly uint FailedHashTick;
+            public readonly S_RegionResyncRequired.Reason Reason;
+
+            public RegionResyncRequest(uint connectionId, int3 regionCoord, uint failedHashTick, S_RegionResyncRequired.Reason reason)
+            {
+                ConnectionId = connectionId;
+                RegionCoord = regionCoord;
+                FailedHashTick = failedHashTick;
+                Reason = reason;
             }
         }
     }
