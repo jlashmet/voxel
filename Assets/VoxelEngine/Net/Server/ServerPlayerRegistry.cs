@@ -1,15 +1,13 @@
 using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
+using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Server
 {
     /// <summary>
-    /// Server-owned connection -> authenticated player state.
-    ///
-    /// No client packet is allowed to establish identity, world position, reach, collision size,
-    /// or edit permission. Those values enter networking only through this registry after the
-    /// authoritative game/session layer has authenticated and simulated the player.
+    /// Server-owned connection -> authenticated player state. Client packets never establish
+    /// identity, world position, velocity, reach, collision volume, or edit permission.
     /// </summary>
     public sealed class ServerPlayerRegistry
     {
@@ -32,10 +30,19 @@ namespace VoxelEngine.Net.Server
             if (_byConnection.ContainsKey(connectionId) || _connectionByPlayer.ContainsKey(playerId))
                 return false;
 
+            var position = new float3(
+                authoritativePositionVoxels.x,
+                authoritativePositionVoxels.y,
+                authoritativePositionVoxels.z);
+
             var session = new PlayerSession(
                 connectionId,
                 playerId,
                 authoritativePositionVoxels,
+                position,
+                float3.zero,
+                viewYaw: 0,
+                stateFlags: S_PlayerState.StateFlags.None,
                 DefaultHalfExtentsVoxels,
                 reachVoxels,
                 canAlterWorld);
@@ -57,12 +64,49 @@ namespace VoxelEngine.Net.Server
             return false;
         }
 
+        public void CopySessions(List<PlayerSession> destination)
+        {
+            if (destination == null) throw new ArgumentNullException(nameof(destination));
+            destination.Clear();
+            foreach (PlayerSession session in _byConnection.Values)
+                destination.Add(session);
+        }
+
         public bool UpdateAuthoritativePosition(uint connectionId, int3 positionVoxels)
         {
             if (!_byConnection.TryGetValue(connectionId, out PlayerSession session))
                 return false;
 
             session.PositionVoxels = positionVoxels;
+            session.PositionVoxelsExact = new float3(positionVoxels.x, positionVoxels.y, positionVoxels.z);
+            _byConnection[connectionId] = session;
+            return true;
+        }
+
+        /// <summary>
+        /// Update the kinematic state that will be sampled into S_PlayerState after the fixed tick.
+        /// The game/simulation owns movement; networking only records and replicates its result.
+        /// </summary>
+        public bool UpdateAuthoritativeKinematics(
+            uint connectionId,
+            float3 positionVoxels,
+            float3 velocityVoxelsPerSecond,
+            ushort viewYaw,
+            S_PlayerState.StateFlags stateFlags = S_PlayerState.StateFlags.None)
+        {
+            if (!_byConnection.TryGetValue(connectionId, out PlayerSession session) ||
+                !math.all(math.isfinite(positionVoxels)) ||
+                !math.all(math.isfinite(velocityVoxelsPerSecond)))
+                return false;
+
+            session.PositionVoxelsExact = positionVoxels;
+            session.PositionVoxels = new int3(
+                (int)math.floor(positionVoxels.x),
+                (int)math.floor(positionVoxels.y),
+                (int)math.floor(positionVoxels.z));
+            session.VelocityVoxelsPerSecond = velocityVoxelsPerSecond;
+            session.ViewYaw = viewYaw;
+            session.StateFlags = stateFlags & ~S_PlayerState.StateFlags.HasInputAck;
             _byConnection[connectionId] = session;
             return true;
         }
@@ -111,10 +155,6 @@ namespace VoxelEngine.Net.Server
             return true;
         }
 
-        /// <summary>
-        /// True when an inclusive voxel-space alteration AABB intersects any authoritative player
-        /// collision AABB. The author is not implicitly ignored; building into yourself is unsafe too.
-        /// </summary>
         public bool IntersectsPlayerVolume(int3 minVoxel, int3 maxVoxel)
         {
             foreach (PlayerSession player in _byConnection.Values)
@@ -139,6 +179,10 @@ namespace VoxelEngine.Net.Server
             public uint ConnectionId;
             public ushort PlayerId;
             public int3 PositionVoxels;
+            public float3 PositionVoxelsExact;
+            public float3 VelocityVoxelsPerSecond;
+            public ushort ViewYaw;
+            public S_PlayerState.StateFlags StateFlags;
             public int3 HalfExtentsVoxels;
             public int ReachVoxels;
             public bool CanAlterWorld;
@@ -147,6 +191,10 @@ namespace VoxelEngine.Net.Server
                 uint connectionId,
                 ushort playerId,
                 int3 positionVoxels,
+                float3 positionVoxelsExact,
+                float3 velocityVoxelsPerSecond,
+                ushort viewYaw,
+                S_PlayerState.StateFlags stateFlags,
                 int3 halfExtentsVoxels,
                 int reachVoxels,
                 bool canAlterWorld)
@@ -154,6 +202,10 @@ namespace VoxelEngine.Net.Server
                 ConnectionId = connectionId;
                 PlayerId = playerId;
                 PositionVoxels = positionVoxels;
+                PositionVoxelsExact = positionVoxelsExact;
+                VelocityVoxelsPerSecond = velocityVoxelsPerSecond;
+                ViewYaw = viewYaw;
+                StateFlags = stateFlags;
                 HalfExtentsVoxels = halfExtentsVoxels;
                 ReachVoxels = reachVoxels;
                 CanAlterWorld = canAlterWorld;
