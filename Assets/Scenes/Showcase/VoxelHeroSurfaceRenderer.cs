@@ -19,7 +19,8 @@ namespace VoxelEngine.Showcase
     ///
     /// Surface filtering is material-aware. Terrain may keep the broad legacy smoothing while
     /// dressed masonry can preserve flatter faces and tighter corners from exactly the same voxel
-    /// storage. The profiles affect presentation only; they never mutate authoritative voxels.
+    /// storage. Profiles can additionally planarize strongly axis-aligned extracted faces, letting
+    /// curves stay smooth without turning ashlar into inflated soap bars.
     ///
     /// This is intentionally bounded. A 5 cm visual lattice is appropriate for a close-up hero
     /// component, not for every resident world region. Shipping integration can promote the same
@@ -394,14 +395,18 @@ namespace VoxelEngine.Showcase
             float3 nc = Gradient(c);
             float3 averageNormal = math.normalizesafe(na + nb + nc, new float3(0f, 1f, 0f));
 
+            byte material = SurfaceMaterial(world, centroid, averageNormal);
+            if (material == VoxelDimensions.MaterialEmpty || material >= MaterialCount) material = 1;
+            VoxelSurfaceProfile profile = _surfaceProfiles.Get(material);
+            a = Planarize(a, na, in profile);
+            b = Planarize(b, nb, in profile);
+            c = Planarize(c, nc, in profile);
+
             if (math.dot(math.cross(b - a, c - a), averageNormal) < 0f)
             {
                 (b, c) = (c, b);
                 (nb, nc) = (nc, nb);
             }
-
-            byte material = SurfaceMaterial(world, centroid, averageNormal);
-            if (material == VoxelDimensions.MaterialEmpty || material >= MaterialCount) material = 1;
 
             List<Vector3> vertices = _vertices[material];
             List<Vector3> normals = _normals[material];
@@ -416,6 +421,49 @@ namespace VoxelEngine.Showcase
             triangles.Add(start);
             triangles.Add(start + 1);
             triangles.Add(start + 2);
+        }
+
+        private static float3 Planarize(float3 position, float3 normal,
+                                        in VoxelSurfaceProfile profile)
+        {
+            if (profile.Planarization <= 0.00001f) return position;
+
+            float3 n = math.abs(normal);
+            float dominance = n.x;
+            int axis = 0;
+            if (n.y > dominance)
+            {
+                dominance = n.y;
+                axis = 1;
+            }
+            if (n.z > dominance)
+            {
+                dominance = n.z;
+                axis = 2;
+            }
+
+            if (dominance <= profile.PlanarizationThreshold) return position;
+            float range = math.max(0.0001f, 1f - profile.PlanarizationThreshold);
+            float axisWeight = math.saturate((dominance - profile.PlanarizationThreshold) / range);
+            axisWeight *= axisWeight;
+            float strength = profile.Planarization * axisWeight;
+
+            if (axis == 0)
+            {
+                float target = math.round(position.x - 0.5f) + 0.5f;
+                position.x = math.lerp(position.x, target, strength);
+            }
+            else if (axis == 1)
+            {
+                float target = math.round(position.y - 0.5f) + 0.5f;
+                position.y = math.lerp(position.y, target, strength);
+            }
+            else
+            {
+                float target = math.round(position.z - 0.5f) + 0.5f;
+                position.z = math.lerp(position.z, target, strength);
+            }
+            return position;
         }
 
         private float3 Gradient(float3 worldVoxel)
