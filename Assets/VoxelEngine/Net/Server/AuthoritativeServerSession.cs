@@ -73,10 +73,6 @@ namespace VoxelEngine.Net.Server
             _network.PumpTransport();
         }
 
-        /// <summary>
-        /// Bind a live transport connection to a game-authenticated player. This is the only point
-        /// where transport identity becomes gameplay identity; client payloads are not consulted.
-        /// </summary>
         public bool AuthenticateConnection(
             uint connectionId,
             ushort playerId,
@@ -85,6 +81,9 @@ namespace VoxelEngine.Net.Server
             bool canAlterWorld = true)
         {
             ThrowIfDisposed();
+            if (!_network.ContainsConnection(connectionId))
+                return false;
+
             if (!_players.TryRegisterAuthenticated(
                     connectionId,
                     playerId,
@@ -100,25 +99,19 @@ namespace VoxelEngine.Net.Server
             return true;
         }
 
-        /// <summary>
-        /// Update authoritative post-simulation position and replication interest together. The
-        /// client input packet never supplies this value.
-        /// </summary>
         public bool UpdateAuthoritativePlayerPosition(uint connectionId, int3 positionVoxels)
         {
             ThrowIfDisposed();
-            if (!_players.UpdateAuthoritativePosition(connectionId, positionVoxels))
+            if (!_network.ContainsConnection(connectionId) ||
+                !_players.UpdateAuthoritativePosition(connectionId, positionVoxels))
+            {
                 return false;
+            }
 
             _network.UpdateConnectionPosition(connectionId, positionVoxels);
             return true;
         }
 
-        /// <summary>
-        /// Execute networking work for exactly one authoritative simulation tick. The caller owns
-        /// the actual gameplay clock and world simulation; inputSink/applier are the game-specific
-        /// bridges into that simulation.
-        /// </summary>
         public void ProcessAuthoritativeTick(
             uint serverTick,
             ref RegionTable table,
