@@ -7,9 +7,9 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Composes Kentridge generation stages into the single immutable catalogue understood by the
     /// voxel engine. Ordering is intentional and observable: themed ground cover first, broad
-    /// district terraces second, authored vertical roads/plaza third, hillside stair connectors
-    /// fourth, parcel masonry supports fifth, prepared building plots sixth, frontage paths seventh,
-    /// private/public dressing next, and structures last.
+    /// district terraces second, directed vertical roads/plaza third, hillside stair connectors
+    /// fourth, shallow foundation skirts fifth, prepared building plots sixth, frontage paths
+    /// seventh, private/public dressing next, and structures last.
     /// </summary>
     public static class KentridgeCombinedVoxelCatalogue
     {
@@ -21,7 +21,7 @@ namespace MountingForce.WorldGen.Voxel
             FeatureCatalogue districtTerraces =
                 KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue publicSpaces =
-                KentridgeVerticalTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
+                KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue verticalConnectors =
                 KentridgeVerticalConnectorCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue terraceSupports =
