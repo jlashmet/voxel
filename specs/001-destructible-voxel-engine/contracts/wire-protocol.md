@@ -61,18 +61,24 @@ Sizes below are message payloads unless explicitly stated; the two-byte protocol
 
 ### Client → Server
 
-#### `C_AlterationRequest` (~34 B)
+#### `C_AlterationRequest` (32 B payload / 34 B framed)
 
-| Field | Type |
-|---|---|
-| clientTick | `uint` |
-| kind | `byte` — explosion / brush / raw-batch |
-| origin | `int3` |
-| shape | union — radius \| brush extents + rotation \| prefab id |
-| material | `byte` |
-| seed | `uint` |
+| Field | Type | Bytes |
+|---|---|---:|
+| clientTick | `uint` | 4 |
+| origin | `int3` | 12 |
+| kind | `byte` | 1 |
+| material | `byte` | 1 |
+| shapeKind | `uint` | 4 |
+| shapeData | `uint` | 4 |
+| requestedSeed | `uint` | 4 |
+| clientSequence | `ushort` | 2 |
 
-The client has already applied this to its speculative overlay. **The seed is a request, not a fact** — the server may substitute its own, and the client must accept the server's value.
+The 8-byte `(shapeKind, shapeData)` union is deliberately the same semantic representation used by `AlterationEvent`; request → authoritative event therefore needs no lossy shape repacking.
+
+**There is no player ID in this message.** Player identity comes from the authenticated connection and is supplied by the server when materializing the authoritative event. Accepting a client-authored player ID would waste bandwidth and create an attribution/spoofing bug.
+
+The client has already applied the request to its speculative overlay. **The seed is a request, not a fact** — the server may substitute its own. The server also owns the final tick and authoritative sequence.
 
 Raw single-voxel edits are never sent individually: they are buffered ~100 ms and coalesced into one run-length-encoded `raw-batch` scoped to a single brick.
 
@@ -207,8 +213,8 @@ The simulation clock remains fixed and authoritative. Event-driven means systems
 Per server tick:
 
 1. collect commands/inputs;
-2. validate and resolve simulation in deterministic arbitration order;
-3. publish semantic authoritative events;
+2. authenticate connection-owned identity, validate requests, and resolve simulation in deterministic arbitration order;
+3. substitute authoritative tick/sequence/seed where required and publish semantic authoritative events;
 4. seal the tick event stream;
 5. persistence/moderation/replication consume the sealed stream;
 6. replication interest-filters events, batches consecutive compatible alterations, and writes `EVENT` packets.
