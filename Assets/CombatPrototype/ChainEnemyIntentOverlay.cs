@@ -20,6 +20,7 @@ namespace MountingForce.CombatPrototype
         private ChainRoundReadinessCoordinator _readiness;
         private Camera _camera;
         private GUIStyle _style;
+        private GUIStyle _laneStyle;
 
         private void Awake()
         {
@@ -42,7 +43,7 @@ namespace MountingForce.CombatPrototype
         private void OnGUI()
         {
             if (_board == null || _readiness == null || _camera == null) return;
-            EnsureStyle();
+            EnsureStyles();
 
             var intents = _readiness.EnemyIntents;
             for (int i = 0; i < intents.Count; i++)
@@ -51,24 +52,71 @@ namespace MountingForce.CombatPrototype
                 ChainUnitState enemy = _board.GetUnit(intent.EnemyId);
                 if (enemy == null || !enemy.IsAlive) continue;
 
-                Vector3 world = new Vector3(enemy.Position.X, enemy.Kind == ChainRecruitKind.Ogre ? 4.5f : 3.4f, enemy.Position.Z);
-                Vector3 screen = _camera.WorldToScreenPoint(world);
-                if (screen.z <= 0f) continue;
-
-                string shortIntent = ShortIntent(intent, enemy);
-                float x = screen.x - 90f;
-                float y = Screen.height - screen.y - 22f;
-                GUI.Box(new Rect(x, y, 180f, 42f), GUIContent.none);
-                GUI.Label(new Rect(x + 5f, y + 3f, 170f, 36f), shortIntent, _style);
+                DrawGeometry(enemy, intent);
+                DrawIntentLabel(enemy, intent);
             }
         }
 
-        private static string ShortIntent(ChainEnemyIntent intent, ChainUnitState enemy)
+        private void DrawGeometry(ChainUnitState enemy, ChainEnemyIntent intent)
+        {
+            if (intent.Kind == ChainEnemyIntentKind.Charge)
+            {
+                for (int step = 1; step <= 6; step++)
+                {
+                    GridPos cell = enemy.Position + intent.Direction * step;
+                    if (!_board.IsInBounds(cell)) break;
+                    DrawCellMarker(cell, DirectionGlyph(intent.Direction));
+
+                    ChainUnitState occupant = _board.FindUnitAt(cell);
+                    ChainTreeState tree = _board.FindStandingTreeAt(cell);
+                    if ((occupant != null && occupant.Id != enemy.Id) || tree != null) break;
+                }
+            }
+            else if (intent.Kind == ChainEnemyIntentKind.Advance)
+            {
+                GridPos destination = enemy.Position + intent.Direction;
+                if (_board.IsInBounds(destination)) DrawCellMarker(destination, "MOVE");
+            }
+            else if (intent.Kind == ChainEnemyIntentKind.Attack)
+            {
+                ChainUnitState target = _board.GetUnit(intent.TargetUnitId);
+                if (target != null && target.IsAlive) DrawCellMarker(target.Position, "HIT");
+            }
+        }
+
+        private void DrawIntentLabel(ChainUnitState enemy, ChainEnemyIntent intent)
+        {
+            Vector3 world = new Vector3(enemy.Position.X, enemy.Kind == ChainRecruitKind.Ogre ? 4.5f : 3.4f, enemy.Position.Z);
+            Vector3 screen = _camera.WorldToScreenPoint(world);
+            if (screen.z <= 0f) return;
+
+            string shortIntent = ShortIntent(intent, enemy);
+            float x = screen.x - 90f;
+            float y = Screen.height - screen.y - 22f;
+            GUI.Box(new Rect(x, y, 180f, 42f), GUIContent.none);
+            GUI.Label(new Rect(x + 5f, y + 3f, 170f, 36f), shortIntent, _style);
+        }
+
+        private void DrawCellMarker(GridPos cell, string text)
+        {
+            Vector3 world = new Vector3(cell.X, 0.35f, cell.Z);
+            Vector3 screen = _camera.WorldToScreenPoint(world);
+            if (screen.z <= 0f) return;
+            float x = screen.x - 24f;
+            float y = Screen.height - screen.y - 12f;
+            GUI.Box(new Rect(x, y, 48f, 24f), GUIContent.none);
+            GUI.Label(new Rect(x, y, 48f, 24f), text, _laneStyle);
+        }
+
+        private string ShortIntent(ChainEnemyIntent intent, ChainUnitState enemy)
         {
             switch (intent.Kind)
             {
                 case ChainEnemyIntentKind.Attack:
-                    return $"{enemy.Name}: ATTACK\n{TargetName(intent)}";
+                {
+                    ChainUnitState target = _board.GetUnit(intent.TargetUnitId);
+                    return $"{enemy.Name}: ATTACK\n{(target == null ? "lost target" : target.Name)}";
+                }
                 case ChainEnemyIntentKind.Charge:
                     return $"{enemy.Name}: CHARGE {DirectionName(intent.Direction).ToUpperInvariant()}\nforce 6";
                 case ChainEnemyIntentKind.Advance:
@@ -78,12 +126,7 @@ namespace MountingForce.CombatPrototype
             }
         }
 
-        private static string TargetName(ChainEnemyIntent intent)
-        {
-            return intent.TargetUnitId == 0 ? "" : $"target #{intent.TargetUnitId}";
-        }
-
-        private void EnsureStyle()
+        private void EnsureStyles()
         {
             if (_style != null) return;
             _style = new GUIStyle(GUI.skin.label)
@@ -93,6 +136,21 @@ namespace MountingForce.CombatPrototype
                 alignment = TextAnchor.MiddleCenter,
                 wordWrap = true
             };
+            _laneStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 9,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter
+            };
+        }
+
+        private static string DirectionGlyph(GridPos direction)
+        {
+            if (direction.X > 0) return ">>>";
+            if (direction.X < 0) return "<<<";
+            if (direction.Z > 0) return "^^^";
+            if (direction.Z < 0) return "vvv";
+            return "!";
         }
 
         private static string DirectionName(GridPos direction)
