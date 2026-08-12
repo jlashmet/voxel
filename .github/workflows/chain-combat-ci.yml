@@ -16,6 +16,7 @@ on:
       - "Assets/Tests/PlayMode/ChainCombatReadinessV7Tests.cs"
       - "Assets/Tests/PlayMode/ChainCombatEnemyAIV8Tests.cs"
       - "Assets/Tests/PlayMode/ChainCombatExecutionPlanV9Tests.cs"
+      - "Assets/Tests/PlayMode/ChainCombatPlanApprovalV9Tests.cs"
       - "Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef"
       - ".github/workflows/chain-combat-ci.yml"
 
@@ -93,6 +94,7 @@ jobs:
           run_suite "v7-readiness" "VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests" || failed=1
           run_suite "v8-enemy-ai" "VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" || failed=1
           run_suite "v9-execution-plan" "VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" || failed=1
+          run_suite "v9-plan-approval" "VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests" || failed=1
 
           exit $failed
 
