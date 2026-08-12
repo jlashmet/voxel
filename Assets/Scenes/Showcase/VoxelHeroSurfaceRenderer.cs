@@ -9,19 +9,8 @@ using VoxelEngine.Rendering.SurfaceExtraction;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Bounded close-up renderer for evaluating authored voxel structures at hero distance.
-    ///
-    /// The authoritative representation remains the ordinary 10 cm brickmap. This class does not
-    /// accept presentation meshes or procedural structure parameters: it samples only RegionTable /
-    /// BrickPool occupancy, builds a filtered scalar field, and polygonizes that field with
-    /// marching tetrahedra. The half-voxel extraction lattice removes the staircase silhouette of
-    /// the legacy showcase greedy mesher without changing destruction, networking, or storage.
-    ///
-    /// Surface filtering is material-aware. Terrain may keep the broad legacy smoothing while
-    /// dressed masonry can recover local signed distance from occupancy coverage. A profile can
-    /// blend the tight radius-one recovery that preserves corners with the wider radius-two
-    /// recovery that removes digital-circle scallops, then recover strongly axis-aligned planes.
-    /// The profiles affect presentation only; they never mutate authoritative voxels.
+    /// Bounded close-up renderer for evaluating authoritative voxel structures at hero distance.
+    /// Material surface profiles decide how occupancy is reconstructed before polygonization.
     /// </summary>
     public sealed class VoxelHeroSurfaceRenderer : IDisposable
     {
@@ -30,7 +19,7 @@ namespace VoxelEngine.Showcase
         private const int MaterialCount = 18;
         private const int SamplesPerVoxel = 2;
         private const float SampleStepVoxels = 1f / SamplesPerVoxel;
-        private const int BlurPasses = 2;
+        private const int MaxBlurPasses = VoxelSurfaceProfile.MaxSupportedBlurPasses;
         private const float MinCoverageGradient = 0.05f;
 
         private static readonly int3[] CubeCorners =
@@ -91,8 +80,8 @@ namespace VoxelEngine.Showcase
             _minVoxel = minVoxel;
             _sizeVoxels = math.max(sizeVoxels, new int3(2));
             _sampleSize = _sizeVoxels * SamplesPerVoxel + 1;
-            _surfaceProfiles = surfaceProfiles ?? new VoxelSurfaceProfileSet();
-            _root = new GameObject("Voxel Hero Smooth Surface") { hideFlags = HideFlags.DontSave };
+            _surfaceProfiles = surfaceProfiles ?? VoxelSurfaceProfileSet.Canonical();
+            _root = new GameObject("Voxel Hero Material-Aware Surface") { hideFlags = HideFlags.DontSave };
 
             for (int m = 1; m < MaterialCount; m++)
             {
@@ -141,11 +130,10 @@ namespace VoxelEngine.Showcase
 
                 for (int t = 0; t < 6; t++)
                 {
-                    int a = Tetrahedra[t, 0];
-                    int b = Tetrahedra[t, 1];
-                    int c = Tetrahedra[t, 2];
-                    int d = Tetrahedra[t, 3];
-                    PolygoniseTetra(world, a, b, c, d, cornerPosition, cornerDensity);
+                    PolygoniseTetra(world,
+                        Tetrahedra[t, 0], Tetrahedra[t, 1],
+                        Tetrahedra[t, 2], Tetrahedra[t, 3],
+                        cornerPosition, cornerDensity);
                 }
             }
 
@@ -155,9 +143,16 @@ namespace VoxelEngine.Showcase
             _density = null;
         }
 
+        /// <summary>
+        /// Builds one occupancy field per supported blur depth, then selects the field independently
+        /// for every material sample. This is the critical distinction from the old renderer: a
+        /// dressed-stone sample selecting blurPasses=0 is never touched by the two-pass terrain blur.
+        /// Air samples inherit the nearest solid material's profile so both sides of an iso crossing
+        /// use the same reconstruction contract.
+        /// </summary>
         private void BuildBaseDensity(ShowcaseWorld world)
         {
-            int margin = BlurPasses + 2;
+            int margin = MaxBlurPasses + 2;
             _baseMin = _minVoxel - new int3(margin);
             _baseSize = _sizeVoxels + new int3(margin * 2 + 1);
             int count = _baseSize.x * _baseSize.y * _baseSize.z;
@@ -177,13 +172,19 @@ namespace VoxelEngine.Showcase
                 float value = material != VoxelDimensions.MaterialEmpty ? -1f : 1f;
                 int index = BaseIndex(x, y, z);
                 _baseMaterials[index] = material;
-                _baseDensity[index] = value;
                 original[index] = value;
             }
 
+            var blurLevels = new float[MaxBlurPasses + 1][];
+            blurLevels[0] = original;
             var scratch = new float[count];
-            for (int pass = 0; pass < BlurPasses; pass++)
-                BlurSeparable(_baseDensity, scratch);
+            for (int pass = 1; pass <= MaxBlurPasses; pass++)
+            {
+                float[] level = new float[count];
+                Array.Copy(blurLevels[pass - 1], level, count);
+                BlurSeparable(level, scratch);
+                blurLevels[pass] = level;
+            }
 
             for (int z = 0; z < _baseSize.z; z++)
             for (int y = 0; y < _baseSize.y; y++)
@@ -192,26 +193,23 @@ namespace VoxelEngine.Showcase
                 int index = BaseIndex(x, y, z);
                 byte profileMaterial = ProfileMaterialAt(x, y, z);
                 VoxelSurfaceProfile profile = _surfaceProfiles.Get(profileMaterial);
-                float filtered = _baseDensity[index];
+                float raw = original[index];
+                float filtered = blurLevels[profile.BlurPasses][index];
+
                 if (profile.DistanceRecovery > 0.00001f)
                 {
                     float distanceRecovered = DistanceRecoveredDensity(
-                        x, y, z, original[index], profile.CurveRecovery);
+                        x, y, z, raw, profile.CurveRecovery);
                     filtered = math.lerp(filtered, distanceRecovered, profile.DistanceRecovery);
                 }
 
-                float shaped = math.lerp(original[index], filtered, profile.Smoothing);
+                float shaped = math.lerp(raw, filtered, profile.Smoothing);
                 shaped -= profile.DensityBias;
                 shaped -= SurfaceModification(_baseMin + new int3(x, y, z), in profile);
                 _baseDensity[index] = math.clamp(shaped, -1.5f, 1.5f);
             }
         }
 
-        /// <summary>
-        /// Combines the radius-one and radius-two coverage/gradient distance estimators used by the
-        /// production voxel density path. Tight recovery preserves a 90-degree corner; wide recovery
-        /// gives a digital circle enough neighbourhood context to reconstruct a continuous curve.
-        /// </summary>
         private float DistanceRecoveredDensity(int centreX, int centreY, int centreZ,
                                                float raw, float curveRecovery)
         {
@@ -235,11 +233,8 @@ namespace VoxelEngine.Showcase
                 float wx = x == 0 ? 2f : 1f;
                 float wy = y == 0 ? 2f : 1f;
                 float wz = z == 0 ? 2f : 1f;
-
                 coverage += occupied * wx * wy * wz;
-                gradient += occupied * new float3(x * wy * wz,
-                                                   wx * y * wz,
-                                                   wx * wy * z);
+                gradient += occupied * new float3(x * wy * wz, wx * y * wz, wx * wy * z);
             }
 
             coverage *= 1f / 64f;
@@ -264,11 +259,8 @@ namespace VoxelEngine.Showcase
                 float dx = BinomialDerivativeRadiusTwo(x);
                 float dy = BinomialDerivativeRadiusTwo(y);
                 float dz = BinomialDerivativeRadiusTwo(z);
-
                 coverage += occupied * wx * wy * wz;
-                gradient += occupied * new float3(dx * wy * wz,
-                                                   wx * dy * wz,
-                                                   wx * wy * dz);
+                gradient += occupied * new float3(dx * wy * wz, wx * dy * wz, wx * wy * dz);
             }
 
             coverage *= 1f / 4096f;
@@ -308,11 +300,6 @@ namespace VoxelEngine.Showcase
              _ => 0f
         };
 
-        /// <summary>
-        /// Air participates in an iso-surface too, so it must use the adjacent solid's profile.
-        /// Looking through the filter radius keeps both sides of a stone/air crossing on the same
-        /// smoothing contract instead of blending stone against an unrelated default-air profile.
-        /// </summary>
         private byte ProfileMaterialAt(int x, int y, int z)
         {
             byte material = _baseMaterials[BaseIndex(x, y, z)];
@@ -320,9 +307,9 @@ namespace VoxelEngine.Showcase
 
             float bestDistance = float.PositiveInfinity;
             byte bestMaterial = VoxelDimensions.MaterialEmpty;
-            for (int dz = -BlurPasses; dz <= BlurPasses; dz++)
-            for (int dy = -BlurPasses; dy <= BlurPasses; dy++)
-            for (int dx = -BlurPasses; dx <= BlurPasses; dx++)
+            for (int dz = -MaxBlurPasses; dz <= MaxBlurPasses; dz++)
+            for (int dy = -MaxBlurPasses; dy <= MaxBlurPasses; dy++)
+            for (int dx = -MaxBlurPasses; dx <= MaxBlurPasses; dx++)
             {
                 int qx = x + dx;
                 int qy = y + dy;
@@ -344,7 +331,6 @@ namespace VoxelEngine.Showcase
         private static float SurfaceModification(int3 worldVoxel, in VoxelSurfaceProfile profile)
         {
             if (profile.ModificationStrength <= 0.00001f) return 0f;
-
             float3 q = (float3)worldVoxel / profile.ModificationScaleVoxels;
             float a = math.sin(q.x * 1.37f + q.y * 0.71f + q.z * 1.11f);
             float b = math.sin(q.x * -0.63f + q.y * 1.57f + q.z * 0.83f + 1.91f);
@@ -401,8 +387,7 @@ namespace VoxelEngine.Showcase
             for (int y = 0; y < _sampleSize.y; y++)
             for (int x = 0; x < _sampleSize.x; x++)
             {
-                float3 p = (float3)_minVoxel
-                    + new float3(x, y, z) * SampleStepVoxels;
+                float3 p = (float3)_minVoxel + new float3(x, y, z) * SampleStepVoxels;
                 _density[SampleIndex(x, y, z)] = SampleBaseDensity(p);
             }
         }
@@ -423,7 +408,6 @@ namespace VoxelEngine.Showcase
             float c101 = BaseDensityAt(i1.x, i0.y, i1.z);
             float c011 = BaseDensityAt(i0.x, i1.y, i1.z);
             float c111 = BaseDensityAt(i1.x, i1.y, i1.z);
-
             float x00 = math.lerp(c000, c100, f.x);
             float x10 = math.lerp(c010, c110, f.x);
             float x01 = math.lerp(c001, c101, f.x);
@@ -448,7 +432,6 @@ namespace VoxelEngine.Showcase
             }
 
             if (insideCount == 0 || insideCount == 4) return;
-
             if (insideCount == 1)
             {
                 int i = inside[0];
@@ -458,7 +441,6 @@ namespace VoxelEngine.Showcase
                     Interpolate(positions[i], positions[outside[2]], values[i], values[outside[2]]));
                 return;
             }
-
             if (insideCount == 3)
             {
                 int o = outside[0];
@@ -528,22 +510,13 @@ namespace VoxelEngine.Showcase
                                         in VoxelSurfaceProfile profile)
         {
             if (profile.Planarization <= 0.00001f) return position;
-
             float3 n = math.abs(normal);
             float dominance = n.x;
             int axis = 0;
-            if (n.y > dominance)
-            {
-                dominance = n.y;
-                axis = 1;
-            }
-            if (n.z > dominance)
-            {
-                dominance = n.z;
-                axis = 2;
-            }
-
+            if (n.y > dominance) { dominance = n.y; axis = 1; }
+            if (n.z > dominance) { dominance = n.z; axis = 2; }
             if (dominance <= profile.PlanarizationThreshold) return position;
+
             float range = math.max(0.0001f, 1f - profile.PlanarizationThreshold);
             float axisWeight = math.saturate((dominance - profile.PlanarizationThreshold) / range);
             axisWeight *= axisWeight;
@@ -662,7 +635,7 @@ namespace VoxelEngine.Showcase
 
                 var mesh = new Mesh
                 {
-                    name = $"Voxel Hero Smooth material {material}",
+                    name = $"Voxel Hero material {material}",
                     indexFormat = IndexFormat.UInt32
                 };
                 mesh.SetVertices(_vertices[material]);
