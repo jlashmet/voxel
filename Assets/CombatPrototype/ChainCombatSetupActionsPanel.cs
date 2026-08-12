@@ -25,11 +25,14 @@ namespace MountingForce.CombatPrototype
             "_board", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo SelectedField = typeof(ChainCombatLabController).GetField(
             "_selectedUnitId", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo ReadinessField = typeof(ChainCombatLabController).GetField(
+            "_roundReadiness", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private const float MainSidebarWidth = 420f;
 
         private ChainCombatLabController _controller;
         private ChainCombatBoard _board;
+        private ChainRoundReadinessCoordinator _roundReadiness;
         private Camera _camera;
         private AimMode _aim;
         private int _firstTargetId;
@@ -48,6 +51,8 @@ namespace MountingForce.CombatPrototype
         {
             if (_board == null && _controller != null && BoardField != null)
                 _board = BoardField.GetValue(_controller) as ChainCombatBoard;
+            if (_roundReadiness == null && _controller != null && ReadinessField != null)
+                _roundReadiness = ReadinessField.GetValue(_controller) as ChainRoundReadinessCoordinator;
 
             if (_camera == null)
             {
@@ -74,6 +79,9 @@ namespace MountingForce.CombatPrototype
             if (!hasSpecial)
                 GUILayout.Label("This recruit's proactive specialty is already in the main sidebar.", _small);
 
+            if (_roundReadiness != null && _roundReadiness.IsReady(selected.CommandGroup))
+                GUILayout.Label($"P{selected.CommandGroup} is READY. Setup actions are closed; reactions remain available in the main sidebar.", _small);
+
             if (_aim != AimMode.None)
             {
                 GUILayout.Label($"AIMING: {AimName(_aim)}", _header);
@@ -89,7 +97,8 @@ namespace MountingForce.CombatPrototype
 
         private bool DrawSpecialAction(ChainUnitState unit)
         {
-            GUI.enabled = _board.PendingReaction == null && !unit.ActionSpent && !_board.BattleOver;
+            bool proactiveOpen = _roundReadiness == null || _roundReadiness.CanUseProactive(unit.CommandGroup);
+            GUI.enabled = proactiveOpen && _board.PendingReaction == null && !unit.ActionSpent && !_board.BattleOver;
             bool shown = true;
 
             switch (unit.Kind)
@@ -138,6 +147,14 @@ namespace MountingForce.CombatPrototype
             if (current.mousePosition.x >= Screen.width - MainSidebarWidth) return;
             if (new Rect(10f, 10f, 310f, 185f).Contains(current.mousePosition)) return;
             if (!TryMouseToGrid(current.mousePosition, out GridPos cell)) return;
+
+            if (_roundReadiness != null && !_roundReadiness.CanUseProactive(selected.CommandGroup))
+            {
+                _message = $"P{selected.CommandGroup} is Ready. Unready that player before finishing a proactive setup action.";
+                ResetAim(false);
+                current.Use();
+                return;
+            }
 
             ChainUnitState clickedUnit = _board.FindUnitAt(cell);
             ChainTreeState clickedTree = _board.FindStandingTreeAt(cell);
