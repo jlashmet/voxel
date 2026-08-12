@@ -1,0 +1,71 @@
+using UnityEngine;
+
+namespace VoxelEngine.Rendering.Vegetation
+{
+    /// <summary>Shared presentation resources for standing trees and detached tree debris.</summary>
+    public static class ProceduralTreeMaterials
+    {
+        private static Material s_Bark;
+        private static Material s_Leaves;
+        private static Material[] s_Shared;
+
+        public static Material Bark
+        {
+            get { Ensure(); return s_Bark; }
+        }
+
+        public static Material Leaves
+        {
+            get { Ensure(); return s_Leaves; }
+        }
+
+        public static Material[] Shared
+        {
+            get { Ensure(); return s_Shared; }
+        }
+
+        public static bool Ensure()
+        {
+            if (s_Bark != null && s_Leaves != null) return true;
+
+            Shader bark = Shader.Find("VoxelEngine/ProceduralTreeBark");
+            Shader leaves = Shader.Find("VoxelEngine/ProceduralTreeLeaves");
+            if (bark == null || leaves == null)
+            {
+                if (bark == null) Debug.LogError("Procedural tree bark shader was not found.");
+                if (leaves == null) Debug.LogError("Procedural tree leaf shader was not found.");
+                return false;
+            }
+
+            s_Bark = new Material(bark)
+            {
+                name = "Procedural Tree Bark (Shared Runtime)",
+                enableInstancing = true,
+                hideFlags = HideFlags.DontSave,
+            };
+            s_Leaves = new Material(leaves)
+            {
+                name = "Procedural Tree Leaves (Shared Runtime)",
+                enableInstancing = true,
+                hideFlags = HideFlags.DontSave,
+            };
+            s_Shared = new[] { s_Bark, s_Leaves };
+            return true;
+        }
+
+        public static void ApplyLighting()
+        {
+            if (!Ensure()) return;
+            Vector3 sun = VoxelRenderBridge.SunDirection;
+            Color horizon = VoxelRenderBridge.SkyHorizon;
+            Color zenith = VoxelRenderBridge.SkyZenith;
+
+            s_Bark.SetVector("_SunDirection", new Vector4(sun.x, sun.y, sun.z, 0f));
+            s_Bark.SetColor("_SkyHorizon", horizon);
+            s_Bark.SetColor("_SkyZenith", zenith);
+            s_Leaves.SetVector("_SunDirection", new Vector4(sun.x, sun.y, sun.z, 0f));
+            s_Leaves.SetColor("_SkyHorizon", horizon);
+            s_Leaves.SetColor("_SkyZenith", zenith);
+        }
+    }
+}

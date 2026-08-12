@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Collision;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering;
@@ -462,7 +463,7 @@ namespace VoxelEngine.Showcase
                 shot.Age += deltaTime;
                 shot.Phase += deltaTime * 13f;
 
-                if (TryTornadoImpact(previous, shot.Position, out int3 hit))
+                if (TryTornadoImpact(previous, shot.Position, out int3 hit, out bool semanticTreeHit))
                 {
                     // Structural classification is CPU-authoritative. Serialize impacts so a
                     // shotgun burst cannot schedule several large connectivity walks in one frame.
@@ -475,10 +476,19 @@ namespace VoxelEngine.Showcase
                     impactsThisFrame++;
 
                     var start = Time.realtimeSinceStartupAsDouble;
-                    int changed = _world.Explode(hit, (ushort)shot.ImpactRadius,
+                    int changed = 0;
+                    if (!semanticTreeHit)
+                    {
+                        changed = _world.Explode(hit, (ushort)shot.ImpactRadius,
                                                  (float3)shot.Direction);
-                    if (changed > 0)
-                        ProceduralTreeDamageBridge.ApplyExplosion(hit, shot.ImpactRadius);
+                    }
+                    if (semanticTreeHit || changed > 0)
+                    {
+                        float3 impactMetres = (float3)hit * VoxelSurfaceRenderer.VoxelSize;
+                        ProceduralTreeDamageService.ApplyBlast(
+                            impactMetres, shot.ImpactRadius * VoxelSurfaceRenderer.VoxelSize,
+                            (float3)shot.Direction);
+                    }
                     _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
                     _lastEditLabel = $"tornado impact r{shot.ImpactRadius}: {changed:N0} voxels, " +
                                      $"{(_gpuDebris?.ActiveVoxels ?? 0):N0} falling";
@@ -501,7 +511,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private bool TryTornadoImpact(Vector3 from, Vector3 to, out int3 hit)
+        private bool TryTornadoImpact(Vector3 from, Vector3 to, out int3 hit, out bool semanticTreeHit)
         {
             Vector3 travel = to - from;
             Vector3 forward = travel.sqrMagnitude > 1e-8f ? travel.normalized : transform.forward;
@@ -514,6 +524,7 @@ namespace VoxelEngine.Showcase
             bool found = false;
             float nearestDistance = float.MaxValue;
             hit = default;
+            semanticTreeHit = false;
             ConsiderTornadoLine(from, to, Vector3.zero, ref found, ref nearestDistance, ref hit);
             ConsiderTornadoLine(from, to, right * sweepRadius,
                                 ref found, ref nearestDistance, ref hit);
@@ -531,6 +542,18 @@ namespace VoxelEngine.Showcase
                                 ref found, ref nearestDistance, ref hit);
             ConsiderTornadoLine(from, to, (-right - up) * diagonal,
                                 ref found, ref nearestDistance, ref hit);
+            if (ProceduralTreeDamageService.TrySweepImpact(
+                    (float3)from, (float3)to, sweepRadius,
+                    out float3 treeHitMetres, out _))
+            {
+                float treeDistance = math.lengthsq(treeHitMetres - (float3)from);
+                if (!found || treeDistance < nearestDistance)
+                {
+                    hit = (int3)math.round(treeHitMetres / VoxelSurfaceRenderer.VoxelSize);
+                    semanticTreeHit = true;
+                    found = true;
+                }
+            }
             return found;
         }
 
