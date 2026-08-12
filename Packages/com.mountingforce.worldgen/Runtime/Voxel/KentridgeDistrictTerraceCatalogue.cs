@@ -10,21 +10,18 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Turns Kentridge's macro height profile into neighbourhood-scale urban shelves.
     ///
-    /// The authored rectangle for each district is the flat buildable core. Around that core the
-    /// catalogue grows four continuous earth wedges that descend toward surrounding terrain. This
-    /// preserves deterministic flat building land without the previous layer-cake steps or giant
-    /// exposed rectangular cliff faces. Crisp retaining walls and stairs remain a separate
-    /// Infrastructure pass so built edges stay architectural while these shoulders stay terrain.
+    /// The authored rectangle for each district is the flat buildable core. Four terrain shoulders
+    /// connect that core to the natural hillside. Each shoulder samples its own outer edge altitude
+    /// and cuts/fills only between that altitude and the authored core surface, so an elevated
+    /// district no longer exposes one shared basement-height wall around its perimeter. Crisp
+    /// retaining walls and stairs remain a separate Infrastructure pass.
     /// </summary>
     public static class KentridgeDistrictTerraceCatalogue
     {
-        private const int CapThicknessDm = 4;
         private const int BuriedFootingDm = 8;
         private const int ClearAboveDm = 48;
         private const int NaturalSampleStepDm = 64;
         private const int ShoulderWidthDm = 36;
-        private const int ShoulderSurfaceDepthDm = 2;
-        private const int OuterGreenBandDm = 6;
 
         private const byte RampAxisX = 0;
         private const byte RampAxisZ = 2;
@@ -67,22 +64,24 @@ namespace MountingForce.WorldGen.Voxel
             public readonly TerraceSeed Seed;
             public readonly int3 Position;
             public readonly int3 Footprint;
-            public readonly int SupportHeight;
-            public readonly int CapThickness;
-            public readonly int ClearHeight;
-            public readonly int ShoulderWidth;
+            public readonly int CoreSurfaceY;
+            public readonly int NorthEdgeY;
+            public readonly int SouthEdgeY;
+            public readonly int WestEdgeY;
+            public readonly int EastEdgeY;
 
             public TerraceBuild(TerraceSeed seed, int3 position, int3 footprint,
-                                int supportHeight, int capThickness, int clearHeight,
-                                int shoulderWidth)
+                                int coreSurfaceY, int northEdgeY, int southEdgeY,
+                                int westEdgeY, int eastEdgeY)
             {
                 Seed = seed;
                 Position = position;
                 Footprint = footprint;
-                SupportHeight = supportHeight;
-                CapThickness = capThickness;
-                ClearHeight = clearHeight;
-                ShoulderWidth = shoulderWidth;
+                CoreSurfaceY = coreSurfaceY;
+                NorthEdgeY = northEdgeY;
+                SouthEdgeY = southEdgeY;
+                WestEdgeY = westEdgeY;
+                EastEdgeY = eastEdgeY;
             }
         }
 
@@ -210,16 +209,31 @@ namespace MountingForce.WorldGen.Voxel
                 terrace.AnchorXDm, terrace.AnchorZDm, seed, scale);
             TerrainRange(terrace, seed, scale, out int naturalMin, out int naturalMax);
 
-            int capThickness = CapThicknessDm * scale;
-            int buriedFooting = BuriedFootingDm * scale;
-            int capBase = targetSurface - capThickness;
-            int originY = Math.Min(capBase - buriedFooting, naturalMin - buriedFooting);
-            int supportHeight = Math.Max(1, capBase - originY);
-            int clearHeight = Math.Max(
-                ClearAboveDm * scale,
-                naturalMax - targetSurface + ClearAboveDm * scale);
-            int totalHeight = targetSurface - originY + clearHeight
-                            + ShoulderSurfaceDepthDm * scale;
+            int centreXDm = terrace.XDm + terrace.WidthDm / 2;
+            int centreZDm = terrace.ZDm + terrace.DepthDm / 2;
+            int northEdge = TerrainSampler.HeightAt(
+                centreXDm * scale,
+                (terrace.ZDm - ShoulderWidthDm) * scale,
+                seed);
+            int southEdge = TerrainSampler.HeightAt(
+                centreXDm * scale,
+                (terrace.ZDm + terrace.DepthDm + ShoulderWidthDm) * scale,
+                seed);
+            int westEdge = TerrainSampler.HeightAt(
+                (terrace.XDm - ShoulderWidthDm) * scale,
+                centreZDm * scale,
+                seed);
+            int eastEdge = TerrainSampler.HeightAt(
+                (terrace.XDm + terrace.WidthDm + ShoulderWidthDm) * scale,
+                centreZDm * scale,
+                seed);
+
+            int lowestRelevant = Math.Min(targetSurface,
+                Math.Min(Math.Min(northEdge, southEdge), Math.Min(westEdge, eastEdge)));
+            int highestRelevant = Math.Max(targetSurface,
+                Math.Max(Math.Max(northEdge, southEdge), Math.Max(westEdge, eastEdge)));
+            int originY = Math.Min(lowestRelevant, naturalMin) - BuriedFootingDm * scale;
+            int topY = Math.Max(highestRelevant, naturalMax) + ClearAboveDm * scale;
             int shoulder = ShoulderWidthDm * scale;
 
             return new TerraceBuild(
@@ -230,12 +244,13 @@ namespace MountingForce.WorldGen.Voxel
                     (terrace.ZDm - ShoulderWidthDm) * scale),
                 new int3(
                     (terrace.WidthDm + ShoulderWidthDm * 2) * scale,
-                    totalHeight,
+                    Math.Max(1, topY - originY),
                     (terrace.DepthDm + ShoulderWidthDm * 2) * scale),
-                supportHeight,
-                capThickness,
-                clearHeight,
-                shoulder);
+                targetSurface - originY,
+                northEdge - originY,
+                southEdge - originY,
+                westEdge - originY,
+                eastEdge - originY);
         }
 
         private static void TerrainRange(TerraceSeed terrace, uint seed, int scale,
@@ -282,19 +297,11 @@ namespace MountingForce.WorldGen.Voxel
 
             int coreWidth = build.Seed.WidthDm * s;
             int coreDepth = build.Seed.DepthDm * s;
-            int shoulder = build.ShoulderWidth;
+            int shoulder = ShoulderWidthDm * s;
             int width = coreWidth + shoulder * 2;
             int depth = coreDepth + shoulder * 2;
-            int shoulderSurfaceDepth = Math.Max(1, ShoulderSurfaceDepthDm * s);
-            int outerGreen = Math.Max(1, OuterGreenBandDm * s);
-
-            int maximumDrop = Math.Max(0, build.SupportHeight - 1);
-            int desiredDrop = Math.Max(12 * s, build.SupportHeight * 2 / 3);
-            int shoulderDrop = Math.Min(maximumDrop, desiredDrop);
-            int lowFillHeight = build.SupportHeight - shoulderDrop + shoulderSurfaceDepth;
-            int highFillHeight = build.SupportHeight + build.CapThickness;
-            int rampRise = Math.Max(1, highFillHeight - lowFillHeight);
             int coreInset = shoulder;
+            int clearTop = build.Footprint.y;
 
             byte shoulderSurface = build.Seed.Surface == SurfaceCharacter.Green ? moss : earth;
             byte coreSurface = build.Seed.Surface switch
@@ -306,48 +313,79 @@ namespace MountingForce.WorldGen.Voxel
 
             var b = new ProgramBuilder();
 
-            b.Carve(0, Math.Max(0, lowFillHeight - shoulderSurfaceDepth), 0,
-                    width,
-                    build.ClearHeight + shoulderDrop + build.CapThickness + shoulderSurfaceDepth,
-                    depth);
+            // Only the flat urban core owns a deep support mass. Its vertical faces are hidden by
+            // the four shoulder bands rather than reaching the district perimeter.
+            b.Carve(coreInset, build.CoreSurfaceY, coreInset,
+                    coreWidth, Math.Max(1, clearTop - build.CoreSurfaceY), coreDepth);
+            b.Box(coreInset, 0, coreInset,
+                  coreWidth, Math.Max(1, build.CoreSurfaceY), coreDepth, earth);
 
-            b.Box(0, 0, 0, width, lowFillHeight, depth, earth);
+            AddShoulder(b,
+                0, 0, width, shoulder,
+                build.NorthEdgeY, build.CoreSurfaceY,
+                RampAxisZ,
+                outerAtNegativeAxis: true,
+                clearTop, earth);
+            AddShoulder(b,
+                0, coreInset + coreDepth, width, shoulder,
+                build.SouthEdgeY, build.CoreSurfaceY,
+                RampAxisZ,
+                outerAtNegativeAxis: false,
+                clearTop, earth);
+            AddShoulder(b,
+                0, coreInset, shoulder, coreDepth,
+                build.WestEdgeY, build.CoreSurfaceY,
+                RampAxisX,
+                outerAtNegativeAxis: true,
+                clearTop, earth);
+            AddShoulder(b,
+                coreInset + coreWidth, coreInset, shoulder, coreDepth,
+                build.EastEdgeY, build.CoreSurfaceY,
+                RampAxisX,
+                outerAtNegativeAxis: false,
+                clearTop, earth);
 
-            b.Box(coreInset, lowFillHeight, coreInset,
-                  coreWidth, rampRise, coreDepth, earth);
-
-            b.Ramp(0, lowFillHeight, 0,
-                   width, rampRise, shoulder,
-                   RampAxisZ, earth);
-            b.Ramp(0, lowFillHeight, coreInset + coreDepth,
-                   width, rampRise, shoulder,
-                   (byte)(RampAxisZ | ReverseRampBit), earth);
-            b.Ramp(0, lowFillHeight, coreInset,
-                   shoulder, rampRise, coreDepth,
-                   RampAxisX, earth);
-            b.Ramp(coreInset + coreWidth, lowFillHeight, coreInset,
-                   shoulder, rampRise, coreDepth,
-                   (byte)(RampAxisX | ReverseRampBit), earth);
-
-            b.Box(0, 0, 0, width, highFillHeight + 1, depth,
+            // Paint only the surfaces this feature owns. Natural terrain outside the four transition
+            // bands is untouched, so biome ground cover meets the authored shelf organically.
+            b.Box(0, 0, 0, width, clearTop, shoulder,
                   shoulderSurface, PrimitiveMode.PaintSurface);
-            b.Box(coreInset, 0, coreInset, coreWidth, highFillHeight + 1, coreDepth,
+            b.Box(0, 0, coreInset + coreDepth, width, clearTop, shoulder,
+                  shoulderSurface, PrimitiveMode.PaintSurface);
+            b.Box(0, 0, coreInset, shoulder, clearTop, coreDepth,
+                  shoulderSurface, PrimitiveMode.PaintSurface);
+            b.Box(coreInset + coreWidth, 0, coreInset, shoulder, clearTop, coreDepth,
+                  shoulderSurface, PrimitiveMode.PaintSurface);
+            b.Box(coreInset, 0, coreInset, coreWidth, clearTop, coreDepth,
                   coreSurface, PrimitiveMode.PaintSurface);
 
-            if (build.Seed.Surface != SurfaceCharacter.Green)
-            {
-                b.Box(0, 0, 0, width, highFillHeight + 1, outerGreen,
-                      moss, PrimitiveMode.PaintSurface);
-                b.Box(0, 0, depth - outerGreen, width, highFillHeight + 1, outerGreen,
-                      moss, PrimitiveMode.PaintSurface);
-                b.Box(0, 0, outerGreen, outerGreen, highFillHeight + 1, depth - outerGreen * 2,
-                      moss, PrimitiveMode.PaintSurface);
-                b.Box(width - outerGreen, 0, outerGreen,
-                      outerGreen, highFillHeight + 1, depth - outerGreen * 2,
-                      moss, PrimitiveMode.PaintSurface);
-            }
-
             return b.Finish();
+        }
+
+        private static void AddShoulder(ProgramBuilder b,
+                                        int x, int z, int width, int depth,
+                                        int edgeY, int coreY,
+                                        byte axis, bool outerAtNegativeAxis,
+                                        int clearTop, byte material)
+        {
+            int lowY = Math.Min(edgeY, coreY);
+            int highY = Math.Max(edgeY, coreY);
+            int rise = highY - lowY;
+
+            // Preserve everything below the lower of the two endpoints, clear protruding terrain
+            // above the desired transition, then refill the exact linear wedge.
+            b.Carve(x, lowY, z,
+                    width, Math.Max(1, clearTop - lowY), depth);
+
+            if (rise <= 0) return;
+
+            bool risesTowardCore = coreY > edgeY;
+            bool coreAtNegativeAxis = !outerAtNegativeAxis;
+            bool reverse = risesTowardCore ? coreAtNegativeAxis : outerAtNegativeAxis;
+            byte rampAxis = reverse ? (byte)(axis | ReverseRampBit) : axis;
+
+            b.Ramp(x, lowY, z,
+                   width, rise, depth,
+                   rampAxis, material);
         }
 
         private sealed class ProgramBuilder
