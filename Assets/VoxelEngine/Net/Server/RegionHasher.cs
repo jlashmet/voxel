@@ -1,115 +1,110 @@
-using VoxelEngine.Core.Storage;
-using Unity.Collections;
 using System;
 using System.Runtime.CompilerServices;
-using Unity.Mathematics;
+using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Net.Server
 {
     /// <summary>
-    /// Per-region state hashing for drift detection between server and clients.
+    /// Canonical semantic region hashing for drift detection.
     ///
-    /// Uses FNV-1a hash over a region's brick data to detect divergence. The hash is computed
-    /// over the top mip level (always resident per data-model.md invariant) combined with the
-    /// compacted region state, providing a compact fingerprint for integrity verification.
-    ///
-    /// Called after each simulation tick to detect drift early — before visual differences
-    /// become apparent to players.
+    /// Pool indices are allocator-local implementation details and MUST NOT participate in a
+    /// cross-peer hash. Uniform bricks hash their material; mixed bricks hash all 512 material
+    /// bytes in voxel order. Two peers with identical world material therefore produce the same
+    /// hash even if their BrickPool allocation histories differ.
     /// </summary>
     public static class RegionHasher
     {
-        // -- FNV-1a constants -----------------------------------------------------
-
-        /// <summary>FNV-1a 32-bit offset basis.</summary>
         private const uint k_FnvOffsetBasis = 2166136261u;
-
-        /// <summary>FNV-1a 32-bit prime (prime for modulus 2^32).</summary>
         private const uint k_FnvPrime = 16777619u;
 
-        // -- region hash API ------------------------------------------------------
+        public static uint HashRegion(in Region region, in BrickPool pool)
+        {
+            uint hash = k_FnvOffsetBasis;
+            hash = MixInt(hash, region.Coord.x);
+            hash = MixInt(hash, region.Coord.y);
+            hash = MixInt(hash, region.Coord.z);
 
-        /// <summary>Computes an FNV-1a hash over a region's brick grid data.
-        /// Used as the authoritative fingerprint for drift detection (S_RegionHash protocol message).</summary>
-        /// <param name="region">The region whose state is being hashed.</param>
-        /// <returns>A 32-bit FNV-1a hash of the region's current state.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            if (!region.BrickRefs.IsCreated)
+                return hash;
+
+            for (int i = 0; i < region.BrickRefs.Length; i++)
+            {
+                BrickRef brick = region.BrickRefs[i];
+                if (brick.IsMixed)
+                {
+                    hash = FnvMixByte(hash, 2); // mixed discriminator
+                    for (int voxel = 0; voxel < VoxelDimensions.VoxelsPerBrick; voxel++)
+                        hash = FnvMixByte(hash, pool.GetVoxel(brick.PoolIndex, voxel));
+                }
+                else
+                {
+                    hash = FnvMixByte(hash, 1); // uniform discriminator
+                    hash = FnvMixByte(hash, brick.UniformMaterial);
+                }
+            }
+
+            return hash;
+        }
+
+        /// <summary>
+        /// Legacy structural hash retained only for local diagnostics. It includes pool indices and
+        /// therefore must never be compared across server/client peers.
+        /// </summary>
+        [Obsolete("Use HashRegion(in Region, in BrickPool) for cross-peer drift detection.")]
         public static uint HashRegion(in Region region)
         {
             uint hash = k_FnvOffsetBasis;
+            hash = MixInt(hash, region.Coord.x);
+            hash = MixInt(hash, region.Coord.y);
+            hash = MixInt(hash, region.Coord.z);
 
-            // Hash region coordinate — ensures different regions produce different hashes.
-            hash = FnvMix(hash, (uint)region.Coord.x);
-            hash = FnvMix(hash, (uint)region.Coord.y);
-            hash = FnvMix(hash, (uint)region.Coord.z);
-
-            // Hash the full brick reference grid.
-            //
-            // BrickRef already encodes all three states in one int (empty, uniform material,
-            // or pool index), so hashing it captures the region's structure exactly. Every
-            // entry is hashed rather than sampled: a sampled hash cannot detect drift in the
-            // entries it skips, which would defeat the point of drift detection.
             if (region.BrickRefs.IsCreated)
-            {
-                var bricks = region.BrickRefs;
-                for (int i = 0; i < bricks.Length; i++)
-                    hash = FnvMix(hash, (uint)bricks[i].Value);
-            }
+                for (int i = 0; i < region.BrickRefs.Length; i++)
+                    hash = MixInt(hash, region.BrickRefs[i].Value);
 
             return hash;
         }
 
-        /// <summary>Computes an FNV-1a hash over a raw byte span of brick data.
-        /// Used for S_RegionHash comparison without constructing a Region struct.</summary>
-        /// <param name="data">Byte slice of the region's packed brick state.</param>
-        /// <returns>FNV-1a hash of the data.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint HashBytes(ReadOnlySpan<byte> data)
         {
             uint hash = k_FnvOffsetBasis;
-
             for (int i = 0; i < data.Length; i++)
-                hash = FnvMix(hash, data[i]);
-
+                hash = FnvMixByte(hash, data[i]);
             return hash;
         }
 
-        /// <summary>Computes an FNV-1a hash over a NativeArray of uint32 values.
-        /// Optimized for occupancy mip data which is stored as ulong arrays.</summary>
-        /// <param name="values">Span of 32-bit words to hash.</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint HashUintSpan(ReadOnlySpan<uint> values)
         {
             uint hash = k_FnvOffsetBasis;
-
             for (int i = 0; i < values.Length; i++)
             {
-                // Hash each byte of the uint to distinguish endianness-independent patterns.
-                hash = FnvMix(hash, (uint)(values[i] >> 0));
-                hash = FnvMix(hash, (uint)(values[i] >> 8));
-                hash = FnvMix(hash, (uint)(values[i] >> 16));
-                hash = FnvMix(hash, (uint)(values[i] >> 24));
+                uint value = values[i];
+                hash = FnvMixByte(hash, (byte)value);
+                hash = FnvMixByte(hash, (byte)(value >> 8));
+                hash = FnvMixByte(hash, (byte)(value >> 16));
+                hash = FnvMixByte(hash, (byte)(value >> 24));
             }
-
             return hash;
         }
 
-        /// <summary>Compares two hashes with tolerance — useful for detecting minor differences
-        /// that may be ignorable (e.g., timing-dependent debris state vs. core voxel state).</summary>
-        /// <param name="a">First hash.</param>
-        /// <param name="b">Second hash.</param>
-        /// <returns>True if the hashes are identical; false if a repair is needed.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool AreEqual(uint a, uint b) => a == b;
 
-        // -- FNV-1a mixing --------------------------------------------------------
+        private static uint MixInt(uint hash, int value)
+        {
+            uint v = unchecked((uint)value);
+            hash = FnvMixByte(hash, (byte)v);
+            hash = FnvMixByte(hash, (byte)(v >> 8));
+            hash = FnvMixByte(hash, (byte)(v >> 16));
+            hash = FnvMixByte(hash, (byte)(v >> 24));
+            return hash;
+        }
 
-        /// <summary>FNV-1a XOR-F mix: XOR the hash with the value, then multiply by the FNV prime.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static uint FnvMix(uint hash, uint value)
+        private static uint FnvMixByte(uint hash, byte value)
         {
             hash ^= value;
             return hash * k_FnvPrime;
         }
     }
-
 }
