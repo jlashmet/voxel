@@ -17,6 +17,7 @@ namespace VoxelEngine.Tests.EditMode
             FeatureCatalogue secondaryCirculation = KentridgeUrbanCirculationCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue courts = KentridgeUrbanCourtCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue piazza = KentridgeMarketPiazzaCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue civicForecourt = KentridgeCivicForecourtCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue verticalFrontage = KentridgeVerticalFrontageCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue galleries = KentridgeVerticalGalleryCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
@@ -37,6 +38,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(1, piazza.ExplicitPlacements.Length,
                     "The existing semantic Market Square should receive one hard shared-space surface.");
                 AssertAllKind(piazza, FeatureKind.Infrastructure);
+                Assert.AreEqual(1, civicForecourt.ExplicitPlacements.Length,
+                    "Stable Church/Mayor anchors should frame one formal Civic Crown forecourt.");
+                AssertAllKind(civicForecourt, FeatureKind.Infrastructure);
                 Assert.AreEqual(37, massing.ExplicitPlacements.Length);
                 Assert.AreEqual(6, verticalFrontage.ExplicitPlacements.Length);
                 Assert.AreEqual(5, galleries.ExplicitPlacements.Length,
@@ -61,8 +65,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(99, infrastructureInstances,
-                    "The hard Market Square adds one public-space instance without changing gameplay structures.");
+                Assert.AreEqual(100, infrastructureInstances,
+                    "The formal Civic Crown court adds one summit public-space instance without changing gameplay structures.");
             }
             finally
             {
@@ -74,6 +78,7 @@ namespace VoxelEngine.Tests.EditMode
                 galleries.Dispose();
                 verticalFrontage.Dispose();
                 massing.Dispose();
+                civicForecourt.Dispose();
                 piazza.Dispose();
                 courts.Dispose();
                 secondaryCirculation.Dispose();
