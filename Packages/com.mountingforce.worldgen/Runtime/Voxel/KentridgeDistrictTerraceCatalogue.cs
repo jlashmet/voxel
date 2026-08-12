@@ -11,10 +11,9 @@ namespace MountingForce.WorldGen.Voxel
     /// Turns Kentridge's macro height profile into neighbourhood-scale urban shelves.
     ///
     /// The authored rectangle for each district is the flat buildable core. Four terrain shoulders
-    /// connect that core to the natural hillside. Each shoulder samples its own outer edge altitude
-    /// and cuts/fills only between that altitude and the authored core surface, so an elevated
-    /// district no longer exposes one shared basement-height wall around its perimeter. Crisp
-    /// retaining walls and stairs remain a separate Infrastructure pass.
+    /// connect that core to the natural hillside. High transitions are resolved as a short stack of
+    /// contour ledges rather than one near-vertical ramp, preserving the strong elevation hierarchy
+    /// while giving the hillside the stepped urban section needed for retaining architecture.
     /// </summary>
     public static class KentridgeDistrictTerraceCatalogue
     {
@@ -22,10 +21,10 @@ namespace MountingForce.WorldGen.Voxel
         private const int ClearAboveDm = 48;
         private const int NaturalSampleStepDm = 64;
         private const int ShoulderWidthDm = 36;
+        private const int ShoulderStepCount = 6;
 
-        private const byte RampAxisX = 0;
-        private const byte RampAxisZ = 2;
-        private const byte ReverseRampBit = 0x80;
+        private const byte AxisX = 0;
+        private const byte AxisZ = 2;
 
         private enum SurfaceCharacter : byte
         {
@@ -161,7 +160,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 18,
+                    MaxPrimitives = 40,
                 };
 
                 catalogue.ExplicitPlacements[i] = new ExplicitPlacement
@@ -313,8 +312,6 @@ namespace MountingForce.WorldGen.Voxel
 
             var b = new ProgramBuilder();
 
-            // Only the flat urban core owns a deep support mass. Its vertical faces are hidden by
-            // the four shoulder bands rather than reaching the district perimeter.
             b.Carve(coreInset, build.CoreSurfaceY, coreInset,
                     coreWidth, Math.Max(1, clearTop - build.CoreSurfaceY), coreDepth);
             b.Box(coreInset, 0, coreInset,
@@ -323,30 +320,28 @@ namespace MountingForce.WorldGen.Voxel
             AddShoulder(b,
                 0, 0, width, shoulder,
                 build.NorthEdgeY, build.CoreSurfaceY,
-                RampAxisZ,
+                AxisZ,
                 outerAtNegativeAxis: true,
                 clearTop, earth);
             AddShoulder(b,
                 0, coreInset + coreDepth, width, shoulder,
                 build.SouthEdgeY, build.CoreSurfaceY,
-                RampAxisZ,
+                AxisZ,
                 outerAtNegativeAxis: false,
                 clearTop, earth);
             AddShoulder(b,
                 0, coreInset, shoulder, coreDepth,
                 build.WestEdgeY, build.CoreSurfaceY,
-                RampAxisX,
+                AxisX,
                 outerAtNegativeAxis: true,
                 clearTop, earth);
             AddShoulder(b,
                 coreInset + coreWidth, coreInset, shoulder, coreDepth,
                 build.EastEdgeY, build.CoreSurfaceY,
-                RampAxisX,
+                AxisX,
                 outerAtNegativeAxis: false,
                 clearTop, earth);
 
-            // Paint only the surfaces this feature owns. Natural terrain outside the four transition
-            // bands is untouched, so biome ground cover meets the authored shelf organically.
             b.Box(0, 0, 0, width, clearTop, shoulder,
                   shoulderSurface, PrimitiveMode.PaintSurface);
             b.Box(0, 0, coreInset + coreDepth, width, clearTop, shoulder,
@@ -368,24 +363,41 @@ namespace MountingForce.WorldGen.Voxel
                                         int clearTop, byte material)
         {
             int lowY = Math.Min(edgeY, coreY);
-            int highY = Math.Max(edgeY, coreY);
-            int rise = highY - lowY;
+            int rise = Math.Abs(coreY - edgeY);
 
-            // Preserve everything below the lower of the two endpoints, clear protruding terrain
-            // above the desired transition, then refill the exact linear wedge.
+            // Clear only above the lower endpoint. The terrain mass below that level remains intact;
+            // six shallow contour bands then rebuild the transition to the authored core height.
             b.Carve(x, lowY, z,
                     width, Math.Max(1, clearTop - lowY), depth);
 
             if (rise <= 0) return;
 
-            bool risesTowardCore = coreY > edgeY;
-            bool coreAtNegativeAxis = !outerAtNegativeAxis;
-            bool reverse = risesTowardCore ? coreAtNegativeAxis : outerAtNegativeAxis;
-            byte rampAxis = reverse ? (byte)(axis | ReverseRampBit) : axis;
+            int axisLength = axis == AxisX ? width : depth;
+            for (int step = 0; step < ShoulderStepCount; step++)
+            {
+                int start = axisLength * step / ShoulderStepCount;
+                int end = axisLength * (step + 1) / ShoulderStepCount;
+                int slice = Math.Max(1, end - start);
+                int targetY = edgeY
+                    + (coreY - edgeY) * (step + 1) / ShoulderStepCount;
+                int fillHeight = targetY - lowY;
+                if (fillHeight <= 0) continue;
 
-            b.Ramp(x, lowY, z,
-                   width, rise, depth,
-                   rampAxis, material);
+                if (axis == AxisX)
+                {
+                    int px = outerAtNegativeAxis
+                        ? x + start
+                        : x + axisLength - end;
+                    b.Box(px, lowY, z, slice, fillHeight, depth, material);
+                }
+                else
+                {
+                    int pz = outerAtNegativeAxis
+                        ? z + start
+                        : z + axisLength - end;
+                    b.Box(x, lowY, pz, width, fillHeight, slice, material);
+                }
+            }
         }
 
         private sealed class ProgramBuilder
@@ -397,15 +409,6 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, (int)mode);
-            }
-
-            public void Ramp(int x, int y, int z, int sx, int sy, int sz,
-                             byte axis, byte material,
-                             PrimitiveMode mode = PrimitiveMode.Fill)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitRamp, x, y, z, sx, sy, sz,
-                   axis, material, (int)mode);
             }
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
