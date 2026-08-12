@@ -67,16 +67,22 @@ namespace VoxelEngine.CI
                 if (brush.BudgetExceeded)
                     throw new InvalidOperationException("Voxel hero arch exceeded VoxelBrush budget.");
 
-                // The source voxels are unchanged. Only their derived close-up surface differs by
-                // material: cut limestone keeps enough interpolation to hide 10 cm stair steps but
-                // no longer receives the terrain-strength blur that made every voussoir look soft.
+                // Cut stone needs two apparently conflicting things: enough field filtering for the
+                // circular intrados/extrados to remain continuous, and much flatter manufactured
+                // faces than terrain. Planarization resolves that after extraction instead of
+                // sacrificing the arch curve by globally reducing smoothing.
                 var surfaceProfiles = new VoxelSurfaceProfileSet()
-                    .Set(Mat.Stone, new VoxelSurfaceProfile(
-                        smoothing: 0.34f, densityBias: -0.015f))
+                    .Set(Mat.Stone, VoxelSurfaceProfile.DressedStone)
                     .Set(Mat.DarkStone, new VoxelSurfaceProfile(
-                        smoothing: 0.40f, densityBias: -0.012f))
+                        smoothing: 0.82f,
+                        densityBias: -0.008f,
+                        planarization: 0.82f,
+                        planarizationThreshold: 0.87f))
                     .Set(Mat.Moss, new VoxelSurfaceProfile(
-                        smoothing: 0.50f, densityBias: -0.008f));
+                        smoothing: 0.86f,
+                        densityBias: -0.005f,
+                        planarization: 0.55f,
+                        planarizationThreshold: 0.90f));
 
                 world.DirtyRegions.Add(RegionCoord);
                 voxelSurface = new VoxelHeroSurfaceRenderer(
@@ -126,7 +132,7 @@ namespace VoxelEngine.CI
                 string metadata =
                     "capture=AAA voxel-only arch hero study\n" +
                     "geometry=VoxelBrush -> material-aware bounded voxel extraction\n" +
-                    "surfaceProfile=stone:0.34/-0.015,darkstone:0.40/-0.012,moss:0.50/-0.008\n" +
+                    "surfaceProfile=stone:s0.80/b-0.01/p0.86,darkstone:s0.82/b-0.008/p0.82\n" +
                     "masonryDetail=component-driven seams + deterministic stone relief\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
