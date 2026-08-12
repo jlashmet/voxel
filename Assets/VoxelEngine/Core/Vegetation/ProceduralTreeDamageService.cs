@@ -12,6 +12,7 @@ namespace VoxelEngine.Core.Vegetation
     public static class ProceduralTreeDamageService
     {
         private const int MinimumVisibleDetachedSegments = 4;
+        private const float BaseImpactTransferRadiusMetres = 0.65f;
 
         private sealed class CachedTree
         {
@@ -130,6 +131,8 @@ namespace VoxelEngine.Core.Vegetation
                 var cutCandidates = new List<int>(8);
                 int severBranch = -1;
                 float severBranchSq = float.PositiveInfinity;
+                int nearestLowerTrunk = -1;
+                float nearestLowerTrunkSq = float.PositiveInfinity;
                 int hitLeaves = 0;
                 int nearestBranch = -1;
                 float nearestBranchSq = float.PositiveInfinity;
@@ -151,11 +154,18 @@ namespace VoxelEngine.Core.Vegetation
                         nearestBranch = branchIndex;
                     }
 
+                    bool lowerTrunk = IsLowerTrunk(in branch, skeleton.Height);
+                    if (lowerTrunk && distanceSq < nearestLowerTrunkSq)
+                    {
+                        nearestLowerTrunkSq = distanceSq;
+                        nearestLowerTrunk = branchIndex;
+                    }
+
                     float branchRadius = math.max(branch.RadiusStart, branch.RadiusEnd);
                     float radius = blastRadius + branchRadius;
                     if (distanceSq > radius * radius) continue;
 
-                    if (IsLowerTrunk(in branch, skeleton.Height))
+                    if (lowerTrunk)
                     {
                         if (distanceSq < severBranchSq)
                         {
@@ -195,6 +205,22 @@ namespace VoxelEngine.Core.Vegetation
                     else if (!cutCandidates.Contains(parent))
                     {
                         cutCandidates.Add(parent);
+                    }
+                }
+
+                // Showcase and gameplay trees can be partially embedded in terrain. If a projectile
+                // clips the voxel lip immediately in front of the visible lower trunk, transfer that
+                // very-near base impact to the trunk instead of turning it into an unrelated twig cut.
+                if (severBranch < 0 && nearestLowerTrunk >= 0)
+                {
+                    float transferRadius = math.max(
+                        BaseImpactTransferRadiusMetres, blastRadius + 0.25f);
+                    float localImpactY = impactMetres.y - root.y;
+                    if (localImpactY <= skeleton.Height * 0.52f
+                        && nearestLowerTrunkSq <= transferRadius * transferRadius)
+                    {
+                        severBranch = nearestLowerTrunk;
+                        severBranchSq = nearestLowerTrunkSq;
                     }
                 }
 
