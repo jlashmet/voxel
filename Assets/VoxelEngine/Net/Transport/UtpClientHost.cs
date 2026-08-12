@@ -4,10 +4,6 @@ using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Transport
 {
-    /// <summary>
-    /// Consumer for server packets after the UTP host has identified the logical channel and
-    /// copied the packet into bounded span memory. Returning false rejects the packet.
-    /// </summary>
     public interface IUtpClientPacketHandler
     {
         bool HandlePacket(UtpChannel channel, ReadOnlySpan<byte> packet);
@@ -26,6 +22,13 @@ namespace VoxelEngine.Net.Transport
         private NetworkConnection _connection;
         private bool _connected;
         private bool _disposed;
+
+        // Last three input samples for loss-tolerant redundancy. Stored as fields to avoid an
+        // allocation/ring-buffer object in the high-frequency client input path.
+        private C_PlayerInput _inputNewest;
+        private C_PlayerInput _inputPrevious1;
+        private C_PlayerInput _inputPrevious2;
+        private int _inputHistoryCount;
 
         public event Action Connected;
         public event Action Disconnected;
@@ -48,6 +51,7 @@ namespace VoxelEngine.Net.Transport
             if (_connection.IsCreated)
                 return false;
 
+            ResetInputHistory();
             _connection = _driver.Connect(endpoint);
             _connected = false;
             return _connection.IsCreated;
@@ -94,13 +98,13 @@ namespace VoxelEngine.Net.Transport
                     case NetworkEvent.Type.Disconnect:
                         _connected = false;
                         _connection = default;
+                        ResetInputHistory();
                         Disconnected?.Invoke();
                         return;
                 }
             }
         }
 
-        /// <summary>Encode and queue a canonical 34-byte durable alteration request on EVENT.</summary>
         public bool TrySendAlterationRequest(in C_AlterationRequest request)
         {
             Span<byte> packet = stackalloc byte[AlterationRequestPacket.PacketSize];
@@ -110,14 +114,45 @@ namespace VoxelEngine.Net.Transport
             return TrySend(UtpChannel.Event, packet);
         }
 
-        /// <summary>Encode and queue an 18-byte loss-tolerant player command on EPHEMERAL.</summary>
+        /// <summary>
+        /// Queue current input on EPHEMERAL together with up to two previous samples. At steady
+        /// state this is a 51-byte packet carrying three 16-byte command frames plus framing.
+        /// </summary>
         public bool TrySendPlayerInput(in C_PlayerInput input)
         {
-            Span<byte> packet = stackalloc byte[PlayerInputPacket.PacketSize];
-            if (!PlayerInputPacket.TryEncode(packet, in input))
-                return false;
+            _inputPrevious2 = _inputPrevious1;
+            _inputPrevious1 = _inputNewest;
+            _inputNewest = input;
+            if (_inputHistoryCount < PlayerInputBundlePacket.MaxSamples)
+                _inputHistoryCount++;
 
-            return TrySend(UtpChannel.Ephemeral, packet);
+            Span<C_PlayerInput> history = stackalloc C_PlayerInput[PlayerInputBundlePacket.MaxSamples];
+            switch (_inputHistoryCount)
+            {
+                case 1:
+                    history[0] = _inputNewest;
+                    break;
+                case 2:
+                    history[0] = _inputPrevious1;
+                    history[1] = _inputNewest;
+                    break;
+                default:
+                    history[0] = _inputPrevious2;
+                    history[1] = _inputPrevious1;
+                    history[2] = _inputNewest;
+                    break;
+            }
+
+            Span<byte> packet = stackalloc byte[PlayerInputBundlePacket.MaxPacketSize];
+            if (!PlayerInputBundlePacket.TryEncode(
+                    packet,
+                    history.Slice(0, _inputHistoryCount),
+                    out int bytesWritten))
+            {
+                return false;
+            }
+
+            return TrySend(UtpChannel.Ephemeral, packet.Slice(0, bytesWritten));
         }
 
         public bool TrySend(UtpChannel channel, ReadOnlySpan<byte> packet)
@@ -151,7 +186,6 @@ namespace VoxelEngine.Net.Transport
             return true;
         }
 
-        /// <summary>Flush all queued sends once after a command/input batch.</summary>
         public void FlushSends()
         {
             ThrowIfDisposed();
@@ -168,6 +202,7 @@ namespace VoxelEngine.Net.Transport
             _driver.ScheduleUpdate().Complete();
             _connection = default;
             _connected = false;
+            ResetInputHistory();
             Disconnected?.Invoke();
         }
 
@@ -225,6 +260,14 @@ namespace VoxelEngine.Net.Transport
             };
         }
 
+        private void ResetInputHistory()
+        {
+            _inputNewest = default;
+            _inputPrevious1 = default;
+            _inputPrevious2 = default;
+            _inputHistoryCount = 0;
+        }
+
         private void ThrowIfDisposed()
         {
             if (_disposed)
@@ -249,6 +292,7 @@ namespace VoxelEngine.Net.Transport
 
             _connection = default;
             _connected = false;
+            ResetInputHistory();
             _disposed = true;
         }
     }
