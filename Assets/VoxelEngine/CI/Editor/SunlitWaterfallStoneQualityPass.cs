@@ -4,10 +4,10 @@ using VoxelEngine.Structures;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Stone-only quality pass. Replaces the two generic rounded-block arches from the first
-    /// WorldArtKit pass with proper coursed ashlar and radial voussoir masonry. No terrain, water,
-    /// vegetation or camera changes live here: this pass exists so stone quality can be iterated
-    /// independently until the ruin vocabulary is production-worthy.
+    /// Stone-only quality pass. Replaces the generic rounded-block ruin vocabulary with proper
+    /// coursed ashlar and radial voussoir masonry. No terrain, water, vegetation or camera changes
+    /// live here: this pass exists so stone quality can be iterated independently until the ruin
+    /// vocabulary is production-worthy.
     /// </summary>
     internal static class SunlitWaterfallStoneQualityPass
     {
@@ -23,6 +23,7 @@ namespace VoxelEngine.CI
 
             Disable("WorldArtKit hero arch");
             Disable("WorldArtKit lower arch");
+            DisableLegacyRoundedAshlar();
 
             Transform kitRoot = scene.transform.Find("World Art Kit Reference Scene");
             if (kitRoot == null) kitRoot = scene.transform;
@@ -45,8 +46,8 @@ namespace VoxelEngine.CI
                 o + new Vector3(-6.75f, 0.45f, 8.30f),
                 0.82f, 4, new Vector3(0.42f, 0.40f, 0.58f), 0.60f, false, 131, palette);
 
-            // Re-attach the same kind of overgrowth to semantic stone sockets so dressing remains
-            // subordinate to the masonry and demonstrates that the new socket contract is useful.
+            // Re-attach overgrowth to semantic stone sockets so dressing remains subordinate to
+            // masonry and demonstrates that the shared socket contract survives visual iteration.
             WorldArtKit.MossCluster(root, "AAA keystone moss",
                 hero.Socket("keystone").position + new Vector3(-0.34f, 0.03f, 0f),
                 0.38f, 503, palette.Get(WorldArtSurfaceRole.Moss));
@@ -59,6 +60,24 @@ namespace VoxelEngine.CI
         {
             GameObject go = GameObject.Find(name);
             if (go != null) go.SetActive(false);
+        }
+
+        private static void DisableLegacyRoundedAshlar()
+        {
+            // The first lookdev pass built every ruin stone from a scaled Capsule named
+            // "Rounded ashlar". Leaving those objects in front of the shared stone kit makes the
+            // quality target impossible to judge and visually reintroduces the exact pillowy form
+            // this pass replaces. Keep this cleanup local to CI/lookdev; production generation uses
+            // the reusable WorldArtStoneKit directly.
+            Transform[] all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include,
+                FindObjectsSortMode.None);
+            for (int i = 0; i < all.Length; i++)
+            {
+                Transform t = all[i];
+                if (t == null || t.name != "Rounded ashlar") continue;
+                if (!t.gameObject.scene.IsValid()) continue;
+                t.gameObject.SetActive(false);
+            }
         }
 
         private static WorldArtPalette BuildPalette(Shader shader)
