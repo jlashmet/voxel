@@ -11,6 +11,8 @@ namespace VoxelEngine.Core.Vegetation
     /// </summary>
     public static class ProceduralTreeDamageService
     {
+        private const int MinimumVisibleDetachedSegments = 4;
+
         private sealed class CachedTree
         {
             public ProceduralTreeSkeleton Skeleton;
@@ -206,6 +208,9 @@ namespace VoxelEngine.Core.Vegetation
                         cutCandidates.Add(nearestBranch);
                 }
 
+                if (severBranch < 0 && cutCandidates.Count > 0)
+                    PromoteCutCandidatesToVisibleLimbs(skeleton, cutCandidates);
+
                 bool severed = severBranch >= 0;
                 bool removedAny = false;
                 if (severed)
@@ -264,6 +269,67 @@ namespace VoxelEngine.Core.Vegetation
             if ((uint)treeIndex >= (uint)instances.Count) return null;
             EnsureCache(instances);
             return treeIndex < s_Cache.Count ? s_Cache[treeIndex].Skeleton : null;
+        }
+
+        private static void PromoteCutCandidatesToVisibleLimbs(
+            ProceduralTreeSkeleton skeleton, List<int> cutCandidates)
+        {
+            var promoted = new List<int>(cutCandidates.Count);
+            for (int i = 0; i < cutCandidates.Count; i++)
+            {
+                int candidate = PromoteCutCandidateToVisibleLimb(skeleton, cutCandidates[i]);
+                if (!promoted.Contains(candidate)) promoted.Add(candidate);
+            }
+
+            cutCandidates.Clear();
+            cutCandidates.AddRange(promoted);
+        }
+
+        private static int PromoteCutCandidateToVisibleLimb(
+            ProceduralTreeSkeleton skeleton, int candidate)
+        {
+            if ((uint)candidate >= (uint)skeleton.Branches.Count) return candidate;
+            if (skeleton.Branches[candidate].Level <= 0) return candidate;
+
+            int promoted = candidate;
+            while (CountConnectedSubtreeBranches(skeleton, promoted)
+                   < MinimumVisibleDetachedSegments)
+            {
+                int parent = skeleton.BranchParents != null
+                          && promoted < skeleton.BranchParents.Length
+                    ? skeleton.BranchParents[promoted] : -1;
+                if ((uint)parent >= (uint)skeleton.Branches.Count) break;
+                if (skeleton.Branches[parent].Level <= 0) break;
+                promoted = parent;
+            }
+            return promoted;
+        }
+
+        private static int CountConnectedSubtreeBranches(
+            ProceduralTreeSkeleton skeleton, int branchIndex)
+        {
+            if ((uint)branchIndex >= (uint)skeleton.Branches.Count) return 0;
+            int[] parents = skeleton.BranchParents;
+            if (parents == null || parents.Length != skeleton.Branches.Count) return 1;
+
+            int count = 0;
+            for (int i = branchIndex; i < skeleton.Branches.Count; i++)
+            {
+                int current = i;
+                while (current >= 0)
+                {
+                    if (current == branchIndex)
+                    {
+                        count++;
+                        break;
+                    }
+                    if ((uint)current >= (uint)parents.Length) break;
+                    int parent = parents[current];
+                    if (parent == current) break;
+                    current = parent;
+                }
+            }
+            return count;
         }
 
         private static void EnsureCache(IReadOnlyList<TreeInstance> instances)
