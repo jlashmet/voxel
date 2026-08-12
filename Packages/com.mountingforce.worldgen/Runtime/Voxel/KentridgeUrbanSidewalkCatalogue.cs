@@ -9,7 +9,7 @@ using VoxelEngine.Core.Terrain;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Paints continuous stone pedestrian margins along Kentridge's authored streets. This is a
+    /// Paints continuous dark-stone pedestrian margins along Kentridge's authored streets. This is a
     /// public-realm layer, not another terrain grade: it follows whatever road/terrace surface is
     /// already present and gives the brown carriageway a legible urban edge. Named frontage paths
     /// remain one precedence higher so entrances visibly cross the sidewalk into each building.
@@ -80,7 +80,10 @@ namespace MountingForce.WorldGen.Voxel
                 980);
 
             int scale = settings.VoxelsPerDecimetre;
-            byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
+            // FoundationStone and Masonry both map to material 1 in the current host. Material 1 is
+            // intentionally rendered as a terrain field in the smooth pipeline, so surface-paint
+            // sidewalks must use the distinct dark-masonry channel to retain an architectural read.
+            byte stone = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             FeatureCatalogue catalogue = CatalogueLoader.Allocate(
                 definitions: strips.Count,
                 rules: strips.Count,
