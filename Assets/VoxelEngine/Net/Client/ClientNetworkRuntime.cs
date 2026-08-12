@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Core.Storage;
@@ -8,17 +9,25 @@ using VoxelEngine.Net.Transport;
 namespace VoxelEngine.Net.Client
 {
     /// <summary>
-    /// Client-side composition root. EVENT authority is ordered; REPAIR/BULK bytes are assembled off
-    /// the transport callback path and authoritative storage is mutated only from the explicit world
-    /// update call.
+    /// Client-side composition root. Transport callbacks decode/assemble protocol state only;
+    /// authoritative voxel replacement and local prediction rewind/replay occur from explicit update
+    /// calls outside NetworkDriver dispatch.
     /// </summary>
     public sealed class ClientNetworkRuntime : IDisposable, IUtpClientPacketHandler, IRegionHashMismatchSink
     {
+        private const int MaxPendingPlayerSnapshots = 64;
+
         private readonly UtpClientHost _host;
         private readonly ClientAuthoritativeEventQueue _events;
         private readonly ClientRegionRepairAssembler _repair;
         private readonly ClientRegionStateAssembler _fullState;
+        private readonly ClientPredictionReconciler _prediction;
+        private readonly ClientPlayerStateTimeline _playerTimeline;
+        private readonly Dictionary<ushort, S_PlayerState> _pendingPlayerStates =
+            new Dictionary<ushort, S_PlayerState>(16);
         private readonly IClientEventNotificationSink _notifications;
+        private IClientPredictionAdapter _predictionAdapter;
+        private ushort _localPlayerId;
         private bool _disposed;
         private bool _fullRegionResyncRequired;
         private S_RegionResyncRequired _lastResyncRequirement;
@@ -35,15 +44,20 @@ namespace VoxelEngine.Net.Client
         public event Action<int3, uint> RegionRepairApplied;
         public event Action<S_RegionResyncRequired> FullRegionResyncRequired;
         public event Action<int3, uint> FullRegionStateApplied;
+        public event Action<S_PlayerState> PlayerStateReceived;
+        public event Action<S_PlayerState, int> LocalPlayerReconciled;
 
         public ClientNetworkRuntime(
             IClientEventNotificationSink notifications = null,
-            int maxPendingAuthoritativeEvents = ClientAuthoritativeEventQueue.DefaultMaxPendingEvents)
+            int maxPendingAuthoritativeEvents = ClientAuthoritativeEventQueue.DefaultMaxPendingEvents,
+            int predictionHistoryCapacity = ClientPredictionReconciler.DefaultHistoryCapacity)
         {
             _notifications = notifications;
             _events = new ClientAuthoritativeEventQueue(maxPendingAuthoritativeEvents);
             _repair = new ClientRegionRepairAssembler();
             _fullState = new ClientRegionStateAssembler();
+            _prediction = new ClientPredictionReconciler(predictionHistoryCapacity);
+            _playerTimeline = new ClientPlayerStateTimeline();
             _host = new UtpClientHost();
 
             _host.Connected += OnConnected;
@@ -58,6 +72,9 @@ namespace VoxelEngine.Net.Client
         public int PendingAuthoritativeBatches => _events.PendingBatchCount;
         public int PendingRegionHashes => _events.PendingHashCount;
         public int PendingRegionStateFences => _events.PendingFenceCount;
+        public int PendingPredictionInputs => _prediction.Count;
+        public int PendingPlayerStateUpdates => _pendingPlayerStates.Count;
+        public ushort LocalPlayerId => _localPlayerId;
         public bool RepairPending => _events.RepairPending;
         public bool RepairSnapshotComplete => _repair.IsComplete;
         public bool FullSnapshotWaitPending => _events.FullSnapshotWaitPending;
@@ -69,13 +86,35 @@ namespace VoxelEngine.Net.Client
 
         public bool Connect(NetworkEndpoint endpoint) { ThrowIfDisposed(); return _host.Connect(endpoint); }
 
+        /// <summary>Bind the authenticated local player identity to game-owned prediction code.</summary>
+        public void ConfigureLocalPrediction(ushort localPlayerId, IClientPredictionAdapter adapter)
+        {
+            ThrowIfDisposed();
+            if (localPlayerId == 0) throw new ArgumentOutOfRangeException(nameof(localPlayerId));
+            _predictionAdapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
+            _localPlayerId = localPlayerId;
+            _prediction.Reset();
+        }
+
+        public void ClearLocalPrediction()
+        {
+            ThrowIfDisposed();
+            _prediction.Reset();
+            _predictionAdapter = null;
+            _localPlayerId = 0;
+        }
+
+        public bool TrySampleRemotePlayer(ushort playerId, float interpolationAlpha, out RemotePlayerSample sample)
+        {
+            ThrowIfDisposed();
+            return _playerTimeline.TrySample(playerId, interpolationAlpha, out sample);
+        }
+
         public void PumpTransport()
         {
             ThrowIfDisposed();
             _host.Pump(this);
 
-            // Receive callbacks only mutate local protocol state. Sends and user notifications are
-            // deliberately deferred until NetworkDriver packet dispatch has returned.
             if (_automaticFullStateRequestPending)
             {
                 int3 region = _automaticFullStateRequestRegion;
@@ -92,6 +131,37 @@ namespace VoxelEngine.Net.Client
                 _pendingResyncNotification = default;
                 FullRegionResyncRequired?.Invoke(notification);
             }
+        }
+
+        /// <summary>
+        /// Apply the newest pending state for each player outside the transport callback. Local state
+        /// rewinds/replays prediction; remote state is already available through the interpolation
+        /// timeline and is surfaced here as a notification.
+        /// </summary>
+        public int ApplyPlayerStateUpdates(out int replayedLocalInputs)
+        {
+            ThrowIfDisposed();
+            replayedLocalInputs = 0;
+            if (_pendingPlayerStates.Count == 0)
+                return 0;
+
+            int applied = 0;
+            foreach (var pair in _pendingPlayerStates)
+            {
+                S_PlayerState state = pair.Value;
+                if (state.playerId == _localPlayerId && _predictionAdapter != null)
+                {
+                    int replayed = _prediction.Reconcile(in state, _predictionAdapter);
+                    replayedLocalInputs += replayed;
+                    LocalPlayerReconciled?.Invoke(state, replayed);
+                }
+
+                PlayerStateReceived?.Invoke(state);
+                applied++;
+            }
+
+            _pendingPlayerStates.Clear();
+            return applied;
         }
 
         public int ApplyReadyAuthoritativeEvents(
@@ -176,7 +246,11 @@ namespace VoxelEngine.Net.Client
         public bool TrySendPlayerInput(in C_PlayerInput input)
         {
             ThrowIfDisposed();
-            return _host.TrySendPlayerInput(in input);
+            if (!_host.TrySendPlayerInput(in input))
+                return false;
+
+            _prediction.RecordSentInput(in input);
+            return true;
         }
 
         public bool TrySendAlterationRequest(in C_AlterationRequest request)
@@ -222,6 +296,8 @@ namespace VoxelEngine.Net.Client
             {
                 case UtpChannel.Event:
                     return HandleEventPacket(packet);
+                case UtpChannel.Ephemeral:
+                    return HandleEphemeralPacket(packet);
                 case UtpChannel.Repair:
                     return _repair.TryAcceptPacket(packet);
                 case UtpChannel.Bulk:
@@ -229,6 +305,28 @@ namespace VoxelEngine.Net.Client
                 default:
                     return false;
             }
+        }
+
+        private bool HandleEphemeralPacket(ReadOnlySpan<byte> packet)
+        {
+            Span<S_PlayerState> decoded = stackalloc S_PlayerState[PlayerStateBundlePacket.MaxStates];
+            if (!PlayerStateBundlePacket.TryDecode(packet, decoded, out int count))
+                return false;
+
+            for (int i = 0; i < count; i++)
+            {
+                S_PlayerState state = decoded[i];
+                if (!_playerTimeline.TryAccept(in state))
+                    continue; // valid but stale/reordered supersedable snapshot.
+
+                if (_pendingPlayerStates.Count >= MaxPendingPlayerSnapshots &&
+                    !_pendingPlayerStates.ContainsKey(state.playerId))
+                    continue;
+
+                _pendingPlayerStates[state.playerId] = state;
+            }
+
+            return true;
         }
 
         private bool HandleEventPacket(ReadOnlySpan<byte> packet)
@@ -284,6 +382,9 @@ namespace VoxelEngine.Net.Client
             _repair.Reset();
             _fullState.Reset();
             _events.ResetAfterAuthoritativeSnapshot();
+            _prediction.Reset();
+            _playerTimeline.Reset();
+            _pendingPlayerStates.Clear();
             _fullRegionResyncRequired = false;
             _lastResyncRequirement = default;
             _automaticFullStateRequestPending = false;
@@ -309,6 +410,8 @@ namespace VoxelEngine.Net.Client
             _host.SendError -= OnSendError;
             _host.Dispose();
             ResetProtocolState();
+            _predictionAdapter = null;
+            _localPlayerId = 0;
             _disposed = true;
         }
     }
