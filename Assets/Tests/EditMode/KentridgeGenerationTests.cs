@@ -68,7 +68,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(17, structures,
                     "Every stable Kentridge building role should compile once.");
                 Assert.Greater(instances, structures,
-                    "District terraces, roads, supports, paths, and dressing should accompany buildings.");
+                    "District terraces, roads, foundation skirts, paths, and dressing should accompany buildings.");
                 Assert.Greater(primitiveCount, 100,
                     "Kentridge emitted implausibly little geometry.");
             }
@@ -139,7 +139,53 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void RaisedPlotsReceiveVisibleMasonryTerraceSupport()
+        public void EverySemanticPlotIsSupportedByASharedDistrictShelf()
+        {
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            FeatureCatalogue terraces = KentridgeDistrictTerraceCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+
+            try
+            {
+                for (int p = 0; p < plan.Plots.Count; p++)
+                {
+                    BuildingPlot plot = plan.Plots[p];
+                    Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+                    int plotMinX = plot.PositionDm.X;
+                    int plotMaxX = plot.PositionDm.X + footprint.X;
+                    int plotMinZ = plot.PositionDm.Y;
+                    int plotMaxZ = plot.PositionDm.Y + footprint.Z;
+                    bool covered = false;
+
+                    for (int i = 0; i < terraces.Definitions.Length; i++)
+                    {
+                        ExplicitPlacement placement = terraces.ExplicitPlacements[i];
+                        FeatureDefinition definition = terraces.Definitions[i];
+                        int terraceMinX = placement.Position.x;
+                        int terraceMaxX = terraceMinX + definition.Footprint.x;
+                        int terraceMinZ = placement.Position.z;
+                        int terraceMaxZ = terraceMinZ + definition.Footprint.z;
+
+                        if (plotMinX >= terraceMinX && plotMaxX <= terraceMaxX
+                            && plotMinZ >= terraceMinZ && plotMaxZ <= terraceMaxZ)
+                        {
+                            covered = true;
+                            break;
+                        }
+                    }
+
+                    Assert.IsTrue(covered,
+                        $"Kentridge role {plot.RoleId} is not fully supported by a district shelf.");
+                }
+            }
+            finally
+            {
+                terraces.Dispose();
+            }
+        }
+
+        [Test]
+        public void ParcelSupportsAreShallowFoundationSkirtsNotTerrainColumns()
         {
             FeatureCatalogue supports = KentridgeTerraceSupportCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
@@ -147,22 +193,16 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 Assert.AreEqual(16, supports.Definitions.Length,
-                    "Every non-well parcel should have an independent retaining support.");
+                    "Every non-well building should retain a shallow foundation collar.");
                 Assert.AreEqual(16, supports.ExplicitPlacements.Length);
 
-                int tallest = 0;
-                int shallowest = int.MaxValue;
                 for (int i = 0; i < supports.Definitions.Length; i++)
                 {
-                    int height = supports.Definitions[i].Footprint.y;
-                    if (height > tallest) tallest = height;
-                    if (height < shallowest) shallowest = height;
+                    FeatureDefinition definition = supports.Definitions[i];
+                    Assert.AreEqual(24, definition.Footprint.y,
+                        "Parcel support must stay shallow now that district terraces own the hillside mass.");
+                    StringAssert.StartsWith("kentridge-foundation-skirt-", definition.Name.ToString());
                 }
-
-                Assert.Greater(tallest, 100,
-                    "At least one upper parcel should expose a retaining face over ten metres tall.");
-                Assert.Less(shallowest, 30,
-                    "Lower parcels should remain close to the underlying terrain.");
             }
             finally
             {
