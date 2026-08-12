@@ -10,12 +10,14 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Turns Kentridge's macro height profile into broad urban shelves rather than sixteen isolated
     /// raised parcels. Each shelf owns a whole neighbourhood-sized piece of hillside: it cuts away
-    /// terrain above an authored elevation, fills missing mass with masonry, and caps the result with
-    /// the same green ground vocabulary used around the town.
+    /// terrain above an authored elevation, fills missing mass with earth, caps it with the same
+    /// green ground vocabulary used around town, and gives the downhill edge a continuous masonry
+    /// retaining face.
     ///
     /// Gaps between shelves are intentional. The north/south road and stair passes occupy those
     /// ascent zones, so the player reads a sequence of district terrace -> climb -> district terrace
-    /// instead of one enormous rectangular mesa.
+    /// instead of one enormous rectangular mesa. The retaining faces use sparse dark ribs and a
+    /// coping band so a ten-metre wall reads as built infrastructure rather than an untextured box.
     /// </summary>
     public static class KentridgeDistrictTerraceCatalogue
     {
@@ -23,6 +25,13 @@ namespace MountingForce.WorldGen.Voxel
         private const int BuriedFootingDm = 8;
         private const int ClearAboveDm = 48;
         private const int NaturalSampleStepDm = 64;
+        private const int RetainingFaceDepthDm = 5;
+        private const int ButtressDepthDm = 9;
+        private const int ButtressWidthDm = 6;
+        private const int ButtressSpacingDm = 120;
+        private const int ButtressInsetDm = 24;
+        private const int CopingHeightDm = 3;
+        private const int CopingDepthDm = 8;
 
         private readonly struct TerraceSeed
         {
@@ -55,9 +64,11 @@ namespace MountingForce.WorldGen.Voxel
             public readonly int SupportHeight;
             public readonly int CapThickness;
             public readonly int ClearHeight;
+            public readonly int ButtressCount;
 
             public TerraceBuild(TerraceSeed seed, int3 position, int3 footprint,
-                                int supportHeight, int capThickness, int clearHeight)
+                                int supportHeight, int capThickness, int clearHeight,
+                                int buttressCount)
             {
                 Seed = seed;
                 Position = position;
@@ -65,6 +76,7 @@ namespace MountingForce.WorldGen.Voxel
                 SupportHeight = supportHeight;
                 CapThickness = capThickness;
                 ClearHeight = clearHeight;
+                ButtressCount = buttressCount;
             }
         }
 
@@ -145,7 +157,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 3,
+                    MaxPrimitives = 5 + build.ButtressCount,
                 };
 
                 catalogue.ExplicitPlacements[i] = new ExplicitPlacement
@@ -202,6 +214,9 @@ namespace MountingForce.WorldGen.Voxel
                 ClearAboveDm * scale,
                 naturalMax - targetSurface + ClearAboveDm * scale);
             int totalHeight = targetSurface - originY + clearHeight;
+            int buttressCount = Math.Max(
+                2,
+                (terrace.WidthDm - ButtressInsetDm * 2) / ButtressSpacingDm + 1);
 
             return new TerraceBuild(
                 terrace,
@@ -209,7 +224,8 @@ namespace MountingForce.WorldGen.Voxel
                 new int3(terrace.WidthDm * scale, totalHeight, terrace.DepthDm * scale),
                 supportHeight,
                 capThickness,
-                clearHeight);
+                clearHeight,
+                buttressCount);
         }
 
         private static void TerrainRange(TerraceSeed terrace, uint seed, int scale,
@@ -251,19 +267,51 @@ namespace MountingForce.WorldGen.Voxel
         private static int[] TerraceProgram(TerraceBuild build,
                                             VoxelWorldGenSettings settings)
         {
+            int s = settings.VoxelsPerDecimetre;
+            byte earth = settings.Materials.Resolve(MaterialRole.RoadSurface);
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
+            byte darkStone = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             byte ground = settings.Materials.Resolve(MaterialRole.Moss);
-            int width = build.Seed.WidthDm * settings.VoxelsPerDecimetre;
-            int depth = build.Seed.DepthDm * settings.VoxelsPerDecimetre;
+            int width = build.Seed.WidthDm * s;
+            int depth = build.Seed.DepthDm * s;
+            int retainingDepth = Math.Min(depth, RetainingFaceDepthDm * s);
+            int buttressDepth = Math.Min(depth, ButtressDepthDm * s);
+            int buttressWidth = ButtressWidthDm * s;
+            int copingHeight = Math.Min(build.SupportHeight, CopingHeightDm * s);
+            int copingDepth = Math.Min(depth, CopingDepthDm * s);
             var b = new ProgramBuilder();
 
             // Excavate first so the rebuilt shelf remains authoritative within this instance.
             b.Carve(0, build.SupportHeight + build.CapThickness, 0,
                     width, build.ClearHeight, depth);
+
+            // The bulk is compacted earth, not one giant stone cuboid. Only the downhill edge is
+            // explicitly architectural, which makes the shelf feel embedded in a hillside.
             b.Box(0, 0, 0,
-                  width, build.SupportHeight, depth, stone);
+                  width, build.SupportHeight, depth, earth);
             b.Box(0, build.SupportHeight, 0,
                   width, build.CapThickness, depth, ground);
+
+            // Kentridge climbs north as Z decreases, so the south/max-Z edge is the visible retaining
+            // face when approaching uphill from the lower town.
+            b.Box(0, 0, depth - retainingDepth,
+                  width, build.SupportHeight, retainingDepth, stone);
+
+            int copingY = Math.Max(0, build.SupportHeight - copingHeight);
+            b.Box(0, copingY, depth - copingDepth,
+                  width, copingHeight, copingDepth, darkStone);
+
+            int usableWidthDm = Math.Max(1, build.Seed.WidthDm - ButtressInsetDm * 2);
+            for (int i = 0; i < build.ButtressCount; i++)
+            {
+                int xDm = build.ButtressCount <= 1
+                    ? build.Seed.WidthDm / 2
+                    : ButtressInsetDm + usableWidthDm * i / (build.ButtressCount - 1);
+                int x = Math.Max(0, Math.Min(width - buttressWidth, xDm * s - buttressWidth / 2));
+                b.Box(x, 0, depth - buttressDepth,
+                      buttressWidth, build.SupportHeight, buttressDepth, darkStone);
+            }
+
             return b.Finish();
         }
 
