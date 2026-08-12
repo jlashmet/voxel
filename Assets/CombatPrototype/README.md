@@ -13,7 +13,7 @@ The prototype exposes causes and effects. It does not show compatible reactions,
 1. Check out `prototype/chain-combat` and let Unity compile.
 2. In Unity, choose **Mounting Force > Chain Combat Prototype > Open & Play**.
 3. The launcher opens the current cascade lab.
-4. Select a friendly capsule for proactive play, or reserve an unresolved physical event for P1-P4 before choosing the recruit/reaction that will answer it.
+4. Select a friendly capsule for proactive play, reserve unresolved physical events for P1-P4, and mark each player Ready when their proactive play is done.
 
 The prototype intentionally does not modify Build Settings or require a committed scene asset.
 
@@ -42,6 +42,27 @@ A second recruit in the same command group cannot take another proactive turn th
 
 The activation overlay shows only who each player committed and whether that recruit's move/action are spent. It does not reveal reaction compatibility.
 
+## Player Ready state
+
+The enemy phase is no longer controlled by one global End Round button. Each living player group independently marks itself **Ready** when it is done with proactive play.
+
+Ready means only:
+
+- that player cannot start or finish additional proactive moves/actions;
+- the player may still reserve physical events;
+- every living recruit in that player's roster may still claim/execute reactions normally.
+
+Ready is revocable until the enemy phase actually begins. A player can also Ready without activating a recruit at all, which is the explicit “pass my proactive turn” case.
+
+Enemies may act only when:
+
+1. every living player group is Ready; and
+2. no physical event is still unresolved.
+
+This prevents one player from accidentally ending everyone else's turn while keeping reactions live throughout the cooperative round.
+
+`ChainRoundReadinessCoordinator` owns this multiplayer/application state above the deterministic combat board, parallel to reaction reservation.
+
 ## Player-first reaction reservation
 
 Reaction ownership is intentionally split into two decisions:
@@ -54,8 +75,6 @@ Reservation does **not** prove that the reserving player has a valid answer. A p
 A concrete recruit/ability choice can be released while keeping the player reservation. The player can reconsider without reopening a click race. Releasing the player reservation gives the physical event back to the whole party.
 
 A reservation owns **one physical decision only**. When that reaction resolves and creates a new collision/tree impact/etc., the new event begins unreserved so another player can take the handoff.
-
-The deterministic `ChainCombatBoard` remains the physical simulation. `ChainReactionReservationCoordinator` sits above it as multiplayer/application coordination state; this is deliberately separate so future server/network commands do not pollute physics rules.
 
 ## Recruits
 
@@ -103,11 +122,12 @@ The deterministic `ChainCombatBoard` remains the physical simulation. `ChainReac
 
 ## Combat rhythm
 
-A normal round has three intertwined layers:
+A normal round now has four intertwined layers:
 
-1. **Proactive activation:** each player chooses one recruit to move/set up/attack with.
+1. **Proactive activation:** each player chooses at most one recruit to move/set up/attack with.
 2. **Player reservation:** when a meaningful physical event occurs, one player takes ownership of deciding whether/how to answer it.
 3. **Concrete reaction:** any living recruit belonging to that player may attempt its own reaction once per round if the player believes its capability applies.
+4. **Ready gate:** players independently close proactive play; the enemy phase begins only after everyone is Ready and all physical decisions are finished.
 
 The simulation pauses on three event types in this slice:
 
@@ -144,6 +164,7 @@ The world communicates the fact, not the answer:
 - struck trees visibly stress/shake;
 - notched trees show their prepared direction;
 - event reservation shows only player ownership;
+- Ready shows only whether that player has closed proactive play;
 - no eligible-reactor highlights or combo arrows are drawn.
 
 Authoritative gameplay remains integer/grid/deterministic. The smoothing and event-marker layers are presentation only and never feed Unity transforms back into simulation state.
@@ -158,21 +179,19 @@ The board tracks:
 
 This is post-action feedback for tuning cooperative play, not a pre-action hint system.
 
-## Example to discover, not UI-script
-
-The initial positions intentionally admit multiple routes through the same physical facts. The README does not provide an exact click sequence. The experiment is successful only if players can infer useful chains from capability knowledge and battlefield geometry themselves.
-
 ## Architecture
 
 `ChainCombatBoard.cs` owns deterministic combat: unit state, player activation ownership, force/motion, physical events, concrete reaction claims/execution, environment stress, and round refresh.
 
 `ChainReactionReservationCoordinator.cs` owns player-level reservation of the current physical decision. It deliberately does not determine whether the player has a compatible reaction.
 
+`ChainRoundReadinessCoordinator.cs` owns per-player Ready state and the all-ready/no-unresolved-event gate into the enemy phase. Ready never disables reactions.
+
 `ChainCombatLabController.cs` is the main presentation/input shell. Additional prototype components add proactive setup controls, player-activation status, physical-event markers, and smoothed visual playback. Those presentation systems do not calculate combo recommendations.
 
 ## CI
 
-The combat prototype now uses one consolidated automatic workflow: `.github/workflows/chain-combat-ci.yml`. It runs the prototype and V2-V6 suites sequentially with branch-level `cancel-in-progress` concurrency so new combat iterations supersede stale ones instead of flooding the self-hosted Unity runner. Older per-version workflows remain manual-only fallbacks.
+The combat prototype uses one consolidated automatic workflow: `.github/workflows/chain-combat-ci.yml`. It now runs the prototype plus V2-V7 suites sequentially with branch-level `cancel-in-progress` concurrency so new combat iterations supersede stale ones instead of flooding the self-hosted Unity runner. Older per-version workflows remain manual-only fallbacks.
 
 ## Intentionally missing
 
@@ -188,4 +207,4 @@ The combat prototype now uses one consolidated automatic workflow: `.github/work
 - final reaction-frequency/command-resource tuning;
 - timeout/disconnect policy for a player who reserves an event and then stalls.
 
-Those should wait until the small lab proves that player activation + capability knowledge + player-first reservation + reaction handoffs are actually fun.
+The next major question after the coordination layer is stable is enemy counterplay: enemies need readable, disruptable intentions that force the party to improvise rather than treating every fight as a static combo sandbox.
