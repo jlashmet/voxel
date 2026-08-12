@@ -21,23 +21,27 @@ namespace VoxelEngine.Rendering.Vegetation
                                            HashSet<int> includedBranches) =>
             BuildMeshInternal(skeleton, lod, null, includedBranches);
 
-        private static Mesh BuildMeshInternal(ProceduralTreeSkeleton skeleton, int lod,
-                                              HashSet<int> removedBranches,
-                                              HashSet<int> includedBranches)
+        /// <summary>
+        /// Appends one tree directly into caller-owned mesh buffers. Batch rendering uses this path
+        /// so healthy trees never need transient Unity Mesh objects merely to be combined again.
+        /// </summary>
+        public static void AppendMeshData(ProceduralTreeSkeleton skeleton, int lod,
+                                          Vector3 positionOffset,
+                                          List<Vector3> vertices,
+                                          List<Vector3> normals,
+                                          List<Color> colours,
+                                          List<Vector2> uv0,
+                                          List<Vector2> uv1,
+                                          List<int> barkIndices,
+                                          List<int> leafIndices,
+                                          HashSet<int> removedBranches = null,
+                                          HashSet<int> includedBranches = null)
         {
             lod = math.clamp(lod, 0, 2);
             int radialSides = lod == 0 ? 8 : lod == 1 ? 5 : 3;
             int leafStride = lod == 0 ? 1 : lod == 1 ? 2 : 4;
             float leafScale = lod == 0 ? 1f : lod == 1 ? 1.35f : 1.75f;
             int leafPlanes = lod < 2 ? 2 : 1;
-
-            var vertices = new List<Vector3>(8192);
-            var normals = new List<Vector3>(8192);
-            var colours = new List<Color>(8192);
-            var uv0 = new List<Vector2>(8192);
-            var uv1 = new List<Vector2>(8192);
-            var barkIndices = new List<int>(12288);
-            var leafIndices = new List<int>(12288);
 
             for (int i = 0; i < skeleton.Branches.Count; i++)
             {
@@ -46,7 +50,7 @@ namespace VoxelEngine.Rendering.Vegetation
 
                 TreeBranchSegment branch = skeleton.Branches[i];
                 if (lod == 2 && branch.Level >= 3 && branch.RadiusStart < 0.035f) continue;
-                AddTube(branch, skeleton.Profile, radialSides,
+                AddTube(branch, skeleton.Profile, radialSides, positionOffset,
                         vertices, normals, colours, uv0, uv1, barkIndices);
             }
 
@@ -59,13 +63,30 @@ namespace VoxelEngine.Rendering.Vegetation
                 if (includedBranches != null && (parent < 0 || !includedBranches.Contains(parent)))
                     continue;
 
-                AddLeaf(skeleton.Leaves[i], leafScale, leafPlanes,
+                AddLeaf(skeleton.Leaves[i], leafScale, leafPlanes, positionOffset,
                         vertices, normals, colours, uv0, uv1, leafIndices);
             }
+        }
+
+        private static Mesh BuildMeshInternal(ProceduralTreeSkeleton skeleton, int lod,
+                                              HashSet<int> removedBranches,
+                                              HashSet<int> includedBranches)
+        {
+            var vertices = new List<Vector3>(8192);
+            var normals = new List<Vector3>(8192);
+            var colours = new List<Color>(8192);
+            var uv0 = new List<Vector2>(8192);
+            var uv1 = new List<Vector2>(8192);
+            var barkIndices = new List<int>(12288);
+            var leafIndices = new List<int>(12288);
+
+            AppendMeshData(skeleton, lod, Vector3.zero,
+                           vertices, normals, colours, uv0, uv1,
+                           barkIndices, leafIndices, removedBranches, includedBranches);
 
             var mesh = new Mesh
             {
-                name = $"ProceduralTree_LOD{lod}",
+                name = $"ProceduralTree_LOD{math.clamp(lod, 0, 2)}",
                 indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16,
             };
             mesh.SetVertices(vertices);
@@ -82,6 +103,7 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private static void AddTube(in TreeBranchSegment branch,
                                     in TreeSpeciesProfile profile, int sides,
+                                    Vector3 positionOffset,
                                     List<Vector3> vertices, List<Vector3> normals,
                                     List<Color> colours, List<Vector2> uv0,
                                     List<Vector2> uv1, List<int> indices)
@@ -104,8 +126,8 @@ namespace VoxelEngine.Rendering.Vegetation
             {
                 float angle = side * math.PI * 2f / sides;
                 float3 radial = u * math.cos(angle) + v * math.sin(angle);
-                vertices.Add((Vector3)(branch.Start + radial * branch.RadiusStart));
-                vertices.Add((Vector3)(branch.End + radial * branch.RadiusEnd));
+                vertices.Add((Vector3)(branch.Start + radial * branch.RadiusStart) + positionOffset);
+                vertices.Add((Vector3)(branch.End + radial * branch.RadiusEnd) + positionOffset);
                 normals.Add((Vector3)radial);
                 normals.Add((Vector3)radial);
                 colours.Add(barkColour);
@@ -130,6 +152,7 @@ namespace VoxelEngine.Rendering.Vegetation
         }
 
         private static void AddLeaf(in TreeLeafAnchor leaf, float scale, int planes,
+                                    Vector3 positionOffset,
                                     List<Vector3> vertices, List<Vector3> normals,
                                     List<Color> colours, List<Vector2> uv0,
                                     List<Vector2> uv1, List<int> indices)
@@ -149,11 +172,12 @@ namespace VoxelEngine.Rendering.Vegetation
                 int start = vertices.Count;
                 float halfW = size * (leaf.Style == TreeLeafStyle.Needle ? 0.28f : 0.50f);
                 float halfH = size * (leaf.Style == TreeLeafStyle.Narrow ? 0.72f : 0.50f);
+                Vector3 centre = (Vector3)leaf.Position + positionOffset;
 
-                vertices.Add((Vector3)(leaf.Position - right * halfW - up * halfH));
-                vertices.Add((Vector3)(leaf.Position + right * halfW - up * halfH));
-                vertices.Add((Vector3)(leaf.Position + right * halfW + up * halfH));
-                vertices.Add((Vector3)(leaf.Position - right * halfW + up * halfH));
+                vertices.Add(centre - (Vector3)right * halfW - (Vector3)up * halfH);
+                vertices.Add(centre + (Vector3)right * halfW - (Vector3)up * halfH);
+                vertices.Add(centre + (Vector3)right * halfW + (Vector3)up * halfH);
+                vertices.Add(centre - (Vector3)right * halfW + (Vector3)up * halfH);
                 for (int i = 0; i < 4; i++)
                 {
                     normals.Add((Vector3)normal);
