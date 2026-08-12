@@ -34,8 +34,9 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void VerticalFrontagesRemainInfrastructureBelowUpperBuildingsAndAccess()
+        public void VerticalFrontagesEmbedIntoTerraceAndEndOnAuthoredDownhillEdge()
         {
+            KentridgeVerticalFrontagePlan plan = KentridgeVerticalFrontagePlanner.Build(Seed);
             FeatureCatalogue catalogue = KentridgeVerticalFrontageCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             try
@@ -44,17 +45,57 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(6, catalogue.ExplicitPlacements.Length);
                 for (int i = 0; i < catalogue.Definitions.Length; i++)
                 {
-                    Assert.AreEqual(FeatureKind.Infrastructure, catalogue.Definitions[i].Kind);
-                    Assert.AreEqual(85, catalogue.Definitions[i].Precedence);
-                    Assert.Greater(catalogue.Definitions[i].Footprint.x, 0);
-                    Assert.Greater(catalogue.Definitions[i].Footprint.y, 0);
-                    Assert.Greater(catalogue.Definitions[i].Footprint.z, 0);
+                    KentridgeVerticalFrontageZone zone = plan.Zones[i];
+                    FeatureDefinition definition = catalogue.Definitions[i];
+                    ExplicitPlacement placement = catalogue.ExplicitPlacements[i];
+
+                    Assert.AreEqual(FeatureKind.Infrastructure, definition.Kind);
+                    Assert.AreEqual(85, definition.Precedence);
+                    Assert.Greater(definition.Footprint.x, 0);
+                    Assert.Greater(definition.Footprint.y, 0);
+                    Assert.AreEqual(zone.DepthDm, definition.Footprint.z,
+                        "Test settings use one voxel per decimetre.");
+
+                    Assert.AreEqual(
+                        zone.StartDm.Y,
+                        placement.Position.z + definition.Footprint.z,
+                        "The open facade must end exactly at the downhill block edge, with its depth embedded uphill into the terrace.");
+                    Assert.Less(placement.Position.z, zone.StartDm.Y,
+                        "Vertical frontage depth must no longer project beyond the downhill block edge.");
+                    Assert.GreaterOrEqual(CountOps(catalogue, definition, ShapeOp.EmitBox), 4);
+                    Assert.GreaterOrEqual(CountOps(catalogue, definition, ShapeOp.EmitBox, PrimitiveMode.Carve), 1,
+                        "Embedded undercrofts must excavate the terrace before rebuilding hard architecture.");
                 }
             }
             finally
             {
                 catalogue.Dispose();
             }
+        }
+
+        private static int CountOps(
+            FeatureCatalogue catalogue,
+            FeatureDefinition definition,
+            ShapeOp target,
+            PrimitiveMode? mode = null)
+        {
+            int count = 0;
+            int pc = definition.ProgramOffset;
+            int end = pc + definition.ProgramLength;
+            while (pc < end)
+            {
+                ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                int length = ShapeOps.InstructionLength(op);
+                Assert.Greater(length, 0);
+                if (op == ShapeOp.End) break;
+                if (op == target)
+                {
+                    if (!mode.HasValue || catalogue.Program[pc + length - 1] == (int)mode.Value)
+                        count++;
+                }
+                pc += length;
+            }
+            return count;
         }
 
         private static VoxelWorldGenSettings BuildSettings()
