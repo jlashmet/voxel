@@ -10,11 +10,13 @@ namespace VoxelEngine.Rendering.Vegetation
     /// <summary>
     /// Presentation subscriber for branch-cut domain events. It derives the disconnected subtree
     /// and gives only that temporary visual a Rigidbody. Trunk cuts are re-based onto the actual
-    /// cut so a crown topples from the stump instead of tumbling around the original tree root.
+    /// cut and briefly hinged there so a crown visibly topples around the stump before becoming
+    /// fully free debris.
     /// </summary>
     public sealed class ProceduralTreeDetachedLimbPresenter : MonoBehaviour
     {
         private const float LifetimeSeconds = 7f;
+        private const float TrunkHingeSeconds = 1.20f;
         private static ProceduralTreeDetachedLimbPresenter s_Instance;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -124,7 +126,7 @@ namespace VoxelEngine.Rendering.Vegetation
             }
 
             if (trunkCut)
-                ApplyTopple(body, bounds, impulse);
+                ApplyTopple(body, bounds, impulse, cutWorld);
             else
                 ApplyBranchThrow(body, instance.Seed, cut.BranchIndex, impulse);
 
@@ -156,23 +158,41 @@ namespace VoxelEngine.Rendering.Vegetation
             collider.size = Vector3.Max(bounds.size * 0.68f, Vector3.one * 0.08f);
         }
 
-        private static void ApplyTopple(Rigidbody body, Bounds bounds, Vector3 impulse)
+        private static void ApplyTopple(Rigidbody body, Bounds bounds,
+                                        Vector3 impulse, Vector3 cutWorld)
         {
             Vector3 horizontal = Vector3.ProjectOnPlane(impulse, Vector3.up);
             if (horizontal.sqrMagnitude < 1e-4f) horizontal = Vector3.right;
             horizontal.Normalize();
 
-            // A severed crown should fall, not launch. Keep its COM near the cut and give it only
-            // enough lateral motion/rotation to choose a fall direction; gravity does the rest.
-            body.centerOfMass = new Vector3(0f, Mathf.Clamp(bounds.extents.y * 0.18f, 0.30f, 1.25f), 0f);
-            float leverHeight = Mathf.Clamp(bounds.size.y * 0.38f, 1.0f, 4.5f);
-            Vector3 forcePoint = body.worldCenterOfMass + Vector3.up * leverHeight;
-            body.AddForceAtPosition(horizontal * 0.85f,
-                                    forcePoint, ForceMode.VelocityChange);
-
+            // Keep the sever point fixed briefly. A free rigidbody immediately drops into nearby
+            // terrain/canals and can leave the camera before the fall is readable. The temporary
+            // hinge models the fibres at the cut still acting as a pivot, then releases after the
+            // crown has committed to a fall direction.
+            body.centerOfMass = new Vector3(
+                0f, Mathf.Clamp(bounds.extents.y * 0.18f, 0.30f, 1.25f), 0f);
             Vector3 toppleAxis = Vector3.Cross(Vector3.up, horizontal).normalized;
             if (toppleAxis.sqrMagnitude < 0.1f) toppleAxis = Vector3.right;
-            body.angularVelocity = toppleAxis * 0.90f;
+
+            var hinge = body.gameObject.AddComponent<HingeJoint>();
+            hinge.autoConfigureConnectedAnchor = false;
+            hinge.anchor = Vector3.zero;
+            hinge.connectedAnchor = cutWorld;
+            hinge.axis = toppleAxis;
+            hinge.enableCollision = true;
+            var limits = hinge.limits;
+            limits.min = -110f;
+            limits.max = 110f;
+            hinge.limits = limits;
+            hinge.useLimits = true;
+
+            float leverHeight = Mathf.Clamp(bounds.size.y * 0.38f, 1.0f, 4.5f);
+            Vector3 forcePoint = body.worldCenterOfMass + Vector3.up * leverHeight;
+            body.AddForceAtPosition(horizontal * 0.45f,
+                                    forcePoint, ForceMode.VelocityChange);
+            body.angularVelocity = toppleAxis * 0.55f;
+
+            UnityEngine.Object.Destroy(hinge, TrunkHingeSeconds);
         }
 
         private static void ApplyBranchThrow(Rigidbody body, uint seed, int branchIndex,
