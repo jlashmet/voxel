@@ -53,9 +53,8 @@ namespace VoxelEngine.CI
                 lower.Socket("crown").position + new Vector3(0.18f, 0.02f, -0.16f),
                 0.20f, 541, palette.Get(WorldArtSurfaceRole.Moss));
 
-            // VerticalityPass is later in the lookdev stack and still creates its obsolete rotated-
-            // cube arch. Cull all historical arch parts immediately before the actual camera render,
-            // after every composition pass has had a chance to run.
+            // Later lookdev passes still create superseded arch variants. Cull them immediately
+            // before the actual camera render, after every composition pass has run.
             Camera.onPreCull -= CleanupBeforeRender;
             Camera.onPreCull += CleanupBeforeRender;
         }
@@ -63,6 +62,8 @@ namespace VoxelEngine.CI
         private static void CleanupBeforeRender(Camera camera)
         {
             Camera.onPreCull -= CleanupBeforeRender;
+            Disable("WorldArtKit hero arch");
+            Disable("WorldArtKit lower arch");
             DisableLegacyRuinGeometry();
         }
 
