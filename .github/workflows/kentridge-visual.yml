@@ -54,6 +54,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/Artifacts/Kentridge"
+
+          # The isolated visual capture keeps all sampled terrain and authored town regions resident
+          # at once, unlike production streaming. Give only this diagnostic invocation enough mixed
+          # brick storage for the expanded hillside/vegetation generation after the master sync.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("Assets/VoxelEngine/CI/Editor/KentridgeRuntimeCapture.cs")
+          source = path.read_text()
+          old = "pool = new BrickPool(65536, Allocator.Persistent);"
+          new = "pool = new BrickPool(262144, Allocator.Persistent);"
+          if old not in source:
+              raise SystemExit("Kentridge capture BrickPool allocation signature changed")
+          path.write_text(source.replace(old, new, 1))
+          PY
+
           "${{ steps.unity.outputs.path }}" \
             -batchmode \
             -projectPath "$GITHUB_WORKSPACE" \
