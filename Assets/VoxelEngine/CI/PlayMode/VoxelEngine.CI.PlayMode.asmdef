@@ -1,0 +1,22 @@
+{
+  "name": "VoxelEngine.CI.PlayMode",
+  "rootNamespace": "VoxelEngine.CI",
+  "references": [
+    "VoxelEngine.Core",
+    "VoxelEngine.Rendering",
+    "VoxelEngine.Showcase",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

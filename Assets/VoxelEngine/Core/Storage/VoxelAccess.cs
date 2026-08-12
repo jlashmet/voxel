@@ -80,11 +80,16 @@ namespace VoxelEngine.Core.Storage
         ///   leak this design is most susceptible to, and it is why the collapse lives
         ///   inside the write rather than in a periodic sweep that can be forgotten.
         ///
-        /// Returns true when the world actually changed, so callers can skip mip
-        /// rebuild, replication, and structural re-evaluation for no-op writes.
+        /// When <paramref name="markHardSurface"/> is true the containing brick is also tagged as
+        /// authored hard geometry. This semantic change counts as a world change even when the
+        /// requested material already matches, because derived render meshes still need to be
+        /// rebuilt with the correct geometry vocabulary.
+        ///
+        /// Returns true when material or rendering semantics actually changed, so callers can
+        /// skip mip rebuild, replication, and structural re-evaluation for true no-op writes.
         /// </summary>
         public static bool SetVoxel(ref RegionTable table, ref BrickPool pool,
-                                    int3 worldVoxel, byte material)
+                                    int3 worldVoxel, byte material, bool markHardSurface = false)
         {
             Decompose(worldVoxel, out var regionCoord, out var brickInRegion, out var voxelInBrick);
 
@@ -92,13 +97,22 @@ namespace VoxelEngine.Core.Storage
             var brickIdx = Region.BrickIndex(brickInRegion.x, brickInRegion.y, brickInRegion.z);
             var brick = region.BrickRefs[brickIdx];
             var voxelIdx = OccupancyMask.VoxelIndex(voxelInBrick.x, voxelInBrick.y, voxelInBrick.z);
+            bool semanticChanged = markHardSurface && region.MarkHardSurfaceBrick(brickIdx);
 
             if (brick.IsUniform)
             {
-                // Writing the material the brick already is everywhere: nothing changes,
-                // and critically we must not allocate a slot to represent it.
+                // Writing the material the brick already is everywhere normally changes nothing.
+                // A new hard-surface tag is the exception: commit it even though no voxel bytes
+                // changed, otherwise authored stone stamped over natural stone loses its meaning.
                 if (brick.UniformMaterial == material)
-                    return false;
+                {
+                    if (semanticChanged)
+                    {
+                        region.Dirty = true;
+                        table.CommitRegion(region);
+                    }
+                    return semanticChanged;
+                }
 
                 var newIndex = pool.Allocate();
                 pool.FillBrick(newIndex, brick.UniformMaterial);
@@ -112,7 +126,14 @@ namespace VoxelEngine.Core.Storage
 
             var poolIndex = brick.PoolIndex;
             if (pool.GetVoxel(poolIndex, voxelIdx) == material)
-                return false;
+            {
+                if (semanticChanged)
+                {
+                    region.Dirty = true;
+                    table.CommitRegion(region);
+                }
+                return semanticChanged;
+            }
 
             pool.SetVoxel(poolIndex, voxelIdx, material);
 

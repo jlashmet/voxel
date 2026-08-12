@@ -131,21 +131,29 @@ namespace VoxelEngine.Showcase
             while (world.TryDequeueDetachedChunk(out var chunk))
             {
                 if (submitted >= MaxSubmissionsPerFrame) continue;
+                int sourceCount = chunk.Voxels.Length;
+                if (sourceCount == 0) continue;
+                Vector3 pivot = Vector3.zero;
+                for (int i = 0; i < sourceCount; i++)
+                {
+                    pivot += ((Vector3)(float3)chunk.Voxels[i] + Vector3.one * 0.5f)
+                           * VoxelSurfaceRenderer.VoxelSize;
+                }
+                pivot /= sourceCount;
 
                 int slot = FindFreeSlot();
                 if (slot < 0) continue;
 
-                Vector3 pivot = Vector3.zero;
-                for (int i = 0; i < chunk.Voxels.Length; i++)
-                    pivot += ((Vector3)(float3)chunk.Voxels[i] + Vector3.one * 0.5f)
-                           * VoxelSurfaceRenderer.VoxelSize;
-                pivot /= math.max(1, chunk.Voxels.Length);
-
                 float collisionRadius = 0.087f;
                 int instanceStart = slot * RenderInstancesPerChunk;
-                int visibleCount = math.min(RenderInstancesPerChunk, chunk.Voxels.Length);
-                float visualScale = math.pow(math.max(1, chunk.SourceVoxelCount)
+                int visibleCount = math.min(RenderInstancesPerChunk, sourceCount);
+                float sourceFraction = sourceCount / (float)math.max(1, chunk.Voxels.Length);
+                int representedSourceVoxels = math.max(
+                    sourceCount,
+                    (int)math.ceil(chunk.SourceVoxelCount * sourceFraction));
+                float visualScale = math.pow(math.max(1, representedSourceVoxels)
                                              / (float)visibleCount, 1f / 3f);
+                int firstVisibleSource = -1;
                 for (int i = 0; i < RenderInstancesPerChunk; i++)
                 {
                     if (i >= visibleCount)
@@ -158,7 +166,8 @@ namespace VoxelEngine.Showcase
                         continue;
                     }
 
-                    int sourceIndex = i * chunk.Voxels.Length / visibleCount;
+                    int sourceIndex = FindVisibleSourceIndex(chunk, i, visibleCount, sourceCount);
+                    if (firstVisibleSource < 0) firstVisibleSource = sourceIndex;
                     Vector3 centre = ((Vector3)(float3)chunk.Voxels[sourceIndex]
                                    + Vector3.one * 0.5f)
                                    * VoxelSurfaceRenderer.VoxelSize;
@@ -171,9 +180,10 @@ namespace VoxelEngine.Showcase
                     };
                 }
 
-                uint hash = Hash((uint)(chunk.Voxels[0].x * 73856093)
-                               ^ (uint)(chunk.Voxels[0].y * 19349663)
-                               ^ (uint)(chunk.Voxels[0].z * 83492791));
+                if (firstVisibleSource < 0) continue;
+                uint hash = Hash((uint)(chunk.Voxels[firstVisibleSource].x * 73856093)
+                               ^ (uint)(chunk.Voxels[firstVisibleSource].y * 19349663)
+                               ^ (uint)(chunk.Voxels[firstVisibleSource].z * 83492791));
                 float3 radial = (float3)pivot - chunk.ImpactMetres;
                 radial.y = math.max(0.15f, radial.y);
                 radial = math.normalizesafe(radial, new float3(0f, 1f, 0f));
@@ -181,7 +191,7 @@ namespace VoxelEngine.Showcase
                 float jitterX = Signed(hash);
                 float jitterZ = Signed(Hash(hash + 17u));
                 float force = math.lerp(2.5f, 7.5f, Unit(Hash(hash + 31u)));
-                float materialScale = chunk.Materials[0] switch
+                float materialScale = chunk.Materials[firstVisibleSource] switch
                 {
                     ShowcaseWorld.MatWood => 0.58f,
                     9 => 0.50f,  // cloth
@@ -189,7 +199,7 @@ namespace VoxelEngine.Showcase
                     14 => 0.45f, // moss
                     _ => 1f,
                 };
-                float massScale = math.clamp(math.rsqrt(math.max(1f, chunk.Voxels.Length / 8f)),
+                float massScale = math.clamp(math.rsqrt(math.max(1f, representedSourceVoxels / 8f)),
                                              0.45f, 1f);
                 float impulseScale = materialScale * massScale;
                 float3 velocity = radial * force + direction * 5.5f
@@ -219,12 +229,12 @@ namespace VoxelEngine.Showcase
                 };
                 _records[slot] = new ChunkRecord
                 {
-                    VoxelCount = math.max(chunk.SourceVoxelCount, chunk.Voxels.Length),
+                    VoxelCount = representedSourceVoxels,
                     ExpireAt = Time.unscaledTime + settleLifetime,
                 };
                 _highestActiveSlot = math.max(_highestActiveSlot, slot);
                 ActiveChunks++;
-                ActiveVoxels += chunk.Voxels.Length;
+                ActiveVoxels += representedSourceVoxels;
                 minSlot = math.min(minSlot, slot);
                 maxSlot = math.max(maxSlot, slot);
                 submitted++;
@@ -280,6 +290,15 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < _records.Length; i++)
                 if (_records[i] == null) return i;
             return -1;
+        }
+
+        private static int FindVisibleSourceIndex(ShowcaseWorld.DetachedVoxelChunk chunk,
+                                                  int ordinal, int visibleCount,
+                                                  int sourceCount)
+        {
+            if (sourceCount <= 1) return 0;
+            return math.min(sourceCount - 1,
+                            ordinal * sourceCount / math.max(1, visibleCount));
         }
 
         private static Vector4 MaterialColour(byte material, float scale)
