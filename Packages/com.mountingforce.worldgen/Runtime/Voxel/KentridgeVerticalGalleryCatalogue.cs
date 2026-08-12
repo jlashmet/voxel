@@ -8,9 +8,9 @@ using VoxelEngine.Core.Features;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Hard pedestrian ledges outside Kentridge's downhill undercrofts. Every ledge includes a short
-    /// side stair from the block's existing lower contour return, so the new level is physically tied
-    /// into the circulation system instead of becoming inaccessible facade dressing.
+    /// Hard pedestrian ledges outside Kentridge's downhill undercrofts. Each short connector stair
+    /// starts exactly at the block boundary reached by the existing access return and climbs inward
+    /// through the first gallery bay. Nothing protrudes beyond the authored frontage envelope.
     /// </summary>
     public static class KentridgeVerticalGalleryCatalogue
     {
@@ -18,7 +18,6 @@ namespace MountingForce.WorldGen.Voxel
         public const int DeckThicknessDm = 2;
         public const int ParapetWidthDm = 2;
         public const int ParapetHeightDm = 5;
-        private const int SideExtensionDm = 10;
         private const int StairWidthDm = 10;
 
         private sealed class CompiledGallery
@@ -115,9 +114,6 @@ namespace MountingForce.WorldGen.Voxel
             VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
-            bool west = route.ReturnSide == KentridgeUrbanReturnSide.West;
-            int minXDm = route.MinXDm - (west ? SideExtensionDm : 0);
-            int maxXDm = route.MaxXDm + (west ? 0 : SideExtensionDm);
             int shelfY = KentridgeVerticalProfile.SurfaceYAtDm(
                 route.ElevationSampleDm.X,
                 route.ElevationSampleDm.Y,
@@ -127,7 +123,6 @@ namespace MountingForce.WorldGen.Voxel
             int galleryFloorY = shelfY - route.GalleryFloorBelowShelfDm * s;
             int rise = galleryFloorY - lowerDoorY;
             int steps = Math.Max(4, (route.RiseDm + 1) / 2 + 1);
-
             int footprintHeight = rise
                 + (DeckThicknessDm + ParapetHeightDm + 2) * s;
 
@@ -135,21 +130,20 @@ namespace MountingForce.WorldGen.Voxel
             {
                 Name = new FixedString64Bytes("kentridge-gallery-" + route.Id),
                 Position = new int3(
-                    minXDm * s,
+                    route.MinXDm * s,
                     lowerDoorY - DeckThicknessDm * s,
                     route.FrontZDm * s),
                 Footprint = new int3(
-                    (maxXDm - minXDm) * s,
+                    route.LengthDm * s,
                     footprintHeight,
                     KentridgeVerticalGalleryPlanner.GalleryDepthDm * s),
-                Program = GalleryProgram(route, minXDm, rise, steps, settings),
+                Program = GalleryProgram(route, rise, steps, settings),
                 MaxPrimitives = 8 + steps,
             };
         }
 
         private static int[] GalleryProgram(
             KentridgeVerticalGalleryRoute route,
-            int originXDm,
             int rise,
             int steps,
             VoxelWorldGenSettings settings)
@@ -159,10 +153,8 @@ namespace MountingForce.WorldGen.Voxel
             int depth = KentridgeVerticalGalleryPlanner.GalleryDepthDm * s;
             int run = KentridgeVerticalGalleryPlanner.CornerStairRunDm * s;
             int stairW = StairWidthDm * s;
-            int zoneX = (route.MinXDm - originXDm) * s;
             int zoneWidth = route.LengthDm * s;
-            int totalWidth = zoneWidth + SideExtensionDm * s;
-            int gapCentre = (route.GapCentreXDm - originXDm) * s;
+            int gapCentre = (route.GapCentreXDm - route.MinXDm) * s;
             int gapWidth = route.GapWidthDm * s;
             int gapStart = gapCentre - gapWidth / 2;
             int gapEnd = gapStart + gapWidth;
@@ -171,37 +163,34 @@ namespace MountingForce.WorldGen.Voxel
             byte dark = settings.Materials.Resolve(MaterialRole.DarkMasonry);
             var b = new ProgramBuilder();
 
-            // Full gallery deck gives the open undercroft a usable second-level pedestrian frontage.
-            b.Box(zoneX, rise, 0,
+            b.Box(0, rise, 0,
                 zoneWidth, deckT, depth, stone);
 
-            // Low downhill parapet remains open at the aligned gateway so the vertical axis stays
-            // readable from below and later circulation can specialise the opening.
             int parapetZ = depth - ParapetWidthDm * s;
             int parapetY = rise + deckT;
             int parapetH = ParapetHeightDm * s;
-            AddSpan(b, zoneX, Math.Max(zoneX, gapStart), parapetY,
+            AddSpan(b, 0, Math.Max(0, gapStart), parapetY,
                 parapetZ, ParapetWidthDm * s, parapetH, dark);
-            AddSpan(b, Math.Min(zoneX + zoneWidth, gapEnd), zoneX + zoneWidth,
+            AddSpan(b, Math.Min(zoneWidth, gapEnd), zoneWidth,
                 parapetY, parapetZ, ParapetWidthDm * s, parapetH, dark);
 
-            // The existing access return arrives one side-extension outside the block at lower door
-            // level. Rise from that exact corner into the first gallery bay over a compact 3 m run.
+            // Access returns meet the gallery at MinX (west) or MaxX (east). The low tread touches
+            // that shared boundary and every later tread moves inward, so the connector never escapes
+            // the semantic block edge.
             bool west = route.ReturnSide == KentridgeUrbanReturnSide.West;
-            int runStart = west ? 0 : totalWidth - run;
             for (int i = 0; i < steps; i++)
             {
                 int x0;
                 int x1;
                 if (west)
                 {
-                    x0 = runStart + run * i / steps;
-                    x1 = runStart + run * (i + 1) / steps;
+                    x0 = run * i / steps;
+                    x1 = run * (i + 1) / steps;
                 }
                 else
                 {
-                    x0 = totalWidth - run * (i + 1) / steps;
-                    x1 = totalWidth - run * i / steps;
+                    x0 = zoneWidth - run * (i + 1) / steps;
+                    x1 = zoneWidth - run * i / steps;
                 }
 
                 int stepRise = steps <= 1
