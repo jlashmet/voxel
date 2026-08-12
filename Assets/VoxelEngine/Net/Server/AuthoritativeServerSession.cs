@@ -8,20 +8,20 @@ namespace VoxelEngine.Net.Server
     /// <summary>
     /// Safe composition root for live authoritative networking.
     ///
-    /// Frame loop:
-    ///   PumpTransport() -> decode only -> bounded ServerCommandInbox.
-    ///
-    /// Fixed simulation tick:
-    ///   ProcessAuthoritativeTick() -> begin event stream -> resolve authenticated identity ->
-    ///   validate -> shared deterministic apply -> publish -> interest route/batch -> flush UTP.
+    /// Per fixed tick: process verified client intent -> queue mutation EVENT packets -> append
+    /// semantic hash barriers when due -> flush transport. Drift reports are authenticated and
+    /// checkpoint-verified, but state repair remains blocked until a semantic checkpoint snapshot
+    /// store replaces the legacy WorldHistory scaffold.
     /// </summary>
     public sealed class AuthoritativeServerSession : IDisposable
     {
         private readonly ServerCommandInbox _inbox;
+        private readonly ServerConvergenceInbox _convergenceInbox;
         private readonly ServerPlayerRegistry _players;
         private readonly AlterationRateLimiter _rateLimiter;
         private readonly ServerNetworkRuntime _network;
         private readonly ServerCommandProcessor _processor;
+        private readonly ServerConvergenceManager _convergence;
         private readonly ServerDeterministicAlterationApplier _defaultAlterationApplier;
         private bool _disposed;
 
@@ -29,48 +29,41 @@ namespace VoxelEngine.Net.Server
         public event Action<uint> ConnectionClosed;
         public event Action<uint> ProtocolError;
         public event Action<uint, int> SendError;
+        public event Action<ServerConvergenceManager.VerifiedRegionMismatch> VerifiedRegionMismatch;
 
         public AuthoritativeServerSession(
             uint serverSeed,
             Validation.DensityCap densityCap,
             int maxConnections = 64,
-            int initialEventCapacity = 64)
+            int initialEventCapacity = 64,
+            uint hashIntervalTicks = ServerConvergenceManager.DefaultHashIntervalTicks)
         {
             _inbox = new ServerCommandInbox();
+            _convergenceInbox = new ServerConvergenceInbox();
             _players = new ServerPlayerRegistry();
             _rateLimiter = new AlterationRateLimiter();
-            _network = new ServerNetworkRuntime(_inbox, maxConnections, initialEventCapacity);
-            _processor = new ServerCommandProcessor(
-                _inbox,
-                _players,
-                _rateLimiter,
-                serverSeed,
-                densityCap);
+            _network = new ServerNetworkRuntime(_inbox, _convergenceInbox, maxConnections, initialEventCapacity);
+            _processor = new ServerCommandProcessor(_inbox, _players, _rateLimiter, serverSeed, densityCap);
+            _convergence = new ServerConvergenceManager(_convergenceInbox, _players, hashIntervalTicks);
             _defaultAlterationApplier = new ServerDeterministicAlterationApplier();
 
             _network.ConnectionOpened += OnConnectionOpened;
             _network.ConnectionClosed += OnConnectionClosed;
             _network.ProtocolError += OnProtocolError;
             _network.SendError += OnSendError;
+            _convergence.VerifiedMismatch += OnVerifiedMismatch;
         }
 
         public ServerPlayerRegistry Players => _players;
         public ServerCommandInbox CommandInbox => _inbox;
+        public ServerConvergenceInbox ConvergenceInbox => _convergenceInbox;
         public ServerCommandProcessor Processor => _processor;
+        public ServerConvergenceManager Convergence => _convergence;
         public int ConnectionCount => _disposed ? 0 : _network.ConnectionCount;
         public NetworkEndpoint LocalEndpoint => _disposed ? default : _network.LocalEndpoint;
 
-        public int Listen(NetworkEndpoint endpoint)
-        {
-            ThrowIfDisposed();
-            return _network.Listen(endpoint);
-        }
-
-        public void PumpTransport()
-        {
-            ThrowIfDisposed();
-            _network.PumpTransport();
-        }
+        public int Listen(NetworkEndpoint endpoint) { ThrowIfDisposed(); return _network.Listen(endpoint); }
+        public void PumpTransport() { ThrowIfDisposed(); _network.PumpTransport(); }
 
         public bool AuthenticateConnection(
             uint connectionId,
@@ -89,9 +82,7 @@ namespace VoxelEngine.Net.Server
                     authoritativePositionVoxels,
                     reachVoxels,
                     canAlterWorld))
-            {
                 return false;
-            }
 
             _network.UpdateConnectionPosition(connectionId, authoritativePositionVoxels);
             SessionLifecycle.PlayerJoin();
@@ -103,17 +94,12 @@ namespace VoxelEngine.Net.Server
             ThrowIfDisposed();
             if (!_network.ContainsConnection(connectionId) ||
                 !_players.UpdateAuthoritativePosition(connectionId, positionVoxels))
-            {
                 return false;
-            }
 
             _network.UpdateConnectionPosition(connectionId, positionVoxels);
             return true;
         }
 
-        /// <summary>
-        /// Production fixed-tick path. Uses the exact shared Core alteration applier that clients use.
-        /// </summary>
         public void ProcessAuthoritativeTick(
             uint serverTick,
             ref RegionTable table,
@@ -130,10 +116,6 @@ namespace VoxelEngine.Net.Server
                 _defaultAlterationApplier);
         }
 
-        /// <summary>
-        /// Injectable overload retained for tests or a game-owned composite applier. Any supplied
-        /// implementation is part of authority and therefore must preserve deterministic parity.
-        /// </summary>
         public void ProcessAuthoritativeTick(
             uint serverTick,
             ref RegionTable table,
@@ -147,6 +129,11 @@ namespace VoxelEngine.Net.Server
             if (applier == null) throw new ArgumentNullException(nameof(applier));
 
             _network.BeginTick(serverTick);
+
+            // Reports were decoded during frame pumps. Verify them at a deterministic server point;
+            // no repair/state mutation is triggered from a transport callback.
+            _convergence.ProcessMismatchReports(serverTick, _network.Replication.Subscriptions);
+
             _processor.ProcessTick(
                 serverTick,
                 ref table,
@@ -156,47 +143,51 @@ namespace VoxelEngine.Net.Server
                 applier,
                 _network,
                 _network);
-            _network.EndTick();
+
+            // Important ordering: queue mutations first, then hash barriers for the resulting state.
+            _network.FlushReplication();
+            _convergence.EmitHashes(
+                serverTick,
+                ref table,
+                in pool,
+                _network.Replication.Subscriptions,
+                _network);
+            _network.FlushSends();
         }
 
-        public bool Disconnect(uint connectionId)
-        {
-            ThrowIfDisposed();
-            return _network.Disconnect(connectionId);
-        }
+        public bool Disconnect(uint connectionId) { ThrowIfDisposed(); return _network.Disconnect(connectionId); }
 
-        private void OnConnectionOpened(uint connectionId, NetworkEndpoint endpoint) =>
-            ConnectionOpened?.Invoke(connectionId, endpoint);
+        private void OnConnectionOpened(uint connectionId, NetworkEndpoint endpoint) => ConnectionOpened?.Invoke(connectionId, endpoint);
 
         private void OnConnectionClosed(uint connectionId)
         {
+            _convergence.RemoveConnection(connectionId);
             if (_players.RemoveConnection(connectionId, out ushort playerId))
             {
                 _processor.RemovePlayer(playerId);
                 SessionLifecycle.PlayerLeave();
             }
-
             ConnectionClosed?.Invoke(connectionId);
         }
 
+        private void OnVerifiedMismatch(ServerConvergenceManager.VerifiedRegionMismatch mismatch) =>
+            VerifiedRegionMismatch?.Invoke(mismatch);
         private void OnProtocolError(uint connectionId) => ProtocolError?.Invoke(connectionId);
         private void OnSendError(uint connectionId, int errorCode) => SendError?.Invoke(connectionId, errorCode);
 
         private void ThrowIfDisposed()
         {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(AuthoritativeServerSession));
+            if (_disposed) throw new ObjectDisposedException(nameof(AuthoritativeServerSession));
         }
 
         public void Dispose()
         {
-            if (_disposed)
-                return;
-
+            if (_disposed) return;
             _network.ConnectionOpened -= OnConnectionOpened;
             _network.ConnectionClosed -= OnConnectionClosed;
             _network.ProtocolError -= OnProtocolError;
             _network.SendError -= OnSendError;
+            _convergence.VerifiedMismatch -= OnVerifiedMismatch;
             _network.Dispose();
             _rateLimiter.Clear();
             _disposed = true;
