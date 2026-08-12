@@ -34,8 +34,8 @@ namespace VoxelEngine.Tests.EditMode
                 AssertAllKind(courts, FeatureKind.Infrastructure);
                 Assert.AreEqual(37, massing.ExplicitPlacements.Length);
                 Assert.AreEqual(6, verticalFrontage.ExplicitPlacements.Length);
-                Assert.AreEqual(6, galleries.ExplicitPlacements.Length,
-                    "Every dense downhill undercroft should own one reachable second-level gallery.");
+                Assert.AreEqual(5, galleries.ExplicitPlacements.Length,
+                    "Five public dense frontages should own reachable second-level galleries; NobleRidge stays private.");
                 AssertAllKind(galleries, FeatureKind.Infrastructure);
                 Assert.AreEqual(4, anchorUndercroft.ExplicitPlacements.Length);
                 Assert.AreEqual(8, access.ExplicitPlacements.Length);
@@ -53,8 +53,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(98, infrastructureInstances,
-                    "Six reachable downhill galleries add a second pedestrian level without changing gameplay structures.");
+                Assert.AreEqual(97, infrastructureInstances,
+                    "Five public downhill galleries add a second pedestrian level while the noble terrace remains private.");
             }
             finally
             {
