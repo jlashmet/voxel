@@ -11,15 +11,10 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Prepares deterministic, level building pads before Kentridge structures are rasterised.
     ///
-    /// The target altitude intentionally matches KentridgeVoxelCatalogue's existing placement
-    /// rule: the lowest sampled point under the semantic footprint. Keeping one altitude rule
-    /// means adding terrain preparation cannot move buildings, doors, or gameplay anchors.
-    ///
-    /// The flat core hugs the real building envelope. Three 40 cm terraces rise away from it so
-    /// the smooth terrain mesher sees a feathered shoulder rather than one tall vertical cut. The
-    /// 4 dm step intentionally matches CpuTransvoxelChunkCache.SourceStep (four 10 cm voxels).
-    /// Subsoil is dirt and every exposed terrace has green ground cover. The market well is
-    /// excluded because the plaza already owns that ground.
+    /// Plot altitude comes from <see cref="KentridgeVerticalProfile.PlotSurfaceY"/>, sampled at the
+    /// public frontage so the yard meets its authored street elevation. The flat core hugs the real
+    /// building envelope. Three 40 cm local terraces rise away from it, preserving the small parcel
+    /// feathering pass while district-scale verticality remains owned by the shared macro profile.
     /// </summary>
     public static class KentridgePlotSurfaceCatalogue
     {
@@ -146,31 +141,13 @@ namespace MountingForce.WorldGen.Voxel
 
         private static ExplicitPlacement ResolvePlacement(BuildingPlot plot, uint seed, int scale)
         {
-            Int3 footprintDm = KentridgeDefinition.FootprintDm(plot.Archetype);
-            int3 footprint = new int3(
-                footprintDm.X * scale,
-                footprintDm.Y * scale,
-                footprintDm.Z * scale);
-            int ox = plot.PositionDm.X * scale;
-            int oz = plot.PositionDm.Y * scale;
-            int lowest = int.MaxValue;
-            int sampleStep = math.max(8, 16 * scale);
-
-            // Keep this sampling rule byte-for-byte equivalent to the building placement rule.
-            // Plot preparation and structure placement must agree without consulting each other.
-            for (int z = 0; z <= footprint.z; z += sampleStep)
-            for (int x = 0; x <= footprint.x; x += sampleStep)
-            {
-                int h = TerrainSampler.HeightAt(ox + x, oz + z, seed);
-                if (h < lowest) lowest = h;
-            }
-
+            int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
             return new ExplicitPlacement
             {
                 Position = new int3(
-                    ox,
-                    lowest - FillDepthDm * scale,
-                    oz),
+                    plot.PositionDm.X * scale,
+                    targetSurface - FillDepthDm * scale,
+                    plot.PositionDm.Y * scale),
                 Orientation = (byte)plot.Frontage,
                 OverrideOffset = 0,
                 OverrideCount = 0,
