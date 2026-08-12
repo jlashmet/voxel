@@ -27,6 +27,7 @@ namespace VoxelEngine.Structures
         public int ImpostHeight;
         public int JointDepth;
         public int ArchivoltProjection;
+        public int MasonryEdgeRadius;
         public byte StoneMaterial;
         public byte JointMaterial;
         public byte EmptyMaterial;
@@ -48,6 +49,7 @@ namespace VoxelEngine.Structures
                 ImpostHeight = 3,        // 30 cm projecting spring course.
                 JointDepth = 1,          // 10 cm material band on the visible face.
                 ArchivoltProjection = 3, // 30 cm proud of the recessed spandrel face.
+                MasonryEdgeRadius = 0,   // Derived dressed-stone surface owns the final bevel.
                 StoneMaterial = stone,
                 JointMaterial = jointMaterial == 0 ? stone : jointMaterial,
                 EmptyMaterial = empty,
@@ -90,6 +92,7 @@ namespace VoxelEngine.Structures
             int archivoltProjection = math.clamp(
                 spec.ArchivoltProjection > 0 ? spec.ArchivoltProjection : 2,
                 1, depth - 2);
+            int masonryEdgeRadius = math.max(0, spec.MasonryEdgeRadius);
             byte jointMaterial = spec.JointMaterial == 0 ? spec.StoneMaterial : spec.JointMaterial;
             int outerRadius = halfOpening + ringThickness;
             int frontZ = spec.BaseCentre.z - depth / 2;
@@ -97,21 +100,21 @@ namespace VoxelEngine.Structures
             int pierCentreOffset = halfOpening + (pierWidth + 1) / 2;
 
             BuildPlinth(ref brush, spec.BaseCentre, -1, pierCentreOffset, pierWidth,
-                courseHeight, depth, spec.StoneMaterial);
+                courseHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
             BuildPlinth(ref brush, spec.BaseCentre, 1, pierCentreOffset, pierWidth,
-                courseHeight, depth, spec.StoneMaterial);
+                courseHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
 
             BuildPier(ref brush, spec.BaseCentre, -1, pierCentreOffset, pierWidth,
-                pierHeight, courseHeight, impostHeight, depth, jointDepth,
+                pierHeight, courseHeight, impostHeight, depth, jointDepth, masonryEdgeRadius,
                 spec.StoneMaterial, jointMaterial, spec.Seed + 101u);
             BuildPier(ref brush, spec.BaseCentre, 1, pierCentreOffset, pierWidth,
-                pierHeight, courseHeight, impostHeight, depth, jointDepth,
+                pierHeight, courseHeight, impostHeight, depth, jointDepth, masonryEdgeRadius,
                 spec.StoneMaterial, jointMaterial, spec.Seed + 211u);
 
             BuildImpost(ref brush, spec.BaseCentre, -1, pierCentreOffset, pierWidth,
-                springY, impostHeight, depth, spec.StoneMaterial);
+                springY, impostHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
             BuildImpost(ref brush, spec.BaseCentre, 1, pierCentreOffset, pierWidth,
-                springY, impostHeight, depth, spec.StoneMaterial);
+                springY, impostHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
 
             BuildStructuralRing(ref brush, spec.BaseCentre.x, springY, spec.BaseCentre.z,
                 halfOpening, outerRadius, depth, spec.StoneMaterial, spec.Damage);
@@ -144,19 +147,20 @@ namespace VoxelEngine.Structures
         }
 
         private static void BuildPlinth(ref VoxelBrush brush, int3 origin, int side,
-            int pierOffset, int pierWidth, int courseHeight, int depth, byte material)
+            int pierOffset, int pierWidth, int courseHeight, int depth, int edgeRadius, byte material)
         {
             int width = pierWidth + 4;
             int height = math.max(3, courseHeight - 1);
             int3 min = new int3(origin.x + side * pierOffset - width / 2,
                 origin.y, origin.z - depth / 2 - 1);
             WorldArtPrimitives.RoundedBox(ref brush, min,
-                new int3(width, height, depth + 2), 1, material);
+                new int3(width, height, depth + 2), edgeRadius, material);
         }
 
         private static void BuildPier(ref VoxelBrush brush, int3 origin, int side,
             int pierOffset, int pierWidth, int pierHeight, int courseHeight,
-            int impostHeight, int depth, int jointDepth, byte material, byte jointMaterial, uint seed)
+            int impostHeight, int depth, int jointDepth, int edgeRadius,
+            byte material, byte jointMaterial, uint seed)
         {
             int plinthHeight = math.max(3, courseHeight - 1);
             int shaftHeight = math.max(courseHeight * 2, pierHeight - plinthHeight - impostHeight);
@@ -166,7 +170,7 @@ namespace VoxelEngine.Structures
 
             WorldArtPrimitives.RoundedBox(ref brush,
                 new int3(leftX, shaftY, frontZ),
-                new int3(pierWidth, shaftHeight, depth), 1, material);
+                new int3(pierWidth, shaftHeight, depth), edgeRadius, material);
 
             int rows = math.max(2, shaftHeight / courseHeight);
             for (int row = 1; row < rows; row++)
@@ -194,13 +198,14 @@ namespace VoxelEngine.Structures
         }
 
         private static void BuildImpost(ref VoxelBrush brush, int3 origin, int side,
-            int pierOffset, int pierWidth, int springY, int height, int depth, byte material)
+            int pierOffset, int pierWidth, int springY, int height, int depth,
+            int edgeRadius, byte material)
         {
             int width = pierWidth + 4;
             int3 min = new int3(origin.x + side * pierOffset - width / 2,
                 springY - height, origin.z - depth / 2 - 1);
             WorldArtPrimitives.RoundedBox(ref brush, min,
-                new int3(width, height, depth + 2), 1, material);
+                new int3(width, height, depth + 2), edgeRadius, material);
         }
 
         private static void BuildStructuralRing(ref VoxelBrush brush, int cx, int springY, int cz,
