@@ -36,9 +36,9 @@ namespace VoxelEngine.Net.Protocol
             WriteInt32(packet, 10, regionCoord.z);
             WriteUint32(packet, 14, snapshotTick);
             WriteUint32(packet, 18, semanticHash);
-            WriteUint32(packet, 22, checked((uint)totalLength));
-            WriteUint32(packet, 26, checked((uint)offset));
-            WriteUint16(packet, 30, checked((ushort)chunk.Length));
+            WriteUint32(packet, 22, (uint)totalLength);
+            WriteUint32(packet, 26, (uint)offset);
+            WriteUint16(packet, 30, (ushort)chunk.Length);
             chunk.CopyTo(packet.Slice(HeaderSize, chunk.Length));
             bytesWritten = HeaderSize + chunk.Length;
             return true;
@@ -56,11 +56,16 @@ namespace VoxelEngine.Net.Protocol
                 kind != ProtocolMessageKind.S_RegionRepair)
                 return false;
 
-            int totalLength = checked((int)ReadUint32(packet, 22));
-            int offset = checked((int)ReadUint32(packet, 26));
+            uint totalLengthRaw = ReadUint32(packet, 22);
+            uint offsetRaw = ReadUint32(packet, 26);
+            if (totalLengthRaw > int.MaxValue || offsetRaw > int.MaxValue)
+                return false;
+
+            int totalLength = (int)totalLengthRaw;
+            int offset = (int)offsetRaw;
             int chunkLength = ReadUint16(packet, 30);
-            if (totalLength <= 0 || offset < 0 || chunkLength <= 0 || chunkLength > MaxChunkBytes ||
-                offset > totalLength || offset + chunkLength > totalLength ||
+            if (totalLength <= 0 || chunkLength <= 0 || chunkLength > MaxChunkBytes ||
+                offset > totalLength || chunkLength > totalLength - offset ||
                 packet.Length != HeaderSize + chunkLength)
                 return false;
 
