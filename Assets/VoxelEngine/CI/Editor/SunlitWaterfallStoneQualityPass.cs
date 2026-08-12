@@ -20,8 +20,6 @@ namespace VoxelEngine.CI
             GameObject scene = GameObject.Find("Sunlit Coherent Terrain Scene");
             if (scene == null) return;
 
-            Disable("WorldArtKit hero arch");
-            Disable("WorldArtKit lower arch");
             DisableLegacyRuinGeometry();
 
             Transform kitRoot = scene.transform.Find("World Art Kit Reference Scene");
@@ -54,6 +52,8 @@ namespace VoxelEngine.CI
                 lower.Socket("crown").position + new Vector3(0.18f, 0.02f, -0.16f),
                 0.20f, 541, palette.Get(WorldArtSurfaceRole.Moss));
 
+            // Several later lookdev stages instantiate superseded arch families. Cull those exact
+            // families immediately before the actual camera render, after all scene passes have run.
             Camera.onPreCull -= CleanupBeforeRender;
             Camera.onPreCull += CleanupBeforeRender;
         }
@@ -61,17 +61,12 @@ namespace VoxelEngine.CI
         private static void CleanupBeforeRender(Camera camera)
         {
             Camera.onPreCull -= CleanupBeforeRender;
-            Disable("WorldArtKit hero arch");
-            Disable("WorldArtKit lower arch");
             DisableLegacyRuinGeometry();
             HideLegacyVoxelStone();
         }
 
         private static void HideLegacyVoxelStone()
         {
-            // The capture substrate contains an even older voxel-carved arch in the same location.
-            // It shares the dedicated "Voxel Warm Stone" material, so hide only that legacy material
-            // for this masonry study while preserving cliff, turf, dirt and the new arch-bay meshes.
             Renderer[] renderers = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include,
                 FindObjectsSortMode.None);
             for (int i = 0; i < renderers.Length; i++)
@@ -98,12 +93,6 @@ namespace VoxelEngine.CI
             }
         }
 
-        private static void Disable(string name)
-        {
-            GameObject go = GameObject.Find(name);
-            if (go != null) go.SetActive(false);
-        }
-
         private static void DisableLegacyRuinGeometry()
         {
             Transform[] all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include,
@@ -114,17 +103,21 @@ namespace VoxelEngine.CI
                 if (t == null || !t.gameObject.scene.IsValid()) continue;
 
                 string n = t.name;
-                if (n == "Rounded ashlar" ||
+                bool oldWorldArtKitArch =
+                    n.StartsWith("WorldArtKit hero arch") ||
+                    n.StartsWith("WorldArtKit lower arch");
+                bool oldReferenceArch =
+                    n == "Rounded ashlar" ||
                     n == "Hero ruin pier" ||
                     n == "Hero ruin arch stone" ||
                     n == "Broken ruin crown" ||
                     n == "Hero arch pier" ||
                     n == "Hero arch ring" ||
                     n == "Lower arch pier" ||
-                    n == "Lower arch ring")
-                {
+                    n == "Lower arch ring";
+
+                if (oldWorldArtKitArch || oldReferenceArch)
                     t.gameObject.SetActive(false);
-                }
             }
         }
 
