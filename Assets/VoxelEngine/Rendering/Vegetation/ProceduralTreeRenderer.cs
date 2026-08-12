@@ -449,66 +449,38 @@ namespace VoxelEngine.Rendering.Vegetation
         private Mesh BuildCombinedBatchMesh(List<int> treeIndices, int lod,
                                             Vector3 batchOrigin, Vector2Int key)
         {
-            var barkParts = new CombineInstance[treeIndices.Count];
-            var leafParts = new CombineInstance[treeIndices.Count];
-            var temporarySourceMeshes = new Mesh[treeIndices.Count];
+            var vertices = new List<Vector3>(8192);
+            var normals = new List<Vector3>(8192);
+            var colours = new List<Color>(8192);
+            var uv0 = new List<Vector2>(8192);
+            var uv1 = new List<Vector2>(8192);
+            var barkIndices = new List<int>(12288);
+            var leafIndices = new List<int>(12288);
 
             for (int i = 0; i < treeIndices.Count; i++)
             {
                 TreePresentation tree = _trees[treeIndices[i]];
-                Mesh source = ProceduralTreeMeshBuilder.BuildMesh(tree.Skeleton, lod);
-                source.hideFlags = HideFlags.DontSave;
-                temporarySourceMeshes[i] = source;
-
                 Vector3 offset = (Vector3)tree.Instance.PositionMetres - batchOrigin;
-                Matrix4x4 matrix = Matrix4x4.Translate(offset);
-                barkParts[i] = new CombineInstance
-                {
-                    mesh = source,
-                    subMeshIndex = 0,
-                    transform = matrix,
-                };
-                leafParts[i] = new CombineInstance
-                {
-                    mesh = source,
-                    subMeshIndex = 1,
-                    transform = matrix,
-                };
+                ProceduralTreeMeshBuilder.AppendMeshData(
+                    tree.Skeleton, lod, offset,
+                    vertices, normals, colours, uv0, uv1, barkIndices, leafIndices);
             }
-
-            var barkMesh = new Mesh
-            {
-                name = $"TreeBatch_{key.x}_{key.y}_LOD{lod}_BarkTemp",
-                indexFormat = IndexFormat.UInt32,
-                hideFlags = HideFlags.DontSave,
-            };
-            var leafMesh = new Mesh
-            {
-                name = $"TreeBatch_{key.x}_{key.y}_LOD{lod}_LeavesTemp",
-                indexFormat = IndexFormat.UInt32,
-                hideFlags = HideFlags.DontSave,
-            };
-            barkMesh.CombineMeshes(barkParts, true, true, false);
-            leafMesh.CombineMeshes(leafParts, true, true, false);
 
             var combined = new Mesh
             {
                 name = $"TreeBatch_{key.x}_{key.y}_LOD{lod}",
-                indexFormat = IndexFormat.UInt32,
+                indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16,
                 hideFlags = HideFlags.DontSave,
             };
-            var materialParts = new[]
-            {
-                new CombineInstance { mesh = barkMesh, subMeshIndex = 0, transform = Matrix4x4.identity },
-                new CombineInstance { mesh = leafMesh, subMeshIndex = 0, transform = Matrix4x4.identity },
-            };
-            combined.CombineMeshes(materialParts, false, true, false);
+            combined.SetVertices(vertices);
+            combined.SetNormals(normals);
+            combined.SetColors(colours);
+            combined.SetUVs(0, uv0);
+            combined.SetUVs(1, uv1);
+            combined.subMeshCount = 2;
+            combined.SetTriangles(barkIndices, 0, false);
+            combined.SetTriangles(leafIndices, 1, false);
             combined.RecalculateBounds();
-
-            Destroy(barkMesh);
-            Destroy(leafMesh);
-            for (int i = 0; i < temporarySourceMeshes.Length; i++)
-                if (temporarySourceMeshes[i] != null) Destroy(temporarySourceMeshes[i]);
             return combined;
         }
 
