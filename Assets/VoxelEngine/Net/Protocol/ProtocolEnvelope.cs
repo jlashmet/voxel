@@ -2,10 +2,7 @@ using System;
 
 namespace VoxelEngine.Net.Protocol
 {
-    /// <summary>
-    /// Stable message-kind registry shared by both directions of the custom UTP protocol.
-    /// Values are part of the wire contract once shipped; never renumber an existing kind.
-    /// </summary>
+    /// <summary>Stable message-kind registry for the custom UTP protocol.</summary>
     public enum ProtocolMessageKind : byte
     {
         None = 0,
@@ -15,8 +12,9 @@ namespace VoxelEngine.Net.Protocol
         C_AlterationRequest = 2,
         C_RegionRequest = 3,
         C_PlayerInputBundle = 4,
+        C_RegionHashMismatch = 5,
 
-        // Server -> client. Leave a range gap so packet captures are easy to read.
+        // Server -> client.
         S_AlterationEvent = 32,
         S_AlterationEventBatch = 33,
         S_AlterationRejected = 34,
@@ -26,14 +24,6 @@ namespace VoxelEngine.Net.Protocol
         S_PlayerState = 38,
     }
 
-    /// <summary>
-    /// Minimal framing above Unity Transport.
-    ///
-    /// Header (2 bytes):
-    ///   byte 0: protocol version
-    ///   byte 1: ProtocolMessageKind
-    /// The remainder of the packet is the message-specific payload.
-    /// </summary>
     public static class ProtocolEnvelope
     {
         public const byte CurrentVersion = 1;
@@ -57,12 +47,10 @@ namespace VoxelEngine.Net.Protocol
             kind = ProtocolMessageKind.None;
             payloadOffset = 0;
 
-            if (packet.Length < HeaderSize)
-                return false;
-            if (packet[0] != CurrentVersion)
+            if (packet.Length < HeaderSize || packet[0] != CurrentVersion)
                 return false;
 
-            var decoded = (ProtocolMessageKind)packet[1];
+            ProtocolMessageKind decoded = (ProtocolMessageKind)packet[1];
             if (!IsKnown(decoded))
                 return false;
 
@@ -79,6 +67,7 @@ namespace VoxelEngine.Net.Protocol
                 case ProtocolMessageKind.C_AlterationRequest:
                 case ProtocolMessageKind.C_RegionRequest:
                 case ProtocolMessageKind.C_PlayerInputBundle:
+                case ProtocolMessageKind.C_RegionHashMismatch:
                 case ProtocolMessageKind.S_AlterationEvent:
                 case ProtocolMessageKind.S_AlterationEventBatch:
                 case ProtocolMessageKind.S_AlterationRejected:
