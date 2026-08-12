@@ -35,15 +35,14 @@ namespace MountingForce.WorldGen.Voxel
                     seed, settings, Allocator.Temp),
 
                 // City-scale organisation is deliberately separate from individual building grammar.
-                // This coarse adapter only makes the semantic frontage plan visible in CI; a future
-                // grammar backend can replace its geometry without changing Kentridge's massing plan.
+                // This coarse adapter makes the semantic frontage/block plan visible while the final
+                // stable gameplay roles below now use the real per-role building grammar.
                 KentridgeUrbanMassingCatalogue.Build(seed, settings, Allocator.Temp),
 
                 // Secondary hard architecture comes immediately before gameplay buildings. Where an
                 // embedded dwelling touches a named building, the stable role building wins last.
                 KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp),
-                KentridgeVerticalPlacementAdapter.BuildStructures(
-                    seed, settings, Allocator.Temp),
+                KentridgeGrammarVoxelCatalogue.Build(seed, settings, Allocator.Temp),
             };
 
             try
