@@ -12,6 +12,14 @@ namespace VoxelEngine.Rendering.Vegetation
     /// </summary>
     public static class ProceduralTreeMeshBuilder
     {
+        /// <summary>
+        /// Compatibility entry point for older editor/CI captures. Skeleton generation now lives
+        /// in the render-independent Core assembly; keep this forwarding method so lookdev tools
+        /// do not need to know where the implementation moved.
+        /// </summary>
+        public static ProceduralTreeSkeleton GenerateSkeleton(in TreeInstance instance) =>
+            ProceduralTreeSkeletonBuilder.Generate(in instance);
+
         public static Mesh BuildMesh(ProceduralTreeSkeleton skeleton, int lod,
                                      HashSet<int> removedBranches = null) =>
             BuildMeshInternal(skeleton, lod, removedBranches, null);
