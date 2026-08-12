@@ -8,10 +8,6 @@ namespace VoxelEngine.Net.Server
 {
     /// <summary>
     /// Safe composition root for live authoritative networking.
-    ///
-    /// Per fixed tick: authenticate/validate/apply client intent -> queue mutation EVENT packets ->
-    /// append semantic hash barriers -> capture/fence requested full-region state -> queue bounded
-    /// REPAIR/BULK packets -> one transport flush. Socket callbacks only decode/copy into inboxes.
     /// </summary>
     public sealed class AuthoritativeServerSession : IDisposable
     {
@@ -24,6 +20,7 @@ namespace VoxelEngine.Net.Server
         private readonly ServerCommandProcessor _processor;
         private readonly ServerConvergenceManager _convergence;
         private readonly ServerBulkRegionStateManager _bulkRegionState;
+        private readonly ServerPlayerStateReplicator _playerStates;
         private readonly ServerDeterministicAlterationApplier _defaultAlterationApplier;
         private bool _disposed;
 
@@ -39,7 +36,8 @@ namespace VoxelEngine.Net.Server
             Validation.DensityCap densityCap,
             int maxConnections = 64,
             int initialEventCapacity = 64,
-            uint hashIntervalTicks = ServerConvergenceManager.DefaultHashIntervalTicks)
+            uint hashIntervalTicks = ServerConvergenceManager.DefaultHashIntervalTicks,
+            uint playerStateIntervalTicks = ServerPlayerStateReplicator.DefaultIntervalTicks)
         {
             _inbox = new ServerCommandInbox();
             _convergenceInbox = new ServerConvergenceInbox();
@@ -55,6 +53,7 @@ namespace VoxelEngine.Net.Server
             _processor = new ServerCommandProcessor(_inbox, _players, _rateLimiter, serverSeed, densityCap);
             _convergence = new ServerConvergenceManager(_convergenceInbox, _players, hashIntervalTicks);
             _bulkRegionState = new ServerBulkRegionStateManager(_regionStateInbox, _players);
+            _playerStates = new ServerPlayerStateReplicator(_players, _processor, playerStateIntervalTicks);
             _defaultAlterationApplier = new ServerDeterministicAlterationApplier();
 
             _network.ConnectionOpened += OnConnectionOpened;
@@ -72,6 +71,7 @@ namespace VoxelEngine.Net.Server
         public ServerCommandProcessor Processor => _processor;
         public ServerConvergenceManager Convergence => _convergence;
         public ServerBulkRegionStateManager BulkRegionState => _bulkRegionState;
+        public ServerPlayerStateReplicator PlayerStates => _playerStates;
         public int ConnectionCount => _disposed ? 0 : _network.ConnectionCount;
         public NetworkEndpoint LocalEndpoint => _disposed ? default : _network.LocalEndpoint;
 
@@ -113,6 +113,34 @@ namespace VoxelEngine.Net.Server
             return true;
         }
 
+        /// <summary>
+        /// Game/simulation hook used from the authoritative fixed-tick path after movement resolves.
+        /// The resulting absolute state is what the next player-state snapshot samples.
+        /// </summary>
+        public bool UpdateAuthoritativePlayerKinematics(
+            uint connectionId,
+            float3 positionVoxels,
+            float3 velocityVoxelsPerSecond,
+            ushort viewYaw,
+            S_PlayerState.StateFlags stateFlags = S_PlayerState.StateFlags.None)
+        {
+            ThrowIfDisposed();
+            if (!_network.ContainsConnection(connectionId) ||
+                !_players.UpdateAuthoritativeKinematics(
+                    connectionId,
+                    positionVoxels,
+                    velocityVoxelsPerSecond,
+                    viewYaw,
+                    stateFlags))
+                return false;
+
+            if (!_players.TryGetByConnection(connectionId, out var player))
+                return false;
+
+            _network.UpdateConnectionPosition(connectionId, player.PositionVoxels);
+            return true;
+        }
+
         public void ProcessAuthoritativeTick(
             uint serverTick,
             ref RegionTable table,
@@ -143,8 +171,6 @@ namespace VoxelEngine.Net.Server
 
             _network.BeginTick(serverTick);
 
-            // Reports/requests were decoded during frame pumps. Verification and snapshot work occur
-            // at this deterministic point, never from a transport callback.
             _convergence.ProcessMismatchReports(serverTick, _network.Replication.Subscriptions);
 
             _processor.ProcessTick(
@@ -157,7 +183,10 @@ namespace VoxelEngine.Net.Server
                 _network,
                 _network);
 
-            // Same-tick mutation EVENTs are queued before hash barriers and any full-state fence.
+            // Game-owned ApplyInput may update ServerPlayerRegistry kinematics through
+            // UpdateAuthoritativePlayerKinematics. Sample only after the fixed-tick input work is done.
+            _playerStates.Emit(serverTick, _network.Replication.Subscriptions, _network);
+
             _network.FlushReplication();
             _convergence.EmitHashes(
                 serverTick,
@@ -166,9 +195,6 @@ namespace VoxelEngine.Net.Server
                 _network.Replication.Subscriptions,
                 _network);
 
-            // Full-region snapshots represent the world after all mutations above. The manager queues
-            // an EVENT fence now, before a future tick can append newer authority, then sends snapshot
-            // bytes on throttled fragmented BULK.
             _bulkRegionState.ProcessRequests(
                 serverTick,
                 ref table,
@@ -192,6 +218,7 @@ namespace VoxelEngine.Net.Server
             if (_players.RemoveConnection(connectionId, out ushort playerId))
             {
                 _processor.RemovePlayer(playerId);
+                _playerStates.RemovePlayer(playerId);
                 SessionLifecycle.PlayerLeave();
             }
             ConnectionClosed?.Invoke(connectionId);
