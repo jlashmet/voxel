@@ -11,30 +11,39 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void UrbanPlanPreservesAxialAscentWhileDensifyingUpperBands()
+        public void UrbanPlanUsesBlocksToTurnCornersWithoutClosingTheMainAscent()
         {
             KentridgeUrbanMassingPlan plan = KentridgeUrbanOrganizer.Build(Seed);
 
-            Assert.AreEqual(6, plan.FrontageRuns.Count);
+            Assert.AreEqual(7, plan.Blocks.Count);
+            Assert.AreEqual(14, plan.FrontageRuns.Count,
+                "Each first-pass block should expose one contour frontage and one returning side edge.");
             Assert.AreEqual(1, plan.Thresholds.Count);
 
-            int civicRuns = 0;
+            int horizontalRuns = 0;
+            int verticalRuns = 0;
+            int accessGaps = 0;
+            int civicSouthRuns = 0;
             int westCivicEnd = int.MinValue;
             int eastCivicStart = int.MaxValue;
 
             for (int i = 0; i < plan.FrontageRuns.Count; i++)
             {
                 KentridgeFrontageRun run = plan.FrontageRuns[i];
-                Assert.IsTrue(run.IsHorizontal,
-                    "The first authored massing plan uses contour-following horizontal frontage.");
-                Assert.Greater(run.LengthDm, 100);
+                Assert.IsTrue(run.IsHorizontal || run.IsVertical);
+                Assert.Greater(run.LengthDm, 80);
                 Assert.That(run.CoveragePercent, Is.InRange(60, 90));
                 Assert.That(run.MinStoreys, Is.InRange(2, 3));
                 Assert.That(run.MaxStoreys, Is.InRange(run.MinStoreys, 3));
 
-                if (run.Band == KentridgeUrbanBand.CivicCrown)
+                if (run.IsHorizontal) horizontalRuns++;
+                if (run.IsVertical) verticalRuns++;
+                if (run.HasGap) accessGaps++;
+
+                if (run.Band == KentridgeUrbanBand.CivicCrown
+                    && run.Frontage == FrontageDirection.South)
                 {
-                    civicRuns++;
+                    civicSouthRuns++;
                     if (run.EndDm.X <= KentridgeTownPlanner.MainSpineXDm)
                         westCivicEnd = System.Math.Max(westCivicEnd, run.EndDm.X);
                     if (run.StartDm.X >= KentridgeTownPlanner.MainSpineXDm)
@@ -42,7 +51,13 @@ namespace VoxelEngine.Tests.EditMode
                 }
             }
 
-            Assert.AreEqual(2, civicRuns);
+            Assert.AreEqual(7, horizontalRuns);
+            Assert.AreEqual(7, verticalRuns,
+                "Every block should turn at least one corner instead of reading as a detached roof row.");
+            Assert.AreEqual(7, accessGaps,
+                "Every block should reserve a visible lane into its interior court.");
+
+            Assert.AreEqual(2, civicSouthRuns);
             Assert.LessOrEqual(westCivicEnd, 1110);
             Assert.GreaterOrEqual(eastCivicStart, 1240);
             Assert.Greater(eastCivicStart - westCivicEnd,
@@ -56,21 +71,54 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void CoarseMassingAdapterRealizesThePlanWithoutCreatingGameplayStructures()
+        public void EveryUrbanBlockProtectsAnInteriorVoidAndAFrontageAccess()
+        {
+            KentridgeUrbanMassingPlan plan = KentridgeUrbanOrganizer.Build(Seed);
+
+            for (int i = 0; i < plan.Blocks.Count; i++)
+            {
+                KentridgeUrbanBlock block = plan.Blocks[i];
+                Assert.Greater(block.InteriorMaxDm.X, block.InteriorMinDm.X, block.Id);
+                Assert.Greater(block.InteriorMaxDm.Y, block.InteriorMinDm.Y, block.Id);
+                Assert.AreNotEqual(KentridgeBlockEdge.None, block.CourtAccessEdge, block.Id);
+                Assert.AreNotEqual(
+                    KentridgeBlockEdge.None,
+                    block.FrontageEdges & block.CourtAccessEdge,
+                    block.Id);
+                Assert.Greater(block.AccessWidthDm, 0, block.Id);
+            }
+
+            KentridgeUrbanBlock market = plan.Blocks[1];
+            Assert.GreaterOrEqual(market.MinDm.Y, 660,
+                "Anonymous market blocks must stay beyond the market-square public-space reservation.");
+
+            KentridgeUrbanBlock civicWest = plan.Blocks[4];
+            KentridgeUrbanBlock civicEast = plan.Blocks[5];
+            Assert.GreaterOrEqual(civicWest.MinDm.Y, 194);
+            Assert.GreaterOrEqual(civicEast.MinDm.Y, 194,
+                "Civic blocks must frame rather than consume the crown forecourt reservation.");
+        }
+
+        [Test]
+        public void CoarseMassingAdapterRealizesTurnedBlocksWithoutCreatingGameplayStructures()
         {
             FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             try
             {
                 Assert.AreEqual(2, massing.Definitions.Length,
-                    "CI massing adapter only needs two silhouette heights.");
-                Assert.AreEqual(17, massing.ExplicitPlacements.Length,
-                    "Six frontage runs should currently resolve to seventeen anonymous massing sites.");
+                    "CI massing adapter still only needs two silhouette heights.");
+                Assert.AreEqual(33, massing.ExplicitPlacements.Length,
+                    "Seven corner-turning blocks with court gaps should currently resolve to 33 anonymous masses.");
 
                 for (int i = 0; i < massing.Definitions.Length; i++)
                 {
                     Assert.AreEqual(FeatureKind.Infrastructure, massing.Definitions[i].Kind);
                     Assert.AreEqual(86, massing.Definitions[i].Precedence);
+                    Assert.AreEqual(
+                        massing.Definitions[i].Footprint.x,
+                        massing.Definitions[i].Footprint.z,
+                        "Quarter-turn block frontage requires an orientation-independent square envelope.");
                 }
             }
             finally
