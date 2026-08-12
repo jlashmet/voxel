@@ -13,6 +13,11 @@ namespace VoxelEngine.Net.Server
         void HandleRegionHashMismatch(uint connectionId, in C_RegionHashMismatch mismatch);
     }
 
+    public interface IClientRegionRequestHandler
+    {
+        void HandleRegionRequest(uint connectionId, in C_RegionRequest request);
+    }
+
     /// <summary>
     /// Server-side reliable EVENT dispatcher. Framing/type validation happens here; decoded intent
     /// is handed to bounded queues with transport-owned connection identity supplied separately.
@@ -23,7 +28,8 @@ namespace VoxelEngine.Net.Server
             uint connectionId,
             ReadOnlySpan<byte> packet,
             IClientEventCommandHandler eventHandler,
-            IClientConvergenceCommandHandler convergenceHandler = null)
+            IClientConvergenceCommandHandler convergenceHandler = null,
+            IClientRegionRequestHandler regionRequestHandler = null)
         {
             if (eventHandler == null)
                 throw new ArgumentNullException(nameof(eventHandler));
@@ -43,6 +49,13 @@ namespace VoxelEngine.Net.Server
                         !RegionHashMismatchPacket.TryDecode(packet, out C_RegionHashMismatch mismatch))
                         return false;
                     convergenceHandler.HandleRegionHashMismatch(connectionId, in mismatch);
+                    return true;
+
+                case ProtocolMessageKind.C_RegionRequest:
+                    if (regionRequestHandler == null ||
+                        !RegionRequestPacket.TryDecode(packet, out C_RegionRequest regionRequest))
+                        return false;
+                    regionRequestHandler.HandleRegionRequest(connectionId, in regionRequest);
                     return true;
 
                 default:
