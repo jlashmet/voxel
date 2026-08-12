@@ -18,7 +18,8 @@ namespace VoxelEngine.Net.Server
         private readonly UtpServerHost _host;
         private readonly EventDrivenReplicationPipeline _replication;
         private readonly AlterationBatchPacketSink _packetSink;
-        private readonly IClientEventCommandHandler _commandHandler;
+        private readonly IClientEventCommandHandler _eventHandler;
+        private readonly IClientInputCommandHandler _inputHandler;
         private bool _disposed;
 
         public event Action<uint, NetworkEndpoint> ConnectionOpened;
@@ -27,11 +28,21 @@ namespace VoxelEngine.Net.Server
         public event Action<uint, int> SendError;
 
         public ServerNetworkRuntime(
-            IClientEventCommandHandler commandHandler,
+            IClientEventCommandHandler eventHandler,
+            int maxConnections = 64,
+            int initialEventCapacity = 64)
+            : this(eventHandler, null, maxConnections, initialEventCapacity)
+        {
+        }
+
+        public ServerNetworkRuntime(
+            IClientEventCommandHandler eventHandler,
+            IClientInputCommandHandler inputHandler,
             int maxConnections = 64,
             int initialEventCapacity = 64)
         {
-            _commandHandler = commandHandler ?? throw new ArgumentNullException(nameof(commandHandler));
+            _eventHandler = eventHandler ?? throw new ArgumentNullException(nameof(eventHandler));
+            _inputHandler = inputHandler;
             _host = new UtpServerHost(maxConnections);
             _replication = new EventDrivenReplicationPipeline(initialEventCapacity);
             _packetSink = new AlterationBatchPacketSink(_host);
@@ -48,7 +59,6 @@ namespace VoxelEngine.Net.Server
         public NetworkEndpoint LocalEndpoint => _disposed ? default : _host.LocalEndpoint;
         public EventDrivenReplicationPipeline Replication => _replication;
 
-        /// <summary>Bind/listen using the configured UTP host. Returns 0 on success.</summary>
         public int Listen(NetworkEndpoint endpoint)
         {
             ThrowIfDisposed();
@@ -56,16 +66,15 @@ namespace VoxelEngine.Net.Server
         }
 
         /// <summary>
-        /// Advance UTP connection/data state once. Call every Unity frame so handshakes,
-        /// acknowledgements, retransmits, and disconnects are not quantized to the simulation tick.
+        /// Advance UTP connection/data state once. Reliable durable commands and unreliable
+        /// sequenced player input are dispatched independently to their authoritative handlers.
         /// </summary>
         public void PumpTransport()
         {
             ThrowIfDisposed();
-            _host.Pump(_commandHandler);
+            _host.Pump(_eventHandler, _inputHandler);
         }
 
-        /// <summary>Begin collecting authoritative semantic events for one fixed simulation tick.</summary>
         public void BeginTick(uint tick)
         {
             ThrowIfDisposed();
@@ -82,10 +91,6 @@ namespace VoxelEngine.Net.Server
             _replication.PublishAlteration(in evt);
         }
 
-        /// <summary>
-        /// Update one authenticated connection's authoritative gameplay position for 3D simulation
-        /// interest. Returns the number of regions currently subscribed after hysteresis is applied.
-        /// </summary>
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)
         {
             ThrowIfDisposed();
@@ -106,10 +111,6 @@ namespace VoxelEngine.Net.Server
             _host.FlushSends();
         }
 
-        /// <summary>
-        /// Low-level channel send for framed repair/bulk/session messages while those paths migrate
-        /// onto the same host. Durable alteration batches should use PublishAlteration/EndTick.
-        /// </summary>
         public bool TrySend(uint connectionId, UtpChannel channel, ReadOnlySpan<byte> packet)
         {
             ThrowIfDisposed();
@@ -129,8 +130,6 @@ namespace VoxelEngine.Net.Server
 
         private void OnConnectionClosed(uint connectionId)
         {
-            // Interest state is transport-lifetime scoped. Remove it immediately so a dead peer
-            // cannot remain in region fan-out sets and consume bandwidth/encoding work.
             _replication.RemoveConnection(connectionId);
             ConnectionClosed?.Invoke(connectionId);
         }
