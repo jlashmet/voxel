@@ -11,10 +11,10 @@ namespace MountingForce.WorldGen.Voxel
     /// Turns Kentridge's macro height profile into neighbourhood-scale urban shelves.
     ///
     /// The authored rectangle for each district is the flat buildable core. Around that core the
-    /// catalogue grows a stepped earth shoulder that descends toward surrounding terrain. The
-    /// shoulder material now changes with urban intensity: lower homes retain garden-like ground,
-    /// mixed working/inn shelves expose packed earth, and market/upper/civic cores read as paved
-    /// hardscape. Crisp retaining walls and stairs are authored separately as Infrastructure.
+    /// catalogue grows four continuous earth wedges that descend toward surrounding terrain. This
+    /// preserves deterministic flat building land without the previous layer-cake steps or giant
+    /// exposed rectangular cliff faces. Crisp retaining walls and stairs remain a separate
+    /// Infrastructure pass so built edges stay architectural while these shoulders stay terrain.
     /// </summary>
     public static class KentridgeDistrictTerraceCatalogue
     {
@@ -22,12 +22,13 @@ namespace MountingForce.WorldGen.Voxel
         private const int BuriedFootingDm = 8;
         private const int ClearAboveDm = 48;
         private const int NaturalSampleStepDm = 64;
-
-        // The core remains the semantic shelf. These 3.6 m shoulders live outside it so building
-        // support is unchanged while the silhouette tapers toward adjacent natural terrain.
         private const int ShoulderWidthDm = 36;
-        private const int ShoulderLevels = 3;
-        private const int ShoulderCapThicknessDm = 2;
+        private const int ShoulderSurfaceDepthDm = 2;
+        private const int OuterGreenBandDm = 6;
+
+        private const byte RampAxisX = 0;
+        private const byte RampAxisZ = 2;
+        private const byte ReverseRampBit = 0x80;
 
         private enum SurfaceCharacter : byte
         {
@@ -150,8 +151,6 @@ namespace MountingForce.WorldGen.Voxel
                     FixedAltitude = 0,
                     Footprint = build.Footprint,
                     MaxSlope = 32,
-                    // Ground cover is 5 and authored roads start at 20. District landform owns the
-                    // hill first; circulation, infrastructure, parcel grading, and structures refine it.
                     Precedence = 15,
                     ParameterOffset = 0,
                     ParameterCount = 0,
@@ -163,7 +162,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 12,
+                    MaxPrimitives = 18,
                 };
 
                 catalogue.ExplicitPlacements[i] = new ExplicitPlacement
@@ -285,25 +284,21 @@ namespace MountingForce.WorldGen.Voxel
             int shoulder = build.ShoulderWidth;
             int width = coreWidth + shoulder * 2;
             int depth = coreDepth + shoulder * 2;
-            int shoulderCap = Math.Max(1, ShoulderCapThicknessDm * s);
+            int shoulderSurfaceDepth = Math.Max(1, ShoulderSurfaceDepthDm * s);
+            int outerGreen = Math.Max(1, OuterGreenBandDm * s);
 
-            // High shelves spend most of their artificial rise across the shoulder instead of
-            // exposing it as one vertical wall. Low shelves still get at least a modest stepped toe.
+            // Preserve the previous low toe height but replace the three intermediate rectangular
+            // shelves with one continuous wedge on each side of the flat core.
             int maximumDrop = Math.Max(0, build.SupportHeight - 1);
             int desiredDrop = Math.Max(12 * s, build.SupportHeight * 2 / 3);
             int shoulderDrop = Math.Min(maximumDrop, desiredDrop);
-
-            int h0 = build.SupportHeight - shoulderDrop;
-            int h1 = build.SupportHeight - shoulderDrop * 2 / 3;
-            int h2 = build.SupportHeight - shoulderDrop / 3;
-            int inset1 = shoulder / ShoulderLevels;
-            int inset2 = shoulder * 2 / ShoulderLevels;
+            int lowFillHeight = build.SupportHeight - shoulderDrop + shoulderSurfaceDepth;
+            int highFillHeight = build.SupportHeight + build.CapThickness;
+            int rampRise = Math.Max(1, highFillHeight - lowFillHeight);
             int coreInset = shoulder;
 
-            byte outerCap = moss;
-            byte middleCap = build.Seed.Surface == SurfaceCharacter.Green ? moss : earth;
-            byte innerCap = build.Seed.Surface == SurfaceCharacter.Green ? moss : earth;
-            byte coreCap = build.Seed.Surface switch
+            byte shoulderSurface = build.Seed.Surface == SurfaceCharacter.Green ? moss : earth;
+            byte coreSurface = build.Seed.Surface switch
             {
                 SurfaceCharacter.Green => moss,
                 SurfaceCharacter.Mixed => earth,
@@ -312,38 +307,56 @@ namespace MountingForce.WorldGen.Voxel
 
             var b = new ProgramBuilder();
 
-            // Clear from the lowest shoulder level upward, then rebuild the hillside as nested
-            // terraces. Only the outer toe stays consistently green. Urban shelves transition
-            // through exposed/packed earth into a paved core, eliminating the repeated lawn bands.
-            b.Carve(0, h0, 0,
-                    width, build.ClearHeight + shoulderDrop + build.CapThickness, depth);
+            b.Carve(0, Math.Max(0, lowFillHeight - shoulderSurfaceDepth), 0,
+                    width,
+                    build.ClearHeight + shoulderDrop + build.CapThickness + shoulderSurfaceDepth,
+                    depth);
 
-            AddTier(b, 0, 0, width, depth,
-                    0, h0, shoulderCap, earth, outerCap);
-            AddTier(b, inset1, inset1,
-                    width - inset1 * 2, depth - inset1 * 2,
-                    h0, h1, shoulderCap, earth, middleCap);
-            AddTier(b, inset2, inset2,
-                    width - inset2 * 2, depth - inset2 * 2,
-                    h1, h2, shoulderCap, earth, innerCap);
-            AddTier(b, coreInset, coreInset,
-                    coreWidth, coreDepth,
-                    h2, build.SupportHeight, build.CapThickness, earth, coreCap);
+            // Low district-scale toe beneath all four shoulder wedges.
+            b.Box(0, 0, 0, width, lowFillHeight, depth, earth);
+
+            // Flat buildable core reaches the same target surface elevation as before.
+            b.Box(coreInset, lowFillHeight, coreInset,
+                  coreWidth, rampRise, coreDepth, earth);
+
+            // North/south wedges span the full shelf width; west/east wedges fill the central side
+            // bands. Their overlaps are intentional and deterministic because every fill is earth.
+            b.Ramp(0, lowFillHeight, 0,
+                   width, rampRise, shoulder,
+                   RampAxisZ, earth);
+            b.Ramp(0, lowFillHeight, coreInset + coreDepth,
+                   width, rampRise, shoulder,
+                   (byte)(RampAxisZ | ReverseRampBit), earth);
+            b.Ramp(0, lowFillHeight, coreInset,
+                   shoulder, rampRise, coreDepth,
+                   RampAxisX, earth);
+            b.Ramp(coreInset + coreWidth, lowFillHeight, coreInset,
+                   shoulder, rampRise, coreDepth,
+                   (byte)(RampAxisX | ReverseRampBit), earth);
+
+            // Surface paint follows the actual wedge tops column-by-column rather than adding
+            // another geometric cap. Urban/mixed shoulders remain earth-toned; lower homes stay green.
+            b.Box(0, 0, 0, width, highFillHeight + 1, depth,
+                  shoulderSurface, PrimitiveMode.PaintSurface);
+            b.Box(coreInset, 0, coreInset, coreWidth, highFillHeight + 1, coreDepth,
+                  coreSurface, PrimitiveMode.PaintSurface);
+
+            if (build.Seed.Surface != SurfaceCharacter.Green)
+            {
+                // A thin vegetated toe keeps authored shelves visually tied to the natural biome
+                // without recreating broad green stripes between every urban level.
+                b.Box(0, 0, 0, width, highFillHeight + 1, outerGreen,
+                      moss, PrimitiveMode.PaintSurface);
+                b.Box(0, 0, depth - outerGreen, width, highFillHeight + 1, outerGreen,
+                      moss, PrimitiveMode.PaintSurface);
+                b.Box(0, 0, outerGreen, outerGreen, highFillHeight + 1, depth - outerGreen * 2,
+                      moss, PrimitiveMode.PaintSurface);
+                b.Box(width - outerGreen, 0, outerGreen,
+                      outerGreen, highFillHeight + 1, depth - outerGreen * 2,
+                      moss, PrimitiveMode.PaintSurface);
+            }
 
             return b.Finish();
-        }
-
-        private static void AddTier(ProgramBuilder b,
-                                    int x, int z, int width, int depth,
-                                    int fromY, int toY, int capThickness,
-                                    byte earth, byte capMaterial)
-        {
-            int height = toY - fromY;
-            if (height > 0)
-                b.Box(x, fromY, z, width, height, depth, earth);
-
-            int cap = Math.Max(1, capThickness);
-            b.Box(x, toY, z, width, cap, depth, capMaterial);
         }
 
         private sealed class ProgramBuilder
@@ -355,6 +368,15 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, (int)mode);
+            }
+
+            public void Ramp(int x, int y, int z, int sx, int sy, int sz,
+                             byte axis, byte material,
+                             PrimitiveMode mode = PrimitiveMode.Fill)
+            {
+                if (sx <= 0 || sy <= 0 || sz <= 0) return;
+                Op(ShapeOp.EmitRamp, x, y, z, sx, sy, sz,
+                   axis, material, (int)mode);
             }
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
