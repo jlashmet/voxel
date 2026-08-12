@@ -239,6 +239,9 @@ namespace VoxelEngine.CI
             Assert.That(crownTilt, Is.GreaterThan(startTilt + 8f),
                         "The remaining tree translated but did not visibly topple from the severed base.");
             Assert.That(crownTravel + crown.linearVelocity.magnitude * 0.1f, Is.GreaterThan(0.10f));
+            int crownToppleVisiblePixels = CountExactRendererPixels(camera, target, crownRenderer, 8);
+            Assert.That(crownToppleVisiblePixels, Is.GreaterThan(128),
+                        "The crown toppled numerically but left the camera before the fall could be seen.");
             Capture(camera, target, ref capture,
                     Path.Combine(outputDirectory, "04-showcase-crown-toppling.png"));
 
@@ -270,6 +273,7 @@ namespace VoxelEngine.CI
                 $"barkTrianglesAfterTrunk={barkAfterTrunk}\n" +
                 $"breakCaps={CountBreakCaps()}\n" +
                 $"crownVisiblePixels={crownVisiblePixels}\n" +
+                $"crownToppleVisiblePixels={crownToppleVisiblePixels}\n" +
                 $"crownTravelMetres={crownTravel:F3}\n" +
                 $"crownTiltDegrees={crownTilt:F2}\n" +
                 $"crownExpired={FindDetachedBody(treeIndex, severedTrunkIndex) == null}\n" +
