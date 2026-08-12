@@ -8,10 +8,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
     /// These values are presentation-only. They never mutate voxel storage, collision, destruction,
     /// or networking state. Smoothing blends from exact binary occupancy (0) toward a reconstructed
     /// field (1). Distance recovery chooses how much of that reconstruction comes from local
-    /// coverage/gradient signed-distance estimation instead of the legacy low-pass field. Positive
-    /// density bias expands the derived iso-surface; negative bias contracts it. Modification adds
-    /// deterministic low-frequency shape variation in density space. Planarization can additionally
-    /// pull strongly axis-aligned manufactured faces toward exact voxel-boundary planes.
+    /// coverage/gradient signed-distance estimation instead of the legacy low-pass field, while
+    /// CurveRecovery blends between a tight radius-one estimator and a wider radius-two estimator.
+    /// Positive density bias expands the derived iso-surface; negative bias contracts it.
+    /// Planarization can pull strongly axis-aligned manufactured faces toward exact voxel planes.
     /// </summary>
     public readonly struct VoxelSurfaceProfile
     {
@@ -20,7 +20,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                                    float modificationScaleVoxels = 4f,
                                    float planarization = 0f,
                                    float planarizationThreshold = 0.88f,
-                                   float distanceRecovery = 0f)
+                                   float distanceRecovery = 0f,
+                                   float curveRecovery = 0f)
         {
             Smoothing = math.saturate(smoothing);
             DensityBias = math.clamp(densityBias, -0.45f, 0.45f);
@@ -29,6 +30,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             Planarization = math.saturate(planarization);
             PlanarizationThreshold = math.clamp(planarizationThreshold, 0.58f, 0.995f);
             DistanceRecovery = math.saturate(distanceRecovery);
+            CurveRecovery = math.saturate(curveRecovery);
         }
 
         /// <summary>0 = preserve voxel occupancy; 1 = use the selected reconstructed visual field.</summary>
@@ -56,25 +58,33 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public float PlanarizationThreshold { get; }
 
         /// <summary>
-        /// 0 uses the legacy filtered occupancy field; 1 uses local coverage/gradient distance
+        /// 0 uses the legacy filtered occupancy field; 1 uses coverage/gradient signed-distance
         /// recovery. Intermediate values provide a stable migration/tuning range per material.
         /// </summary>
         public float DistanceRecovery { get; }
+
+        /// <summary>
+        /// Within distance recovery, 0 uses the tight 3x3x3 estimator and 1 uses the wider 5x5x5
+        /// estimator. The wider estimator removes digital-circle scallops; the tight estimator
+        /// preserves manufactured corners. Planarization can then recover broad dressed faces.
+        /// </summary>
+        public float CurveRecovery { get; }
 
         /// <summary>Matches the pre-profile hero renderer exactly.</summary>
         public static VoxelSurfaceProfile Legacy => new(0.92f);
 
         /// <summary>
-        /// Dressed masonry uses distance recovery to infer the intended sub-voxel plane/curve from
-        /// binary occupancy. The radius-one estimator preserves a 90-degree corner far better than
-        /// broad Gaussian smoothing while still removing the staircase from a large arch curve.
+        /// Dressed masonry combines a mostly-wide distance estimate for continuous archivolts with
+        /// strong planar preservation for cut faces. This avoids choosing between a smooth curve
+        /// and soap-bar ashlar.
         /// </summary>
         public static VoxelSurfaceProfile DressedStone => new(
             smoothing: 1.0f,
-            densityBias: -0.005f,
-            planarization: 0.20f,
-            planarizationThreshold: 0.94f,
-            distanceRecovery: 1.0f);
+            densityBias: -0.004f,
+            planarization: 0.78f,
+            planarizationThreshold: 0.89f,
+            distanceRecovery: 1.0f,
+            curveRecovery: 0.72f);
     }
 
     /// <summary>
