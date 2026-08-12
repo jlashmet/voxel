@@ -48,12 +48,11 @@ namespace VoxelEngine.CI
                 int baseY = terrainY + 5;
 
                 var brush = new VoxelBrush(world.Table, world.Pool, 4_000_000);
-
                 brush.FillBulk(new int3(cx - 42, baseY, cz - 24),
                     new int3(84, 72, 48), Mat.Empty);
                 WorldArtPrimitives.RoundedBox(ref brush,
                     new int3(cx - 34, baseY - 4, cz - 18),
-                    new int3(68, 5, 36), 2, Mat.DarkStone);
+                    new int3(68, 5, 36), 2, Mat.Stone);
 
                 WorldArtVoxelArchSpec spec = WorldArtVoxelArchSpec.Hero(
                     new int3(cx, baseY, cz), Mat.Stone, Mat.Empty, seed, Mat.DarkStone);
@@ -82,7 +81,7 @@ namespace VoxelEngine.CI
                 if (voxelSurface.RegionMeshCount == 0 || voxelSurface.VertexCount == 0)
                     throw new InvalidOperationException("Voxel hero arch produced no smooth surface geometry.");
 
-                ApplyVoxelPalette(voxelSurface.Root, owned);
+                ApplyVoxelPalette(voxelSurface.Root, in spec, owned);
                 SetupLighting(out keyObject, out fillObject);
                 SetupCamera(sockets, out cameraObject, out Camera camera);
 
@@ -114,6 +113,7 @@ namespace VoxelEngine.CI
                 string metadata =
                     "capture=AAA voxel-only arch hero study\n" +
                     "geometry=VoxelBrush -> bounded smooth voxel extraction\n" +
+                    "masonryDetail=component-driven sub-voxel shader seams\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
                     "heroSurfaceSampleMetres=0.05\n" +
@@ -150,72 +150,113 @@ namespace VoxelEngine.CI
             }
         }
 
-        private static void ApplyVoxelPalette(GameObject root, List<UnityEngine.Object> owned)
+        private static void ApplyVoxelPalette(GameObject root, in WorldArtVoxelArchSpec spec,
+                                              List<UnityEngine.Object> owned)
         {
             Shader shader = Shader.Find("VoxelEngine/SunlitSmooth");
             if (shader == null) throw new InvalidOperationException("SunlitSmooth shader not found.");
 
-            Material stone = MakeStone(shader, "Hero voxel limestone",
-                new Color(0.70f, 0.65f, 0.54f),
-                new Color(0.53f, 0.49f, 0.41f),
-                new Color(0.84f, 0.79f, 0.68f));
-            Material baseStone = MakeStone(shader, "Hero voxel joint/plinth stone",
-                new Color(0.43f, 0.41f, 0.35f),
-                new Color(0.31f, 0.30f, 0.27f),
-                new Color(0.51f, 0.49f, 0.42f));
+            Material stone = MakeStone(shader, "Hero cut limestone",
+                new Color(0.69f, 0.64f, 0.53f),
+                new Color(0.56f, 0.51f, 0.43f),
+                new Color(0.82f, 0.77f, 0.66f));
+            ConfigureArchMasonry(stone, in spec);
             owned.Add(stone);
-            owned.Add(baseStone);
 
+            // Material IDs still live in authoritative voxel storage, but the centimeter-scale
+            // mortar appearance is now derived continuously from the component spec. Assigning one
+            // stone surface material deliberately prevents 10 cm joint voxels from becoming jagged
+            // colour islands in the close-up renderer.
             foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
-            {
-                string n = renderer.gameObject.name.ToLowerInvariant();
-                renderer.sharedMaterial = n.Contains("darkstone") || n.Contains("structural")
-                    ? baseStone
-                    : stone;
-            }
+                renderer.sharedMaterial = stone;
         }
 
         private static Material MakeStone(Shader shader, string name, Color baseColor,
             Color secondary, Color top)
         {
             Material m = new Material(shader) { name = name };
+            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(
+                "Assets/Textures/Stylized/stone_color.png");
+            if (texture != null) m.SetTexture("_MainTex", texture);
             SetColor(m, "_BaseColor", baseColor);
             SetColor(m, "_SecondaryColor", secondary);
             SetColor(m, "_TopColor", top);
             SetFloat(m, "_SurfaceKind", 2f);
-            SetFloat(m, "_TextureScale", 0.18f);
-            SetFloat(m, "_TextureStrength", 0.36f);
-            SetFloat(m, "_DetailScale", 0.045f);
-            SetFloat(m, "_DetailStrength", 0.085f);
-            SetFloat(m, "_TopStrength", 0.20f);
-            SetFloat(m, "_RimStrength", 0.014f);
-            SetFloat(m, "_Smoothness", 0.018f);
+            SetFloat(m, "_TextureScale", 0.48f);
+            SetFloat(m, "_TextureStrength", 0.24f);
+            SetFloat(m, "_DetailScale", 0.72f);
+            SetFloat(m, "_DetailStrength", 0.055f);
+            SetFloat(m, "_TopStrength", 0.16f);
+            SetFloat(m, "_RimStrength", 0.008f);
+            SetFloat(m, "_Smoothness", 0.015f);
             return m;
+        }
+
+        private static void ConfigureArchMasonry(Material material, in WorldArtVoxelArchSpec spec)
+        {
+            float s = VoxelSurfaceRenderer.VoxelSize;
+            int halfOpening = math.max(4, spec.HalfOpening);
+            int pierHeight = math.max(8, spec.PierHeight);
+            int pierWidth = math.max(4, spec.PierWidth);
+            int courseHeight = math.max(3, spec.CourseHeight);
+            int ringThickness = math.max(3, spec.RingThickness);
+            int depth = math.max(4, spec.Depth);
+            int impostHeight = math.max(2, spec.ImpostHeight);
+            int outerRadius = halfOpening + ringThickness;
+            int springY = spec.BaseCentre.y + pierHeight;
+            int plinthHeight = math.max(3, courseHeight - 1);
+            int shaftY = spec.BaseCentre.y + plinthHeight;
+            int pierOffset = halfOpening + (pierWidth + 1) / 2;
+            int frontZ = spec.BaseCentre.z - depth / 2;
+            int backingFrontZ = frontZ + math.min(2, depth - 2);
+
+            SetFloat(material, "_ArchSeams", 1f);
+            SetColor(material, "_ArchJointColor", new Color(0.31f, 0.285f, 0.245f, 1f));
+            SetVector(material, "_ArchCenterSpring", new Vector4(
+                spec.BaseCentre.x * s,
+                springY * s,
+                (frontZ - 0.5f) * s,
+                0f));
+            SetVector(material, "_ArchRadii", new Vector4(
+                halfOpening * s,
+                outerRadius * s,
+                15f,
+                0.024f));
+            SetVector(material, "_ArchPier", new Vector4(
+                pierOffset * s,
+                pierWidth * s,
+                courseHeight * s,
+                shaftY * s));
+            SetVector(material, "_ArchVertical", new Vector4(
+                spec.BaseCentre.y * s,
+                springY * s,
+                (backingFrontZ - 0.5f) * s,
+                depth * s));
         }
 
         private static void SetupLighting(out GameObject keyObject, out GameObject fillObject)
         {
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.34f, 0.38f, 0.44f);
-            RenderSettings.ambientEquatorColor = new Color(0.25f, 0.26f, 0.25f);
-            RenderSettings.ambientGroundColor = new Color(0.10f, 0.10f, 0.095f);
-            RenderSettings.ambientIntensity = 0.62f;
+            RenderSettings.ambientSkyColor = new Color(0.30f, 0.34f, 0.40f);
+            RenderSettings.ambientEquatorColor = new Color(0.21f, 0.22f, 0.22f);
+            RenderSettings.ambientGroundColor = new Color(0.075f, 0.075f, 0.070f);
+            RenderSettings.ambientIntensity = 0.50f;
             RenderSettings.fog = false;
 
             keyObject = new GameObject("Voxel arch warm key");
             Light key = keyObject.AddComponent<Light>();
             key.type = LightType.Directional;
             key.color = new Color(1.0f, 0.88f, 0.70f);
-            key.intensity = 1.20f;
+            key.intensity = 1.38f;
             key.shadows = LightShadows.Soft;
-            key.shadowStrength = 0.74f;
+            key.shadowStrength = 0.76f;
             keyObject.transform.rotation = Quaternion.Euler(34f, -40f, 0f);
 
             fillObject = new GameObject("Voxel arch cool fill");
             Light fill = fillObject.AddComponent<Light>();
             fill.type = LightType.Directional;
-            fill.color = new Color(0.62f, 0.72f, 0.88f);
-            fill.intensity = 0.30f;
+            fill.color = new Color(0.60f, 0.70f, 0.86f);
+            fill.intensity = 0.25f;
             fill.shadows = LightShadows.None;
             fillObject.transform.rotation = Quaternion.Euler(22f, 132f, 0f);
         }
@@ -231,7 +272,7 @@ namespace VoxelEngine.CI
             cameraObject = new GameObject("AAA Voxel Arch Study Camera");
             camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.17f, 0.19f, 0.22f, 1f);
+            camera.backgroundColor = new Color(0.15f, 0.17f, 0.20f, 1f);
             camera.fieldOfView = 31f;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 80f;
@@ -250,6 +291,11 @@ namespace VoxelEngine.CI
         private static void SetFloat(Material material, string property, float value)
         {
             if (material.HasProperty(property)) material.SetFloat(property, value);
+        }
+
+        private static void SetVector(Material material, string property, Vector4 value)
+        {
+            if (material.HasProperty(property)) material.SetVector(property, value);
         }
     }
 }
