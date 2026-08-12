@@ -46,7 +46,7 @@ jobs:
           "${{ steps.unity.outputs.path }}" \
             -batchmode \
             -projectPath "$GITHUB_WORKSPACE" \
-            -executeMethod VoxelEngine.CI.SunlitWaterfallEnvironmentCapture.Run \
+            -executeMethod VoxelEngine.CI.SunlitStoneArchCapture.Run \
             -logFile "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/unity.log" \
             -quit
 
