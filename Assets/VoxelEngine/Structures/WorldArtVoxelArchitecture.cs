@@ -10,10 +10,6 @@ namespace VoxelEngine.Structures
         BrokenCrown
     }
 
-    /// <summary>
-    /// Integer voxel dimensions for a reusable masonry arch bay. One unit is one world voxel
-    /// (10 cm in the current engine). Geometry is authoritative VoxelBrush data only.
-    /// </summary>
     public struct WorldArtVoxelArchSpec
     {
         public int3 BaseCentre;
@@ -71,10 +67,8 @@ namespace VoxelEngine.Structures
     }
 
     /// <summary>
-    /// Reusable voxel-only arch component assembled from architectural sub-primitives. The front
-    /// archivolt is authored as a small number of keyed voussoir sectors over a continuous rear
-    /// structural ring. This gives the renderer real stone masses and arrises to preserve instead
-    /// of asking smoothing/shading to invent masonry from one featureless annulus.
+    /// Reusable voxel-only arch component assembled from architectural primitives. The visible
+    /// archivolt is a bond of true trapezoidal voussoir masses over a continuous rear ring.
     /// </summary>
     public static class WorldArtVoxelArchitecture
     {
@@ -98,45 +92,32 @@ namespace VoxelEngine.Structures
             int springY = spec.BaseCentre.y + pierHeight;
             int pierCentreOffset = halfOpening + (pierWidth + 1) / 2;
 
-            BuildPlinth(ref brush, spec.BaseCentre, -1, pierCentreOffset, pierWidth,
-                courseHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
-            BuildPlinth(ref brush, spec.BaseCentre, 1, pierCentreOffset, pierWidth,
-                courseHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
-
-            BuildPier(ref brush, spec.BaseCentre, -1, pierCentreOffset, pierWidth,
-                pierHeight, courseHeight, impostHeight, depth, jointDepth, masonryEdgeRadius,
-                spec.StoneMaterial, jointMaterial, spec.Seed + 101u);
-            BuildPier(ref brush, spec.BaseCentre, 1, pierCentreOffset, pierWidth,
-                pierHeight, courseHeight, impostHeight, depth, jointDepth, masonryEdgeRadius,
-                spec.StoneMaterial, jointMaterial, spec.Seed + 211u);
-
-            BuildImpost(ref brush, spec.BaseCentre, -1, pierCentreOffset, pierWidth,
-                halfOpening, springY, impostHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
-            BuildImpost(ref brush, spec.BaseCentre, 1, pierCentreOffset, pierWidth,
-                halfOpening, springY, impostHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
+            BuildPlinth(ref brush, spec.BaseCentre, -1, pierCentreOffset, pierWidth, courseHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
+            BuildPlinth(ref brush, spec.BaseCentre, 1, pierCentreOffset, pierWidth, courseHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
+            BuildPier(ref brush, spec.BaseCentre, -1, pierCentreOffset, pierWidth, pierHeight, courseHeight, impostHeight, depth, jointDepth, masonryEdgeRadius, spec.StoneMaterial, jointMaterial, spec.Seed + 101u);
+            BuildPier(ref brush, spec.BaseCentre, 1, pierCentreOffset, pierWidth, pierHeight, courseHeight, impostHeight, depth, jointDepth, masonryEdgeRadius, spec.StoneMaterial, jointMaterial, spec.Seed + 211u);
+            BuildImpost(ref brush, spec.BaseCentre, -1, pierCentreOffset, pierWidth, halfOpening, springY, impostHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
+            BuildImpost(ref brush, spec.BaseCentre, 1, pierCentreOffset, pierWidth, halfOpening, springY, impostHeight, depth, masonryEdgeRadius, spec.StoneMaterial);
 
             BuildStructuralRing(ref brush, spec.BaseCentre.x, springY, spec.BaseCentre.z,
                 halfOpening, outerRadius, depth, spec.StoneMaterial, spec.Damage);
             BuildFrontVoussoirs(ref brush, spec.BaseCentre.x, springY, frontZ,
                 halfOpening, outerRadius, archivoltProjection + 1, spec.StoneMaterial,
                 jointMaterial, spec.Damage);
-            BuildKeystone(ref brush, spec.BaseCentre.x, springY, frontZ,
-                halfOpening, outerRadius, archivoltProjection + 2, spec.StoneMaterial,
-                spec.Damage);
 
             BuildBackingMass(ref brush, spec.BaseCentre, pierCentreOffset, pierWidth,
                 springY, outerRadius, courseHeight, depth, jointDepth, archivoltProjection,
                 spec.StoneMaterial, jointMaterial, spec.Seed + 1103u, spec.Damage);
 
             if (spec.Damage != WorldArtVoxelArchDamage.Intact)
-                BuildRubble(ref brush, spec.BaseCentre, pierCentreOffset, courseHeight,
-                    depth, spec.StoneMaterial, spec.Seed + 1709u, spec.Damage);
+                BuildRubble(ref brush, spec.BaseCentre, pierCentreOffset, courseHeight, depth,
+                    spec.StoneMaterial, spec.Seed + 1709u, spec.Damage);
 
             int bayHalf = pierCentreOffset + (pierWidth + 1) / 2;
             return new WorldArtVoxelArchSockets
             {
                 Opening = new int3(spec.BaseCentre.x, springY + halfOpening / 3, frontZ - 1),
-                Crown = new int3(spec.BaseCentre.x, springY + outerRadius + 1, frontZ - 2),
+                Crown = new int3(spec.BaseCentre.x, springY + outerRadius, frontZ - 2),
                 LeftBase = new int3(spec.BaseCentre.x - pierCentreOffset, spec.BaseCentre.y, spec.BaseCentre.z),
                 RightBase = new int3(spec.BaseCentre.x + pierCentreOffset, spec.BaseCentre.y, spec.BaseCentre.z),
                 WallLeft = new int3(spec.BaseCentre.x - bayHalf, spec.BaseCentre.y + pierHeight / 2, spec.BaseCentre.z),
@@ -151,8 +132,7 @@ namespace VoxelEngine.Structures
         {
             int width = pierWidth + 3;
             int height = math.max(3, courseHeight - 1);
-            int3 min = new int3(origin.x + side * pierOffset - width / 2,
-                origin.y, origin.z - depth / 2 - 1);
+            int3 min = new int3(origin.x + side * pierOffset - width / 2, origin.y, origin.z - depth / 2 - 1);
             WorldArtPrimitives.RoundedBox(ref brush, min, new int3(width, height, depth + 2), edgeRadius, material);
         }
 
@@ -166,7 +146,6 @@ namespace VoxelEngine.Structures
             int leftX = origin.x + side * pierOffset - pierWidth / 2;
             int shaftY = origin.y + plinthHeight;
             int frontZ = origin.z - depth / 2;
-
             WorldArtPrimitives.RoundedBox(ref brush,
                 new int3(leftX, shaftY, frontZ), new int3(pierWidth, shaftHeight, depth), edgeRadius, material);
 
@@ -197,8 +176,6 @@ namespace VoxelEngine.Structures
             int pierOffset, int pierWidth, int halfOpening, int springY, int height, int depth,
             int edgeRadius, byte material)
         {
-            // Outer projection is generous; inner projection is deliberately only one voxel so
-            // the impost supports the spring without ballooning into the opening.
             int pierLeft = origin.x + side * pierOffset - pierWidth / 2;
             int pierRight = pierLeft + pierWidth;
             int innerFace = side < 0 ? pierRight : pierLeft;
@@ -208,7 +185,6 @@ namespace VoxelEngine.Structures
             int openingEdge = origin.x + side * halfOpening;
             if (side < 0) maxX = math.min(maxX, openingEdge + 1);
             else minX = math.max(minX, openingEdge - 1);
-
             WorldArtPrimitives.RoundedBox(ref brush,
                 new int3(minX, springY - height, origin.z - depth / 2 - 1),
                 new int3(maxX - minX, height, depth + 2), edgeRadius, material);
@@ -217,13 +193,9 @@ namespace VoxelEngine.Structures
         private static void BuildStructuralRing(ref VoxelBrush brush, int cx, int springY, int cz,
             int innerRadius, int outerRadius, int depth, byte material, WorldArtVoxelArchDamage damage)
         {
-            // Rear two-thirds remain continuous for robust destruction/load mass. The front is
-            // overwritten by keyed sectors below, so this annulus no longer owns the visible face.
-            int structuralFront = cz - depth / 2 + math.max(2, depth / 3);
-            float inner = innerRadius - 0.15f;
-            float outer = outerRadius + 0.05f;
-            float inner2 = inner * inner;
-            float outer2 = outer * outer;
+            int structuralFront = cz - depth / 2 + math.max(3, depth / 2);
+            float inner2 = (innerRadius - 0.1f) * (innerRadius - 0.1f);
+            float outer2 = (outerRadius + 0.05f) * (outerRadius + 0.05f);
             for (int z = structuralFront; z < cz + (depth + 1) / 2; z++)
             for (int y = 0; y <= outerRadius; y++)
             for (int x = -outerRadius; x <= outerRadius; x++)
@@ -235,80 +207,70 @@ namespace VoxelEngine.Structures
             }
         }
 
+        /// <summary>
+        /// Cut-stone voussoir primitive. Each stone is evaluated in its own radial/tangent frame,
+        /// yielding planar intrados/extrados chords and radial bed faces instead of an annulus slice.
+        /// The centre stone is the keystone: same primitive, slightly wider and one voxel prouder.
+        /// </summary>
         private static void BuildFrontVoussoirs(ref VoxelBrush brush, int cx, int springY, int frontZ,
             int innerRadius, int outerRadius, int faceDepth, byte stoneMaterial, byte jointMaterial,
             WorldArtVoxelArchDamage damage)
         {
             faceDepth = math.max(2, faceDepth);
             float sector = math.PI / HeroVoussoirCount;
-            float angularGap = 0.022f;
-            float inner = innerRadius - 0.10f;
-            float outer = outerRadius + 0.10f;
+            int keystone = HeroVoussoirCount / 2;
 
             for (int i = 0; i < HeroVoussoirCount; i++)
             {
-                float a0 = i * sector + angularGap;
-                float a1 = (i + 1) * sector - angularGap;
-                float amid = (a0 + a1) * 0.5f;
-                bool keystoneSector = i == HeroVoussoirCount / 2;
+                float mid = (i + 0.5f) * sector;
+                float ca = math.cos(mid);
+                float sa = math.sin(mid);
+                float tx = -sa;
+                float ty = ca;
+                bool isKey = i == keystone;
 
-                for (int y = 0; y <= outerRadius + 1; y++)
-                for (int x = -outerRadius - 1; x <= outerRadius + 1; x++)
+                float innerPlane = innerRadius - (isKey ? 0.5f : 0.15f);
+                float outerPlane = outerRadius + (isKey ? 0.8f : 0.15f);
+                float halfAngle = sector * 0.5f;
+                float innerHalfWidth = math.tan(halfAngle) * innerPlane - 0.45f;
+                float outerHalfWidth = math.tan(halfAngle) * outerPlane - 0.55f;
+                if (isKey)
                 {
-                    float r = math.sqrt(x * x + y * y);
-                    if (r < inner || r > outer) continue;
-                    float a = math.atan2(y, x);
-                    if (a < 0f) a += math.PI * 2f;
-                    if (a < a0 || a > a1) continue;
-                    if (OmitRingVoxel(x, y, outerRadius, damage)) continue;
+                    innerHalfWidth += 0.35f;
+                    outerHalfWidth += 0.55f;
+                }
 
-                    // Each sector gets a very slight radial keying variation. It is small enough
-                    // to keep a disciplined arch but large enough for individual masses to catch light.
-                    int localDepth = faceDepth;
-                    if (!keystoneSector)
-                    {
-                        float radialKey = math.abs(a - amid) / math.max(0.001f, (a1 - a0) * 0.5f);
-                        if (radialKey > 0.86f) localDepth = math.max(2, faceDepth - 1);
-                    }
+                int localDepth = faceDepth + (isKey ? 1 : ((i & 1) == 0 ? 0 : -1));
+                localDepth = math.max(2, localDepth);
+
+                for (int y = 0; y <= outerRadius + 2; y++)
+                for (int x = -outerRadius - 2; x <= outerRadius + 2; x++)
+                {
+                    float radial = x * ca + y * sa;
+                    if (radial < innerPlane || radial > outerPlane) continue;
+                    float tangent = x * tx + y * ty;
+                    float t = math.saturate((radial - innerPlane) / math.max(0.001f, outerPlane - innerPlane));
+                    float halfWidth = math.lerp(innerHalfWidth, outerHalfWidth, t);
+                    if (math.abs(tangent) > halfWidth) continue;
+                    if (OmitRingVoxel(x, y, outerRadius, damage)) continue;
                     for (int z = frontZ; z < frontZ + localDepth; z++)
                         brush.Set(cx + x, springY + y, z, stoneMaterial);
                 }
             }
 
-            // Paint the narrow radial mortar channels on the backing layer; the separate recessed
-            // masonry-surface pass will remove the outermost voxel along the same boundaries.
+            // Dark backing at the radial beds gives the physical recessed pass a coherent mortar bed.
             for (int boundary = 1; boundary < HeroVoussoirCount; boundary++)
             {
                 float angle = math.PI * boundary / HeroVoussoirCount;
                 float ca = math.cos(angle);
                 float sa = math.sin(angle);
-                for (int r = innerRadius; r <= outerRadius; r++)
+                for (int r = innerRadius - 1; r <= outerRadius + 1; r++)
                 {
                     int x = (int)math.round(ca * r);
                     int y = (int)math.round(sa * r);
                     if (OmitRingVoxel(x, y, outerRadius, damage)) continue;
                     brush.Set(cx + x, springY + y, frontZ + math.max(1, faceDepth - 1), jointMaterial);
                 }
-            }
-        }
-
-        private static void BuildKeystone(ref VoxelBrush brush, int cx, int springY, int frontZ,
-            int innerRadius, int outerRadius, int faceDepth, byte material,
-            WorldArtVoxelArchDamage damage)
-        {
-            if (damage == WorldArtVoxelArchDamage.BrokenCrown) return;
-            int crownY = springY + innerRadius;
-            int height = outerRadius - innerRadius + 3;
-            int halfBottom = 2;
-            int halfTop = 3;
-            for (int yy = 0; yy < height; yy++)
-            {
-                float t = height <= 1 ? 0f : yy / (float)(height - 1);
-                int half = (int)math.round(math.lerp(halfBottom, halfTop, t));
-                int y = crownY - 1 + yy;
-                for (int x = -half; x <= half; x++)
-                for (int z = frontZ - 1; z < frontZ + faceDepth; z++)
-                    brush.Set(cx + x, y, z, material);
             }
         }
 
