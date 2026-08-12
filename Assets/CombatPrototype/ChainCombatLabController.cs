@@ -300,6 +300,7 @@ namespace MountingForce.CombatPrototype
                 _board.Reset();
                 _reactionReservations.Reset();
                 _roundReadiness.Reset();
+                Planner?.ResetForBattle();
                 _uiMessage = "Battle reset. Author a new future in the execution plan.";
                 CancelCommand(false);
                 SelectFirstFriendly();

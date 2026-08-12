@@ -89,6 +89,18 @@ namespace MountingForce.CombatPrototype
             RebuildPreview(true);
         }
 
+        public void ResetForBattle()
+        {
+            _plan.ResetWithoutHistory();
+            _frameIndex = 0;
+            _dragRootPlanId = 0;
+            _autoPlay = true;
+            ResetAim(false);
+            ResolveBoard();
+            RebuildPreview(true);
+            _message = "Battle reset. Shared plan, edit history, aim state, and ghost playback were reset.";
+        }
+
         private void OnDestroy()
         {
             if (_ghostRoot != null) Destroy(_ghostRoot);

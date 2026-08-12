@@ -172,6 +172,38 @@ namespace VoxelEngine.Tests.PlayMode
             yield return null;
         }
 
+        [UnityTest]
+        public IEnumerator BattleResetClearsSharedPlanHistoryAndGhostBackToStart()
+        {
+            var root = new GameObject("Cascade Lab V9 Reset Test Root");
+            root.AddComponent<ChainCombatLabController>();
+            ChainExecutionPlanner planner = root.AddComponent<ChainExecutionPlanner>();
+
+            yield return null;
+
+            ChainCombatBoard ghostBoard = planner.PreviewBoard;
+            ChainUnitState stephen = Find(ghostBoard, ChainRecruitKind.Stephen);
+            Assert.That(planner.Plan.Add(ChainPlannedAction.Move(
+                stephen.CommandGroup, stephen.Id, new GridPos(2, 3))), Is.GreaterThan(0));
+            yield return null;
+
+            Assert.That(planner.Plan.HasActions, Is.True);
+            Assert.That(planner.Plan.CanUndo, Is.True);
+            Assert.That(planner.Preview.Frames.Count, Is.GreaterThan(1));
+
+            planner.ResetForBattle();
+
+            Assert.That(planner.Plan.HasActions, Is.False);
+            Assert.That(planner.Plan.CanUndo, Is.False);
+            Assert.That(planner.Plan.CanRedo, Is.False);
+            Assert.That(planner.Preview, Is.Not.Null);
+            Assert.That(planner.Preview.Frames.Count, Is.EqualTo(1),
+                "Reset should leave only the authoritative start frame, not stale future frames.");
+
+            Object.Destroy(root);
+            yield return null;
+        }
+
         private static ChainUnitState Find(ChainCombatBoard board, ChainRecruitKind kind)
         {
             for (int i = 0; i < board.Units.Count; i++)
