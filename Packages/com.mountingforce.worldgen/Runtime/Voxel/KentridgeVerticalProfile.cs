@@ -7,26 +7,37 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Shared authored height profile for the vertical Kentridge pass.
     ///
-    /// The important distinction from ordinary terrain adaptation is that the town now owns its
-    /// macro silhouette. Natural terrain supplies one stable reference altitude; the settlement
-    /// then climbs through intentionally designed elevation bands as the player travels north:
-    /// low residential streets, a raised market terrace, an upper civic shoulder, and a summit
-    /// around the church. The east side receives a small additional ridge so Radcliffe's estate
-    /// does not sit on exactly the same contour as the civic buildings.
-    ///
-    /// All offsets are integer decimetres. Every voxel catalogue that needs a Kentridge surface
-    /// reads this class, which prevents roads, plots, props, and structures from inventing slightly
-    /// different versions of the town's vertical layout.
+    /// The town owns its macro silhouette. Natural terrain supplies one stable reference altitude;
+    /// the settlement then climbs through designed district shelves and, in the upper town, through
+    /// an explicit procession of climb / landing / climb / gate / climb / crown. Every road, block,
+    /// plot, access route, and structure reads this profile so those public rooms are actual geometry
+    /// rather than labels placed on one uninterrupted slope.
     /// </summary>
     public static class KentridgeVerticalProfile
     {
         public const int LowerSouthOffsetDm = -25;
         public const int LowerMidOffsetDm = 0;
-        public const int MarketOffsetDm = 35;
-        public const int UpperShoulderOffsetDm = 85;
-        public const int UpperCivicOffsetDm = 130;
-        public const int SummitOffsetDm = 145;
+        public const int MarketOffsetDm = KentridgeProcessionalClimb.MarketOffsetDm;
+
+        // Upper-town public-room elevations. UpperShoulder remains as a compatibility alias for
+        // callers that predate the semantic UpperLanding node.
+        public const int UpperLandingOffsetDm = KentridgeProcessionalClimb.UpperLandingOffsetDm;
+        public const int UpperShoulderOffsetDm = UpperLandingOffsetDm;
+        public const int CivicGateOffsetDm = KentridgeProcessionalClimb.CivicGateOffsetDm;
+        public const int UpperCivicOffsetDm = KentridgeProcessionalClimb.UpperCivicOffsetDm;
+        public const int SummitOffsetDm = KentridgeProcessionalClimb.SummitOffsetDm;
         public const int EastRidgeBoostDm = 15;
+
+        // Z breakpoints are part of the authored urban section. The processional surface compiler
+        // consumes the same values, preventing the visible road from smoothing straight through the
+        // semantic landings defined here.
+        public const int MarketRiseSouthZDm = KentridgeProcessionalClimb.MarketRiseSouthZDm;
+        public const int UpperLandingSouthZDm = KentridgeProcessionalClimb.UpperLandingSouthZDm;
+        public const int UpperLandingNorthZDm = KentridgeProcessionalClimb.UpperLandingNorthZDm;
+        public const int CivicGateSouthZDm = KentridgeProcessionalClimb.CivicGateSouthZDm;
+        public const int CivicGateNorthZDm = KentridgeProcessionalClimb.CivicGateNorthZDm;
+        public const int UpperCivicSouthZDm = KentridgeProcessionalClimb.UpperCivicSouthZDm;
+        public const int SummitSouthZDm = KentridgeProcessionalClimb.SummitSouthZDm;
 
         public static int ReferenceSurfaceY(uint seed, int scale)
         {
@@ -45,29 +56,47 @@ namespace MountingForce.WorldGen.Voxel
         {
             int offset;
 
-            // Broad horizontal shelves are joined by authored ascent zones. Keeping a real plateau
-            // around each major street lets the town read as stacked districts rather than one
-            // continuous procedural hill. The civic climb is deliberately continuous all the way
-            // into the church shelf: earlier versions jumped at z=160, which made frontage heights
-            // disagree with the piecewise road ramps even though both consumed this same profile.
             if (zDm >= 900)
                 offset = LowerSouthOffsetDm;
             else if (zDm >= 760)
                 offset = LerpDm(LowerSouthOffsetDm, LowerMidOffsetDm, 900 - zDm, 140);
             else if (zDm >= 620)
                 offset = LerpDm(LowerMidOffsetDm, MarketOffsetDm, 760 - zDm, 140);
-            else if (zDm >= 440)
+            else if (zDm >= MarketRiseSouthZDm)
                 offset = MarketOffsetDm;
-            else if (zDm >= 300)
-                offset = LerpDm(MarketOffsetDm, UpperShoulderOffsetDm, 440 - zDm, 140);
-            else if (zDm >= 150)
-                offset = LerpDm(UpperShoulderOffsetDm, SummitOffsetDm, 300 - zDm, 150);
+            else if (zDm >= UpperLandingSouthZDm)
+                offset = LerpDm(
+                    MarketOffsetDm,
+                    UpperLandingOffsetDm,
+                    MarketRiseSouthZDm - zDm,
+                    MarketRiseSouthZDm - UpperLandingSouthZDm);
+            else if (zDm >= UpperLandingNorthZDm)
+                offset = UpperLandingOffsetDm;
+            else if (zDm >= CivicGateSouthZDm)
+                offset = LerpDm(
+                    UpperLandingOffsetDm,
+                    CivicGateOffsetDm,
+                    UpperLandingNorthZDm - zDm,
+                    UpperLandingNorthZDm - CivicGateSouthZDm);
+            else if (zDm >= CivicGateNorthZDm)
+                offset = CivicGateOffsetDm;
+            else if (zDm >= UpperCivicSouthZDm)
+                offset = LerpDm(
+                    CivicGateOffsetDm,
+                    UpperCivicOffsetDm,
+                    CivicGateNorthZDm - zDm,
+                    CivicGateNorthZDm - UpperCivicSouthZDm);
+            else if (zDm >= SummitSouthZDm)
+                offset = LerpDm(
+                    UpperCivicOffsetDm,
+                    SummitOffsetDm,
+                    UpperCivicSouthZDm - zDm,
+                    UpperCivicSouthZDm - SummitSouthZDm);
             else
                 offset = SummitOffsetDm;
 
             // The noble estate climbs a secondary east-side ridge. Fade the extra rise in over a
-            // full block instead of introducing a sudden 1.5 m contour step at z=360; the mansion
-            // still receives the full boost while the service lane remains continuously walkable.
+            // full block instead of introducing a sudden contour step along the service lane.
             if (xDm >= 1420)
             {
                 if (zDm <= 300)

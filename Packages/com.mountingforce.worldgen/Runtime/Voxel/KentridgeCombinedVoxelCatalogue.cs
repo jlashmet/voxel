@@ -20,6 +20,11 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp),
 
+                // Re-segment the upper main climb at the semantic public rooms. This layer owns the
+                // exact upper landing and civic gate geometry while the stable gameplay street stays
+                // underneath as the general circulation network.
+                KentridgeProcessionalClimbCatalogue.Build(seed, settings, Allocator.Temp),
+
                 // Secondary contour circulation belongs to urban organisation, not stable gameplay
                 // streets. It links the central upper ascent to the east ridge without moving roles.
                 KentridgeUrbanCirculationCatalogue.Build(seed, settings, Allocator.Temp),
