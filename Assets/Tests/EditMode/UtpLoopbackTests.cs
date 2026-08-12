@@ -14,7 +14,7 @@ namespace VoxelEngine.Tests.EditMode
     {
         [Test]
         [Category("Networking")]
-        public void LoopbackCarriesRequestAndAuthoritativeBatchAcrossConcreteHosts()
+        public void LoopbackCarriesDurableAndEphemeralTrafficAcrossConcreteHosts()
         {
             using var server = new UtpServerHost();
             using var client = new UtpClientHost();
@@ -33,12 +33,9 @@ namespace VoxelEngine.Tests.EditMode
 
             PumpUntil(
                 () => clientConnected && serverConnectionId != 0,
-                () =>
-                {
-                    client.Pump(clientHandler);
-                    server.Pump(serverHandler);
-                });
+                () => PumpBoth(client, clientHandler, server, serverHandler));
 
+            // Durable semantic command -> reliable EVENT.
             var request = new C_AlterationRequest(
                 tick: 41,
                 origin: new int3(510, 40, -12),
@@ -54,15 +51,33 @@ namespace VoxelEngine.Tests.EditMode
 
             PumpUntil(
                 () => serverHandler.RequestCount == 1,
-                () =>
-                {
-                    server.Pump(serverHandler);
-                    client.Pump(clientHandler);
-                });
+                () => PumpBoth(client, clientHandler, server, serverHandler));
 
-            Assert.That(serverHandler.ConnectionId, Is.EqualTo(serverConnectionId));
+            Assert.That(serverHandler.RequestConnectionId, Is.EqualTo(serverConnectionId));
             Assert.That(serverHandler.LastRequest, Is.EqualTo(request));
 
+            // Loss-tolerant movement/aim command -> unreliable sequenced EPHEMERAL.
+            var input = new C_PlayerInput(
+                tick: 42,
+                sequence: 10,
+                movement: new float2(0.5f, -0.25f),
+                viewDirection: math.normalize(new float3(0.3f, 0.2f, 0.9f)),
+                actions: C_PlayerInput.ActionBits.Move | C_PlayerInput.ActionBits.Aim,
+                toolMaterial: 4,
+                flags: 1);
+
+            Assert.That(PlayerInputPacket.PacketSize, Is.EqualTo(18));
+            Assert.That(client.TrySendPlayerInput(in input), Is.True);
+            client.FlushSends();
+
+            PumpUntil(
+                () => serverHandler.InputCount == 1,
+                () => PumpBoth(client, clientHandler, server, serverHandler));
+
+            Assert.That(serverHandler.InputConnectionId, Is.EqualTo(serverConnectionId));
+            Assert.That(serverHandler.LastInput, Is.EqualTo(input));
+
+            // Authoritative world fact returns on reliable EVENT.
             const uint authoritativeTick = 77;
             var evt = request.ToAuthoritativeEvent(
                 authoritativeTick,
@@ -78,17 +93,23 @@ namespace VoxelEngine.Tests.EditMode
 
             PumpUntil(
                 () => clientHandler.BatchCount == 1,
-                () =>
-                {
-                    client.Pump(clientHandler);
-                    server.Pump(serverHandler);
-                });
+                () => PumpBoth(client, clientHandler, server, serverHandler));
 
             Assert.That(clientHandler.LastEvent.tick, Is.EqualTo(authoritativeTick));
             Assert.That(clientHandler.LastEvent.playerId, Is.EqualTo(5));
             Assert.That(clientHandler.LastEvent.sequence, Is.EqualTo(2));
             Assert.That(clientHandler.LastEvent.seed, Is.EqualTo(0xCAFEBABE));
             Assert.That(clientHandler.LastEvent.origin, Is.EqualTo(request.origin));
+        }
+
+        private static void PumpBoth(
+            UtpClientHost client,
+            IUtpClientPacketHandler clientHandler,
+            UtpServerHost server,
+            RecordingServerHandler serverHandler)
+        {
+            client.Pump(clientHandler);
+            server.Pump(serverHandler, serverHandler);
         }
 
         private static void PumpUntil(Func<bool> condition, Action pump)
@@ -103,17 +124,28 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(condition(), Is.True, "UTP loopback condition was not reached.");
         }
 
-        private sealed class RecordingServerHandler : IClientEventCommandHandler
+        private sealed class RecordingServerHandler : IClientEventCommandHandler, IClientInputCommandHandler
         {
             public int RequestCount { get; private set; }
-            public uint ConnectionId { get; private set; }
+            public uint RequestConnectionId { get; private set; }
             public C_AlterationRequest LastRequest { get; private set; }
+
+            public int InputCount { get; private set; }
+            public uint InputConnectionId { get; private set; }
+            public C_PlayerInput LastInput { get; private set; }
 
             public void HandleAlterationRequest(uint connectionId, in C_AlterationRequest request)
             {
-                ConnectionId = connectionId;
+                RequestConnectionId = connectionId;
                 LastRequest = request;
                 RequestCount++;
+            }
+
+            public void HandlePlayerInput(uint connectionId, in C_PlayerInput input)
+            {
+                InputConnectionId = connectionId;
+                LastInput = input;
+                InputCount++;
             }
         }
 
