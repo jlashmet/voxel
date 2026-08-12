@@ -67,22 +67,20 @@ namespace VoxelEngine.CI
                 if (brush.BudgetExceeded)
                     throw new InvalidOperationException("Voxel hero arch exceeded VoxelBrush budget.");
 
-                // Cut stone needs two apparently conflicting things: enough field filtering for the
-                // circular intrados/extrados to remain continuous, and much flatter manufactured
-                // faces than terrain. Planarization resolves that after extraction instead of
-                // sacrificing the arch curve by globally reducing smoothing.
+                // Stone and its painted joint material share one geometric reconstruction. The
+                // joint id controls surface appearance only; it must not change the silhouette.
+                // DressedStone blends tight and wide signed-distance recovery for continuous arch
+                // curves, then planarizes strongly axis-aligned cut faces.
                 var surfaceProfiles = new VoxelSurfaceProfileSet()
                     .Set(Mat.Stone, VoxelSurfaceProfile.DressedStone)
-                    .Set(Mat.DarkStone, new VoxelSurfaceProfile(
-                        smoothing: 0.82f,
-                        densityBias: -0.008f,
-                        planarization: 0.82f,
-                        planarizationThreshold: 0.87f))
+                    .Set(Mat.DarkStone, VoxelSurfaceProfile.DressedStone)
                     .Set(Mat.Moss, new VoxelSurfaceProfile(
-                        smoothing: 0.86f,
-                        densityBias: -0.005f,
-                        planarization: 0.55f,
-                        planarizationThreshold: 0.90f));
+                        smoothing: 0.90f,
+                        densityBias: -0.004f,
+                        planarization: 0.45f,
+                        planarizationThreshold: 0.92f,
+                        distanceRecovery: 0.75f,
+                        curveRecovery: 0.65f));
 
                 world.DirtyRegions.Add(RegionCoord);
                 voxelSurface = new VoxelHeroSurfaceRenderer(
@@ -132,7 +130,7 @@ namespace VoxelEngine.CI
                 string metadata =
                     "capture=AAA voxel-only arch hero study\n" +
                     "geometry=VoxelBrush -> material-aware bounded voxel extraction\n" +
-                    "surfaceProfile=stone:s0.80/b-0.01/p0.86,darkstone:s0.82/b-0.008/p0.82\n" +
+                    "surfaceProfile=stone+joint:s1.00/dr1.00/cr0.72/p0.78\n" +
                     "masonryDetail=component-driven seams + deterministic stone relief\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
@@ -183,10 +181,6 @@ namespace VoxelEngine.CI
             ConfigureArchMasonry(stone, in spec);
             owned.Add(stone);
 
-            // Material IDs still live in authoritative voxel storage, but the centimeter-scale
-            // mortar appearance is now derived continuously from the component spec. Assigning one
-            // stone surface material deliberately prevents 10 cm joint voxels from becoming jagged
-            // colour islands in the close-up renderer.
             foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
                 renderer.sharedMaterial = stone;
         }
@@ -225,7 +219,6 @@ namespace VoxelEngine.CI
             int courseHeight = math.max(3, spec.CourseHeight);
             int ringThickness = math.max(3, spec.RingThickness);
             int depth = math.max(4, spec.Depth);
-            int impostHeight = math.max(2, spec.ImpostHeight);
             int outerRadius = halfOpening + ringThickness;
             int springY = spec.BaseCentre.y + pierHeight;
             int plinthHeight = math.max(3, courseHeight - 1);
