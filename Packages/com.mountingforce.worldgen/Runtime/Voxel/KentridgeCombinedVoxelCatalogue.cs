@@ -27,6 +27,7 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeUrbanCourtCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeVerticalFrontageCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeVerticalGalleryCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp),
