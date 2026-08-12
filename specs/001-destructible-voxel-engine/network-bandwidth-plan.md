@@ -1,6 +1,6 @@
 # Minimal Voxel Networking — Bandwidth Plan
 
-**Status:** M0–M2 foundations implemented; M3 semantic convergence/current-state BULK + canonical cube brush foundation implemented  
+**Status:** M0–M2 foundations implemented; M3 convergence/BULK + canonical cube brush + player reconciliation foundations implemented  
 **Branch:** `feature/minimal-voxel-networking`  
 **Extends:** `architecture-notes.md` and `contracts/wire-protocol.md`
 
@@ -12,17 +12,18 @@ Make smooth/destructible multiplayer practical without replicating voxel effects
 
 1. Server authority: packets are intent, never direct world mutation.
 2. Connection-owned identity/position.
-3. Fixed simulation clock; network callbacks only decode/copy into bounded ingress.
+3. Fixed simulation clock; network callbacks only decode/copy into bounded ingress/protocol buffers.
 4. Cause, not effect, for deterministic live mutations.
 5. Shared deterministic Core application/hash semantics on server and client.
 6. Platform-neutral 3D simulation interest before send/state request acceptance.
-7. EPHEMERAL for supersedable input; reliable channels for durable authority/state.
+7. EPHEMERAL for supersedable input/player state; reliable channels for durable authority/state.
 8. Normal events never partially apply because a neighboring region is absent.
 9. Hashes and current-state fences are ordered EVENT barriers.
 10. Repair/current-state snapshots contain semantic materials + flags, never `BrickPool` indices.
 11. Late join/reconnect are state-based, not full-history replay.
 12. BULK is bounded/throttled and must yield to live traffic.
 13. One canonical shape definition drives request decoding, validation, interest routing, server application, client replay and bandwidth accounting.
+14. Player prediction is game-owned; networking only carries authoritative rewind points and consumed-input acknowledgements.
 
 ---
 
@@ -32,9 +33,13 @@ Make smooth/destructible multiplayer practical without replicating voxel effects
 
 - `UnreliableSequencedPipelineStage`.
 - 16 B canonical input sample.
-- normal redundant bundle: max **51 B** (newest + two prior samples).
-- at 30 Hz: about **1,530 B/s/client** custom payload before transport headers.
+- normal redundant input bundle: max **51 B** (newest + two prior samples).
+- at 30 Hz: about **1,530 B/s/client** custom input payload before transport headers.
 - connection-scoped sequence validation/deduplication with ushort wrap support.
+- absolute `S_PlayerState` snapshot = **40 B**.
+- player-state bundle = `3 + 40N` B framed, `N ≤ 6`, max **243 B**.
+- default player-state cadence = every two 30 Hz ticks = **15 Hz**.
+- normal four-player state therefore fits in one EPHEMERAL datagram per recipient per snapshot cadence.
 
 ### EVENT — implemented foundation
 
@@ -86,7 +91,13 @@ Unity frame pump
                          |
              authenticated player state
                          |
+          game-owned player simulation
+                         |
+        processed-input acknowledgement
+                         |
           validation + deterministic apply
+                         |
+            player-state EPHEMERAL bundles
                          |
                authoritative events
                          |
@@ -103,25 +114,85 @@ Unity frame pump
                   one UTP flush
 ```
 
+Client receive path:
+
+```text
+UTP PumpTransport
+    |
+    +--> EVENT/REPAIR/BULK protocol queues
+    |
+    +--> EPHEMERAL player-state timeline
+             |
+      explicit game update
+             |
+      ApplyPlayerStateUpdates
+             |
+    local: rewind + replay unacked input
+    remote: interpolate newest two snapshots
+```
+
 `AuthoritativeServerSession` is the canonical composition root. `ServerTickLoop` is obsolete networking scaffold.
 
 ---
 
 ## Trust / command path
 
-`ServerPlayerRegistry` owns connection ID, player ID, authoritative voxel position, collision volume, reach and edit permission.
+`ServerPlayerRegistry` owns connection ID, player ID, authoritative voxel position/kinematics, collision volume, reach and edit permission.
 
 `ServerCommandProcessor`:
 
 - drains only at fixed tick;
 - rejects implausible client ticks;
-- deduplicates durable sequences;
+- deduplicates durable/input sequences;
 - arbitrates by server-owned player/sequence order rather than packet arrival;
-- derives authoritative seed/order/tick;
+- advances the player input acknowledgement only after `IAuthoritativePlayerInputSink.ApplyInput` executes;
+- derives authoritative seed/order/tick for durable world changes;
 - validates reach/rate/permissions/zones/player volumes/density;
 - applies the real shared deterministic mutation before publishing it.
 
-Rejected requests do not consume accepted rate/allocation budget.
+Rejected alteration requests do not consume accepted rate/allocation budget.
+
+---
+
+## Player state / prediction reconciliation
+
+`S_PlayerState` is an absolute server snapshot, never a delta from a previous packet:
+
+- player ID;
+- server tick;
+- per-player snapshot sequence;
+- last fixed-tick-consumed client input sequence;
+- absolute Q19.13 voxel position;
+- absolute Q12.20 voxel/second velocity;
+- quantized yaw;
+- grounded/teleport/respawn flags.
+
+`ServerPlayerStateReplicator`:
+
+- samples only after fixed-tick input processing;
+- defaults to 15 Hz;
+- uses the same 3D region subscription index as alteration fan-out;
+- always includes the owning connection for reconciliation;
+- bundles up to six player states into one ≤243 B EPHEMERAL datagram;
+- keeps per-player ushort snapshot sequence independent from UTP packet sequence.
+
+`ClientPredictionReconciler`:
+
+- records only successful client input sends;
+- keeps a bounded 256-sample history by default;
+- compares input sequences with ushort modular ordering;
+- on an authoritative local snapshot, discards inputs at-or-before the acknowledged sequence;
+- calls game-owned prediction code to apply the authoritative rewind state;
+- replays remaining unacknowledged inputs in original order.
+
+`ClientPlayerStateTimeline`:
+
+- rejects stale/reordered per-player state sequences;
+- retains previous/current accepted snapshots;
+- interpolates position/velocity and shortest-path yaw;
+- snaps teleport/respawn updates instead of interpolating across discontinuities.
+
+UTP receive callbacks do not run prediction code. `ClientNetworkRuntime.ApplyPlayerStateUpdates()` is the explicit mutation/reconciliation boundary.
 
 ---
 
@@ -140,7 +211,7 @@ Current canonical support:
 
 ### Axis-aligned cube brush
 
-`BrushShapeCodec` now owns the single live brush representation:
+`BrushShapeCodec` owns the single live brush representation:
 
 ```text
 shapeKind byte 0 : full X dimension in bricks
@@ -161,7 +232,7 @@ shapeData bit 0  : authored hard-surface semantic flag
 - every potentially affected region is resident before any mutation;
 - current-state catch-up can apply pre-fence events everywhere except one region already replaced by an authoritative snapshot.
 
-The previous brush shape union was invalid because extent Y and the shape discriminator overlapped. Compatibility request constructors now canonicalize legacy X/Y/Z arguments before they can enter the live protocol.
+The previous brush shape union was invalid because extent Y and the shape discriminator overlapped. Compatibility request constructors canonicalize legacy X/Y/Z arguments before they can enter the live protocol.
 
 Constructive cube placement attachment is checked over every voxel immediately outside the six faces rather than six face-center samples, so valid edge/corner support is not rejected.
 
@@ -180,6 +251,8 @@ Sphere/cylinder/extrude/rotated brushes and raw-batch/RLE edits still fail close
 - cross-region recipient union/deduplication.
 
 Explosion and cube-brush fan-out use canonical effect bounds. Cube brush routing no longer treats dimensions as radius padding, avoiding unnecessary adjacent-region sends near boundaries.
+
+Remote player-state fan-out uses the same subscription index; owners are always included for reconciliation.
 
 Full-state requests are accepted only for authenticated, currently subscribed regions.
 
@@ -260,6 +333,9 @@ Gameplay, convergence, and region-state requests use separate bounded ingress be
 
 Current state-transfer bounds:
 
+- command input: bounded per connection/global inbox;
+- local prediction history: 256 input samples by default, configurable up to 4096;
+- pending client player-state notifications: newest state/player, max 64 distinct players;
 - region request inbox: 8 pending/connection, 256 global;
 - persistent manager deferred list: 256;
 - one active current-state transfer/connection;
@@ -267,7 +343,7 @@ Current state-transfer bounds:
 - pending snapshot memory cap: 64 MiB;
 - client assembler: one active transfer, max four completed snapshots / 32 MiB completed bytes.
 
-No world serialization occurs from a UTP callback.
+No world serialization, voxel mutation, or local-player prediction rewind occurs from a UTP callback.
 
 ---
 
@@ -298,7 +374,11 @@ No world serialization occurs from a UTP callback.
 21. 22 B EVENT snapshot fence and excluded-region catch-up semantics.
 22. Automatic expired-checkpoint → current-state request escalation.
 23. Corrected multi-event/wrap-safe `RegionEventLog`.
-24. Unit/loopback test source for transport, convergence, current-state recovery and canonical cube brushes.
+24. Absolute bundled `S_PlayerState` replication over EPHEMERAL.
+25. Fixed-tick consumed-input acknowledgements.
+26. Bounded local input history + rewind/replay reconciliation seam.
+27. Remote two-snapshot interpolation timeline with stale-sequence rejection.
+28. Unit/real-UTP loopback test source for transport, player reconciliation, convergence, current-state recovery and canonical cube brushes.
 
 ### Tests are still not executed
 
@@ -310,13 +390,14 @@ The test files are committed, but this branch still needs a real Unity compile/t
 2. Additional deterministic brush shapes/rotation if gameplay actually needs them; do not re-enable the legacy encodings.
 3. Progressive/base-seed + touched-overlay region streaming to reduce late-join bytes versus full semantic snapshots.
 4. Multi-region reconnect/late-join orchestration and prioritization around spawn/player motion.
-5. `S_PlayerState` snapshots + prediction/reconciliation using EPHEMERAL history.
-6. Event-suffix vs state-snapshot repair cost selection.
-7. Per-channel bytes/packets/queue age/retransmit instrumentation and connection-quality-aware BULK budgets.
-8. Derived mip/mesh/irradiance rebuild scheduling after mutation/repair/state replacement.
-9. Density-cap accounting should evolve from conservative touched-brick estimates to maintained per-region mixed-brick counts before construction is tuned aggressively.
-10. Remove remaining legacy `InterestFilter`, `RepairDispatch`, `WorldHistory`, old immediate-apply client receiver and old protocol scaffolds after caller migration.
-11. Adversarial loss/jitter/reconnect/late-join/BULK-saturation/heavy-construction soak tests.
+5. Integrate the game character controller with `UpdateAuthoritativePlayerKinematics` and `IClientPredictionAdapter`; networking now provides the seam but does not own movement physics.
+6. Decide whether one-frame gameplay action edges such as jump/ability activation remain acceptable on redundant EPHEMERAL input or require a durable command lane.
+7. Event-suffix vs state-snapshot repair cost selection.
+8. Per-channel bytes/packets/queue age/retransmit instrumentation and connection-quality-aware BULK budgets.
+9. Derived mip/mesh/irradiance rebuild scheduling after mutation/repair/state replacement.
+10. Density-cap accounting should evolve from conservative touched-brick estimates to maintained per-region mixed-brick counts before construction is tuned aggressively.
+11. Remove remaining legacy `InterestFilter`, `RepairDispatch`, `WorldHistory`, old immediate-apply client receiver and old protocol scaffolds after caller migration.
+12. Adversarial loss/jitter/reconnect/late-join/BULK-saturation/heavy-construction/player-prediction soak tests.
 
 ---
 
@@ -328,11 +409,14 @@ Per connection/channel:
 - packets/s and fill ratio;
 - reliable retransmit bytes;
 - EVENT queue age p50/p95/p99;
-- EPHEMERAL recovered/duplicate samples;
+- EPHEMERAL recovered/duplicate input samples;
+- player-state bundle size / states per bundle / stale snapshot count;
+- input ack age and local replay count per reconciliation;
+- prediction history drops;
 - alteration batch distribution;
 - brush touched-bricks vs mixed-growth distribution;
 - bytes per accepted explosion/brush;
-- interest fan-out by event type;
+- interest fan-out by event/player state;
 - hash/mismatch/repair rate;
 - exact repair bytes/latency;
 - full-state request/deferred/drop counts;
@@ -343,6 +427,7 @@ Per connection/channel:
 Server CPU:
 
 - command validation;
+- player-state sampling/routing;
 - brush attachment validation;
 - deterministic mutation;
 - interest routing;
@@ -366,11 +451,11 @@ Authoritative event stream, 3D interest, ordered routing/batching/framing.
 
 UTP hosts, EPHEMERAL traffic, bounded ingress, authenticated player registry, fixed-tick command processor.
 
-### M3 — state convergence + canonical construction primitive — foundation implemented
+### M3 — state convergence + construction + player reconciliation — foundation implemented
 
-Semantic hashes, exact-checkpoint repair, expired-history current-state BULK fallback, cross-pipeline EVENT fence/deterministic catch-up, and canonical cube brush authority/replication.
+Semantic hashes, exact-checkpoint repair, expired-history current-state BULK fallback, cross-pipeline EVENT fence/deterministic catch-up, canonical cube brush authority/replication, and absolute player snapshots with consumed-input rewind/replay.
 
-Remaining M3: optimized late-join/reconnect orchestration, event-suffix cost choice, player-state reconciliation and raw-batch semantics.
+Remaining M3: game-controller integration, optimized late-join/reconnect orchestration, event-suffix cost choice and raw-batch semantics.
 
 ### M4 — adversarial/soak
 
@@ -380,6 +465,8 @@ Remaining M3: optimized late-join/reconnect orchestration, event-suffix cost cho
 - horizontal + vertical player separation;
 - packet loss/jitter/reordering;
 - lost input edge recovery;
+- local prediction correction under burst loss;
+- remote snapshot reorder/interpolation;
 - deliberate drift + multi-chunk repair;
 - expired checkpoint full-state fallback;
 - late join during destruction/construction;
@@ -390,6 +477,7 @@ Remaining M3: optimized late-join/reconnect orchestration, event-suffix cost cho
 ## Deliberate non-goals
 
 - render/SDF/GPU replication;
+- networking-owned character physics;
 - generic GameObject/RPC voxel state;
 - ordinary per-voxel diffs for deterministic effects;
 - device-dependent gameplay interest;
