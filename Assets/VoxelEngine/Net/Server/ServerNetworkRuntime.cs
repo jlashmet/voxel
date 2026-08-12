@@ -29,26 +29,20 @@ namespace VoxelEngine.Net.Server
             ServerCommandInbox commandInbox,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(commandInbox, commandInbox, null, maxConnections, initialEventCapacity)
-        {
-        }
+            : this(commandInbox, commandInbox, null, maxConnections, initialEventCapacity) { }
 
         public ServerNetworkRuntime(
             ServerCommandInbox commandInbox,
             ServerConvergenceInbox convergenceInbox,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(commandInbox, commandInbox, convergenceInbox, maxConnections, initialEventCapacity)
-        {
-        }
+            : this(commandInbox, commandInbox, convergenceInbox, maxConnections, initialEventCapacity) { }
 
         public ServerNetworkRuntime(
             IClientEventCommandHandler eventHandler,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(eventHandler, null, null, maxConnections, initialEventCapacity)
-        {
-        }
+            : this(eventHandler, null, null, maxConnections, initialEventCapacity) { }
 
         public ServerNetworkRuntime(
             IClientEventCommandHandler eventHandler,
@@ -80,35 +74,11 @@ namespace VoxelEngine.Net.Server
         public ServerCommandInbox CommandInbox => _commandInbox;
         public ServerConvergenceInbox ConvergenceInbox => _convergenceInbox;
 
-        public int Listen(NetworkEndpoint endpoint)
-        {
-            ThrowIfDisposed();
-            return _host.Listen(endpoint);
-        }
-
-        public bool ContainsConnection(uint connectionId)
-        {
-            ThrowIfDisposed();
-            return _host.ContainsConnection(connectionId);
-        }
-
-        public void PumpTransport()
-        {
-            ThrowIfDisposed();
-            _host.Pump(_eventHandler, _inputHandler, _convergenceHandler);
-        }
-
-        public void BeginTick(uint tick)
-        {
-            ThrowIfDisposed();
-            _replication.BeginTick(tick);
-        }
-
-        public void PublishAlteration(in AlterationEvent evt)
-        {
-            ThrowIfDisposed();
-            _replication.PublishAlteration(in evt);
-        }
+        public int Listen(NetworkEndpoint endpoint) { ThrowIfDisposed(); return _host.Listen(endpoint); }
+        public bool ContainsConnection(uint connectionId) { ThrowIfDisposed(); return _host.ContainsConnection(connectionId); }
+        public void PumpTransport() { ThrowIfDisposed(); _host.Pump(_eventHandler, _inputHandler, _convergenceHandler); }
+        public void BeginTick(uint tick) { ThrowIfDisposed(); _replication.BeginTick(tick); }
+        public void PublishAlteration(in AlterationEvent evt) { ThrowIfDisposed(); _replication.PublishAlteration(in evt); }
 
         public void SendAlterationRejected(uint connectionId, in S_AlterationRejected rejection)
         {
@@ -118,28 +88,41 @@ namespace VoxelEngine.Net.Server
                 _host.TrySend(connectionId, UtpChannel.Event, packet);
         }
 
-        /// <summary>Queue one tick-scoped semantic hash behind earlier EVENT mutations.</summary>
         public bool SendRegionHash(uint connectionId, in S_RegionHash hash)
         {
             ThrowIfDisposed();
             Span<byte> packet = stackalloc byte[RegionHashPacket.PacketSize];
-            return RegionHashPacket.TryEncode(packet, in hash) &&
-                   _host.TrySend(connectionId, UtpChannel.Event, packet);
+            return RegionHashPacket.TryEncode(packet, in hash) && _host.TrySend(connectionId, UtpChannel.Event, packet);
         }
 
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)
         {
             ThrowIfDisposed();
-            if (!_host.ContainsConnection(connectionId))
-                return 0;
-            return _replication.UpdateConnectionPosition(connectionId, playerVoxelPosition);
+            return _host.ContainsConnection(connectionId)
+                ? _replication.UpdateConnectionPosition(connectionId, playerVoxelPosition)
+                : 0;
+        }
+
+        /// <summary>
+        /// Encode/queue mutation EVENT packets but do not flush the transport yet. Hash checkpoints
+        /// must be appended after this call so reliable EVENT order is mutation(s) -> hash barrier.
+        /// </summary>
+        public void FlushReplication()
+        {
+            ThrowIfDisposed();
+            _replication.Flush(_packetSink);
+        }
+
+        public void FlushSends()
+        {
+            ThrowIfDisposed();
+            _host.FlushSends();
         }
 
         public void EndTick()
         {
-            ThrowIfDisposed();
-            _replication.Flush(_packetSink);
-            _host.FlushSends();
+            FlushReplication();
+            FlushSends();
         }
 
         public bool TrySend(uint connectionId, UtpChannel channel, ReadOnlySpan<byte> packet)
@@ -148,14 +131,9 @@ namespace VoxelEngine.Net.Server
             return _host.TrySend(connectionId, channel, packet);
         }
 
-        public bool Disconnect(uint connectionId)
-        {
-            ThrowIfDisposed();
-            return _host.Disconnect(connectionId);
-        }
+        public bool Disconnect(uint connectionId) { ThrowIfDisposed(); return _host.Disconnect(connectionId); }
 
-        private void OnConnectionOpened(uint connectionId, NetworkEndpoint endpoint) =>
-            ConnectionOpened?.Invoke(connectionId, endpoint);
+        private void OnConnectionOpened(uint connectionId, NetworkEndpoint endpoint) => ConnectionOpened?.Invoke(connectionId, endpoint);
 
         private void OnConnectionClosed(uint connectionId)
         {
@@ -170,15 +148,12 @@ namespace VoxelEngine.Net.Server
 
         private void ThrowIfDisposed()
         {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(ServerNetworkRuntime));
+            if (_disposed) throw new ObjectDisposedException(nameof(ServerNetworkRuntime));
         }
 
         public void Dispose()
         {
-            if (_disposed)
-                return;
-
+            if (_disposed) return;
             _host.ConnectionOpened -= OnConnectionOpened;
             _host.ConnectionClosed -= OnConnectionClosed;
             _host.ProtocolError -= OnProtocolError;
