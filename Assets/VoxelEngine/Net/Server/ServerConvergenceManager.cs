@@ -82,8 +82,6 @@ namespace VoxelEngine.Net.Server
 
                 if (!authenticatedAndInterested || report.hashTick > serverTick)
                 {
-                    // Future checkpoints cannot exist. Treat them as invalid input, not as an
-                    // invitation to trigger an expensive full-state resync.
                     RejectedMismatchCount++;
                     continue;
                 }
@@ -91,6 +89,19 @@ namespace VoxelEngine.Net.Server
                 var checkpointKey = new CheckpointKey(queued.ConnectionId, report.regionCoord, report.hashTick);
                 if (!_issuedHashes.TryGetValue(checkpointKey, out uint issuedHash))
                 {
+                    uint oldestRetained = serverTick > CheckpointRetentionTicks
+                        ? serverTick - CheckpointRetentionTicks
+                        : 0u;
+
+                    // Inside the retention window, absence proves this checkpoint was never issued
+                    // to this connection (wrong phase/region or fabricated report). Only history old
+                    // enough to have legitimately fallen out of retention may escalate to BULK state.
+                    if (report.hashTick >= oldestRetained)
+                    {
+                        RejectedMismatchCount++;
+                        continue;
+                    }
+
                     RequireFullResync(
                         queued.ConnectionId,
                         report.regionCoord,
