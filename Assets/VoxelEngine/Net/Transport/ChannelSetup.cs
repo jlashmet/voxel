@@ -9,7 +9,7 @@ namespace VoxelEngine.Net.Transport
     ///
     /// Channel contract:
     ///   EVENT     — reliable ordered durable authoritative events/confirmations.
-    ///   EPHEMERAL — unreliable sequenced input/motion; newer samples supersede older ones.
+    ///   EPHEMERAL — unreliable sequenced input/motion snapshots; newer data supersedes older data.
     ///   REPAIR    — reliable authoritative state correction after detected drift.
     ///   BULK      — reliable fragmented region/snapshot transfer, rate-limited so it cannot
     ///               starve latency-sensitive traffic.
@@ -41,8 +41,8 @@ namespace VoxelEngine.Net.Transport
         public const int k_MaxEventPacketBytes = 1200;
 
         /// <summary>
-        /// Ephemeral command ceiling. Current C_PlayerInput frame is only 18 bytes including the
-        /// protocol envelope; the extra room permits a small redundant-history bundle later.
+        /// EPHEMERAL ceiling. Current input redundancy is at most 51 B; a six-player absolute
+        /// S_PlayerState bundle is 243 B, leaving a small margin below this non-fragmented limit.
         /// </summary>
         public const int k_MaxEphemeralPacketBytes = 256;
 
