@@ -10,9 +10,9 @@ using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Rendering contract for the spatial tree batch path. It verifies both that the combined
-    /// batch contributes real camera pixels and that a damaged tree leaves the batch and resumes
-    /// its per-tree dynamic presentation.
+    /// Rendering contract for spatial tree batching. Healthy trees must contribute real pixels
+    /// without retaining per-tree GameObjects or meshes; first damage lazily materializes only the
+    /// affected tree while the rest of the forest stays batched.
     /// </summary>
     public sealed class TreeBatchRenderingTests
     {
@@ -62,8 +62,24 @@ namespace VoxelEngine.CI
                 Assert.That(renderer.BatchCount, Is.EqualTo(1),
                             "Eight healthy trees in one 32 m cell should collapse to one render batch.");
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(instances.Length));
+                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0),
+                            "Healthy batched trees must not retain per-tree GameObjects.");
+                Assert.That(renderer.DynamicMeshCount, Is.EqualTo(0),
+                            "Healthy batched trees must not retain dormant per-tree meshes.");
+                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(3),
+                            "The only resident tree meshes should be the batch's three LOD meshes.");
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(4),
+                            "One healthy batch should own one root plus three LOD objects.");
                 Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(2),
                             "One healthy batch should render as bark + leaves for the selected LOD.");
+
+                for (int i = 0; i < instances.Length; i++)
+                {
+                    Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False,
+                                $"Healthy batched tree {i} unexpectedly owns a dynamic presentation.");
+                    Assert.That(FindTreeRoot(renderer, i), Is.Null,
+                                $"Healthy batched tree {i} unexpectedly left a GameObject in the hierarchy.");
+                }
 
                 Transform batchRoot = FindBatchRoot(renderer);
                 Assert.That(batchRoot, Is.Not.Null);
@@ -80,17 +96,6 @@ namespace VoxelEngine.CI
                     batchVertices += filter.sharedMesh.vertexCount;
                 }
                 Assert.That(batchVertices, Is.GreaterThan(0));
-
-                for (int i = 0; i < instances.Length; i++)
-                {
-                    Transform sourceRoot = FindTreeRoot(renderer, i);
-                    Assert.That(sourceRoot, Is.Not.Null);
-                    MeshRenderer[] sourceRenderers = sourceRoot.GetComponentsInChildren<MeshRenderer>(true);
-                    Assert.That(sourceRenderers.Length, Is.EqualTo(3));
-                    foreach (MeshRenderer sourceRenderer in sourceRenderers)
-                        Assert.That(sourceRenderer.enabled, Is.False,
-                                    "Healthy source renderers must be dormant while their batch is active.");
-                }
 
                 Bounds bounds = CalculateBounds(batchRenderers);
                 Assert.That(bounds.size.sqrMagnitude, Is.GreaterThan(0.01f));
@@ -142,23 +147,35 @@ namespace VoxelEngine.CI
                 Assert.That(changedPixels, Is.GreaterThan(1024),
                             "The combined batch exists structurally but does not contribute enough real pixels.");
 
-                // Damage must not force the whole forest back to per-tree draws. The damaged tree
-                // leaves the healthy batch while the other seven stay combined.
                 TreeWorldState.SetDamage(0, 0.70f, false);
                 for (int frame = 0;
-                     frame < 60 && renderer.BatchedTreeCount != instances.Length - 1;
+                     frame < 60 && (renderer.BatchedTreeCount != instances.Length - 1
+                                    || renderer.DynamicPresentationCount != 1);
                      frame++)
                     yield return null;
 
                 Assert.That(renderer.BatchCount, Is.EqualTo(1));
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(instances.Length - 1));
+                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(1));
+                Assert.That(renderer.DynamicMeshCount, Is.EqualTo(3));
+                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(6),
+                            "After first damage only the batch and one dynamic tree should own meshes.");
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(8),
+                            "One batch plus one dynamic tree should own eight hierarchy objects total.");
                 Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(4),
                             "Seven healthy trees should remain one batch while the damaged tree uses two dynamic draws.");
 
-                Transform damagedRoot = FindTreeRoot(renderer, 0);
+                Assert.That(renderer.TryGetDynamicPresentationRoot(0, out Transform damagedRoot), Is.True,
+                            "Damaged tree did not lazily materialize after leaving its batch.");
+                Assert.That(damagedRoot, Is.Not.Null);
+                Assert.That(Quaternion.Angle(damagedRoot.localRotation, Quaternion.identity), Is.LessThan(1f));
                 MeshRenderer[] damagedRenderers = damagedRoot.GetComponentsInChildren<MeshRenderer>(true);
-                Assert.That(damagedRenderers, Has.Some.Matches<MeshRenderer>(r => r.enabled),
-                            "Damaged tree did not reactivate its dynamic presentation after leaving the batch.");
+                Assert.That(damagedRenderers.Length, Is.EqualTo(3));
+                Assert.That(damagedRenderers, Has.Some.Matches<MeshRenderer>(r => r.enabled));
+
+                for (int i = 1; i < instances.Length; i++)
+                    Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False,
+                                $"Unchanged healthy tree {i} should remain data-only inside the batch.");
             }
             finally
             {
