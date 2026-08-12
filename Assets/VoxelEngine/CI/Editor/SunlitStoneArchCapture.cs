@@ -127,6 +127,7 @@ namespace VoxelEngine.CI
                     "capture=AAA voxel-only arch hero study\n" +
                     "geometry=VoxelBrush -> material-aware bounded voxel extraction\n" +
                     "surfaceProfile=stone:s1.00/dr1.00/cr0.72/p0.78 joint:bias-0.085\n" +
+                    "stoneFaceNormalPlanarization=0.72\n" +
                     $"archivoltProjectionVoxels={spec.ArchivoltProjection}\n" +
                     "masonryDetail=component-driven seams + recessed joint geometry + deterministic stone relief\n" +
                     "unityPresentationMeshes=0\n" +
@@ -204,6 +205,7 @@ namespace VoxelEngine.CI
             SetFloat(m, "_StoneJointRelief", 0.88f);
             SetFloat(m, "_StoneBlockVariation", 0.72f);
             SetFloat(m, "_StoneWeathering", 0.46f);
+            SetFloat(m, "_StoneFacePlanarization", 0.72f);
             return m;
         }
 
