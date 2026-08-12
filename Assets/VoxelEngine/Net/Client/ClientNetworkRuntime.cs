@@ -1,4 +1,5 @@
 using System;
+using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Protocol;
@@ -107,7 +108,6 @@ namespace VoxelEngine.Net.Client
                 case UtpChannel.Repair:
                     return _repair.TryAcceptPacket(packet);
                 default:
-                    // BULK remains a separate streaming/late-join migration.
                     return false;
             }
         }
