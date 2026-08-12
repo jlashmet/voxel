@@ -12,8 +12,8 @@ namespace VoxelEngine.CI
 {
     /// <summary>
     /// Close hero review for the real destructible voxel architecture path. No presentation meshes
-    /// are used for the arch or its stones: VoxelBrush writes world data and VoxelSurfaceRenderer
-    /// is solely responsible for the visible masonry surface.
+    /// are used for the arch or its stones: VoxelBrush writes world data and the bounded hero
+    /// surface extractor derives the visible masonry directly from that authoritative voxel field.
     /// </summary>
     public static class SunlitStoneArchCapture
     {
@@ -28,7 +28,7 @@ namespace VoxelEngine.CI
             Directory.CreateDirectory(outDir);
 
             ShowcaseWorld world = null;
-            VoxelSurfaceRenderer voxelSurface = null;
+            VoxelHeroSurfaceRenderer voxelSurface = null;
             GameObject cameraObject = null;
             GameObject keyObject = null;
             GameObject fillObject = null;
@@ -66,14 +66,22 @@ namespace VoxelEngine.CI
                     throw new InvalidOperationException("Voxel hero arch exceeded VoxelBrush budget.");
 
                 world.DirtyRegions.Add(RegionCoord);
-                voxelSurface = new VoxelSurfaceRenderer { CastShadows = true };
-                for (int i = 0; i < 120; i++)
+                // Render only the architecture review volume at a 5 cm extraction lattice. The
+                // source remains the 10 cm destructible world; this is visual surface quality, not
+                // a second authored representation.
+                voxelSurface = new VoxelHeroSurfaceRenderer(
+                    new int3(cx - 42, baseY - 5, cz - 20),
+                    new int3(84, 72, 40))
+                {
+                    CastShadows = true
+                };
+                for (int i = 0; i < 8; i++)
                 {
                     voxelSurface.Sync(world, 400.0);
-                    if (world.DirtyRegions.Count == 0 && voxelSurface.PendingRebuilds == 0) break;
+                    if (voxelSurface.PendingRebuilds == 0) break;
                 }
                 if (voxelSurface.RegionMeshCount == 0 || voxelSurface.VertexCount == 0)
-                    throw new InvalidOperationException("Voxel hero arch produced no surface geometry.");
+                    throw new InvalidOperationException("Voxel hero arch produced no smooth surface geometry.");
 
                 ApplyVoxelPalette(voxelSurface.Root, owned);
                 SetupLighting(out keyObject, out fillObject);
@@ -106,9 +114,10 @@ namespace VoxelEngine.CI
 
                 string metadata =
                     "capture=AAA voxel-only arch hero study\n" +
-                    "geometry=VoxelBrush -> VoxelSurfaceRenderer\n" +
+                    "geometry=VoxelBrush -> bounded smooth voxel extraction\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
+                    "heroSurfaceSampleMetres=0.05\n" +
                     $"seed=0x{seed:X}\n" +
                     $"baseY={baseY}\n" +
                     $"voxelWrites={brush.VoxelsWritten}\n" +
