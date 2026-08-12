@@ -5,6 +5,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using VoxelEngine.Rendering.SurfaceExtraction;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures;
 
@@ -66,10 +67,22 @@ namespace VoxelEngine.CI
                 if (brush.BudgetExceeded)
                     throw new InvalidOperationException("Voxel hero arch exceeded VoxelBrush budget.");
 
+                // The source voxels are unchanged. Only their derived close-up surface differs by
+                // material: cut limestone keeps enough interpolation to hide 10 cm stair steps but
+                // no longer receives the terrain-strength blur that made every voussoir look soft.
+                var surfaceProfiles = new VoxelSurfaceProfileSet()
+                    .Set(Mat.Stone, new VoxelSurfaceProfile(
+                        smoothing: 0.34f, densityBias: -0.015f))
+                    .Set(Mat.DarkStone, new VoxelSurfaceProfile(
+                        smoothing: 0.40f, densityBias: -0.012f))
+                    .Set(Mat.Moss, new VoxelSurfaceProfile(
+                        smoothing: 0.50f, densityBias: -0.008f));
+
                 world.DirtyRegions.Add(RegionCoord);
                 voxelSurface = new VoxelHeroSurfaceRenderer(
                     new int3(cx - 42, baseY - 5, cz - 20),
-                    new int3(84, 72, 40))
+                    new int3(84, 72, 40),
+                    surfaceProfiles)
                 {
                     CastShadows = true
                 };
@@ -112,7 +125,8 @@ namespace VoxelEngine.CI
 
                 string metadata =
                     "capture=AAA voxel-only arch hero study\n" +
-                    "geometry=VoxelBrush -> bounded smooth voxel extraction\n" +
+                    "geometry=VoxelBrush -> material-aware bounded voxel extraction\n" +
+                    "surfaceProfile=stone:0.34/-0.015,darkstone:0.40/-0.012,moss:0.50/-0.008\n" +
                     "masonryDetail=component-driven seams + deterministic stone relief\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
