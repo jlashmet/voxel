@@ -95,8 +95,8 @@ namespace VoxelEngine.Net.Server
             S_PlayerState.StateFlags stateFlags = S_PlayerState.StateFlags.None)
         {
             if (!_byConnection.TryGetValue(connectionId, out PlayerSession session) ||
-                !math.all(math.isfinite(positionVoxels)) ||
-                !math.all(math.isfinite(velocityVoxelsPerSecond)))
+                !IsFinite(positionVoxels) ||
+                !IsFinite(velocityVoxelsPerSecond))
                 return false;
 
             session.PositionVoxelsExact = positionVoxels;
@@ -168,6 +168,9 @@ namespace VoxelEngine.Net.Server
 
             return false;
         }
+
+        private static bool IsFinite(float3 value) =>
+            !math.any(math.isnan(value) | math.isinf(value));
 
         private static bool AabbIntersects(int3 aMin, int3 aMax, int3 bMin, int3 bMax) =>
             aMin.x <= bMax.x && aMax.x >= bMin.x &&
