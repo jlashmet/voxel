@@ -13,11 +13,15 @@ namespace VoxelEngine.CI
             if (_done || camera == null) return;
             _done = true;
 
-            // Lookdev should not inherit unrelated scene grading. The purple cast seen in previous
-            // captures came from global volume processing rather than the authored sky colours.
-            Volume[] volumes = Resources.FindObjectsOfTypeAll<Volume>();
-            for (int i = 0; i < volumes.Length; i++)
-                if (volumes[i] != null) volumes[i].enabled = false;
+            // Keep this assembly independent of the optional render-pipelines-core Volume type.
+            // CI only needs to disable any loaded component whose runtime type is a Volume.
+            Behaviour[] behaviours = Resources.FindObjectsOfTypeAll<Behaviour>();
+            for (int i = 0; i < behaviours.Length; i++)
+            {
+                Behaviour behaviour = behaviours[i];
+                if (behaviour != null && behaviour.GetType().Name == "Volume")
+                    behaviour.enabled = false;
+            }
 
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.18f, 0.66f, 0.96f, 1f);
