@@ -43,7 +43,7 @@ namespace VoxelEngine.Structures
                 Depth = 10,
                 ImpostHeight = 3,
                 JointDepth = 1,
-                ArchivoltProjection = 3,
+                ArchivoltProjection = 4,
                 MasonryEdgeRadius = 0,
                 StoneMaterial = stone,
                 JointMaterial = jointMaterial == 0 ? stone : jointMaterial,
@@ -72,7 +72,7 @@ namespace VoxelEngine.Structures
     /// </summary>
     public static class WorldArtVoxelArchitecture
     {
-        private const int HeroVoussoirCount = 11;
+        private const int HeroVoussoirCount = 15;
 
         public static WorldArtVoxelArchSockets ArchBay(ref VoxelBrush brush, in WorldArtVoxelArchSpec spec)
         {
@@ -207,11 +207,6 @@ namespace VoxelEngine.Structures
             }
         }
 
-        /// <summary>
-        /// Cut-stone voussoir primitive. Each stone is evaluated in its own radial/tangent frame,
-        /// yielding planar intrados/extrados chords and radial bed faces instead of an annulus slice.
-        /// The centre stone is the keystone: same primitive, slightly wider and one voxel prouder.
-        /// </summary>
         private static void BuildFrontVoussoirs(ref VoxelBrush brush, int cx, int springY, int frontZ,
             int innerRadius, int outerRadius, int faceDepth, byte stoneMaterial, byte jointMaterial,
             WorldArtVoxelArchDamage damage)
@@ -229,15 +224,15 @@ namespace VoxelEngine.Structures
                 float ty = ca;
                 bool isKey = i == keystone;
 
-                float innerPlane = innerRadius - (isKey ? 0.5f : 0.15f);
-                float outerPlane = outerRadius + (isKey ? 0.8f : 0.15f);
+                float innerPlane = innerRadius - (isKey ? 0.35f : 0.10f);
+                float outerPlane = outerRadius + (isKey ? 0.55f : 0.10f);
                 float halfAngle = sector * 0.5f;
-                float innerHalfWidth = math.tan(halfAngle) * innerPlane - 0.45f;
-                float outerHalfWidth = math.tan(halfAngle) * outerPlane - 0.55f;
+                float innerHalfWidth = math.tan(halfAngle) * innerPlane - 0.28f;
+                float outerHalfWidth = math.tan(halfAngle) * outerPlane - 0.34f;
                 if (isKey)
                 {
-                    innerHalfWidth += 0.35f;
-                    outerHalfWidth += 0.55f;
+                    innerHalfWidth += 0.20f;
+                    outerHalfWidth += 0.34f;
                 }
 
                 int localDepth = faceDepth + (isKey ? 1 : ((i & 1) == 0 ? 0 : -1));
@@ -258,7 +253,6 @@ namespace VoxelEngine.Structures
                 }
             }
 
-            // Dark backing at the radial beds gives the physical recessed pass a coherent mortar bed.
             for (int boundary = 1; boundary < HeroVoussoirCount; boundary++)
             {
                 float angle = math.PI * boundary / HeroVoussoirCount;
