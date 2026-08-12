@@ -18,9 +18,9 @@ namespace VoxelEngine.Showcase
     /// the legacy showcase greedy mesher without changing destruction, networking, or storage.
     ///
     /// Surface filtering is material-aware. Terrain may keep the broad legacy smoothing while
-    /// dressed masonry can preserve flatter faces and tighter corners from exactly the same voxel
-    /// storage. Profiles can additionally planarize strongly axis-aligned extracted faces, letting
-    /// curves stay smooth without turning ashlar into inflated soap bars.
+    /// dressed masonry can recover a local signed-distance estimate from coverage/gradient, then
+    /// optionally preserve strongly axis-aligned planes. Profiles affect presentation only; they
+    /// never mutate authoritative voxels.
     ///
     /// This is intentionally bounded. A 5 cm visual lattice is appropriate for a close-up hero
     /// component, not for every resident world region. Shipping integration can promote the same
@@ -34,6 +34,7 @@ namespace VoxelEngine.Showcase
         private const int SamplesPerVoxel = 2;
         private const float SampleStepVoxels = 1f / SamplesPerVoxel;
         private const int BlurPasses = 2;
+        private const float MinCoverageGradient = 0.05f;
 
         private static readonly int3[] CubeCorners =
         {
@@ -158,10 +159,10 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Samples exact binary occupancy at the authoritative voxel lattice, then applies two
-        /// separable 1-2-1 low-pass passes. Each lattice point blends toward that filtered field by
-        /// the profile of the material owning its nearby surface, so a masonry/terrain boundary can
-        /// remain continuous without forcing both substances to have the same edge softness.
+        /// Samples exact binary occupancy at the authoritative voxel lattice and builds the legacy
+        /// two-pass filtered field. Material profiles can then replace that broad filter with the
+        /// same radius-one coverage/gradient distance recovery used by the production density path.
+        /// The legacy profile remains bit-for-bit equivalent to the previous hero renderer.
         /// </summary>
         private void BuildBaseDensity(ShowcaseWorld world)
         {
@@ -200,11 +201,60 @@ namespace VoxelEngine.Showcase
                 int index = BaseIndex(x, y, z);
                 byte profileMaterial = ProfileMaterialAt(x, y, z);
                 VoxelSurfaceProfile profile = _surfaceProfiles.Get(profileMaterial);
-                float shaped = math.lerp(original[index], _baseDensity[index], profile.Smoothing);
+                float filtered = _baseDensity[index];
+                if (profile.DistanceRecovery > 0.00001f)
+                {
+                    float distanceRecovered = DistanceRecoveredDensity(x, y, z, original[index]);
+                    filtered = math.lerp(filtered, distanceRecovered, profile.DistanceRecovery);
+                }
+                float shaped = math.lerp(original[index], filtered, profile.Smoothing);
                 shaped -= profile.DensityBias;
                 shaped -= SurfaceModification(_baseMin + new int3(x, y, z), in profile);
                 _baseDensity[index] = math.clamp(shaped, -1.5f, 1.5f);
             }
+        }
+
+        /// <summary>
+        /// Radius-one binomial coverage and its derivative recover signed distance from binary
+        /// occupancy. For an axis-aligned half-space the estimate lands exactly half a voxel from
+        /// the boundary; on a digital curve it infers a stable diagonal normal instead of simply
+        /// rounding every stair step into a blob.
+        /// </summary>
+        private float DistanceRecoveredDensity(int centreX, int centreY, int centreZ, float raw)
+        {
+            float coverage = 0f;
+            float3 gradient = float3.zero;
+
+            for (int z = -1; z <= 1; z++)
+            for (int y = -1; y <= 1; y++)
+            for (int x = -1; x <= 1; x++)
+            {
+                int qx = math.clamp(centreX + x, 0, _baseSize.x - 1);
+                int qy = math.clamp(centreY + y, 0, _baseSize.y - 1);
+                int qz = math.clamp(centreZ + z, 0, _baseSize.z - 1);
+                float occupied = _baseMaterials[BaseIndex(qx, qy, qz)]
+                    != VoxelDimensions.MaterialEmpty ? 1f : 0f;
+
+                float wx = x == 0 ? 2f : 1f;
+                float wy = y == 0 ? 2f : 1f;
+                float wz = z == 0 ? 2f : 1f;
+                float dx = x;
+                float dy = y;
+                float dz = z;
+
+                coverage += occupied * wx * wy * wz;
+                gradient += occupied * new float3(dx * wy * wz,
+                                                   wx * dy * wz,
+                                                   wx * wy * dz);
+            }
+
+            coverage *= 1f / 64f;
+            gradient *= 1f / 32f;
+            float gradientMagnitude = math.length(gradient);
+            if (gradientMagnitude <= MinCoverageGradient) return raw;
+
+            float signedVoxels = (coverage - 0.5f) / gradientMagnitude;
+            return math.clamp(-signedVoxels, -1f, 1f);
         }
 
         /// <summary>
