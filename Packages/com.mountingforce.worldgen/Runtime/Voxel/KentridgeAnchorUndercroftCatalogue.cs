@@ -20,7 +20,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int WorkingDefinition = 1;
         private const int EnvelopeDm = 84;
         private const int BodyWidthDm = 76;
-        private const int BodyDepthDm = 32;
+        private const int BodyDepthDm = 22;
         private const int BodySideInsetDm = 4;
         private const int BodyFrontInsetDm = 12;
         private const int BayGapDm = 8;
