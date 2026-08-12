@@ -158,8 +158,10 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/results.xml"
           test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/showcase-tree-destruction.txt"
           test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/01-showcase-before.png"
-          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/02-showcase-after-branch.png"
-          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/03-showcase-after-trunk.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/02-showcase-branch-falling.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/03-showcase-branch-gone.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/04-showcase-crown-toppling.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/05-showcase-crown-gone.png"
 
       - name: Show visual metadata
         if: always()
