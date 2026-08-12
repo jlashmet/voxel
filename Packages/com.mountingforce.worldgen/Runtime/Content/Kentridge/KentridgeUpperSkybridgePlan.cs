@@ -48,16 +48,16 @@ namespace MountingForce.WorldGen.Content.Kentridge
             KentridgeUrbanBlock west = FindBlock(massing, "upper-west-block");
             KentridgeUrbanBlock east = FindBlock(massing, "upper-east-block");
 
-            // Connect the protected court interiors, not the outer block envelopes. This keeps the
-            // bridge independent of whatever building grammar eventually occupies the public edges.
+            // Connect protected court interiors, not generated buildings. This keeps the overpass
+            // independent of the building-grammar branch and makes the city graph own the crossing.
             int westX = west.InteriorMaxDm.X;
             int eastX = east.InteriorMinDm.X;
-            int shelfOffset = KentridgeVerticalProfile.SurfaceOffsetDm(
-                west.ElevationSampleDm.X,
-                west.ElevationSampleDm.Y);
-            int roadOffset = KentridgeVerticalProfile.SurfaceOffsetDm(
-                KentridgeTownPlanner.MainSpineXDm,
-                CrossingZDm);
+
+            // This is deliberately a content-layer statement. At z=460 the processional section is
+            // still on the Market shelf; both Upper Ward courts sit on the authored Upper Landing
+            // shelf. The voxel compiler later converts those semantic offsets into absolute Y.
+            int shelfOffset = KentridgeProcessionalClimb.UpperLandingOffsetDm;
+            int roadOffset = KentridgeProcessionalClimb.MarketOffsetDm;
 
             var plan = new KentridgeUpperSkybridgePlan(
                 westX,
@@ -85,6 +85,15 @@ namespace MountingForce.WorldGen.Content.Kentridge
             KentridgeUrbanBlock west,
             KentridgeUrbanBlock east)
         {
+            if (west.Band != KentridgeUrbanBand.UpperWard
+                || east.Band != KentridgeUrbanBand.UpperWard)
+                throw new InvalidOperationException(
+                    "Kentridge upper skybridge endpoints must remain Upper Ward courts.");
+
+            if (CrossingZDm < KentridgeProcessionalClimb.MarketRiseSouthZDm)
+                throw new InvalidOperationException(
+                    "Kentridge skybridge crossing moved onto the Market-to-Upper climb; its semantic road elevation is no longer flat Market level.");
+
             if (plan.LengthDm <= KentridgeTownPlanner.MainRoadWidthDm)
                 throw new InvalidOperationException("Kentridge upper skybridge span is too short.");
             if (plan.ClearanceDm < RequiredClearanceDm)
