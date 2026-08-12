@@ -18,7 +18,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                                    float planarizationThreshold = 0.88f,
                                    float distanceRecovery = 0f,
                                    float curveRecovery = 0f,
-                                   float normalPlanarization = -1f)
+                                   float normalPlanarization = -1f,
+                                   float planarSnapDistanceVoxels = 0.16f)
         {
             Smoothing = math.saturate(smoothing);
             BlurPasses = math.clamp(blurPasses, 0, MaxSupportedBlurPasses);
@@ -26,12 +27,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             ModificationStrength = math.clamp(modificationStrength, 0f, 0.35f);
             ModificationScaleVoxels = math.max(0.25f, modificationScaleVoxels);
             Planarization = math.saturate(planarization);
-            PlanarizationThreshold = math.clamp(planarizationThreshold, 0.58f, 0.995f);
+            PlanarizationThreshold = math.clamp(planarizationThreshold, 0.35f, 0.995f);
             DistanceRecovery = math.saturate(distanceRecovery);
             CurveRecovery = math.saturate(curveRecovery);
             NormalPlanarization = normalPlanarization < 0f
                 ? Planarization
                 : math.saturate(normalPlanarization);
+            PlanarSnapDistanceVoxels = math.clamp(planarSnapDistanceVoxels, 0.01f, 0.49f);
         }
 
         public float Smoothing { get; }
@@ -40,10 +42,22 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public float ModificationStrength { get; }
         public float ModificationScaleVoxels { get; }
         public float Planarization { get; }
+
+        /// <summary>
+        /// Minimum absolute normal component for an axis to participate in feature snapping. Unlike
+        /// the old dominant-axis rule, multiple axes may qualify at a true manufactured edge/corner.
+        /// </summary>
         public float PlanarizationThreshold { get; }
+
         public float DistanceRecovery { get; }
         public float CurveRecovery { get; }
         public float NormalPlanarization { get; }
+
+        /// <summary>
+        /// Maximum distance, in voxel units, from an exact half-voxel plane before snapping is
+        /// allowed. This prevents a curved SDF point from being dragged onto a manufactured plane.
+        /// </summary>
+        public float PlanarSnapDistanceVoxels { get; }
 
         public static VoxelSurfaceProfile Legacy => new(0.92f, 2);
 
@@ -54,39 +68,41 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             curveRecovery: 0.35f);
 
         public static VoxelSurfaceProfile HardManufactured => new(
-            smoothing: 0.76f,
+            smoothing: 0.80f,
             blurPasses: 0,
-            planarization: 0.90f,
-            planarizationThreshold: 0.72f,
-            distanceRecovery: 0.78f,
-            curveRecovery: 0.20f,
-            normalPlanarization: 0.96f);
+            planarization: 0.96f,
+            planarizationThreshold: 0.52f,
+            distanceRecovery: 0.84f,
+            curveRecovery: 0.18f,
+            normalPlanarization: 1.0f,
+            planarSnapDistanceVoxels: 0.22f);
 
         /// <summary>
-        /// Dressed stone never receives the terrain blur. It does use coverage-distance recovery so
-        /// large diagonal/circular forms such as an archivolt remain continuous. Strong position and
-        /// normal planarization then restores the broad cut faces instead of trying to preserve them
-        /// by disabling curve reconstruction and exposing the 10 cm voxel staircase.
+        /// Dressed stone gets no terrain blur. Curve recovery stays high enough to reconstruct a
+        /// clean archivolt, while feature snapping is gated by proximity to exact voxel planes so
+        /// broad ashlar faces/edges can remain hard without quantizing the whole circular ring.
         /// </summary>
         public static VoxelSurfaceProfile DressedStone => new(
-            smoothing: 0.94f,
+            smoothing: 0.96f,
             blurPasses: 0,
             densityBias: -0.004f,
-            planarization: 0.98f,
-            planarizationThreshold: 0.66f,
+            planarization: 1.0f,
+            planarizationThreshold: 0.50f,
             distanceRecovery: 1.0f,
             curveRecovery: 0.72f,
-            normalPlanarization: 1.0f);
+            normalPlanarization: 1.0f,
+            planarSnapDistanceVoxels: 0.20f);
 
         public static VoxelSurfaceProfile RecessedMasonryJoint => new(
-            smoothing: 0.94f,
+            smoothing: 0.96f,
             blurPasses: 0,
             densityBias: -0.085f,
-            planarization: 0.98f,
-            planarizationThreshold: 0.66f,
+            planarization: 1.0f,
+            planarizationThreshold: 0.50f,
             distanceRecovery: 1.0f,
             curveRecovery: 0.72f,
-            normalPlanarization: 1.0f);
+            normalPlanarization: 1.0f,
+            planarSnapDistanceVoxels: 0.20f);
 
         public static VoxelSurfaceProfile RoughRock => new(
             smoothing: 0.82f,
@@ -120,28 +136,28 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public static VoxelSurfaceProfileSet Canonical()
         {
             var set = new VoxelSurfaceProfileSet(VoxelSurfaceProfile.Legacy);
-            set.Set(0,  VoxelSurfaceProfile.Legacy);              // empty; boundary inherits nearest solid
-            set.Set(1,  VoxelSurfaceProfile.DressedStone);        // stone
-            set.Set(2,  VoxelSurfaceProfile.HardManufactured);    // wood
-            set.Set(3,  VoxelSurfaceProfile.SoftTerrain);         // sand
-            set.Set(4,  VoxelSurfaceProfile.HardManufactured);    // glass
-            set.Set(5,  VoxelSurfaceProfile.RoughRock);           // bedrock
-            set.Set(6,  VoxelSurfaceProfile.DressedStone);        // dark stone
-            set.Set(7,  VoxelSurfaceProfile.HardManufactured);    // slate
-            set.Set(8,  VoxelSurfaceProfile.HardManufactured);    // tile
-            set.Set(9,  new VoxelSurfaceProfile(0.55f, 1));        // cloth
-            set.Set(10, VoxelSurfaceProfile.SoftTerrain);         // grass
-            set.Set(11, new VoxelSurfaceProfile(0.96f, 2));        // water
-            set.Set(12, VoxelSurfaceProfile.HardManufactured);    // gold
-            set.Set(13, VoxelSurfaceProfile.SoftTerrain);         // dirt
+            set.Set(0,  VoxelSurfaceProfile.Legacy);
+            set.Set(1,  VoxelSurfaceProfile.DressedStone);
+            set.Set(2,  VoxelSurfaceProfile.HardManufactured);
+            set.Set(3,  VoxelSurfaceProfile.SoftTerrain);
+            set.Set(4,  VoxelSurfaceProfile.HardManufactured);
+            set.Set(5,  VoxelSurfaceProfile.RoughRock);
+            set.Set(6,  VoxelSurfaceProfile.DressedStone);
+            set.Set(7,  VoxelSurfaceProfile.HardManufactured);
+            set.Set(8,  VoxelSurfaceProfile.HardManufactured);
+            set.Set(9,  new VoxelSurfaceProfile(0.55f, 1));
+            set.Set(10, VoxelSurfaceProfile.SoftTerrain);
+            set.Set(11, new VoxelSurfaceProfile(0.96f, 2));
+            set.Set(12, VoxelSurfaceProfile.HardManufactured);
+            set.Set(13, VoxelSurfaceProfile.SoftTerrain);
             set.Set(14, new VoxelSurfaceProfile(0.90f, 2,
                                                  modificationStrength: 0.018f,
-                                                 modificationScaleVoxels: 4.5f)); // moss
-            set.Set(15, VoxelSurfaceProfile.HardManufactured);    // lit window
-            set.Set(16, new VoxelSurfaceProfile(0.96f, 2));        // cascade
+                                                 modificationScaleVoxels: 4.5f));
+            set.Set(15, VoxelSurfaceProfile.HardManufactured);
+            set.Set(16, new VoxelSurfaceProfile(0.96f, 2));
             set.Set(17, new VoxelSurfaceProfile(0.70f, 1,
                                                  distanceRecovery: 0.55f,
-                                                 curveRecovery: 0.45f)); // crystal
+                                                 curveRecovery: 0.45f));
             return set;
         }
     }
