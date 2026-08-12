@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Unity.Mathematics;
+using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Vegetation;
@@ -8,56 +8,60 @@ using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 namespace VoxelEngine.Rendering.Vegetation
 {
     /// <summary>
-    /// Runtime presentation of semantic tree instances. Geometry is generated once per semantic
-    /// tree snapshot. Destruction never regenerates vertices: branch ownership is derived from the
-    /// deterministic mesh layout and damage only rewrites the affected mesh index lists.
+    /// Runtime presentation of semantic tree state. Healthy standing trees are combined into
+    /// spatial render batches. Every tree retains its per-tree meshes as a dormant dynamic
+    /// representation so damage can immediately move that tree out of the batch without changing
+    /// semantic state or destruction behavior.
     /// </summary>
     public sealed class ProceduralTreeRenderer : MonoBehaviour
     {
-        private const float RecoveryRenderChunkMetres = 12.8f;
-        private const float LegacyProxyBoundsPadding = 0.75f;
-        private const float FallDuration = 1.25f;
-        private const float FallenHoldDuration = 0.75f;
+        private const float BatchSizeMetres = 32f;
+        private const int MinimumTreesPerBatch = 2;
+        private const float HealthyDamageEpsilon = 0.0001f;
 
         private sealed class TreePresentation
         {
             public TreeInstance Instance;
-            public ProceduralTreeMeshBuilder.TreeSkeleton Skeleton;
+            public ProceduralTreeSkeleton Skeleton;
             public GameObject Root;
             public MeshFilter[] LodFilters;
             public MeshRenderer[] LodRenderers;
             public Mesh[] LodMeshes;
-
-            // Immutable topology captured from the full generated meshes. Owners run parallel to
-            // the corresponding index array and identify which semantic branch owns each triangle.
-            // Damage filters these arrays into the live submeshes without touching vertex data.
             public int[][] BaseBarkIndices;
             public int[][] BaseLeafIndices;
             public int[][] BarkIndexOwners;
             public int[][] LeafIndexOwners;
-
             public readonly HashSet<int> ResolvedRemovedBranches = new();
             public int DirectCutCount;
-            public bool Falling;
-            public bool Retired;
-            public float FallStartTime;
-            public Vector3 FallAxis;
-            public int3 RenderChunkMin;
-            public int3 RenderChunkMax;
+            public bool IsBatched;
+        }
+
+        private sealed class BatchPresentation
+        {
+            public GameObject Root;
+            public Mesh[] LodMeshes;
+            public readonly List<int> TreeIndices = new();
         }
 
         private static ProceduralTreeRenderer s_Instance;
         private static readonly int s_Damage = Shader.PropertyToID("_Damage");
 
         private readonly List<TreePresentation> _trees = new();
+        private readonly List<BatchPresentation> _batches = new();
         private readonly List<int> _filteredBarkIndices = new(16384);
         private readonly List<int> _filteredLeafIndices = new(16384);
         private MaterialPropertyBlock _damageProperties;
-        private Material _barkMaterial;
-        private Material _leafMaterial;
-        private Material[] _sharedMaterials;
-        private int _seenVersion = int.MinValue;
-        private int _seenDamageVersion = int.MinValue;
+        private bool _snapshotDirty = true;
+        private bool _damageDirty = true;
+
+        public double LastRebuildMilliseconds { get; private set; }
+        public int PresentationCount => _trees.Count;
+        public int GeneratedMeshCount { get; private set; }
+        public long TotalTriangleCountAllLods { get; private set; }
+        public int BatchCount => _batches.Count;
+        public int BatchedTreeCount { get; private set; }
+        public int BatchMeshCount => _batches.Count * 3;
+        public int EstimatedVisibleDrawCount => (_batches.Count + (_trees.Count - BatchedTreeCount)) * 2;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatic() => s_Instance = null;
@@ -81,91 +85,66 @@ namespace VoxelEngine.Rendering.Vegetation
                 Destroy(gameObject);
                 return;
             }
-
             s_Instance = this;
             _damageProperties = new MaterialPropertyBlock();
         }
 
+        private void OnEnable()
+        {
+            TreeWorldState.SnapshotChanged += OnSnapshotChanged;
+            TreeWorldState.BranchCut += OnBranchCut;
+            TreeWorldState.DamageChanged += OnDamageChanged;
+            _snapshotDirty = true;
+            _damageDirty = true;
+        }
+
+        private void OnDisable()
+        {
+            TreeWorldState.SnapshotChanged -= OnSnapshotChanged;
+            TreeWorldState.BranchCut -= OnBranchCut;
+            TreeWorldState.DamageChanged -= OnDamageChanged;
+        }
+
+        private void OnSnapshotChanged()
+        {
+            _snapshotDirty = true;
+            _damageDirty = true;
+        }
+
+        private void OnBranchCut(TreeBranchCutEvent _) => _damageDirty = true;
+        private void OnDamageChanged(TreeDamageChangedEvent _) => _damageDirty = true;
+
         private void Update()
         {
-            EnsureMaterials();
-            ApplyLighting();
+            if (!ProceduralTreeMaterials.Ensure()) return;
+            ProceduralTreeMaterials.ApplyLighting();
 
-            int version = ProceduralTreeRegistry.Version;
-            if (_seenVersion != version)
+            if (_snapshotDirty)
             {
-                _seenVersion = version;
+                _snapshotDirty = false;
                 Rebuild();
-                _seenDamageVersion = int.MinValue;
+                _damageDirty = true;
             }
 
-            int damageVersion = ProceduralTreeRegistry.DamageVersion;
-            if (_seenDamageVersion != damageVersion)
+            if (_damageDirty)
             {
-                _seenDamageVersion = damageVersion;
+                _damageDirty = false;
                 ApplyDamage();
             }
-
-            UpdateFallbackVisibility();
-            UpdateFallingTrees();
-        }
-
-        private void EnsureMaterials()
-        {
-            if (_barkMaterial != null && _leafMaterial != null) return;
-
-            Shader bark = Shader.Find("VoxelEngine/ProceduralTreeBark");
-            Shader leaves = Shader.Find("VoxelEngine/ProceduralTreeLeaves");
-            if (bark == null || leaves == null)
-            {
-                if (bark == null) Debug.LogError("Procedural tree bark shader was not found.");
-                if (leaves == null) Debug.LogError("Procedural tree leaf shader was not found.");
-                return;
-            }
-
-            _barkMaterial = new Material(bark)
-            {
-                name = "Procedural Tree Bark (Runtime)",
-                enableInstancing = true,
-                hideFlags = HideFlags.DontSave,
-            };
-            _leafMaterial = new Material(leaves)
-            {
-                name = "Procedural Tree Leaves (Runtime)",
-                enableInstancing = true,
-                hideFlags = HideFlags.DontSave,
-            };
-            _sharedMaterials = new[] { _barkMaterial, _leafMaterial };
-        }
-
-        private void ApplyLighting()
-        {
-            if (_barkMaterial == null || _leafMaterial == null) return;
-            Vector3 sun = VoxelRenderBridge.SunDirection;
-            Color horizon = VoxelRenderBridge.SkyHorizon;
-            Color zenith = VoxelRenderBridge.SkyZenith;
-
-            _barkMaterial.SetVector("_SunDirection", new Vector4(sun.x, sun.y, sun.z, 0f));
-            _barkMaterial.SetColor("_SkyHorizon", horizon);
-            _barkMaterial.SetColor("_SkyZenith", zenith);
-            _leafMaterial.SetVector("_SunDirection", new Vector4(sun.x, sun.y, sun.z, 0f));
-            _leafMaterial.SetColor("_SkyHorizon", horizon);
-            _leafMaterial.SetColor("_SkyZenith", zenith);
         }
 
         private void Rebuild()
         {
+            var stopwatch = Stopwatch.StartNew();
             ClearGenerated();
-            if (_sharedMaterials == null) return;
+            GeneratedMeshCount = 0;
+            TotalTriangleCountAllLods = 0;
 
-            IReadOnlyList<TreeInstance> instances = ProceduralTreeRegistry.Instances;
+            IReadOnlyList<TreeInstance> instances = TreeWorldState.Instances;
             for (int i = 0; i < instances.Count; i++)
             {
                 TreeInstance instance = instances[i];
-                ProceduralTreeMeshBuilder.TreeSkeleton skeleton =
-                    ProceduralTreeMeshBuilder.GenerateSkeleton(in instance);
-                CalculateRenderChunkBounds(in instance, skeleton,
-                    out int3 renderChunkMin, out int3 renderChunkMax);
+                ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
 
                 var root = new GameObject($"Tree {i:000} {instance.Species}")
                 {
@@ -186,10 +165,6 @@ namespace VoxelEngine.Rendering.Vegetation
                     BaseLeafIndices = new int[3][],
                     BarkIndexOwners = new int[3][],
                     LeafIndexOwners = new int[3][],
-                    Falling = false,
-                    Retired = false,
-                    RenderChunkMin = renderChunkMin,
-                    RenderChunkMax = renderChunkMax,
                 };
 
                 for (int lod = 0; lod < 3; lod++)
@@ -198,28 +173,19 @@ namespace VoxelEngine.Rendering.Vegetation
                     child.transform.SetParent(root.transform, false);
                     var filter = child.AddComponent<MeshFilter>();
                     var renderer = child.AddComponent<MeshRenderer>();
-                    renderer.sharedMaterials = _sharedMaterials;
-                    renderer.shadowCastingMode = ShadowCastingMode.On;
-                    renderer.receiveShadows = true;
-                    renderer.lightProbeUsage = LightProbeUsage.Off;
-                    renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+                    ConfigureRenderer(renderer);
                     presentation.LodFilters[lod] = filter;
                     presentation.LodRenderers[lod] = renderer;
                 }
 
                 var group = root.AddComponent<LODGroup>();
                 group.fadeMode = LODFadeMode.None;
-                group.SetLODs(new[]
-                {
-                    new LOD(0.34f, new Renderer[] { presentation.LodRenderers[0] }),
-                    new LOD(0.13f, new Renderer[] { presentation.LodRenderers[1] }),
-                    new LOD(0.025f, new Renderer[] { presentation.LodRenderers[2] }),
-                });
+                group.SetLODs(CreateLods(presentation.LodRenderers));
 
                 BuildTreeMeshes(presentation);
 
-                IReadOnlyCollection<int> directCuts = ProceduralTreeRegistry.RemovedBranches(i);
-                ProceduralTreeMeshBuilder.ResolveRemovedBranches(
+                IReadOnlyCollection<int> directCuts = TreeWorldState.RemovedBranches(i);
+                ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
                     skeleton, directCuts, presentation.ResolvedRemovedBranches);
                 presentation.DirectCutCount = directCuts.Count;
                 if (presentation.ResolvedRemovedBranches.Count > 0)
@@ -228,14 +194,33 @@ namespace VoxelEngine.Rendering.Vegetation
                 group.RecalculateBounds();
                 _trees.Add(presentation);
             }
+
+            RebuildBatches();
+
+            stopwatch.Stop();
+            LastRebuildMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
+        }
+
+        private static LOD[] CreateLods(MeshRenderer[] renderers) => new[]
+        {
+            new LOD(0.34f, new Renderer[] { renderers[0] }),
+            new LOD(0.13f, new Renderer[] { renderers[1] }),
+            new LOD(0.025f, new Renderer[] { renderers[2] }),
+        };
+
+        private static void ConfigureRenderer(MeshRenderer renderer)
+        {
+            renderer.sharedMaterials = ProceduralTreeMaterials.Shared;
+            renderer.shadowCastingMode = ShadowCastingMode.On;
+            renderer.receiveShadows = true;
+            renderer.lightProbeUsage = LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
         }
 
         private void BuildTreeMeshes(TreePresentation tree)
         {
             for (int lod = 0; lod < 3; lod++)
             {
-                // Always generate the complete immutable vertex set. Destruction changes only the
-                // index buffers below, so repeated hits never allocate/regenerate tree geometry.
                 Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(tree.Skeleton, lod);
                 mesh.name = $"{tree.Instance.Species}_{tree.Instance.Seed}_LOD{lod}";
                 mesh.hideFlags = HideFlags.DontSave;
@@ -249,10 +234,174 @@ namespace VoxelEngine.Rendering.Vegetation
                 tree.BaseLeafIndices[lod] = leaves;
                 tree.BarkIndexOwners[lod] = BuildBarkOwners(tree.Skeleton, lod, bark.Length);
                 tree.LeafIndexOwners[lod] = BuildLeafOwners(tree.Skeleton, lod, leaves.Length);
+                GeneratedMeshCount++;
+                TotalTriangleCountAllLods += (bark.Length + leaves.Length) / 3L;
             }
         }
 
-        private static int[] BuildBarkOwners(ProceduralTreeMeshBuilder.TreeSkeleton skeleton,
+        private void RebuildBatches()
+        {
+            ClearBatches();
+            BatchedTreeCount = 0;
+
+            for (int i = 0; i < _trees.Count; i++)
+            {
+                _trees[i].IsBatched = false;
+                SetTreeRendererEnabled(_trees[i], true);
+            }
+
+            IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
+            var groups = new Dictionary<Vector2Int, List<int>>();
+            for (int i = 0; i < _trees.Count; i++)
+            {
+                if (!IsHealthyForBatch(i, damage)) continue;
+
+                Vector3 position = (Vector3)_trees[i].Instance.PositionMetres;
+                var key = new Vector2Int(
+                    Mathf.FloorToInt(position.x / BatchSizeMetres),
+                    Mathf.FloorToInt(position.z / BatchSizeMetres));
+                if (!groups.TryGetValue(key, out List<int> treeIndices))
+                {
+                    treeIndices = new List<int>();
+                    groups.Add(key, treeIndices);
+                }
+                treeIndices.Add(i);
+            }
+
+            foreach (KeyValuePair<Vector2Int, List<int>> pair in groups)
+            {
+                if (pair.Value.Count < MinimumTreesPerBatch) continue;
+                BuildBatch(pair.Key, pair.Value);
+            }
+        }
+
+        private bool IsHealthyForBatch(int treeIndex,
+                                       IReadOnlyList<TreeWorldState.TreeDamageState> damage)
+        {
+            if (TreeWorldState.RemovedBranches(treeIndex).Count > 0) return false;
+            if (treeIndex >= damage.Count) return true;
+            float damageAmount = 1f - Mathf.Clamp01(damage[treeIndex].FoliageHealth);
+            return damageAmount <= HealthyDamageEpsilon;
+        }
+
+        private void BuildBatch(Vector2Int key, List<int> treeIndices)
+        {
+            Vector3 origin = new Vector3(key.x * BatchSizeMetres, 0f, key.y * BatchSizeMetres);
+            var root = new GameObject($"Tree Batch {key.x},{key.y}")
+            {
+                hideFlags = HideFlags.DontSave,
+            };
+            root.transform.SetParent(transform, false);
+            root.transform.position = origin;
+
+            var batch = new BatchPresentation
+            {
+                Root = root,
+                LodMeshes = new Mesh[3],
+            };
+            batch.TreeIndices.AddRange(treeIndices);
+
+            var lodRenderers = new MeshRenderer[3];
+            for (int lod = 0; lod < 3; lod++)
+            {
+                var child = new GameObject($"LOD{lod}") { hideFlags = HideFlags.DontSave };
+                child.transform.SetParent(root.transform, false);
+                var filter = child.AddComponent<MeshFilter>();
+                var renderer = child.AddComponent<MeshRenderer>();
+                ConfigureRenderer(renderer);
+
+                Mesh mesh = BuildCombinedBatchMesh(treeIndices, lod, origin, key);
+                filter.sharedMesh = mesh;
+                batch.LodMeshes[lod] = mesh;
+                lodRenderers[lod] = renderer;
+            }
+
+            var group = root.AddComponent<LODGroup>();
+            group.fadeMode = LODFadeMode.None;
+            group.SetLODs(CreateLods(lodRenderers));
+            group.RecalculateBounds();
+
+            for (int i = 0; i < treeIndices.Count; i++)
+            {
+                TreePresentation tree = _trees[treeIndices[i]];
+                tree.IsBatched = true;
+                SetTreeRendererEnabled(tree, false);
+            }
+
+            BatchedTreeCount += treeIndices.Count;
+            _batches.Add(batch);
+        }
+
+        private Mesh BuildCombinedBatchMesh(List<int> treeIndices, int lod,
+                                            Vector3 batchOrigin, Vector2Int key)
+        {
+            var barkParts = new CombineInstance[treeIndices.Count];
+            var leafParts = new CombineInstance[treeIndices.Count];
+
+            for (int i = 0; i < treeIndices.Count; i++)
+            {
+                TreePresentation tree = _trees[treeIndices[i]];
+                Vector3 offset = (Vector3)tree.Instance.PositionMetres - batchOrigin;
+                Matrix4x4 matrix = Matrix4x4.Translate(offset);
+                barkParts[i] = new CombineInstance
+                {
+                    mesh = tree.LodMeshes[lod],
+                    subMeshIndex = 0,
+                    transform = matrix,
+                };
+                leafParts[i] = new CombineInstance
+                {
+                    mesh = tree.LodMeshes[lod],
+                    subMeshIndex = 1,
+                    transform = matrix,
+                };
+            }
+
+            var barkMesh = new Mesh
+            {
+                name = $"TreeBatch_{key.x}_{key.y}_LOD{lod}_BarkTemp",
+                indexFormat = IndexFormat.UInt32,
+                hideFlags = HideFlags.DontSave,
+            };
+            var leafMesh = new Mesh
+            {
+                name = $"TreeBatch_{key.x}_{key.y}_LOD{lod}_LeavesTemp",
+                indexFormat = IndexFormat.UInt32,
+                hideFlags = HideFlags.DontSave,
+            };
+            barkMesh.CombineMeshes(barkParts, true, true, false);
+            leafMesh.CombineMeshes(leafParts, true, true, false);
+
+            var combined = new Mesh
+            {
+                name = $"TreeBatch_{key.x}_{key.y}_LOD{lod}",
+                indexFormat = IndexFormat.UInt32,
+                hideFlags = HideFlags.DontSave,
+            };
+            var materialParts = new[]
+            {
+                new CombineInstance { mesh = barkMesh, subMeshIndex = 0, transform = Matrix4x4.identity },
+                new CombineInstance { mesh = leafMesh, subMeshIndex = 0, transform = Matrix4x4.identity },
+            };
+            combined.CombineMeshes(materialParts, false, true, false);
+            combined.RecalculateBounds();
+
+            Destroy(barkMesh);
+            Destroy(leafMesh);
+            return combined;
+        }
+
+        private static void SetTreeRendererEnabled(TreePresentation tree, bool enabled)
+        {
+            if (tree.LodRenderers == null) return;
+            for (int lod = 0; lod < tree.LodRenderers.Length; lod++)
+            {
+                MeshRenderer renderer = tree.LodRenderers[lod];
+                if (renderer != null) renderer.enabled = enabled;
+            }
+        }
+
+        private static int[] BuildBarkOwners(ProceduralTreeSkeleton skeleton,
                                              int lod, int indexCount)
         {
             int radialSides = lod == 0 ? 8 : lod == 1 ? 5 : 3;
@@ -264,20 +413,18 @@ namespace VoxelEngine.Rendering.Vegetation
                  branchIndex < skeleton.Branches.Count && cursor < indexCount;
                  branchIndex++)
             {
-                ProceduralTreeMeshBuilder.BranchSegment branch = skeleton.Branches[branchIndex];
+                TreeBranchSegment branch = skeleton.Branches[branchIndex];
                 if (lod == 2 && branch.Level >= 3 && branch.RadiusStart < 0.035f) continue;
 
                 int end = Mathf.Min(indexCount, cursor + indicesPerBranch);
                 for (; cursor < end; cursor++) owners[cursor] = branchIndex;
             }
 
-            // A mismatch should never happen because this mirrors BuildMesh's deterministic layout.
-            // Treat any future unrecognised tail as unowned/always-visible rather than deleting it.
             for (; cursor < indexCount; cursor++) owners[cursor] = -1;
             return owners;
         }
 
-        private static int[] BuildLeafOwners(ProceduralTreeMeshBuilder.TreeSkeleton skeleton,
+        private static int[] BuildLeafOwners(ProceduralTreeSkeleton skeleton,
                                              int lod, int indexCount)
         {
             int leafStride = lod == 0 ? 1 : lod == 1 ? 2 : 4;
@@ -312,10 +459,6 @@ namespace VoxelEngine.Rendering.Vegetation
                               tree.ResolvedRemovedBranches, _filteredBarkIndices);
                 FilterIndices(tree.BaseLeafIndices[lod], tree.LeafIndexOwners[lod],
                               tree.ResolvedRemovedBranches, _filteredLeafIndices);
-
-                // calculateBounds=false is intentional. Damage only removes geometry, so the
-                // original bounds remain a conservative valid LOD/culling bound and avoid another
-                // CPU walk over the mesh on every hit.
                 mesh.SetTriangles(_filteredBarkIndices, 0, false);
                 mesh.SetTriangles(_filteredLeafIndices, 1, false);
             }
@@ -326,7 +469,6 @@ namespace VoxelEngine.Rendering.Vegetation
         {
             destination.Clear();
             if (source == null) return;
-
             for (int i = 0; i < source.Length; i++)
             {
                 int owner = owners != null && i < owners.Length ? owners[i] : -1;
@@ -337,26 +479,27 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private void ApplyDamage()
         {
-            IReadOnlyList<ProceduralTreeRegistry.TreeDamageState> damage =
-                ProceduralTreeRegistry.Damage;
+            IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
             int count = Mathf.Min(_trees.Count, damage.Count);
-
             if (_damageProperties == null) _damageProperties = new MaterialPropertyBlock();
+            bool batchesDirty = false;
 
             for (int i = 0; i < count; i++)
             {
                 TreePresentation tree = _trees[i];
-                IReadOnlyCollection<int> directCuts = ProceduralTreeRegistry.RemovedBranches(i);
+                IReadOnlyCollection<int> directCuts = TreeWorldState.RemovedBranches(i);
                 if (tree.DirectCutCount != directCuts.Count)
                 {
-                    ProceduralTreeMeshBuilder.ResolveRemovedBranches(
+                    ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
                         tree.Skeleton, directCuts, tree.ResolvedRemovedBranches);
                     tree.DirectCutCount = directCuts.Count;
                     ApplyRemovedGeometry(tree);
+                    if (tree.IsBatched) batchesDirty = true;
                 }
 
-                ProceduralTreeRegistry.TreeDamageState state = damage[i];
-                float damageAmount = 1f - Mathf.Clamp01(state.FoliageHealth);
+                float damageAmount = 1f - Mathf.Clamp01(damage[i].FoliageHealth);
+                if (tree.IsBatched && damageAmount > HealthyDamageEpsilon)
+                    batchesDirty = true;
 
                 _damageProperties.Clear();
                 _damageProperties.SetFloat(s_Damage, damageAmount);
@@ -366,105 +509,35 @@ namespace VoxelEngine.Rendering.Vegetation
                     if (renderer != null)
                         renderer.SetPropertyBlock(_damageProperties, 1);
                 }
-
-                if (state.Severed && !tree.Falling && !tree.Retired)
-                {
-                    tree.Falling = true;
-                    tree.FallStartTime = Time.time;
-                    uint seed = tree.Instance.Seed == 0 ? 1u : tree.Instance.Seed;
-                    float angle = (seed & 0xFFFFu) * (Mathf.PI * 2f / 65535f);
-                    tree.FallAxis = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
-                }
             }
+
+            if (batchesDirty)
+                RebuildBatches();
         }
 
-        /// <summary>
-        /// Surface Nets is still allowed to cover terrain while Transvoxel warms up, but it also
-        /// contains the showcase's old voxel tree proxy. Never draw the semantic tree at the same
-        /// time as that coarse proxy. Once every render chunk touched by this tree has handed off,
-        /// the exact same procedural root becomes visible; no geometry is rebuilt or cloned.
-        /// </summary>
-        private void UpdateFallbackVisibility()
+        private void ClearBatches()
         {
-            for (int i = 0; i < _trees.Count; i++)
+            for (int i = 0; i < _batches.Count; i++)
             {
-                TreePresentation tree = _trees[i];
-                if (tree.Root == null) continue;
-
-                bool coarseProxyVisible = false;
-                for (int z = tree.RenderChunkMin.z;
-                     z <= tree.RenderChunkMax.z && !coarseProxyVisible; z++)
-                for (int y = tree.RenderChunkMin.y;
-                     y <= tree.RenderChunkMax.y && !coarseProxyVisible; y++)
-                for (int x = tree.RenderChunkMin.x;
-                     x <= tree.RenderChunkMax.x; x++)
+                BatchPresentation batch = _batches[i];
+                if (batch.LodMeshes != null)
                 {
-                    if (!ProceduralTreeRegistry.IsCoarseLegacyProxyRenderChunk(new int3(x, y, z)))
-                        continue;
-                    coarseProxyVisible = true;
-                    break;
+                    for (int lod = 0; lod < batch.LodMeshes.Length; lod++)
+                        if (batch.LodMeshes[lod] != null) Destroy(batch.LodMeshes[lod]);
                 }
-
-                bool shouldBeActive = !tree.Retired && !coarseProxyVisible;
-                if (tree.Root.activeSelf != shouldBeActive)
-                    tree.Root.SetActive(shouldBeActive);
-            }
-        }
-
-        private void UpdateFallingTrees()
-        {
-            for (int i = 0; i < _trees.Count; i++)
-            {
-                TreePresentation tree = _trees[i];
-                if (!tree.Falling || tree.Retired || tree.Root == null) continue;
-
-                float elapsed = Time.time - tree.FallStartTime;
-                if (elapsed >= FallDuration + FallenHoldDuration)
+                if (batch.Root != null)
                 {
-                    tree.Retired = true;
-                    tree.Root.SetActive(false);
-                    continue;
+                    batch.Root.SetActive(false);
+                    Destroy(batch.Root);
                 }
-
-                float t = Mathf.Clamp01(elapsed / FallDuration);
-                float angle = Mathf.SmoothStep(0f, 88f, t);
-                tree.Root.transform.localRotation = Quaternion.AngleAxis(angle, tree.FallAxis);
             }
-        }
-
-        private static void CalculateRenderChunkBounds(
-            in TreeInstance instance, ProceduralTreeMeshBuilder.TreeSkeleton skeleton,
-            out int3 chunkMin, out int3 chunkMax)
-        {
-            float3 root = instance.PositionMetres;
-            float3 min = root;
-            float3 max = root;
-
-            for (int i = 0; i < skeleton.Branches.Count; i++)
-            {
-                ProceduralTreeMeshBuilder.BranchSegment branch = skeleton.Branches[i];
-                float radius = math.max(branch.RadiusStart, branch.RadiusEnd);
-                float3 r = new(radius);
-                min = math.min(min, root + math.min(branch.Start, branch.End) - r);
-                max = math.max(max, root + math.max(branch.Start, branch.End) + r);
-            }
-
-            for (int i = 0; i < skeleton.Leaves.Count; i++)
-            {
-                ProceduralTreeMeshBuilder.LeafAnchor leaf = skeleton.Leaves[i];
-                float3 r = new(math.max(0.05f, leaf.Size));
-                min = math.min(min, root + leaf.Position - r);
-                max = math.max(max, root + leaf.Position + r);
-            }
-
-            min -= LegacyProxyBoundsPadding;
-            max += LegacyProxyBoundsPadding;
-            chunkMin = (int3)math.floor(min / RecoveryRenderChunkMetres);
-            chunkMax = (int3)math.floor(max / RecoveryRenderChunkMetres);
+            _batches.Clear();
         }
 
         private void ClearGenerated()
         {
+            ClearBatches();
+            BatchedTreeCount = 0;
             for (int i = 0; i < _trees.Count; i++)
             {
                 TreePresentation tree = _trees[i];
@@ -476,15 +549,11 @@ namespace VoxelEngine.Rendering.Vegetation
                 if (tree.Root != null) Destroy(tree.Root);
             }
             _trees.Clear();
-            _filteredBarkIndices.Clear();
-            _filteredLeafIndices.Clear();
         }
 
         private void OnDestroy()
         {
             ClearGenerated();
-            if (_barkMaterial != null) Destroy(_barkMaterial);
-            if (_leafMaterial != null) Destroy(_leafMaterial);
             if (s_Instance == this) s_Instance = null;
         }
     }
