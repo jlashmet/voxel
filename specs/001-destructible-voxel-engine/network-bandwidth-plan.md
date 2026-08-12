@@ -1,111 +1,155 @@
 # Minimal Voxel Networking — Bandwidth Plan
 
-**Status:** M1 event-driven replication foundation implemented on branch
+**Status:** M1 complete; M2 concrete transport + ephemeral input foundation implemented
 **Branch:** `feature/minimal-voxel-networking`
 **Extends:** `architecture-notes.md` and `contracts/wire-protocol.md`
 
 ## Goal
 
-Make the smooth/destructible voxel world practical in multiplayer without replicating voxel effects, render meshes, SDF samples, or per-voxel writes during normal play.
+Make the smooth/destructible voxel world practical in multiplayer without replicating voxel effects, render meshes, SDF samples, GPU buffers, or ordinary per-voxel writes.
 
-The network sends the smallest deterministic **cause** that can reproduce authoritative state. The server owns the truth; clients predict locally and converge through authoritative events plus state-based repair.
-
-This document does not introduce a second networking stack. It evolves the existing Unity Transport + custom replication design.
+The network sends the smallest deterministic **cause** that can reproduce authoritative state. The server owns truth; clients predict locally and converge through authoritative events plus state-based repair.
 
 ## Non-negotiable invariants
 
-1. **Server authority.** Client messages are requests. Only server-accepted alterations become durable world state.
-2. **No render replication.** Smooth voxel meshes, raymarch data, SDF textures, GPU buffers, and generated geometry never cross the network.
-3. **Cause, not effect.** An explosion that changes 100,000 voxels should cost approximately the same as one that changes 1,000 voxels: origin + shape + seed + attribution/order.
-4. **Deterministic expansion.** Accepted alterations expand using the same integer algorithms and authoritative seed on server and clients.
-5. **Interest before send.** A client receives live world mutations only for simulation-interest regions it currently subscribes to.
-6. **Repairable state.** Periodic hashes detect drift; authoritative state repair fixes it without replaying the full session history.
-7. **Late join is state-based.** Base terrain regenerates from seeds and only the compacted edit overlay/state is streamed.
-8. **Simulation interest is platform-neutral.** Draw distance/device quality may change presentation, never which nearby gameplay state a player receives.
-9. **Fixed clock, event-driven systems.** Server simulation remains fixed-tick; gameplay publishes semantic authoritative events that replication consumes after the tick is sealed.
-10. **Connection-owned identity.** Client packets never establish their own player identity; the server derives attribution from authenticated connection state.
+1. **Server authority.** Client messages are requests/intent. Only server-accepted facts become durable state.
+2. **No render replication.** SDF/render meshes/textures/generated geometry never cross the network.
+3. **Cause, not effect.** Huge destruction should cost roughly the same as small destruction when the semantic cause is the same shape/seed.
+4. **Deterministic expansion.** Accepted alterations expand with the same integer algorithms and authoritative seed.
+5. **Interest before send.** Live world mutations only reach clients subscribed to impacted simulation regions.
+6. **Repairable state.** Hashes detect drift; state repair converges without replaying full session history.
+7. **Late join is state-based.** Base terrain regenerates from seeds; only touched/compacted state streams.
+8. **Simulation interest is platform-neutral.** Hardware tier may change presentation, never gameplay visibility.
+9. **Fixed clock, event-driven systems.** Network callbacks queue intent; only the fixed tick mutates authoritative simulation.
+10. **Connection-owned identity.** Client packets never establish player identity or authoritative position.
+11. **Traffic lifetime determines delivery.** Durable facts are reliable; stale motion is not retransmitted.
 
 ## Traffic classes
 
-### 1. Input / player motion
+### 1. EPHEMERAL input / motion — implemented
 
-High-frequency, tiny, ephemeral traffic.
+High-frequency, tiny, supersedable traffic.
 
-- Client input should become **unreliable sequenced with redundancy**: send the newest input plus a small history window so one dropped datagram does not require retransmission.
-- Player state should be delta/quantized and interest-filtered.
-- Old motion packets are useless; they must not head-of-line-block world mutations.
+- Dedicated `UnreliableSequencedPipelineStage` pipeline.
+- `C_PlayerInput` is 16 B payload / 18 B single-sample framed packet.
+- No client-authored player ID.
+- No client-authored world position.
+- Movement is signed 8-bit per axis.
+- View is yaw/pitch quantised to 16 bits each.
+- Actions are a 16-bit bitfield.
+- Client automatically sends newest + up to two previous samples.
+- Steady-state redundant bundle: **51 B** (`2 B envelope + 1 B count + 3 * 16 B`).
+- Server sequence-deduplicates per connection, including ushort wraparound.
 
-This separation is still future work because the repository does not yet contain the concrete UTP host/send loop.
+At 30 Hz the custom steady-state input payload is about `51 * 30 = 1530 B/s` per client before UTP/UDP/IP headers. This is intentionally cheap enough to buy redundancy without reliable retransmission.
 
-### 2. Durable voxel mutations
+The next packet can recover an isolated dropped action edge because it repeats the previous two samples. Newer datagrams still supersede old datagrams at the UTP pipeline level.
 
-Small, high-priority, authoritative traffic.
+### 2. EVENT durable voxel/gameplay mutations — implemented foundation
 
 - Reliable and ordered.
-- Replicate `AlterationEvent` semantics, not voxel writes.
+- Replicate semantic `AlterationEvent` causes, not voxel writes.
 - Seal authoritative events at the server tick boundary.
-- Route in server arbitration order to interested connections.
-- Batch only **consecutive** events sharing `(encodingRegion, serverTick)` so batching can never reorder authority.
-- Amortize region/tick metadata across the batch.
-- Encode origins relative to the target region.
-- Keep each live-event datagram below a conservative non-fragmented payload ceiling.
+- Route in server arbitration order.
+- Batch only **consecutive** events sharing `(encodingRegion, serverTick)` so batching never reorders authority.
+- Region/tick metadata is amortised across the batch.
+- Origins are region-relative.
+- Maximum current framed alteration batch: **1172 B**, below the 1200 B live-event ceiling.
 
-The implementation on this branch is `AuthoritativeEventStream -> ReplicationRouter -> AlterationBatchPacketSink`.
+At 10 same-region events the previous wrapper model was about 520 B; compact batching is 258 B before the two-byte envelope.
 
-### 3. Repair
+### 3. REPAIR
 
-Medium-priority authoritative corrections.
+Medium-priority authoritative correction.
 
-- Reliable.
+- Reliable pipeline is configured.
 - Region/brick scoped.
 - Triggered by hash mismatch or reconnect gap.
 - Prefer the smaller of missing event suffix vs compressed state repair.
+- End-to-end framed repair dispatch is still open.
 
-### 4. Bulk region/snapshot data
+### 4. BULK
 
-Low-priority, reliable fragmented traffic.
+Low-priority large state transfer.
 
-- Rate limited so it cannot increase live EVENT latency.
-- Fragmentation precedes reliability in the UTP pipeline.
-- Used for late join, region stream-in, and large repair/snapshot transfers.
-- Base procedural terrain is regenerated locally; only seeds + touched/compacted state are transferred.
+- Fragmentation -> reliability pipeline is configured.
+- Used for region stream-in, late join, snapshots, and large state repair.
+- Rate limited so it cannot increase EVENT/EPHEMERAL latency.
+- Base terrain regenerates locally; only seeds + touched state transfer.
+- End-to-end host integration/back-pressure instrumentation is still open.
 
-## Event-driven authority boundary
+## Concrete runtime boundary
 
-The server tick remains the deterministic clock. Event-driven means simulation/gameplay systems publish semantic facts rather than directly invoking networking code.
+The transport host now exists. `NetworkDriver` is isolated from simulation/replication code.
 
 ```text
-commands / inputs
+Unity frame loop
       |
       v
-fixed authoritative tick
+UtpServerHost.ScheduleUpdate
       |
-      +--> authentication + validation + simulation
-      |
-      v
-AuthoritativeEventStream
-      |
-      +--> persistence / moderation / replay
-      |
-      v
-ReplicationRouter
-      |
-      +--> simulation-interest filtering
-      +--> cross-region recipient union
-      +--> ordered batching
-      |
-      v
-AlterationBatchPacketSink
-      |
-      v
-IEventPacketSender  <-- future concrete UTP host adapter
+      +--> EVENT decode --------+
+      |                         |
+      +--> EPHEMERAL decode ----+
+                                v
+                       ServerCommandInbox
+                       (bounded, untrusted intent)
+                                |
+                                | fixed 30 Hz drain
+                                v
+                   authentication + validation
+                                |
+                                v
+                      authoritative simulation
+                                |
+                                v
+                   AuthoritativeEventStream
+                                |
+                 +--------------+--------------+
+                 |                             |
+          persistence/replay            ReplicationRouter
+                                               |
+                                      3D interest filtering
+                                      ordered compact batches
+                                               |
+                                               v
+                                  AlterationBatchPacketSink
+                                               |
+                                               v
+                                        UtpServerHost
+                                               |
+                                       one send flush/tick
 ```
 
-Internal gameplay can generate many domain events. Replication does not automatically transmit all of them; it chooses the minimum deterministic facts required for clients to reproduce authoritative state.
+`UtpClientHost` owns client connect/disconnect, channel-aware receive pumping, durable alteration sends, and redundant EPHEMERAL input history.
+
+### Connection IDs
+
+UTP connection handles remain transport details. The server assigns monotonically increasing `uint` connection IDs and never derives game identity from a client payload. Those IDs are the keys used by subscription state, command queues, and eventual authenticated player mapping.
+
+Disconnect immediately removes:
+
+- region subscriptions;
+- EPHEMERAL sequence/dedup state;
+- queued unvalidated commands when using the recommended shared `ServerCommandInbox` composition.
+
+## Bounded command ingress
+
+`ServerCommandInbox` is the frame-pump -> fixed-tick choke point.
+
+- Default maximum pending per connection: 256 commands.
+- Default global maximum: 4096 commands.
+- Tracks dropped commands for telemetry.
+- Preserves server-observed arrival ordinal for diagnostics only.
+- Arrival order is **not** authoritative arbitration.
+- Simulation drains into caller-owned reusable lists at a fixed tick boundary.
+- Dead connections lose any intent that has not yet crossed authentication/validation.
+
+The current implementation assumes transport pumping and simulation draining are on the same owning thread. If transport is later moved to a worker, this boundary must become an explicitly synchronized/SPSC queue instead of adding incidental locks throughout gameplay code.
 
 ## Client alteration request
 
-`C_AlterationRequest` is now a 32-byte payload / 34-byte framed packet:
+`C_AlterationRequest` is 32 B payload / 34 B framed:
 
 ```text
 clientTick     : uint      4 B
@@ -118,15 +162,9 @@ requestedSeed  : uint      4 B
 clientSequence : ushort    2 B
 ```
 
-There is no `playerId` on the wire. `ClientEventPacketReceiver` passes the transport connection ID separately to the authoritative handler, and `C_AlterationRequest.ToAuthoritativeEvent` requires server-owned tick, player ID, sequence, and seed explicitly.
+There is no `playerId` on the wire. Connection state supplies identity. Server code must also select authoritative tick, sequence, and seed before materialising the final `AlterationEvent`.
 
-Using the same `(shapeKind, shapeData)` union as `AlterationEvent` removes the old brush/raw shape conversion ambiguity without increasing the packet size.
-
-## First compact event batch
-
-The previous broadcast wrapper costs approximately 52 bytes for each 32-byte semantic event because every event repeats a 20-byte wrapper containing tick, region, and payload length.
-
-For bursts of alterations in one region/tick, use one shared header:
+## Compact authoritative event batch
 
 ```text
 S_AlterationEventBatch header (18 B)
@@ -137,7 +175,7 @@ S_AlterationEventBatch header (18 B)
 Compact entry (24 B)
   kind        : byte     1 B
   material    : byte     1 B
-  localOrigin : int16x3  6 B   (relative to region voxel origin)
+  localOrigin : int16x3  6 B
   shapeKind   : uint     4 B
   shapeData   : uint     4 B
   seed        : uint     4 B
@@ -145,15 +183,11 @@ Compact entry (24 B)
   sequence    : ushort   2 B
 ```
 
-The entry is lossless: shared tick is restored on decode and local coordinates are converted back to the original world voxel coordinate.
-
-At 10 events, the previous wrapper model costs about `10 * 52 = 520 B`; the compact batch costs `18 + 10 * 24 = 258 B`, roughly a 50% reduction before transport framing.
-
-`MaxEventsPerBatch` is 48, producing a 1,170-byte payload. The versioned protocol envelope adds two bytes, so the complete custom packet is 1,172 bytes and remains under the 1,200-byte live EVENT ceiling.
+`MaxEventsPerBatch = 48`, so payload is 1170 B and framed packet is 1172 B.
 
 ## Packet framing
 
-Every custom packet begins with:
+Every custom packet begins with only:
 
 ```text
 protocolVersion : byte
@@ -161,140 +195,130 @@ messageKind     : byte
 payload         : bytes...
 ```
 
-UTP already supplies packet boundaries and integrity, so the custom envelope does not duplicate length/checksum fields. Unknown versions and message kinds fail closed.
-
-The packet sink is deliberately transport-independent. `IEventPacketSender` is the single adapter seam where the eventual UTP host will call `NetworkDriver.BeginSend/EndSend` and own retry/back-pressure behavior.
+UTP already supplies packet boundaries and integrity; length/checksum fields here would be duplicate overhead. Unknown versions/kinds fail closed.
 
 ## Interest model
 
-`SimulationInterest` and `RegionSubscriptionIndex` now implement the live replication model:
+`SimulationInterest` + `RegionSubscriptionIndex` now provide:
 
-- one common 300 m initial load radius and 420 m unload hysteresis for all hardware tiers;
-- authoritative 512-voxel region edge (`8 voxel/brick * 64 brick/region`);
-- full **3D** X/Y/Z interest, important for caves, underground lands, mountains, towers and flying actors;
-- arithmetic-shift floor mapping for negative world coordinates;
-- persistent connection -> regions and region -> connections indexes;
-- event fan-out proportional to interested connections rather than all clients.
+- common 300 m load / 420 m unload hysteresis across hardware tiers;
+- correct 512-voxel region edge;
+- full X/Y/Z interest for caves, underground lands, mountains, towers, and flying actors;
+- arithmetic-shift floor mapping for negative coordinates;
+- connection -> regions and region -> connections indexes;
+- cross-region effect routing to the union of subscribers;
+- at-most-once fan-out of one authoritative event to a connection even when several impacted regions overlap its subscription set.
 
-Destructive effects can cross region boundaries. The router computes conservative impacted-region bounds and sends the event to the union of subscribers. A connection subscribed to multiple impacted regions receives that authoritative event only once.
+The older `InterestFilter` remains only for scaffold/unmigrated callers and is not used by the new live replication path.
 
-The older `InterestFilter` remains in the repository for unrelated/scaffold callers, but the new replication path does not use its device-tier-derived radii.
+## Ordering and prediction
 
-## Ordering and batching
+For each connection, the router first builds one sequence in server arbitration order. It combines only adjacent compatible events. Global regrouping by region is forbidden because it could change authority order.
 
-A tempting optimization is to globally group all events by region before sending. Do **not** do that: it can reorder authoritative events when a connection sees multiple regions.
+Prediction path remains:
 
-For each connection, the router first builds one event sequence in server arbitration order. It then combines only adjacent events that share tick and encoding region, up to 48 entries. This preserves `(tick, playerId, sequence)` while still obtaining structural batching savings.
+1. client submits alteration and shows speculative overlay;
+2. server connection identity + validation decides acceptance;
+3. server substitutes authoritative order/seed and publishes semantic event;
+4. tick seals;
+5. interest routing/batching sends reliable EVENT;
+6. client applies wire order through `EventApplication.ApplyWithArbitration`;
+7. periodic hashes detect divergence;
+8. repair converges state.
 
-## Prediction and reconciliation
+Do not elide the authoritative echo to the originating client until deterministic parity, rejection handling, and seed substitution have been exercised under loss/reordering.
 
-1. Client submits an alteration request and immediately renders it in the speculative overlay.
-2. Server maps the connection to authoritative identity, validates reach/rate/protected zones/etc., and selects authoritative ordering/seed.
-3. Server materializes and publishes the semantic event to the current authoritative tick stream.
-4. At tick seal, replication routes/batches the event for interested clients.
-5. Client packet dispatch decodes the compact batch in wire order and feeds the existing deterministic `EventApplication.ApplyWithArbitration` path.
-6. Periodic region hash checks detect divergence.
-7. Repair supplies authoritative brick/region state when needed.
+## Current status
 
-Do **not** omit the authoritative event to the originating client yet. Echo elision is a later optimization only after deterministic parity, rejection handling, and seed substitution are proven under packet loss/reordering tests.
+### Resolved / implemented
 
-## Contract/code status
+1. Compact alteration batch codec and bandwidth tests.
+2. Versioned message framing.
+3. Canonical 34 B framed alteration request with connection-owned identity.
+4. Full 3D platform-neutral simulation interest and inverse subscription index.
+5. Cross-region recipient union + deduplication.
+6. Ordered per-connection batching.
+7. Reliable EVENT / reliable REPAIR / fragmented-reliable BULK semantics.
+8. Concrete UTP 6.5 server/client host lifecycle.
+9. Stable server-owned connection IDs.
+10. Concrete `IEventPacketSender` adapter.
+11. Real loopback integration test covering request -> server and authoritative batch -> client.
+12. Separate unreliable-sequenced EPHEMERAL pipeline.
+13. 16 B player input payload with no identity/position spoof fields.
+14. Automatic three-sample EPHEMERAL redundancy and sequence deduplication.
+15. Bounded frame-to-fixed-tick `ServerCommandInbox`.
 
-Resolved on this branch:
+### Still open
 
-1. `REPAIR` is now reliable.
-2. `BULK` is now fragmentation -> reliable, matching the active contract and Unity Transport's documented stage ordering.
-3. Live simulation interest no longer derives from device tier in the new replication path.
-4. Compact event batches use an explicit field-level codec instead of relying on the inconsistent legacy 32-byte `AlterationEvent.WireSize()` claim.
-5. A versioned message-kind envelope now provides an actual packet dispatch boundary.
-6. `C_AlterationRequest` is a canonical 32-byte payload / 34-byte framed packet.
-7. Client-authored `playerId` was removed from the request wire format; connection identity owns attribution.
-8. Client and server framed receive boundaries exist for alteration requests/batches without depending on a concrete UTP host implementation.
+1. Complete real authentication/connection -> player mapping.
+2. Finish `Validation` reach/rate/player-state logic before untrusted requests may mutate production state.
+3. Wire the fixed server simulation consumer to drain `ServerCommandInbox` and publish accepted events.
+4. Frame and integrate region hash/repair/reconnect/late-join paths through the concrete host.
+5. Add per-channel bytes/packets/queue-age/retransmit instrumentation and BULK back-pressure.
+6. Add authoritative `S_PlayerState` delta snapshots and client reconciliation over the EPHEMERAL input history.
+7. Rename/remove old device-tier `InterestFilter` after remaining callers migrate.
 
-Still open:
+## Metrics to add before tuning
 
-1. The repository still lacks a concrete UTP host/connection lifecycle and send loop. `IEventPacketSender` is the adapter seam for it.
-2. Ephemeral input/player state should eventually leave the durable reliable mutation stream to avoid head-of-line blocking.
-3. Region hash/repair/reconnect/late-join paths are scaffolded but not yet integrated through the new framing/host boundary.
-4. The old `InterestFilter` should eventually be renamed/re-scoped to presentation/streaming or removed after callers migrate.
-5. `Validation` still contains placeholder reach/rate/player-state logic and must be completed before untrusted network requests can mutate production world state.
+Per connection/channel:
 
-## Metrics to add before tuning further
-
-Per connection and per channel:
-
-- encoded payload bytes/s
-- transport bytes/s
-- packets/s and average fill ratio
-- reliable retransmit bytes/s
-- EVENT queue age (p50/p95/p99)
-- event batch size distribution
-- bytes per accepted alteration
-- interest-filter fan-out count
-- repair bytes and repair frequency
-- hash mismatch frequency
-- late-join bytes and time-to-playable
+- encoded payload bytes/s;
+- transport bytes/s;
+- packets/s + fill ratio;
+- reliable retransmit bytes/s;
+- EVENT queue age p50/p95/p99;
+- EPHEMERAL samples sent, recovered from redundancy, duplicates discarded;
+- event batch size distribution;
+- bytes per accepted alteration;
+- interest fan-out count;
+- repair frequency/bytes;
+- hash mismatch frequency;
+- late-join bytes/time-to-playable.
 
 Server-wide:
 
-- accepted alterations/s
-- event encoding CPU
-- interest routing CPU
-- deterministic expansion CPU
-- snapshot/compaction CPU
+- accepted/rejected/dropped commands per second;
+- event encoding CPU;
+- interest routing CPU;
+- deterministic expansion CPU;
+- snapshot/compaction CPU.
 
-## Implementation milestones
+## Milestones
 
-### M0 — Baseline and invariants — complete
+### M0 — baseline/invariants — complete
 
-- Add this plan.
-- Add a lossless compact same-region/same-tick event batch codec and tests.
-- Measure batch savings against the previous wrapper.
+Compact cause codec, tests, and explicit bandwidth plan.
 
-### M1 — Event-driven replication foundation — implemented, host adapter pending
+### M1 — event-driven replication — complete
 
-- Tick-scoped authoritative event stream.
-- Persistent 3D region subscription index.
-- Cross-region interest fan-out with recipient deduplication.
-- Ordered compact batching.
-- Versioned packet framing.
-- Canonical framed client alteration request.
-- Client batch decode/application bridge.
-- Server framed request dispatch with connection-owned identity.
-- Transport-independent packet sender seam.
+Authoritative event stream, 3D subscriptions, interest routing, ordered compact batches, framing, client application bridge.
 
-### M2 — Concrete transport + ephemeral traffic
+### M2 — concrete transport + ephemeral traffic — foundation complete
 
-- Add the actual server/client UTP driver and connection lifecycle.
-- Implement `IEventPacketSender` using EVENT pipeline send/back-pressure queues.
-- Separate ephemeral input/player-state traffic from durable mutation traffic.
-- Add queue-age/bandwidth instrumentation and bulk back-pressure.
-- Exercise the configured reliable REPAIR and fragmented-reliable BULK pipelines in packet-loss tests.
+Concrete UTP hosts, connection lifecycle, loopback test, separate EPHEMERAL pipeline, compact redundant input, bounded fixed-tick ingress.
 
-### M3 — State convergence
+Remaining M2 work is primarily instrumentation/back-pressure and integrating the inbox with real authentication/validation/simulation.
 
-- Wire periodic region hashes end-to-end.
-- Implement repair-vs-event-suffix cost choice.
-- Exercise reconnect and late join against compacted state.
+### M3 — state convergence
 
-### M4 — Soak and adversarial tests
+Region hashes, repair-vs-event-suffix cost choice, reconnect, late join, player-state reconciliation.
 
-Test 4-player Mounting Force gameplay first, then stress beyond expected player count:
+### M4 — adversarial/soak
 
-- simultaneous chain-reaction destruction
-- heavy construction/raw editing
-- players spread across different and vertically separated regions
-- packet loss/jitter/reordering
-- late join during destruction
-- reconnect after a long gap
-- server tick spikes
-
-Success is not merely low bandwidth: authoritative EVENT latency must remain stable while BULK streaming and destruction are both active.
+- simultaneous chain-reaction destruction;
+- heavy construction/raw editing;
+- players spread horizontally and vertically;
+- packet loss/jitter/reordering;
+- lost input/action-edge recovery;
+- late join during destruction;
+- reconnect after long gap;
+- server tick spikes;
+- BULK saturation while EVENT/EPHEMERAL latency remains stable.
 
 ## Deliberate non-goals
 
 - Replicating SDF samples, chunks, meshes, or generated render geometry.
 - Generic GameObject/RPC replication for voxel state.
-- Sending all voxel diffs for deterministic edits.
+- Sending ordinary per-voxel diffs for deterministic edits.
 - Device-dependent gameplay interest radius.
-- Premature entropy coding/bit-level packing before structural batching and interest filtering are measured.
+- Premature entropy coding before structural batching/interest filtering are measured.
