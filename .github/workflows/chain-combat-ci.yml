@@ -15,6 +15,7 @@ on:
       - "Assets/Tests/PlayMode/ChainCombatReservationV6Tests.cs"
       - "Assets/Tests/PlayMode/ChainCombatReadinessV7Tests.cs"
       - "Assets/Tests/PlayMode/ChainCombatEnemyAIV8Tests.cs"
+      - "Assets/Tests/PlayMode/ChainCombatExecutionPlanV9Tests.cs"
       - "Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef"
       - ".github/workflows/chain-combat-ci.yml"
 
@@ -24,7 +25,7 @@ concurrency:
 
 jobs:
   chain-combat:
-    name: Exercise chain combat prototype through V8
+    name: Exercise chain combat prototype through V9
     runs-on: [self-hosted, macOS]
     timeout-minutes: 30
 
@@ -91,6 +92,7 @@ jobs:
           run_suite "v6-reservation" "VoxelEngine.Tests.PlayMode.ChainCombatReservationV6Tests" || failed=1
           run_suite "v7-readiness" "VoxelEngine.Tests.PlayMode.ChainCombatReadinessV7Tests" || failed=1
           run_suite "v8-enemy-ai" "VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" || failed=1
+          run_suite "v9-execution-plan" "VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" || failed=1
 
           exit $failed
 
