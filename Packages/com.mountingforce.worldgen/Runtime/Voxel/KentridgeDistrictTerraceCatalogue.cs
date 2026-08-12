@@ -9,15 +9,14 @@ namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
     /// Turns Kentridge's macro height profile into broad urban shelves rather than sixteen isolated
-    /// raised parcels. Each shelf owns a whole neighbourhood-sized piece of hillside: it cuts away
-    /// terrain above an authored elevation, fills missing mass with earth, caps it with the same
-    /// green ground vocabulary used around town, and gives the downhill edge a continuous masonry
-    /// retaining face.
+    /// raised parcels. Each shelf owns a neighbourhood-scale piece of hillside: it cuts away terrain
+    /// above an authored elevation, fills missing mass with earth, caps it with Kentridge ground
+    /// cover, and gives the downhill edge a continuous masonry retaining face.
     ///
-    /// Gaps between shelves are intentional. The north/south road and stair passes occupy those
-    /// ascent zones, so the player reads a sequence of district terrace -> climb -> district terrace
-    /// instead of one enormous rectangular mesa. The retaining faces use sparse dark ribs and a
-    /// coping band so a ten-metre wall reads as built infrastructure rather than an untextured box.
+    /// The footprint pieces intentionally follow the semantic town rather than forming one giant
+    /// rectangle. Market shops and Rebecca share one elevation but occupy an L-shaped pair of
+    /// shelves; the warehouse gets its own working yard; Radcliffe climbs a separate east ridge.
+    /// Gaps between pieces are where the road and stair passes create the visible climbs.
     /// </summary>
     public static class KentridgeDistrictTerraceCatalogue
     {
@@ -86,23 +85,32 @@ namespace MountingForce.WorldGen.Voxel
             int scale = settings.VoxelsPerDecimetre;
             TerraceSeed[] seeds =
             {
-                // Broad lower shelf carrying the residential street and its four southern homes.
-                new TerraceSeed("lower-residential", 650, 850, 980, 230, 1170, 950),
+                // Four homes around Residential Street occupy the broad low shelf.
+                new TerraceSeed("lower-residential-main", 620, 900, 800, 190, 1170, 950),
 
-                // A smaller landing around Logan/Pub before the next climb into the market.
-                new TerraceSeed("lower-middle", 850, 690, 700, 150, 1170, 760),
+                // Awon's east-lane lot is at the same elevation but separated by a narrow service gap.
+                new TerraceSeed("lower-residential-east", 1460, 850, 240, 200, 1530, 945),
 
-                // The market square and shop row should read as one continuous urban platform.
-                new TerraceSeed("market", 690, 440, 970, 180, 1170, 520),
+                // Logan and the pub form the next landing on the main climb.
+                new TerraceSeed("lower-middle", 980, 650, 460, 210, 1222, 760),
 
-                // Inn/upper-town shoulder: deliberately narrower so stone faces remain visible.
-                new TerraceSeed("upper-shoulder", 840, 285, 730, 140, 1170, 340),
+                // The warehouse gets a continuous working yard instead of a solitary raised pad.
+                new TerraceSeed("working-yard", 1490, 570, 260, 250, 1530, 700),
+
+                // Shops, well, and most of the market square occupy the main middle terrace.
+                new TerraceSeed("market-main", 680, 440, 620, 260, 1170, 520),
+
+                // Rebecca's house extends the market-height shelf north-east without covering the inn.
+                new TerraceSeed("market-rebecca", 1240, 350, 180, 150, 1318, 478),
+
+                // The inn stands on a narrower upper-town shoulder above the market.
+                new TerraceSeed("upper-shoulder", 900, 240, 310, 200, 1118, 340),
 
                 // Church and mayor share the highest civic shelf.
-                new TerraceSeed("civic-summit", 800, 70, 610, 170, 1170, 150),
+                new TerraceSeed("civic-summit", 920, 40, 470, 200, 1170, 150),
 
                 // Radcliffe's estate occupies a separate east-side ridge rather than the civic slab.
-                new TerraceSeed("noble-ridge", 1410, 160, 360, 180, 1490, 250),
+                new TerraceSeed("noble-ridge", 1490, 90, 340, 320, 1530, 250),
             };
 
             var builds = new TerraceBuild[seeds.Length];
