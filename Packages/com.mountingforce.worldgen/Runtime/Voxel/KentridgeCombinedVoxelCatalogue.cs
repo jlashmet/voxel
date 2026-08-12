@@ -9,7 +9,7 @@ namespace MountingForce.WorldGen.Voxel
     /// voxel engine. Ordering is intentional and observable: themed ground cover first, broad
     /// district terraces second, directed vertical roads/plaza third, hillside stair connectors
     /// fourth, shallow foundation skirts fifth, prepared building plots sixth, frontage paths
-    /// seventh, private/public dressing next, and structures last.
+    /// seventh, semantic streetscape and private/public dressing next, and structures last.
     /// </summary>
     public static class KentridgeCombinedVoxelCatalogue
     {
@@ -31,6 +31,8 @@ namespace MountingForce.WorldGen.Voxel
                     seed, settings, Allocator.Temp);
             FeatureCatalogue frontagePaths =
                 KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp);
+            FeatureCatalogue streetDressing =
+                KentridgeStreetDressingCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue plotDressing =
                 KentridgeVerticalPlacementAdapter.BuildPlotDressing(
                     seed, settings, Allocator.Temp);
@@ -51,6 +53,7 @@ namespace MountingForce.WorldGen.Voxel
                                + terraceSupports.Definitions.Length
                                + plotSurfaces.Definitions.Length
                                + frontagePaths.Definitions.Length
+                               + streetDressing.Definitions.Length
                                + plotDressing.Definitions.Length
                                + townDressing.Definitions.Length
                                + buildings.Definitions.Length,
@@ -61,6 +64,7 @@ namespace MountingForce.WorldGen.Voxel
                          + terraceSupports.Rules.Length
                          + plotSurfaces.Rules.Length
                          + frontagePaths.Rules.Length
+                         + streetDressing.Rules.Length
                          + plotDressing.Rules.Length
                          + townDressing.Rules.Length
                          + buildings.Rules.Length,
@@ -71,6 +75,7 @@ namespace MountingForce.WorldGen.Voxel
                               + terraceSupports.Parameters.Length
                               + plotSurfaces.Parameters.Length
                               + frontagePaths.Parameters.Length
+                              + streetDressing.Parameters.Length
                               + plotDressing.Parameters.Length
                               + townDressing.Parameters.Length
                               + buildings.Parameters.Length,
@@ -81,6 +86,7 @@ namespace MountingForce.WorldGen.Voxel
                            + terraceSupports.Anchors.Length
                            + plotSurfaces.Anchors.Length
                            + frontagePaths.Anchors.Length
+                           + streetDressing.Anchors.Length
                            + plotDressing.Anchors.Length
                            + townDressing.Anchors.Length
                            + buildings.Anchors.Length,
@@ -91,6 +97,7 @@ namespace MountingForce.WorldGen.Voxel
                          + terraceSupports.Slots.Length
                          + plotSurfaces.Slots.Length
                          + frontagePaths.Slots.Length
+                         + streetDressing.Slots.Length
                          + plotDressing.Slots.Length
                          + townDressing.Slots.Length
                          + buildings.Slots.Length,
@@ -101,6 +108,7 @@ namespace MountingForce.WorldGen.Voxel
                                  + terraceSupports.Program.Length
                                  + plotSurfaces.Program.Length
                                  + frontagePaths.Program.Length
+                                 + streetDressing.Program.Length
                                  + plotDressing.Program.Length
                                  + townDressing.Program.Length
                                  + buildings.Program.Length,
@@ -111,6 +119,7 @@ namespace MountingForce.WorldGen.Voxel
                              + terraceSupports.Materials.Length
                              + plotSurfaces.Materials.Length
                              + frontagePaths.Materials.Length
+                             + streetDressing.Materials.Length
                              + plotDressing.Materials.Length
                              + townDressing.Materials.Length
                              + buildings.Materials.Length,
@@ -121,6 +130,7 @@ namespace MountingForce.WorldGen.Voxel
                                       + terraceSupports.ExplicitPlacements.Length
                                       + plotSurfaces.ExplicitPlacements.Length
                                       + frontagePaths.ExplicitPlacements.Length
+                                      + streetDressing.ExplicitPlacements.Length
                                       + plotDressing.ExplicitPlacements.Length
                                       + townDressing.ExplicitPlacements.Length
                                       + buildings.ExplicitPlacements.Length,
@@ -131,6 +141,7 @@ namespace MountingForce.WorldGen.Voxel
                              + terraceSupports.ParameterOverrides.Length
                              + plotSurfaces.ParameterOverrides.Length
                              + frontagePaths.ParameterOverrides.Length
+                             + streetDressing.ParameterOverrides.Length
                              + plotDressing.ParameterOverrides.Length
                              + townDressing.ParameterOverrides.Length
                              + buildings.ParameterOverrides.Length,
@@ -174,6 +185,10 @@ namespace MountingForce.WorldGen.Voxel
                     ref definitionOffset, ref ruleOffset, ref parameterOffset,
                     ref anchorOffset, ref slotOffset, ref programOffset,
                     ref materialOffset, ref placementOffset, ref overrideOffset);
+                Append(in streetDressing, ref result,
+                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
+                    ref anchorOffset, ref slotOffset, ref programOffset,
+                    ref materialOffset, ref placementOffset, ref overrideOffset);
                 Append(in plotDressing, ref result,
                     ref definitionOffset, ref ruleOffset, ref parameterOffset,
                     ref anchorOffset, ref slotOffset, ref programOffset,
@@ -206,6 +221,7 @@ namespace MountingForce.WorldGen.Voxel
                 terraceSupports.Dispose();
                 plotSurfaces.Dispose();
                 frontagePaths.Dispose();
+                streetDressing.Dispose();
                 plotDressing.Dispose();
                 townDressing.Dispose();
                 buildings.Dispose();
