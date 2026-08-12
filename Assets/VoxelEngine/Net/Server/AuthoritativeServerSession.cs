@@ -8,10 +8,9 @@ namespace VoxelEngine.Net.Server
     /// <summary>
     /// Safe composition root for live authoritative networking.
     ///
-    /// Per fixed tick: process verified client intent -> queue mutation EVENT packets -> append
-    /// semantic hash barriers when due -> flush transport. Drift reports are authenticated and
-    /// checkpoint-verified, but state repair remains blocked until a semantic checkpoint snapshot
-    /// store replaces the legacy WorldHistory scaffold.
+    /// Per fixed tick: authenticate/validate/apply client intent -> queue mutation EVENT packets ->
+    /// append semantic hash barriers -> queue bounded exact-checkpoint REPAIR chunks -> one transport
+    /// flush. Socket callbacks only decode/copy into bounded inboxes; world mutation stays on the tick.
     /// </summary>
     public sealed class AuthoritativeServerSession : IDisposable
     {
@@ -130,8 +129,8 @@ namespace VoxelEngine.Net.Server
 
             _network.BeginTick(serverTick);
 
-            // Reports were decoded during frame pumps. Verify them at a deterministic server point;
-            // no repair/state mutation is triggered from a transport callback.
+            // Reports were decoded during frame pumps. Verification/repair scheduling happens here,
+            // never from a transport callback.
             _convergence.ProcessMismatchReports(serverTick, _network.Replication.Subscriptions);
 
             _processor.ProcessTick(
@@ -144,7 +143,7 @@ namespace VoxelEngine.Net.Server
                 _network,
                 _network);
 
-            // Important ordering: queue mutations first, then hash barriers for the resulting state.
+            // EVENT ordering is load-bearing: same-tick mutations must precede their semantic hash.
             _network.FlushReplication();
             _convergence.EmitHashes(
                 serverTick,
@@ -152,6 +151,10 @@ namespace VoxelEngine.Net.Server
                 in pool,
                 _network.Replication.Subscriptions,
                 _network);
+
+            // REPAIR is a separate reliable pipeline. Chunking/rate limiting prevents convergence
+            // traffic from dumping an entire checkpoint snapshot into one frame.
+            _convergence.FlushRepairPackets(_network);
             _network.FlushSends();
         }
 
