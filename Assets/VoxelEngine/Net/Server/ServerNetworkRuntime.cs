@@ -8,10 +8,7 @@ namespace VoxelEngine.Net.Server
 {
     /// <summary>
     /// Composition root for the authoritative networking path.
-    ///
-    /// Transport is pumped from the Unity frame loop, while BeginTick/EndTick are called by the
-    /// fixed authoritative simulation clock. This keeps socket progress independent from the
-    /// deterministic 30 Hz simulation without letting NetworkDriver leak into gameplay systems.
+    /// Transport is pumped from the Unity frame loop; BeginTick/EndTick belong to the fixed clock.
     /// </summary>
     public sealed class ServerNetworkRuntime : IDisposable
     {
@@ -20,12 +17,26 @@ namespace VoxelEngine.Net.Server
         private readonly AlterationBatchPacketSink _packetSink;
         private readonly IClientEventCommandHandler _eventHandler;
         private readonly IClientInputCommandHandler _inputHandler;
+        private readonly ServerCommandInbox _commandInbox;
         private bool _disposed;
 
         public event Action<uint, NetworkEndpoint> ConnectionOpened;
         public event Action<uint> ConnectionClosed;
         public event Action<uint> ProtocolError;
         public event Action<uint, int> SendError;
+
+        /// <summary>
+        /// Recommended composition: one bounded inbox receives both durable commands and ephemeral
+        /// input, then the fixed simulation tick drains it.
+        /// </summary>
+        public ServerNetworkRuntime(
+            ServerCommandInbox commandInbox,
+            int maxConnections = 64,
+            int initialEventCapacity = 64)
+            : this(commandInbox, commandInbox, maxConnections, initialEventCapacity)
+        {
+            _commandInbox = commandInbox ?? throw new ArgumentNullException(nameof(commandInbox));
+        }
 
         public ServerNetworkRuntime(
             IClientEventCommandHandler eventHandler,
@@ -43,6 +54,7 @@ namespace VoxelEngine.Net.Server
         {
             _eventHandler = eventHandler ?? throw new ArgumentNullException(nameof(eventHandler));
             _inputHandler = inputHandler;
+            _commandInbox = ReferenceEquals(eventHandler, inputHandler) ? eventHandler as ServerCommandInbox : null;
             _host = new UtpServerHost(maxConnections);
             _replication = new EventDrivenReplicationPipeline(initialEventCapacity);
             _packetSink = new AlterationBatchPacketSink(_host);
@@ -58,6 +70,7 @@ namespace VoxelEngine.Net.Server
         public uint ReplicationTick => _replication.CurrentTick;
         public NetworkEndpoint LocalEndpoint => _disposed ? default : _host.LocalEndpoint;
         public EventDrivenReplicationPipeline Replication => _replication;
+        public ServerCommandInbox CommandInbox => _commandInbox;
 
         public int Listen(NetworkEndpoint endpoint)
         {
@@ -66,8 +79,8 @@ namespace VoxelEngine.Net.Server
         }
 
         /// <summary>
-        /// Advance UTP connection/data state once. Reliable durable commands and unreliable
-        /// sequenced player input are dispatched independently to their authoritative handlers.
+        /// Pump UTP connection/data state once. With the recommended inbox composition this only
+        /// decodes and queues intent; authoritative world state is untouched until the fixed tick.
         /// </summary>
         public void PumpTransport()
         {
@@ -81,10 +94,6 @@ namespace VoxelEngine.Net.Server
             _replication.BeginTick(tick);
         }
 
-        /// <summary>
-        /// Publish a server-accepted alteration. Validation/application must happen before this call;
-        /// networking is observing an authoritative fact, not deciding whether the request is legal.
-        /// </summary>
         public void PublishAlteration(in AlterationEvent evt)
         {
             ThrowIfDisposed();
@@ -100,10 +109,6 @@ namespace VoxelEngine.Net.Server
             return _replication.UpdateConnectionPosition(connectionId, playerVoxelPosition);
         }
 
-        /// <summary>
-        /// Seal the current authoritative tick, route/encode all accepted mutations, then flush the
-        /// queued UTP sends once. Empty ticks are cheap and still seal ordering state correctly.
-        /// </summary>
         public void EndTick()
         {
             ThrowIfDisposed();
@@ -131,6 +136,11 @@ namespace VoxelEngine.Net.Server
         private void OnConnectionClosed(uint connectionId)
         {
             _replication.RemoveConnection(connectionId);
+
+            // The recommended shared inbox is connection-lifetime scoped; discard requests that
+            // have not yet crossed authentication/validation into authoritative simulation.
+            _commandInbox?.RemoveConnection(connectionId);
+
             ConnectionClosed?.Invoke(connectionId);
         }
 
