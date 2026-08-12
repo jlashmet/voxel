@@ -19,11 +19,18 @@ namespace VoxelEngine.CI
     /// <summary>
     /// Bounded scaling report for semantic vegetation. Large counts measure domain and far-mesh
     /// generation without materializing thousands of GameObjects; the full production presentation
-    /// path is measured at smaller counts and used to project object/mesh/draw pressure at 500-5000.
-    /// This keeps CI useful while still documenting where the current per-tree renderer stops scaling.
+    /// path is measured at smaller counts. Runtime rows now report the spatial batching contract
+    /// directly, while large-count projections use the same deterministic placement layout to
+    /// estimate batch/object/mesh/draw pressure at 500-5000 trees.
     /// </summary>
     public sealed class TreePerformanceBenchmarkTests
     {
+        // Keep these diagnostic constants aligned with ProceduralTreeRenderer. Runtime assertions
+        // deliberately fail if the renderer's spatial batching policy changes without updating the
+        // benchmark projection model.
+        private const float BatchSizeMetres = 32f;
+        private const int MinimumTreesPerBatch = 2;
+
         private static readonly int[] CoreCounts = { 10, 100, 500, 1000, 5000 };
         private static readonly int[] FarMeshCounts = { 10, 100, 500, 1000 };
         private static readonly int[] RuntimeCounts = { 10, 50, 100, 250 };
@@ -40,7 +47,7 @@ namespace VoxelEngine.CI
 
             var csv = new List<string>
             {
-                "mode,count,elapsed_ms,branches,leaves,presentations,meshes,triangles,allocated_memory_bytes,avg_frame_ms,max_frame_ms,projected_objects,projected_visible_draws"
+                "mode,count,elapsed_ms,branches,leaves,presentations,source_meshes,batches,batch_meshes,batched_trees,dynamic_trees,source_triangles_all_lods,estimated_mesh_triangle_storage,allocated_memory_bytes,avg_frame_ms,max_frame_ms,render_objects,estimated_visible_draws"
             };
             var text = new List<string>
             {
@@ -48,7 +55,10 @@ namespace VoxelEngine.CI
                 $"platform={Application.platform}",
                 $"device={SystemInfo.deviceModel}",
                 $"graphics={SystemInfo.graphicsDeviceName}",
+                $"batchSizeMetres={BatchSizeMetres:F1}",
+                $"minimumTreesPerBatch={MinimumTreesPerBatch}",
                 "note=large counts are domain/far-mesh measurements; full renderer is bounded to keep CI responsive",
+                "note=batch meshes currently duplicate healthy source-tree geometry so damaged trees can fall back to dormant per-tree meshes immediately",
             };
 
             TreeInstance warm = MakeInstance(0);
@@ -75,7 +85,7 @@ namespace VoxelEngine.CI
 
                 csv.Add(string.Join(",",
                     "core", count, F(stopwatch.Elapsed.TotalMilliseconds), branches, leaves,
-                    0, 0, 0, deltaMemory, "", "", 0, 0));
+                    0, 0, 0, 0, 0, 0, 0, 0, deltaMemory, "", "", 0, 0));
                 text.Add($"core {count}: {stopwatch.Elapsed.TotalMilliseconds:F2} ms, " +
                          $"branches={branches:N0}, leaves={leaves:N0}, transientDelta={deltaMemory:N0} B");
                 Flush(csvPath, txtPath, csv, text);
@@ -100,7 +110,7 @@ namespace VoxelEngine.CI
 
                 csv.Add(string.Join(",",
                     "far_mesh", count, F(stopwatch.Elapsed.TotalMilliseconds), "", "",
-                    0, count, triangles, "", "", "", 0, 0));
+                    0, count, 0, 0, 0, 0, triangles, triangles, "", "", "", 0, 0));
                 text.Add($"far mesh {count}: {stopwatch.Elapsed.TotalMilliseconds:F2} ms, " +
                          $"LOD2 triangles={triangles:N0}");
                 Flush(csvPath, txtPath, csv, text);
@@ -137,6 +147,14 @@ namespace VoxelEngine.CI
                 Assert.That(renderer.PresentationCount, Is.EqualTo(count),
                             $"Renderer did not realize {count} semantic trees before timeout.");
 
+                ProjectBatchLayout(count, out int expectedBatches, out int expectedBatchedTrees);
+                Assert.That(renderer.BatchCount, Is.EqualTo(expectedBatches),
+                            "Runtime batch count no longer matches the benchmark's spatial-cell model.");
+                Assert.That(renderer.BatchedTreeCount, Is.EqualTo(expectedBatchedTrees),
+                            "Runtime batched-tree count no longer matches the benchmark's spatial-cell model.");
+                Assert.That(renderer.EstimatedVisibleDrawCount, Is.LessThan(count * 2),
+                            "Healthy forest batching must reduce visible bark+leaf draws below the per-tree path.");
+
                 double frameTotal = 0.0;
                 double frameMax = 0.0;
                 const int sampledFrames = 15;
@@ -153,33 +171,56 @@ namespace VoxelEngine.CI
                 double avgFrame = frameTotal / sampledFrames;
                 trianglesPerTreeAllLods = count > 0
                     ? renderer.TotalTriangleCountAllLods / (double)count : 0.0;
+                int dynamicTrees = count - renderer.BatchedTreeCount;
+                long renderObjects = count * 4L + renderer.BatchCount * 4L;
+                long estimatedTriangleStorage = renderer.TotalTriangleCountAllLods
+                    + (long)Math.Round(trianglesPerTreeAllLods * renderer.BatchedTreeCount);
 
                 csv.Add(string.Join(",",
                     "runtime", count, F(renderer.LastRebuildMilliseconds), "", "",
                     renderer.PresentationCount, renderer.GeneratedMeshCount,
-                    renderer.TotalTriangleCountAllLods, memoryDelta,
-                    F(avgFrame), F(frameMax), count * 4L, count * 2L));
+                    renderer.BatchCount, renderer.BatchMeshCount, renderer.BatchedTreeCount,
+                    dynamicTrees, renderer.TotalTriangleCountAllLods, estimatedTriangleStorage,
+                    memoryDelta, F(avgFrame), F(frameMax), renderObjects,
+                    renderer.EstimatedVisibleDrawCount));
                 text.Add($"runtime {count}: rebuild={renderer.LastRebuildMilliseconds:F2} ms, " +
-                         $"presentations={renderer.PresentationCount:N0}, meshes={renderer.GeneratedMeshCount:N0}, " +
-                         $"triangles(all LODs)={renderer.TotalTriangleCountAllLods:N0}, " +
-                         $"allocatedDelta={memoryDelta:N0} B, avgFrame={avgFrame:F2} ms, maxFrame={frameMax:F2} ms");
+                         $"presentations={renderer.PresentationCount:N0}, sourceMeshes={renderer.GeneratedMeshCount:N0}, " +
+                         $"batches={renderer.BatchCount:N0}, batchMeshes={renderer.BatchMeshCount:N0}, " +
+                         $"batchedTrees={renderer.BatchedTreeCount:N0}, dynamicTrees={dynamicTrees:N0}, " +
+                         $"visibleDraws≈{renderer.EstimatedVisibleDrawCount:N0} vs perTree={count * 2:N0}, " +
+                         $"sourceTriangles(all LODs)={renderer.TotalTriangleCountAllLods:N0}, " +
+                         $"estimatedTriangleStorage={estimatedTriangleStorage:N0}, " +
+                         $"renderObjects={renderObjects:N0}, allocatedDelta={memoryDelta:N0} B, " +
+                         $"avgFrame={avgFrame:F2} ms, maxFrame={frameMax:F2} ms");
                 Flush(csvPath, txtPath, csv, text);
             }
 
             foreach (int count in ProjectionCounts)
             {
-                long projectedTriangles = (long)Math.Round(trianglesPerTreeAllLods * count);
-                long projectedObjects = count * 4L; // root + three LOD children
-                long projectedMeshes = count * 3L;
-                long projectedVisibleDraws = count * 2L; // bark + leaves for one visible LOD
+                ProjectBatchLayout(count, out int projectedBatches, out int projectedBatchedTrees);
+                int projectedDynamicTrees = count - projectedBatchedTrees;
+                long sourceTriangles = (long)Math.Round(trianglesPerTreeAllLods * count);
+                long estimatedTriangleStorage = (long)Math.Round(
+                    trianglesPerTreeAllLods * (count + projectedBatchedTrees));
+                long renderObjects = count * 4L + projectedBatches * 4L;
+                long sourceMeshes = count * 3L;
+                long batchMeshes = projectedBatches * 3L;
+                long visibleDraws = (projectedBatches + projectedDynamicTrees) * 2L;
+
                 csv.Add(string.Join(",",
-                    "projection", count, "", "", "", count, projectedMeshes,
-                    projectedTriangles, "", "", "", projectedObjects, projectedVisibleDraws));
-                text.Add($"projection {count}: objects≈{projectedObjects:N0}, meshes≈{projectedMeshes:N0}, " +
-                         $"all-LOD triangles≈{projectedTriangles:N0}, worst-case visible draws≈{projectedVisibleDraws:N0}");
+                    "projection", count, "", "", "", count, sourceMeshes,
+                    projectedBatches, batchMeshes, projectedBatchedTrees, projectedDynamicTrees,
+                    sourceTriangles, estimatedTriangleStorage, "", "", "", renderObjects,
+                    visibleDraws));
+                text.Add($"projection {count}: batches≈{projectedBatches:N0}, " +
+                         $"batchedTrees≈{projectedBatchedTrees:N0}, dynamicTrees≈{projectedDynamicTrees:N0}, " +
+                         $"renderObjects≈{renderObjects:N0}, sourceMeshes≈{sourceMeshes:N0}, " +
+                         $"batchMeshes≈{batchMeshes:N0}, visibleDraws≈{visibleDraws:N0} " +
+                         $"(per-tree path={count * 2L:N0}), sourceTriangles≈{sourceTriangles:N0}, " +
+                         $"estimatedTriangleStorage≈{estimatedTriangleStorage:N0}");
             }
 
-            text.Add("recommendation=large forests require chunk/instance batching and lazy LOD mesh realization; semantic state does not need redesign");
+            text.Add("recommendation=draw-call batching is active; next scaling target is eliminating eager three-LOD per-tree mesh realization and duplicate batch geometry while preserving damage fallback");
             Flush(csvPath, txtPath, csv, text);
 
             TreeWorldState.Replace(Array.Empty<TreeInstance>());
@@ -188,6 +229,31 @@ namespace VoxelEngine.CI
             UnityEngine.Debug.Log("Tree performance benchmark:\n" + string.Join("\n", text));
             Assert.That(File.Exists(csvPath), Is.True);
             Assert.That(File.Exists(txtPath), Is.True);
+        }
+
+        private static void ProjectBatchLayout(int count,
+                                               out int batchCount,
+                                               out int batchedTreeCount)
+        {
+            var cells = new Dictionary<Vector2Int, int>();
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 position = (Vector3)MakeInstance(i).PositionMetres;
+                var key = new Vector2Int(
+                    Mathf.FloorToInt(position.x / BatchSizeMetres),
+                    Mathf.FloorToInt(position.z / BatchSizeMetres));
+                cells.TryGetValue(key, out int occupants);
+                cells[key] = occupants + 1;
+            }
+
+            batchCount = 0;
+            batchedTreeCount = 0;
+            foreach (KeyValuePair<Vector2Int, int> cell in cells)
+            {
+                if (cell.Value < MinimumTreesPerBatch) continue;
+                batchCount++;
+                batchedTreeCount += cell.Value;
+            }
         }
 
         private static void Flush(string csvPath, string txtPath,
