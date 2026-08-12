@@ -32,6 +32,11 @@ namespace VoxelEngine.Net.Server
 
             GetVoxelBounds(in evt, out int3 minVoxel, out int3 maxVoxel);
 
+            // Fail before expensive placement checks and before the applier has a chance to see a
+            // partially resident effect. Missing streaming state is not a valid mutation target.
+            if (!DeterministicAlterationApplier.HasRequiredResidency(ref table, in evt))
+                return Validation.ValidationResult.InvalidTarget;
+
             if (zones.IsCreated && zones.IntersectsProtected(minVoxel, maxVoxel))
                 return Validation.ValidationResult.ProtectedZone;
 
@@ -76,7 +81,7 @@ namespace VoxelEngine.Net.Server
                 }
 
                 case AlterationEvent.KindRawBatch:
-                    return evt.shapeData <= int.MaxValue ? (int)(evt.shapeData & 0xFFFFu) : int.MaxValue;
+                    return (int)(evt.shapeData & 0xFFFFu);
 
                 default:
                     return 0;
@@ -131,20 +136,37 @@ namespace VoxelEngine.Net.Server
         private static bool IsConstructive(in AlterationEvent evt) =>
             evt.kind != AlterationEvent.KindExplosion && evt.material != VoxelDimensions.MaterialEmpty;
 
+        /// <summary>
+        /// A placement is attached when any voxel immediately outside one of its six faces is solid.
+        /// The previous implementation sampled only face centers and rejected valid edge/corner
+        /// attachment. This scans the actual boundary and exits on the first supporting voxel.
+        /// </summary>
         private static bool HasAttachment(
             int3 minVoxel,
             int3 maxVoxel,
             ref RegionTable table,
             in BrickPool pool)
         {
-            int3 center = (minVoxel + maxVoxel) / 2;
+            for (int y = minVoxel.y; y <= maxVoxel.y; y++)
+            for (int z = minVoxel.z; z <= maxVoxel.z; z++)
+            {
+                if (IsSolidAtVoxel(ref table, in pool, new int3(minVoxel.x - 1, y, z))) return true;
+                if (IsSolidAtVoxel(ref table, in pool, new int3(maxVoxel.x + 1, y, z))) return true;
+            }
 
-            if (IsSolidAtVoxel(ref table, in pool, new int3(minVoxel.x - 1, center.y, center.z))) return true;
-            if (IsSolidAtVoxel(ref table, in pool, new int3(maxVoxel.x + 1, center.y, center.z))) return true;
-            if (IsSolidAtVoxel(ref table, in pool, new int3(center.x, minVoxel.y - 1, center.z))) return true;
-            if (IsSolidAtVoxel(ref table, in pool, new int3(center.x, maxVoxel.y + 1, center.z))) return true;
-            if (IsSolidAtVoxel(ref table, in pool, new int3(center.x, center.y, minVoxel.z - 1))) return true;
-            if (IsSolidAtVoxel(ref table, in pool, new int3(center.x, center.y, maxVoxel.z + 1))) return true;
+            for (int x = minVoxel.x; x <= maxVoxel.x; x++)
+            for (int z = minVoxel.z; z <= maxVoxel.z; z++)
+            {
+                if (IsSolidAtVoxel(ref table, in pool, new int3(x, minVoxel.y - 1, z))) return true;
+                if (IsSolidAtVoxel(ref table, in pool, new int3(x, maxVoxel.y + 1, z))) return true;
+            }
+
+            for (int x = minVoxel.x; x <= maxVoxel.x; x++)
+            for (int y = minVoxel.y; y <= maxVoxel.y; y++)
+            {
+                if (IsSolidAtVoxel(ref table, in pool, new int3(x, y, minVoxel.z - 1))) return true;
+                if (IsSolidAtVoxel(ref table, in pool, new int3(x, y, maxVoxel.z + 1))) return true;
+            }
 
             return false;
         }
