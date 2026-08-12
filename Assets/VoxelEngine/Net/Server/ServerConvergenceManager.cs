@@ -12,6 +12,8 @@ namespace VoxelEngine.Net.Server
     /// <summary>
     /// Periodic semantic drift detection plus exact-checkpoint repair.
     /// A hash is issued only when its exact bounded semantic snapshot is retained.
+    /// Region checkpoints are deterministically staggered across the configured interval so the
+    /// server does not serialize every interested region on the same simulation tick.
     /// </summary>
     public sealed class ServerConvergenceManager
     {
@@ -78,8 +80,10 @@ namespace VoxelEngine.Net.Server
                     subscriptions.IsSubscribed(queued.ConnectionId, report.regionCoord) &&
                     report.clientHash != report.serverHash;
 
-                if (!authenticatedAndInterested)
+                if (!authenticatedAndInterested || report.hashTick > serverTick)
                 {
+                    // Future checkpoints cannot exist. Treat them as invalid input, not as an
+                    // invitation to trigger an expensive full-state resync.
                     RejectedMismatchCount++;
                     continue;
                 }
@@ -97,7 +101,6 @@ namespace VoxelEngine.Net.Server
 
                 if (issuedHash != report.serverHash)
                 {
-                    // The connection is real but the report does not match the hash we issued.
                     RejectedMismatchCount++;
                     continue;
                 }
@@ -199,7 +202,7 @@ namespace VoxelEngine.Net.Server
         {
             if (subscriptions == null) throw new ArgumentNullException(nameof(subscriptions));
             if (network == null) throw new ArgumentNullException(nameof(network));
-            if (serverTick == 0 || serverTick % _hashIntervalTicks != 0) return 0;
+            if (serverTick == 0) return 0;
 
             PruneCheckpoints(serverTick);
             NativeArray<int3> regions = table.GetResidentCoords(Allocator.Temp);
@@ -209,6 +212,9 @@ namespace VoxelEngine.Net.Server
                 for (int i = 0; i < regions.Length; i++)
                 {
                     int3 coord = regions[i];
+                    if (!ShouldCheckpointRegion(coord, serverTick))
+                        continue;
+
                     _subscriberScratch.Clear();
                     subscriptions.AddSubscribers(coord, _subscriberScratch);
                     if (_subscriberScratch.Count == 0) continue;
@@ -268,6 +274,18 @@ namespace VoxelEngine.Net.Server
                     _pendingRepairs.RemoveAt(i);
 
             _inbox.RemoveConnection(connectionId);
+        }
+
+        private bool ShouldCheckpointRegion(int3 coord, uint serverTick)
+        {
+            if (_hashIntervalTicks == 1)
+                return true;
+
+            uint hash = unchecked((uint)coord.x) * 0x9E3779B1u;
+            hash ^= unchecked((uint)coord.y) * 0x85EBCA77u;
+            hash ^= unchecked((uint)coord.z) * 0xC2B2AE3Du;
+            hash ^= hash >> 16;
+            return hash % _hashIntervalTicks == serverTick % _hashIntervalTicks;
         }
 
         private void RequireFullResync(
