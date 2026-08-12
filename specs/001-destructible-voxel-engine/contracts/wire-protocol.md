@@ -13,7 +13,7 @@ This is the externally observable networking contract. Independently written pee
 | Channel | Delivery | Carries |
 |---|---|---|
 | `EVENT` | reliable, ordered | durable commands/results, alteration batches, hash barriers, current-state fences |
-| `EPHEMERAL` | unreliable, sequenced | input/motion where newer data supersedes stale data |
+| `EPHEMERAL` | unreliable, sequenced | input and absolute player snapshots where newer data supersedes stale data |
 | `REPAIR` | reliable | bounded exact-checkpoint semantic repair |
 | `BULK` | fragmentation → reliable | current region state, reconnect/late-join state, future mip refinement |
 
@@ -46,7 +46,7 @@ Current stable kinds:
 | 35 | `S_RegionHash` |
 | 36 | `S_RegionRepair` semantic chunk |
 | 37 | `S_RegionData` semantic BULK chunk |
-| 38 | `S_PlayerState` |
+| 38 | `S_PlayerState` bundle |
 | 39 | `S_RegionResyncRequired` |
 | 40 | `S_RegionStateFence` |
 
@@ -100,6 +100,8 @@ Contains only client tick/sequence, signed movement axes, quantized yaw/pitch, a
 
 Samples are oldest → newest. Normal steady state sends newest + two prior samples, max **51 B**. Server validates sequence ordering and deduplicates per connection with ushort-wrap-aware comparison.
 
+The authoritative acknowledgement does **not** advance when a packet merely arrives. `ServerCommandProcessor` advances the per-player processed-input sequence only after the input reaches the fixed-tick `IAuthoritativePlayerInputSink`.
+
 ### `C_RegionHashMismatch` — 24 B payload / 26 B framed, `EVENT`
 
 `regionCoord:int3 + hashTick:uint + clientHash:uint + serverHash:uint`.
@@ -127,9 +129,9 @@ Requests enter `ServerRegionStateRequestInbox`; snapshot serialization never occ
 
 ---
 
-## 4. Durable EVENT authority
+## 4. Server → client live authority
 
-### `S_AlterationEventBatch` — `18 + 24N` B payload, `N ≤ 48`
+### `S_AlterationEventBatch` — `18 + 24N` B payload, `N ≤ 48`, `EVENT`
 
 Maximum: **1,170 B payload / 1,172 B framed**. Only consecutive events with the same server tick/encoding region may batch. Wire order is authoritative order and clients never globally regroup/re-sort.
 
@@ -141,7 +143,50 @@ Cause-not-effect invariant: no ordinary voxel diffs, SDF samples, meshes, render
 
 Reliable stable-reason response for speculative client edits that did not become authority.
 
-### `S_RegionHash` — 20 B payload / 22 B framed
+### `S_PlayerState` bundle — `3 + 40N` B framed, `1 ≤ N ≤ 6`, `EPHEMERAL`
+
+Kind 38 is a bundle, not one packet per player. The normal four-player case therefore fits in one unreliable-sequenced datagram instead of depending on inter-packet ordering for each remote player.
+
+Maximum bundle size is **243 B**, below the current 256 B EPHEMERAL ceiling.
+
+Each 40-byte absolute player snapshot is:
+
+| Offset | Bytes | Field |
+|---:|---:|---|
+| 0 | 2 | `playerId` |
+| 2 | 4 | authoritative `serverTick` |
+| 6 | 2 | per-player `stateSequence` |
+| 8 | 2 | `ackInputSequence` |
+| 10 | 2 | state flags |
+| 12 | 12 | absolute position, `int3` Q19.13 voxels |
+| 24 | 12 | absolute velocity, `int3` Q12.20 voxels/second |
+| 36 | 2 | quantized full-turn yaw |
+| 38 | 2 | reserved zero |
+
+State flag bit 0 means the input acknowledgement field is valid. Other current flags are grounded, teleport and respawn.
+
+Snapshots are absolute rather than packet-relative deltas, so any surviving packet is independently usable after loss. The default server cadence is every two authoritative ticks (**15 Hz at a 30 Hz simulation tick**).
+
+Routing rules:
+
+- the owning connection always receives its own state for reconciliation;
+- remote state is sent only to subscribers of the player's current simulation region;
+- per-player state sequences are ushort-wrap-aware;
+- stale/reordered snapshots are valid EPHEMERAL traffic but are ignored by the client timeline.
+
+Local reconciliation rules:
+
+1. successful client input sends are retained in a bounded sequence-ordered history;
+2. transport callbacks only decode/dedupe player snapshots and retain the newest pending state per player;
+3. `ApplyPlayerStateUpdates()` runs outside UTP packet dispatch;
+4. for the local player, inputs at-or-before the server acknowledgement are discarded;
+5. game-owned prediction code is snapped to the absolute authoritative state;
+6. remaining unacknowledged inputs are replayed in original order through `IClientPredictionAdapter`;
+7. remote players retain the newest two accepted snapshots for interpolation; teleport/respawn snapshots snap instead of lerp.
+
+Networking never implements movement physics. The server game updates authoritative kinematics in `ServerPlayerRegistry`; the client game implements rewind/replay through the prediction adapter.
+
+### `S_RegionHash` — 20 B payload / 22 B framed, `EVENT`
 
 `regionCoord:int3 + serverTick:uint + semanticHash:uint`.
 
@@ -252,20 +297,22 @@ This same mechanism is the foundation for expired-checkpoint recovery, reconnect
 
 ## 7. Fixed-tick trust boundary
 
-Frame-level UTP pumping only decodes/copies into bounded inboxes/assemblers. World mutation is never executed from a transport callback.
+Frame-level UTP pumping only decodes/copies into bounded inboxes/assemblers/timelines. World mutation and prediction rewind/replay never execute from a transport callback.
 
 Canonical server tick:
 
 1. process authenticated convergence reports;
 2. drain/resolve commands and EPHEMERAL input;
-3. validate connection-owned identity/position/reach/permissions/rate/zone state;
-4. apply deterministic world mutations;
-5. queue alteration EVENT batches;
-6. queue due semantic hash barriers;
-7. process bounded full-region requests, capture state and queue EVENT fences;
-8. queue bounded REPAIR packets;
-9. queue throttled BULK packets;
-10. flush transport once.
+3. apply game-owned authoritative player simulation and update `ServerPlayerRegistry` kinematics;
+4. validate connection-owned identity/position/reach/permissions/rate/zone state;
+5. apply deterministic world mutations;
+6. author/route due EPHEMERAL absolute player snapshots with consumed-input acknowledgements;
+7. queue alteration EVENT batches;
+8. queue due semantic hash barriers;
+9. process bounded full-region requests, capture state and queue EVENT fences;
+10. queue bounded REPAIR packets;
+11. queue throttled BULK packets;
+12. flush transport once.
 
 `AuthoritativeServerSession` is the canonical server networking composition root. The old `ServerTickLoop` network scaffold is obsolete.
 
@@ -295,6 +342,8 @@ Sphere/cylinder/extrude brush variants and raw-batch edits fail closed until can
 Simulation interest is platform-neutral, fully 3D and based on the authoritative 512-voxel region edge. Server indexes both connection→regions and region→connections.
 
 Alteration fan-out uses exact canonical bounds for both explosions and cube brushes. A connection subscribed to several impacted regions still receives a given authoritative event at most once.
+
+Player-state fan-out uses the same region subscription index. Owners always receive their own snapshot even when a test/bootstrap subscription is absent.
 
 Full-state requests are accepted only from authenticated connections currently subscribed to the requested simulation region.
 
