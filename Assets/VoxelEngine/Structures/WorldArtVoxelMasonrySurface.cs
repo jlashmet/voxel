@@ -10,7 +10,7 @@ namespace VoxelEngine.Structures
     {
         public static void RecessArchivoltJoints(ref VoxelBrush brush,
                                                  in WorldArtVoxelArchSpec spec,
-                                                 int stoneCount = 11,
+                                                 int stoneCount = 15,
                                                  int recessDepth = 1)
         {
             stoneCount = math.max(5, stoneCount);
