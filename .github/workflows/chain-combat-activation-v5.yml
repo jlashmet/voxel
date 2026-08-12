@@ -1,15 +1,7 @@
-name: Chain Combat Activation V5
+name: Chain Combat Activation V5 (legacy)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - prototype/chain-combat
-    paths:
-      - "Assets/CombatPrototype/**"
-      - "Assets/Tests/PlayMode/ChainCombatActivationV5Tests.cs"
-      - "Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef"
-      - ".github/workflows/chain-combat-activation-v5.yml"
 
 jobs:
   chain-combat-activation-v5:
@@ -30,20 +22,17 @@ jobs:
           set -euo pipefail
           UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
           UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
-          echo "Unity version: ${UNITY_VERSION}"
-          echo "Unity path: ${UNITY_PATH}"
           if [[ ! -x "${UNITY_PATH}" ]]; then
             echo "Unity executable was not found at ${UNITY_PATH}" >&2
             exit 1
           fi
           echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
 
-      - name: Run activation economy PlayMode tests
+      - name: Run V5 PlayMode tests
         shell: bash
         run: |
           set -uo pipefail
           mkdir -p "$GITHUB_WORKSPACE/Artifacts/ChainCombatV5"
-
           "${{ steps.unity.outputs.path }}" \
             -batchmode \
             -projectPath "$GITHUB_WORKSPACE" \
@@ -53,18 +42,10 @@ jobs:
             -testResults "$GITHUB_WORKSPACE/Artifacts/ChainCombatV5/results.xml" \
             -logFile "$GITHUB_WORKSPACE/Artifacts/ChainCombatV5/unity.log"
           status=$?
+          if [[ -f "$GITHUB_WORKSPACE/Artifacts/ChainCombatV5/unity.log" ]]; then cat "$GITHUB_WORKSPACE/Artifacts/ChainCombatV5/unity.log"; fi
+          exit $status
 
-          if [[ -f "$GITHUB_WORKSPACE/Artifacts/ChainCombatV5/unity.log" ]]; then
-            cat "$GITHUB_WORKSPACE/Artifacts/ChainCombatV5/unity.log"
-          fi
-
-          if [[ $status -ne 0 ]]; then
-            exit $status
-          fi
-
-          test -s "$GITHUB_WORKSPACE/Artifacts/ChainCombatV5/results.xml"
-
-      - name: Upload chain combat V5 test artifacts
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
