@@ -26,6 +26,7 @@ namespace VoxelEngine.Structures
         public int Depth;
         public int ImpostHeight;
         public int JointDepth;
+        public int ArchivoltProjection;
         public byte StoneMaterial;
         public byte JointMaterial;
         public byte EmptyMaterial;
@@ -46,6 +47,7 @@ namespace VoxelEngine.Structures
                 Depth = 10,              // 1 m wall depth.
                 ImpostHeight = 3,        // 30 cm projecting spring course.
                 JointDepth = 1,          // 10 cm material band on the visible face.
+                ArchivoltProjection = 3, // 30 cm proud of the recessed spandrel face.
                 StoneMaterial = stone,
                 JointMaterial = jointMaterial == 0 ? stone : jointMaterial,
                 EmptyMaterial = empty,
@@ -85,6 +87,9 @@ namespace VoxelEngine.Structures
             int depth = math.max(4, spec.Depth);
             int impostHeight = math.max(2, spec.ImpostHeight);
             int jointDepth = math.max(1, spec.JointDepth);
+            int archivoltProjection = math.clamp(
+                spec.ArchivoltProjection > 0 ? spec.ArchivoltProjection : 2,
+                1, depth - 2);
             byte jointMaterial = spec.JointMaterial == 0 ? spec.StoneMaterial : spec.JointMaterial;
             int outerRadius = halfOpening + ringThickness;
             int frontZ = spec.BaseCentre.z - depth / 2;
@@ -115,7 +120,7 @@ namespace VoxelEngine.Structures
                 halfOpening, outerRadius, jointDepth, jointMaterial, spec.Damage);
 
             BuildBackingMass(ref brush, spec.BaseCentre, pierCentreOffset, pierWidth,
-                springY, outerRadius, courseHeight, depth, jointDepth,
+                springY, outerRadius, courseHeight, depth, jointDepth, archivoltProjection,
                 spec.StoneMaterial, jointMaterial, spec.Seed + 1103u, spec.Damage);
 
             if (spec.Damage != WorldArtVoxelArchDamage.Intact)
@@ -173,7 +178,6 @@ namespace VoxelEngine.Structures
                     brush.Set(x, jointY, frontZ + d, jointMaterial);
             }
 
-            // One staggered head joint per course creates bonded ashlar without cutting the pier.
             for (int row = 0; row < rows; row++)
             {
                 int rowY = shaftY + row * courseHeight;
@@ -203,8 +207,6 @@ namespace VoxelEngine.Structures
             int innerRadius, int outerRadius, int depth, byte material, WorldArtVoxelArchDamage damage)
         {
             int z0 = cz - depth / 2;
-            // Use a centred half-voxel bias. It slightly reduces the inward scallop of a discrete
-            // circle while preserving the requested clear opening in authoritative voxel space.
             float inner = innerRadius - 0.35f;
             float outer = outerRadius + 0.15f;
             float inner2 = inner * inner;
@@ -232,8 +234,6 @@ namespace VoxelEngine.Structures
                 float ca = math.cos(angle);
                 float sa = math.sin(angle);
 
-                // Paint through the face instead of excavating it. Now the joints can meet both
-                // arrises like real voussoir mortar without creating a gear-shaped silhouette.
                 for (int r = innerRadius; r <= outerRadius; r++)
                 {
                     int x = (int)math.round(ca * r);
@@ -246,17 +246,17 @@ namespace VoxelEngine.Structures
         }
 
         /// <summary>
-        /// Recessed spandrel masonry starts only two voxels behind the archivolt face and extends
-        /// through the rest of the wall depth. This reads as a structural wall with a proud ring,
-        /// not as an unrelated rear billboard behind the opening.
+        /// The backing/spandrel starts behind the proud archivolt by a component-controlled amount.
+        /// Projection is structure semantics, not a shader illusion: side lighting now catches a
+        /// real voxel-derived reveal while destruction still operates on one continuous wall mass.
         /// </summary>
         private static void BuildBackingMass(ref VoxelBrush brush, int3 origin,
             int pierOffset, int pierWidth, int springY, int outerRadius, int courseHeight,
-            int depth, int jointDepth, byte material, byte jointMaterial, uint seed,
+            int depth, int jointDepth, int faceRecess, byte material, byte jointMaterial, uint seed,
             WorldArtVoxelArchDamage damage)
         {
             int bayHalf = pierOffset + (pierWidth + 1) / 2;
-            int faceRecess = math.min(2, depth - 2);
+            faceRecess = math.clamp(faceRecess, 1, depth - 2);
             int backingDepth = math.max(2, depth - faceRecess);
             int frontZ = origin.z - depth / 2 + faceRecess;
             int topOffset = outerRadius + 2;
@@ -271,7 +271,6 @@ namespace VoxelEngine.Structures
                     brush.Set(origin.x + x, springY + y, z, material);
             }
 
-            // Quiet coursing: material lines only, no voids, and fewer head joints than the piers.
             for (int y = courseHeight; y < topOffset; y += courseHeight)
             {
                 for (int x = -bayHalf + 2; x <= bayHalf - 2; x++)
@@ -286,7 +285,6 @@ namespace VoxelEngine.Structures
             int rows = math.max(1, topOffset / courseHeight);
             for (int row = 0; row < rows; row++)
             {
-                // Only alternate rows receive a head joint. The wall stays subordinate to the ring.
                 if ((row & 1) != 0) continue;
                 int rowY = row * courseHeight;
                 int rowTop = math.min(topOffset + 1, rowY + courseHeight);
