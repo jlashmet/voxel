@@ -34,9 +34,11 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeVerticalPlacementAdapter.BuildTownDressing(
                     seed, settings, Allocator.Temp),
 
-                // The semantic block plan now compiles to real varied anonymous buildings rather
-                // than coarse boxes. It remains separate from stable gameplay-role grammar.
+                // The semantic block plan compiles to varied anonymous buildings. A separate access
+                // layer then joins their embedded door level to the upper courts with contour walks,
+                // open gateways, and real stair cuts through the shelf face.
                 KentridgeUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp),
 
                 // Secondary hard architecture comes immediately before gameplay buildings. Where an
                 // embedded dwelling touches a named building, the stable role building wins last.
