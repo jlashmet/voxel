@@ -113,7 +113,7 @@ namespace VoxelEngine.CI
                 string metadata =
                     "capture=AAA voxel-only arch hero study\n" +
                     "geometry=VoxelBrush -> bounded smooth voxel extraction\n" +
-                    "masonryDetail=component-driven sub-voxel shader seams\n" +
+                    "masonryDetail=component-driven seams + deterministic stone relief\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
                     "heroSurfaceSampleMetres=0.05\n" +
@@ -183,12 +183,16 @@ namespace VoxelEngine.CI
             SetColor(m, "_TopColor", top);
             SetFloat(m, "_SurfaceKind", 2f);
             SetFloat(m, "_TextureScale", 0.48f);
-            SetFloat(m, "_TextureStrength", 0.24f);
+            SetFloat(m, "_TextureStrength", 0.20f);
             SetFloat(m, "_DetailScale", 0.72f);
-            SetFloat(m, "_DetailStrength", 0.055f);
+            SetFloat(m, "_DetailStrength", 0.038f);
             SetFloat(m, "_TopStrength", 0.16f);
-            SetFloat(m, "_RimStrength", 0.008f);
-            SetFloat(m, "_Smoothness", 0.015f);
+            SetFloat(m, "_RimStrength", 0.006f);
+            SetFloat(m, "_Smoothness", 0.012f);
+            SetFloat(m, "_StoneReliefStrength", 0.76f);
+            SetFloat(m, "_StoneJointRelief", 0.88f);
+            SetFloat(m, "_StoneBlockVariation", 0.72f);
+            SetFloat(m, "_StoneWeathering", 0.46f);
             return m;
         }
 
@@ -211,7 +215,7 @@ namespace VoxelEngine.CI
             int backingFrontZ = frontZ + math.min(2, depth - 2);
 
             SetFloat(material, "_ArchSeams", 1f);
-            SetColor(material, "_ArchJointColor", new Color(0.31f, 0.285f, 0.245f, 1f));
+            SetColor(material, "_ArchJointColor", new Color(0.305f, 0.278f, 0.235f, 1f));
             SetVector(material, "_ArchCenterSpring", new Vector4(
                 spec.BaseCentre.x * s,
                 springY * s,
@@ -221,7 +225,7 @@ namespace VoxelEngine.CI
                 halfOpening * s,
                 outerRadius * s,
                 15f,
-                0.024f));
+                0.019f));
             SetVector(material, "_ArchPier", new Vector4(
                 pierOffset * s,
                 pierWidth * s,
@@ -254,8 +258,8 @@ namespace VoxelEngine.CI
 
             fillObject = new GameObject("Voxel arch cool fill");
             Light fill = fillObject.AddComponent<Light>();
-            fill.type = LightType.Directional;
             fill.color = new Color(0.60f, 0.70f, 0.86f);
+            fill.type = LightType.Directional;
             fill.intensity = 0.25f;
             fill.shadows = LightShadows.None;
             fillObject.transform.rotation = Quaternion.Euler(22f, 132f, 0f);
