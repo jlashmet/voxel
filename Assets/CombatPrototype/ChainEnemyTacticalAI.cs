@@ -9,6 +9,7 @@ namespace MountingForce.CombatPrototype
         Wait,
         Advance,
         Attack,
+        Shove,
         Charge
     }
 
@@ -39,8 +40,8 @@ namespace MountingForce.CombatPrototype
     ///
     /// The AI plans once at the beginning of a player round and commits to those intentions. It does not secretly
     /// re-target after the players move. That makes enemy decisions readable physical promises the party can evade,
-    /// disrupt, or deliberately exploit. Ogre charges reuse the board's normal motion/collision/environment rules, so
-    /// an enemy action can create the same reaction opportunities as a player-created impact.
+    /// disrupt, or deliberately exploit. Enemy shoves and ogre charges reuse the board's normal motion/collision/
+    /// environment rules, so enemy actions can create the same reaction opportunities as player-created impacts.
     ///
     /// This class currently bridges a few private board operations through reflection so the experiment can evolve
     /// without widening the production-facing board API. If the mechanic survives playtesting, those operations should
@@ -151,16 +152,29 @@ namespace MountingForce.CombatPrototype
                 if (friendly.Team != CombatTeam.Friendly || !friendly.IsAlive) continue;
 
                 int distance = ChainCombatBoard.Distance(enemy.Position, friendly.Position);
-                if (distance == 1)
+                if (distance != 1) continue;
+
+                GridPos direction = Direction(enemy.Position, friendly.Position);
+                int vulnerability = friendly.MaxHp - friendly.Hp;
+
+                if (enemy.Kind == ChainRecruitKind.Goblin)
                 {
-                    int vulnerability = friendly.MaxHp - friendly.Hp;
-                    int score = 120 + vulnerability * 4 + (enemy.Kind == ChainRecruitKind.Ogre ? 10 : 0);
-                    if (score > best.Score)
+                    int physicalPayoff = ScoreShovePayoff(friendly, direction, 4);
+                    int shoveScore = physicalPayoff <= 0 ? 0 : 108 + physicalPayoff + vulnerability * 2;
+                    if (shoveScore > best.Score)
                     {
-                        best = new ChainEnemyIntent(enemy.Id, ChainEnemyIntentKind.Attack, friendly.Id,
-                            Direction(enemy.Position, friendly.Position), friendly.Position, score,
-                            $"commits to attack {friendly.Name} if {friendly.Name} is still adjacent");
+                        best = new ChainEnemyIntent(enemy.Id, ChainEnemyIntentKind.Shove, friendly.Id,
+                            direction, friendly.Position + direction, shoveScore,
+                            $"commits to shove {friendly.Name} {DirectionName(direction)} with force 4");
                     }
+                }
+
+                int attackScore = 120 + vulnerability * 4 + (enemy.Kind == ChainRecruitKind.Ogre ? 10 : 0);
+                if (attackScore > best.Score)
+                {
+                    best = new ChainEnemyIntent(enemy.Id, ChainEnemyIntentKind.Attack, friendly.Id,
+                        direction, friendly.Position, attackScore,
+                        $"commits to attack {friendly.Name} if {friendly.Name} is still adjacent");
                 }
             }
 
@@ -206,8 +220,6 @@ namespace MountingForce.CombatPrototype
                         break;
                     }
 
-                    // A tree blocks the lane. The ogre may still smash it if a friendly is close behind it; this gives
-                    // the party an environmental threat/opportunity instead of making trees invisible to enemy logic.
                     if (tree != null)
                     {
                         ChainUnitState beyond = FindFriendlyBeyond(cell, direction, 2);
@@ -248,13 +260,11 @@ namespace MountingForce.CombatPrototype
 
                 if (enemy.Kind == ChainRecruitKind.Ogre)
                 {
-                    // Ogres like cells that line up a future charge.
                     GridPos line = Direction(destination, target.Position);
                     if (IsAligned(destination, target.Position) && !IsZero(line)) score += 14;
                 }
                 else
                 {
-                    // Goblins prefer spreading pressure around different sides of a target rather than forming one blob.
                     score += AdjacentEnemyCount(destination) == 0 ? 5 : 0;
                 }
 
@@ -266,6 +276,39 @@ namespace MountingForce.CombatPrototype
             }
 
             return best;
+        }
+
+        private int ScoreShovePayoff(ChainUnitState target, GridPos direction, int force)
+        {
+            int score = 0;
+            for (int step = 1; step <= force; step++)
+            {
+                GridPos cell = target.Position + direction * step;
+                if (!_board.IsInBounds(cell))
+                {
+                    score += Math.Max(6, 14 - step * 2);
+                    break;
+                }
+
+                ChainTreeState tree = _board.FindStandingTreeAt(cell);
+                if (tree != null)
+                {
+                    score += 34 + Math.Max(0, 5 - step) * 3;
+                    break;
+                }
+
+                ChainUnitState occupant = _board.FindUnitAt(cell);
+                if (occupant != null && occupant.Id != target.Id)
+                {
+                    score += occupant.Team == CombatTeam.Friendly ? 32 : 12;
+                    break;
+                }
+
+                if (HasAmplifier(cell)) score += 14;
+                if (( _board.PortalA.HasValue && _board.PortalA.Value.Equals(cell)) ||
+                    ( _board.PortalB.HasValue && _board.PortalB.Value.Equals(cell))) score += 8;
+            }
+            return score;
         }
 
         private void Execute(ChainEnemyIntent intent)
@@ -281,6 +324,9 @@ namespace MountingForce.CombatPrototype
             {
                 case ChainEnemyIntentKind.Attack:
                     ExecuteAttack(enemy, intent);
+                    break;
+                case ChainEnemyIntentKind.Shove:
+                    ExecuteShove(enemy, intent);
                     break;
                 case ChainEnemyIntentKind.Advance:
                     ExecuteAdvance(enemy, intent);
@@ -309,6 +355,27 @@ namespace MountingForce.CombatPrototype
             Log($"{enemy.Name} executes its committed attack on {target.Name} for {damage}. {target.Name}: {target.Hp}/{target.MaxHp} HP.");
         }
 
+        private void ExecuteShove(ChainUnitState enemy, ChainEnemyIntent intent)
+        {
+            ChainUnitState target = _board.GetUnit(intent.TargetUnitId);
+            if (target == null || !target.IsAlive || target.Team != CombatTeam.Friendly ||
+                ChainCombatBoard.Distance(enemy.Position, target.Position) != 1)
+            {
+                Log($"{enemy.Name}'s committed shove misses because its target is no longer adjacent.");
+                return;
+            }
+
+            GridPos currentDirection = Direction(enemy.Position, target.Position);
+            if (!currentDirection.Equals(intent.Direction))
+            {
+                Log($"{enemy.Name}'s committed shove loses its angle after the board changes.");
+                return;
+            }
+
+            ExecutePhysicalMotion(target, intent.Direction, 4,
+                $"{enemy.Name} shoves {target.Name} {DirectionName(intent.Direction)} with force 4");
+        }
+
         private void ExecuteAdvance(ChainUnitState enemy, ChainEnemyIntent intent)
         {
             GridPos destination = enemy.Position + intent.Direction;
@@ -330,21 +397,27 @@ namespace MountingForce.CombatPrototype
                 return;
             }
 
+            ExecutePhysicalMotion(enemy, intent.Direction, 6,
+                $"{enemy.Name} executes its committed force-6 charge {DirectionName(intent.Direction)}. Anything now in that lane can be hit");
+        }
+
+        private void ExecutePhysicalMotion(ChainUnitState mover, GridPos direction, int force, string message)
+        {
             if (MotionField == null || ResolveMotionMethod == null)
             {
-                Log("Enemy charge bridge is unavailable; charge fizzled.");
+                Log("Enemy physical-motion bridge is unavailable; the intent fizzled.");
                 return;
             }
 
             var motion = new ChainMotionState
             {
-                UnitId = enemy.Id,
-                Direction = intent.Direction,
-                RemainingForce = 6,
+                UnitId = mover.Id,
+                Direction = direction,
+                RemainingForce = force,
                 Airborne = false
             };
             MotionField.SetValue(_board, motion);
-            Log($"{enemy.Name} executes its committed force-6 charge {DirectionName(intent.Direction)}. Anything now in that lane can be hit.");
+            Log(message + ".");
             ResolveMotionMethod.Invoke(_board, null);
         }
 
@@ -404,6 +477,13 @@ namespace MountingForce.CombatPrototype
                 return unit.Team == CombatTeam.Friendly && unit.IsAlive ? unit : null;
             }
             return null;
+        }
+
+        private bool HasAmplifier(GridPos position)
+        {
+            foreach (GridPos amplifier in _board.Amplifiers)
+                if (amplifier.Equals(position)) return true;
+            return false;
         }
 
         private int AdjacentEnemyCount(GridPos position)
