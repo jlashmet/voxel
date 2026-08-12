@@ -4,9 +4,8 @@ using UnityEngine;
 namespace VoxelEngine.Structures
 {
     /// <summary>
-    /// Hero-quality cut-stone primitives for architectural assemblies. These shapes are intentionally
-    /// calmer than rubble: load-bearing edges stay precise while exposed faces receive restrained,
-    /// deterministic age variation. The result is reusable by arches, arcades, bridges and vaults.
+    /// Hero-quality cut-stone primitives for architectural assemblies. Load-bearing edges stay
+    /// disciplined while exposed faces receive only restrained deterministic age variation.
     /// </summary>
     public static class WorldArtArchitecturalStone
     {
@@ -38,20 +37,39 @@ namespace VoxelEngine.Structures
         }
 
         private static Mesh CreateChamferedVoussoir(float innerRadius, float outerRadius,
-            float a0, float a1, float depth, float faceBevel, int seed)
+            float a0, float a1, float depth, float requestedBevel, int seed)
         {
             float radialThickness = Mathf.Max(0.08f, outerRadius - innerRadius);
+            float originalSpan = Mathf.Abs(a1 - a0);
+
+            // The assembly deliberately leaves a tiny mortar line between stones. Recover most of
+            // that angular gap here so the visible joint stays hairline rather than becoming a fan
+            // of dark triangular slots at the extrados.
+            float overcut = Mathf.Min(originalSpan * 0.035f, 0.17f * Mathf.Deg2Rad);
+            if (a0 < a1)
+            {
+                a0 -= overcut;
+                a1 += overcut;
+            }
+            else
+            {
+                a0 += overcut;
+                a1 -= overcut;
+            }
+
             float angleSpan = Mathf.Abs(a1 - a0);
             float arcWidth = ((innerRadius + outerRadius) * 0.5f) * angleSpan;
-            float bevel = Mathf.Clamp(faceBevel, 0.008f,
-                Mathf.Min(radialThickness * 0.13f, arcWidth * 0.16f));
 
-            // The intrados is deliberately disciplined: the opening must read as an authored curve.
-            // Only the exposed extrados gets a few millimetres of age variation.
-            float inner0 = innerRadius + (Hash(seed + 11) - 0.5f) * radialThickness * 0.006f;
-            float inner1 = innerRadius + (Hash(seed + 13) - 0.5f) * radialThickness * 0.006f;
-            float outer0 = outerRadius + (Hash(seed + 17) - 0.5f) * radialThickness * 0.024f;
-            float outer1 = outerRadius + (Hash(seed + 19) - 0.5f) * radialThickness * 0.024f;
+            // AAA masonry wants a narrow edge catch, not a stylized bevel. At this scale the old
+            // 3-4 cm chamfer doubled the apparent mortar width, so cap it around 1 cm.
+            float bevel = Mathf.Clamp(requestedBevel * 0.36f, 0.006f,
+                Mathf.Min(radialThickness * 0.030f, arcWidth * 0.055f));
+
+            // Keep the intrados nearly perfect; let the weather live primarily on the exposed outer edge.
+            float inner0 = innerRadius + (Hash(seed + 11) - 0.5f) * radialThickness * 0.003f;
+            float inner1 = innerRadius + (Hash(seed + 13) - 0.5f) * radialThickness * 0.003f;
+            float outer0 = outerRadius + (Hash(seed + 17) - 0.5f) * radialThickness * 0.014f;
+            float outer1 = outerRadius + (Hash(seed + 19) - 0.5f) * radialThickness * 0.014f;
 
             Vector2[] boundary =
             {
@@ -68,31 +86,28 @@ namespace VoxelEngine.Structures
                 Vector2 toward = centroid - boundary[i];
                 float distance = toward.magnitude;
                 face[i] = distance > 0.0001f
-                    ? boundary[i] + toward / distance * Mathf.Min(bevel, distance * 0.22f)
+                    ? boundary[i] + toward / distance * Mathf.Min(bevel, distance * 0.12f)
                     : boundary[i];
             }
 
-            // One restrained chipped outer corner in a minority of stones. It affects only the
-            // face silhouette; the structural bearing surfaces remain regular.
-            if (Hash(seed + 101) > 0.84f)
+            // Rare, tiny corner loss. This should only register in a close-up, never alter the ring rhythm.
+            if (Hash(seed + 101) > 0.93f)
             {
                 int corner = Hash(seed + 103) > 0.5f ? 2 : 3;
                 Vector2 toward = centroid - face[corner];
-                face[corner] += toward.normalized * bevel * (0.32f + Hash(seed + 107) * 0.28f);
+                face[corner] += toward.normalized * bevel * (0.18f + Hash(seed + 107) * 0.18f);
             }
 
             float front = -depth * 0.5f;
-            float bevelBack = front + Mathf.Min(bevel * 0.62f, depth * 0.065f);
+            float bevelBack = front + Mathf.Min(bevel * 0.45f, depth * 0.018f);
             float back = depth * 0.5f;
 
             var vertices = new List<Vector3>(64);
             var triangles = new List<int>(96);
 
-            // Broad hero face: perfectly planar so texture and light read as stone, not a low-poly blob.
             AddQuad(vertices, triangles,
                 V(face[0], front), V(face[3], front), V(face[2], front), V(face[1], front));
 
-            // Four narrow face chamfers catch a controlled highlight around each cut stone.
             for (int i = 0; i < 4; i++)
             {
                 int next = (i + 1) & 3;
@@ -101,7 +116,6 @@ namespace VoxelEngine.Structures
                     V(boundary[next], bevelBack), V(boundary[i], bevelBack));
             }
 
-            // Deep bearing/joint faces. Each quad owns its normals, keeping the radial joints crisp.
             for (int i = 0; i < 4; i++)
             {
                 int next = (i + 1) & 3;
@@ -110,8 +124,6 @@ namespace VoxelEngine.Structures
                     V(boundary[next], back), V(boundary[i], back));
             }
 
-            // Back plane completes the solid. It is rarely visible but matters when the bay is reused
-            // as a freestanding arcade or destruction exposes the rear face.
             AddQuad(vertices, triangles,
                 V(boundary[0], back), V(boundary[1], back),
                 V(boundary[2], back), V(boundary[3], back));
