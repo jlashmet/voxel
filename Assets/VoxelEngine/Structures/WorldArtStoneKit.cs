@@ -4,9 +4,9 @@ using UnityEngine;
 namespace VoxelEngine.Structures
 {
     /// <summary>
-    /// Reusable masonry vocabulary for high-quality ruined architecture.  This layer deliberately
+    /// Reusable masonry vocabulary for high-quality ruined architecture. This layer deliberately
     /// sits above raw primitives: callers ask for ashlar, voussoirs and an arch rather than manually
-    /// arranging boxes.  Every returned piece exposes semantic sockets so larger procedural systems
+    /// arranging boxes. Every returned piece exposes semantic sockets so larger procedural systems
     /// can attach walls, ivy, rubble and adjacent bays without knowing the construction details.
     /// </summary>
     public static class WorldArtStoneKit
@@ -19,14 +19,17 @@ namespace VoxelEngine.Structures
             float sz = 0.98f + Hash(seed + 11) * 0.04f;
             Vector3 varied = Vector3.Scale(size, new Vector3(sx, sy, sz));
 
-            WorldArtPiece piece = WorldArtKit.BeveledBlock(parent, name + " weathered ashlar",
-                localPosition, varied, Mathf.Min(bevel, Mathf.Min(varied.x, varied.y) * 0.18f),
-                WorldArtSurfaceRole.Stone, palette);
+            // Keep ruin masonry planar. The old beveled-block primitive made repeated courses read
+            // like soft pebbles; this mesh keeps six hard faces and only lets the corners wander a
+            // few millimetres, which reads as hand-cut/chipped stone at scene distance.
+            WorldArtPiece piece = Piece(parent, name + " weathered ashlar", localPosition);
+            MeshObject(piece.Transform, name + " cut ashlar mesh",
+                CreateCutAshlarMesh(varied, bevel, seed), palette.Get(WorldArtSurfaceRole.Stone));
 
             piece.Transform.localRotation = Quaternion.Euler(
-                (Hash(seed + 19) - 0.5f) * 1.1f,
-                (Hash(seed + 23) - 0.5f) * 1.4f,
-                (Hash(seed + 29) - 0.5f) * 1.8f);
+                (Hash(seed + 19) - 0.5f) * 0.8f,
+                (Hash(seed + 23) - 0.5f) * 1.0f,
+                (Hash(seed + 29) - 0.5f) * 1.25f);
 
             piece.AddSocket("bottom", new Vector3(0f, -varied.y * 0.5f, 0f));
             piece.AddSocket("left", new Vector3(-varied.x * 0.5f, 0f, 0f));
@@ -36,7 +39,7 @@ namespace VoxelEngine.Structures
         }
 
         /// <summary>
-        /// A true radial arch stone rather than a rotated rectangular block.  The tapered inner
+        /// A true radial arch stone rather than a rotated rectangular block. The tapered inner
         /// face and wider outer face make the masonry read immediately as cut voussoir stone.
         /// </summary>
         public static WorldArtPiece Voussoir(Transform parent, string name, Vector3 localCenter,
@@ -67,23 +70,50 @@ namespace VoxelEngine.Structures
             WorldArtPiece arch = Piece(parent, name, position);
             float courseH = nominalBlockSize.y;
             float joint = Mathf.Clamp(courseH * 0.055f, 0.018f, 0.040f);
-            float pierX = halfOpening + nominalBlockSize.x * 0.48f;
+            float pierX = halfOpening + nominalBlockSize.x * 0.52f;
+            float pierWidth = nominalBlockSize.x * 1.22f;
 
-            // Proper coursed ashlar piers. Alternate long/short faces and stagger the joints so the
-            // arch no longer reads as a stack of identical cubes.
+            // Two ashlar units per course with a wandering bond. The seam moves left/right on
+            // alternating rows instead of producing the toy-like single-block tower silhouette.
+            // The top of a broken pier loses an exposed outside unit rather than an entire course.
             for (int side = -1; side <= 1; side += 2)
             {
                 for (int row = 0; row < pierCourses; row++)
                 {
-                    if (broken && side > 0 && row >= pierCourses - 1) continue;
-                    bool longCourse = (row & 1) == 0;
-                    float width = nominalBlockSize.x * (longCourse ? 1.16f : 0.92f);
                     float y = row * courseH;
-                    float x = side * (pierX + (longCourse ? 0.02f : -0.015f));
-                    float z = (Hash(seed + row * 41 + side * 13) - 0.5f) * 0.055f;
-                    Ashlar(arch.Transform, name + " pier", new Vector3(x, y, z),
-                        new Vector3(width - joint, courseH - joint, depth),
-                        Mathf.Min(0.075f, courseH * 0.15f), seed + row * 53 + side * 97, palette);
+                    float seam = ((row & 1) == 0 ? -0.12f : 0.12f) * pierWidth;
+                    seam += (Hash(seed + side * 131 + row * 43) - 0.5f) * pierWidth * 0.045f;
+
+                    float leftEdge = -pierWidth * 0.5f;
+                    float rightEdge = pierWidth * 0.5f;
+                    float leftWidth = seam - leftEdge;
+                    float rightWidth = rightEdge - seam;
+                    float z = (Hash(seed + row * 41 + side * 13) - 0.5f) * 0.040f;
+
+                    bool omitLeft = broken && row == pierCourses - 1 && side < 0;
+                    bool omitRight = broken && row == pierCourses - 1 && side > 0;
+
+                    if (!omitLeft)
+                    {
+                        float localX = leftEdge + leftWidth * 0.5f;
+                        Ashlar(arch.Transform, name + " pier " + side + " row " + row + " L",
+                            new Vector3(side * pierX + localX, y, z),
+                            new Vector3(Mathf.Max(0.12f, leftWidth - joint), courseH - joint,
+                                depth * (0.985f + Hash(seed + row * 59 + side * 17) * 0.025f)),
+                            Mathf.Min(0.055f, courseH * 0.10f),
+                            seed + row * 107 + side * 211 + 1, palette);
+                    }
+
+                    if (!omitRight)
+                    {
+                        float localX = seam + rightWidth * 0.5f;
+                        Ashlar(arch.Transform, name + " pier " + side + " row " + row + " R",
+                            new Vector3(side * pierX + localX, y, z - 0.006f),
+                            new Vector3(Mathf.Max(0.12f, rightWidth - joint), courseH - joint,
+                                depth * (0.98f + Hash(seed + row * 61 + side * 19) * 0.030f)),
+                            Mathf.Min(0.055f, courseH * 0.10f),
+                            seed + row * 109 + side * 223 + 2, palette);
+                    }
                 }
             }
 
@@ -92,44 +122,51 @@ namespace VoxelEngine.Structures
             float innerRadius = halfOpening;
             float outerRadius = halfOpening + stoneRadial;
             const int voussoirCount = 13;
+            const int keystoneIndex = voussoirCount / 2;
             float gapDeg = 1.15f;
 
             for (int i = 0; i < voussoirCount; i++)
             {
-                // Broken arches lose a few whole stones, not arbitrary pixels.  This produces a
-                // believable ruin silhouette while retaining enough structure to read as an arch.
+                // The dedicated keystone replaces the centre voussoir instead of overlapping it.
+                // Broken arches lose whole stones near the haunches, preserving structural legibility.
+                if (i == keystoneIndex) continue;
                 if (broken && (i == 1 || i == voussoirCount - 2)) continue;
+
                 float a0 = Mathf.Lerp(180f, 0f, i / (float)voussoirCount);
                 float a1 = Mathf.Lerp(180f, 0f, (i + 1) / (float)voussoirCount);
-                float lo = Mathf.Min(a0, a1) + gapDeg * 0.5f;
-                float hi = Mathf.Max(a0, a1) - gapDeg * 0.5f;
+                float localGap = gapDeg * (0.88f + Hash(seed + i * 37) * 0.24f);
+                float lo = Mathf.Min(a0, a1) + localGap * 0.5f;
+                float hi = Mathf.Max(a0, a1) - localGap * 0.5f;
 
                 float radialJitter = (Hash(seed + 311 + i * 31) - 0.5f) * 0.018f;
                 WorldArtPiece stone = Voussoir(arch.Transform, name + " arch stone " + i,
                     new Vector3(0f, springY, radialJitter), innerRadius, outerRadius,
                     lo, hi, depth * (0.985f + Hash(seed + i * 17) * 0.025f), seed + i * 71, palette);
                 stone.Transform.localRotation *= Quaternion.Euler(0f,
-                    (Hash(seed + i * 101) - 0.5f) * 0.7f,
-                    (Hash(seed + i * 103) - 0.5f) * 0.55f);
+                    (Hash(seed + i * 101) - 0.5f) * 0.55f,
+                    (Hash(seed + i * 103) - 0.5f) * 0.38f);
             }
 
-            // A slightly proud keystone gives the arch a designed focal point rather than a smooth
-            // anonymous ring. It is still generated by the same socketable voussoir component.
+            // A proud keystone gives the arch a designed focal point. Its deeper outer radius and
+            // slight front projection make the crown readable even when the scene is viewed small.
             float keyHalfAngle = 8.2f;
             WorldArtPiece key = Voussoir(arch.Transform, name + " keystone",
-                new Vector3(0f, springY + 0.018f, -0.012f), innerRadius * 0.985f,
-                outerRadius + nominalBlockSize.y * 0.12f, 90f - keyHalfAngle,
-                90f + keyHalfAngle, depth * 1.045f, seed + 701, palette);
-            key.AddSocket("moss", new Vector3(0f, outerRadius + nominalBlockSize.y * 0.10f, -depth * 0.48f));
+                new Vector3(0f, springY + 0.018f, -depth * 0.018f), innerRadius * 0.985f,
+                outerRadius + nominalBlockSize.y * 0.14f, 90f - keyHalfAngle,
+                90f + keyHalfAngle, depth * 1.06f, seed + 701, palette);
+            key.AddSocket("moss", new Vector3(0f, outerRadius + nominalBlockSize.y * 0.11f,
+                -depth * 0.50f));
 
             if (broken)
             {
+                // One displaced crown block supplies an intentional jagged termination rather than
+                // noise everywhere. The rest of the arch stays calm enough to read architecturally.
                 Ashlar(arch.Transform, name + " broken crown", new Vector3(
                         -pierX - nominalBlockSize.x * 0.05f,
                         springY + outerRadius * 0.72f,
                         0.015f),
                     new Vector3(nominalBlockSize.x * 1.12f, nominalBlockSize.y * 1.10f, depth * 0.96f),
-                    0.075f, seed + 811, palette).Transform.localRotation = Quaternion.Euler(0f, -2f, -7f);
+                    0.050f, seed + 811, palette).Transform.localRotation = Quaternion.Euler(0f, -2f, -7f);
             }
 
             arch.AddSocket("opening", new Vector3(0f, springY + innerRadius * 0.35f, 0f));
@@ -139,11 +176,65 @@ namespace VoxelEngine.Structures
             arch.AddSocket("right-base", new Vector3(pierX, -courseH * 0.5f, 0f));
             arch.AddSocket("left-pier", new Vector3(-pierX, springY * 0.55f, -depth * 0.5f));
             arch.AddSocket("right-pier", new Vector3(pierX, springY * 0.55f, -depth * 0.5f));
-            arch.AddSocket("wall-left", new Vector3(-pierX - nominalBlockSize.x * 0.55f,
+            arch.AddSocket("wall-left", new Vector3(-pierX - pierWidth * 0.55f,
                 courseH * 1.5f, 0f), Quaternion.Euler(0f, 90f, 0f));
-            arch.AddSocket("wall-right", new Vector3(pierX + nominalBlockSize.x * 0.55f,
+            arch.AddSocket("wall-right", new Vector3(pierX + pierWidth * 0.55f,
                 courseH * 1.5f, 0f), Quaternion.Euler(0f, -90f, 0f));
             return arch;
+        }
+
+        private static Mesh CreateCutAshlarMesh(Vector3 size, float bevel, int seed)
+        {
+            Vector3 h = size * 0.5f;
+            float chip = Mathf.Clamp(bevel * 0.22f, 0.0025f,
+                Mathf.Min(size.x, Mathf.Min(size.y, size.z)) * 0.022f);
+
+            Vector3[] c = new Vector3[8];
+            c[0] = Corner(-h.x, -h.y, -h.z, seed + 1, chip);
+            c[1] = Corner( h.x, -h.y, -h.z, seed + 2, chip);
+            c[2] = Corner( h.x,  h.y, -h.z, seed + 3, chip);
+            c[3] = Corner(-h.x,  h.y, -h.z, seed + 4, chip);
+            c[4] = Corner(-h.x, -h.y,  h.z, seed + 5, chip);
+            c[5] = Corner( h.x, -h.y,  h.z, seed + 6, chip);
+            c[6] = Corner( h.x,  h.y,  h.z, seed + 7, chip);
+            c[7] = Corner(-h.x,  h.y,  h.z, seed + 8, chip);
+
+            // Duplicate vertices per face so RecalculateNormals preserves crisp cut planes.
+            Vector3[] v =
+            {
+                c[0], c[3], c[2], c[1], // front
+                c[5], c[6], c[7], c[4], // back
+                c[4], c[7], c[3], c[0], // left
+                c[1], c[2], c[6], c[5], // right
+                c[3], c[7], c[6], c[2], // top
+                c[4], c[0], c[1], c[5]  // bottom
+            };
+            int[] tris =
+            {
+                 0, 1, 2,  0, 2, 3,
+                 4, 5, 6,  4, 6, 7,
+                 8, 9,10,  8,10,11,
+                12,13,14, 12,14,15,
+                16,17,18, 16,18,19,
+                20,21,22, 20,22,23
+            };
+
+            Mesh mesh = new Mesh { name = "WorldArt planar cut ashlar" };
+            mesh.vertices = v;
+            mesh.triangles = tris;
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Vector3 Corner(float x, float y, float z, int seed, float amount)
+        {
+            // Perturb inward/outward only slightly. Large noise belongs in damage composition, not
+            // in the base stone vocabulary, otherwise every block becomes a potato.
+            return new Vector3(
+                x + (Hash(seed * 3 + 1) - 0.5f) * amount,
+                y + (Hash(seed * 3 + 2) - 0.5f) * amount,
+                z + (Hash(seed * 3 + 3) - 0.5f) * amount);
         }
 
         private static Mesh CreateVoussoirMesh(float innerRadius, float outerRadius,
@@ -151,27 +242,41 @@ namespace VoxelEngine.Structures
         {
             float front = -depth * 0.5f;
             float back = depth * 0.5f;
-            float frontJitter = (Hash(seed + 5) - 0.5f) * depth * 0.025f;
-            float backJitter = (Hash(seed + 9) - 0.5f) * depth * 0.018f;
+            float frontJitter = (Hash(seed + 5) - 0.5f) * depth * 0.020f;
+            float backJitter = (Hash(seed + 9) - 0.5f) * depth * 0.014f;
+            float radialChip = (outerRadius - innerRadius) * 0.018f;
 
-            Vector3[] v =
+            float i0 = innerRadius + (Hash(seed + 13) - 0.5f) * radialChip;
+            float i1 = innerRadius + (Hash(seed + 17) - 0.5f) * radialChip;
+            float o0 = outerRadius + (Hash(seed + 19) - 0.5f) * radialChip;
+            float o1 = outerRadius + (Hash(seed + 23) - 0.5f) * radialChip;
+
+            Vector3[] c =
             {
-                P(innerRadius, a0, front + frontJitter), P(innerRadius, a1, front),
-                P(outerRadius, a1, front - frontJitter), P(outerRadius, a0, front),
-                P(innerRadius, a0, back), P(innerRadius, a1, back + backJitter),
-                P(outerRadius, a1, back), P(outerRadius, a0, back - backJitter)
+                P(i0, a0, front + frontJitter), P(i1, a1, front),
+                P(o1, a1, front - frontJitter), P(o0, a0, front),
+                P(i0, a0, back), P(i1, a1, back + backJitter),
+                P(o1, a1, back), P(o0, a0, back - backJitter)
             };
 
-            // Six hard planar faces. The radial taper is the important silhouette; surface shader
-            // provides the fine material breakup while these normals retain hand-cut stone facets.
+            // Duplicate per face to keep the intrados, extrados and radial joints visually crisp.
+            Vector3[] v =
+            {
+                c[0], c[3], c[2], c[1],
+                c[4], c[5], c[6], c[7],
+                c[0], c[1], c[5], c[4],
+                c[3], c[7], c[6], c[2],
+                c[0], c[4], c[7], c[3],
+                c[1], c[2], c[6], c[5]
+            };
             int[] tris =
             {
-                0,2,1, 0,3,2,       // front
-                4,5,6, 4,6,7,       // back
-                0,1,5, 0,5,4,       // inner
-                3,7,6, 3,6,2,       // outer
-                0,4,7, 0,7,3,       // start radial
-                1,2,6, 1,6,5        // end radial
+                 0, 1, 2,  0, 2, 3,
+                 4, 5, 6,  4, 6, 7,
+                 8, 9,10,  8,10,11,
+                12,13,14, 12,14,15,
+                16,17,18, 16,18,19,
+                20,21,22, 20,22,23
             };
             Mesh mesh = new Mesh { name = "WorldArt cut-stone voussoir" };
             mesh.vertices = v;
