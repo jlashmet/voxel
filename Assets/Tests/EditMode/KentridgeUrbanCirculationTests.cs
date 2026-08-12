@@ -12,7 +12,7 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void UpperContourConnectsCentralAscentToEastRidgeWithoutChangingPrimaryStreets()
+        public void UpperContourConnectsUpperLandingToEastRidgeWithoutChangingPrimaryStreets()
         {
             KentridgeUrbanCirculationPlan plan = KentridgeUrbanCirculation.Build(Seed);
             Assert.AreEqual(1, plan.Connectors.Count);
@@ -23,6 +23,8 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(connector.IsHorizontal);
             Assert.AreEqual(KentridgeUrbanCirculation.UpperContourZDm, connector.StartDm.Y);
             Assert.AreEqual(KentridgeUrbanCirculation.UpperContourZDm, connector.EndDm.Y);
+            Assert.AreEqual(40, connector.WidthDm,
+                "The east connection should read as a secondary street, not a narrow alley.");
 
             int mainEastEdge =
                 KentridgeTownPlanner.MainSpineXDm + KentridgeTownPlanner.MainRoadWidthDm / 2;
@@ -33,6 +35,16 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(eastLaneWestEdge, connector.EndDm.X);
             Assert.Greater(connector.LengthDm, 250,
                 "The upper contour should create a meaningful district-to-district connection.");
+
+            KentridgeUrbanSkeletonPlan skeleton = KentridgeUrbanSkeleton.Build(Seed);
+            Assert.AreEqual(
+                skeleton.Get(KentridgeUrbanNodeId.UpperLanding).CentreDm.Y,
+                connector.StartDm.Y,
+                "The east branch should leave from the semantic Upper Landing itself.");
+            Assert.AreEqual(
+                skeleton.Get(KentridgeUrbanNodeId.EastRidgeLanding).CentreDm.Y,
+                connector.EndDm.Y,
+                "The east-ridge public node should sit on the same cross-town axis.");
 
             SettlementPlan stablePlan = KentridgeDefinition.Build(Seed);
             Assert.AreEqual(4, stablePlan.Streets.Count,
@@ -51,7 +63,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(FeatureKind.Landform, catalogue.Definitions[0].Kind);
                 Assert.AreEqual(23, catalogue.Definitions[0].Precedence);
                 Assert.Greater(catalogue.Definitions[0].Footprint.x, 250);
-                Assert.Greater(catalogue.Definitions[0].Footprint.z, 20);
+                Assert.Greater(catalogue.Definitions[0].Footprint.z, 35,
+                    "The realised upper connector should carry the widened secondary-street section.");
             }
             finally
             {

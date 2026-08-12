@@ -54,13 +54,14 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
     /// <summary>
     /// Secondary pedestrian/city circulation layered over the stable settlement street topology.
-    /// The first connector ties the central upper ascent directly to the east/noble ridge at a
-    /// constant contour, eliminating the current "separate island" reading without moving any role.
+    /// The upper cross-town street branches directly from Upper Landing and reaches the east service
+    /// lane on the same public axis. That makes the noble ridge a continuation of the upper town,
+    /// rather than a separate shelf connected by an arbitrary narrow alley.
     /// </summary>
     public static class KentridgeUrbanCirculation
     {
-        public const int UpperContourZDm = 300;
-        public const int UpperContourWidthDm = 22;
+        public const int UpperContourZDm = 340;
+        public const int UpperContourWidthDm = 40;
 
         public static KentridgeUrbanCirculationPlan Build(uint seed)
         {
