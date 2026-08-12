@@ -12,55 +12,33 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void UrbanInfrastructureStaysSeparateFromStableGameplayStructures()
         {
-            FeatureCatalogue terraces = KentridgeDistrictTerraceCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
-            FeatureCatalogue circulation = KentridgeVerticalConnectorCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
-            FeatureCatalogue secondaryCirculation = KentridgeUrbanCirculationCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
-            FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
-            FeatureCatalogue verticalFrontage = KentridgeVerticalFrontageCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
-            FeatureCatalogue anchorUndercroft = KentridgeAnchorUndercroftCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
-            FeatureCatalogue access = KentridgeUrbanAccessCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
-            FeatureCatalogue architecture = KentridgeHillsideArchitectureCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
-            FeatureCatalogue combined = KentridgeCombinedVoxelCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue terraces = KentridgeDistrictTerraceCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue circulation = KentridgeVerticalConnectorCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue secondaryCirculation = KentridgeUrbanCirculationCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue verticalFrontage = KentridgeVerticalFrontageCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue anchorUndercroft = KentridgeAnchorUndercroftCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue access = KentridgeUrbanAccessCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue architecture = KentridgeHillsideArchitectureCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue combined = KentridgeCombinedVoxelCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
 
             try
             {
-                int terraceInfrastructure = CountDefinitions(terraces, FeatureKind.Infrastructure);
-                Assert.AreEqual(5, terraceInfrastructure,
-                    "Only the five dense urban terraces should receive crisp retaining skins.");
-
-                Assert.AreEqual(9, circulation.Definitions.Length,
-                    "Four stair flights, four retaining sections, and one campanile should compose the primary hardscape pass.");
+                Assert.AreEqual(5, CountDefinitions(terraces, FeatureKind.Infrastructure));
+                Assert.AreEqual(9, circulation.Definitions.Length);
                 Assert.AreEqual(9, circulation.ExplicitPlacements.Length);
 
-                Assert.AreEqual(2, secondaryCirculation.Definitions.Length);
-                Assert.AreEqual(1, CountDefinitions(secondaryCirculation, FeatureKind.Infrastructure),
-                    "The upper contour stays smooth while the lower alternate ascent is a hard stair street.");
+                Assert.AreEqual(4, secondaryCirculation.Definitions.Length);
+                Assert.AreEqual(2, CountDefinitions(secondaryCirculation, FeatureKind.Infrastructure),
+                    "Both west-side alternate climbs should be crisp stair streets while their contour links stay smooth.");
 
-                Assert.AreEqual(2, massing.Definitions.Length,
-                    "Macro urban organisation is rendered as two coarse silhouette heights.");
-                Assert.AreEqual(37, massing.ExplicitPlacements.Length,
-                    "Eight semantic blocks should currently resolve to 37 anonymous massing sites.");
-
-                Assert.AreEqual(6, verticalFrontage.ExplicitPlacements.Length,
-                    "Six dense upper blocks should expose occupied downhill arcades/undercrofts.");
-                Assert.AreEqual(4, anchorUndercroft.ExplicitPlacements.Length,
-                    "Pub and Warehouse should each receive two role-derived undercroft bays.");
-                Assert.AreEqual(8, access.ExplicitPlacements.Length,
-                    "Every authored urban block should have one hard pedestrian access interface.");
-
-                Assert.AreEqual(3, architecture.Definitions.Length,
-                    "Secondary hillside architecture should reuse terrace-dwelling, civic-bridge, and retaining-gallery grammars.");
-                Assert.AreEqual(13, architecture.ExplicitPlacements.Length,
-                    "Seven embedded dwellings, one overhead civic bridge, and five roofed galleries should densify the hill without adding gameplay roles.");
+                Assert.AreEqual(2, massing.Definitions.Length);
+                Assert.AreEqual(37, massing.ExplicitPlacements.Length);
+                Assert.AreEqual(6, verticalFrontage.ExplicitPlacements.Length);
+                Assert.AreEqual(4, anchorUndercroft.ExplicitPlacements.Length);
+                Assert.AreEqual(8, access.ExplicitPlacements.Length);
+                Assert.AreEqual(3, architecture.Definitions.Length);
+                Assert.AreEqual(13, architecture.ExplicitPlacements.Length);
 
                 AssertAllKind(circulation, FeatureKind.Infrastructure);
                 AssertAllKind(massing, FeatureKind.Infrastructure);
@@ -75,16 +53,13 @@ namespace VoxelEngine.Tests.EditMode
                 {
                     PlacementRule rule = combined.Rules[i];
                     FeatureDefinition definition = combined.Definitions[rule.DefinitionId];
-                    if (definition.Kind == FeatureKind.Structure)
-                        structures += rule.ExplicitCount;
-                    if (definition.Kind == FeatureKind.Infrastructure)
-                        infrastructureInstances += rule.ExplicitCount;
+                    if (definition.Kind == FeatureKind.Structure) structures += rule.ExplicitCount;
+                    if (definition.Kind == FeatureKind.Infrastructure) infrastructureInstances += rule.ExplicitCount;
                 }
 
-                Assert.AreEqual(17, structures,
-                    "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(83, infrastructureInstances,
-                    "Retaining skins, alternate stair circulation, vertical fabric, working-quarter fabric/access, and hillside architecture must stay independently classified from gameplay structures.");
+                Assert.AreEqual(17, structures);
+                Assert.AreEqual(84, infrastructureInstances,
+                    "The second west stair adds one hard circulation instance while smooth contours remain Landform.");
             }
             finally
             {
@@ -103,24 +78,18 @@ namespace VoxelEngine.Tests.EditMode
         private static int CountDefinitions(FeatureCatalogue catalogue, FeatureKind kind)
         {
             int count = 0;
-            for (int i = 0; i < catalogue.Definitions.Length; i++)
-                if (catalogue.Definitions[i].Kind == kind) count++;
+            for (int i = 0; i < catalogue.Definitions.Length; i++) if (catalogue.Definitions[i].Kind == kind) count++;
             return count;
         }
 
         private static void AssertAllKind(FeatureCatalogue catalogue, FeatureKind kind)
         {
-            for (int i = 0; i < catalogue.Definitions.Length; i++)
-                Assert.AreEqual(kind, catalogue.Definitions[i].Kind);
+            for (int i = 0; i < catalogue.Definitions.Length; i++) Assert.AreEqual(kind, catalogue.Definitions[i].Kind);
         }
 
         private static VoxelWorldGenSettings BuildSettings()
         {
-            var materials = new VoxelMaterialMap(
-                foundationStone: 1, masonry: 1, darkMasonry: 6,
-                timber: 2, glass: 4, warmWindow: 15,
-                roofTile: 8, slate: 7, cloth: 9,
-                moss: 14, water: 11, roadSurface: 13);
+            var materials = new VoxelMaterialMap(foundationStone: 1, masonry: 1, darkMasonry: 6, timber: 2, glass: 4, warmWindow: 15, roofTile: 8, slate: 7, cloth: 9, moss: 14, water: 11, roadSurface: 13);
             return new VoxelWorldGenSettings(1, materials);
         }
     }

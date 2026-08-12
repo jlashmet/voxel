@@ -58,9 +58,11 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
     /// <summary>
     /// Secondary pedestrian/city circulation layered over the stable settlement street topology.
-    /// The upper cross-town street joins Upper Landing to the east ridge; the lower west stair street
-    /// gives Residential-to-Market movement a second route so the settlement is not topologically one
-    /// heroic central spine. Both remain urban-organisation contracts, not gameplay-street mutations.
+    /// The east contour joins Upper Landing to the ridge. The lower-west stair provides a second
+    /// Residential-to-Market ascent. A second west-side dogleg now reuses Market Street, climbs at
+    /// its far western end, then returns along the upper contour behind the upper-west block. This
+    /// gives Market-to-Upper movement a route that is spatially and topologically distinct from the
+    /// heroic central spine without mutating the four stable gameplay streets.
     /// </summary>
     public static class KentridgeUrbanCirculation
     {
@@ -72,16 +74,24 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public const int LowerWestStairNorthZDm = 590;
         public const int LowerWestStairWidthDm = 22;
 
+        public const int WestUpperStairXDm = 700;
+        public const int WestUpperStairSouthZDm = KentridgeTownPlanner.MarketStreetZDm;
+        public const int WestUpperStairNorthZDm = UpperContourZDm;
+        public const int WestUpperStairWidthDm = 22;
+        public const int WestUpperContourWidthDm = 22;
+
         public static KentridgeUrbanCirculationPlan Build(uint seed)
         {
             _ = seed;
 
             int mainEastEdge =
                 KentridgeTownPlanner.MainSpineXDm + KentridgeTownPlanner.MainRoadWidthDm / 2;
+            int mainWestEdge =
+                KentridgeTownPlanner.MainSpineXDm - KentridgeTownPlanner.MainRoadWidthDm / 2;
             int eastLaneWestEdge =
                 KentridgeTownPlanner.EastLaneXDm - KentridgeTownPlanner.ServiceRoadWidthDm / 2;
 
-            var connectors = new List<KentridgeUrbanConnector>(2)
+            var connectors = new List<KentridgeUrbanConnector>(4)
             {
                 new KentridgeUrbanConnector(
                     "upper-east-contour",
@@ -98,6 +108,22 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     new Int2(LowerWestStairXDm, LowerWestStairSouthZDm),
                     new Int2(LowerWestStairXDm, LowerWestStairNorthZDm),
                     LowerWestStairWidthDm),
+
+                new KentridgeUrbanConnector(
+                    "west-upper-stair-street",
+                    KentridgeUrbanConnectorKind.StairStreet,
+                    KentridgeUrbanBand.UpperWard,
+                    new Int2(WestUpperStairXDm, WestUpperStairSouthZDm),
+                    new Int2(WestUpperStairXDm, WestUpperStairNorthZDm),
+                    WestUpperStairWidthDm),
+
+                new KentridgeUrbanConnector(
+                    "west-upper-contour",
+                    KentridgeUrbanConnectorKind.ContourLane,
+                    KentridgeUrbanBand.UpperWard,
+                    new Int2(WestUpperStairXDm, UpperContourZDm),
+                    new Int2(mainWestEdge, UpperContourZDm),
+                    WestUpperContourWidthDm),
             };
 
             return new KentridgeUrbanCirculationPlan(connectors);
