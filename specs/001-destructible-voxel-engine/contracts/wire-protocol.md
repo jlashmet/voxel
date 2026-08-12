@@ -62,7 +62,35 @@ Unknown versions/kinds fail closed. Existing kind values are never renumbered af
 
 There is **no player ID**. Connection → authenticated player state supplies identity, authoritative position, reach and permissions. The server substitutes final tick, player, sequence and seed before committing an `AlterationEvent`.
 
-Live deterministic application currently supports explosion semantics; brush/raw-batch fail closed until their shared Core representation is canonical.
+The 8-byte `(shapeKind, shapeData)` union is copied losslessly into the authoritative event. Its interpretation is event-kind-specific.
+
+#### Explosion shape
+
+- `shapeData` = radius in bricks.
+- the authoritative/client shared applier expands the integer sphere in voxel space.
+
+#### Canonical cube brush shape
+
+Only the axis-aligned cube brush is currently canonical/live. `shapeKind` is four independent bytes:
+
+| Bits | Meaning |
+|---|---|
+| 0..7 | full X dimension in bricks |
+| 8..15 | full Y dimension in bricks |
+| 16..23 | full Z dimension in bricks |
+| 24..31 | shape type (`1 = cube`) |
+
+Each dimension is `1..64` bricks. These are **full dimensions**, not radii. An arbitrary voxel-space origin may therefore make a one-brick-dimension brush straddle two world bricks; validation, allocation budget, interest routing and application all use the exact resulting voxel bounds rather than multiplying dimensions as radius padding.
+
+`shapeData` is a brush flags word. Current known flag:
+
+- bit 0: authored hard-surface geometry.
+
+Unknown shape types or flags fail closed. A hard-surface semantic change is authoritative even when material bytes already match. Destruction/removal does not clear an existing hard-surface bit; surviving authored structure remains authored structure.
+
+The old overlapping brush layout—where extent Y and the shape discriminator both occupied bits 24..31—is invalid. Historical compatibility constructors canonicalize old X/Y/Z arguments into the layout above before they reach the wire.
+
+Sphere, cylinder, extrude/rotated brush forms and raw-batch edits remain unsupported until their shared deterministic semantics are explicitly defined.
 
 ### `C_PlayerInput` — 16 B sample
 
@@ -104,6 +132,8 @@ Requests enter `ServerRegionStateRequestInbox`; snapshot serialization never occ
 ### `S_AlterationEventBatch` — `18 + 24N` B payload, `N ≤ 48`
 
 Maximum: **1,170 B payload / 1,172 B framed**. Only consecutive events with the same server tick/encoding region may batch. Wire order is authoritative order and clients never globally regroup/re-sort.
+
+Each compact event preserves the complete `shapeKind + shapeData` union, so a canonical cube brush uses the exact same semantic cause on the server and every client.
 
 Cause-not-effect invariant: no ordinary voxel diffs, SDF samples, meshes, render buffers or GPU state are replicated.
 
@@ -159,7 +189,7 @@ Current checkpoint bounds:
 - `REPAIR` packet max: **1,024 B**;
 - semantic bytes/chunk: up to **992 B**.
 
-On mismatch, the client pauses exactly after the mismatched hash, server verifies the report, sends that exact checkpoint state, client validates/applies it atomically, recomputes the semantic hash, and resumes later EVENT authority only after equality is proven.
+On mismatch, the client pauses exactly after the mismatched hash, server verifies the report, sends that exact checkpoint state, client verifies the encoded semantic hash **before mutating target storage**, applies it atomically, recomputes the live region hash, and resumes later EVENT authority only after equality is proven.
 
 ---
 
@@ -208,7 +238,7 @@ Canonical flow:
 6. server sends the snapshot chunks on throttled fragmented-reliable BULK;
 7. delivery order between BULK and EVENT is irrelevant;
 8. client assembles BULK bytes without touching the world;
-9. from the explicit client world-update path, it atomically installs the semantic snapshot and verifies its advertised hash;
+9. from the explicit client world-update path, it validates the snapshot semantic hash before storage mutation, atomically installs the state, then verifies the live region hash;
 10. client replays queued EVENT authority through tick `T` **everywhere except the replaced region**;
 11. hashes for the replaced region at or before `T` are superseded by the snapshot;
 12. only the matching EVENT fence ends this catch-up mode;
@@ -245,15 +275,26 @@ Canonical server tick:
 
 Server and client use `Core/Edits/DeterministicAlterationApplier`.
 
-Normal authoritative events require every region they may affect to be resident before application. During current-state catch-up, pre-fence events are deterministically applied to every required region **except** the one already replaced by the snapshot; all other affected regions still require residency.
+Current canonical mutation support:
 
-Current canonical mutation support is explosion. Brush/raw-batch fail closed.
+- explosion: deterministic integer sphere destruction;
+- cube brush: deterministic axis-aligned fill/remove over exact inclusive voxel bounds, including authored hard-surface semantics.
+
+Both preflight every affected region before mutation. During current-state catch-up, pre-fence events are deterministically applied to every required region **except** the one already replaced by the snapshot; all other affected regions still require residency.
+
+Cube brush application is brick-batched: whole-brick uniform writes do not allocate mixed storage; partial writes materialize at most once, collapse once, and commit the containing region once per changed brick. Interest routing and server allocation budgeting use the same exact cube bounds.
+
+Constructive cube brushes are rejected when they intersect an authoritative player volume or have no solid voxel immediately outside any of their six faces. Attachment is evaluated across the full face boundary, not just six face-center samples.
+
+Sphere/cylinder/extrude brush variants and raw-batch edits fail closed until canonical semantics are implemented.
 
 ---
 
 ## 9. Interest, reconnect and late join
 
 Simulation interest is platform-neutral, fully 3D and based on the authoritative 512-voxel region edge. Server indexes both connection→regions and region→connections.
+
+Alteration fan-out uses exact canonical bounds for both explosions and cube brushes. A connection subscribed to several impacted regions still receives a given authoritative event at most once.
 
 Full-state requests are accepted only from authenticated connections currently subscribed to the requested simulation region.
 
