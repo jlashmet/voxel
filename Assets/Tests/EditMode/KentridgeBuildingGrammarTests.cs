@@ -13,7 +13,7 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void GrammarIsDeterministicAndVariesOrdinaryBuildings()
+        public void GrammarIsDeterministicAndVariesRoleBuildings()
         {
             SettlementPlan plan = KentridgeDefinition.Build(Seed);
             var signatures = new HashSet<string>();
@@ -41,44 +41,34 @@ namespace VoxelEngine.Tests.EditMode
                 else bespoke++;
             }
 
-            Assert.AreEqual(11, generated,
-                "Townhouses, wide houses, and shops should now be grammar-generated per role.");
-            Assert.AreEqual(6, bespoke,
-                "Inn, pub, church, warehouse, mansion, and well remain bespoke during migration.");
-            Assert.GreaterOrEqual(signatures.Count, 9,
-                "The new grammar should not collapse ordinary roles back into archetype clones.");
+            Assert.AreEqual(13, generated,
+                "Houses, shops, inn, and pub should now be grammar-generated per stable role.");
+            Assert.AreEqual(4, bespoke,
+                "Only the remaining landmark and utility forms stay bespoke in this migration slice.");
+            Assert.GreaterOrEqual(signatures.Count, 11,
+                "The grammar should not collapse role buildings back into archetype clones.");
         }
 
         [Test]
-        public void SignatureRolesExpressDifferentArchitecturalIntent()
+        public void HospitalityRolesNoLongerShareOneTemplate()
         {
             SettlementPlan plan = KentridgeDefinition.Build(Seed);
-            KentridgeBuildingForm weapon = Resolve(plan, KentridgeRole.WeaponShop);
-            KentridgeBuildingForm armor = Resolve(plan, KentridgeRole.ArmorShop);
-            KentridgeBuildingForm magic = Resolve(plan, KentridgeRole.MagicShop);
-            KentridgeBuildingForm mayor = Resolve(plan, KentridgeRole.MayorHouse);
-            KentridgeBuildingForm abandoned = Resolve(plan, KentridgeRole.AbandonedHouse);
+            KentridgeBuildingForm inn = Resolve(plan, KentridgeRole.Inn);
+            KentridgeBuildingForm pub = Resolve(plan, KentridgeRole.Pub);
 
-            Assert.AreEqual(2, weapon.Storeys);
-            Assert.AreEqual(KentridgeFootprintForm.RearWing, weapon.Footprint);
-            Assert.AreEqual(KentridgeRoofForm.GableWithLeanTo, weapon.Roof);
+            Assert.IsTrue(inn.IsHospitality);
+            Assert.AreEqual(3, inn.Storeys);
+            Assert.AreEqual(KentridgeFootprintForm.RearWing, inn.Footprint);
+            Assert.AreEqual(KentridgeRoofForm.TwinGable, inn.Roof);
+            Assert.AreEqual(KentridgeWindowStyle.Warm, inn.WindowStyle);
 
-            Assert.AreEqual(2, armor.Storeys);
-            Assert.AreEqual(KentridgeFootprintForm.SideWing, armor.Footprint);
-            Assert.AreEqual(KentridgeRoofForm.TwinGable, armor.Roof);
-
-            Assert.AreEqual(3, magic.Storeys,
-                "Magic shop should be the narrow vertical shop landmark.");
-            Assert.AreEqual(KentridgeRoofForm.SteepGable, magic.Roof);
-            Assert.AreEqual(KentridgeWindowStyle.Warm, magic.WindowStyle);
-            Assert.Greater(magic.UpperOverhangDm, 0);
-
-            Assert.AreEqual(3, mayor.Storeys,
-                "Mayor house should reinforce the civic tier rather than clone a residential wide house.");
-            Assert.AreEqual(KentridgeWindowStyle.Warm, mayor.WindowStyle);
-
-            Assert.AreEqual(KentridgeWindowStyle.Open, abandoned.WindowStyle,
-                "Abandoned house should read through empty/dark openings rather than normal glass.");
+            Assert.IsTrue(pub.IsHospitality);
+            Assert.AreEqual(2, pub.Storeys);
+            Assert.AreEqual(KentridgeFootprintForm.SideWing, pub.Footprint);
+            Assert.AreEqual(KentridgeRoofForm.GableWithLeanTo, pub.Roof);
+            Assert.AreEqual(KentridgeFrontageRhythm.Asymmetric, pub.FrontageRhythm);
+            Assert.AreNotEqual(Signature(inn), Signature(pub),
+                "Inn and pub must no longer share one prefab-like geometry.");
         }
 
         [Test]
@@ -104,7 +94,7 @@ namespace VoxelEngine.Tests.EditMode
                         "kentridge-role-" + role.ToString(),
                         definition.Name.ToString());
                     Assert.AreEqual(roleId, rule.DefinitionId,
-                        "Definition identity should now follow stable Kentridge role identity.");
+                        "Definition identity should follow stable Kentridge role identity.");
                     Assert.AreEqual(roleId, rule.ExplicitOffset);
                     Assert.AreEqual(1, rule.ExplicitCount);
                     Assert.Greater(definition.ProgramLength, 0);
