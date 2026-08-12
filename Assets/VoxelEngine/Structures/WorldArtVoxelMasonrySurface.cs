@@ -27,13 +27,19 @@ namespace VoxelEngine.Structures
             recessDepth = math.min(recessDepth, maxRecess);
             byte jointMaterial = spec.JointMaterial == 0 ? spec.StoneMaterial : spec.JointMaterial;
 
-            // Trapezoidal voussoirs are separate authored masses, but a dressed arch does not have
-            // daylight cracks running through the full front ring. Seal each radial bed through the
-            // projected face first; the following one-voxel recess then creates the actual mortar
-            // joint while the stone/rear ring remains structurally continuous behind it.
+            // A real dressed archivolt has a continuous structural key behind the cut-stone face,
+            // and its intrados reads as one controlled arch curve. These two shallow keys remove
+            // hidden projection cavities and 10 cm scalloping without replacing the individual
+            // trapezoidal voussoir masses that own the visible front/extrados.
+            SealArchivoltBackKey(ref brush, in spec, innerRadius, outerRadius,
+                frontZ, faceDepth, spec.StoneMaterial);
+            SealArchivoltIntrados(ref brush, in spec, innerRadius,
+                frontZ, faceDepth, spec.StoneMaterial);
             SealArchivoltBeds(ref brush, in spec, stoneCount, innerRadius, outerRadius,
                 frontZ, faceDepth, spec.StoneMaterial);
 
+            // Mortar is the only visible separation. Carve one shallow radial bed after all hidden
+            // structural keys are in place, then paint the stone immediately behind it dark.
             for (int boundary = 1; boundary < stoneCount; boundary++)
             {
                 float angle = math.PI * boundary / stoneCount;
@@ -52,6 +58,41 @@ namespace VoxelEngine.Structures
 
             RecessPierJoints(ref brush, in spec, -1, spec.Seed + 101u, recessDepth, jointMaterial);
             RecessPierJoints(ref brush, in spec, 1, spec.Seed + 211u, recessDepth, jointMaterial);
+        }
+
+        private static void SealArchivoltBackKey(ref VoxelBrush brush, in WorldArtVoxelArchSpec spec,
+                                                  int innerRadius, int outerRadius,
+                                                  int frontZ, int faceDepth, byte stoneMaterial)
+        {
+            int springY = spec.BaseCentre.y + math.max(8, spec.PierHeight);
+            int z = frontZ + faceDepth - 1;
+            float inner2 = (innerRadius - 0.20f) * (innerRadius - 0.20f);
+            float outer2 = (outerRadius + 0.20f) * (outerRadius + 0.20f);
+            for (int y = 0; y <= outerRadius + 1; y++)
+            for (int x = -outerRadius - 1; x <= outerRadius + 1; x++)
+            {
+                float d2 = x * x + y * y;
+                if (d2 < inner2 || d2 > outer2) continue;
+                brush.Set(spec.BaseCentre.x + x, springY + y, z, stoneMaterial);
+            }
+        }
+
+        private static void SealArchivoltIntrados(ref VoxelBrush brush, in WorldArtVoxelArchSpec spec,
+                                                   int innerRadius, int frontZ, int faceDepth,
+                                                   byte stoneMaterial)
+        {
+            int springY = spec.BaseCentre.y + math.max(8, spec.PierHeight);
+            float inner2 = (innerRadius - 0.12f) * (innerRadius - 0.12f);
+            float outer2 = (innerRadius + 1.20f) * (innerRadius + 1.20f);
+            int limit = innerRadius + 2;
+            for (int y = 0; y <= limit; y++)
+            for (int x = -limit; x <= limit; x++)
+            {
+                float d2 = x * x + y * y;
+                if (d2 < inner2 || d2 > outer2) continue;
+                for (int z = frontZ; z < frontZ + faceDepth; z++)
+                    brush.Set(spec.BaseCentre.x + x, springY + y, z, stoneMaterial);
+            }
         }
 
         private static void SealArchivoltBeds(ref VoxelBrush brush, in WorldArtVoxelArchSpec spec,
