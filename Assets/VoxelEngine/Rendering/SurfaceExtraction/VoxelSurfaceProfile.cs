@@ -3,13 +3,8 @@ using Unity.Mathematics;
 namespace VoxelEngine.Rendering.SurfaceExtraction
 {
     /// <summary>
-    /// Controls how authoritative binary voxel occupancy becomes a derived visual surface.
-    /// These values are presentation-only and never mutate voxel storage, collision, destruction,
-    /// or networking state.
-    ///
-    /// BlurPasses is intentionally part of the material contract. A renderer must select the
-    /// material's filtered field before applying distance recovery/smoothing; globally blurring all
-    /// occupancy first destroys manufactured edges and cannot be repaired reliably afterwards.
+    /// Presentation-only material contract for turning binary voxel occupancy into a rendered
+    /// surface. Storage, collision, destruction and networking remain untouched.
     /// </summary>
     public readonly struct VoxelSurfaceProfile
     {
@@ -22,7 +17,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                                    float planarization = 0f,
                                    float planarizationThreshold = 0.88f,
                                    float distanceRecovery = 0f,
-                                   float curveRecovery = 0f)
+                                   float curveRecovery = 0f,
+                                   float normalPlanarization = -1f)
         {
             Smoothing = math.saturate(smoothing);
             BlurPasses = math.clamp(blurPasses, 0, MaxSupportedBlurPasses);
@@ -33,6 +29,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             PlanarizationThreshold = math.clamp(planarizationThreshold, 0.58f, 0.995f);
             DistanceRecovery = math.saturate(distanceRecovery);
             CurveRecovery = math.saturate(curveRecovery);
+            NormalPlanarization = normalPlanarization < 0f
+                ? Planarization
+                : math.saturate(normalPlanarization);
         }
 
         public float Smoothing { get; }
@@ -44,10 +43,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public float PlanarizationThreshold { get; }
         public float DistanceRecovery { get; }
         public float CurveRecovery { get; }
+        public float NormalPlanarization { get; }
 
-        public static VoxelSurfaceProfile Legacy => new(
-            smoothing: 0.92f,
-            blurPasses: 2);
+        public static VoxelSurfaceProfile Legacy => new(0.92f, 2);
 
         public static VoxelSurfaceProfile SoftTerrain => new(
             smoothing: 0.94f,
@@ -56,35 +54,39 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             curveRecovery: 0.35f);
 
         public static VoxelSurfaceProfile HardManufactured => new(
-            smoothing: 0.42f,
+            smoothing: 0.76f,
             blurPasses: 0,
-            planarization: 0.82f,
-            planarizationThreshold: 0.76f,
-            distanceRecovery: 0.62f,
-            curveRecovery: 0.16f);
+            planarization: 0.90f,
+            planarizationThreshold: 0.72f,
+            distanceRecovery: 0.78f,
+            curveRecovery: 0.20f,
+            normalPlanarization: 0.96f);
 
         /// <summary>
-        /// Dressed stone is deliberately occupancy-dominant. It receives no low-pass blur and only
-        /// a restrained amount of distance-field reconstruction; the latter exists to clean the
-        /// digital circle of a large archivolt, not to soften ashlar into a continuous blob.
+        /// Dressed stone never receives the terrain blur. It does use coverage-distance recovery so
+        /// large diagonal/circular forms such as an archivolt remain continuous. Strong position and
+        /// normal planarization then restores the broad cut faces instead of trying to preserve them
+        /// by disabling curve reconstruction and exposing the 10 cm voxel staircase.
         /// </summary>
         public static VoxelSurfaceProfile DressedStone => new(
-            smoothing: 0.38f,
+            smoothing: 0.94f,
             blurPasses: 0,
             densityBias: -0.004f,
-            planarization: 0.96f,
-            planarizationThreshold: 0.70f,
-            distanceRecovery: 0.72f,
-            curveRecovery: 0.76f);
+            planarization: 0.98f,
+            planarizationThreshold: 0.66f,
+            distanceRecovery: 1.0f,
+            curveRecovery: 0.72f,
+            normalPlanarization: 1.0f);
 
         public static VoxelSurfaceProfile RecessedMasonryJoint => new(
-            smoothing: 0.38f,
+            smoothing: 0.94f,
             blurPasses: 0,
             densityBias: -0.085f,
-            planarization: 0.96f,
-            planarizationThreshold: 0.70f,
-            distanceRecovery: 0.72f,
-            curveRecovery: 0.76f);
+            planarization: 0.98f,
+            planarizationThreshold: 0.66f,
+            distanceRecovery: 1.0f,
+            curveRecovery: 0.72f,
+            normalPlanarization: 1.0f);
 
         public static VoxelSurfaceProfile RoughRock => new(
             smoothing: 0.82f,
@@ -95,10 +97,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             curveRecovery: 0.55f);
     }
 
-    /// <summary>
-    /// Dense material-id lookup used by every derived surface renderer. This is the canonical
-    /// reconstruction contract for the current 0..17 palette.
-    /// </summary>
+    /// <summary>Canonical surface behavior for the current material-id palette.</summary>
     public sealed class VoxelSurfaceProfileSet
     {
         private readonly VoxelSurfaceProfile[] _profiles = new VoxelSurfaceProfile[256];
@@ -107,8 +106,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         public VoxelSurfaceProfileSet(VoxelSurfaceProfile defaultProfile)
         {
-            for (int i = 0; i < _profiles.Length; i++)
-                _profiles[i] = defaultProfile;
+            for (int i = 0; i < _profiles.Length; i++) _profiles[i] = defaultProfile;
         }
 
         public VoxelSurfaceProfile Get(byte material) => _profiles[material];
@@ -122,7 +120,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public static VoxelSurfaceProfileSet Canonical()
         {
             var set = new VoxelSurfaceProfileSet(VoxelSurfaceProfile.Legacy);
-            set.Set(0,  VoxelSurfaceProfile.Legacy);
+            set.Set(0,  VoxelSurfaceProfile.Legacy);              // empty; boundary inherits nearest solid
             set.Set(1,  VoxelSurfaceProfile.DressedStone);        // stone
             set.Set(2,  VoxelSurfaceProfile.HardManufactured);    // wood
             set.Set(3,  VoxelSurfaceProfile.SoftTerrain);         // sand
