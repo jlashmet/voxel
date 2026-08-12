@@ -4,7 +4,7 @@ A deliberately small playable experiment for Mounting Force's turn-based, multip
 
 ## Goal
 
-Test whether players can learn a roster's physical capabilities, arrange the battlefield, claim emergent reaction windows, and invent long cooperative chains **without the UI calculating or highlighting combos**.
+Test whether players can learn a roster's physical capabilities, arrange the battlefield, reserve emergent decisions, and invent long cooperative chains **without the UI calculating or highlighting combos**.
 
 The prototype exposes causes and effects. It does not show compatible reactions, valid combo paths, combo counts, recommended characters, or suggested targets.
 
@@ -12,21 +12,21 @@ The prototype exposes causes and effects. It does not show compatible reactions,
 
 1. Check out `prototype/chain-combat` and let Unity compile.
 2. In Unity, choose **Mounting Force > Chain Combat Prototype > Open & Play**.
-3. The launcher asks before discarding any dirty scene, opens an empty temporary scene, adds the current cascade-lab components, and enters Play Mode.
-4. Select a friendly capsule, choose a proactive action or attempt a reaction claim, then aim directly on the board.
+3. The launcher opens the current cascade lab.
+4. Select a friendly capsule for proactive play, or reserve an unresolved physical event for P1-P4 before choosing the recruit/reaction that will answer it.
 
 The prototype intentionally does not modify Build Settings or require a committed scene asset.
 
 ## Four command groups
 
-This is still local hot-seat input with one mouse, but the battlefield is divided into four player-owned command groups:
+The current local hot-seat battle stands in for four network players:
 
 - **P1:** Stephen, Brutus
 - **P2:** Weldon
 - **P3:** Madeline, Mira
 - **P4:** Grom, Skitter
 
-### One active recruit per player
+## One active recruit per player
 
 Each round, the first recruit a player successfully uses for proactive play becomes that player's **active recruit** for the round.
 
@@ -41,6 +41,21 @@ The move and action may happen in either order. A failed target/placement attemp
 A second recruit in the same command group cannot take another proactive turn that round. It **can still claim and execute reactions**. This is the core scaling experiment: adding dozens of recruits should expand the player's reaction/toolbox possibilities without creating dozens of normal turns.
 
 The activation overlay shows only who each player committed and whether that recruit's move/action are spent. It does not reveal reaction compatibility.
+
+## Player-first reaction reservation
+
+Reaction ownership is intentionally split into two decisions:
+
+1. **Reserve the physical event for a player.** P1-P4 can say “I’ve got this” without selecting an ability yet.
+2. **Choose the concrete answer.** The reserving player selects one of their recruits, tries the capability they think applies, then aims/executes it.
+
+Reservation does **not** prove that the reserving player has a valid answer. A player may reserve an event, inspect their roster, try an ability that does not apply, and remain the owner while thinking again. This prevents the reservation UI from becoming a disguised combo hint.
+
+A concrete recruit/ability choice can be released while keeping the player reservation. The player can reconsider without reopening a click race. Releasing the player reservation gives the physical event back to the whole party.
+
+A reservation owns **one physical decision only**. When that reaction resolves and creates a new collision/tree impact/etc., the new event begins unreserved so another player can take the handoff.
+
+The deterministic `ChainCombatBoard` remains the physical simulation. `ChainReactionReservationCoordinator` sits above it as multiplayer/application coordination state; this is deliberately separate so future server/network commands do not pollute physics rules.
 
 ## Recruits
 
@@ -88,10 +103,11 @@ The activation overlay shows only who each player committed and whether that rec
 
 ## Combat rhythm
 
-A normal round now has two intertwined economies:
+A normal round has three intertwined layers:
 
 1. **Proactive activation:** each player chooses one recruit to move/set up/attack with.
-2. **Reaction ownership:** every living recruit can still attempt its own reaction once per round when a physical event it understands occurs.
+2. **Player reservation:** when a meaningful physical event occurs, one player takes ownership of deciding whether/how to answer it.
+3. **Concrete reaction:** any living recruit belonging to that player may attempt its own reaction once per round if the player believes its capability applies.
 
 The simulation pauses on three event types in this slice:
 
@@ -99,11 +115,9 @@ The simulation pauses on three event types in this slice:
 - creature collision;
 - tree impact.
 
-A physical event starts **unclaimed**. The game reports only what physically happened: participants, location, direction when relevant, and impact force. It does not enumerate characters who can answer it.
+The game reports only what physically happened: participants, location, direction when relevant, and impact force. It does not enumerate characters who can answer it.
 
-A player selects a recruit and attempts the reaction they think applies. The first valid claim becomes authoritative ownership of that event. Claiming is not execution: the owner must still choose the participant/direction/aim. The owner may release the claim so another player can take it.
-
-A claimed event cannot be globally passed out from under its owner. An unclaimed airborne event can be passed to let its motion continue; passing a stopped collision/tree event ends that branch.
+A reserved event cannot be globally passed out from under its owner. The owner must either execute an answer or release the reservation. An unreserved airborne event can be passed to let motion continue; passing a stopped collision/tree event ends that branch.
 
 ## Force and environment
 
@@ -129,6 +143,7 @@ The world communicates the fact, not the answer:
 - impact markers expose force/severity;
 - struck trees visibly stress/shake;
 - notched trees show their prepared direction;
+- event reservation shows only player ownership;
 - no eligible-reactor highlights or combo arrows are drawn.
 
 Authoritative gameplay remains integer/grid/deterministic. The smoothing and event-marker layers are presentation only and never feed Unity transforms back into simulation state.
@@ -149,11 +164,15 @@ The initial positions intentionally admit multiple routes through the same physi
 
 ## Architecture
 
-`ChainCombatBoard.cs` owns the current deterministic cascade experiment: unit state, player activation ownership, force/motion, physical events, claim reservation, reaction execution, environment stress, and round refresh.
+`ChainCombatBoard.cs` owns deterministic combat: unit state, player activation ownership, force/motion, physical events, concrete reaction claims/execution, environment stress, and round refresh.
 
-`ChainCombatLabController.cs` is the main presentation/input shell. Additional prototype components add proactive setup controls, player-activation status, physical-event markers, and smoothed visual playback. Those presentation systems use the authoritative board but do not calculate combo recommendations.
+`ChainReactionReservationCoordinator.cs` owns player-level reservation of the current physical decision. It deliberately does not determine whether the player has a compatible reaction.
 
-The split is intended to support eventual server-authoritative multiplayer commands without replacing prototype physics rules.
+`ChainCombatLabController.cs` is the main presentation/input shell. Additional prototype components add proactive setup controls, player-activation status, physical-event markers, and smoothed visual playback. Those presentation systems do not calculate combo recommendations.
+
+## CI
+
+The combat prototype now uses one consolidated automatic workflow: `.github/workflows/chain-combat-ci.yml`. It runs the prototype and V2-V6 suites sequentially with branch-level `cancel-in-progress` concurrency so new combat iterations supersede stale ones instead of flooding the self-hosted Unity runner. Older per-version workflows remain manual-only fallbacks.
 
 ## Intentionally missing
 
@@ -166,6 +185,7 @@ The split is intended to support eventual server-authoritative multiplayer comma
 - large production roster/content authoring pipeline;
 - campaign progression;
 - persistent battle setup;
-- final reaction-frequency/command-resource tuning.
+- final reaction-frequency/command-resource tuning;
+- timeout/disconnect policy for a player who reserves an event and then stalls.
 
-Those should wait until the small lab proves that player activation + capability knowledge + claimable reaction handoffs are actually fun.
+Those should wait until the small lab proves that player activation + capability knowledge + player-first reservation + reaction handoffs are actually fun.
