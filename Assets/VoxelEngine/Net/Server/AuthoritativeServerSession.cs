@@ -2,6 +2,7 @@ using System;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Server
 {
@@ -9,18 +10,20 @@ namespace VoxelEngine.Net.Server
     /// Safe composition root for live authoritative networking.
     ///
     /// Per fixed tick: authenticate/validate/apply client intent -> queue mutation EVENT packets ->
-    /// append semantic hash barriers -> queue bounded exact-checkpoint REPAIR chunks -> one transport
-    /// flush. Socket callbacks only decode/copy into bounded inboxes; world mutation stays on the tick.
+    /// append semantic hash barriers -> capture/fence requested full-region state -> queue bounded
+    /// REPAIR/BULK packets -> one transport flush. Socket callbacks only decode/copy into inboxes.
     /// </summary>
     public sealed class AuthoritativeServerSession : IDisposable
     {
         private readonly ServerCommandInbox _inbox;
         private readonly ServerConvergenceInbox _convergenceInbox;
+        private readonly ServerRegionStateRequestInbox _regionStateInbox;
         private readonly ServerPlayerRegistry _players;
         private readonly AlterationRateLimiter _rateLimiter;
         private readonly ServerNetworkRuntime _network;
         private readonly ServerCommandProcessor _processor;
         private readonly ServerConvergenceManager _convergence;
+        private readonly ServerBulkRegionStateManager _bulkRegionState;
         private readonly ServerDeterministicAlterationApplier _defaultAlterationApplier;
         private bool _disposed;
 
@@ -29,6 +32,7 @@ namespace VoxelEngine.Net.Server
         public event Action<uint> ProtocolError;
         public event Action<uint, int> SendError;
         public event Action<ServerConvergenceManager.VerifiedRegionMismatch> VerifiedRegionMismatch;
+        public event Action<ServerConvergenceManager.RegionResyncRequest> RegionResyncRequired;
 
         public AuthoritativeServerSession(
             uint serverSeed,
@@ -39,11 +43,18 @@ namespace VoxelEngine.Net.Server
         {
             _inbox = new ServerCommandInbox();
             _convergenceInbox = new ServerConvergenceInbox();
+            _regionStateInbox = new ServerRegionStateRequestInbox();
             _players = new ServerPlayerRegistry();
             _rateLimiter = new AlterationRateLimiter();
-            _network = new ServerNetworkRuntime(_inbox, _convergenceInbox, maxConnections, initialEventCapacity);
+            _network = new ServerNetworkRuntime(
+                _inbox,
+                _convergenceInbox,
+                _regionStateInbox,
+                maxConnections,
+                initialEventCapacity);
             _processor = new ServerCommandProcessor(_inbox, _players, _rateLimiter, serverSeed, densityCap);
             _convergence = new ServerConvergenceManager(_convergenceInbox, _players, hashIntervalTicks);
+            _bulkRegionState = new ServerBulkRegionStateManager(_regionStateInbox, _players);
             _defaultAlterationApplier = new ServerDeterministicAlterationApplier();
 
             _network.ConnectionOpened += OnConnectionOpened;
@@ -51,13 +62,16 @@ namespace VoxelEngine.Net.Server
             _network.ProtocolError += OnProtocolError;
             _network.SendError += OnSendError;
             _convergence.VerifiedMismatch += OnVerifiedMismatch;
+            _convergence.ResyncRequired += OnRegionResyncRequired;
         }
 
         public ServerPlayerRegistry Players => _players;
         public ServerCommandInbox CommandInbox => _inbox;
         public ServerConvergenceInbox ConvergenceInbox => _convergenceInbox;
+        public ServerRegionStateRequestInbox RegionStateInbox => _regionStateInbox;
         public ServerCommandProcessor Processor => _processor;
         public ServerConvergenceManager Convergence => _convergence;
+        public ServerBulkRegionStateManager BulkRegionState => _bulkRegionState;
         public int ConnectionCount => _disposed ? 0 : _network.ConnectionCount;
         public NetworkEndpoint LocalEndpoint => _disposed ? default : _network.LocalEndpoint;
 
@@ -129,8 +143,8 @@ namespace VoxelEngine.Net.Server
 
             _network.BeginTick(serverTick);
 
-            // Reports were decoded during frame pumps. Verification/repair scheduling happens here,
-            // never from a transport callback.
+            // Reports/requests were decoded during frame pumps. Verification and snapshot work occur
+            // at this deterministic point, never from a transport callback.
             _convergence.ProcessMismatchReports(serverTick, _network.Replication.Subscriptions);
 
             _processor.ProcessTick(
@@ -143,7 +157,7 @@ namespace VoxelEngine.Net.Server
                 _network,
                 _network);
 
-            // EVENT ordering is load-bearing: same-tick mutations must precede their semantic hash.
+            // Same-tick mutation EVENTs are queued before hash barriers and any full-state fence.
             _network.FlushReplication();
             _convergence.EmitHashes(
                 serverTick,
@@ -152,9 +166,18 @@ namespace VoxelEngine.Net.Server
                 _network.Replication.Subscriptions,
                 _network);
 
-            // REPAIR is a separate reliable pipeline. Chunking/rate limiting prevents convergence
-            // traffic from dumping an entire checkpoint snapshot into one frame.
+            // Full-region snapshots represent the world after all mutations above. The manager queues
+            // an EVENT fence now, before a future tick can append newer authority, then sends snapshot
+            // bytes on throttled fragmented BULK.
+            _bulkRegionState.ProcessRequests(
+                serverTick,
+                ref table,
+                in pool,
+                _network.Replication.Subscriptions,
+                _network);
+
             _convergence.FlushRepairPackets(_network);
+            _bulkRegionState.Flush(serverTick, _network);
             _network.FlushSends();
         }
 
@@ -165,6 +188,7 @@ namespace VoxelEngine.Net.Server
         private void OnConnectionClosed(uint connectionId)
         {
             _convergence.RemoveConnection(connectionId);
+            _bulkRegionState.RemoveConnection(connectionId);
             if (_players.RemoveConnection(connectionId, out ushort playerId))
             {
                 _processor.RemovePlayer(playerId);
@@ -175,6 +199,17 @@ namespace VoxelEngine.Net.Server
 
         private void OnVerifiedMismatch(ServerConvergenceManager.VerifiedRegionMismatch mismatch) =>
             VerifiedRegionMismatch?.Invoke(mismatch);
+
+        private void OnRegionResyncRequired(ServerConvergenceManager.RegionResyncRequest request)
+        {
+            var message = new S_RegionResyncRequired(
+                request.RegionCoord,
+                request.FailedHashTick,
+                request.Reason);
+            _network.SendRegionResyncRequired(request.ConnectionId, in message);
+            RegionResyncRequired?.Invoke(request);
+        }
+
         private void OnProtocolError(uint connectionId) => ProtocolError?.Invoke(connectionId);
         private void OnSendError(uint connectionId, int errorCode) => SendError?.Invoke(connectionId, errorCode);
 
@@ -191,6 +226,7 @@ namespace VoxelEngine.Net.Server
             _network.ProtocolError -= OnProtocolError;
             _network.SendError -= OnSendError;
             _convergence.VerifiedMismatch -= OnVerifiedMismatch;
+            _convergence.ResyncRequired -= OnRegionResyncRequired;
             _network.Dispose();
             _rateLimiter.Clear();
             _disposed = true;
