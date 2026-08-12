@@ -34,9 +34,10 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeVerticalPlacementAdapter.BuildTownDressing(
                     seed, settings, Allocator.Temp),
 
-                // The semantic block plan compiles to varied anonymous buildings. Named large anchors
-                // get derived downhill service bays where their plot support would otherwise remain
-                // bare, then the access layer joins embedded door levels back to upper courts.
+                // The macro block plan now owns both horizontal building frontage and the occupied
+                // vertical face beneath it. The shared lower facade sits behind the varied buildings;
+                // named-anchor bays and access can then specialise/cut through it at higher precedence.
+                KentridgeVerticalFrontageCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp),
