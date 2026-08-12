@@ -48,6 +48,19 @@ namespace VoxelEngine.Core.Edits
             long radiusSq = (long)radiusVoxels * radiusVoxels;
             int3 minVoxel = evt.origin - new int3(radiusVoxels);
             int3 maxVoxel = evt.origin + new int3(radiusVoxels);
+
+            // Residency is part of the application precondition. Applying only the loaded portion
+            // of an event would make identical packets produce different worlds on different peers.
+            int3 minRegion = minVoxel >> VoxelDimensions.RegionVoxelEdgeLog2;
+            int3 maxRegion = maxVoxel >> VoxelDimensions.RegionVoxelEdgeLog2;
+            for (int rz = minRegion.z; rz <= maxRegion.z; rz++)
+            for (int ry = minRegion.y; ry <= maxRegion.y; ry++)
+            for (int rx = minRegion.x; rx <= maxRegion.x; rx++)
+            {
+                if (!table.IsResident(new int3(rx, ry, rz)))
+                    return false;
+            }
+
             int3 minBrick = minVoxel >> VoxelDimensions.BrickEdgeLog2;
             int3 maxBrick = maxVoxel >> VoxelDimensions.BrickEdgeLog2;
             bool anyChanged = false;
@@ -67,7 +80,7 @@ namespace VoxelEngine.Core.Edits
 
                         int3 regionCoord = worldBrick >> VoxelDimensions.RegionEdgeLog2;
                         if (!table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
-                            continue;
+                            return false;
 
                         int localX = bx & VoxelDimensions.RegionEdgeMask;
                         int localY = by & VoxelDimensions.RegionEdgeMask;
@@ -183,8 +196,6 @@ namespace VoxelEngine.Core.Edits
 
             if (!changed)
             {
-                // If this method materialised a uniform brick but the sphere touched no voxel
-                // centers, undo that temporary allocation.
                 if (brickRef.IsUniform)
                 {
                     pool.Free(poolIndex);
@@ -212,9 +223,9 @@ namespace VoxelEngine.Core.Edits
 
         private static long FarthestCornerDistanceSq(int3 point, int3 min, int3 max)
         {
-            long dx = math.max(math.abs((long)point.x - min.x), math.abs((long)max.x - point.x));
-            long dy = math.max(math.abs((long)point.y - min.y), math.abs((long)max.y - point.y));
-            long dz = math.max(math.abs((long)point.z - min.z), math.abs((long)max.z - point.z));
+            long dx = Max(Abs((long)point.x - min.x), Abs((long)max.x - point.x));
+            long dy = Max(Abs((long)point.y - min.y), Abs((long)max.y - point.y));
+            long dz = Max(Abs((long)point.z - min.z), Abs((long)max.z - point.z));
             return dx * dx + dy * dy + dz * dz;
         }
 
@@ -224,5 +235,8 @@ namespace VoxelEngine.Core.Edits
             if (value > max) return (long)value - max;
             return 0;
         }
+
+        private static long Abs(long value) => value < 0 ? -value : value;
+        private static long Max(long a, long b) => a > b ? a : b;
     }
 }
