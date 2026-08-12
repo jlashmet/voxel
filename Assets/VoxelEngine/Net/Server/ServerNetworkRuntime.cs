@@ -75,10 +75,12 @@ namespace VoxelEngine.Net.Server
             return _host.Listen(endpoint);
         }
 
-        /// <summary>
-        /// Pump UTP connection/data state once. With the recommended inbox composition this only
-        /// decodes and queues intent; authoritative world state is untouched until the fixed tick.
-        /// </summary>
+        public bool ContainsConnection(uint connectionId)
+        {
+            ThrowIfDisposed();
+            return _host.ContainsConnection(connectionId);
+        }
+
         public void PumpTransport()
         {
             ThrowIfDisposed();
@@ -97,20 +99,14 @@ namespace VoxelEngine.Net.Server
             _replication.PublishAlteration(in evt);
         }
 
-        /// <summary>
-        /// Send a denied durable request back to only its originator. This is queued on reliable
-        /// EVENT and flushed with the rest of the authoritative tick in EndTick().
-        /// </summary>
         public void SendAlterationRejected(uint connectionId, in S_AlterationRejected rejection)
         {
             ThrowIfDisposed();
             Span<byte> packet = stackalloc byte[AlterationRejectedPacket.PacketSize];
-            if (!AlterationRejectedPacket.TryEncode(packet, in rejection) ||
-                !_host.TrySend(connectionId, UtpChannel.Event, packet))
-            {
-                // Host.TrySend reports transport error codes through SendError when available.
-                // A missing/dead connection is intentionally not converted into a world-state error.
-            }
+            if (!AlterationRejectedPacket.TryEncode(packet, in rejection))
+                return;
+
+            _host.TrySend(connectionId, UtpChannel.Event, packet);
         }
 
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)
@@ -141,10 +137,8 @@ namespace VoxelEngine.Net.Server
             return _host.Disconnect(connectionId);
         }
 
-        private void OnConnectionOpened(uint connectionId, NetworkEndpoint endpoint)
-        {
+        private void OnConnectionOpened(uint connectionId, NetworkEndpoint endpoint) =>
             ConnectionOpened?.Invoke(connectionId, endpoint);
-        }
 
         private void OnConnectionClosed(uint connectionId)
         {
