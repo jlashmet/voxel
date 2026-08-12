@@ -218,7 +218,8 @@ namespace MountingForce.WorldGen.Voxel
             int clearHeight = Math.Max(
                 ClearAboveDm * scale,
                 naturalMax - targetSurface + ClearAboveDm * scale);
-            int totalHeight = targetSurface - originY + clearHeight;
+            int totalHeight = targetSurface - originY + clearHeight
+                            + ShoulderSurfaceDepthDm * scale;
             int shoulder = ShoulderWidthDm * scale;
 
             return new TerraceBuild(
@@ -287,8 +288,6 @@ namespace MountingForce.WorldGen.Voxel
             int shoulderSurfaceDepth = Math.Max(1, ShoulderSurfaceDepthDm * s);
             int outerGreen = Math.Max(1, OuterGreenBandDm * s);
 
-            // Preserve the previous low toe height but replace the three intermediate rectangular
-            // shelves with one continuous wedge on each side of the flat core.
             int maximumDrop = Math.Max(0, build.SupportHeight - 1);
             int desiredDrop = Math.Max(12 * s, build.SupportHeight * 2 / 3);
             int shoulderDrop = Math.Min(maximumDrop, desiredDrop);
@@ -312,15 +311,11 @@ namespace MountingForce.WorldGen.Voxel
                     build.ClearHeight + shoulderDrop + build.CapThickness + shoulderSurfaceDepth,
                     depth);
 
-            // Low district-scale toe beneath all four shoulder wedges.
             b.Box(0, 0, 0, width, lowFillHeight, depth, earth);
 
-            // Flat buildable core reaches the same target surface elevation as before.
             b.Box(coreInset, lowFillHeight, coreInset,
                   coreWidth, rampRise, coreDepth, earth);
 
-            // North/south wedges span the full shelf width; west/east wedges fill the central side
-            // bands. Their overlaps are intentional and deterministic because every fill is earth.
             b.Ramp(0, lowFillHeight, 0,
                    width, rampRise, shoulder,
                    RampAxisZ, earth);
@@ -334,8 +329,6 @@ namespace MountingForce.WorldGen.Voxel
                    shoulder, rampRise, coreDepth,
                    (byte)(RampAxisX | ReverseRampBit), earth);
 
-            // Surface paint follows the actual wedge tops column-by-column rather than adding
-            // another geometric cap. Urban/mixed shoulders remain earth-toned; lower homes stay green.
             b.Box(0, 0, 0, width, highFillHeight + 1, depth,
                   shoulderSurface, PrimitiveMode.PaintSurface);
             b.Box(coreInset, 0, coreInset, coreWidth, highFillHeight + 1, coreDepth,
@@ -343,8 +336,6 @@ namespace MountingForce.WorldGen.Voxel
 
             if (build.Seed.Surface != SurfaceCharacter.Green)
             {
-                // A thin vegetated toe keeps authored shelves visually tied to the natural biome
-                // without recreating broad green stripes between every urban level.
                 b.Box(0, 0, 0, width, highFillHeight + 1, outerGreen,
                       moss, PrimitiveMode.PaintSurface);
                 b.Box(0, 0, depth - outerGreen, width, highFillHeight + 1, outerGreen,
