@@ -6,6 +6,10 @@ on:
     branches:
       - experiment/sunlit-environment-kit
 
+concurrency:
+  group: sunlit-waterfall-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   capture-world-art:
     name: Render Sunlit Waterfall environment
@@ -37,6 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf "$GITHUB_WORKSPACE/Artifacts/WorldArtKit"
           mkdir -p "$GITHUB_WORKSPACE/Artifacts/WorldArtKit"
           "${{ steps.unity.outputs.path }}" \
             -batchmode \
