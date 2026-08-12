@@ -38,12 +38,19 @@ namespace VoxelEngine.CI
 
             Vector3 o = camera.transform.position - new Vector3(0.10f, 5.05f, -22.6f);
 
+            // Treat the hero ruin as a small vertical complex rather than a single isolated arch.
+            // The upper broken bay overlaps the lower mass enough to read as a surviving second
+            // storey, giving the eye a climbable foreground-to-sky line instead of another tower.
             WorldArtPiece hero = WorldArtStoneKit.RuinArch(root, "AAA hero ruin arch",
-                o + new Vector3(-6.25f, 1.85f, 5.35f),
-                1.48f, 7, new Vector3(0.60f, 0.54f, 0.82f), 0.84f, true, 101, palette);
+                o + new Vector3(-5.55f, 1.55f, 5.35f),
+                1.48f, 8, new Vector3(0.60f, 0.52f, 0.82f), 0.84f, true, 101, palette);
+
+            WorldArtPiece upper = WorldArtStoneKit.RuinArch(root, "AAA upper ruin arch",
+                o + new Vector3(-5.18f, 5.35f, 5.48f),
+                0.88f, 4, new Vector3(0.44f, 0.40f, 0.66f), 0.69f, true, 173, palette);
 
             WorldArtPiece lower = WorldArtStoneKit.RuinArch(root, "AAA lower ruin arch",
-                o + new Vector3(-6.75f, 0.45f, 8.30f),
+                o + new Vector3(-5.95f, 0.45f, 8.30f),
                 0.82f, 4, new Vector3(0.42f, 0.40f, 0.58f), 0.60f, false, 131, palette);
 
             // Re-attach overgrowth to semantic stone sockets so dressing remains subordinate to
@@ -51,6 +58,9 @@ namespace VoxelEngine.CI
             WorldArtKit.MossCluster(root, "AAA keystone moss",
                 hero.Socket("keystone").position + new Vector3(-0.34f, 0.03f, 0f),
                 0.38f, 503, palette.Get(WorldArtSurfaceRole.Moss));
+            WorldArtKit.MossCluster(root, "AAA upper arch moss",
+                upper.Socket("crown").position + new Vector3(0.16f, 0.01f, -0.18f),
+                0.22f, 527, palette.Get(WorldArtSurfaceRole.Moss));
             WorldArtKit.MossCluster(root, "AAA lower arch moss",
                 lower.Socket("crown").position + new Vector3(0.22f, 0.02f, -0.22f),
                 0.24f, 541, palette.Get(WorldArtSurfaceRole.Moss));
