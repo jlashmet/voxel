@@ -4,7 +4,7 @@ using VoxelEngine.Structures;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Stone-only quality pass. Replaces the generic rounded-block ruin vocabulary with proper
+    /// Stone-only quality pass. Replaces the generic and one-off ruin vocabularies with proper
     /// coursed ashlar and radial voussoir masonry. No terrain, water, vegetation or camera changes
     /// live here: this pass exists so stone quality can be iterated independently until the ruin
     /// vocabulary is production-worthy.
@@ -23,7 +23,7 @@ namespace VoxelEngine.CI
 
             Disable("WorldArtKit hero arch");
             Disable("WorldArtKit lower arch");
-            DisableLegacyRoundedAshlar();
+            DisableLegacyRuinGeometry();
 
             Transform kitRoot = scene.transform.Find("World Art Kit Reference Scene");
             if (kitRoot == null) kitRoot = scene.transform;
@@ -62,21 +62,28 @@ namespace VoxelEngine.CI
             if (go != null) go.SetActive(false);
         }
 
-        private static void DisableLegacyRoundedAshlar()
+        private static void DisableLegacyRuinGeometry()
         {
-            // The first lookdev pass built every ruin stone from a scaled Capsule named
-            // "Rounded ashlar". Leaving those objects in front of the shared stone kit makes the
-            // quality target impossible to judge and visually reintroduces the exact pillowy form
-            // this pass replaces. Keep this cleanup local to CI/lookdev; production generation uses
-            // the reusable WorldArtStoneKit directly.
+            // Earlier lookdev stages contain two different obsolete ruin implementations:
+            // capsule-based "Rounded ashlar" and VerticalityPass's rotated cube arch. Disable only
+            // those exact masonry objects. Vegetation, cliffs, upper-ruin scale cues and all other
+            // vertical composition remain untouched; the shared WorldArtStoneKit becomes the sole
+            // source of the foreground/hero arches.
             Transform[] all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include,
                 FindObjectsSortMode.None);
             for (int i = 0; i < all.Length; i++)
             {
                 Transform t = all[i];
-                if (t == null || t.name != "Rounded ashlar") continue;
-                if (!t.gameObject.scene.IsValid()) continue;
-                t.gameObject.SetActive(false);
+                if (t == null || !t.gameObject.scene.IsValid()) continue;
+
+                string n = t.name;
+                if (n == "Rounded ashlar" ||
+                    n == "Hero ruin pier" ||
+                    n == "Hero ruin arch stone" ||
+                    n == "Broken ruin crown")
+                {
+                    t.gameObject.SetActive(false);
+                }
             }
         }
 
