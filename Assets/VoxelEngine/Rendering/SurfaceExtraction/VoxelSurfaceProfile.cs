@@ -84,33 +84,39 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             featureNormalStrength: 0.88f,
             featureCurvatureThreshold: 0.045f);
 
+        /// <summary>
+        /// Dressed masonry must preserve the planes and arrises authored in the voxel component.
+        /// A small amount of tight-radius distance recovery removes half-voxel stair stepping, but
+        /// wide recovery is intentionally suppressed so voussoirs, ashlar and imposts do not melt
+        /// into the inflated clay forms appropriate to terrain/rock.
+        /// </summary>
         public static VoxelSurfaceProfile DressedStone => new(
-            smoothing: 0.96f,
+            smoothing: 0.72f,
             blurPasses: 0,
-            densityBias: -0.004f,
-            planarization: 0.28f,
-            planarizationThreshold: 0.58f,
-            distanceRecovery: 1.0f,
-            curveRecovery: 0.72f,
-            normalPlanarization: 0.30f,
-            planarSnapDistanceVoxels: 0.10f,
-            featurePreservation: 0.98f,
-            featureNormalStrength: 0.86f,
-            featureCurvatureThreshold: 0.055f);
+            densityBias: -0.002f,
+            planarization: 0.84f,
+            planarizationThreshold: 0.48f,
+            distanceRecovery: 0.58f,
+            curveRecovery: 0.08f,
+            normalPlanarization: 0.88f,
+            planarSnapDistanceVoxels: 0.24f,
+            featurePreservation: 0.995f,
+            featureNormalStrength: 0.96f,
+            featureCurvatureThreshold: 0.028f);
 
         public static VoxelSurfaceProfile RecessedMasonryJoint => new(
-            smoothing: 0.96f,
+            smoothing: 0.82f,
             blurPasses: 0,
-            densityBias: -0.085f,
-            planarization: 0.28f,
-            planarizationThreshold: 0.58f,
-            distanceRecovery: 1.0f,
-            curveRecovery: 0.72f,
-            normalPlanarization: 0.30f,
-            planarSnapDistanceVoxels: 0.10f,
-            featurePreservation: 0.98f,
-            featureNormalStrength: 0.86f,
-            featureCurvatureThreshold: 0.055f);
+            densityBias: -0.095f,
+            planarization: 0.58f,
+            planarizationThreshold: 0.52f,
+            distanceRecovery: 0.65f,
+            curveRecovery: 0.10f,
+            normalPlanarization: 0.70f,
+            planarSnapDistanceVoxels: 0.18f,
+            featurePreservation: 0.99f,
+            featureNormalStrength: 0.92f,
+            featureCurvatureThreshold: 0.032f);
 
         public static VoxelSurfaceProfile RoughRock => new(
             smoothing: 0.82f,
