@@ -6,36 +6,36 @@ namespace VoxelEngine.Net.Transport
 {
     /// <summary>
     /// Configures Unity Transport with three quality-of-service pipelines tuned to the
-    /// bandwidth budgets in device-matrix.md.
+    /// bandwidth budgets in device-matrix.md and contracts/wire-protocol.md.
     ///
-    /// Channel allocation by device-matrix.md §Bandwidth budgets:
-    ///   EVENT ≥ 60% reserved on wired/Wi-Fi, ≥ 70% on mobile-HE cellular.
-    ///   REPAIR sits between EVENT and BULK with sequenced but unreliable delivery.
-    ///   BULK consumes the remainder but yields to EVENT when the EVENT threshold
-    ///   is approached — see BulkThrottle.cs for the throttling policy.
+    /// Channel contract:
+    ///   EVENT  — reliable ordered live authoritative events.
+    ///   REPAIR — reliable state correction after detected drift.
+    ///   BULK   — reliable fragmented region/snapshot transfer, rate-limited so it cannot
+    ///            starve EVENT.
     ///
     /// Unity Transport has no notion of pipeline priority or per-pipeline bandwidth caps,
     /// so the reservation policy is enforced on our side by BulkThrottle rather than by
-    /// the driver. What this type owns is pipeline *construction*: which stages each
-    /// channel is built from, and the budget arithmetic BulkThrottle consumes.
+    /// the driver. What this type owns is pipeline construction and sizing.
     /// </summary>
     public struct ChannelSetup
     {
         // -- pipelines ------------------------------------------------------------
 
-        /// <summary>Reliable sequenced delivery, for alteration events, inputs, and region sync.
-        /// Guarantees delivery and ordering; this is the channel authoritative state rides on.</summary>
+        /// <summary>Reliable sequenced delivery for durable authoritative events.</summary>
         public NetworkPipeline Event;
 
-        /// <summary>Unreliable sequenced delivery, for drift-repair brick data. Stale repairs are
-        /// worse than no repair, so out-of-order packets are dropped rather than reordered.</summary>
+        /// <summary>Reliable sequenced delivery for authoritative state repair.</summary>
         public NetworkPipeline Repair;
 
-        /// <summary>Fragmented unreliable delivery, for region downloads and other large payloads
-        /// that exceed a single MTU and can tolerate loss (the client re-requests).</summary>
+        /// <summary>
+        /// Fragmented reliable delivery for large region/snapshot payloads.
+        /// Fragmentation must precede reliability so a lost fragment retransmits only that
+        /// fragment rather than the full logical message.
+        /// </summary>
         public NetworkPipeline Bulk;
 
-        // -- bandwidth budget constants --------------------------------------------
+        // -- bandwidth budget constants ------------------------------------------
 
         /// <summary>Minimum EVENT channel share on wired/Wi-Fi (device-matrix.md: ≥ 60%).</summary>
         public const float k_EventShareWired = 0.60f;
@@ -55,43 +55,43 @@ namespace VoxelEngine.Net.Transport
         /// <summary>Sustained downstream budget on mobile-HE cellular in KB/s (device-matrix.md).</summary>
         public const uint k_SustainedDownstreamMobileKb = 96;
 
-        // -- per-channel packet sizing ----------------------------------------------
+        // -- per-channel packet sizing -------------------------------------------
 
-        /// <summary>EVENT payload ceiling. SC-002 requires a ≥ 4000-voxel event to fit in 64 bytes.</summary>
-        public const int k_MaxEventPacketBytes = 64;
+        /// <summary>
+        /// Conservative ceiling for one non-fragmented live EVENT packet. The compact
+        /// alteration batch currently tops out at 1172 bytes including its protocol envelope.
+        /// </summary>
+        public const int k_MaxEventPacketBytes = 1200;
 
         /// <summary>REPAIR payload ceiling for a single brick-repair message.</summary>
         public const int k_MaxRepairPacketBytes = 1024;
 
-        /// <summary>BULK payload ceiling. Exceeds MTU, hence the fragmentation stage.</summary>
+        /// <summary>BULK payload ceiling. Exceeds MTU, hence fragmentation.</summary>
         public const int k_MaxBulkPacketBytes = 16384;
 
         // -- configuration --------------------------------------------------------
 
         /// <summary>
         /// Creates the three pipelines on an existing driver.
-        ///
-        /// Must be called after the driver is created and before any connection is opened —
-        /// Unity Transport forbids adding pipelines once the driver is bound.
+        /// Must be called after the driver is created and before any connection is opened.
+        /// Server and client must call this same method so pipeline IDs/stage order match.
         /// </summary>
-        /// <param name="driver">The driver to create pipelines on. Modified in place.</param>
-        /// <returns>The three pipeline handles, to be held for the driver's lifetime.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChannelSetup Create(ref NetworkDriver driver)
         {
             return new ChannelSetup
             {
                 Event = driver.CreatePipeline(typeof(ReliableSequencedPipelineStage)),
-                Repair = driver.CreatePipeline(typeof(UnreliableSequencedPipelineStage)),
-
-                // Fragmentation lets a single BULK send exceed the MTU; the driver
-                // reassembles on the far side.
-                Bulk = driver.CreatePipeline(typeof(FragmentationPipelineStage)),
+                Repair = driver.CreatePipeline(typeof(ReliableSequencedPipelineStage)),
+                Bulk = driver.CreatePipeline(
+                    typeof(FragmentationPipelineStage),
+                    typeof(ReliableSequencedPipelineStage)),
             };
         }
 
         /// <summary>
         /// Builds driver settings carrying the fragmentation capacity BULK needs.
-        /// Pass the result to <see cref="NetworkDriver.Create(NetworkSettings)"/>.
+        /// Pass the result to NetworkDriver.Create(settings).
         /// </summary>
         public static NetworkSettings DefaultSettings()
         {
@@ -102,18 +102,14 @@ namespace VoxelEngine.Net.Transport
 
         /// <summary>
         /// Computes the per-channel bandwidth budget for a given total capacity and device class.
-        /// Returns (eventKb, repairKb, bulkKb) matching device-matrix.md allocations.
+        /// Device class affects bandwidth scheduling only; it never changes simulation interest.
         /// </summary>
-        /// <param name="totalCapacityKbPerSecond">Total available downstream bandwidth in KB/s.</param>
-        /// <param name="isMobileCellular">True for mobile-HE on cellular; uses the ≥ 70% EVENT reserve.</param>
-        /// <returns>Tuple of (event, repair, bulk) KB/s budgets.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (uint eventKb, uint repairKb, uint bulkKb) ComputeBudgets(
             uint totalCapacityKbPerSecond, bool isMobileCellular)
         {
             float eventShare = isMobileCellular ? k_EventShareMobile : k_EventShareWired;
 
-            // Reserve EVENT share first, then split remainder between REPAIR and BULK.
             uint eventBudget  = (uint)(totalCapacityKbPerSecond * eventShare);
             uint remaining    = totalCapacityKbPerSecond - eventBudget;
             uint repairBudget = (uint)(remaining * k_RepairShare / (k_RepairShare + k_BulkShare));
