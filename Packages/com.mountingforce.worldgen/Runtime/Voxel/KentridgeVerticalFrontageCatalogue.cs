@@ -154,59 +154,75 @@ namespace MountingForce.WorldGen.Voxel
                 : dark;
 
             var b = new ProgramBuilder();
-
-            // Start as one structural terrace volume, then hollow the lower floor. This is what makes
-            // the shelf read as occupied architecture rather than a wall applied to a dirt cliff.
-            b.Box(0, 0, 0, width, height, depth, stone);
-            if (width > 2 * wall && depth > 2 * wall && height > baseH + topH)
-                b.Carve(
-                    wall,
-                    baseH,
-                    wall,
-                    width - 2 * wall,
-                    height - baseH - topH,
-                    depth - 2 * wall);
-
-            // The exact same gap reserved by the block planner remains a full-height passage into the
-            // upper court. Urban access runs later at precedence 94 and can build its stair/gateway here.
             int gapCentre = (zone.GapCentreDm - zone.MinXDm) * s;
             int gapWidth = zone.GapWidthDm * s;
             int gapStart = math.clamp(gapCentre - gapWidth / 2, 0, math.max(0, width - gapWidth));
-            b.Carve(gapStart, 0, 0, gapWidth, height, depth);
+            int gapEnd = math.min(width, gapStart + gapWidth);
+
+            // The vertical city face is intentionally an open arcade, not another retaining box.
+            // Floor/deck/back-wall spans stop at the court opening, so the lower route can visibly
+            // continue through the facade and up to the protected court above.
+            AddSpan(b, 0, gapStart, 0, 0, depth, baseH, stone);
+            AddSpan(b, gapEnd, width, 0, 0, depth, baseH, stone);
+            AddSpan(b, 0, gapStart, height - topH, 0, depth, topH, stone);
+            AddSpan(b, gapEnd, width, height - topH, 0, depth, topH, stone);
+
+            int backZ = math.max(wall, depth - wall);
+            int backH = math.max(1, height - baseH - topH);
+            AddSpan(b, 0, gapStart, baseH, backZ, wall, backH, stone);
+            AddSpan(b, gapEnd, width, baseH, backZ, wall, backH, stone);
 
             int pitch = zone.BayPitchDm * s;
             int openingH = OpeningHeightDm(zone.Style) * s;
             int openingBottom = OpeningBottomDm * s;
             int openingSide = OpeningSideDm * s;
             int pier = Math.Max(3 * s, pitch / 7);
+            int lintel = 4 * s;
 
             for (int bayStart = 0; bayStart < width; bayStart += pitch)
             {
                 int bayEnd = Math.Min(width, bayStart + pitch);
                 int bayWidth = bayEnd - bayStart;
                 if (bayWidth <= openingSide * 2 + 4 * s) continue;
-                if (Overlaps(bayStart, bayEnd, gapStart, gapStart + gapWidth)) continue;
+                if (Overlaps(bayStart, bayEnd, gapStart, gapEnd)) continue;
+
+                // Freestanding front structure keeps the long edge visually porous from oblique street
+                // views. There are no sealed side/end walls.
+                b.Box(bayStart, baseH, 0,
+                    Math.Min(pier, bayWidth), height - baseH - topH, wall, frame);
+                b.Box(bayStart, height - topH - lintel, 0,
+                    bayWidth, lintel, wall, frame);
 
                 int openingX = bayStart + openingSide;
                 int openingW = bayWidth - openingSide * 2;
                 int maxOpeningH = Math.Max(1, height - topH - openingBottom - 2 * s);
                 int h = Math.Min(openingH, maxOpeningH);
-                b.Carve(openingX, openingBottom, 0, openingW, h, wall + s);
-
-                // A recessed lit plane makes each opening read as a room/loggia rather than a hole.
-                int backZ = Math.Max(wall + s, depth - wall - 2 * s);
-                b.Box(openingX, openingBottom + 2 * s, backZ,
-                    openingW, Math.Max(1, h - 4 * s), 2 * s, warm);
-
-                // Vertical structure gives the long facade a human-scale rhythm without turning it
-                // into a decorative stripe around the terrain.
-                b.Box(bayStart, baseH, 0,
-                    Math.Min(pier, bayWidth), height - baseH, wall, frame);
+                int panelZ = Math.Max(wall + s, backZ - 2 * s);
+                b.Box(openingX, openingBottom, panelZ,
+                    openingW, h, 2 * s, warm);
             }
 
-            // A continuous floor/deck at shelf level ties the lower rooms to the buildings above.
-            b.Box(0, height - topH, 0, width, topH, depth, stone);
+            // Finish the outside corner without closing the end into a blank wall.
+            if (!Overlaps(Math.Max(0, width - pier), width, gapStart, gapEnd))
+                b.Box(Math.Max(0, width - pier), baseH, 0,
+                    Math.Min(pier, width), height - baseH - topH, wall, frame);
+
             return b.Finish();
+        }
+
+        private static void AddSpan(
+            ProgramBuilder b,
+            int start,
+            int end,
+            int y,
+            int z,
+            int depth,
+            int height,
+            byte material)
+        {
+            int width = end - start;
+            if (width <= 0 || depth <= 0 || height <= 0) return;
+            b.Box(start, y, z, width, height, depth, material);
         }
 
         private static int OpeningHeightDm(KentridgeVerticalFrontageStyle style)

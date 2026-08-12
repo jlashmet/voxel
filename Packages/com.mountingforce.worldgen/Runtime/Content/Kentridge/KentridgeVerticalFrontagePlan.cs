@@ -106,8 +106,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
                         + block.Id);
 
                 ResolveStyle(block.Band, out KentridgeVerticalFrontageStyle style,
-                    out int depthDm, out int bayPitchDm);
-                int heightDm = Math.Max(40, block.EmbedBelowShelfDm - 4);
+                    out int heightDm, out int depthDm, out int bayPitchDm);
 
                 // The public/court run sits on the uphill side of the block. The visible retaining
                 // face is the opposite MaxZ edge. Keep the same X-axis gateway so the lower opening,
@@ -149,6 +148,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
         private static void ResolveStyle(
             KentridgeUrbanBand band,
             out KentridgeVerticalFrontageStyle style,
+            out int heightDm,
             out int depthDm,
             out int bayPitchDm)
         {
@@ -156,22 +156,26 @@ namespace MountingForce.WorldGen.Content.Kentridge
             {
                 case KentridgeUrbanBand.MarketBelt:
                     style = KentridgeVerticalFrontageStyle.MarketArcade;
-                    depthDm = 22;
+                    heightDm = 38;
+                    depthDm = 18;
                     bayPitchDm = 34;
                     return;
                 case KentridgeUrbanBand.UpperWard:
                     style = KentridgeVerticalFrontageStyle.UrbanUndercroft;
-                    depthDm = 22;
+                    heightDm = 40;
+                    depthDm = 18;
                     bayPitchDm = 32;
                     return;
                 case KentridgeUrbanBand.CivicCrown:
                     style = KentridgeVerticalFrontageStyle.CivicLoggia;
-                    depthDm = 24;
+                    heightDm = 44;
+                    depthDm = 20;
                     bayPitchDm = 36;
                     return;
                 case KentridgeUrbanBand.NobleRidge:
                     style = KentridgeVerticalFrontageStyle.NobleTerrace;
-                    depthDm = 24;
+                    heightDm = 40;
+                    depthDm = 20;
                     bayPitchDm = 38;
                     return;
                 default:

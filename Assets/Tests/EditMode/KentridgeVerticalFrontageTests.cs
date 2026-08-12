@@ -23,7 +23,7 @@ namespace VoxelEngine.Tests.EditMode
                 KentridgeVerticalFrontageZone zone = plan.Zones[i];
                 Assert.AreNotEqual(KentridgeUrbanBand.LowerWard, zone.Band);
                 Assert.Greater(zone.LengthDm, zone.GapWidthDm);
-                Assert.Greater(zone.HeightDm, 40);
+                Assert.GreaterOrEqual(zone.HeightDm, 38);
                 Assert.Greater(zone.DepthDm, 0);
                 Assert.Greater(zone.BayPitchDm, 0);
                 if (zone.Band == KentridgeUrbanBand.CivicCrown) civic++;
