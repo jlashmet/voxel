@@ -10,15 +10,13 @@ namespace VoxelEngine.Net.Server
 {
     /// <summary>
     /// Fixed-tick producer and throttled sender for semantic full-region BULK snapshots.
-    ///
-    /// A transfer is fenced on reliable EVENT before it is allowed onto BULK. The fence is queued
-    /// after all authority represented by SnapshotTick, giving the client a cross-pipeline ordering
-    /// point. Snapshot memory, requests, per-connection concurrency and BULK bytes are all bounded.
+    /// A transfer is fenced on reliable EVENT before it is allowed onto BULK.
     /// </summary>
     public sealed class ServerBulkRegionStateManager
     {
         public const int MaxPendingSnapshotBytes = 64 * 1024 * 1024;
-        public const int DefaultMaxTransfersPerConnection = 2;
+        public const int MaxDeferredRequests = 256;
+        public const int DefaultMaxTransfersPerConnection = 1;
         public const int DefaultMaxPacketsPerTick = 8;
 
         private readonly ServerRegionStateRequestInbox _inbox;
@@ -36,6 +34,7 @@ namespace VoxelEngine.Net.Server
 
         public long AcceptedRequests { get; private set; }
         public long RejectedRequests { get; private set; }
+        public long DroppedDeferredRequests { get; private set; }
         public long SnapshotsTooLarge { get; private set; }
         public long FenceSendDeferrals { get; private set; }
         public long BulkPacketsSent { get; private set; }
@@ -59,11 +58,6 @@ namespace VoxelEngine.Net.Server
             _maxPacketsPerTick = maxPacketsPerTick;
         }
 
-        /// <summary>
-        /// Capture current authoritative state only from the fixed tick, after same-tick mutations
-        /// have been applied. A request remains deferred when a per-connection/global transfer bound
-        /// is temporarily full; it is never converted into synchronous work in the UTP callback.
-        /// </summary>
         public int ProcessRequests(
             uint serverTick,
             ref RegionTable table,
@@ -76,8 +70,13 @@ namespace VoxelEngine.Net.Server
             if (network == null) throw new ArgumentNullException(nameof(network));
 
             _inbox.Drain(_requests);
-            int accepted = 0;
+            while (_requests.Count > MaxDeferredRequests)
+            {
+                _requests.RemoveAt(_requests.Count - 1);
+                DroppedDeferredRequests++;
+            }
 
+            int accepted = 0;
             for (int i = 0; i < _requests.Count;)
             {
                 var queued = _requests[i];
@@ -94,11 +93,13 @@ namespace VoxelEngine.Net.Server
 
                 if (HasPendingTransfer(queued.ConnectionId, request.regionCoord))
                 {
-                    // A newer duplicate is already satisfied by the transfer in flight.
                     _requests.RemoveAt(i);
                     continue;
                 }
 
+                // The current client fence/catch-up state machine intentionally supports one
+                // current-state transfer per connection. Additional requests remain bounded/deferred
+                // until the active fence is consumed and transfer completes.
                 if (CountTransfers(queued.ConnectionId) >= _maxTransfersPerConnection ||
                     _pendingSnapshotBytes >= MaxPendingSnapshotBytes)
                 {
@@ -128,7 +129,6 @@ namespace VoxelEngine.Net.Server
 
                 if (_pendingSnapshotBytes + snapshot.Length > MaxPendingSnapshotBytes)
                 {
-                    // Keep the request and recapture at the later authoritative tick once space frees.
                     i++;
                     continue;
                 }
@@ -137,8 +137,6 @@ namespace VoxelEngine.Net.Server
                 uint semanticHash = SemanticRegionHasher.HashRegion(in region, in pool);
                 var fence = new S_RegionStateFence(transferId, request.regionCoord, serverTick);
 
-                // Do not start BULK unless its EVENT fence was successfully queued before any future
-                // authoritative tick can append newer events to this connection's EVENT stream.
                 if (!network.SendRegionStateFence(queued.ConnectionId, in fence))
                 {
                     FenceSendDeferrals++;
