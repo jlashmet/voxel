@@ -16,9 +16,9 @@ namespace VoxelEngine.Tests.EditMode
         {
             KentridgeUrbanMassingPlan plan = KentridgeUrbanOrganizer.Build(Seed);
 
-            Assert.AreEqual(7, plan.Blocks.Count);
-            Assert.AreEqual(14, plan.FrontageRuns.Count,
-                "Each first-pass block should expose one contour frontage and one returning side edge.");
+            Assert.AreEqual(8, plan.Blocks.Count);
+            Assert.AreEqual(16, plan.FrontageRuns.Count,
+                "Each authored block should expose one contour frontage and one returning side edge.");
             Assert.AreEqual(1, plan.Thresholds.Count);
 
             int horizontalRuns = 0;
@@ -34,8 +34,17 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.IsTrue(run.IsHorizontal || run.IsVertical);
                 Assert.Greater(run.LengthDm, 80);
                 Assert.That(run.CoveragePercent, Is.InRange(60, 90));
-                Assert.That(run.MinStoreys, Is.InRange(2, 3));
-                Assert.That(run.MaxStoreys, Is.InRange(run.MinStoreys, 3));
+
+                if (run.District == DistrictKind.Working)
+                {
+                    Assert.That(run.MinStoreys, Is.InRange(1, 2));
+                    Assert.That(run.MaxStoreys, Is.InRange(run.MinStoreys, 2));
+                }
+                else
+                {
+                    Assert.That(run.MinStoreys, Is.InRange(2, 3));
+                    Assert.That(run.MaxStoreys, Is.InRange(run.MinStoreys, 3));
+                }
 
                 if (run.IsHorizontal) horizontalRuns++;
                 if (run.IsVertical) verticalRuns++;
@@ -52,10 +61,10 @@ namespace VoxelEngine.Tests.EditMode
                 }
             }
 
-            Assert.AreEqual(7, horizontalRuns);
-            Assert.AreEqual(7, verticalRuns,
+            Assert.AreEqual(8, horizontalRuns);
+            Assert.AreEqual(8, verticalRuns,
                 "Every block should turn at least one corner instead of reading as a detached roof row.");
-            Assert.AreEqual(7, accessGaps,
+            Assert.AreEqual(8, accessGaps,
                 "Every block should reserve a visible lane into its interior court.");
 
             Assert.AreEqual(2, civicSouthRuns);
@@ -98,6 +107,18 @@ namespace VoxelEngine.Tests.EditMode
             Assert.GreaterOrEqual(civicWest.MinDm.Y, 194);
             Assert.GreaterOrEqual(civicEast.MinDm.Y, 194,
                 "Civic blocks must frame rather than consume the crown forecourt reservation.");
+
+            KentridgeUrbanBlock working = plan.Blocks[7];
+            Assert.AreEqual("working-lane-block", working.Id);
+            Assert.AreEqual(DistrictKind.Working, working.District);
+            Assert.AreEqual(KentridgeUrbanBand.LowerWard, working.Band,
+                "Working fabric should stay subordinate to the upper-town skyline.");
+            Assert.AreEqual(KentridgeBlockEdge.South, working.CourtAccessEdge);
+            Assert.AreNotEqual(KentridgeBlockEdge.None,
+                working.FrontageEdges & KentridgeBlockEdge.East,
+                "Working fabric must address the east service lane opposite the Warehouse.");
+            Assert.Less(working.MaxDm.X, KentridgeTownPlanner.EastLaneXDm,
+                "The working block must remain west of the service-lane centreline.");
         }
 
         [Test]
@@ -109,8 +130,8 @@ namespace VoxelEngine.Tests.EditMode
             {
                 Assert.AreEqual(2, massing.Definitions.Length,
                     "CI massing adapter still only needs two silhouette heights.");
-                Assert.AreEqual(33, massing.ExplicitPlacements.Length,
-                    "Seven corner-turning blocks with court gaps should currently resolve to 33 anonymous masses.");
+                Assert.AreEqual(37, massing.ExplicitPlacements.Length,
+                    "Eight corner-turning blocks with court gaps should resolve to 37 anonymous masses.");
 
                 for (int i = 0; i < massing.Definitions.Length; i++)
                 {

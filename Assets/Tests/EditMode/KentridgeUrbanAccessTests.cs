@@ -14,12 +14,13 @@ namespace VoxelEngine.Tests.EditMode
         public void AccessPlanConnectsEveryBlockFacadeToItsCourt()
         {
             KentridgeUrbanAccessPlan plan = KentridgeUrbanAccessPlanner.Build(Seed);
-            Assert.AreEqual(7, plan.Routes.Count);
+            Assert.AreEqual(8, plan.Routes.Count);
 
             int westReturns = 0;
             int eastReturns = 0;
             int shallowDrops = 0;
             int deepDrops = 0;
+            int workingRoutes = 0;
 
             for (int i = 0; i < plan.Routes.Count; i++)
             {
@@ -32,6 +33,13 @@ namespace VoxelEngine.Tests.EditMode
 
                 if (route.ReturnSide == KentridgeUrbanReturnSide.West) westReturns++;
                 else eastReturns++;
+
+                if (route.District == DistrictKind.Working)
+                {
+                    workingRoutes++;
+                    Assert.AreEqual(KentridgeUrbanReturnSide.East, route.ReturnSide,
+                        "Working-quarter access should turn toward the east service lane.");
+                }
 
                 if (route.DoorLevelBelowShelfDm < 20)
                 {
@@ -50,21 +58,22 @@ namespace VoxelEngine.Tests.EditMode
             }
 
             Assert.AreEqual(4, westReturns);
-            Assert.AreEqual(3, eastReturns);
-            Assert.AreEqual(1, shallowDrops);
+            Assert.AreEqual(4, eastReturns);
+            Assert.AreEqual(2, shallowDrops);
             Assert.AreEqual(6, deepDrops);
+            Assert.AreEqual(1, workingRoutes);
         }
 
         [Test]
-        public void AccessCatalogueBuildsSevenHardNavigableInterfaces()
+        public void AccessCatalogueBuildsEightHardNavigableInterfaces()
         {
             FeatureCatalogue catalogue = KentridgeUrbanAccessCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             try
             {
-                Assert.AreEqual(7, catalogue.Definitions.Length);
-                Assert.AreEqual(7, catalogue.Rules.Length);
-                Assert.AreEqual(7, catalogue.ExplicitPlacements.Length);
+                Assert.AreEqual(8, catalogue.Definitions.Length);
+                Assert.AreEqual(8, catalogue.Rules.Length);
+                Assert.AreEqual(8, catalogue.ExplicitPlacements.Length);
                 Assert.AreEqual(0, catalogue.Anchors.Length);
 
                 for (int i = 0; i < catalogue.Definitions.Length; i++)

@@ -156,9 +156,9 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
         private static void Validate(List<KentridgeUrbanAccessRoute> routes)
         {
-            if (routes.Count != 7)
+            if (routes.Count != 8)
                 throw new InvalidOperationException(
-                    "Kentridge's first urban access plan must cover all seven blocks.");
+                    "Kentridge urban access must cover all eight authored blocks.");
 
             for (int i = 0; i < routes.Count; i++)
             {

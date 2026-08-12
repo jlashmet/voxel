@@ -224,7 +224,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
             // contract so later settlement variants can alter coverage/rhythm without changing APIs.
             _ = seed;
 
-            var blocks = new List<KentridgeUrbanBlock>(7)
+            var blocks = new List<KentridgeUrbanBlock>(8)
             {
                 // A lower neighbourhood gives the climb a real urban base instead of beginning with
                 // empty terrain. It stays two storeys and only lightly embeds into the lower shelf.
@@ -313,9 +313,24 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     KentridgeBlockEdge.South,
                     new Int2(1650, 250),
                     72, 2, 2, 58, 56, 26, 32),
+
+                // The working yard finally receives an urban edge opposite the gameplay Warehouse.
+                // One- and two-storey workshop/service fabric faces the east service lane, turns the
+                // south corner, and preserves a broad service court. Keeping this in LowerWard avoids
+                // competing with the market/civic skyline or creating another deep vertical facade.
+                new KentridgeUrbanBlock(
+                    "working-lane-block",
+                    KentridgeUrbanBand.LowerWard,
+                    DistrictKind.Working,
+                    new Int2(1300, 650),
+                    new Int2(1460, 820),
+                    KentridgeBlockEdge.South | KentridgeBlockEdge.East,
+                    KentridgeBlockEdge.South,
+                    new Int2(1440, 700),
+                    74, 1, 2, 58, 18, 20, 28),
             };
 
-            var runs = new List<KentridgeFrontageRun>(14);
+            var runs = new List<KentridgeFrontageRun>(16);
             for (int i = 0; i < blocks.Count; i++)
                 AddFrontageRuns(blocks[i], runs);
 

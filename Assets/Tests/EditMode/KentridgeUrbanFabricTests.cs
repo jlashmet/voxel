@@ -17,6 +17,7 @@ namespace VoxelEngine.Tests.EditMode
             KentridgeUrbanMassingPlan plan = KentridgeUrbanOrganizer.Build(Seed);
             var signatures = new HashSet<string>();
             int civicSamples = 0;
+            int workingSamples = 0;
 
             for (int runIndex = 0; runIndex < plan.FrontageRuns.Count; runIndex++)
             {
@@ -39,24 +40,34 @@ namespace VoxelEngine.Tests.EditMode
                         Assert.AreEqual(3, form.Storeys,
                             "Civic anonymous fabric should preserve the authored three-storey crown.");
                     }
+
+                    if (run.District == DistrictKind.Working)
+                    {
+                        workingSamples++;
+                        Assert.That(form.Storeys, Is.InRange(1, 2),
+                            "Working-yard fabric should stay lower than market/civic frontage.");
+                        Assert.IsFalse(form.HasAwning,
+                            "Working-yard frontage should not accidentally inherit market-shop awnings.");
+                    }
                 }
             }
 
             Assert.Greater(civicSamples, 0);
+            Assert.Greater(workingSamples, 0);
             Assert.GreaterOrEqual(signatures.Count, 18,
                 "Anonymous block frontage should no longer collapse into a tiny reusable proxy set.");
         }
 
         [Test]
-        public void UrbanFabricCatalogueReplacesThirtyThreeCoarseBoxesWithIndividualBuildings()
+        public void UrbanFabricCatalogueRealizesAllEightBlocksAsIndividualBuildings()
         {
             FeatureCatalogue catalogue = KentridgeUrbanFabricCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             try
             {
-                Assert.AreEqual(33, catalogue.Definitions.Length);
-                Assert.AreEqual(33, catalogue.Rules.Length);
-                Assert.AreEqual(33, catalogue.ExplicitPlacements.Length);
+                Assert.AreEqual(37, catalogue.Definitions.Length);
+                Assert.AreEqual(37, catalogue.Rules.Length);
+                Assert.AreEqual(37, catalogue.ExplicitPlacements.Length);
                 Assert.AreEqual(0, catalogue.Anchors.Length);
 
                 for (int i = 0; i < catalogue.Definitions.Length; i++)
