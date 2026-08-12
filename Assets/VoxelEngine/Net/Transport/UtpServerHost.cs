@@ -18,6 +18,7 @@ namespace VoxelEngine.Net.Transport
 
         private readonly Dictionary<uint, NetworkConnection> _connections;
         private readonly List<uint> _disconnectScratch;
+        private readonly ClientEphemeralPacketReceiver _ephemeralReceiver;
         private readonly int _maxConnections;
 
         private NetworkDriver _driver;
@@ -38,6 +39,7 @@ namespace VoxelEngine.Net.Transport
             _maxConnections = maxConnections;
             _connections = new Dictionary<uint, NetworkConnection>(maxConnections);
             _disconnectScratch = new List<uint>(maxConnections);
+            _ephemeralReceiver = new ClientEphemeralPacketReceiver();
             _nextConnectionId = 1;
 
             _driver = NetworkDriver.Create(ChannelSetup.DefaultSettings());
@@ -65,10 +67,6 @@ namespace VoxelEngine.Net.Transport
             return _driver.Listen();
         }
 
-        /// <summary>
-        /// Pump incoming UDP/connection state once. Durable commands are dispatched from EVENT;
-        /// loss-tolerant player input is dispatched independently from EPHEMERAL.
-        /// </summary>
         public void Pump(
             IClientEventCommandHandler eventHandler,
             IClientInputCommandHandler inputHandler = null)
@@ -88,7 +86,6 @@ namespace VoxelEngine.Net.Transport
                 RemoveConnection(_disconnectScratch[i]);
         }
 
-        /// <summary>Flush all queued sends once after an authoritative replication/command batch.</summary>
         public void FlushSends()
         {
             ThrowIfDisposed();
@@ -173,8 +170,6 @@ namespace VoxelEngine.Net.Transport
             IClientEventCommandHandler eventHandler,
             IClientInputCommandHandler inputHandler)
         {
-            // Client->server packets are currently at most EVENT-sized (34 B alteration, 18 B input),
-            // so one bounded stack buffer handles either accepted client channel.
             Span<byte> packetScratch = stackalloc byte[ChannelSetup.k_MaxEventPacketBytes];
 
             NetworkEvent.Type eventType;
@@ -200,14 +195,12 @@ namespace VoxelEngine.Net.Transport
                         else if (pipeline.Equals(_channels.Ephemeral) && inputHandler != null)
                         {
                             accepted = UtpPacketIO.TryRead(ref reader, packetScratch, out int bytesRead) &&
-                                       ClientEphemeralPacketReceiver.TryDispatch(
+                                       _ephemeralReceiver.TryDispatch(
                                            connectionId,
                                            packetScratch.Slice(0, bytesRead),
                                            inputHandler);
                         }
 
-                        // REPAIR/BULK are server->client state channels. Any client traffic on them,
-                        // malformed framing, or unhandled EPHEMERAL traffic fails closed.
                         if (!accepted)
                             ProtocolError?.Invoke(connectionId);
 
@@ -239,6 +232,7 @@ namespace VoxelEngine.Net.Transport
             if (!_connections.Remove(connectionId))
                 return;
 
+            _ephemeralReceiver.RemoveConnection(connectionId);
             ConnectionClosed?.Invoke(connectionId);
         }
 
