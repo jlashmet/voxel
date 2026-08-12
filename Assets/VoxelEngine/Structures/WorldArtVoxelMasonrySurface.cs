@@ -27,12 +27,13 @@ namespace VoxelEngine.Structures
             recessDepth = math.min(recessDepth, maxRecess);
             byte jointMaterial = spec.JointMaterial == 0 ? spec.StoneMaterial : spec.JointMaterial;
 
-            // A real dressed archivolt has a continuous structural key behind the cut-stone face,
-            // and its intrados reads as one controlled arch curve. These two shallow keys remove
-            // hidden projection cavities and 10 cm scalloping without replacing the individual
-            // trapezoidal voussoir masses that own the visible front/extrados.
+            // The reusable voussoir primitives own the real mass, depth and damage behavior. A dressed
+            // arch still needs a tightly keyed front bed: neighboring stones meet at the face and the
+            // mortar joint is carved afterward, instead of leaving projection-sized holes between wedges.
             SealArchivoltBackKey(ref brush, in spec, innerRadius, outerRadius,
                 frontZ, faceDepth, spec.StoneMaterial);
+            SealArchivoltFaceKey(ref brush, in spec, innerRadius, outerRadius,
+                frontZ, math.min(2, faceDepth), spec.StoneMaterial);
             SealArchivoltIntrados(ref brush, in spec, innerRadius,
                 frontZ, faceDepth, spec.StoneMaterial);
             SealArchivoltBeds(ref brush, in spec, stoneCount, innerRadius, outerRadius,
@@ -74,6 +75,24 @@ namespace VoxelEngine.Structures
                 float d2 = x * x + y * y;
                 if (d2 < inner2 || d2 > outer2) continue;
                 brush.Set(spec.BaseCentre.x + x, springY + y, z, stoneMaterial);
+            }
+        }
+
+        private static void SealArchivoltFaceKey(ref VoxelBrush brush, in WorldArtVoxelArchSpec spec,
+                                                  int innerRadius, int outerRadius,
+                                                  int frontZ, int keyDepth, byte stoneMaterial)
+        {
+            int springY = spec.BaseCentre.y + math.max(8, spec.PierHeight);
+            float inner2 = (innerRadius - 0.06f) * (innerRadius - 0.06f);
+            float outer2 = (outerRadius + 0.10f) * (outerRadius + 0.10f);
+            int limit = outerRadius + 1;
+            for (int y = 0; y <= limit; y++)
+            for (int x = -limit; x <= limit; x++)
+            {
+                float d2 = x * x + y * y;
+                if (d2 < inner2 || d2 > outer2) continue;
+                for (int d = 0; d < keyDepth; d++)
+                    brush.Set(spec.BaseCentre.x + x, springY + y, frontZ + d, stoneMaterial);
             }
         }
 
