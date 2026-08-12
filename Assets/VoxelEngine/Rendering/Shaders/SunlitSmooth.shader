@@ -19,6 +19,7 @@ Shader "VoxelEngine/SunlitSmooth"
         _StoneJointRelief ("Stone Joint Relief", Range(0,1)) = 0
         _StoneBlockVariation ("Stone Block Variation", Range(0,1)) = 0
         _StoneWeathering ("Stone Edge Weathering", Range(0,1)) = 0
+        _StoneFacePlanarization ("Stone Face Normal Planarization", Range(0,1)) = 0
         _ArchSeams ("Arch Masonry Seams", Range(0,1)) = 0
         _ArchJointColor ("Arch Joint Color", Color) = (0.28,0.25,0.20,1)
         _ArchCenterSpring ("Arch Center/Spring/Front", Vector) = (0,0,0,0)
@@ -86,6 +87,7 @@ Shader "VoxelEngine/SunlitSmooth"
                 float _StoneJointRelief;
                 float _StoneBlockVariation;
                 float _StoneWeathering;
+                float _StoneFacePlanarization;
                 float _ArchSeams;
             CBUFFER_END
 
@@ -147,6 +149,28 @@ Shader "VoxelEngine/SunlitSmooth"
                 float broad = ValueNoise(worldPos * 1.35 + float3(7.1, 19.3, 3.7));
                 float fine = ValueNoise(worldPos * 4.60 + float3(13.4, 2.7, 23.1));
                 return ((broad - 0.5) * 0.68 + (fine - 0.5) * 0.32) * 2.0;
+            }
+
+            half3 PlanarizeStoneNormal(half3 normalWS)
+            {
+                if (_StoneFacePlanarization <= 0.001) return normalWS;
+                half3 a = abs(normalWS);
+                half dominance = max(a.x, max(a.y, a.z));
+                const half threshold = 0.89h;
+                half axisWeight = saturate((dominance - threshold) / (1.0h - threshold));
+                axisWeight *= axisWeight;
+                half strength = axisWeight * (half)_StoneFacePlanarization;
+                if (strength <= 0.001h) return normalWS;
+
+                half3 axisNormal;
+                if (a.x >= a.y && a.x >= a.z)
+                    axisNormal = half3(normalWS.x < 0.0h ? -1.0h : 1.0h, 0.0h, 0.0h);
+                else if (a.y >= a.z)
+                    axisNormal = half3(0.0h, normalWS.y < 0.0h ? -1.0h : 1.0h, 0.0h);
+                else
+                    axisNormal = half3(0.0h, 0.0h, normalWS.z < 0.0h ? -1.0h : 1.0h);
+
+                return normalize(lerp(normalWS, axisNormal, strength));
             }
 
             half3 TriplanarTexture(float3 worldPos, half3 normalWS)
@@ -321,7 +345,7 @@ Shader "VoxelEngine/SunlitSmooth"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                half3 geometricNormal = normalize(input.normalWS);
+                half3 geometricNormal = PlanarizeStoneNormal(normalize(input.normalWS));
                 half3 viewDir = SafeNormalize(_WorldSpaceCameraPos.xyz - input.positionWS);
                 half3 tri = TriplanarTexture(input.positionWS, geometricNormal);
                 half lum = dot(tri, half3(0.299h, 0.587h, 0.114h));
