@@ -18,6 +18,7 @@ namespace VoxelEngine.Tests.EditMode
             FeatureCatalogue courts = KentridgeUrbanCourtCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue verticalFrontage = KentridgeVerticalFrontageCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue galleries = KentridgeVerticalGalleryCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue anchorUndercroft = KentridgeAnchorUndercroftCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue access = KentridgeUrbanAccessCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue architecture = KentridgeHillsideArchitectureCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
@@ -33,6 +34,9 @@ namespace VoxelEngine.Tests.EditMode
                 AssertAllKind(courts, FeatureKind.Infrastructure);
                 Assert.AreEqual(37, massing.ExplicitPlacements.Length);
                 Assert.AreEqual(6, verticalFrontage.ExplicitPlacements.Length);
+                Assert.AreEqual(6, galleries.ExplicitPlacements.Length,
+                    "Every dense downhill undercroft should own one reachable second-level gallery.");
+                AssertAllKind(galleries, FeatureKind.Infrastructure);
                 Assert.AreEqual(4, anchorUndercroft.ExplicitPlacements.Length);
                 Assert.AreEqual(8, access.ExplicitPlacements.Length);
                 Assert.AreEqual(13, architecture.ExplicitPlacements.Length);
@@ -49,8 +53,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(92, infrastructureInstances,
-                    "Eight protected courtyard floors add hard urban rooms without changing gameplay structures.");
+                Assert.AreEqual(98, infrastructureInstances,
+                    "Six reachable downhill galleries add a second pedestrian level without changing gameplay structures.");
             }
             finally
             {
@@ -58,6 +62,7 @@ namespace VoxelEngine.Tests.EditMode
                 architecture.Dispose();
                 access.Dispose();
                 anchorUndercroft.Dispose();
+                galleries.Dispose();
                 verticalFrontage.Dispose();
                 massing.Dispose();
                 courts.Dispose();
