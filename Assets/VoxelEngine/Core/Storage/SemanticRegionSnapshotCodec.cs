@@ -5,8 +5,7 @@ using Unity.Mathematics;
 namespace VoxelEngine.Core.Storage
 {
     /// <summary>
-    /// Compact semantic snapshot of one resident region for convergence repair.
-    ///
+    /// Compact semantic snapshot of one resident region for convergence repair/current-state sync.
     /// Records cover BrickRefs sequentially from index 0:
     ///   uniform run: tag=0, runLength ushort, material byte, flags byte (5 B)
     ///   mixed brick: tag=1, flags byte, 512 material bytes (514 B)
@@ -78,6 +77,52 @@ namespace VoxelEngine.Core.Storage
             }
 
             snapshot = bytes.ToArray();
+            return true;
+        }
+
+        /// <summary>
+        /// Compute the exact semantic region hash represented by an encoded snapshot without
+        /// mutating storage. This is the trust preflight used before REPAIR/BULK replacement.
+        /// </summary>
+        public static bool TryComputeSemanticHash(
+            int3 regionCoord,
+            ReadOnlySpan<byte> snapshot,
+            out uint semanticHash)
+        {
+            semanticHash = 0;
+            if (!TryValidate(snapshot, VoxelDimensions.BricksPerRegion, out _))
+                return false;
+
+            uint hash = SemanticRegionHasher.BeginRegionHash(regionCoord);
+            int offset = 0;
+            while (offset < snapshot.Length)
+            {
+                byte tag = snapshot[offset++];
+                if (tag == TagUniformRun)
+                {
+                    int run = snapshot[offset] | (snapshot[offset + 1] << 8);
+                    offset += 2;
+                    byte material = snapshot[offset++];
+                    byte hard = (snapshot[offset++] & FlagHardSurface) != 0 ? (byte)1 : (byte)0;
+
+                    for (int i = 0; i < run; i++)
+                    {
+                        hash = SemanticRegionHasher.MixByte(hash, hard);
+                        hash = SemanticRegionHasher.MixByte(hash, 1);
+                        hash = SemanticRegionHasher.MixByte(hash, material);
+                    }
+                    continue;
+                }
+
+                byte mixedHard = (snapshot[offset++] & FlagHardSurface) != 0 ? (byte)1 : (byte)0;
+                hash = SemanticRegionHasher.MixByte(hash, mixedHard);
+                hash = SemanticRegionHasher.MixByte(hash, 2);
+                for (int voxel = 0; voxel < VoxelDimensions.VoxelsPerBrick; voxel++)
+                    hash = SemanticRegionHasher.MixByte(hash, snapshot[offset + voxel]);
+                offset += VoxelDimensions.VoxelsPerBrick;
+            }
+
+            semanticHash = hash;
             return true;
         }
 
