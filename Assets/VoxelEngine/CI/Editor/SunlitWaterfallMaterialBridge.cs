@@ -88,6 +88,7 @@ namespace VoxelEngine.CI
             SunlitWaterfallTurfCullFixPass.Apply(camera);
             SunlitWaterfallCompositionPass.Apply(camera);
             SunlitWaterfallWorldArtKitPass.Apply(camera);
+            SunlitWaterfallStoneQualityPass.Apply(camera);
             SunlitWaterfallSurfacePass.Apply(camera);
             SunlitWaterfallAtmosphereFinalPass.Apply(camera);
         }
