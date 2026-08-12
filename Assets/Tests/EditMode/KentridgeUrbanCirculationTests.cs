@@ -4,6 +4,7 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Core.Features;
+using VoxelEngine.Core.Features.Emitters;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -12,39 +13,57 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void UpperContourConnectsUpperLandingToEastRidgeWithoutChangingPrimaryStreets()
+        public void SecondaryNetworkAddsUpperCrossStreetAndIndependentLowerMarketAscent()
         {
             KentridgeUrbanCirculationPlan plan = KentridgeUrbanCirculation.Build(Seed);
-            Assert.AreEqual(1, plan.Connectors.Count);
+            Assert.AreEqual(2, plan.Connectors.Count);
 
-            KentridgeUrbanConnector connector = plan.Connectors[0];
-            Assert.AreEqual("upper-east-contour", connector.Id);
-            Assert.AreEqual(KentridgeUrbanBand.UpperWard, connector.Band);
-            Assert.IsTrue(connector.IsHorizontal);
-            Assert.AreEqual(KentridgeUrbanCirculation.UpperContourZDm, connector.StartDm.Y);
-            Assert.AreEqual(KentridgeUrbanCirculation.UpperContourZDm, connector.EndDm.Y);
-            Assert.AreEqual(40, connector.WidthDm,
+            KentridgeUrbanConnector upper = plan.Connectors[0];
+            Assert.AreEqual("upper-east-contour", upper.Id);
+            Assert.AreEqual(KentridgeUrbanConnectorKind.ContourLane, upper.Kind);
+            Assert.AreEqual(KentridgeUrbanBand.UpperWard, upper.Band);
+            Assert.IsTrue(upper.IsHorizontal);
+            Assert.AreEqual(KentridgeUrbanCirculation.UpperContourZDm, upper.StartDm.Y);
+            Assert.AreEqual(KentridgeUrbanCirculation.UpperContourZDm, upper.EndDm.Y);
+            Assert.AreEqual(40, upper.WidthDm,
                 "The east connection should read as a secondary street, not a narrow alley.");
 
             int mainEastEdge =
                 KentridgeTownPlanner.MainSpineXDm + KentridgeTownPlanner.MainRoadWidthDm / 2;
             int eastLaneWestEdge =
                 KentridgeTownPlanner.EastLaneXDm - KentridgeTownPlanner.ServiceRoadWidthDm / 2;
-
-            Assert.AreEqual(mainEastEdge, connector.StartDm.X);
-            Assert.AreEqual(eastLaneWestEdge, connector.EndDm.X);
-            Assert.Greater(connector.LengthDm, 250,
-                "The upper contour should create a meaningful district-to-district connection.");
+            Assert.AreEqual(mainEastEdge, upper.StartDm.X);
+            Assert.AreEqual(eastLaneWestEdge, upper.EndDm.X);
+            Assert.Greater(upper.LengthDm, 250);
 
             KentridgeUrbanSkeletonPlan skeleton = KentridgeUrbanSkeleton.Build(Seed);
             Assert.AreEqual(
                 skeleton.Get(KentridgeUrbanNodeId.UpperLanding).CentreDm.Y,
-                connector.StartDm.Y,
+                upper.StartDm.Y,
                 "The east branch should leave from the semantic Upper Landing itself.");
             Assert.AreEqual(
                 skeleton.Get(KentridgeUrbanNodeId.EastRidgeLanding).CentreDm.Y,
-                connector.EndDm.Y,
+                upper.EndDm.Y,
                 "The east-ridge public node should sit on the same cross-town axis.");
+
+            KentridgeUrbanConnector lower = plan.Connectors[1];
+            Assert.AreEqual("lower-west-stair-street", lower.Id);
+            Assert.AreEqual(KentridgeUrbanConnectorKind.StairStreet, lower.Kind);
+            Assert.IsTrue(lower.IsVertical);
+            Assert.AreEqual(KentridgeUrbanCirculation.LowerWestStairXDm, lower.StartDm.X);
+            Assert.AreEqual(KentridgeUrbanCirculation.LowerWestStairXDm, lower.EndDm.X);
+            Assert.AreEqual(KentridgeTownPlanner.ResidentialStreetZDm, lower.StartDm.Y,
+                "The alternate ascent should begin directly on the residential level.");
+            Assert.AreEqual(KentridgeUrbanCirculation.LowerWestStairNorthZDm, lower.EndDm.Y);
+            Assert.AreEqual(22, lower.WidthDm,
+                "The second ascent should remain pedestrian-scale beside the main road.");
+            Assert.Greater(lower.LengthDm, 300,
+                "The route should provide a genuine independent lower-to-market ascent.");
+
+            int roadWestEdge =
+                KentridgeTownPlanner.MainSpineXDm - KentridgeTownPlanner.MainRoadWidthDm / 2;
+            Assert.Less(lower.StartDm.X + lower.WidthDm / 2, roadWestEdge,
+                "The west stair street must remain spatially separate from the central vehicular spine.");
 
             SettlementPlan stablePlan = KentridgeDefinition.Build(Seed);
             Assert.AreEqual(4, stablePlan.Streets.Count,
@@ -52,19 +71,50 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void UpperContourHasOneSmoothLandformRealization()
+        public void CirculationCatalogueRealizesBothConnectorAxesAndNorthboundStairRise()
         {
             FeatureCatalogue catalogue = KentridgeUrbanCirculationCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             try
             {
-                Assert.AreEqual(1, catalogue.Definitions.Length);
-                Assert.AreEqual(1, catalogue.ExplicitPlacements.Length);
-                Assert.AreEqual(FeatureKind.Landform, catalogue.Definitions[0].Kind);
-                Assert.AreEqual(23, catalogue.Definitions[0].Precedence);
+                Assert.AreEqual(2, catalogue.Definitions.Length);
+                Assert.AreEqual(2, catalogue.ExplicitPlacements.Length);
+
+                for (int i = 0; i < catalogue.Definitions.Length; i++)
+                {
+                    Assert.AreEqual(FeatureKind.Landform, catalogue.Definitions[i].Kind);
+                    Assert.AreEqual(23, catalogue.Definitions[i].Precedence);
+                }
+
                 Assert.Greater(catalogue.Definitions[0].Footprint.x, 250);
                 Assert.Greater(catalogue.Definitions[0].Footprint.z, 35,
-                    "The realised upper connector should carry the widened secondary-street section.");
+                    "The upper connector should carry the widened secondary-street section.");
+                Assert.Greater(catalogue.Definitions[1].Footprint.z, 300,
+                    "The lower stair-street realization should span residential-to-market levels.");
+                Assert.That(catalogue.Definitions[1].Footprint.x, Is.InRange(20, 24));
+
+                bool sawReversedZRamp = false;
+                FeatureDefinition lower = catalogue.Definitions[1];
+                int pc = lower.ProgramOffset;
+                int end = pc + lower.ProgramLength;
+                while (pc < end)
+                {
+                    ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                    int instruction = ShapeOps.InstructionLength(op);
+                    Assert.Greater(instruction, 0);
+                    if (op == ShapeOp.End) break;
+                    if (op == ShapeOp.EmitRamp)
+                    {
+                        int axis = catalogue.Program[pc + 2 + 6];
+                        if ((axis & 0x7F) == 2
+                            && (axis & BoxEmitter.ReverseRampBit) != 0)
+                            sawReversedZRamp = true;
+                    }
+                    pc += instruction;
+                }
+
+                Assert.IsTrue(sawReversedZRamp,
+                    "The west stair street should climb toward lower Z / Market Square.");
             }
             finally
             {

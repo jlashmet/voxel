@@ -10,8 +10,10 @@ using VoxelEngine.Core.Terrain;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Coarse voxel adapter for the secondary urban-circulation plan. Like the massing adapter,
-    /// this is intentionally a visual/terrain realiser rather than the final architectural grammar.
+    /// Coarse voxel adapter for secondary urban circulation. It deliberately understands orthogonal
+    /// city connectors rather than one named route: horizontal contours and vertical stair streets
+    /// resolve through the same terrain/profile contract, while a later circulation grammar may turn
+    /// the coarse ramp into steps, landings, arcades, or bridge pieces.
     /// </summary>
     public static class KentridgeUrbanCirculationCatalogue
     {
@@ -25,8 +27,8 @@ namespace MountingForce.WorldGen.Voxel
             public readonly KentridgeUrbanConnector Connector;
             public readonly int3 Footprint;
             public readonly ExplicitPlacement Placement;
-            public readonly int Length;
-            public readonly int Width;
+            public readonly int ExtentX;
+            public readonly int ExtentZ;
             public readonly int HeightDelta;
             public readonly int SupportDepth;
             public readonly int ClearHeight;
@@ -36,8 +38,8 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeUrbanConnector connector,
                 int3 footprint,
                 ExplicitPlacement placement,
-                int length,
-                int width,
+                int extentX,
+                int extentZ,
                 int heightDelta,
                 int supportDepth,
                 int clearHeight,
@@ -46,8 +48,8 @@ namespace MountingForce.WorldGen.Voxel
                 Connector = connector;
                 Footprint = footprint;
                 Placement = placement;
-                Length = length;
-                Width = width;
+                ExtentX = extentX;
+                ExtentZ = extentZ;
                 HeightDelta = heightDelta;
                 SupportDepth = supportDepth;
                 ClearHeight = clearHeight;
@@ -153,61 +155,90 @@ namespace MountingForce.WorldGen.Voxel
             uint seed,
             int scale)
         {
-            if (!connector.IsHorizontal)
+            if (connector.LengthDm <= 0 || connector.WidthDm <= 0
+                || (!connector.IsHorizontal && !connector.IsVertical))
                 throw new InvalidOperationException(
-                    "The first Kentridge urban connector adapter expects a horizontal contour.");
+                    "Kentridge urban connector must be a non-zero orthogonal segment: " + connector.Id);
 
-            int startX = Math.Min(connector.StartDm.X, connector.EndDm.X);
-            int endX = Math.Max(connector.StartDm.X, connector.EndDm.X);
-            int zDm = connector.StartDm.Y;
-            int width = connector.WidthDm * scale;
-            int length = (endX - startX) * scale + 1;
+            bool horizontal = connector.IsHorizontal;
+            Int2 minPoint;
+            Int2 maxPoint;
+            int extentX;
+            int extentZ;
+            int originXDm;
+            int originZDm;
+            byte axis;
 
-            int targetStart = KentridgeVerticalProfile.SurfaceYAtDm(
-                connector.StartDm.X, connector.StartDm.Y, seed, scale);
-            int targetEnd = KentridgeVerticalProfile.SurfaceYAtDm(
-                connector.EndDm.X, connector.EndDm.Y, seed, scale);
-            int lowTarget = Math.Min(targetStart, targetEnd);
-            int highTarget = Math.Max(targetStart, targetEnd);
-            int delta = highTarget - lowTarget;
+            if (horizontal)
+            {
+                minPoint = connector.StartDm.X <= connector.EndDm.X
+                    ? connector.StartDm : connector.EndDm;
+                maxPoint = connector.StartDm.X <= connector.EndDm.X
+                    ? connector.EndDm : connector.StartDm;
+                extentX = connector.LengthDm * scale + 1;
+                extentZ = connector.WidthDm * scale;
+                originXDm = minPoint.X;
+                originZDm = minPoint.Y - connector.WidthDm / 2;
+                axis = 0;
+            }
+            else
+            {
+                minPoint = connector.StartDm.Y <= connector.EndDm.Y
+                    ? connector.StartDm : connector.EndDm;
+                maxPoint = connector.StartDm.Y <= connector.EndDm.Y
+                    ? connector.EndDm : connector.StartDm;
+                extentX = connector.WidthDm * scale;
+                extentZ = connector.LengthDm * scale + 1;
+                originXDm = minPoint.X - connector.WidthDm / 2;
+                originZDm = minPoint.Y;
+                axis = 2;
+            }
 
-            int midXDm = (connector.StartDm.X + connector.EndDm.X) / 2;
-            int naturalStart = TerrainSampler.HeightAt(
-                connector.StartDm.X * scale, zDm * scale, seed);
+            int targetMin = KentridgeVerticalProfile.SurfaceYAtDm(
+                minPoint.X, minPoint.Y, seed, scale);
+            int targetMax = KentridgeVerticalProfile.SurfaceYAtDm(
+                maxPoint.X, maxPoint.Y, seed, scale);
+            int lowTarget = Math.Min(targetMin, targetMax);
+            int delta = Math.Abs(targetMax - targetMin);
+            if (targetMin > targetMax)
+                axis = (byte)(axis | BoxEmitter.ReverseRampBit);
+
+            Int2 middle = new Int2(
+                (minPoint.X + maxPoint.X) / 2,
+                (minPoint.Y + maxPoint.Y) / 2);
+            int naturalMinEnd = TerrainSampler.HeightAt(
+                minPoint.X * scale, minPoint.Y * scale, seed);
             int naturalMid = TerrainSampler.HeightAt(
-                midXDm * scale, zDm * scale, seed);
-            int naturalEnd = TerrainSampler.HeightAt(
-                connector.EndDm.X * scale, zDm * scale, seed);
-            int minNatural = Math.Min(naturalStart, Math.Min(naturalMid, naturalEnd));
-            int maxNatural = Math.Max(naturalStart, Math.Max(naturalMid, naturalEnd));
+                middle.X * scale, middle.Y * scale, seed);
+            int naturalMaxEnd = TerrainSampler.HeightAt(
+                maxPoint.X * scale, maxPoint.Y * scale, seed);
+            int minNatural = Math.Min(naturalMinEnd, Math.Min(naturalMid, naturalMaxEnd));
+            int maxNatural = Math.Max(naturalMinEnd, Math.Max(naturalMid, naturalMaxEnd));
 
             int fillHeight = (FillDepthDm + SurfaceThicknessDm) * scale;
             int buried = BuriedFootingDm * scale;
             int supportDepth = Math.Max(0, lowTarget - minNatural) + buried;
             int clearHeight =
                 ClearAboveDm * scale + delta + Math.Max(0, maxNatural - lowTarget);
-            byte axis = 0;
-            if (targetStart > targetEnd)
-                axis = (byte)(axis | BoxEmitter.ReverseRampBit);
 
             return new ConnectorBuild(
                 connector,
                 new int3(
-                    length,
+                    extentX,
                     supportDepth + fillHeight + clearHeight,
-                    width),
+                    extentZ),
                 new ExplicitPlacement
                 {
                     Position = new int3(
-                        startX * scale,
+                        originXDm * scale,
                         lowTarget - fillHeight - supportDepth,
-                        zDm * scale - width / 2),
+                        originZDm * scale),
                     Orientation = 0,
                     OverrideOffset = 0,
                     OverrideCount = 0,
                 },
-                length,
-                width,
+                extentX,
+                extentZ,
                 delta,
                 supportDepth,
                 clearHeight,
@@ -228,19 +259,19 @@ namespace MountingForce.WorldGen.Voxel
                 0,
                 build.SupportDepth + fillHeight,
                 0,
-                build.Length,
+                build.ExtentX,
                 build.ClearHeight,
-                build.Width);
+                build.ExtentZ);
 
             if (build.SupportDepth > 0)
                 b.Box(
                     0, 0, 0,
-                    build.Length, build.SupportDepth, build.Width,
+                    build.ExtentX, build.SupportDepth, build.ExtentZ,
                     support);
 
             b.Box(
                 0, build.SupportDepth, 0,
-                build.Length, fillHeight, build.Width,
+                build.ExtentX, fillHeight, build.ExtentZ,
                 surface);
 
             if (build.HeightDelta > 0)
@@ -248,9 +279,9 @@ namespace MountingForce.WorldGen.Voxel
                     0,
                     build.SupportDepth + fillHeight,
                     0,
-                    build.Length,
+                    build.ExtentX,
                     build.HeightDelta,
-                    build.Width,
+                    build.ExtentZ,
                     build.RampAxis,
                     surface);
 
