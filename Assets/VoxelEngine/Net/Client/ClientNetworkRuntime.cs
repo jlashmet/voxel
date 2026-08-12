@@ -24,6 +24,8 @@ namespace VoxelEngine.Net.Client
         private S_RegionResyncRequired _lastResyncRequirement;
         private bool _automaticFullStateRequestPending;
         private int3 _automaticFullStateRequestRegion;
+        private bool _resyncNotificationPending;
+        private S_RegionResyncRequired _pendingResyncNotification;
 
         public event Action Connected;
         public event Action Disconnected;
@@ -72,9 +74,8 @@ namespace VoxelEngine.Net.Client
             ThrowIfDisposed();
             _host.Pump(this);
 
-            // Automatic escalation is scheduled by the EVENT callback but sent only after the UTP
-            // receive pump returns. This avoids re-entering NetworkDriver flush/send scheduling from
-            // inside packet dispatch.
+            // Receive callbacks only mutate local protocol state. Sends and user notifications are
+            // deliberately deferred until NetworkDriver packet dispatch has returned.
             if (_automaticFullStateRequestPending)
             {
                 int3 region = _automaticFullStateRequestRegion;
@@ -82,6 +83,14 @@ namespace VoxelEngine.Net.Client
                 _automaticFullStateRequestRegion = default;
                 if (!TryRequestFullRegionState(region))
                     PacketRejected?.Invoke();
+            }
+
+            if (_resyncNotificationPending)
+            {
+                S_RegionResyncRequired notification = _pendingResyncNotification;
+                _resyncNotificationPending = false;
+                _pendingResyncNotification = default;
+                FullRegionResyncRequired?.Invoke(notification);
             }
         }
 
@@ -95,7 +104,12 @@ namespace VoxelEngine.Net.Client
             if (_fullState.TryDequeue(out var full))
             {
                 if (!_events.FullSnapshotWaitPending ||
-                    !_events.FullSnapshotWaitRegion.Equals(full.RegionCoord))
+                    !_events.FullSnapshotWaitRegion.Equals(full.RegionCoord) ||
+                    !SemanticRegionSnapshotCodec.TryComputeSemanticHash(
+                        full.RegionCoord,
+                        full.Snapshot,
+                        out uint encodedHash) ||
+                    encodedHash != full.SemanticHash)
                 {
                     PacketRejected?.Invoke();
                     appliedEvents = 0;
@@ -171,10 +185,6 @@ namespace VoxelEngine.Net.Client
             return _host.TrySendAlterationRequest(in request);
         }
 
-        /// <summary>
-        /// Request a current semantic region snapshot. EVENT application is globally paused before
-        /// the request is flushed, and resumes only after verified BULK state plus its matching fence.
-        /// </summary>
         public bool TryRequestFullRegionState(int3 regionCoord)
         {
             ThrowIfDisposed();
@@ -201,13 +211,7 @@ namespace VoxelEngine.Net.Client
         public void ResetAfterAuthoritativeSnapshot()
         {
             ThrowIfDisposed();
-            _repair.Reset();
-            _fullState.Reset();
-            _events.ResetAfterAuthoritativeSnapshot();
-            _fullRegionResyncRequired = false;
-            _lastResyncRequirement = default;
-            _automaticFullStateRequestPending = false;
-            _automaticFullStateRequestRegion = default;
+            ResetProtocolState();
         }
 
         public void Disconnect() { ThrowIfDisposed(); _host.Disconnect(); }
@@ -235,21 +239,21 @@ namespace VoxelEngine.Net.Client
             if (kind != ProtocolMessageKind.S_RegionResyncRequired)
                 return _events.TryEnqueueEventPacket(packet, _notifications);
 
-            if (!RegionResyncRequiredPacket.TryDecode(packet, out S_RegionResyncRequired requirement))
+            if (!RegionResyncRequiredPacket.TryDecode(packet, out S_RegionResyncRequired requirement) ||
+                !_events.BeginFullRegionSnapshotWait(requirement.regionCoord))
                 return false;
 
             _fullRegionResyncRequired = true;
             _lastResyncRequirement = requirement;
-            FullRegionResyncRequired?.Invoke(requirement);
+            _resyncNotificationPending = true;
+            _pendingResyncNotification = requirement;
 
-            if (!_events.BeginFullRegionSnapshotWait(requirement.regionCoord))
-                return false;
+            if (requirement.reason != S_RegionResyncRequired.Reason.ServerStateUnavailable)
+            {
+                _automaticFullStateRequestPending = true;
+                _automaticFullStateRequestRegion = requirement.regionCoord;
+            }
 
-            if (requirement.reason == S_RegionResyncRequired.Reason.ServerStateUnavailable)
-                return true;
-
-            _automaticFullStateRequestPending = true;
-            _automaticFullStateRequestRegion = requirement.regionCoord;
             return true;
         }
 
@@ -271,6 +275,12 @@ namespace VoxelEngine.Net.Client
 
         private void OnDisconnected()
         {
+            ResetProtocolState();
+            Disconnected?.Invoke();
+        }
+
+        private void ResetProtocolState()
+        {
             _repair.Reset();
             _fullState.Reset();
             _events.ResetAfterAuthoritativeSnapshot();
@@ -278,7 +288,8 @@ namespace VoxelEngine.Net.Client
             _lastResyncRequirement = default;
             _automaticFullStateRequestPending = false;
             _automaticFullStateRequestRegion = default;
-            Disconnected?.Invoke();
+            _resyncNotificationPending = false;
+            _pendingResyncNotification = default;
         }
 
         private void OnPacketRejected() => PacketRejected?.Invoke();
@@ -297,10 +308,7 @@ namespace VoxelEngine.Net.Client
             _host.PacketRejected -= OnPacketRejected;
             _host.SendError -= OnSendError;
             _host.Dispose();
-            _repair.Reset();
-            _fullState.Reset();
-            _events.ResetAfterAuthoritativeSnapshot();
-            _automaticFullStateRequestPending = false;
+            ResetProtocolState();
             _disposed = true;
         }
     }
