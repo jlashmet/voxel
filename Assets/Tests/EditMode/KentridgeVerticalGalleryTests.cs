@@ -37,15 +37,14 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.AreEqual(3, west);
             Assert.AreEqual(3, east);
-            Assert.AreEqual(7, minRise,
-                "Civic galleries should need only a short corner stair from the existing contour walk.");
-            Assert.AreEqual(13, maxRise,
-                "The market arcade should remain within one compact stair flight of its existing contour walk.");
+            Assert.AreEqual(7, minRise);
+            Assert.AreEqual(13, maxRise);
         }
 
         [Test]
-        public void GalleryCatalogueCreatesSixHardSecondLevelWalksBelowBlockAccess()
+        public void GalleryCatalogueCreatesSixHardSecondLevelWalksInsideAuthoredFrontageBounds()
         {
+            KentridgeVerticalGalleryPlan plan = KentridgeVerticalGalleryPlanner.Build(Seed);
             FeatureCatalogue catalogue = KentridgeVerticalGalleryCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             try
@@ -54,25 +53,32 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(6, catalogue.ExplicitPlacements.Length);
                 for (int i = 0; i < catalogue.Definitions.Length; i++)
                 {
+                    KentridgeVerticalGalleryRoute route = plan.Routes[i];
                     FeatureDefinition definition = catalogue.Definitions[i];
+                    ExplicitPlacement placement = catalogue.ExplicitPlacements[i];
+
                     Assert.AreEqual(FeatureKind.Infrastructure, definition.Kind);
                     Assert.AreEqual(KentridgeVerticalGalleryCatalogue.GalleryPrecedence,
                         definition.Precedence);
+                    Assert.AreEqual(route.LengthDm, definition.Footprint.x,
+                        "Gallery and corner stair must stay inside the authored block frontage width.");
                     Assert.AreEqual(
                         KentridgeVerticalGalleryPlanner.GalleryDepthDm,
                         definition.Footprint.z,
                         "Test settings use one voxel per decimetre.");
+                    Assert.AreEqual(route.MinXDm, placement.Position.x,
+                        "Gallery must begin exactly at its authored frontage edge.");
+                    Assert.AreEqual(route.MaxXDm,
+                        placement.Position.x + definition.Footprint.x,
+                        "Gallery must not protrude beyond the opposite frontage edge.");
                     Assert.Greater(definition.ProgramLength, 40,
-                        "Each gallery must include deck, parapet spans and a real corner stair.");
+                        "Each gallery must include deck, parapet spans and a real inward corner stair.");
                     Assert.AreEqual(1, catalogue.Rules[i].ExplicitCount);
                 }
 
-                Assert.Greater(KentridgeVerticalGalleryCatalogue.GalleryPrecedence, 86,
-                    "Gallery walks should remain visible outside anonymous fabric.");
-                Assert.Less(KentridgeVerticalGalleryCatalogue.GalleryPrecedence, 89,
-                    "Major secondary stair streets must still win where circulation overlaps.");
-                Assert.Less(KentridgeVerticalGalleryCatalogue.GalleryPrecedence, 94,
-                    "Block access remains the final local circulation authority.");
+                Assert.Greater(KentridgeVerticalGalleryCatalogue.GalleryPrecedence, 86);
+                Assert.Less(KentridgeVerticalGalleryCatalogue.GalleryPrecedence, 89);
+                Assert.Less(KentridgeVerticalGalleryCatalogue.GalleryPrecedence, 94);
             }
             finally
             {
