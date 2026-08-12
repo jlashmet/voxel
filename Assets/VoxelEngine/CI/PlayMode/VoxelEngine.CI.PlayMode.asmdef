@@ -1,11 +1,10 @@
 {
-  "name": "MountingForce.WorldGen.Voxel",
-  "rootNamespace": "MountingForce.WorldGen.Voxel",
+  "name": "VoxelEngine.CI.PlayMode",
+  "rootNamespace": "VoxelEngine.CI",
   "references": [
-    "MountingForce.WorldGen.Core",
     "VoxelEngine.Core",
-    "VoxelEngine.Structures",
-    "Unity.Collections",
+    "VoxelEngine.Rendering",
+    "VoxelEngine.Showcase",
     "Unity.Mathematics"
   ],
   "includePlatforms": [],
@@ -16,5 +15,8 @@
   "autoReferenced": false,
   "defineConstraints": [],
   "versionDefines": [],
-  "noEngineReferences": false
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
 }

@@ -5,7 +5,6 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.Vegetation;
 
 namespace VoxelEngine.Showcase
 {
@@ -132,33 +131,25 @@ namespace VoxelEngine.Showcase
             while (world.TryDequeueDetachedChunk(out var chunk))
             {
                 if (submitted >= MaxSubmissionsPerFrame) continue;
-
-                // Semantic trees own their destruction presentation. The legacy voxel tree exists
-                // only as a temporary DDA collision proxy; showing its detached samples as cubes is
-                // exactly the old destruction artifact this migration is replacing. Filter those
-                // samples by the registry's authored proxy ownership while preserving ordinary
-                // castle/terrain debris from the same destruction event.
-                int nonProxyCount = 0;
+                int sourceCount = chunk.Voxels.Length;
+                if (sourceCount == 0) continue;
                 Vector3 pivot = Vector3.zero;
-                for (int i = 0; i < chunk.Voxels.Length; i++)
+                for (int i = 0; i < sourceCount; i++)
                 {
-                    if (IsLegacyTreeProxySample(chunk.Voxels[i])) continue;
                     pivot += ((Vector3)(float3)chunk.Voxels[i] + Vector3.one * 0.5f)
                            * VoxelSurfaceRenderer.VoxelSize;
-                    nonProxyCount++;
                 }
-                if (nonProxyCount == 0) continue;
-                pivot /= nonProxyCount;
+                pivot /= sourceCount;
 
                 int slot = FindFreeSlot();
                 if (slot < 0) continue;
 
                 float collisionRadius = 0.087f;
                 int instanceStart = slot * RenderInstancesPerChunk;
-                int visibleCount = math.min(RenderInstancesPerChunk, nonProxyCount);
-                float sourceFraction = nonProxyCount / (float)math.max(1, chunk.Voxels.Length);
+                int visibleCount = math.min(RenderInstancesPerChunk, sourceCount);
+                float sourceFraction = sourceCount / (float)math.max(1, chunk.Voxels.Length);
                 int representedSourceVoxels = math.max(
-                    nonProxyCount,
+                    sourceCount,
                     (int)math.ceil(chunk.SourceVoxelCount * sourceFraction));
                 float visualScale = math.pow(math.max(1, representedSourceVoxels)
                                              / (float)visibleCount, 1f / 3f);
@@ -175,7 +166,7 @@ namespace VoxelEngine.Showcase
                         continue;
                     }
 
-                    int sourceIndex = FindVisibleSourceIndex(chunk, i, visibleCount, nonProxyCount);
+                    int sourceIndex = FindVisibleSourceIndex(chunk, i, visibleCount, sourceCount);
                     if (firstVisibleSource < 0) firstVisibleSource = sourceIndex;
                     Vector3 centre = ((Vector3)(float3)chunk.Voxels[sourceIndex]
                                    + Vector3.one * 0.5f)
@@ -301,28 +292,13 @@ namespace VoxelEngine.Showcase
             return -1;
         }
 
-        private static bool IsLegacyTreeProxySample(int3 voxel)
-        {
-            int3 brick = voxel >> VoxelDimensions.BrickEdgeLog2;
-            return ProceduralTreeRegistry.IsLegacyHiddenHardBrick(brick)
-                || ProceduralTreeRegistry.IsLegacyHiddenSmoothBrick(brick);
-        }
-
         private static int FindVisibleSourceIndex(ShowcaseWorld.DetachedVoxelChunk chunk,
                                                   int ordinal, int visibleCount,
-                                                  int nonProxyCount)
+                                                  int sourceCount)
         {
-            int target = ordinal * nonProxyCount / math.max(1, visibleCount);
-            int seen = 0;
-            int fallback = 0;
-            for (int i = 0; i < chunk.Voxels.Length; i++)
-            {
-                if (IsLegacyTreeProxySample(chunk.Voxels[i])) continue;
-                fallback = i;
-                if (seen == target) return i;
-                seen++;
-            }
-            return fallback;
+            if (sourceCount <= 1) return 0;
+            return math.min(sourceCount - 1,
+                            ordinal * sourceCount / math.max(1, visibleCount));
         }
 
         private static Vector4 MaterialColour(byte material, float scale)
