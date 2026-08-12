@@ -164,7 +164,7 @@ namespace VoxelEngine.Structures
                 Up = up,
                 ClearanceVoxels = math.max(clearance, new int3(1)),
                 SupportProbeRadius = math.max(0, supportRadius),
-                Capacity = math.max((byte)1, capacity),
+                Capacity = capacity == 0 ? (byte)1 : capacity,
                 RequiredAttachment = required,
                 InvalidateWhenSupportLost = invalidateWhenSupportLost
             };
