@@ -10,11 +10,19 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void HillsideInfrastructureIsHardButDoesNotInflateGameplayStructures()
+        public void UrbanInfrastructureStaysSeparateFromStableGameplayStructures()
         {
+            FeatureCatalogue terraces = KentridgeDistrictTerraceCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue circulation = KentridgeVerticalConnectorCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue verticalFrontage = KentridgeVerticalFrontageCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue anchorUndercroft = KentridgeAnchorUndercroftCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue access = KentridgeUrbanAccessCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue architecture = KentridgeHillsideArchitectureCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
@@ -23,26 +31,37 @@ namespace VoxelEngine.Tests.EditMode
 
             try
             {
+                int terraceInfrastructure = CountDefinitions(terraces, FeatureKind.Infrastructure);
+                Assert.AreEqual(5, terraceInfrastructure,
+                    "Only the five dense urban terraces should receive crisp retaining skins.");
+
                 Assert.AreEqual(9, circulation.Definitions.Length,
                     "Four stair flights, four retaining sections, and one campanile should compose the primary hardscape pass.");
                 Assert.AreEqual(9, circulation.ExplicitPlacements.Length);
 
                 Assert.AreEqual(2, massing.Definitions.Length,
                     "Macro urban organisation is rendered as two coarse silhouette heights.");
-                Assert.AreEqual(17, massing.ExplicitPlacements.Length,
-                    "Six semantic frontage runs should currently produce seventeen anonymous masses.");
+                Assert.AreEqual(37, massing.ExplicitPlacements.Length,
+                    "Eight semantic blocks should currently resolve to 37 anonymous massing sites.");
+
+                Assert.AreEqual(6, verticalFrontage.ExplicitPlacements.Length,
+                    "Six dense upper blocks should expose occupied downhill arcades/undercrofts.");
+                Assert.AreEqual(4, anchorUndercroft.ExplicitPlacements.Length,
+                    "Pub and Warehouse should each receive two role-derived undercroft bays.");
+                Assert.AreEqual(8, access.ExplicitPlacements.Length,
+                    "Every authored urban block should have one hard pedestrian access interface.");
 
                 Assert.AreEqual(3, architecture.Definitions.Length,
                     "Secondary hillside architecture should reuse terrace-dwelling, civic-bridge, and retaining-gallery grammars.");
                 Assert.AreEqual(13, architecture.ExplicitPlacements.Length,
                     "Seven embedded dwellings, one overhead civic bridge, and five roofed galleries should densify the hill without adding gameplay roles.");
 
-                for (int i = 0; i < circulation.Definitions.Length; i++)
-                    Assert.AreEqual(FeatureKind.Infrastructure, circulation.Definitions[i].Kind);
-                for (int i = 0; i < massing.Definitions.Length; i++)
-                    Assert.AreEqual(FeatureKind.Infrastructure, massing.Definitions[i].Kind);
-                for (int i = 0; i < architecture.Definitions.Length; i++)
-                    Assert.AreEqual(FeatureKind.Infrastructure, architecture.Definitions[i].Kind);
+                AssertAllKind(circulation, FeatureKind.Infrastructure);
+                AssertAllKind(massing, FeatureKind.Infrastructure);
+                AssertAllKind(verticalFrontage, FeatureKind.Infrastructure);
+                AssertAllKind(anchorUndercroft, FeatureKind.Infrastructure);
+                AssertAllKind(access, FeatureKind.Infrastructure);
+                AssertAllKind(architecture, FeatureKind.Infrastructure);
 
                 int structures = 0;
                 int infrastructureInstances = 0;
@@ -58,16 +77,34 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(39, infrastructureInstances,
-                    "Macro massing and hard civic/ambient fabric stay independently classified from gameplay structures.");
+                Assert.AreEqual(82, infrastructureInstances,
+                    "Retaining skins, vertical fabric, working-quarter fabric/access, and hillside architecture must stay independently classified from gameplay structures.");
             }
             finally
             {
                 combined.Dispose();
                 architecture.Dispose();
+                access.Dispose();
+                anchorUndercroft.Dispose();
+                verticalFrontage.Dispose();
                 massing.Dispose();
                 circulation.Dispose();
+                terraces.Dispose();
             }
+        }
+
+        private static int CountDefinitions(FeatureCatalogue catalogue, FeatureKind kind)
+        {
+            int count = 0;
+            for (int i = 0; i < catalogue.Definitions.Length; i++)
+                if (catalogue.Definitions[i].Kind == kind) count++;
+            return count;
+        }
+
+        private static void AssertAllKind(FeatureCatalogue catalogue, FeatureKind kind)
+        {
+            for (int i = 0; i < catalogue.Definitions.Length; i++)
+                Assert.AreEqual(kind, catalogue.Definitions[i].Kind);
         }
 
         private static VoxelWorldGenSettings BuildSettings()
