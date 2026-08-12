@@ -12,7 +12,7 @@ namespace VoxelEngine.Showcase
     ///
     /// The authoritative representation remains the ordinary 10 cm brickmap. This class does not
     /// accept presentation meshes or procedural structure parameters: it samples only RegionTable /
-    /// BrickPool occupancy, builds a lightly filtered scalar field, and polygonizes that field with
+    /// BrickPool occupancy, builds a filtered scalar field, and polygonizes that field with
     /// marching tetrahedra. The half-voxel extraction lattice removes the staircase silhouette of
     /// the legacy showcase greedy mesher without changing destruction, networking, or storage.
     ///
@@ -27,7 +27,8 @@ namespace VoxelEngine.Showcase
         private const int MaterialCount = 17;
         private const int SamplesPerVoxel = 2;
         private const float SampleStepVoxels = 1f / SamplesPerVoxel;
-        private const float BlurMix = 0.34f;
+        private const int BlurPasses = 2;
+        private const float FilterBlend = 0.92f;
 
         private static readonly int3[] CubeCorners =
         {
@@ -35,8 +36,6 @@ namespace VoxelEngine.Showcase
             new(0, 0, 1), new(1, 0, 1), new(1, 1, 1), new(0, 1, 1)
         };
 
-        // Six tetrahedra around the 0 -> 6 cube diagonal. This avoids a giant marching-cubes
-        // lookup table while keeping the surface watertight for a diagnostic bounded volume.
         private static readonly int[,] Tetrahedra =
         {
             { 0, 5, 1, 6 },
@@ -149,15 +148,19 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Integer lattice values are mostly the exact binary occupancy sign. A restrained 3x3x3
-        /// tent-filter contribution rounds only the voxel-scale staircase corners; broad wall faces
-        /// remain planar and one-voxel mortar recesses remain open.
+        /// Samples exact binary occupancy at the authoritative voxel lattice, then applies two
+        /// separable 1-2-1 low-pass passes. The filter is deliberately applied to the derived field,
+        /// never to world storage. Broad planes retain their position while one-voxel stair steps
+        /// around curved silhouettes blend into a stable sub-voxel iso-surface.
         /// </summary>
         private void BuildBaseDensity(ShowcaseWorld world)
         {
-            _baseMin = _minVoxel - new int3(2);
-            _baseSize = _sizeVoxels + new int3(5);
-            _baseDensity = new float[_baseSize.x * _baseSize.y * _baseSize.z];
+            int margin = BlurPasses + 2;
+            _baseMin = _minVoxel - new int3(margin);
+            _baseSize = _sizeVoxels + new int3(margin * 2 + 1);
+            int count = _baseSize.x * _baseSize.y * _baseSize.z;
+            _baseDensity = new float[count];
+            var original = new float[count];
 
             ref RegionTable table = ref world.Table;
             ref BrickPool pool = ref world.Pool;
@@ -167,27 +170,61 @@ namespace VoxelEngine.Showcase
             for (int x = 0; x < _baseSize.x; x++)
             {
                 int3 p = _baseMin + new int3(x, y, z);
-                bool solid = SampleMaterial(ref table, in pool, p) != VoxelDimensions.MaterialEmpty;
-                float raw = solid ? -1f : 1f;
-
-                int weightedSolid = 0;
-                for (int dz = -1; dz <= 1; dz++)
-                for (int dy = -1; dy <= 1; dy++)
-                for (int dx = -1; dx <= 1; dx++)
-                {
-                    int wx = dx == 0 ? 2 : 1;
-                    int wy = dy == 0 ? 2 : 1;
-                    int wz = dz == 0 ? 2 : 1;
-                    int weight = wx * wy * wz;
-                    if (SampleMaterial(ref table, in pool, p + new int3(dx, dy, dz))
-                        != VoxelDimensions.MaterialEmpty)
-                        weightedSolid += weight;
-                }
-
-                // Tent kernel total weight = (1+2+1)^3 = 64.
-                float blurred = 1f - 2f * (weightedSolid / 64f);
-                _baseDensity[BaseIndex(x, y, z)] = math.lerp(raw, blurred, BlurMix);
+                float value = SampleMaterial(ref table, in pool, p) != VoxelDimensions.MaterialEmpty
+                    ? -1f : 1f;
+                int index = BaseIndex(x, y, z);
+                _baseDensity[index] = value;
+                original[index] = value;
             }
+
+            var scratch = new float[count];
+            for (int pass = 0; pass < BlurPasses; pass++)
+                BlurSeparable(_baseDensity, scratch);
+
+            for (int i = 0; i < count; i++)
+                _baseDensity[i] = math.lerp(original[i], _baseDensity[i], FilterBlend);
+        }
+
+        private void BlurSeparable(float[] values, float[] scratch)
+        {
+            int sx = _baseSize.x;
+            int sy = _baseSize.y;
+            int sz = _baseSize.z;
+
+            for (int z = 0; z < sz; z++)
+            for (int y = 0; y < sy; y++)
+            for (int x = 0; x < sx; x++)
+            {
+                int xm = math.max(0, x - 1);
+                int xp = math.min(sx - 1, x + 1);
+                scratch[BaseIndex(x, y, z)] =
+                    (values[BaseIndex(xm, y, z)] + values[BaseIndex(x, y, z)] * 2f
+                     + values[BaseIndex(xp, y, z)]) * 0.25f;
+            }
+
+            for (int z = 0; z < sz; z++)
+            for (int y = 0; y < sy; y++)
+            for (int x = 0; x < sx; x++)
+            {
+                int ym = math.max(0, y - 1);
+                int yp = math.min(sy - 1, y + 1);
+                values[BaseIndex(x, y, z)] =
+                    (scratch[BaseIndex(x, ym, z)] + scratch[BaseIndex(x, y, z)] * 2f
+                     + scratch[BaseIndex(x, yp, z)]) * 0.25f;
+            }
+
+            for (int z = 0; z < sz; z++)
+            for (int y = 0; y < sy; y++)
+            for (int x = 0; x < sx; x++)
+            {
+                int zm = math.max(0, z - 1);
+                int zp = math.min(sz - 1, z + 1);
+                scratch[BaseIndex(x, y, z)] =
+                    (values[BaseIndex(x, y, zm)] + values[BaseIndex(x, y, z)] * 2f
+                     + values[BaseIndex(x, y, zp)]) * 0.25f;
+            }
+
+            Array.Copy(scratch, values, values.Length);
         }
 
         private void BuildHalfVoxelDensity()
@@ -319,7 +356,7 @@ namespace VoxelEngine.Showcase
         private float3 Gradient(float3 worldVoxel)
         {
             float3 local = (worldVoxel - (float3)_minVoxel) * SamplesPerVoxel;
-            const float h = 0.65f;
+            const float h = 0.90f;
             float dx = SampleDensity(local + new float3(h, 0f, 0f))
                      - SampleDensity(local - new float3(h, 0f, 0f));
             float dy = SampleDensity(local + new float3(0f, h, 0f))
