@@ -11,10 +11,10 @@ namespace MountingForce.WorldGen.Voxel
     /// Turns Kentridge's macro height profile into neighbourhood-scale urban shelves.
     ///
     /// The authored rectangle for each district is the flat buildable core. Around that core the
-    /// catalogue now grows a stepped earth shoulder that descends toward the surrounding terrain.
-    /// This keeps buildings and yards on deterministic flat land without making the settlement read
-    /// as nine enormous rectangular pedestals. Short masonry risers articulate each shoulder level;
-    /// higher-precedence roads and stairs cut through the shoulders afterward.
+    /// catalogue grows a stepped earth shoulder that descends toward surrounding terrain. The
+    /// shoulder material now changes with urban intensity: lower homes retain garden-like ground,
+    /// mixed working/inn shelves expose packed earth, and market/upper/civic cores read as paved
+    /// hardscape. Crisp retaining walls and stairs are authored separately as Infrastructure.
     /// </summary>
     public static class KentridgeDistrictTerraceCatalogue
     {
@@ -23,19 +23,18 @@ namespace MountingForce.WorldGen.Voxel
         private const int ClearAboveDm = 48;
         private const int NaturalSampleStepDm = 64;
 
-        // The core remains exactly the old semantic shelf. These extra 3.6 m shoulders live outside
-        // it, so plot support is unchanged while the silhouette can taper into adjacent terrain.
+        // The core remains the semantic shelf. These 3.6 m shoulders live outside it so building
+        // support is unchanged while the silhouette tapers toward adjacent natural terrain.
         private const int ShoulderWidthDm = 36;
         private const int ShoulderLevels = 3;
         private const int ShoulderCapThicknessDm = 2;
 
-        private const int RetainingFaceDepthDm = 5;
-        private const int ButtressDepthDm = 9;
-        private const int ButtressWidthDm = 6;
-        private const int ButtressSpacingDm = 120;
-        private const int ButtressInsetDm = 24;
-        private const int CopingHeightDm = 3;
-        private const int CopingDepthDm = 8;
+        private enum SurfaceCharacter : byte
+        {
+            Green,
+            Mixed,
+            Urban,
+        }
 
         private readonly struct TerraceSeed
         {
@@ -46,9 +45,10 @@ namespace MountingForce.WorldGen.Voxel
             public readonly int DepthDm;
             public readonly int AnchorXDm;
             public readonly int AnchorZDm;
+            public readonly SurfaceCharacter Surface;
 
             public TerraceSeed(string id, int xDm, int zDm, int widthDm, int depthDm,
-                               int anchorXDm, int anchorZDm)
+                               int anchorXDm, int anchorZDm, SurfaceCharacter surface)
             {
                 Id = id;
                 XDm = xDm;
@@ -57,6 +57,7 @@ namespace MountingForce.WorldGen.Voxel
                 DepthDm = depthDm;
                 AnchorXDm = anchorXDm;
                 AnchorZDm = anchorZDm;
+                Surface = surface;
             }
         }
 
@@ -69,11 +70,10 @@ namespace MountingForce.WorldGen.Voxel
             public readonly int CapThickness;
             public readonly int ClearHeight;
             public readonly int ShoulderWidth;
-            public readonly int ButtressCount;
 
             public TerraceBuild(TerraceSeed seed, int3 position, int3 footprint,
                                 int supportHeight, int capThickness, int clearHeight,
-                                int shoulderWidth, int buttressCount)
+                                int shoulderWidth)
             {
                 Seed = seed;
                 Position = position;
@@ -82,7 +82,6 @@ namespace MountingForce.WorldGen.Voxel
                 CapThickness = capThickness;
                 ClearHeight = clearHeight;
                 ShoulderWidth = shoulderWidth;
-                ButtressCount = buttressCount;
             }
         }
 
@@ -92,15 +91,24 @@ namespace MountingForce.WorldGen.Voxel
             int scale = settings.VoxelsPerDecimetre;
             TerraceSeed[] seeds =
             {
-                new TerraceSeed("lower-residential-main", 620, 900, 800, 190, 1170, 950),
-                new TerraceSeed("lower-residential-east", 1460, 850, 240, 200, 1530, 945),
-                new TerraceSeed("lower-middle", 980, 650, 460, 210, 1222, 760),
-                new TerraceSeed("working-yard", 1490, 570, 260, 250, 1530, 700),
-                new TerraceSeed("market-main", 680, 440, 620, 260, 1170, 520),
-                new TerraceSeed("market-rebecca", 1240, 350, 180, 150, 1318, 478),
-                new TerraceSeed("upper-shoulder", 900, 240, 310, 200, 1118, 340),
-                new TerraceSeed("civic-summit", 920, 40, 470, 200, 1170, 150),
-                new TerraceSeed("noble-ridge", 1490, 90, 340, 320, 1530, 250),
+                new TerraceSeed("lower-residential-main", 620, 900, 800, 190, 1170, 950,
+                    SurfaceCharacter.Green),
+                new TerraceSeed("lower-residential-east", 1460, 850, 240, 200, 1530, 945,
+                    SurfaceCharacter.Green),
+                new TerraceSeed("lower-middle", 980, 650, 460, 210, 1222, 760,
+                    SurfaceCharacter.Mixed),
+                new TerraceSeed("working-yard", 1490, 570, 260, 250, 1530, 700,
+                    SurfaceCharacter.Mixed),
+                new TerraceSeed("market-main", 680, 440, 620, 260, 1170, 520,
+                    SurfaceCharacter.Urban),
+                new TerraceSeed("market-rebecca", 1240, 350, 180, 150, 1318, 478,
+                    SurfaceCharacter.Urban),
+                new TerraceSeed("upper-shoulder", 900, 240, 310, 200, 1118, 340,
+                    SurfaceCharacter.Urban),
+                new TerraceSeed("civic-summit", 920, 40, 470, 200, 1170, 150,
+                    SurfaceCharacter.Urban),
+                new TerraceSeed("noble-ridge", 1490, 90, 340, 320, 1530, 250,
+                    SurfaceCharacter.Urban),
             };
 
             var builds = new TerraceBuild[seeds.Length];
@@ -143,7 +151,7 @@ namespace MountingForce.WorldGen.Voxel
                     Footprint = build.Footprint,
                     MaxSlope = 32,
                     // Ground cover is 5 and authored roads start at 20. District landform owns the
-                    // hill first; circulation, parcel grading, and structures refine it afterward.
+                    // hill first; circulation, infrastructure, parcel grading, and structures refine it.
                     Precedence = 15,
                     ParameterOffset = 0,
                     ParameterCount = 0,
@@ -155,7 +163,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 18 + build.ButtressCount,
+                    MaxPrimitives = 12,
                 };
 
                 catalogue.ExplicitPlacements[i] = new ExplicitPlacement
@@ -213,9 +221,6 @@ namespace MountingForce.WorldGen.Voxel
                 naturalMax - targetSurface + ClearAboveDm * scale);
             int totalHeight = targetSurface - originY + clearHeight;
             int shoulder = ShoulderWidthDm * scale;
-            int buttressCount = Math.Max(
-                2,
-                (terrace.WidthDm - ButtressInsetDm * 2) / ButtressSpacingDm + 1);
 
             return new TerraceBuild(
                 terrace,
@@ -230,8 +235,7 @@ namespace MountingForce.WorldGen.Voxel
                 supportHeight,
                 capThickness,
                 clearHeight,
-                shoulder,
-                buttressCount);
+                shoulder);
         }
 
         private static void TerrainRange(TerraceSeed terrace, uint seed, int scale,
@@ -273,20 +277,14 @@ namespace MountingForce.WorldGen.Voxel
         {
             int s = settings.VoxelsPerDecimetre;
             byte earth = settings.Materials.Resolve(MaterialRole.RoadSurface);
-            byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
-            byte darkStone = settings.Materials.Resolve(MaterialRole.DarkMasonry);
-            byte ground = settings.Materials.Resolve(MaterialRole.Moss);
+            byte moss = settings.Materials.Resolve(MaterialRole.Moss);
+            byte paved = settings.Materials.Resolve(MaterialRole.DarkMasonry);
 
             int coreWidth = build.Seed.WidthDm * s;
             int coreDepth = build.Seed.DepthDm * s;
             int shoulder = build.ShoulderWidth;
             int width = coreWidth + shoulder * 2;
             int depth = coreDepth + shoulder * 2;
-            int retainingDepth = Math.Min(depth, RetainingFaceDepthDm * s);
-            int buttressDepth = Math.Min(coreDepth, ButtressDepthDm * s);
-            int buttressWidth = ButtressWidthDm * s;
-            int copingHeight = Math.Min(build.SupportHeight, CopingHeightDm * s);
-            int copingDepth = Math.Min(coreDepth, CopingDepthDm * s);
             int shoulderCap = Math.Max(1, ShoulderCapThicknessDm * s);
 
             // High shelves spend most of their artificial rise across the shoulder instead of
@@ -302,59 +300,35 @@ namespace MountingForce.WorldGen.Voxel
             int inset2 = shoulder * 2 / ShoulderLevels;
             int coreInset = shoulder;
 
+            byte outerCap = moss;
+            byte middleCap = build.Seed.Surface == SurfaceCharacter.Green ? moss : earth;
+            byte innerCap = build.Seed.Surface == SurfaceCharacter.Green ? moss : earth;
+            byte coreCap = build.Seed.Surface switch
+            {
+                SurfaceCharacter.Green => moss,
+                SurfaceCharacter.Mixed => earth,
+                _ => paved,
+            };
+
             var b = new ProgramBuilder();
 
             // Clear from the lowest shoulder level upward, then rebuild the hillside as nested
-            // terraces. This removes the old rectangular cliff silhouette while preserving the
-            // original buildable core at exactly the authored Kentridge surface height.
+            // terraces. Only the outer toe stays consistently green. Urban shelves transition
+            // through exposed/packed earth into a paved core, eliminating the repeated lawn bands.
             b.Carve(0, h0, 0,
                     width, build.ClearHeight + shoulderDrop + build.CapThickness, depth);
 
             AddTier(b, 0, 0, width, depth,
-                    0, h0, shoulderCap, earth, ground);
+                    0, h0, shoulderCap, earth, outerCap);
             AddTier(b, inset1, inset1,
                     width - inset1 * 2, depth - inset1 * 2,
-                    h0, h1, shoulderCap, earth, ground);
+                    h0, h1, shoulderCap, earth, middleCap);
             AddTier(b, inset2, inset2,
                     width - inset2 * 2, depth - inset2 * 2,
-                    h1, h2, shoulderCap, earth, ground);
+                    h1, h2, shoulderCap, earth, innerCap);
             AddTier(b, coreInset, coreInset,
                     coreWidth, coreDepth,
-                    h2, build.SupportHeight, build.CapThickness, earth, ground);
-
-            // Each short south-facing riser is architectural. From the lower town these read as a
-            // sequence of retaining walls/landings rather than one full-height foundation slab.
-            AddSouthRiser(b, inset1, width - inset1 * 2, depth - inset1,
-                          h0, h1, retainingDepth, stone);
-            AddSouthRiser(b, inset2, width - inset2 * 2, depth - inset2,
-                          h1, h2, retainingDepth, stone);
-            AddSouthRiser(b, coreInset, coreWidth, depth - coreInset,
-                          h2, build.SupportHeight, retainingDepth, stone);
-
-            int copingY = Math.Max(h2, build.SupportHeight - copingHeight);
-            b.Box(coreInset, copingY,
-                  coreInset + coreDepth - copingDepth,
-                  coreWidth, Math.Max(1, build.SupportHeight - copingY), copingDepth,
-                  darkStone);
-
-            // Buttresses now reinforce only the final retaining riser. The old version ran them from
-            // the hidden footing to the summit, which visually reintroduced giant vertical columns.
-            int finalRiserHeight = Math.Max(0, build.SupportHeight - h2);
-            if (finalRiserHeight > 0)
-            {
-                int usableWidthDm = Math.Max(1, build.Seed.WidthDm - ButtressInsetDm * 2);
-                for (int i = 0; i < build.ButtressCount; i++)
-                {
-                    int xDm = build.ButtressCount <= 1
-                        ? build.Seed.WidthDm / 2
-                        : ButtressInsetDm + usableWidthDm * i / (build.ButtressCount - 1);
-                    int x = coreInset + Math.Max(
-                        0, Math.Min(coreWidth - buttressWidth, xDm * s - buttressWidth / 2));
-                    b.Box(x, h2,
-                          coreInset + coreDepth - buttressDepth,
-                          buttressWidth, finalRiserHeight, buttressDepth, darkStone);
-                }
-            }
+                    h2, build.SupportHeight, build.CapThickness, earth, coreCap);
 
             return b.Finish();
         }
@@ -362,25 +336,14 @@ namespace MountingForce.WorldGen.Voxel
         private static void AddTier(ProgramBuilder b,
                                     int x, int z, int width, int depth,
                                     int fromY, int toY, int capThickness,
-                                    byte earth, byte ground)
+                                    byte earth, byte capMaterial)
         {
             int height = toY - fromY;
             if (height > 0)
                 b.Box(x, fromY, z, width, height, depth, earth);
 
             int cap = Math.Max(1, capThickness);
-            b.Box(x, toY, z, width, cap, depth, ground);
-        }
-
-        private static void AddSouthRiser(ProgramBuilder b,
-                                          int x, int width, int southEdge,
-                                          int fromY, int toY, int retainingDepth,
-                                          byte stone)
-        {
-            int height = toY - fromY;
-            if (height <= 0) return;
-            b.Box(x, fromY, southEdge - retainingDepth,
-                  width, height, retainingDepth, stone);
+            b.Box(x, toY, z, width, cap, depth, capMaterial);
         }
 
         private sealed class ProgramBuilder
