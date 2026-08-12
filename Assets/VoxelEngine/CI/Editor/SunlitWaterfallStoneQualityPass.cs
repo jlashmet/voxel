@@ -36,7 +36,6 @@ namespace VoxelEngine.CI
 
             Vector3 o = camera.transform.position - new Vector3(0.10f, 5.05f, -22.6f);
 
-            // Keep the full hero bay inside the frame so every structural layer is inspectable.
             WorldArtPiece hero = WorldArtArchBay.Build(root, "AAA hero architectural arch bay",
                 o + new Vector3(-4.55f, 1.28f, 5.12f),
                 1.52f, 3.62f, 1.18f, 0.50f, 0.56f, 0.92f,
@@ -47,13 +46,24 @@ namespace VoxelEngine.CI
                 0.84f, 1.72f, 0.74f, 0.38f, 0.34f, 0.62f,
                 131, palette, WorldArtArchDamage.Intact);
 
-            // Dressing stays sparse until the stone survives close inspection.
             WorldArtKit.MossCluster(root, "AAA hero keystone moss",
                 hero.Socket("keystone").position + new Vector3(-0.28f, 0.035f, -0.04f),
                 0.30f, 503, palette.Get(WorldArtSurfaceRole.Moss));
             WorldArtKit.MossCluster(root, "AAA lower arch moss",
                 lower.Socket("crown").position + new Vector3(0.18f, 0.02f, -0.16f),
                 0.20f, 541, palette.Get(WorldArtSurfaceRole.Moss));
+
+            // VerticalityPass is later in the lookdev stack and still creates its obsolete rotated-
+            // cube arch. Cull all historical arch parts immediately before the actual camera render,
+            // after every composition pass has had a chance to run.
+            Camera.onPreCull -= CleanupBeforeRender;
+            Camera.onPreCull += CleanupBeforeRender;
+        }
+
+        private static void CleanupBeforeRender(Camera camera)
+        {
+            Camera.onPreCull -= CleanupBeforeRender;
+            DisableLegacyRuinGeometry();
         }
 
         private static void Disable(string name)
@@ -64,9 +74,6 @@ namespace VoxelEngine.CI
 
         private static void DisableLegacyRuinGeometry()
         {
-            // There are multiple historical arch implementations in the lookdev stack. Disable
-            // every named masonry part from those implementations so the CI image contains only
-            // the reusable WorldArtArchBay geometry we are actually judging.
             Transform[] all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include,
                 FindObjectsSortMode.None);
             for (int i = 0; i < all.Length; i++)
