@@ -31,7 +31,9 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(bad.HasFailure, Is.True,
                 "Uppercut now creates an unresolved event before Mira's setup action can execute.");
             Assert.That(bad.FailedPlanId, Is.EqualTo(amplifier));
-            Assert.That(bad.FailureMessage, Does.Contain("unresolved"));
+            Assert.That(bad.FinalBoard.PendingReaction, Is.Not.Null,
+                "The reordered ghost should stop with Stephen's unresolved physical event still on the board.");
+            Assert.That(bad.FinalBoard.PendingReaction.Kind, Is.EqualTo(ChainReactionKind.Airborne));
             yield return null;
         }
 
