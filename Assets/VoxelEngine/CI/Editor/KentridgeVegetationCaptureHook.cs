@@ -32,12 +32,16 @@ namespace VoxelEngine.CI
 
         static KentridgeVegetationCaptureHook()
         {
-            Camera.onPreCull += OnCameraPreCull;
+            Camera.onPreCull += BuildForCamera;
+            RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
             AssemblyReloadEvents.beforeAssemblyReload += Cleanup;
             EditorApplication.quitting += Cleanup;
         }
 
-        private static void OnCameraPreCull(Camera camera)
+        private static void OnBeginCameraRendering(ScriptableRenderContext _, Camera camera) =>
+            BuildForCamera(camera);
+
+        private static void BuildForCamera(Camera camera)
         {
             if (s_Built || camera == null || camera.gameObject.name != CameraObjectName) return;
             s_Built = true;
