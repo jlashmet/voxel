@@ -10,19 +10,20 @@ The externally-observable interface of this system is the client/server protocol
 
 ## Channels
 
-Three UTP pipelines, deliberately separate. Collapsing them is the failure mode where a player parachuting across the map adds latency to everyone's combat.
+Four UTP pipelines, deliberately separate by traffic lifetime and delivery semantics.
 
 | Channel | Delivery | Priority | Carries |
 |---|---|---|---|
 | `EVENT` | Reliable, ordered | High | Durable authoritative world/gameplay events and confirmations |
+| `EPHEMERAL` | Unreliable, sequenced | High | Player input/motion samples where newer data supersedes old data |
 | `REPAIR` | Reliable | Medium | Authoritative brick blobs correcting detected drift |
-| `BULK` | Reliable, fragmented | **Low — must never starve `EVENT`** | Region stream-in, mip refinement, late-join snapshots |
+| `BULK` | Reliable, fragmented | **Low — must never starve live traffic** | Region stream-in, mip refinement, late-join snapshots |
 
 `BULK` pipeline stage order is fragmentation then reliability. A lost fragment therefore retransmits that fragment rather than the entire logical payload.
 
-**Invariant**: `BULK` is rate-limited against the connection's estimated capacity such that `EVENT` latency is unaffected. This is load-bearing for the mobile target (C-002, SC-014).
+**Invariant**: `BULK` is rate-limited against the connection's estimated capacity such that `EVENT` and `EPHEMERAL` latency are unaffected. This is load-bearing for the mobile target (C-002, SC-014).
 
-High-frequency ephemeral motion/input traffic may move to a separate unreliable-sequenced pipeline once the concrete host loop exists. Durable world mutations remain on `EVENT`. Do not mix large snapshot traffic into `EVENT`.
+Durable world mutations never move to `EPHEMERAL`. Conversely, ordinary movement/aim samples never use reliable `EVENT`, because retransmitting stale motion would head-of-line-block authoritative combat/destruction traffic.
 
 ---
 
@@ -82,16 +83,23 @@ The client has already applied the request to its speculative overlay. **The see
 
 Raw single-voxel edits are never sent individually: they are buffered ~100 ms and coalesced into one run-length-encoded `raw-batch` scoped to a single brick.
 
-#### `C_PlayerInput` (~16 B)
+#### `C_PlayerInput` (16 B payload / 18 B framed, `EPHEMERAL`)
 
-| Field | Type |
-|---|---|
-| clientTick | `uint` |
-| movement | quantised `int2` |
-| actions | `ushort` bitfield |
-| viewDirection | quantised `int2` |
+| Field | Type | Bytes |
+|---|---|---:|
+| clientTick | `uint` | 4 |
+| sequence | `ushort` | 2 |
+| moveX | `sbyte` | 1 |
+| moveY | `sbyte` | 1 |
+| viewYaw | `ushort` | 2 |
+| viewPitch | `short` | 2 |
+| actions | `ushort` bitfield | 2 |
+| toolMaterial | `byte` | 1 |
+| flags | `byte` | 1 |
 
-Sent redundantly across several ticks; the server keeps an input ring buffer. This is ephemeral command traffic, not durable world history.
+There is **no player ID and no claimed world position**. The authenticated connection establishes identity and the server simulation owns position. The client sends intent only.
+
+Movement is quantised to `[-127,+127]` per axis. Yaw covers a full turn in 16 bits; pitch covers `[-90,+90]` degrees in a signed 16-bit value. This packet is sequenced but intentionally unreliable: a newer input supersedes an older one. A small redundant recent-input bundle may be added on top of this 16-byte sample so an action edge survives isolated packet loss without reliable retransmission.
 
 #### `C_RegionRequest` (~16 B)
 
@@ -212,7 +220,7 @@ The simulation clock remains fixed and authoritative. Event-driven means systems
 
 Per server tick:
 
-1. collect commands/inputs;
+1. collect `EPHEMERAL` input and durable `EVENT` commands received by the frame-level transport pump;
 2. authenticate connection-owned identity, validate requests, and resolve simulation in deterministic arbitration order;
 3. substitute authoritative tick/sequence/seed where required and publish semantic authoritative events;
 4. seal the tick event stream;
