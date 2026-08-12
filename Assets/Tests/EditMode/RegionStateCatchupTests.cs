@@ -23,10 +23,6 @@ namespace VoxelEngine.Tests.EditMode
                 table.LoadRegion(replacedRegion);
                 table.LoadRegion(neighbourRegion);
 
-                // The explosion crosses the x=512 region boundary. The replaced region contains a
-                // sentinel material representing state already supplied by the current snapshot;
-                // catch-up must not apply the old explosion there. The neighbouring region still
-                // needs the old event because it was not replaced by the snapshot.
                 int3 replacedVoxel = new int3(511, 256, 256);
                 int3 neighbourVoxel = new int3(512, 256, 256);
                 Assert.That(VoxelAccess.SetVoxel(ref table, ref pool, replacedVoxel, 7), Is.True);
@@ -36,7 +32,7 @@ namespace VoxelEngine.Tests.EditMode
                     AlterationEvent.KindExplosion,
                     tick: 5,
                     origin: replacedVoxel,
-                    radius: 1,
+                    shapeRadius: 1,
                     material: 0,
                     seed: 123,
                     playerId: 4,
