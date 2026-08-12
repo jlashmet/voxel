@@ -1,0 +1,103 @@
+using System;
+using Unity.Collections;
+using VoxelEngine.Core.Features;
+using VoxelEngine.Core.Features.Emitters;
+
+namespace MountingForce.WorldGen.Voxel
+{
+    /// <summary>
+    /// Builds the macro-vertical public-space catalogue and replaces its old 180-degree ramp
+    /// rotations with an explicit negative-axis ramp direction.
+    ///
+    /// Full-footprint road support, fill, and carve boxes are symmetric under a half-turn, so their
+    /// world occupancy is unchanged when the placement orientation is reset to zero. The ramp is the
+    /// only directional primitive in these definitions. Marking that primitive as reversed preserves
+    /// the intended northbound climb without asking ShapeProgram's generic bounding-box rotation to
+    /// infer slope direction from normalized bounds.
+    /// </summary>
+    public static class KentridgeDirectedTownSurfaceCatalogue
+    {
+        private const int RampAxisOperand = 6;
+
+        public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
+                                             Allocator allocator)
+        {
+            FeatureCatalogue catalogue = KentridgeVerticalTownSurfaceCatalogue.Build(
+                seed, settings, allocator);
+
+            try
+            {
+                for (int ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
+                {
+                    PlacementRule rule = catalogue.Rules[ruleIndex];
+                    FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
+
+                    for (int i = 0; i < rule.ExplicitCount; i++)
+                    {
+                        int placementIndex = rule.ExplicitOffset + i;
+                        ExplicitPlacement placement = catalogue.ExplicitPlacements[placementIndex];
+                        int orientation = placement.Orientation & 3;
+
+                        if (orientation == 0)
+                            continue;
+                        if (orientation != 2)
+                            throw new InvalidOperationException(
+                                "Kentridge public roads only support direct or reversed half-turn ramps.");
+
+                        bool foundRamp = ReverseRamps(ref catalogue, in definition);
+                        if (!foundRamp)
+                            throw new InvalidOperationException(
+                                "A reversed Kentridge public-space placement contained no ramp: "
+                                + definition.Name);
+
+                        placement.Orientation = 0;
+                        catalogue.ExplicitPlacements[placementIndex] = placement;
+                    }
+                }
+
+                return catalogue;
+            }
+            catch
+            {
+                catalogue.Dispose();
+                throw;
+            }
+        }
+
+        private static bool ReverseRamps(ref FeatureCatalogue catalogue,
+                                         in FeatureDefinition definition)
+        {
+            bool found = false;
+            int pc = definition.ProgramOffset;
+            int end = definition.ProgramOffset + definition.ProgramLength;
+
+            while (pc < end)
+            {
+                ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                int length = ShapeOps.InstructionLength(op);
+                if (length < 0 || pc + length > end)
+                    throw new InvalidOperationException(
+                        "Malformed Kentridge public-space program while directing ramps.");
+
+                if (op == ShapeOp.End)
+                    break;
+
+                if (op == ShapeOp.EmitRamp)
+                {
+                    int axisIndex = pc + 2 + RampAxisOperand;
+                    int axis = catalogue.Program[axisIndex];
+                    if ((axis & BoxEmitter.ReverseRampBit) != 0)
+                        throw new InvalidOperationException(
+                            "Kentridge ramp was already marked reversed before direction adaptation.");
+
+                    catalogue.Program[axisIndex] = axis | BoxEmitter.ReverseRampBit;
+                    found = true;
+                }
+
+                pc += length;
+            }
+
+            return found;
+        }
+    }
+}
