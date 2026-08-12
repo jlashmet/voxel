@@ -21,9 +21,18 @@ namespace VoxelEngine.Structures
             int outerRadius = innerRadius + math.max(3, spec.RingThickness);
             int depth = math.max(4, spec.Depth);
             int frontZ = spec.BaseCentre.z - depth / 2;
+            int faceDepth = math.clamp((spec.ArchivoltProjection > 0 ? spec.ArchivoltProjection : 2) + 1,
+                                       2, depth - 1);
             int maxRecess = math.max(1, depth - 2);
             recessDepth = math.min(recessDepth, maxRecess);
             byte jointMaterial = spec.JointMaterial == 0 ? spec.StoneMaterial : spec.JointMaterial;
+
+            // Trapezoidal voussoirs are separate authored masses, but a dressed arch does not have
+            // daylight cracks running through the full front ring. Seal each radial bed through the
+            // projected face first; the following one-voxel recess then creates the actual mortar
+            // joint while the stone/rear ring remains structurally continuous behind it.
+            SealArchivoltBeds(ref brush, in spec, stoneCount, innerRadius, outerRadius,
+                frontZ, faceDepth, spec.StoneMaterial);
 
             for (int boundary = 1; boundary < stoneCount; boundary++)
             {
@@ -43,6 +52,26 @@ namespace VoxelEngine.Structures
 
             RecessPierJoints(ref brush, in spec, -1, spec.Seed + 101u, recessDepth, jointMaterial);
             RecessPierJoints(ref brush, in spec, 1, spec.Seed + 211u, recessDepth, jointMaterial);
+        }
+
+        private static void SealArchivoltBeds(ref VoxelBrush brush, in WorldArtVoxelArchSpec spec,
+                                               int stoneCount, int innerRadius, int outerRadius,
+                                               int frontZ, int faceDepth, byte stoneMaterial)
+        {
+            int springY = spec.BaseCentre.y + math.max(8, spec.PierHeight);
+            for (int boundary = 1; boundary < stoneCount; boundary++)
+            {
+                float angle = math.PI * boundary / stoneCount;
+                float ca = math.cos(angle);
+                float sa = math.sin(angle);
+                for (int r = innerRadius - 1; r <= outerRadius + 1; r++)
+                {
+                    int x = (int)math.round(ca * r);
+                    int y = (int)math.round(sa * r);
+                    for (int z = frontZ; z < frontZ + faceDepth; z++)
+                        brush.Set(spec.BaseCentre.x + x, springY + y, z, stoneMaterial);
+                }
+            }
         }
 
         private static void RecessPierJoints(ref VoxelBrush brush, in WorldArtVoxelArchSpec spec,
