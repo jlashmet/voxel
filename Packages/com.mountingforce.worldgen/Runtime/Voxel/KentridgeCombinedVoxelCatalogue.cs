@@ -34,10 +34,9 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeVerticalPlacementAdapter.BuildTownDressing(
                     seed, settings, Allocator.Temp),
 
-                // City-scale organisation is deliberately separate from individual building grammar.
-                // This coarse adapter makes the semantic frontage/block plan visible while the final
-                // stable gameplay roles below now use the real per-role building grammar.
-                KentridgeUrbanMassingCatalogue.Build(seed, settings, Allocator.Temp),
+                // The semantic block plan now compiles to real varied anonymous buildings rather
+                // than coarse boxes. It remains separate from stable gameplay-role grammar.
+                KentridgeUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp),
 
                 // Secondary hard architecture comes immediately before gameplay buildings. Where an
                 // embedded dwelling touches a named building, the stable role building wins last.
