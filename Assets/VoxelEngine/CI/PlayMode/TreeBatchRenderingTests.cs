@@ -13,7 +13,8 @@ namespace VoxelEngine.CI
     /// <summary>
     /// Rendering contract for spatial tree batching. Healthy trees must contribute real pixels
     /// without retaining per-tree GameObjects, meshes or procedural skeletons; first damage lazily
-    /// materializes only the affected tree and rebuilds only its own spatial batch cell.
+    /// materializes only the affected tree and rebuilds only its own spatial batch cell. The same
+    /// contract also proves gameplay collision stays spatial and keeps a bounded skeleton cache.
     /// </summary>
     public sealed class TreeBatchRenderingTests
     {
@@ -202,6 +203,52 @@ namespace VoxelEngine.CI
                 for (int i = 1; i < instances.Length; i++)
                     Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False,
                                 $"Unchanged healthy tree {i} should remain data-only inside its batch.");
+
+                // Gameplay collision must scale independently of renderer residency. Publish a sparse
+                // semantic forest and run all queries synchronously so the renderer never builds it.
+                // Every sweep should visit only its local spatial cell, while the exact skeleton cache
+                // remains bounded even after combat has touched more trees than the cache can hold.
+                var sparseTrees = new TreeInstance[80];
+                for (int i = 0; i < sparseTrees.Length; i++)
+                {
+                    sparseTrees[i] = new TreeInstance
+                    {
+                        PositionMetres = new float3(i * 96f, 0f, 0f),
+                        Species = TreeSpecies.Oak,
+                        Seed = 0x9E3779B9u + (uint)i * 2246822519u,
+                        Scale = 1f,
+                    };
+                }
+                TreeWorldState.Replace(sparseTrees);
+
+                int maxBroadphaseCandidates = 0;
+                int maxSkeletonBuildsPerQuery = 0;
+                for (int i = 0; i < sparseTrees.Length; i++)
+                {
+                    float3 root = sparseTrees[i].PositionMetres;
+                    bool hit = ProceduralTreeDamageService.TrySweepImpact(
+                        root + new float3(-2f, 2f, 0f),
+                        root + new float3(2f, 2f, 0f),
+                        0.35f,
+                        out _, out int hitTreeIndex);
+                    Assert.That(hit, Is.True, $"Sparse broadphase sweep missed tree {i}.");
+                    Assert.That(hitTreeIndex, Is.EqualTo(i),
+                                $"Sparse broadphase sweep for tree {i} resolved tree {hitTreeIndex} instead.");
+                    maxBroadphaseCandidates = Mathf.Max(
+                        maxBroadphaseCandidates,
+                        ProceduralTreeDamageService.LastBroadphaseCandidateCount);
+                    maxSkeletonBuildsPerQuery = Mathf.Max(
+                        maxSkeletonBuildsPerQuery,
+                        ProceduralTreeDamageService.LastQuerySkeletonBuildCount);
+                }
+
+                Assert.That(maxBroadphaseCandidates, Is.LessThanOrEqualTo(2),
+                            "A local sweep is pulling distant sparse trees into the damage broadphase.");
+                Assert.That(maxSkeletonBuildsPerQuery, Is.LessThanOrEqualTo(1),
+                            "One local sweep should lazily build at most one exact tree skeleton.");
+                Assert.That(ProceduralTreeDamageService.ResidentSkeletonCount,
+                            Is.EqualTo(ProceduralTreeDamageService.SkeletonCacheCapacity),
+                            "Touching 80 sparse trees should fill, but never exceed, the bounded damage skeleton cache.");
             }
             finally
             {
