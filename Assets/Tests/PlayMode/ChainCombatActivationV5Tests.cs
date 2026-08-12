@@ -15,7 +15,7 @@ namespace VoxelEngine.Tests.PlayMode
             ChainUnitState ogre = Find(board, ChainRecruitKind.Ogre);
 
             Assert.That(board.GetActiveRecruitId(1), Is.EqualTo(0));
-            Assert.That(board.TryMove(stephen.Id, new GridPos(2, 3)), Is.True, board.LastMessage);
+            Assert.That(board.TryMove(stephen.Id, new GridPos(3, 3)), Is.True, board.LastMessage);
             Assert.That(board.GetActiveRecruitId(1), Is.EqualTo(stephen.Id));
             Assert.That(stephen.MoveSpent, Is.True);
             Assert.That(stephen.ActionSpent, Is.False);
