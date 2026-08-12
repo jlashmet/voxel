@@ -10,10 +10,9 @@ namespace VoxelEngine.Core.Vegetation
     /// space sweeps/blasts and the service mutates only <see cref="TreeWorldState"/>. Presentation
     /// reacts through typed tree-state events.
     ///
-    /// The broadphase is deliberately data-only: conservative tree bounds are indexed into spatial
-    /// cells and exact procedural skeletons are generated only for nearby candidates. Exact skeleton
-    /// residency is bounded so a large world cannot gradually turn every semantic tree into a heavy
-    /// cached object merely because combat has visited many regions.
+    /// Conservative bounds live in a lightweight spatial index. Exact procedural skeletons are
+    /// generated only for nearby candidates and retained in a bounded cache. A severed tree remains
+    /// queryable: Severed means the crown has disconnected, not that the remaining stump is immune.
     /// </summary>
     public static class ProceduralTreeDamageService
     {
@@ -35,6 +34,8 @@ namespace VoxelEngine.Core.Vegetation
         private static readonly List<CachedTree> s_Cache = new();
         private static readonly Dictionary<Vector2Int, List<int>> s_BroadphaseGrid = new();
         private static readonly List<int> s_Candidates = new(128);
+        private static readonly List<int> s_CutCandidates = new(16);
+        private static readonly List<int> s_PromotedCandidates = new(16);
         private static int[] s_CandidateMarks = System.Array.Empty<int>();
         private static int s_CandidateStamp;
         private static int s_CachedRegistryVersion = int.MinValue;
@@ -53,6 +54,8 @@ namespace VoxelEngine.Core.Vegetation
             s_Cache.Clear();
             s_BroadphaseGrid.Clear();
             s_Candidates.Clear();
+            s_CutCandidates.Clear();
+            s_PromotedCandidates.Clear();
             s_CandidateMarks = System.Array.Empty<int>();
             s_CandidateStamp = 0;
             s_CachedRegistryVersion = int.MinValue;
@@ -67,7 +70,6 @@ namespace VoxelEngine.Core.Vegetation
                                           out float3 hitMetres, out int treeIndex)
         {
             IReadOnlyList<TreeInstance> instances = TreeWorldState.Instances;
-            IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
             hitMetres = default;
             treeIndex = -1;
             if (instances.Count == 0) return false;
@@ -77,8 +79,6 @@ namespace VoxelEngine.Core.Vegetation
 
             float3 segmentMin = math.min(from, to) - sweepRadius;
             float3 segmentMax = math.max(from, to) + sweepRadius;
-            // Preserve the previous collision tolerance, which expanded both the sweep and tree
-            // bounds by sweepRadius, while using the larger extent only for candidate collection.
             CollectCandidates(segmentMin - sweepRadius, segmentMax + sweepRadius);
 
             float bestT = float.PositiveInfinity;
@@ -86,7 +86,6 @@ namespace VoxelEngine.Core.Vegetation
             {
                 int i = s_Candidates[candidateIndex];
                 if ((uint)i >= (uint)instances.Count || (uint)i >= (uint)s_Cache.Count) continue;
-                if (i < damage.Count && damage[i].Severed) continue;
 
                 CachedTree cached = s_Cache[i];
                 if (!BoundsOverlap(segmentMin, segmentMax,
@@ -97,9 +96,6 @@ namespace VoxelEngine.Core.Vegetation
                 TreeInstance instance = instances[i];
                 ProceduralTreeSkeleton skeleton = EnsureSkeleton(i, in instance);
                 if (skeleton == null) continue;
-
-                // Exact bounds are tighter than the conservative broadphase bounds. Recheck after
-                // lazy generation so large conservative crowns do not force branch-level scans.
                 if (!BoundsOverlap(segmentMin, segmentMax,
                                    cached.BoundsMin - sweepRadius,
                                    cached.BoundsMax + sweepRadius))
@@ -171,7 +167,6 @@ namespace VoxelEngine.Core.Vegetation
                 if ((uint)treeIndex >= (uint)instances.Count
                     || (uint)treeIndex >= (uint)s_Cache.Count)
                     continue;
-                if (treeIndex < damage.Count && damage[treeIndex].Severed) continue;
 
                 TreeInstance instance = instances[treeIndex];
                 CachedTree cached = s_Cache[treeIndex];
@@ -184,14 +179,13 @@ namespace VoxelEngine.Core.Vegetation
                 ProceduralTreeSkeleton skeleton = EnsureSkeleton(treeIndex, in instance);
                 if (skeleton == null) continue;
                 float3 root = instance.PositionMetres;
-
                 float fallbackRadius = math.max(
                     3.0f, math.max(blastRadius * 2.5f, skeleton.Height * 0.35f));
                 if (!SphereIntersectsBounds(impactMetres, fallbackRadius,
                                             cached.BoundsMin, cached.BoundsMax))
                     continue;
 
-                var cutCandidates = new List<int>(8);
+                s_CutCandidates.Clear();
                 int severBranch = -1;
                 float severBranchSq = float.PositiveInfinity;
                 int nearestLowerTrunk = -1;
@@ -210,7 +204,6 @@ namespace VoxelEngine.Core.Vegetation
                     TreeBranchSegment branch = skeleton.Branches[branchIndex];
                     float distanceSq = DistanceToSegmentSq(
                         impactMetres, root + branch.Start, root + branch.End);
-
                     if (distanceSq < nearestBranchSq)
                     {
                         nearestBranchSq = distanceSq;
@@ -235,25 +228,29 @@ namespace VoxelEngine.Core.Vegetation
                             severBranchSq = distanceSq;
                             severBranch = branchIndex;
                         }
-                        continue;
                     }
-
-                    if (!cutCandidates.Contains(branchIndex)) cutCandidates.Add(branchIndex);
+                    else if (!s_CutCandidates.Contains(branchIndex))
+                    {
+                        s_CutCandidates.Add(branchIndex);
+                    }
                 }
 
                 for (int leafIndex = 0; leafIndex < skeleton.Leaves.Count; leafIndex++)
                 {
+                    int parent = skeleton.LeafParents != null
+                              && leafIndex < skeleton.LeafParents.Length
+                        ? skeleton.LeafParents[leafIndex] : -1;
+                    if (parent >= 0 && ProceduralTreeSkeletonBuilder.IsBranchRemoved(
+                            skeleton, existingCuts, parent))
+                        continue;
+
                     TreeLeafAnchor leaf = skeleton.Leaves[leafIndex];
                     float radius = blastRadius + leaf.Size * 0.35f;
                     if (math.lengthsq(root + leaf.Position - impactMetres) > radius * radius)
                         continue;
 
                     hitLeaves++;
-                    int parent = skeleton.LeafParents != null
-                              && leafIndex < skeleton.LeafParents.Length
-                        ? skeleton.LeafParents[leafIndex] : -1;
                     if ((uint)parent >= (uint)skeleton.Branches.Count) continue;
-
                     TreeBranchSegment parentBranch = skeleton.Branches[parent];
                     if (IsLowerTrunk(in parentBranch, skeleton.Height))
                     {
@@ -265,15 +262,14 @@ namespace VoxelEngine.Core.Vegetation
                             severBranch = parent;
                         }
                     }
-                    else if (!cutCandidates.Contains(parent))
+                    else if (!s_CutCandidates.Contains(parent))
                     {
-                        cutCandidates.Add(parent);
+                        s_CutCandidates.Add(parent);
                     }
                 }
 
-                // Showcase and gameplay trees can be partially embedded in terrain. If a projectile
-                // clips the voxel lip immediately in front of the visible lower trunk, transfer that
-                // very-near base impact to the trunk instead of turning it into an unrelated twig cut.
+                // Trees can be partially embedded in terrain. Transfer a very-near low impact to
+                // the lower trunk when the projectile clips the voxel lip in front of visible wood.
                 if (severBranch < 0 && nearestLowerTrunk >= 0)
                 {
                     float transferRadius = math.max(
@@ -283,46 +279,44 @@ namespace VoxelEngine.Core.Vegetation
                         && nearestLowerTrunkSq <= transferRadius * transferRadius)
                     {
                         severBranch = nearestLowerTrunk;
-                        severBranchSq = nearestLowerTrunkSq;
                     }
                 }
 
-                if (severBranch < 0 && cutCandidates.Count == 0 && hitLeaves == 0
+                if (severBranch < 0 && s_CutCandidates.Count == 0 && hitLeaves == 0
                     && nearestBranch >= 0 && nearestBranchSq <= fallbackRadius * fallbackRadius)
                 {
                     TreeBranchSegment nearest = skeleton.Branches[nearestBranch];
                     if (IsLowerTrunk(in nearest, skeleton.Height))
                         severBranch = nearestBranch;
                     else
-                        cutCandidates.Add(nearestBranch);
+                        s_CutCandidates.Add(nearestBranch);
                 }
 
-                if (severBranch < 0 && cutCandidates.Count > 0)
-                    PromoteCutCandidatesToVisibleLimbs(skeleton, cutCandidates);
+                if (severBranch < 0 && s_CutCandidates.Count > 0)
+                    PromoteCutCandidatesToVisibleLimbs(skeleton, s_CutCandidates);
 
-                bool severed = severBranch >= 0;
+                bool trunkCut = severBranch >= 0;
                 bool removedAny = false;
-                if (severed)
+                if (trunkCut)
                 {
-                    // A trunk sever is one connected semantic cut. The standing renderer keeps the
-                    // stump while the branch-cut presenter receives the entire upper subtree.
+                    // A trunk cut removes that connected upper subtree. If this tree was already
+                    // severed, the still-standing lower sections remain valid targets; eventually a
+                    // root-most cut removes every remaining branch and leaves no immortal stump.
                     removedAny = TreeWorldState.RemoveBranch(
                         treeIndex, severBranch, impactMetres, impulse);
                 }
                 else
                 {
-                    // Remove only top-most candidates. If a parent is cut, descendants are derived
-                    // from topology and should not generate duplicate detached debris events.
-                    for (int i = 0; i < cutCandidates.Count; i++)
+                    for (int i = 0; i < s_CutCandidates.Count; i++)
                     {
-                        int candidate = cutCandidates[i];
+                        int candidate = s_CutCandidates[i];
                         bool coveredByAnotherCandidate = false;
                         int parent = skeleton.BranchParents != null
                                   && candidate < skeleton.BranchParents.Length
                             ? skeleton.BranchParents[candidate] : -1;
                         while (parent >= 0)
                         {
-                            if (cutCandidates.Contains(parent))
+                            if (s_CutCandidates.Contains(parent))
                             {
                                 coveredByAnotherCandidate = true;
                                 break;
@@ -346,9 +340,13 @@ namespace VoxelEngine.Core.Vegetation
                     foliageHealth = math.max(0f, foliageHealth - loss);
                 }
 
-                if (severed || hitLeaves > 0 || removedAny)
-                    TreeWorldState.SetDamage(treeIndex, foliageHealth, severed,
-                                             impactMetres, impulse);
+                if (trunkCut || hitLeaves > 0 || removedAny)
+                {
+                    bool alreadySevered = treeIndex < damage.Count && damage[treeIndex].Severed;
+                    TreeWorldState.SetDamage(treeIndex, foliageHealth,
+                                             alreadySevered || trunkCut,
+                                             impactMetres, impulse, severBranch);
+                }
             }
         }
 
@@ -364,15 +362,15 @@ namespace VoxelEngine.Core.Vegetation
         private static void PromoteCutCandidatesToVisibleLimbs(
             ProceduralTreeSkeleton skeleton, List<int> cutCandidates)
         {
-            var promoted = new List<int>(cutCandidates.Count);
+            s_PromotedCandidates.Clear();
             for (int i = 0; i < cutCandidates.Count; i++)
             {
                 int candidate = PromoteCutCandidateToVisibleLimb(skeleton, cutCandidates[i]);
-                if (!promoted.Contains(candidate)) promoted.Add(candidate);
+                if (!s_PromotedCandidates.Contains(candidate))
+                    s_PromotedCandidates.Add(candidate);
             }
-
             cutCandidates.Clear();
-            cutCandidates.AddRange(promoted);
+            cutCandidates.AddRange(s_PromotedCandidates);
         }
 
         private static int PromoteCutCandidateToVisibleLimb(
@@ -497,7 +495,6 @@ namespace VoxelEngine.Core.Vegetation
                     oldestUse = candidate.LastUse;
                     oldestIndex = i;
                 }
-
                 if (oldestIndex < 0) break;
                 s_Cache[oldestIndex].Skeleton = null;
                 s_ResidentSkeletonCount--;
@@ -529,7 +526,6 @@ namespace VoxelEngine.Core.Vegetation
                     if (!s_BroadphaseGrid.TryGetValue(new Vector2Int(x, z),
                                                      out List<int> cellTrees))
                         continue;
-
                     for (int i = 0; i < cellTrees.Count; i++)
                     {
                         int treeIndex = cellTrees[i];
@@ -540,7 +536,6 @@ namespace VoxelEngine.Core.Vegetation
                     }
                 }
             }
-
             LastBroadphaseCandidateCount = s_Candidates.Count;
         }
 
@@ -611,7 +606,6 @@ namespace VoxelEngine.Core.Vegetation
             float3 root = instance.PositionMetres;
             min = root;
             max = root;
-
             for (int i = 0; i < skeleton.Branches.Count; i++)
             {
                 TreeBranchSegment branch = skeleton.Branches[i];
@@ -620,7 +614,6 @@ namespace VoxelEngine.Core.Vegetation
                 min = math.min(min, root + math.min(branch.Start, branch.End) - r);
                 max = math.max(max, root + math.max(branch.Start, branch.End) + r);
             }
-
             for (int i = 0; i < skeleton.Leaves.Count; i++)
             {
                 TreeLeafAnchor leaf = skeleton.Leaves[i];

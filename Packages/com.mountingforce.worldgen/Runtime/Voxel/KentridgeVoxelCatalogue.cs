@@ -191,25 +191,32 @@ namespace MountingForce.WorldGen.Voxel
             int doorX = x0 + w / 2 - doorW / 2;
             int doorH = theme.DoorHeightDm * s;
             int roofH = theme.TypicalRoofHeightDm * s;
+            int windowW = 12 * s;
+            int windowH = theme.WindowHeightDm * s;
+            int rearZ = z0 + d - (t + s);
+            int sideRightX = x0 + w - (t + s);
+            int sideWindowZ = z0 + d / 2 - windowW / 2;
 
             b.Box(x0, 0, z0, w, f, d, foundation);
             b.Box(x0, f, z0, w, wallHeight, d, wall);
             b.Carve(x0 + t, f, z0 + t, w - 2 * t, wallHeight, d - 2 * t);
             b.Carve(doorX, f, z0, doorW, doorH, t + s);
 
-            // Two consistent front bays per floor establish Kentridge's facade rhythm. The
-            // buildings vary in width/archetype while sharing the same visual language.
+            // The street facade remains the most expressive face, but ordinary Kentridge
+            // buildings are complete objects now: rear and side elevations get the same window
+            // proportions and timber vocabulary instead of becoming blank shells when walked around.
             for (int storey = 0; storey < floors; storey++)
             {
                 int wy = f + storey * floor + theme.WindowBaseDm * s;
-                AddWindow(b, x0 + 12 * s, wy, z0, 12 * s,
-                          theme.WindowHeightDm * s, t + s, glass);
-                AddWindow(b, x0 + w - 24 * s, wy, z0, 12 * s,
-                          theme.WindowHeightDm * s, t + s, glass);
 
-                if (storey > 0)
-                    b.Box(x0, f + storey * floor - 2 * s, z0,
-                          w, theme.BeamWidthDm * s, 2 * s, timber);
+                AddWindowZ(b, x0 + 12 * s, wy, z0, windowW, windowH, t + s, glass);
+                AddWindowZ(b, x0 + w - 24 * s, wy, z0, windowW, windowH, t + s, glass);
+
+                AddWindowZ(b, x0 + 12 * s, wy, rearZ, windowW, windowH, t + s, glass);
+                AddWindowZ(b, x0 + w - 24 * s, wy, rearZ, windowW, windowH, t + s, glass);
+
+                AddWindowX(b, x0, wy, sideWindowZ, t + s, windowH, windowW, glass);
+                AddWindowX(b, sideRightX, wy, sideWindowZ, t + s, windowH, windowW, glass);
             }
 
             AddTimberFrame(b, x0, z0, w, d, f, wallHeight,
@@ -222,6 +229,12 @@ namespace MountingForce.WorldGen.Voxel
                       w - 10 * s, 3 * s, 15 * s, cloth);
                 b.Box(x0 + 7 * s, f + 1 * s, z0 - 2 * s,
                       w - 14 * s, 3 * s, 8 * s, timber);
+
+                // A small rear service opening makes shops read correctly from the alley side
+                // without competing with the main storefront.
+                int serviceW = 10 * s;
+                int serviceX = x0 + w / 2 - serviceW / 2;
+                b.Carve(serviceX, f, rearZ, serviceW, 20 * s, t + s);
             }
 
             b.Prism(x0 - theme.RoofOverhangDm * s,
@@ -257,6 +270,9 @@ namespace MountingForce.WorldGen.Voxel
             int wallH = theme.FloorHeightDm * 2 * s;
             int doorW = 20 * s;
             int doorX = x0 + w / 2 - doorW / 2;
+            int rearZ = z0 + d - (t + s);
+            int sideRightX = x0 + w - (t + s);
+            int windowH = theme.WindowHeightDm * s;
 
             b.Box(x0, 0, z0, w, f, d, foundation);
             b.Box(x0, f, z0, w, wallH, d, wall);
@@ -266,11 +282,25 @@ namespace MountingForce.WorldGen.Voxel
             for (int storey = 0; storey < 2; storey++)
             {
                 int y = f + storey * theme.FloorHeightDm * s + theme.WindowBaseDm * s;
+
                 for (int bay = 0; bay < 4; bay++)
                 {
                     int x = x0 + (16 + bay * 31) * s;
-                    AddWindow(b, x, y, z0, 12 * s, theme.WindowHeightDm * s, t + s, glass);
+                    AddWindowZ(b, x, y, z0, 12 * s, windowH, t + s, glass);
                 }
+
+                for (int bay = 0; bay < 3; bay++)
+                {
+                    int x = x0 + (24 + bay * 42) * s;
+                    AddWindowZ(b, x, y, rearZ, 12 * s, windowH, t + s, glass);
+                }
+
+                int sideA = z0 + 31 * s;
+                int sideB = z0 + d - 43 * s;
+                AddWindowX(b, x0, y, sideA, t + s, windowH, 12 * s, glass);
+                AddWindowX(b, x0, y, sideB, t + s, windowH, 12 * s, glass);
+                AddWindowX(b, sideRightX, y, sideA, t + s, windowH, 12 * s, glass);
+                AddWindowX(b, sideRightX, y, sideB, t + s, windowH, 12 * s, glass);
             }
 
             AddTimberFrame(b, x0, z0, w, d, f, wallH, theme.BeamWidthDm * s, timber);
@@ -284,6 +314,11 @@ namespace MountingForce.WorldGen.Voxel
             b.Box(doorX + doorW + 3 * s, f, z0 - 15 * s, 4 * s, 30 * s, 4 * s, timber);
             b.Box(doorX - 7 * s, f + 27 * s, z0 - 15 * s, doorW + 14 * s, 4 * s, 4 * s, timber);
 
+            // Back-of-house service entrance for kitchen/stable traffic.
+            int serviceW = 13 * s;
+            b.Carve(x0 + w / 2 - serviceW / 2, f, rearZ,
+                    serviceW, theme.DoorHeightDm * s, t + s);
+
             int3 door = new(doorX + doorW / 2, f, z0);
             b.Anchor(0, door, Facing.South);
             return new CompiledProgram { Code = b.Finish(), Door = door };
@@ -296,23 +331,43 @@ namespace MountingForce.WorldGen.Voxel
             var b = new ProgramBuilder();
             byte stone = settings.Materials.Resolve(theme.Foundation);
             byte timber = settings.Materials.Resolve(theme.Frame);
+            byte glass = settings.Materials.Resolve(theme.Window);
             byte roof = settings.Materials.Resolve(MaterialRole.Slate);
 
             int x0 = 15 * s, z0 = 18 * s, w = 158 * s, d = 142 * s;
             int f = 8 * s, wallH = 55 * s, t = 5 * s;
             int doorW = 42 * s, doorX = x0 + w / 2 - doorW / 2;
+            int rearZ = z0 + d - (t + s);
+            int sideRightX = x0 + w - (t + s);
 
             b.Box(x0, 0, z0, w, f, d, stone);
             b.Box(x0, f, z0, w, wallH, d, timber);
             b.Carve(x0 + t, f, z0 + t, w - 2 * t, wallH, d - 2 * t);
             b.Carve(doorX, f, z0, doorW, 38 * s, t + s);
 
-            // Heavy external posts make it read as a working timber warehouse rather than a giant house.
+            // Heavy external posts wrap front and rear so the building still reads as a working
+            // warehouse when approached from the service lane.
             for (int i = 0; i <= 5; i++)
             {
                 int x = x0 + math.min(w - 5 * s, i * 31 * s);
                 b.Box(x, f, z0 - s, 5 * s, wallH, 4 * s, stone);
+                b.Box(x, f, z0 + d - 3 * s, 5 * s, wallH, 4 * s, stone);
             }
+
+            // High clerestory openings keep the long side walls industrial rather than domestic.
+            int highY = f + 35 * s;
+            for (int bay = 0; bay < 3; bay++)
+            {
+                int z = z0 + (26 + bay * 40) * s;
+                AddWindowX(b, x0, highY, z, t + s, 10 * s, 16 * s, glass);
+                AddWindowX(b, sideRightX, highY, z, t + s, 10 * s, 16 * s, glass);
+            }
+
+            // Rear cargo opening mirrors the functional front entrance without making the back
+            // elevation identical to the street face.
+            int rearDoorW = 34 * s;
+            b.Carve(x0 + w / 2 - rearDoorW / 2, f, rearZ,
+                    rearDoorW, 32 * s, t + s);
 
             b.Prism(x0 - 5 * s, f + wallH, z0 - 5 * s,
                     w + 10 * s, 32 * s, d + 10 * s, PrismProfile.Gable, roof);
@@ -337,6 +392,8 @@ namespace MountingForce.WorldGen.Voxel
             int f = 9 * s, t = 5 * s;
             int wallH = 3 * theme.FloorHeightDm * s;
             int doorW = 22 * s, doorX = x0 + w / 2 - doorW / 2;
+            int rearZ = z0 + d - (t + s);
+            int sideRightX = x0 + w - (t + s);
 
             b.Box(x0, 0, z0, w, f, d, stone);
             b.Box(x0, f, z0, w, wallH, d, wall);
@@ -346,19 +403,37 @@ namespace MountingForce.WorldGen.Voxel
             for (int storey = 0; storey < 3; storey++)
             {
                 int y = f + storey * theme.FloorHeightDm * s + theme.WindowBaseDm * s;
+
                 for (int bay = 0; bay < 5; bay++)
                 {
                     int x = x0 + (18 + bay * 39) * s;
-                    AddWindow(b, x, y, z0, 13 * s, theme.WindowHeightDm * s, t + s, glass);
+                    AddWindowZ(b, x, y, z0, 13 * s, theme.WindowHeightDm * s, t + s, glass);
+                    AddWindowZ(b, x, y, rearZ, 13 * s, theme.WindowHeightDm * s, t + s, glass);
                 }
+
+                for (int bay = 0; bay < 3; bay++)
+                {
+                    int z = z0 + (38 + bay * 50) * s;
+                    AddWindowX(b, x0, y, z, t + s,
+                               theme.WindowHeightDm * s, 13 * s, glass);
+                    AddWindowX(b, sideRightX, y, z, t + s,
+                               theme.WindowHeightDm * s, 13 * s, glass);
+                }
+
                 if (storey > 0)
-                    b.Box(x0, f + storey * theme.FloorHeightDm * s - 2 * s,
-                          z0 - s, w, 4 * s, 3 * s, stone);
+                {
+                    int bandY = f + storey * theme.FloorHeightDm * s - 2 * s;
+                    b.Box(x0, bandY, z0 - s, w, 4 * s, 3 * s, stone);
+                    b.Box(x0, bandY, z0 + d - 2 * s, w, 4 * s, 3 * s, stone);
+                }
             }
 
-            // Stone corner quoins and a formal portico distinguish Radcliffe's seat from ordinary timber houses.
+            // Stone corner quoins now wrap all four corners; only the formal portico remains
+            // deliberately front-biased.
             b.Box(x0, f, z0 - s, 7 * s, wallH, 5 * s, stone);
             b.Box(x0 + w - 7 * s, f, z0 - s, 7 * s, wallH, 5 * s, stone);
+            b.Box(x0, f, z0 + d - 4 * s, 7 * s, wallH, 5 * s, stone);
+            b.Box(x0 + w - 7 * s, f, z0 + d - 4 * s, 7 * s, wallH, 5 * s, stone);
             b.Box(doorX - 18 * s, f, z0 - 24 * s, 7 * s, 42 * s, 7 * s, stone);
             b.Box(doorX + doorW + 11 * s, f, z0 - 24 * s, 7 * s, 42 * s, 7 * s, stone);
             b.Box(doorX - 20 * s, f + 38 * s, z0 - 26 * s,
@@ -386,13 +461,30 @@ namespace MountingForce.WorldGen.Voxel
             int x0 = 22 * s, z0 = 18 * s, w = 120 * s, d = 132 * s;
             int f = 8 * s, t = 5 * s, naveH = 62 * s;
             int doorW = 20 * s, doorX = x0 + w / 2 - doorW / 2;
+            int rearZ = z0 + d - (t + s);
+            int sideRightX = x0 + w - (t + s);
 
             b.Box(x0, 0, z0, w, f, d, stone);
             b.Box(x0, f, z0, w, naveH, d, wall);
             b.Carve(x0 + t, f, z0 + t, w - 2 * t, naveH, d - 2 * t);
             b.Carve(doorX, f, z0, doorW, 30 * s, t + s);
-            AddWindow(b, x0 + 16 * s, f + 27 * s, z0, 14 * s, 23 * s, t + s, glass);
-            AddWindow(b, x0 + w - 30 * s, f + 27 * s, z0, 14 * s, 23 * s, t + s, glass);
+            AddWindowZ(b, x0 + 16 * s, f + 27 * s, z0, 14 * s, 23 * s, t + s, glass);
+            AddWindowZ(b, x0 + w - 30 * s, f + 27 * s, z0, 14 * s, 23 * s, t + s, glass);
+
+            // Tall nave windows make the church recognisable from its long elevations, where the
+            // previous prototype was almost completely blank.
+            for (int bay = 0; bay < 3; bay++)
+            {
+                int z = z0 + (56 + bay * 29) * s;
+                AddWindowX(b, x0, f + 25 * s, z, t + s, 25 * s, 12 * s, glass);
+                AddWindowX(b, sideRightX, f + 25 * s, z, t + s, 25 * s, 12 * s, glass);
+            }
+
+            // Rear chancel windows provide an intentional termination to the nave.
+            AddWindowZ(b, x0 + 30 * s, f + 30 * s, rearZ,
+                       15 * s, 24 * s, t + s, glass);
+            AddWindowZ(b, x0 + w - 45 * s, f + 30 * s, rearZ,
+                       15 * s, 24 * s, t + s, glass);
 
             b.Prism(x0 - 5 * s, f + naveH, z0 - 5 * s,
                     w + 10 * s, 38 * s, d + 10 * s, PrismProfile.Gable, roof);
@@ -436,24 +528,47 @@ namespace MountingForce.WorldGen.Voxel
             return new CompiledProgram { Code = b.Finish(), Door = interaction };
         }
 
-        private static void AddWindow(ProgramBuilder b, int x, int y, int z,
-                                      int width, int height, int depth, byte material)
+        private static void AddWindowZ(ProgramBuilder b, int x, int y, int z,
+                                       int width, int height, int depth, byte material)
         {
             b.Carve(x, y, z, width, height, depth);
             b.Box(x, y, z, width, height, depth, material);
         }
 
+        private static void AddWindowX(ProgramBuilder b, int x, int y, int z,
+                                       int depth, int height, int width, byte material)
+        {
+            b.Carve(x, y, z, depth, height, width);
+            b.Box(x, y, z, depth, height, width, material);
+        }
+
         private static void AddTimberFrame(ProgramBuilder b, int x0, int z0, int width, int depth,
                                            int baseY, int wallHeight, int beam, byte timber)
         {
+            // Four structural corner posts.
             b.Box(x0, baseY, z0, beam, wallHeight, 2 * beam, timber);
             b.Box(x0 + width - beam, baseY, z0, beam, wallHeight, 2 * beam, timber);
             b.Box(x0, baseY, z0 + depth - 2 * beam, beam, wallHeight, 2 * beam, timber);
             b.Box(x0 + width - beam, baseY, z0 + depth - 2 * beam,
                   beam, wallHeight, 2 * beam, timber);
-            b.Box(x0, baseY, z0, width, beam, 2 * beam, timber);
-            b.Box(x0, baseY + wallHeight - beam, z0, width, beam, 2 * beam, timber);
-            b.Box(x0, baseY + wallHeight / 2, z0, width, beam, 2 * beam, timber);
+
+            // Horizontal bands wrap all four elevations at sill/mid/top levels. The front remains
+            // the most detailed facade, but the timber language now survives a full walk around.
+            int[] levels =
+            {
+                baseY,
+                baseY + wallHeight / 2,
+                baseY + wallHeight - beam,
+            };
+
+            for (int i = 0; i < levels.Length; i++)
+            {
+                int y = levels[i];
+                b.Box(x0, y, z0, width, beam, 2 * beam, timber);
+                b.Box(x0, y, z0 + depth - 2 * beam, width, beam, 2 * beam, timber);
+                b.Box(x0, y, z0, 2 * beam, beam, depth, timber);
+                b.Box(x0 + width - 2 * beam, y, z0, 2 * beam, beam, depth, timber);
+            }
         }
 
         /// <summary>Small authoring helper for the engine's flat integer shape bytecode.</summary>

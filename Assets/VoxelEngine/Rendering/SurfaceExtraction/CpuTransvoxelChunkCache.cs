@@ -459,7 +459,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 float3 normal = math.normalizesafe(n0 * t0 + n1 * t1,
                                                     new float3(0f, 1f, 0f));
 
-                byte material = d0 < d1 ? _cellMaterial[corner0] : _cellMaterial[corner1];
+                // Positive density is the solid side of the Transvoxel crossing. Surface material
+                // must come from that side; choosing the lower-density endpoint samples empty space
+                // and makes authored terrain plates fall back to the generic material.
+                byte material = d0 > d1 ? _cellMaterial[corner0] : _cellMaterial[corner1];
                 if (!IsSmoothFieldMaterial(material)) material = 1;
 
                 _vertices.Add(new SmoothSurfaceVertex
