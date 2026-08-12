@@ -3,10 +3,10 @@ using System;
 namespace VoxelEngine.Core.Storage
 {
     /// <summary>
-    /// Cross-peer semantic fingerprint of region material state.
+    /// Cross-peer semantic fingerprint of region state.
     ///
-    /// Allocator-local BrickPool indices never enter the hash. Mixed bricks contribute their 512
-    /// material bytes in canonical voxel order; uniform bricks contribute only their material.
+    /// Allocator-local BrickPool indices never enter the hash. Material bytes and the authored
+    /// hard-surface semantic bit do, because both affect authoritative derived geometry.
     /// </summary>
     public static class SemanticRegionHasher
     {
@@ -25,6 +25,8 @@ namespace VoxelEngine.Core.Storage
 
             for (int i = 0; i < region.BrickRefs.Length; i++)
             {
+                hash = MixByte(hash, region.IsHardSurfaceBrick(i) ? (byte)1 : (byte)0);
+
                 BrickRef brick = region.BrickRefs[i];
                 if (brick.IsMixed)
                 {
