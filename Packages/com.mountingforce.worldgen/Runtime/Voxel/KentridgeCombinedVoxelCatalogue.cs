@@ -6,10 +6,10 @@ namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
     /// Composes Kentridge generation stages into the single immutable catalogue understood by the
-    /// voxel engine. Ordering is intentional and observable: themed ground cover first, authored
-    /// vertical roads/plaza second, hillside stair connectors third, masonry terrace supports fourth,
-    /// prepared building plots fifth, frontage paths sixth, private/public dressing next, and
-    /// structures last.
+    /// voxel engine. Ordering is intentional and observable: themed ground cover first, broad
+    /// district terraces second, authored vertical roads/plaza third, hillside stair connectors
+    /// fourth, parcel masonry supports fifth, prepared building plots sixth, frontage paths seventh,
+    /// private/public dressing next, and structures last.
     /// </summary>
     public static class KentridgeCombinedVoxelCatalogue
     {
@@ -18,6 +18,8 @@ namespace MountingForce.WorldGen.Voxel
         {
             FeatureCatalogue groundCover =
                 KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp);
+            FeatureCatalogue districtTerraces =
+                KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue publicSpaces =
                 KentridgeVerticalTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
             FeatureCatalogue verticalConnectors =
@@ -43,6 +45,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 FeatureCatalogue result = CatalogueLoader.Allocate(
                     definitions: groundCover.Definitions.Length
+                               + districtTerraces.Definitions.Length
                                + publicSpaces.Definitions.Length
                                + verticalConnectors.Definitions.Length
                                + terraceSupports.Definitions.Length
@@ -52,6 +55,7 @@ namespace MountingForce.WorldGen.Voxel
                                + townDressing.Definitions.Length
                                + buildings.Definitions.Length,
                     rules: groundCover.Rules.Length
+                         + districtTerraces.Rules.Length
                          + publicSpaces.Rules.Length
                          + verticalConnectors.Rules.Length
                          + terraceSupports.Rules.Length
@@ -61,6 +65,7 @@ namespace MountingForce.WorldGen.Voxel
                          + townDressing.Rules.Length
                          + buildings.Rules.Length,
                     parameters: groundCover.Parameters.Length
+                              + districtTerraces.Parameters.Length
                               + publicSpaces.Parameters.Length
                               + verticalConnectors.Parameters.Length
                               + terraceSupports.Parameters.Length
@@ -70,6 +75,7 @@ namespace MountingForce.WorldGen.Voxel
                               + townDressing.Parameters.Length
                               + buildings.Parameters.Length,
                     anchors: groundCover.Anchors.Length
+                           + districtTerraces.Anchors.Length
                            + publicSpaces.Anchors.Length
                            + verticalConnectors.Anchors.Length
                            + terraceSupports.Anchors.Length
@@ -79,6 +85,7 @@ namespace MountingForce.WorldGen.Voxel
                            + townDressing.Anchors.Length
                            + buildings.Anchors.Length,
                     slots: groundCover.Slots.Length
+                         + districtTerraces.Slots.Length
                          + publicSpaces.Slots.Length
                          + verticalConnectors.Slots.Length
                          + terraceSupports.Slots.Length
@@ -88,6 +95,7 @@ namespace MountingForce.WorldGen.Voxel
                          + townDressing.Slots.Length
                          + buildings.Slots.Length,
                     programLength: groundCover.Program.Length
+                                 + districtTerraces.Program.Length
                                  + publicSpaces.Program.Length
                                  + verticalConnectors.Program.Length
                                  + terraceSupports.Program.Length
@@ -97,6 +105,7 @@ namespace MountingForce.WorldGen.Voxel
                                  + townDressing.Program.Length
                                  + buildings.Program.Length,
                     materials: groundCover.Materials.Length
+                             + districtTerraces.Materials.Length
                              + publicSpaces.Materials.Length
                              + verticalConnectors.Materials.Length
                              + terraceSupports.Materials.Length
@@ -106,6 +115,7 @@ namespace MountingForce.WorldGen.Voxel
                              + townDressing.Materials.Length
                              + buildings.Materials.Length,
                     explicitPlacements: groundCover.ExplicitPlacements.Length
+                                      + districtTerraces.ExplicitPlacements.Length
                                       + publicSpaces.ExplicitPlacements.Length
                                       + verticalConnectors.ExplicitPlacements.Length
                                       + terraceSupports.ExplicitPlacements.Length
@@ -115,6 +125,7 @@ namespace MountingForce.WorldGen.Voxel
                                       + townDressing.ExplicitPlacements.Length
                                       + buildings.ExplicitPlacements.Length,
                     overrides: groundCover.ParameterOverrides.Length
+                             + districtTerraces.ParameterOverrides.Length
                              + publicSpaces.ParameterOverrides.Length
                              + verticalConnectors.ParameterOverrides.Length
                              + terraceSupports.ParameterOverrides.Length
@@ -136,6 +147,10 @@ namespace MountingForce.WorldGen.Voxel
                 int overrideOffset = 0;
 
                 Append(in groundCover, ref result,
+                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
+                    ref anchorOffset, ref slotOffset, ref programOffset,
+                    ref materialOffset, ref placementOffset, ref overrideOffset);
+                Append(in districtTerraces, ref result,
                     ref definitionOffset, ref ruleOffset, ref parameterOffset,
                     ref anchorOffset, ref slotOffset, ref programOffset,
                     ref materialOffset, ref placementOffset, ref overrideOffset);
@@ -185,6 +200,7 @@ namespace MountingForce.WorldGen.Voxel
             finally
             {
                 groundCover.Dispose();
+                districtTerraces.Dispose();
                 publicSpaces.Dispose();
                 verticalConnectors.Dispose();
                 terraceSupports.Dispose();
