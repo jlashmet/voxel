@@ -15,6 +15,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
         EastMarketJunction = 6,
         EastRidgeLanding = 7,
         WorkingYard = 8,
+        WestMarketLanding = 9,
     }
 
     public enum KentridgeUrbanNodeKind : byte
@@ -32,6 +33,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
     {
         PrimaryStreet,
         SecondaryContour,
+        SecondaryStair,
     }
 
     /// <summary>
@@ -70,7 +72,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
     /// <summary>
     /// A semantic connection between major public places. PrimaryStreet links are already realised
-    /// by KentridgeTownPlanner's stable street network; SecondaryContour links belong to the urban
+    /// by KentridgeTownPlanner's stable street network; secondary links belong to the urban
     /// organisation layer and may be realised by lanes, stairs, arcades, or bridges.
     /// </summary>
     public readonly struct KentridgeUrbanLink
@@ -120,8 +122,9 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
     /// <summary>
     /// The settlement-scale graph underneath all later generation. It says where the important
-    /// public places are, which ones form the primary climb, and where the east ridge rejoins the
-    /// central town. It intentionally says nothing about windows, roofs, facade modules, or rooms.
+    /// public places are, which ones form the primary climb, where the east ridge rejoins the central
+    /// town, and where pedestrian-only routes create meaningful alternatives to the vehicular spine.
+    /// It intentionally says nothing about windows, roofs, facade modules, or rooms.
     /// </summary>
     public static class KentridgeUrbanSkeleton
     {
@@ -129,7 +132,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
         {
             _ = seed;
 
-            var nodes = new List<KentridgeUrbanNode>(9)
+            var nodes = new List<KentridgeUrbanNode>(10)
             {
                 new KentridgeUrbanNode(
                     KentridgeUrbanNodeId.SouthApproach,
@@ -214,9 +217,20 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     new Int2(KentridgeTownPlanner.EastLaneXDm, 700),
                     new Int2(72, 52),
                     2),
+
+                new KentridgeUrbanNode(
+                    KentridgeUrbanNodeId.WestMarketLanding,
+                    KentridgeUrbanNodeKind.Landing,
+                    KentridgeUrbanBand.MarketBelt,
+                    DistrictKind.Market,
+                    new Int2(
+                        KentridgeUrbanCirculation.LowerWestStairXDm,
+                        KentridgeUrbanCirculation.LowerWestStairNorthZDm),
+                    new Int2(20, 18),
+                    2),
             };
 
-            var links = new List<KentridgeUrbanLink>(9)
+            var links = new List<KentridgeUrbanLink>(11)
             {
                 new KentridgeUrbanLink(
                     "approach-to-residential",
@@ -263,6 +277,16 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     KentridgeUrbanNodeId.UpperLanding,
                     KentridgeUrbanNodeId.EastRidgeLanding,
                     KentridgeUrbanLinkKind.SecondaryContour),
+                new KentridgeUrbanLink(
+                    "residential-to-west-market-stair",
+                    KentridgeUrbanNodeId.ResidentialJunction,
+                    KentridgeUrbanNodeId.WestMarketLanding,
+                    KentridgeUrbanLinkKind.SecondaryStair),
+                new KentridgeUrbanLink(
+                    "west-market-stair-to-square",
+                    KentridgeUrbanNodeId.WestMarketLanding,
+                    KentridgeUrbanNodeId.MarketSquare,
+                    KentridgeUrbanLinkKind.SecondaryStair),
             };
 
             Validate(nodes, links);
