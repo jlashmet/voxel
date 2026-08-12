@@ -42,9 +42,6 @@ namespace VoxelEngine.Structures
             float radialThickness = Mathf.Max(0.08f, outerRadius - innerRadius);
             float originalSpan = Mathf.Abs(a1 - a0);
 
-            // The assembly deliberately leaves a tiny mortar line between stones. Recover most of
-            // that angular gap here so the visible joint stays hairline rather than becoming a fan
-            // of dark triangular slots at the extrados.
             float overcut = Mathf.Min(originalSpan * 0.035f, 0.17f * Mathf.Deg2Rad);
             if (a0 < a1)
             {
@@ -59,13 +56,9 @@ namespace VoxelEngine.Structures
 
             float angleSpan = Mathf.Abs(a1 - a0);
             float arcWidth = ((innerRadius + outerRadius) * 0.5f) * angleSpan;
-
-            // AAA masonry wants a narrow edge catch, not a stylized bevel. At this scale the old
-            // 3-4 cm chamfer doubled the apparent mortar width, so cap it around 1 cm.
             float bevel = Mathf.Clamp(requestedBevel * 0.36f, 0.006f,
                 Mathf.Min(radialThickness * 0.030f, arcWidth * 0.055f));
 
-            // Keep the intrados nearly perfect; let the weather live primarily on the exposed outer edge.
             float inner0 = innerRadius + (Hash(seed + 11) - 0.5f) * radialThickness * 0.003f;
             float inner1 = innerRadius + (Hash(seed + 13) - 0.5f) * radialThickness * 0.003f;
             float outer0 = outerRadius + (Hash(seed + 17) - 0.5f) * radialThickness * 0.014f;
@@ -90,7 +83,6 @@ namespace VoxelEngine.Structures
                     : boundary[i];
             }
 
-            // Rare, tiny corner loss. This should only register in a close-up, never alter the ring rhythm.
             if (Hash(seed + 101) > 0.93f)
             {
                 int corner = Hash(seed + 103) > 0.5f ? 2 : 3;
@@ -105,28 +97,37 @@ namespace VoxelEngine.Structures
             var vertices = new List<Vector3>(64);
             var triangles = new List<int>(96);
 
-            AddQuad(vertices, triangles,
-                V(face[0], front), V(face[3], front), V(face[2], front), V(face[1], front));
+            // Explicit outward normals are critical. The camera sees the -Z face; letting polygon
+            // ordering choose +Z made the broad stone face light like the rear of the asset.
+            AddQuadFacing(vertices, triangles,
+                V(face[0], front), V(face[3], front), V(face[2], front), V(face[1], front),
+                Vector3.back);
 
             for (int i = 0; i < 4; i++)
             {
                 int next = (i + 1) & 3;
-                AddQuad(vertices, triangles,
+                Vector2 edgeMid = (boundary[i] + boundary[next]) * 0.5f;
+                Vector2 outward2 = (edgeMid - centroid).normalized;
+                Vector3 expected = new Vector3(outward2.x, outward2.y, -0.65f).normalized;
+                AddQuadFacing(vertices, triangles,
                     V(face[i], front), V(face[next], front),
-                    V(boundary[next], bevelBack), V(boundary[i], bevelBack));
+                    V(boundary[next], bevelBack), V(boundary[i], bevelBack), expected);
             }
 
             for (int i = 0; i < 4; i++)
             {
                 int next = (i + 1) & 3;
-                AddQuad(vertices, triangles,
+                Vector2 edgeMid = (boundary[i] + boundary[next]) * 0.5f;
+                Vector2 outward2 = (edgeMid - centroid).normalized;
+                Vector3 expected = new Vector3(outward2.x, outward2.y, 0f);
+                AddQuadFacing(vertices, triangles,
                     V(boundary[i], bevelBack), V(boundary[next], bevelBack),
-                    V(boundary[next], back), V(boundary[i], back));
+                    V(boundary[next], back), V(boundary[i], back), expected);
             }
 
-            AddQuad(vertices, triangles,
+            AddQuadFacing(vertices, triangles,
                 V(boundary[0], back), V(boundary[1], back),
-                V(boundary[2], back), V(boundary[3], back));
+                V(boundary[2], back), V(boundary[3], back), Vector3.forward);
 
             Mesh mesh = new Mesh { name = "Hero chamfered architectural voussoir" };
             mesh.SetVertices(vertices);
@@ -136,9 +137,16 @@ namespace VoxelEngine.Structures
             return mesh;
         }
 
-        private static void AddQuad(List<Vector3> vertices, List<int> triangles,
-            Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+        private static void AddQuadFacing(List<Vector3> vertices, List<int> triangles,
+            Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 expectedNormal)
         {
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), expectedNormal) < 0f)
+            {
+                Vector3 swap = b;
+                b = d;
+                d = swap;
+            }
+
             int start = vertices.Count;
             vertices.Add(a);
             vertices.Add(b);
