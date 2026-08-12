@@ -27,22 +27,12 @@ namespace VoxelEngine.Net.Server
     }
 
     /// <summary>
-    /// Fixed-tick consumer of the frame-level ServerCommandInbox.
-    ///
-    /// Responsibilities:
-    ///   - resolve transport connection -> authenticated player identity;
-    ///   - reject implausible client timestamps and duplicate durable request sequences;
-    ///   - arbitrate cross-player requests deterministically by (playerId, clientSequence);
-    ///   - substitute authoritative tick, sequence, and server-derived seed;
-    ///   - query rate/allocation limits without mutating them on rejection;
-    ///   - validate against authoritative player/world state;
-    ///   - apply to the authoritative world before publishing the semantic event.
-    ///
-    /// Network arrival order is deliberately not authority. ArrivalOrdinal remains diagnostics only.
+    /// Fixed-tick consumer of the frame-level ServerCommandInbox. Network arrival order is never
+    /// authority; commands resolve through authenticated player identity and deterministic ordering.
     /// </summary>
     public sealed class ServerCommandProcessor
     {
-        private const uint k_MaxFutureInputTicks = 2;
+        private const uint MaxFutureInputTicks = 2;
 
         private readonly ServerCommandInbox _inbox;
         private readonly ServerPlayerRegistry _players;
@@ -50,10 +40,8 @@ namespace VoxelEngine.Net.Server
         private readonly uint _serverSeed;
         private readonly Validation.DensityCap _densityCap;
 
-        private readonly List<ServerCommandInbox.QueuedAlterationRequest> _alterationDrain =
-            new List<ServerCommandInbox.QueuedAlterationRequest>(128);
-        private readonly List<ServerCommandInbox.QueuedPlayerInput> _inputDrain =
-            new List<ServerCommandInbox.QueuedPlayerInput>(256);
+        private readonly List<ServerCommandInbox.QueuedAlterationRequest> _alterationDrain = new List<ServerCommandInbox.QueuedAlterationRequest>(128);
+        private readonly List<ServerCommandInbox.QueuedPlayerInput> _inputDrain = new List<ServerCommandInbox.QueuedPlayerInput>(256);
         private readonly List<ResolvedAlteration> _resolvedAlterations = new List<ResolvedAlteration>(128);
         private readonly List<ResolvedInput> _resolvedInputs = new List<ResolvedInput>(256);
         private readonly Dictionary<ushort, ushort> _lastDurableSequence = new Dictionary<ushort, ushort>(64);
@@ -100,9 +88,7 @@ namespace VoxelEngine.Net.Server
 
         public void RemovePlayer(ushort playerId)
         {
-            if (playerId == 0)
-                return;
-
+            if (playerId == 0) return;
             _lastDurableSequence.Remove(playerId);
             _rateLimiter.RemovePlayer(playerId);
         }
@@ -151,8 +137,6 @@ namespace VoxelEngine.Net.Server
                     continue;
                 }
 
-                // Mark as consumed before expensive validation. Retrying a rejected durable command
-                // requires a new client sequence; this prevents replay-spam of the same request.
                 _lastDurableSequence[player.PlayerId] = queued.Request.sequence;
                 _resolvedAlterations.Add(new ResolvedAlteration(player, queued));
             }
@@ -166,7 +150,8 @@ namespace VoxelEngine.Net.Server
             for (int i = 0; i < _resolvedInputs.Count; i++)
             {
                 ResolvedInput resolved = _resolvedInputs[i];
-                inputSink.ApplyInput(resolved.PlayerId, in resolved.Queued.Input, serverTick);
+                C_PlayerInput input = resolved.Queued.Input;
+                inputSink.ApplyInput(resolved.PlayerId, in input, serverTick);
             }
         }
 
@@ -186,7 +171,6 @@ namespace VoxelEngine.Net.Server
                 ResolvedAlteration resolved = _resolvedAlterations[i];
                 C_AlterationRequest request = resolved.Queued.Request;
                 ServerPlayerRegistry.PlayerSession player = resolved.Player;
-
                 int estimatedBricks = EstimateForBudget(in request);
                 Validation.ValidationResult validation;
 
@@ -218,9 +202,7 @@ namespace VoxelEngine.Net.Server
 
                     if (validation == Validation.ValidationResult.Success &&
                         !applier.TryApplyAlteration(ref table, ref pool, in evt))
-                    {
                         validation = Validation.ValidationResult.InvalidTarget;
-                    }
 
                     if (validation == Validation.ValidationResult.Success)
                     {
@@ -239,28 +221,25 @@ namespace VoxelEngine.Net.Server
             }
         }
 
-        private int EstimateForBudget(in C_AlterationRequest request)
+        private static int EstimateForBudget(in C_AlterationRequest request)
         {
-            // Identity/tick/seed do not affect shape cost; use harmless non-zero authoritative values.
             AlterationEvent evt = request.ToAuthoritativeEvent(1, 1, 1, 1);
             return AuthoritativeAlterationValidator.EstimateAffectedBricks(in evt);
         }
 
         private bool IsNewDurableSequence(ushort playerId, ushort sequence)
         {
-            if (!_lastDurableSequence.TryGetValue(playerId, out ushort last))
-                return true;
-
+            if (!_lastDurableSequence.TryGetValue(playerId, out ushort last)) return true;
             ushort delta = unchecked((ushort)(sequence - last));
             return delta != 0 && delta < 0x8000;
         }
 
         private static bool IsClientTickPlausible(uint clientTick, uint serverTick)
         {
-            uint oldest = serverTick > ServerTickLoop.k_RollbackWindowTicks
-                ? serverTick - ServerTickLoop.k_RollbackWindowTicks
+            uint oldest = serverTick > AuthoritativeTickConfig.RollbackWindowTicks
+                ? serverTick - AuthoritativeTickConfig.RollbackWindowTicks
                 : 0;
-            uint newest = serverTick + k_MaxFutureInputTicks;
+            uint newest = serverTick + MaxFutureInputTicks;
             return clientTick >= oldest && clientTick <= newest;
         }
 
@@ -294,51 +273,36 @@ namespace VoxelEngine.Net.Server
         {
             public readonly ushort PlayerId;
             public readonly ServerCommandInbox.QueuedPlayerInput Queued;
-
-            public ResolvedInput(ushort playerId, ServerCommandInbox.QueuedPlayerInput queued)
-            {
-                PlayerId = playerId;
-                Queued = queued;
-            }
+            public ResolvedInput(ushort playerId, ServerCommandInbox.QueuedPlayerInput queued) { PlayerId = playerId; Queued = queued; }
         }
 
         private readonly struct ResolvedAlteration
         {
             public readonly ServerPlayerRegistry.PlayerSession Player;
             public readonly ServerCommandInbox.QueuedAlterationRequest Queued;
-
-            public ResolvedAlteration(
-                ServerPlayerRegistry.PlayerSession player,
-                ServerCommandInbox.QueuedAlterationRequest queued)
-            {
-                Player = player;
-                Queued = queued;
-            }
+            public ResolvedAlteration(ServerPlayerRegistry.PlayerSession player, ServerCommandInbox.QueuedAlterationRequest queued)
+            { Player = player; Queued = queued; }
         }
 
         private sealed class ResolvedInputComparer : IComparer<ResolvedInput>
         {
             public static readonly ResolvedInputComparer Instance = new ResolvedInputComparer();
-
             public int Compare(ResolvedInput a, ResolvedInput b)
             {
                 int tick = a.Queued.Input.tick.CompareTo(b.Queued.Input.tick);
                 if (tick != 0) return tick;
                 int player = a.PlayerId.CompareTo(b.PlayerId);
-                if (player != 0) return player;
-                return CompareSequence(a.Queued.Input.sequence, b.Queued.Input.sequence);
+                return player != 0 ? player : CompareSequence(a.Queued.Input.sequence, b.Queued.Input.sequence);
             }
         }
 
         private sealed class ResolvedAlterationComparer : IComparer<ResolvedAlteration>
         {
             public static readonly ResolvedAlterationComparer Instance = new ResolvedAlterationComparer();
-
             public int Compare(ResolvedAlteration a, ResolvedAlteration b)
             {
                 int player = a.Player.PlayerId.CompareTo(b.Player.PlayerId);
-                if (player != 0) return player;
-                return CompareSequence(a.Queued.Request.sequence, b.Queued.Request.sequence);
+                return player != 0 ? player : CompareSequence(a.Queued.Request.sequence, b.Queued.Request.sequence);
             }
         }
 
