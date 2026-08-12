@@ -49,8 +49,6 @@ namespace VoxelEngine.CI
 
                 var brush = new VoxelBrush(world.Table, world.Pool, 4_000_000);
 
-                // Isolate the hero asset from generated terrain so every visible architectural
-                // decision in this capture comes from the reusable voxel builder.
                 brush.FillBulk(new int3(cx - 42, baseY, cz - 24),
                     new int3(84, 72, 48), Mat.Empty);
                 WorldArtPrimitives.RoundedBox(ref brush,
@@ -58,17 +56,18 @@ namespace VoxelEngine.CI
                     new int3(68, 5, 36), 2, Mat.DarkStone);
 
                 WorldArtVoxelArchSpec spec = WorldArtVoxelArchSpec.Hero(
-                    new int3(cx, baseY, cz), Mat.Stone, Mat.Empty, seed);
+                    new int3(cx, baseY, cz), Mat.Stone, Mat.Empty, seed, Mat.DarkStone);
                 spec.Damage = WorldArtVoxelArchDamage.Intact;
                 WorldArtVoxelArchSockets sockets = WorldArtVoxelArchitecture.ArchBay(ref brush, in spec);
+                WorldArtVoxelSocket[] semanticSockets =
+                    WorldArtVoxelArchSocketLibrary.Build(in spec, in sockets);
 
+                if (semanticSockets.Length < 8)
+                    throw new InvalidOperationException("Voxel hero arch emitted too few semantic sockets.");
                 if (brush.BudgetExceeded)
                     throw new InvalidOperationException("Voxel hero arch exceeded VoxelBrush budget.");
 
                 world.DirtyRegions.Add(RegionCoord);
-                // Render only the architecture review volume at a 5 cm extraction lattice. The
-                // source remains the 10 cm destructible world; this is visual surface quality, not
-                // a second authored representation.
                 voxelSurface = new VoxelHeroSurfaceRenderer(
                     new int3(cx - 42, baseY - 5, cz - 20),
                     new int3(84, 72, 40))
@@ -118,6 +117,7 @@ namespace VoxelEngine.CI
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
                     "heroSurfaceSampleMetres=0.05\n" +
+                    $"semanticSocketCount={semanticSockets.Length}\n" +
                     $"seed=0x{seed:X}\n" +
                     $"baseY={baseY}\n" +
                     $"voxelWrites={brush.VoxelsWritten}\n" +
@@ -159,10 +159,10 @@ namespace VoxelEngine.CI
                 new Color(0.70f, 0.65f, 0.54f),
                 new Color(0.53f, 0.49f, 0.41f),
                 new Color(0.84f, 0.79f, 0.68f));
-            Material baseStone = MakeStone(shader, "Hero voxel plinth stone",
-                new Color(0.34f, 0.35f, 0.32f),
-                new Color(0.25f, 0.26f, 0.24f),
-                new Color(0.42f, 0.43f, 0.39f));
+            Material baseStone = MakeStone(shader, "Hero voxel joint/plinth stone",
+                new Color(0.43f, 0.41f, 0.35f),
+                new Color(0.31f, 0.30f, 0.27f),
+                new Color(0.51f, 0.49f, 0.42f));
             owned.Add(stone);
             owned.Add(baseStone);
 
@@ -183,13 +183,13 @@ namespace VoxelEngine.CI
             SetColor(m, "_SecondaryColor", secondary);
             SetColor(m, "_TopColor", top);
             SetFloat(m, "_SurfaceKind", 2f);
-            SetFloat(m, "_TextureScale", 0.22f);
-            SetFloat(m, "_TextureStrength", 0.30f);
-            SetFloat(m, "_DetailScale", 0.050f);
-            SetFloat(m, "_DetailStrength", 0.075f);
-            SetFloat(m, "_TopStrength", 0.22f);
-            SetFloat(m, "_RimStrength", 0.020f);
-            SetFloat(m, "_Smoothness", 0.025f);
+            SetFloat(m, "_TextureScale", 0.18f);
+            SetFloat(m, "_TextureStrength", 0.36f);
+            SetFloat(m, "_DetailScale", 0.045f);
+            SetFloat(m, "_DetailStrength", 0.085f);
+            SetFloat(m, "_TopStrength", 0.20f);
+            SetFloat(m, "_RimStrength", 0.014f);
+            SetFloat(m, "_Smoothness", 0.018f);
             return m;
         }
 
@@ -238,8 +238,8 @@ namespace VoxelEngine.CI
             camera.allowHDR = false;
             camera.allowMSAA = true;
 
-            cameraObject.transform.position = focus + new Vector3(5.8f, 2.8f, -9.8f);
-            cameraObject.transform.LookAt(focus);
+            cameraObject.transform.position = focus + new Vector3(4.5f, 2.6f, -10.4f);
+            cameraObject.transform.LookAt(focus + new Vector3(0f, 0.12f, 0f));
         }
 
         private static void SetColor(Material material, string property, Color value)
