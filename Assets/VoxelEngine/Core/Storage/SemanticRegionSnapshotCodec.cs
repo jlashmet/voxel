@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Mathematics;
 
 namespace VoxelEngine.Core.Storage
 {
