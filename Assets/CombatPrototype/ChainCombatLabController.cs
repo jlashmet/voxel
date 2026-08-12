@@ -53,7 +53,9 @@ namespace MountingForce.CombatPrototype
         private bool _constructsDirty;
 
         private Rect SidebarRect => new Rect(Screen.width - SidebarWidth, 0f, SidebarWidth, Screen.height);
-        private bool PlannerOwnsProactive => GetComponent<ChainExecutionPlanner>() != null;
+        private ChainExecutionPlanner Planner => GetComponent<ChainExecutionPlanner>();
+        private bool PlannerOwnsProactive => Planner != null;
+        private bool SharedPlanPending => PlannerOwnsProactive && Planner.Plan.HasActions;
 
         private void Awake()
         {
@@ -259,7 +261,7 @@ namespace MountingForce.CombatPrototype
             _scroll = GUILayout.BeginScrollView(_scroll);
 
             GUILayout.Label("MOUNTING FORCE — CASCADE LAB", _titleStyle);
-            GUILayout.Label($"Round {_board.Round} • plan on left • live reactions here • Ready → enemies", _smallStyle);
+            GUILayout.Label($"Round {_board.Round} • plan on left • live reactions here • Ready → approve → execute → enemies", _smallStyle);
             GUILayout.Label($"Last cascade: {_board.LastCascadeSteps} steps / {_board.LastCascadePlayers} players   Best: {_board.BestCascadeSteps} / {_board.BestCascadePlayers}", _smallStyle);
 
             if (_board.CurrentCascadeSteps > 0)
@@ -318,7 +320,7 @@ namespace MountingForce.CombatPrototype
         private void DrawReadiness()
         {
             GUILayout.Label("PLAYER READY", _headerStyle);
-            GUILayout.Label("Ready means: no more proactive plan edits for that player this round. It does NOT disable planned/live reactions or event reservations.", _smallStyle);
+            GUILayout.Label("Ready approves and freezes that player's shared-plan edits. It does NOT disable live reactions or event reservations during execution.", _smallStyle);
 
             GUILayout.BeginHorizontal();
             for (int group = 1; group <= 4; group++)
@@ -337,8 +339,12 @@ namespace MountingForce.CombatPrototype
 
             if (_roundReadiness.AllLivingPlayersReady)
             {
-                GUI.enabled = !_board.BattleOver && _board.PendingReaction == null;
-                if (GUILayout.Button("All living players Ready → enemies act"))
+                bool sharedPlanPending = SharedPlanPending;
+                GUI.enabled = !_board.BattleOver && _board.PendingReaction == null && !sharedPlanPending;
+                string advanceLabel = sharedPlanPending
+                    ? "Approved shared plan pending → execute it on the left"
+                    : "Approved plan complete → enemies act";
+                if (GUILayout.Button(advanceLabel))
                 {
                     bool advanced = _roundReadiness.TryAdvanceRound();
                     _uiMessage = _roundReadiness.LastMessage;
@@ -350,12 +356,14 @@ namespace MountingForce.CombatPrototype
                 }
                 GUI.enabled = true;
 
-                if (_board.PendingReaction != null)
-                    GUILayout.Label("Everyone is Ready, but the current physical event must still be resolved or passed before enemies act.", _smallStyle);
+                if (sharedPlanPending)
+                    GUILayout.Label("Everyone has approved the current ghost plan. Execute it on the left before the enemy phase can begin.", _smallStyle);
+                else if (_board.PendingReaction != null)
+                    GUILayout.Label("Everyone is Ready, but the current live physical event must still be resolved or passed before enemies act.", _smallStyle);
             }
             else
             {
-                GUILayout.Label("Enemy phase is locked until every living player group is Ready.", _smallStyle);
+                GUILayout.Label("Shared-plan execution is locked until every living player group is Ready.", _smallStyle);
             }
         }
 
@@ -458,8 +466,8 @@ namespace MountingForce.CombatPrototype
             if (PlannerOwnsProactive)
             {
                 GUILayout.Label(playerReady
-                    ? "PROACTIVE — locked while this player is Ready. Unready them to edit their ghost-plan instructions."
-                    : "PROACTIVE — use the EXECUTION PLAN on the left. Live actions cannot bypass the shared ghost plan.", _smallStyle);
+                    ? "PLAN EDITING — locked while this player is Ready. Unready them to alter their shared-plan instructions."
+                    : "PLAN EDITING — use the EXECUTION PLAN on the left. Live proactive actions cannot bypass the shared ghost plan.", _smallStyle);
             }
             else
             {
@@ -496,7 +504,7 @@ namespace MountingForce.CombatPrototype
             }
 
             if (playerReady)
-                GUILayout.Label("P is Ready: proactive controls are closed, but reactions below remain fully available.", _smallStyle);
+                GUILayout.Label("P is Ready: shared-plan edits are closed, but live reactions below remain fully available.", _smallStyle);
 
             ChainReactionAbility ability = ReactionFor(unit.Kind);
             if (ability != ChainReactionAbility.None)

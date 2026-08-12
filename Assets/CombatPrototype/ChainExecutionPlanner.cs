@@ -78,6 +78,7 @@ namespace MountingForce.CombatPrototype
         public ChainExecutionPlan Plan => _plan;
         public ChainExecutionPreview Preview => _preview;
         public ChainCombatBoard PreviewBoard => _preview?.FinalBoard ?? _board;
+        public bool TeamReadyToExecute => _roundReadiness != null && _roundReadiness.AllLivingPlayersReady;
         public Rect PanelRect => new Rect(PanelX, PanelY, PanelWidth, Mathf.Max(240f, Screen.height - PanelY - 10f));
 
         private void Awake()
@@ -210,9 +211,12 @@ namespace MountingForce.CombatPrototype
             else if (_preview?.FinalBoard?.PendingReaction != null)
                 GUILayout.Label($"GHOST STOPS AT {_preview.FinalBoard.PendingReaction.Kind}: choose a planned reaction or deliberately let it continue.", _header);
 
-            GUI.enabled = _plan.HasActions && _preview != null && !_preview.HasFailure && !_board.BattleOver;
-            if (GUILayout.Button("EXECUTE SHARED PLAN")) ExecutePlan();
+            bool canExecute = _plan.HasActions && _preview != null && !_preview.HasFailure && !_board.BattleOver && TeamReadyToExecute;
+            GUI.enabled = canExecute;
+            if (GUILayout.Button(TeamReadyToExecute ? "EXECUTE APPROVED SHARED PLAN" : "WAITING FOR ALL PLAYERS READY")) ExecutePlan();
             GUI.enabled = true;
+            if (_plan.HasActions && !TeamReadyToExecute)
+                GUILayout.Label("Every living player must mark Ready on the right before the shared plan can become real.", _small);
 
             GUILayout.Label(_message, _small);
         }
@@ -233,6 +237,14 @@ namespace MountingForce.CombatPrototype
             GUILayout.Label($"PLAN TOOLBOX — P{selected.CommandGroup} {selected.Name}", _header);
             GUILayout.Label($"ghost position {selected.Position} • move {(selected.MoveSpent ? "spent" : "ready")} • action {(selected.ActionSpent ? "spent" : "ready")} • reaction {(selected.ReactionSpent ? "spent" : "ready")}", _small);
 
+            bool playerReady = _roundReadiness != null && _roundReadiness.IsReady(selected.CommandGroup);
+            if (playerReady)
+            {
+                if (_aim != AimMode.None) ResetAim(false);
+                GUILayout.Label($"P{selected.CommandGroup} is READY. Unready that player on the right before changing any shared-plan instruction. Live reactions remain available on the right during execution.", _small);
+                return;
+            }
+
             ChainReactionOpportunity pending = previewBoard.PendingReaction;
             if (pending != null)
             {
@@ -249,14 +261,6 @@ namespace MountingForce.CombatPrototype
                     ResetAim(false);
                     _message = $"Added a deliberate pass for {pending.Kind}.";
                 }
-                return;
-            }
-
-            bool playerReady = _roundReadiness != null && _roundReadiness.IsReady(selected.CommandGroup);
-            if (playerReady)
-            {
-                if (_aim != AimMode.None) ResetAim(false);
-                GUILayout.Label($"P{selected.CommandGroup} is READY. Unready that player on the right before changing proactive instructions; planned/live reactions remain available.", _small);
                 return;
             }
 
@@ -534,6 +538,11 @@ namespace MountingForce.CombatPrototype
 
         private void ExecutePlan()
         {
+            if (!TeamReadyToExecute)
+            {
+                _message = "Every living player must mark Ready before the shared plan can execute.";
+                return;
+            }
             if (_preview == null || _preview.HasFailure)
             {
                 _message = "Fix the stopped ghost before executing the shared plan.";
@@ -552,7 +561,7 @@ namespace MountingForce.CombatPrototype
             _frameIndex = 0;
             ResetAim(false);
             RebuildPreview(true);
-            _message = $"Executed {count} authored instruction(s) on the authoritative board. Any unresolved event is now available for live improvisation.";
+            _message = $"Executed {count} approved instruction(s) on the authoritative board. Any unresolved event is now available for live improvisation.";
         }
 
         private void BeginAim(AimMode mode, string message)

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using MountingForce.CombatPrototype;
 using NUnit.Framework;
 using UnityEngine;
@@ -138,6 +139,34 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(GameObject.Find("Chain Plan Ghost Visuals"), Is.Not.Null);
             Assert.That(GameObject.Find("Chain Plan Ghost - Stephen"), Is.Not.Null);
             Assert.That(GameObject.Find("Chain Plan Ghost - Ogre"), Is.Not.Null);
+
+            Object.Destroy(root);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator SharedPlanExecutionRequiresEveryLivingPlayerReady()
+        {
+            var root = new GameObject("Cascade Lab V9 Ready Approval Test Root");
+            ChainCombatLabController controller = root.AddComponent<ChainCombatLabController>();
+            ChainExecutionPlanner planner = root.AddComponent<ChainExecutionPlanner>();
+
+            yield return null;
+
+            Assert.That(planner.TeamReadyToExecute, Is.False,
+                "A shared plan must not become executable before every living player approves it.");
+
+            FieldInfo readinessField = typeof(ChainCombatLabController).GetField(
+                "_roundReadiness", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(readinessField, Is.Not.Null);
+            var readiness = readinessField.GetValue(controller) as ChainRoundReadinessCoordinator;
+            Assert.That(readiness, Is.Not.Null);
+
+            for (int group = 1; group <= 4; group++)
+                Assert.That(readiness.TrySetReady(group, true), Is.True, readiness.LastMessage);
+
+            Assert.That(planner.TeamReadyToExecute, Is.True,
+                "The ghost plan becomes executable only after all living player groups are Ready.");
 
             Object.Destroy(root);
             yield return null;
