@@ -12,7 +12,7 @@ namespace VoxelEngine.Net.Protocol
 
         public static bool TryEncode(Span<byte> packet, in C_AlterationRequest request)
         {
-            if (packet.Length < PacketSize)
+            if (packet.Length != PacketSize)
                 return false;
             if (!ProtocolEnvelope.TryWriteHeader(packet, ProtocolMessageKind.C_AlterationRequest))
                 return false;
