@@ -13,16 +13,19 @@ namespace MountingForce.WorldGen.Voxel
     ///
     /// These pieces are deliberately Infrastructure: they are real hard-surface architecture, but
     /// gameplay does not bind quests or NPC identity to them. Narrow terrace dwellings grow out of
-    /// the steep south-facing shelf edges, while a high civic bridge crosses above the main ascent
-    /// at the exact height where the climbing road meets the summit district.
+    /// steep shelf edges, roofed retaining galleries inhabit the longest exposed faces, and a high
+    /// civic bridge crosses above the main ascent where the climbing road meets the summit district.
     /// </summary>
     public static class KentridgeHillsideArchitectureCatalogue
     {
-        private const int DefinitionCount = 2;
+        private const int DefinitionCount = 3;
         private const int TerraceHouseDefinition = 0;
         private const int CivicBridgeDefinition = 1;
+        private const int RetainingGalleryDefinition = 2;
         private const int TerraceHouseCount = 7;
+        private const int RetainingGalleryCount = 5;
         private const int EmbeddedBelowShelfDm = 56;
+        private const int GalleryBelowShelfDm = 44;
 
         private readonly struct HouseSeed
         {
@@ -40,12 +43,31 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
+        private readonly struct GallerySeed
+        {
+            public readonly int XDm;
+            public readonly int ZDm;
+            public readonly int ShelfXDm;
+            public readonly int ShelfZDm;
+
+            public GallerySeed(int xDm, int zDm, int shelfXDm, int shelfZDm)
+            {
+                XDm = xDm;
+                ZDm = zDm;
+                ShelfXDm = shelfXDm;
+                ShelfZDm = shelfZDm;
+            }
+        }
+
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
             int s = settings.VoxelsPerDecimetre;
             int[] houseProgram = TerraceHouseProgram(settings);
             int[] bridgeProgram = CivicBridgeProgram(settings);
+            int[] galleryProgram = RetainingGalleryProgram(settings);
+            int bridgePlacement = TerraceHouseCount;
+            int galleryPlacement = bridgePlacement + 1;
 
             FeatureCatalogue catalogue = CatalogueLoader.Allocate(
                 definitions: DefinitionCount,
@@ -53,14 +75,15 @@ namespace MountingForce.WorldGen.Voxel
                 parameters: 0,
                 anchors: 0,
                 slots: 0,
-                programLength: houseProgram.Length + bridgeProgram.Length,
+                programLength: houseProgram.Length + bridgeProgram.Length + galleryProgram.Length,
                 materials: 0,
-                explicitPlacements: TerraceHouseCount + 1,
+                explicitPlacements: TerraceHouseCount + 1 + RetainingGalleryCount,
                 overrides: 0,
                 allocator);
 
             CopyProgram(ref catalogue, 0, houseProgram);
             CopyProgram(ref catalogue, houseProgram.Length, bridgeProgram);
+            CopyProgram(ref catalogue, houseProgram.Length + bridgeProgram.Length, galleryProgram);
 
             catalogue.Definitions[TerraceHouseDefinition] = new FeatureDefinition
             {
@@ -106,6 +129,28 @@ namespace MountingForce.WorldGen.Voxel
                 MaxPrimitives = 8,
             };
 
+            catalogue.Definitions[RetainingGalleryDefinition] = new FeatureDefinition
+            {
+                Name = new FixedString64Bytes("kentridge-infrastructure-retaining-gallery"),
+                Kind = FeatureKind.Infrastructure,
+                BasePlane = BasePlaneRule.FixedAltitude,
+                FixedAltitude = 0,
+                Footprint = new int3(104 * s, 72 * s, 32 * s),
+                MaxSlope = 32,
+                Precedence = 92,
+                ParameterOffset = 0,
+                ParameterCount = 0,
+                AnchorOffset = 0,
+                AnchorCount = 0,
+                SlotOffset = 0,
+                SlotCount = 0,
+                ProgramOffset = houseProgram.Length + bridgeProgram.Length,
+                ProgramLength = galleryProgram.Length,
+                MaterialOffset = 0,
+                MaterialCount = 0,
+                MaxPrimitives = 40,
+            };
+
             HouseSeed[] houses =
             {
                 // A lower row beneath the market shops. Their roofs rise above the retaining line,
@@ -146,7 +191,7 @@ namespace MountingForce.WorldGen.Voxel
             // a true over/under connection instead of a decorative bridge floating at arbitrary Y.
             int bridgeSurface = KentridgeVerticalProfile.SurfaceYAtDm(
                 KentridgeTownPlanner.MainSpineXDm, 260, seed, s);
-            catalogue.ExplicitPlacements[TerraceHouseCount] = new ExplicitPlacement
+            catalogue.ExplicitPlacements[bridgePlacement] = new ExplicitPlacement
             {
                 Position = new int3(1120 * s, bridgeSurface, 246 * s),
                 Orientation = 0,
@@ -154,10 +199,46 @@ namespace MountingForce.WorldGen.Voxel
                 OverrideCount = 0,
             };
 
+            GallerySeed[] galleries =
+            {
+                // Roofed frontage on both sides of the upper shelf turns its remaining brown bank
+                // into inhabited urban fabric without closing the main ascent.
+                new GallerySeed(1000, 426, 1052, 340),
+                new GallerySeed(1240, 426, 1290, 340),
+
+                // The western civic face frames the stair/bridge approach while leaving a broad
+                // opening around the centreline for the player's view toward the summit.
+                new GallerySeed(1010, 226, 1060, 150),
+
+                // Radcliffe's ridge is the largest visible plinth from the south-east overview.
+                // Two gallery modules split that face into roofed, lit frontage around the annex.
+                new GallerySeed(1490, 382, 1545, 250),
+                new GallerySeed(1680, 382, 1735, 250),
+            };
+
+            for (int i = 0; i < galleries.Length; i++)
+            {
+                GallerySeed gallery = galleries[i];
+                int shelfSurface = KentridgeVerticalProfile.SurfaceYAtDm(
+                    gallery.ShelfXDm, gallery.ShelfZDm, seed, s);
+                catalogue.ExplicitPlacements[galleryPlacement + i] = new ExplicitPlacement
+                {
+                    Position = new int3(
+                        gallery.XDm * s,
+                        shelfSurface - GalleryBelowShelfDm * s,
+                        gallery.ZDm * s),
+                    Orientation = 0,
+                    OverrideOffset = 0,
+                    OverrideCount = 0,
+                };
+            }
+
             catalogue.Rules[TerraceHouseDefinition] = ExplicitRule(
                 TerraceHouseDefinition, 0, TerraceHouseCount);
             catalogue.Rules[CivicBridgeDefinition] = ExplicitRule(
-                CivicBridgeDefinition, TerraceHouseCount, 1);
+                CivicBridgeDefinition, bridgePlacement, 1);
+            catalogue.Rules[RetainingGalleryDefinition] = ExplicitRule(
+                RetainingGalleryDefinition, galleryPlacement, RetainingGalleryCount);
 
             CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
@@ -272,6 +353,54 @@ namespace MountingForce.WorldGen.Voxel
             b.Box(0, 52 * s, 26 * s, 100 * s, 8 * s, 4 * s, dark);
             b.Box(0, 44 * s, 4 * s, 12 * s, 6 * s, 22 * s, dark);
             b.Box(88 * s, 44 * s, 4 * s, 12 * s, 6 * s, 22 * s, dark);
+            return b.Finish();
+        }
+
+        private static int[] RetainingGalleryProgram(VoxelWorldGenSettings settings)
+        {
+            int s = settings.VoxelsPerDecimetre;
+            byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
+            byte dark = settings.Materials.Resolve(MaterialRole.DarkMasonry);
+            byte glass = settings.Materials.Resolve(MaterialRole.WarmWindow);
+            byte roof = settings.Materials.Resolve(MaterialRole.RoofTile);
+            var b = new ProgramBuilder();
+
+            int x0 = 4 * s;
+            int z0 = 4 * s;
+            int width = 96 * s;
+            int depth = 24 * s;
+            int foundationH = 4 * s;
+            int wallH = 40 * s;
+            int wallTop = foundationH + wallH;
+
+            b.Box(x0, 0, z0, width, foundationH, depth, dark);
+            b.Box(x0, foundationH, z0, width, wallH, depth, stone);
+
+            // Three deep lit recesses turn a retaining face into occupied frontage. The windows sit
+            // at the rear of each reveal so the stone piers still have visible thickness.
+            for (int bay = 0; bay < 3; bay++)
+            {
+                int openingX = x0 + (10 + bay * 29) * s;
+                b.Carve(openingX, 10 * s, z0,
+                        18 * s, 24 * s, 12 * s);
+                b.Box(openingX + 2 * s, 12 * s, z0 + 10 * s,
+                      14 * s, 20 * s, 2 * s, glass);
+            }
+
+            // A projecting pier/cornice rhythm is readable even when the window recesses are in
+            // shadow, and the roof lets this layer join the town's cascading red-roof silhouette.
+            for (int pier = 0; pier <= 3; pier++)
+            {
+                int x = x0 + Math.Min(91, pier * 29) * s;
+                b.Box(x, foundationH, z0 - 2 * s,
+                      5 * s, wallH, 6 * s, dark);
+            }
+
+            b.Box(x0, wallTop - 4 * s, z0 - 2 * s,
+                  width, 4 * s, depth + 4 * s, dark);
+            b.Prism(0, wallTop, 0,
+                    104 * s, 18 * s, 32 * s,
+                    PrismProfile.Gable, roof);
             return b.Finish();
         }
 

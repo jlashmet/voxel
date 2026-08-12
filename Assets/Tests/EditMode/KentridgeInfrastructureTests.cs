@@ -25,10 +25,10 @@ namespace VoxelEngine.Tests.EditMode
                     "Four stair flights, four retaining sections, and one campanile should compose the primary hardscape pass.");
                 Assert.AreEqual(9, circulation.ExplicitPlacements.Length);
 
-                Assert.AreEqual(2, architecture.Definitions.Length,
-                    "Secondary hillside architecture should reuse a terrace-dwelling grammar and one civic bridge grammar.");
-                Assert.AreEqual(8, architecture.ExplicitPlacements.Length,
-                    "Seven embedded dwellings plus the overhead civic bridge should densify the hill without adding gameplay roles.");
+                Assert.AreEqual(3, architecture.Definitions.Length,
+                    "Secondary hillside architecture should reuse terrace-dwelling, civic-bridge, and retaining-gallery grammars.");
+                Assert.AreEqual(13, architecture.ExplicitPlacements.Length,
+                    "Seven embedded dwellings, one overhead civic bridge, and five roofed galleries should densify the hill without adding gameplay roles.");
 
                 for (int i = 0; i < circulation.Definitions.Length; i++)
                     Assert.AreEqual(FeatureKind.Infrastructure, circulation.Definitions[i].Kind);
@@ -49,7 +49,7 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(17, infrastructureInstances,
+                Assert.AreEqual(22, infrastructureInstances,
                     "Hard civic/ambient fabric should be independently classified from gameplay structures.");
             }
             finally
