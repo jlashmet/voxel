@@ -10,13 +10,11 @@ namespace VoxelEngine.Core.Storage
     ///   uniform run: tag=0, runLength ushort, material byte, flags byte (5 B)
     ///   mixed brick: tag=1, flags byte, 512 material bytes (514 B)
     /// flags bit 0 is the authored hard-surface semantic bit.
-    ///
-    /// BrickPool indices are never encoded. The caller supplies a hard byte cap; snapshots that do
-    /// not fit are deliberately unavailable for checkpoint repair rather than growing memory without
-    /// bound.
     /// </summary>
     public static class SemanticRegionSnapshotCodec
     {
+        public const int DefaultMaxSnapshotBytes = 256 * 1024;
+
         private const byte TagUniformRun = 0;
         private const byte TagMixedBrick = 1;
         private const byte FlagHardSurface = 1;
@@ -82,11 +80,6 @@ namespace VoxelEngine.Core.Storage
             return true;
         }
 
-        /// <summary>
-        /// Atomically replace one resident region's semantic brick state after validating the full
-        /// snapshot and ensuring the BrickPool has enough capacity. Existing mixed slots in the
-        /// target region are recyclable and count toward available capacity.
-        /// </summary>
         public static bool TryApply(
             ref RegionTable table,
             ref BrickPool pool,
@@ -108,7 +101,6 @@ namespace VoxelEngine.Core.Storage
             if (mixedCount > availableAfterRecycle)
                 return false;
 
-            // Validation is complete before mutation, so malformed payloads cannot partially repair.
             region.ReleaseBricks(ref pool);
 
             int brickIndex = 0;
@@ -162,7 +154,7 @@ namespace VoxelEngine.Core.Storage
                     if (offset + 4 > snapshot.Length)
                         return false;
                     int run = snapshot[offset] | (snapshot[offset + 1] << 8);
-                    offset += 4; // run(2) + material + flags
+                    offset += 4;
                     if (run <= 0 || covered + run > expectedBricks)
                         return false;
                     covered += run;
@@ -172,7 +164,7 @@ namespace VoxelEngine.Core.Storage
                 if (tag != TagMixedBrick || offset + 1 + VoxelDimensions.VoxelsPerBrick > snapshot.Length)
                     return false;
 
-                offset += 1 + VoxelDimensions.VoxelsPerBrick; // flags + materials
+                offset += 1 + VoxelDimensions.VoxelsPerBrick;
                 mixedCount++;
                 covered++;
                 if (covered > expectedBricks)
