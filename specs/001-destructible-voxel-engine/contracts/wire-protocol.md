@@ -46,6 +46,7 @@ Message-kind values are stable once shipped:
 | 1 | `C_PlayerInput` |
 | 2 | `C_AlterationRequest` |
 | 3 | `C_RegionRequest` |
+| 4 | `C_PlayerInputBundle` |
 | 32 | `S_AlterationEvent` |
 | 33 | `S_AlterationEventBatch` |
 | 34 | `S_AlterationRejected` |
@@ -83,7 +84,7 @@ The client has already applied the request to its speculative overlay. **The see
 
 Raw single-voxel edits are never sent individually: they are buffered ~100 ms and coalesced into one run-length-encoded `raw-batch` scoped to a single brick.
 
-#### `C_PlayerInput` (16 B payload / 18 B framed, `EPHEMERAL`)
+#### `C_PlayerInput` (16 B sample / 18 B single-sample framed, `EPHEMERAL`)
 
 | Field | Type | Bytes |
 |---|---|---:|
@@ -99,7 +100,22 @@ Raw single-voxel edits are never sent individually: they are buffered ~100 ms an
 
 There is **no player ID and no claimed world position**. The authenticated connection establishes identity and the server simulation owns position. The client sends intent only.
 
-Movement is quantised to `[-127,+127]` per axis. Yaw covers a full turn in 16 bits; pitch covers `[-90,+90]` degrees in a signed 16-bit value. This packet is sequenced but intentionally unreliable: a newer input supersedes an older one. A small redundant recent-input bundle may be added on top of this 16-byte sample so an action edge survives isolated packet loss without reliable retransmission.
+Movement is quantised to `[-127,+127]` per axis. Yaw covers a full turn in 16 bits; pitch covers `[-90,+90]` degrees in a signed 16-bit value.
+
+`C_PlayerInput` is the canonical sample codec. The concrete client normally transmits samples inside `C_PlayerInputBundle`; the single-sample framed form remains valid for tests/compatibility and simple peers.
+
+#### `C_PlayerInputBundle` (3 + 16N B framed, 1 ≤ N ≤ 3, `EPHEMERAL`)
+
+| Field | Type | Bytes |
+|---|---|---:|
+| protocolVersion | `byte` | 1 |
+| messageKind | `byte` | 1 |
+| count | `byte` | 1 |
+| samples | `C_PlayerInput[count]` | `16N` |
+
+Samples are ordered **oldest → newest**. The normal steady-state client sends the newest sample plus the two previous samples, producing a maximum 51-byte datagram. This deliberately repeats recent input so an isolated lost packet does not lose an action edge.
+
+The server validates monotonic 16-bit sample sequence order before dispatching any sample, then deduplicates sequences per transport connection. Sequence comparison handles ushort wraparound as long as the gap is below half the sequence space. Duplicate samples are valid but are not delivered twice to gameplay.
 
 #### `C_RegionRequest` (~16 B)
 
@@ -220,12 +236,13 @@ The simulation clock remains fixed and authoritative. Event-driven means systems
 
 Per server tick:
 
-1. collect `EPHEMERAL` input and durable `EVENT` commands received by the frame-level transport pump;
-2. authenticate connection-owned identity, validate requests, and resolve simulation in deterministic arbitration order;
-3. substitute authoritative tick/sequence/seed where required and publish semantic authoritative events;
-4. seal the tick event stream;
-5. persistence/moderation/replication consume the sealed stream;
-6. replication interest-filters events, batches consecutive compatible alterations, and writes `EVENT` packets.
+1. frame-level transport pumping decodes packets into a bounded command inbox;
+2. the fixed tick drains `EPHEMERAL` input and durable `EVENT` commands;
+3. authenticate connection-owned identity, validate requests, and resolve simulation in deterministic arbitration order;
+4. substitute authoritative tick/sequence/seed where required and publish semantic authoritative events;
+5. seal the tick event stream;
+6. persistence/moderation/replication consume the sealed stream;
+7. replication interest-filters events, batches consecutive compatible alterations, writes `EVENT` packets, then flushes sends once.
 
 Internal gameplay may produce more domain events than are transmitted. Replication sends only the minimum facts required for another client to reconstruct authoritative state.
 
@@ -233,14 +250,12 @@ Internal gameplay may produce more domain events than are transmitted. Replicati
 
 ## Reconciliation
 
-The delicate part, and the reason no third-party framework was adopted (R-001).
-
 1. Client receives `S_PlayerState` for tick *T*.
 2. Client rewinds its own player to that state.
 3. Client replays buffered inputs from *T+1* to now — **against world state at each replayed tick**, obtained by querying the region event log by tick, not against present world state.
 4. Divergence beyond threshold snaps; otherwise it is smoothed.
 
-**Invariant**: step 3 is why `RegionEventLog.tickIndex` must exist from day one. Reconciling against present-tick world state is the specific defect that eliminated Photon Fusion 2, whose resimulation does not roll back non-networked state.
+**Invariant**: step 3 is why `RegionEventLog.tickIndex` must exist from day one. Reconciling against present-tick world state is a divergence defect.
 
 ---
 
@@ -252,7 +267,7 @@ Simulation interest is fully 3D. Region coordinates use the authoritative 512-vo
 
 The server maintains both connection → regions and region → connections mappings. Event fan-out uses the inverse index and therefore scales with interested receivers rather than all connected clients. Cross-region effects route to the union of subscribers and each connection receives a given authoritative event at most once.
 
-**Invariant**: interest radius is a **simulation** parameter and must never be derived from draw distance or device tier (C-006). Coupling them would silently disadvantage mobile players. Bandwidth scheduling may adapt to connection quality; simulation visibility may not.
+**Invariant**: interest radius is a **simulation** parameter and must never be derived from draw distance or device tier (C-006). Bandwidth scheduling may adapt to connection quality; simulation visibility may not.
 
 ---
 
