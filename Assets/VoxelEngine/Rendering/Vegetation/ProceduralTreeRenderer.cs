@@ -9,8 +9,9 @@ namespace VoxelEngine.Rendering.Vegetation
 {
     /// <summary>
     /// Runtime presentation of semantic tree state. Healthy trees are data-only records whose
-    /// geometry lives in spatial batches. A per-tree GameObject/LOD/mesh presentation is created
-    /// only when a tree leaves the healthy batch path because it is damaged.
+    /// geometry lives in spatial batches. Damage punches only the affected tree's index ranges out
+    /// of its existing batch and lazily materializes that tree; neighbouring batch geometry is never
+    /// regenerated on the destruction frame.
     /// </summary>
     public sealed class ProceduralTreeRenderer : MonoBehaviour
     {
@@ -35,12 +36,22 @@ namespace VoxelEngine.Rendering.Vegetation
             public bool IsBatched;
         }
 
+        private sealed class BatchTreeRanges
+        {
+            public readonly int[] BarkStart = new int[3];
+            public readonly int[] BarkCount = new int[3];
+            public readonly int[] LeafStart = new int[3];
+            public readonly int[] LeafCount = new int[3];
+        }
+
         private sealed class BatchPresentation
         {
             public Vector2Int Key;
             public GameObject Root;
             public Mesh[] LodMeshes;
             public readonly List<int> TreeIndices = new();
+            public readonly Dictionary<int, BatchTreeRanges> TreeRanges = new();
+            public readonly HashSet<int> HiddenTreeIndices = new();
         }
 
         private sealed class BatchMeshBuffers
@@ -54,23 +65,38 @@ namespace VoxelEngine.Rendering.Vegetation
             public readonly List<int> LeafIndices = new(12288);
         }
 
+        private readonly struct PendingDynamicLod
+        {
+            public readonly TreePresentation Tree;
+            public readonly int Lod;
+
+            public PendingDynamicLod(TreePresentation tree, int lod)
+            {
+                Tree = tree;
+                Lod = lod;
+            }
+        }
+
         private static ProceduralTreeRenderer s_Instance;
         private static readonly int s_Damage = Shader.PropertyToID("_Damage");
 
         private readonly List<TreePresentation> _trees = new();
         private readonly List<BatchPresentation> _batches = new();
         private readonly Dictionary<Vector2Int, BatchPresentation> _batchByKey = new();
-        private readonly HashSet<Vector2Int> _dirtyBatchKeys = new();
-        private readonly List<int> _cellTreeIndices = new();
+        private readonly HashSet<int> _dirtyTreeIndices = new();
+        private readonly Queue<PendingDynamicLod> _pendingDynamicLods = new();
         private readonly List<int> _filteredBarkIndices = new(16384);
         private readonly List<int> _filteredLeafIndices = new(16384);
+        private ushort[] _zeroIndices16 = System.Array.Empty<ushort>();
+        private uint[] _zeroIndices32 = System.Array.Empty<uint>();
         private MaterialPropertyBlock _damageProperties;
         private bool _snapshotDirty = true;
-        private bool _damageDirty = true;
         private bool _countSnapshotTriangles;
 
         public double LastRebuildMilliseconds { get; private set; }
+        // Retained as a diagnostic/compatibility contract: runtime damage must leave this at zero.
         public int LastDamageBatchRebuildCount { get; private set; }
+        public int LastDamageBatchReleaseCount { get; private set; }
         public int PresentationCount => _trees.Count;
         public int DynamicPresentationCount { get; private set; }
         public int DynamicMeshCount => DynamicPresentationCount * 3;
@@ -125,7 +151,6 @@ namespace VoxelEngine.Rendering.Vegetation
             TreeWorldState.BranchCut += OnBranchCut;
             TreeWorldState.DamageChanged += OnDamageChanged;
             _snapshotDirty = true;
-            _damageDirty = true;
         }
 
         private void OnDisable()
@@ -138,11 +163,13 @@ namespace VoxelEngine.Rendering.Vegetation
         private void OnSnapshotChanged()
         {
             _snapshotDirty = true;
-            _damageDirty = true;
+            _dirtyTreeIndices.Clear();
+            _pendingDynamicLods.Clear();
         }
 
-        private void OnBranchCut(TreeBranchCutEvent _) => _damageDirty = true;
-        private void OnDamageChanged(TreeDamageChangedEvent _) => _damageDirty = true;
+        private void OnBranchCut(TreeBranchCutEvent cut) => _dirtyTreeIndices.Add(cut.TreeIndex);
+        private void OnDamageChanged(TreeDamageChangedEvent damage) =>
+            _dirtyTreeIndices.Add(damage.TreeIndex);
 
         private void Update()
         {
@@ -153,14 +180,16 @@ namespace VoxelEngine.Rendering.Vegetation
             {
                 _snapshotDirty = false;
                 Rebuild();
-                _damageDirty = true;
+                _dirtyTreeIndices.Clear();
+                return;
             }
 
-            if (_damageDirty)
-            {
-                _damageDirty = false;
+            // Lower dynamic LODs are intentionally amortized. The destruction frame builds only the
+            // immediately visible LOD0; later frames fill one lower-detail LOD at a time.
+            ProcessOnePendingDynamicLod();
+
+            if (_dirtyTreeIndices.Count > 0)
                 ApplyDamage();
-            }
         }
 
         public bool TryGetDynamicPresentationRoot(int treeIndex, out Transform root)
@@ -251,14 +280,13 @@ namespace VoxelEngine.Rendering.Vegetation
             for (int i = 0; i < instances.Count; i++)
             {
                 TreeInstance instance = instances[i];
-                var presentation = new TreePresentation
+                _trees.Add(new TreePresentation
                 {
                     Index = i,
                     Instance = instance,
                     Skeleton = null,
                     DirectCutCount = TreeWorldState.RemovedBranches(i).Count,
-                };
-                _trees.Add(presentation);
+                });
             }
 
             _countSnapshotTriangles = true;
@@ -301,8 +329,9 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private void EnsureDynamicPresentation(TreePresentation tree)
         {
-            if (tree.Root != null) return;
+            if (tree.Root != null || IsFullyRemoved(tree)) return;
             EnsureSkeleton(tree);
+            if (tree.Skeleton == null || IsFullyRemoved(tree)) return;
             if (_countSnapshotTriangles)
                 TotalTriangleCountAllLods += EstimateTriangleCountAllLods(tree.Skeleton);
 
@@ -338,23 +367,41 @@ namespace VoxelEngine.Rendering.Vegetation
             group.fadeMode = LODFadeMode.None;
             group.SetLODs(CreateLods(tree.LodRenderers));
 
-            BuildDynamicTreeMeshes(tree);
+            // Only the close LOD is generated on the damage frame. Use it temporarily for the two
+            // farther slots and stream their cheaper meshes one per later frame.
+            BuildDynamicTreeLod(tree, 0);
+            tree.LodFilters[1].sharedMesh = tree.LodMeshes[0];
+            tree.LodFilters[2].sharedMesh = tree.LodMeshes[0];
+            _pendingDynamicLods.Enqueue(new PendingDynamicLod(tree, 1));
+            _pendingDynamicLods.Enqueue(new PendingDynamicLod(tree, 2));
+
             if (tree.ResolvedRemovedBranches.Count > 0)
-                ApplyRemovedGeometry(tree);
+                ApplyRemovedGeometryLod(tree, 0);
             ApplyDamageMaterial(tree);
             group.RecalculateBounds();
             DynamicPresentationCount++;
         }
 
-        private void DestroyDynamicPresentation(TreePresentation tree)
+        private void ProcessOnePendingDynamicLod()
         {
-            if (tree.Root == null)
+            while (_pendingDynamicLods.Count > 0)
             {
-                ReleaseBatchedSkeleton(tree);
+                PendingDynamicLod pending = _pendingDynamicLods.Dequeue();
+                TreePresentation tree = pending.Tree;
+                if (tree == null || tree.Root == null || tree.LodMeshes == null) continue;
+                if ((uint)pending.Lod >= 3u || tree.LodMeshes[pending.Lod] != null) continue;
+
+                BuildDynamicTreeLod(tree, pending.Lod);
+                if (tree.ResolvedRemovedBranches.Count > 0)
+                    ApplyRemovedGeometryLod(tree, pending.Lod);
                 return;
             }
-            tree.Root.SetActive(false);
+        }
 
+        private void DestroyDynamicPresentation(TreePresentation tree)
+        {
+            if (tree.Root == null) return;
+            tree.Root.SetActive(false);
             if (tree.LodMeshes != null)
             {
                 for (int lod = 0; lod < tree.LodMeshes.Length; lod++)
@@ -370,13 +417,20 @@ namespace VoxelEngine.Rendering.Vegetation
             tree.BarkIndexOwners = null;
             tree.LeafIndexOwners = null;
             DynamicPresentationCount = Mathf.Max(0, DynamicPresentationCount - 1);
-            ReleaseBatchedSkeleton(tree);
         }
 
         private void EnsureSkeleton(TreePresentation tree)
         {
             if (tree.Skeleton != null) return;
-            tree.Skeleton = ProceduralTreeSkeletonBuilder.Generate(in tree.Instance);
+            // Startup batching should not populate the gameplay collision cache. During actual
+            // damage, however, the damage service has already generated this exact skeleton, so
+            // share it instead of deterministically regenerating the same tree a second time.
+            tree.Skeleton = _countSnapshotTriangles
+                ? ProceduralTreeSkeletonBuilder.Generate(in tree.Instance)
+                : ProceduralTreeDamageService.SkeletonFor(tree.Index);
+            if (tree.Skeleton == null)
+                tree.Skeleton = ProceduralTreeSkeletonBuilder.Generate(in tree.Instance);
+
             IReadOnlyCollection<int> directCuts = TreeWorldState.RemovedBranches(tree.Index);
             ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
                 tree.Skeleton, directCuts, tree.ResolvedRemovedBranches);
@@ -392,36 +446,31 @@ namespace VoxelEngine.Rendering.Vegetation
                 tree.Skeleton = null;
         }
 
-        private void BuildDynamicTreeMeshes(TreePresentation tree)
+        private void BuildDynamicTreeLod(TreePresentation tree, int lod)
         {
-            for (int lod = 0; lod < 3; lod++)
-            {
-                Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(tree.Skeleton, lod);
-                mesh.name = $"{tree.Instance.Species}_{tree.Instance.Seed}_LOD{lod}";
-                mesh.hideFlags = HideFlags.DontSave;
-                mesh.MarkDynamic();
-                tree.LodMeshes[lod] = mesh;
-                tree.LodFilters[lod].sharedMesh = mesh;
+            Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(tree.Skeleton, lod);
+            mesh.name = $"{tree.Instance.Species}_{tree.Instance.Seed}_LOD{lod}";
+            mesh.hideFlags = HideFlags.DontSave;
+            mesh.MarkDynamic();
+            tree.LodMeshes[lod] = mesh;
+            tree.LodFilters[lod].sharedMesh = mesh;
 
-                int[] bark = mesh.GetTriangles(0);
-                int[] leaves = mesh.GetTriangles(1);
-                tree.BaseBarkIndices[lod] = bark;
-                tree.BaseLeafIndices[lod] = leaves;
-                tree.BarkIndexOwners[lod] = BuildBarkOwners(tree.Skeleton, lod, bark.Length);
-                tree.LeafIndexOwners[lod] = BuildLeafOwners(tree.Skeleton, lod, leaves.Length);
-            }
+            int[] bark = mesh.GetTriangles(0);
+            int[] leaves = mesh.GetTriangles(1);
+            tree.BaseBarkIndices[lod] = bark;
+            tree.BaseLeafIndices[lod] = leaves;
+            tree.BarkIndexOwners[lod] = BuildBarkOwners(tree.Skeleton, lod, bark.Length);
+            tree.LeafIndexOwners[lod] = BuildLeafOwners(tree.Skeleton, lod, leaves.Length);
         }
 
         private void RebuildBatches()
         {
             ClearBatches();
-
             IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
             var groups = new Dictionary<Vector2Int, List<int>>();
             for (int i = 0; i < _trees.Count; i++)
             {
                 if (!IsHealthyForBatch(i, damage)) continue;
-
                 Vector2Int key = BatchKeyFor(_trees[i].Instance);
                 if (!groups.TryGetValue(key, out List<int> treeIndices))
                 {
@@ -438,9 +487,15 @@ namespace VoxelEngine.Rendering.Vegetation
             {
                 TreePresentation tree = _trees[i];
                 if (tree.IsBatched)
+                {
                     DestroyDynamicPresentation(tree);
+                    ReleaseBatchedSkeleton(tree);
+                }
                 else
-                    EnsureDynamicPresentation(tree);
+                {
+                    EnsureSkeleton(tree);
+                    if (!IsFullyRemoved(tree)) EnsureDynamicPresentation(tree);
+                }
             }
         }
 
@@ -457,7 +512,8 @@ namespace VoxelEngine.Rendering.Vegetation
         private void BuildBatch(Vector2Int key, List<int> treeIndices)
         {
             Vector3 origin = new Vector3(key.x * BatchSizeMetres, 0f, key.y * BatchSizeMetres);
-            Mesh[] meshes = BuildCombinedBatchMeshes(treeIndices, origin, key);
+            var batch = new BatchPresentation { Key = key };
+            Mesh[] meshes = BuildCombinedBatchMeshes(treeIndices, origin, key, batch);
 
             var root = new GameObject($"Tree Batch {key.x},{key.y}")
             {
@@ -466,13 +522,8 @@ namespace VoxelEngine.Rendering.Vegetation
             root.transform.SetParent(transform, false);
             root.transform.position = origin;
             root.transform.localRotation = Quaternion.identity;
-
-            var batch = new BatchPresentation
-            {
-                Key = key,
-                Root = root,
-                LodMeshes = meshes,
-            };
+            batch.Root = root;
+            batch.LodMeshes = meshes;
             batch.TreeIndices.AddRange(treeIndices);
 
             var lodRenderers = new MeshRenderer[3];
@@ -494,14 +545,14 @@ namespace VoxelEngine.Rendering.Vegetation
 
             for (int i = 0; i < treeIndices.Count; i++)
                 _trees[treeIndices[i]].IsBatched = true;
-
             BatchedTreeCount += treeIndices.Count;
             _batches.Add(batch);
             _batchByKey[key] = batch;
         }
 
         private Mesh[] BuildCombinedBatchMeshes(List<int> treeIndices,
-                                                Vector3 batchOrigin, Vector2Int key)
+                                                Vector3 batchOrigin, Vector2Int key,
+                                                BatchPresentation batch)
         {
             var buffers = new[]
             {
@@ -518,20 +569,23 @@ namespace VoxelEngine.Rendering.Vegetation
                 if (_countSnapshotTriangles)
                     TotalTriangleCountAllLods += EstimateTriangleCountAllLods(skeleton);
 
+                var ranges = new BatchTreeRanges();
                 Vector3 offset = (Vector3)tree.Instance.PositionMetres - batchOrigin;
                 for (int lod = 0; lod < 3; lod++)
                 {
                     BatchMeshBuffers destination = buffers[lod];
+                    ranges.BarkStart[lod] = destination.BarkIndices.Count;
+                    ranges.LeafStart[lod] = destination.LeafIndices.Count;
                     ProceduralTreeMeshBuilder.AppendMeshData(
                         skeleton, lod, offset,
                         destination.Vertices, destination.Normals, destination.Colours,
                         destination.Uv0, destination.Uv1,
                         destination.BarkIndices, destination.LeafIndices);
+                    ranges.BarkCount[lod] = destination.BarkIndices.Count - ranges.BarkStart[lod];
+                    ranges.LeafCount[lod] = destination.LeafIndices.Count - ranges.LeafStart[lod];
                 }
+                batch.TreeRanges[tree.Index] = ranges;
 
-                // BuildBatch only receives healthy trees. Once all three LODs have consumed this
-                // deterministic skeleton there is no reason to retain it, so startup peak residency
-                // stays at one semantic tree regardless of forest size or batch occupancy.
                 if (tree.Root == null)
                     tree.Skeleton = null;
             }
@@ -562,6 +616,63 @@ namespace VoxelEngine.Rendering.Vegetation
             return combined;
         }
 
+        private bool ReleaseTreeFromBatch(TreePresentation tree)
+        {
+            if (!tree.IsBatched) return false;
+            Vector2Int key = BatchKeyFor(tree.Instance);
+            if (!_batchByKey.TryGetValue(key, out BatchPresentation batch)) return false;
+            if (!HideTreeInBatch(batch, tree.Index)) return false;
+            tree.IsBatched = false;
+            BatchedTreeCount = Mathf.Max(0, BatchedTreeCount - 1);
+            LastDamageBatchReleaseCount++;
+            return true;
+        }
+
+        private bool HideTreeInBatch(BatchPresentation batch, int treeIndex)
+        {
+            if (batch == null || !batch.HiddenTreeIndices.Add(treeIndex)) return false;
+            if (!batch.TreeRanges.TryGetValue(treeIndex, out BatchTreeRanges ranges)) return false;
+
+            for (int lod = 0; lod < 3; lod++)
+            {
+                Mesh mesh = batch.LodMeshes[lod];
+                HideIndexRange(mesh, 0, ranges.BarkStart[lod], ranges.BarkCount[lod]);
+                HideIndexRange(mesh, 1, ranges.LeafStart[lod], ranges.LeafCount[lod]);
+            }
+            return true;
+        }
+
+        private void HideIndexRange(Mesh mesh, int subMesh, int relativeStart, int count)
+        {
+            if (mesh == null || count <= 0) return;
+            int bufferStart = checked((int)mesh.GetIndexStart(subMesh)) + relativeStart;
+            const MeshUpdateFlags flags = MeshUpdateFlags.DontRecalculateBounds
+                                        | MeshUpdateFlags.DontValidateIndices
+                                        | MeshUpdateFlags.DontNotifyMeshUsers;
+            if (mesh.indexFormat == IndexFormat.UInt16)
+            {
+                EnsureZeroIndexCapacity16(count);
+                mesh.SetIndexBufferData(_zeroIndices16, 0, bufferStart, count, flags);
+            }
+            else
+            {
+                EnsureZeroIndexCapacity32(count);
+                mesh.SetIndexBufferData(_zeroIndices32, 0, bufferStart, count, flags);
+            }
+        }
+
+        private void EnsureZeroIndexCapacity16(int count)
+        {
+            if (_zeroIndices16.Length >= count) return;
+            _zeroIndices16 = new ushort[Mathf.NextPowerOfTwo(count)];
+        }
+
+        private void EnsureZeroIndexCapacity32(int count)
+        {
+            if (_zeroIndices32.Length >= count) return;
+            _zeroIndices32 = new uint[Mathf.NextPowerOfTwo(count)];
+        }
+
         private static long EstimateTriangleCountAllLods(ProceduralTreeSkeleton skeleton)
         {
             long total = 0;
@@ -574,7 +685,6 @@ namespace VoxelEngine.Rendering.Vegetation
                     if (lod == 2 && branch.Level >= 3 && branch.RadiusStart < 0.035f) continue;
                     total += radialSides * 2L;
                 }
-
                 int leafStride = lod == 0 ? 1 : lod == 1 ? 2 : 4;
                 int leafPlanes = lod < 2 ? 2 : 1;
                 for (int i = 0; i < skeleton.Leaves.Count; i += leafStride)
@@ -590,18 +700,15 @@ namespace VoxelEngine.Rendering.Vegetation
             int indicesPerBranch = radialSides * 6;
             var owners = new int[indexCount];
             int cursor = 0;
-
             for (int branchIndex = 0;
                  branchIndex < skeleton.Branches.Count && cursor < indexCount;
                  branchIndex++)
             {
                 TreeBranchSegment branch = skeleton.Branches[branchIndex];
                 if (lod == 2 && branch.Level >= 3 && branch.RadiusStart < 0.035f) continue;
-
                 int end = Mathf.Min(indexCount, cursor + indicesPerBranch);
                 for (; cursor < end; cursor++) owners[cursor] = branchIndex;
             }
-
             for (; cursor < indexCount; cursor++) owners[cursor] = -1;
             return owners;
         }
@@ -614,7 +721,6 @@ namespace VoxelEngine.Rendering.Vegetation
             int indicesPerLeaf = leafPlanes * 6;
             var owners = new int[indexCount];
             int cursor = 0;
-
             for (int leafIndex = 0;
                  leafIndex < skeleton.Leaves.Count && cursor < indexCount;
                  leafIndex += leafStride)
@@ -625,7 +731,6 @@ namespace VoxelEngine.Rendering.Vegetation
                 int end = Mathf.Min(indexCount, cursor + indicesPerLeaf);
                 for (; cursor < end; cursor++) owners[cursor] = parent;
             }
-
             for (; cursor < indexCount; cursor++) owners[cursor] = -1;
             return owners;
         }
@@ -634,18 +739,22 @@ namespace VoxelEngine.Rendering.Vegetation
         {
             if (tree.LodMeshes == null) return;
             for (int lod = 0; lod < tree.LodMeshes.Length; lod++)
-            {
-                Mesh mesh = tree.LodMeshes[lod];
-                if (mesh == null) continue;
+                ApplyRemovedGeometryLod(tree, lod);
+        }
 
-                FilterIndices(tree.BaseBarkIndices[lod], tree.BarkIndexOwners[lod],
-                              tree.ResolvedRemovedBranches, _filteredBarkIndices);
-                FilterIndices(tree.BaseLeafIndices[lod], tree.LeafIndexOwners[lod],
-                              tree.ResolvedRemovedBranches, _filteredLeafIndices);
-                mesh.SetTriangles(_filteredBarkIndices, 0, false);
-                mesh.SetTriangles(_filteredLeafIndices, 1, false);
-                mesh.RecalculateBounds();
-            }
+        private void ApplyRemovedGeometryLod(TreePresentation tree, int lod)
+        {
+            if (tree.LodMeshes == null || (uint)lod >= (uint)tree.LodMeshes.Length) return;
+            Mesh mesh = tree.LodMeshes[lod];
+            if (mesh == null) return;
+            FilterIndices(tree.BaseBarkIndices[lod], tree.BarkIndexOwners[lod],
+                          tree.ResolvedRemovedBranches, _filteredBarkIndices);
+            FilterIndices(tree.BaseLeafIndices[lod], tree.LeafIndexOwners[lod],
+                          tree.ResolvedRemovedBranches, _filteredLeafIndices);
+            mesh.SetTriangles(_filteredBarkIndices, 0, false);
+            mesh.SetTriangles(_filteredLeafIndices, 1, false);
+            // Keep the original conservative bounds. Recalculating bounds on every branch hit is
+            // unnecessary CPU work and can synchronize with mesh uploads on the destruction frame.
         }
 
         private static void FilterIndices(int[] source, int[] owners, HashSet<int> removed,
@@ -680,14 +789,15 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private void ApplyDamage()
         {
-            IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
-            int count = Mathf.Min(_trees.Count, damage.Count);
-            _dirtyBatchKeys.Clear();
+            LastDamageBatchRebuildCount = 0;
+            LastDamageBatchReleaseCount = 0;
+            if (_dirtyTreeIndices.Count == 0) return;
 
-            for (int i = 0; i < count; i++)
+            foreach (int index in _dirtyTreeIndices)
             {
-                TreePresentation tree = _trees[i];
-                IReadOnlyCollection<int> directCuts = TreeWorldState.RemovedBranches(i);
+                if ((uint)index >= (uint)_trees.Count) continue;
+                TreePresentation tree = _trees[index];
+                IReadOnlyCollection<int> directCuts = TreeWorldState.RemovedBranches(index);
                 bool geometryChanged = tree.DirectCutCount != directCuts.Count;
                 if (geometryChanged)
                 {
@@ -697,12 +807,23 @@ namespace VoxelEngine.Rendering.Vegetation
                     tree.DirectCutCount = directCuts.Count;
                 }
 
-                float damageAmount = 1f - Mathf.Clamp01(damage[i].FoliageHealth);
+                IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
+                float damageAmount = index < damage.Count
+                    ? 1f - Mathf.Clamp01(damage[index].FoliageHealth)
+                    : 0f;
                 bool shouldBatch = directCuts.Count == 0
-                    && !damage[i].Severed
+                    && (index >= damage.Count || !damage[index].Severed)
                     && damageAmount <= HealthyDamageEpsilon;
-                if (tree.IsBatched != shouldBatch)
-                    _dirtyBatchKeys.Add(BatchKeyFor(tree.Instance));
+
+                if (tree.IsBatched && !shouldBatch)
+                    ReleaseTreeFromBatch(tree);
+
+                if (IsFullyRemoved(tree))
+                {
+                    DestroyDynamicPresentation(tree);
+                    tree.Skeleton = null;
+                    continue;
+                }
 
                 if (!tree.IsBatched)
                 {
@@ -712,63 +833,14 @@ namespace VoxelEngine.Rendering.Vegetation
                 }
             }
 
-            LastDamageBatchRebuildCount = 0;
-            if (_dirtyBatchKeys.Count == 0) return;
-
-            foreach (Vector2Int key in _dirtyBatchKeys)
-            {
-                RebuildBatchCell(key, damage);
-                LastDamageBatchRebuildCount++;
-            }
-
-            for (int i = 0; i < count; i++)
-            {
-                TreePresentation tree = _trees[i];
-                if (tree.IsBatched) continue;
-                if (tree.DirectCutCount > 0) ApplyRemovedGeometry(tree);
-                ApplyDamageMaterial(tree);
-            }
+            _dirtyTreeIndices.Clear();
         }
 
-        private void RebuildBatchCell(Vector2Int key,
-                                      IReadOnlyList<TreeWorldState.TreeDamageState> damage)
+        private static bool IsFullyRemoved(TreePresentation tree)
         {
-            if (_batchByKey.TryGetValue(key, out BatchPresentation oldBatch))
-            {
-                for (int i = 0; i < oldBatch.TreeIndices.Count; i++)
-                {
-                    int treeIndex = oldBatch.TreeIndices[i];
-                    if ((uint)treeIndex >= (uint)_trees.Count) continue;
-                    if (!_trees[treeIndex].IsBatched) continue;
-                    _trees[treeIndex].IsBatched = false;
-                    BatchedTreeCount = Mathf.Max(0, BatchedTreeCount - 1);
-                }
-
-                DestroyBatchObjects(oldBatch);
-                _batchByKey.Remove(key);
-                _batches.Remove(oldBatch);
-            }
-
-            _cellTreeIndices.Clear();
-            for (int i = 0; i < _trees.Count; i++)
-            {
-                TreePresentation tree = _trees[i];
-                if (BatchKeyFor(tree.Instance) != key) continue;
-                if (IsHealthyForBatch(i, damage)) _cellTreeIndices.Add(i);
-            }
-
-            if (_cellTreeIndices.Count > 0)
-                BuildBatch(key, _cellTreeIndices);
-
-            for (int i = 0; i < _trees.Count; i++)
-            {
-                TreePresentation tree = _trees[i];
-                if (BatchKeyFor(tree.Instance) != key) continue;
-                if (tree.IsBatched)
-                    DestroyDynamicPresentation(tree);
-                else
-                    EnsureDynamicPresentation(tree);
-            }
+            return tree.Skeleton != null
+                && tree.Skeleton.Branches.Count > 0
+                && tree.ResolvedRemovedBranches.Count >= tree.Skeleton.Branches.Count;
         }
 
         private void DestroyBatchObjects(BatchPresentation batch)
@@ -796,10 +868,13 @@ namespace VoxelEngine.Rendering.Vegetation
                 _trees[i].IsBatched = false;
             BatchedTreeCount = 0;
             LastDamageBatchRebuildCount = 0;
+            LastDamageBatchReleaseCount = 0;
         }
 
         private void ClearGenerated()
         {
+            _pendingDynamicLods.Clear();
+            _dirtyTreeIndices.Clear();
             ClearBatches();
             for (int i = 0; i < _trees.Count; i++)
                 DestroyDynamicPresentation(_trees[i]);
