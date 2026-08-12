@@ -26,7 +26,6 @@ namespace VoxelEngine.Tests.EditMode
                 source.MarkHardSurfaceBrick(brickIndex);
                 sourceTable.CommitRegion(source);
 
-                // Give the target a different allocation history and wrong semantic state.
                 Region target = targetTable.LoadRegion(int3.zero);
                 int throwaway = targetPool.Allocate();
                 targetPool.FillBrick(throwaway, 9);
@@ -43,6 +42,14 @@ namespace VoxelEngine.Tests.EditMode
                     out byte[] snapshot), Is.True);
                 Assert.That(snapshot.Length, Is.LessThan(SemanticRegionSnapshotCodec.DefaultMaxSnapshotBytes));
 
+                uint sourceHash = SemanticRegionHasher.HashRegion(in source, in sourcePool);
+                Assert.That(SemanticRegionSnapshotCodec.TryComputeSemanticHash(
+                    int3.zero,
+                    snapshot,
+                    out uint encodedHash), Is.True);
+                Assert.That(encodedHash, Is.EqualTo(sourceHash),
+                    "Encoded semantic state must hash identically before any target storage is mutated.");
+
                 Assert.That(SemanticRegionSnapshotCodec.TryApply(
                     ref targetTable,
                     ref targetPool,
@@ -53,7 +60,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(repaired.IsHardSurfaceBrick(brickIndex), Is.True);
                 Assert.That(
                     SemanticRegionHasher.HashRegion(in repaired, in targetPool),
-                    Is.EqualTo(SemanticRegionHasher.HashRegion(in source, in sourcePool)));
+                    Is.EqualTo(sourceHash));
                 Assert.That(VoxelAccess.GetVoxel(
                     ref targetTable,
                     in targetPool,
@@ -81,8 +88,11 @@ namespace VoxelEngine.Tests.EditMode
                 table.CommitRegion(region);
                 uint before = SemanticRegionHasher.HashRegion(in region, in pool);
 
-                // Uniform-run record claiming only one brick cannot cover a whole region.
                 byte[] malformed = { 0, 1, 0, 0, 0 };
+                Assert.That(SemanticRegionSnapshotCodec.TryComputeSemanticHash(
+                    int3.zero,
+                    malformed,
+                    out _), Is.False);
                 Assert.That(SemanticRegionSnapshotCodec.TryApply(
                     ref table,
                     ref pool,
