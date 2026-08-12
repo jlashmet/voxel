@@ -69,38 +69,37 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             featureNormalStrength: 0.88f, featureCurvatureThreshold: 0.045f);
 
         /// <summary>
-        /// Hero dressed masonry profile. Keep smoothing local enough to hide the 10 cm storage
-        /// staircase, but preserve the planar faces, radial bed joints and arrises authored by the
-        /// reusable stone primitives. Broad distance/curve recovery is deliberately suppressed:
-        /// limestone may be worn at corners, but it must never inflate into terrain-like clay.
+        /// Dressed masonry keeps enough tight-radius reconstruction to suppress the 10 cm storage
+        /// staircase, while avoiding the wide recovery that previously inflated cut stone. QEF and
+        /// planar snapping retain authored planes/arrises without exposing raw voxel aliasing.
         /// </summary>
         public static VoxelSurfaceProfile DressedStone => new(
-            smoothing: 0.48f,
+            smoothing: 0.88f,
             blurPasses: 0,
-            densityBias: -0.001f,
-            planarization: 0.94f,
-            planarizationThreshold: 0.42f,
-            distanceRecovery: 0.32f,
-            curveRecovery: 0.025f,
-            normalPlanarization: 0.96f,
-            planarSnapDistanceVoxels: 0.32f,
-            featurePreservation: 1.0f,
-            featureNormalStrength: 0.995f,
-            featureCurvatureThreshold: 0.018f);
+            densityBias: -0.003f,
+            planarization: 0.62f,
+            planarizationThreshold: 0.53f,
+            distanceRecovery: 0.84f,
+            curveRecovery: 0.26f,
+            normalPlanarization: 0.72f,
+            planarSnapDistanceVoxels: 0.17f,
+            featurePreservation: 0.99f,
+            featureNormalStrength: 0.92f,
+            featureCurvatureThreshold: 0.038f);
 
         public static VoxelSurfaceProfile RecessedMasonryJoint => new(
-            smoothing: 0.52f,
+            smoothing: 0.90f,
             blurPasses: 0,
-            densityBias: -0.115f,
-            planarization: 0.86f,
-            planarizationThreshold: 0.44f,
-            distanceRecovery: 0.34f,
-            curveRecovery: 0.02f,
-            normalPlanarization: 0.92f,
-            planarSnapDistanceVoxels: 0.28f,
-            featurePreservation: 1.0f,
-            featureNormalStrength: 0.98f,
-            featureCurvatureThreshold: 0.020f);
+            densityBias: -0.092f,
+            planarization: 0.44f,
+            planarizationThreshold: 0.55f,
+            distanceRecovery: 0.88f,
+            curveRecovery: 0.28f,
+            normalPlanarization: 0.55f,
+            planarSnapDistanceVoxels: 0.14f,
+            featurePreservation: 0.98f,
+            featureNormalStrength: 0.88f,
+            featureCurvatureThreshold: 0.045f);
 
         public static VoxelSurfaceProfile RoughRock => new(
             smoothing: 0.82f, blurPasses: 1, modificationStrength: 0.035f,
@@ -131,26 +130,28 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public static VoxelSurfaceProfileSet Canonical()
         {
             var set = new VoxelSurfaceProfileSet(VoxelSurfaceProfile.Legacy);
-            set.Set(0,  VoxelSurfaceProfile.Legacy);
-            set.Set(1,  VoxelSurfaceProfile.DressedStone);
-            set.Set(2,  VoxelSurfaceProfile.HardManufactured);
-            set.Set(3,  VoxelSurfaceProfile.SoftTerrain);
-            set.Set(4,  VoxelSurfaceProfile.HardManufactured);
-            set.Set(5,  VoxelSurfaceProfile.RoughRock);
-            set.Set(6,  VoxelSurfaceProfile.DressedStone);
-            set.Set(7,  VoxelSurfaceProfile.HardManufactured);
-            set.Set(8,  VoxelSurfaceProfile.HardManufactured);
-            set.Set(9,  new VoxelSurfaceProfile(0.55f, 1));
+            set.Set(0, VoxelSurfaceProfile.Legacy);
+            set.Set(1, VoxelSurfaceProfile.DressedStone);
+            set.Set(2, VoxelSurfaceProfile.HardManufactured);
+            set.Set(3, VoxelSurfaceProfile.SoftTerrain);
+            set.Set(4, VoxelSurfaceProfile.HardManufactured);
+            set.Set(5, VoxelSurfaceProfile.RoughRock);
+            set.Set(6, VoxelSurfaceProfile.DressedStone);
+            set.Set(7, VoxelSurfaceProfile.HardManufactured);
+            set.Set(8, VoxelSurfaceProfile.HardManufactured);
+            set.Set(9, new VoxelSurfaceProfile(0.55f, 1));
             set.Set(10, VoxelSurfaceProfile.SoftTerrain);
             set.Set(11, new VoxelSurfaceProfile(0.96f, 2));
             set.Set(12, VoxelSurfaceProfile.HardManufactured);
             set.Set(13, VoxelSurfaceProfile.SoftTerrain);
-            set.Set(14, new VoxelSurfaceProfile(0.90f, 2, modificationStrength: 0.018f, modificationScaleVoxels: 4.5f));
+            set.Set(14, new VoxelSurfaceProfile(0.90f, 2,
+                modificationStrength: 0.018f, modificationScaleVoxels: 4.5f));
             set.Set(15, VoxelSurfaceProfile.HardManufactured);
             set.Set(16, new VoxelSurfaceProfile(0.96f, 2));
-            set.Set(17, new VoxelSurfaceProfile(0.70f, 1, distanceRecovery: 0.55f,
-                                                curveRecovery: 0.45f, featurePreservation: 0.55f,
-                                                featureNormalStrength: 0.40f, featureCurvatureThreshold: 0.10f));
+            set.Set(17, new VoxelSurfaceProfile(0.70f, 1,
+                distanceRecovery: 0.55f, curveRecovery: 0.45f,
+                featurePreservation: 0.55f, featureNormalStrength: 0.40f,
+                featureCurvatureThreshold: 0.10f));
             return set;
         }
     }
