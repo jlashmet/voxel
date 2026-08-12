@@ -7,14 +7,15 @@ on:
       - feature/kentridge-town-refinement
     paths:
       - 'Packages/com.mountingforce.worldgen/**'
-      - 'Assets/Tests/EditMode/KentridgeGenerationTests.cs'
+      - 'Assets/Tests/EditMode/Kentridge*.cs'
       - 'Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef'
-      - 'Assets/VoxelEngine/CI/Editor/KentridgeCapture.cs'
-      - 'Assets/VoxelEngine/CI/Editor/KentridgeRuntimeCapture.cs'
+      - 'Assets/VoxelEngine/CI/Editor/Kentridge*.cs'
       - 'Assets/VoxelEngine/CI/Editor/VoxelEngine.CI.Editor.asmdef'
       - 'Assets/VoxelEngine/Core/Features/**'
       - 'Assets/VoxelEngine/Core/Terrain/**'
+      - 'Assets/VoxelEngine/Core/Vegetation/**'
       - 'Assets/VoxelEngine/Rendering/SurfaceExtraction/**'
+      - 'Assets/VoxelEngine/Rendering/Vegetation/**'
       - '.github/workflows/kentridge-visual.yml'
 
 concurrency:
