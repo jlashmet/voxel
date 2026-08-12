@@ -2,6 +2,7 @@ using System;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Core.Edits;
+using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Transport;
 
 namespace VoxelEngine.Net.Server
@@ -10,7 +11,7 @@ namespace VoxelEngine.Net.Server
     /// Composition root for the authoritative networking path.
     /// Transport is pumped from the Unity frame loop; BeginTick/EndTick belong to the fixed clock.
     /// </summary>
-    public sealed class ServerNetworkRuntime : IDisposable
+    public sealed class ServerNetworkRuntime : IDisposable, IAuthoritativeAlterationPublisher, IAlterationRejectionSink
     {
         private readonly UtpServerHost _host;
         private readonly EventDrivenReplicationPipeline _replication;
@@ -25,10 +26,6 @@ namespace VoxelEngine.Net.Server
         public event Action<uint> ProtocolError;
         public event Action<uint, int> SendError;
 
-        /// <summary>
-        /// Recommended composition: one bounded inbox receives both durable commands and ephemeral
-        /// input, then the fixed simulation tick drains it.
-        /// </summary>
         public ServerNetworkRuntime(
             ServerCommandInbox commandInbox,
             int maxConnections = 64,
@@ -100,6 +97,22 @@ namespace VoxelEngine.Net.Server
             _replication.PublishAlteration(in evt);
         }
 
+        /// <summary>
+        /// Send a denied durable request back to only its originator. This is queued on reliable
+        /// EVENT and flushed with the rest of the authoritative tick in EndTick().
+        /// </summary>
+        public void SendAlterationRejected(uint connectionId, in S_AlterationRejected rejection)
+        {
+            ThrowIfDisposed();
+            Span<byte> packet = stackalloc byte[AlterationRejectedPacket.PacketSize];
+            if (!AlterationRejectedPacket.TryEncode(packet, in rejection) ||
+                !_host.TrySend(connectionId, UtpChannel.Event, packet))
+            {
+                // Host.TrySend reports transport error codes through SendError when available.
+                // A missing/dead connection is intentionally not converted into a world-state error.
+            }
+        }
+
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)
         {
             ThrowIfDisposed();
@@ -136,11 +149,7 @@ namespace VoxelEngine.Net.Server
         private void OnConnectionClosed(uint connectionId)
         {
             _replication.RemoveConnection(connectionId);
-
-            // The recommended shared inbox is connection-lifetime scoped; discard requests that
-            // have not yet crossed authentication/validation into authoritative simulation.
             _commandInbox?.RemoveConnection(connectionId);
-
             ConnectionClosed?.Invoke(connectionId);
         }
 
