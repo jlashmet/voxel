@@ -30,6 +30,11 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeVerticalPlacementAdapter.BuildTownDressing(
                     seed, settings, Allocator.Temp),
 
+                // City-scale organisation is deliberately separate from individual building grammar.
+                // This coarse adapter only makes the semantic frontage plan visible in CI; a future
+                // grammar backend can replace its geometry without changing Kentridge's massing plan.
+                KentridgeUrbanMassingCatalogue.Build(seed, settings, Allocator.Temp),
+
                 // Secondary hard architecture comes immediately before gameplay buildings. Where an
                 // embedded dwelling touches a named building, the stable role building wins last.
                 KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp),

@@ -14,6 +14,8 @@ namespace VoxelEngine.Tests.EditMode
         {
             FeatureCatalogue circulation = KentridgeVerticalConnectorCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue architecture = KentridgeHillsideArchitectureCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue combined = KentridgeCombinedVoxelCatalogue.Build(
@@ -25,6 +27,11 @@ namespace VoxelEngine.Tests.EditMode
                     "Four stair flights, four retaining sections, and one campanile should compose the primary hardscape pass.");
                 Assert.AreEqual(9, circulation.ExplicitPlacements.Length);
 
+                Assert.AreEqual(2, massing.Definitions.Length,
+                    "Macro urban organisation is rendered as two coarse silhouette heights.");
+                Assert.AreEqual(17, massing.ExplicitPlacements.Length,
+                    "Six semantic frontage runs should currently produce seventeen anonymous masses.");
+
                 Assert.AreEqual(3, architecture.Definitions.Length,
                     "Secondary hillside architecture should reuse terrace-dwelling, civic-bridge, and retaining-gallery grammars.");
                 Assert.AreEqual(13, architecture.ExplicitPlacements.Length,
@@ -32,6 +39,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 for (int i = 0; i < circulation.Definitions.Length; i++)
                     Assert.AreEqual(FeatureKind.Infrastructure, circulation.Definitions[i].Kind);
+                for (int i = 0; i < massing.Definitions.Length; i++)
+                    Assert.AreEqual(FeatureKind.Infrastructure, massing.Definitions[i].Kind);
                 for (int i = 0; i < architecture.Definitions.Length; i++)
                     Assert.AreEqual(FeatureKind.Infrastructure, architecture.Definitions[i].Kind);
 
@@ -49,13 +58,14 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(22, infrastructureInstances,
-                    "Hard civic/ambient fabric should be independently classified from gameplay structures.");
+                Assert.AreEqual(39, infrastructureInstances,
+                    "Macro massing and hard civic/ambient fabric stay independently classified from gameplay structures.");
             }
             finally
             {
                 combined.Dispose();
                 architecture.Dispose();
+                massing.Dispose();
                 circulation.Dispose();
             }
         }
