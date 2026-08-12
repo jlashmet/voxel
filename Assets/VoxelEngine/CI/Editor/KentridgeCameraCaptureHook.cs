@@ -2,6 +2,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace VoxelEngine.CI
 {
@@ -27,10 +28,16 @@ namespace VoxelEngine.CI
 
         static KentridgeCameraCaptureHook()
         {
-            Camera.onPreCull += OnCameraPreCull;
+            // Camera.onPreCull is retained for built-in rendering; the isolated capture currently
+            // runs through SRP, where beginCameraRendering is the reliable pre-render callback.
+            Camera.onPreCull += AdjustCamera;
+            RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
         }
 
-        private static void OnCameraPreCull(Camera camera)
+        private static void OnBeginCameraRendering(ScriptableRenderContext _, Camera camera) =>
+            AdjustCamera(camera);
+
+        private static void AdjustCamera(Camera camera)
         {
             if (camera == null || camera.gameObject.name != CameraObjectName) return;
             if (Mathf.Abs(camera.fieldOfView - StreetFov) > FovTolerance) return;
@@ -48,9 +55,6 @@ namespace VoxelEngine.CI
             position.y = surfaceY * MetresPerVoxel + EyeHeightMetres;
             transform.position = position;
 
-            // Side views look toward the market crossing. The south/downhill view looks toward the
-            // lower residential band, while the north/uphill view is deliberately aimed high enough
-            // to stack market roofs below the civic summit in one frame.
             Vector3 target;
             if (Mathf.Abs(forward.z) >= Mathf.Abs(forward.x))
             {
