@@ -1,16 +1,14 @@
 namespace VoxelEngine.Net.Transport
 {
     /// <summary>
-    /// Logical channels exposed by the concrete Unity Transport host.
-    ///
-    /// This enum is deliberately independent from NetworkPipeline handles. Pipeline handles are
-    /// driver-local implementation details; gameplay/networking code should only reason about the
-    /// delivery semantics represented here.
+    /// Logical channels exposed by the concrete Unity Transport host. Values are internal API,
+    /// not protocol message-kind values; NetworkPipeline handles remain driver-local details.
     /// </summary>
     public enum UtpChannel : byte
     {
         Event = 0,
-        Repair = 1,
-        Bulk = 2,
+        Ephemeral = 1,
+        Repair = 2,
+        Bulk = 3,
     }
 }
