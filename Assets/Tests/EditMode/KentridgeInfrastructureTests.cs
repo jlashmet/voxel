@@ -19,6 +19,7 @@ namespace VoxelEngine.Tests.EditMode
             FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue verticalFrontage = KentridgeVerticalFrontageCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue galleries = KentridgeVerticalGalleryCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue upperSkybridge = KentridgeUpperSkybridgeCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue anchorUndercroft = KentridgeAnchorUndercroftCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue access = KentridgeUrbanAccessCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue architecture = KentridgeHillsideArchitectureCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
@@ -37,6 +38,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(5, galleries.ExplicitPlacements.Length,
                     "Five public dense frontages should own reachable second-level galleries; NobleRidge stays private.");
                 AssertAllKind(galleries, FeatureKind.Infrastructure);
+                Assert.AreEqual(1, upperSkybridge.ExplicitPlacements.Length,
+                    "Upper Ward courts should share one open over/under crossing above the main ascent.");
+                AssertAllKind(upperSkybridge, FeatureKind.Infrastructure);
                 Assert.AreEqual(4, anchorUndercroft.ExplicitPlacements.Length);
                 Assert.AreEqual(8, access.ExplicitPlacements.Length);
                 Assert.AreEqual(13, architecture.ExplicitPlacements.Length);
@@ -53,8 +57,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(97, infrastructureInstances,
-                    "Five public downhill galleries add a second pedestrian level while the noble terrace remains private.");
+                Assert.AreEqual(98, infrastructureInstances,
+                    "The upper court skybridge adds one hard over/under circulation instance without changing gameplay structures.");
             }
             finally
             {
@@ -62,6 +66,7 @@ namespace VoxelEngine.Tests.EditMode
                 architecture.Dispose();
                 access.Dispose();
                 anchorUndercroft.Dispose();
+                upperSkybridge.Dispose();
                 galleries.Dispose();
                 verticalFrontage.Dispose();
                 massing.Dispose();
