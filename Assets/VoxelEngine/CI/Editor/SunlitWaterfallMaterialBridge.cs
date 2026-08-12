@@ -51,8 +51,17 @@ namespace VoxelEngine.CI
                     material.SetTextureScale("_MainTex", scale);
                     material.SetTextureOffset("_MainTex", offset);
                     material.SetColor("_BaseColor", colour);
+                    material.SetColor("_SecondaryColor", colour);
+                    material.SetColor("_TopColor", colour);
                     material.SetColor("_EmissionColor", emission);
                     material.SetFloat("_Smoothness", smoothness);
+                    material.SetFloat("_TextureScale", 0.30f);
+                    material.SetFloat("_TextureStrength", 0.45f);
+                    material.SetFloat("_DetailScale", 0.09f);
+                    material.SetFloat("_DetailStrength", 0.05f);
+                    material.SetFloat("_TopStrength", 0f);
+                    material.SetFloat("_RimStrength", 0.05f);
+                    material.SetFloat("_SurfaceKind", 0f);
                     material.SetFloat("_Cull", transparent ? 0f : 2f);
                     material.SetFloat("_ZWrite", transparent ? 0f : 1f);
                     material.renderQueue = transparent ? (int)RenderQueue.Transparent : (int)RenderQueue.Geometry;
@@ -72,6 +81,7 @@ namespace VoxelEngine.CI
             SunlitWaterfallStylePass.Apply(camera);
             SunlitWaterfallLushPass.Apply(camera);
             SunlitWaterfallVerticalityPass.Apply(camera);
+            SunlitWaterfallSurfacePass.Apply(camera);
         }
     }
 }
