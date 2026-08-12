@@ -12,8 +12,8 @@ namespace VoxelEngine.CI
 {
     /// <summary>
     /// Rendering contract for spatial tree batching. Healthy trees must contribute real pixels
-    /// without retaining per-tree GameObjects or meshes; first damage lazily materializes only the
-    /// affected tree and rebuilds only its own spatial batch cell.
+    /// without retaining per-tree GameObjects, meshes or procedural skeletons; first damage lazily
+    /// materializes only the affected tree and rebuilds only its own spatial batch cell.
     /// </summary>
     public sealed class TreeBatchRenderingTests
     {
@@ -72,6 +72,8 @@ namespace VoxelEngine.CI
                             "Healthy batched trees must not retain per-tree GameObjects.");
                 Assert.That(renderer.DynamicMeshCount, Is.EqualTo(0),
                             "Healthy batched trees must not retain dormant per-tree meshes.");
+                Assert.That(renderer.ResidentSkeletonCount, Is.EqualTo(0),
+                            "Healthy batched trees must release their procedural skeletons after batch geometry is built.");
                 Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(6),
                             "Two healthy batches should own exactly six LOD meshes.");
                 Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(8),
@@ -169,6 +171,8 @@ namespace VoxelEngine.CI
                 Assert.That(renderer.BatchCount, Is.EqualTo(2));
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(instances.Length - 1));
                 Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(1));
+                Assert.That(renderer.ResidentSkeletonCount, Is.EqualTo(1),
+                            "First damage should retain only the affected dynamic tree's procedural skeleton.");
                 Assert.That(renderer.LastDamageBatchRebuildCount, Is.EqualTo(1),
                             "One damaged tree should invalidate exactly one spatial batch cell.");
                 Assert.That(renderer.DynamicMeshCount, Is.EqualTo(3));
