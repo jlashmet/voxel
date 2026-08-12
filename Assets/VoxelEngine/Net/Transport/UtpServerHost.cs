@@ -5,13 +5,7 @@ using VoxelEngine.Net.Server;
 
 namespace VoxelEngine.Net.Transport
 {
-    /// <summary>
-    /// Concrete Unity Transport 6.5 server lifecycle.
-    ///
-    /// The host owns NetworkDriver/NetworkConnection lifetimes and translates them into stable,
-    /// monotonically-assigned connection IDs used by the replication layer. It pumps transport
-    /// every frame, while the authoritative simulation remains free to run on its fixed tick.
-    /// </summary>
+    /// <summary>Concrete Unity Transport 6.5 server lifecycle.</summary>
     public sealed class UtpServerHost : IDisposable, IEventPacketSender
     {
         private const int k_LocalWriteFailure = int.MinValue + 1;
@@ -69,7 +63,8 @@ namespace VoxelEngine.Net.Transport
 
         public void Pump(
             IClientEventCommandHandler eventHandler,
-            IClientInputCommandHandler inputHandler = null)
+            IClientInputCommandHandler inputHandler = null,
+            IClientConvergenceCommandHandler convergenceHandler = null)
         {
             ThrowIfDisposed();
             if (eventHandler == null)
@@ -80,7 +75,7 @@ namespace VoxelEngine.Net.Transport
 
             _disconnectScratch.Clear();
             foreach (var pair in _connections)
-                PumpConnection(pair.Key, pair.Value, eventHandler, inputHandler);
+                PumpConnection(pair.Key, pair.Value, eventHandler, inputHandler, convergenceHandler);
 
             for (int i = 0; i < _disconnectScratch.Count; i++)
                 RemoveConnection(_disconnectScratch[i]);
@@ -111,7 +106,6 @@ namespace VoxelEngine.Net.Transport
         public bool TrySend(uint connectionId, UtpChannel channel, ReadOnlySpan<byte> packet)
         {
             ThrowIfDisposed();
-
             if (!_connections.TryGetValue(connectionId, out NetworkConnection connection) || !connection.IsCreated)
                 return false;
             if (packet.Length <= 0 || packet.Length > MaxPacketBytes(channel))
@@ -142,10 +136,8 @@ namespace VoxelEngine.Net.Transport
             return true;
         }
 
-        void IEventPacketSender.SendEventPacket(uint connectionId, ReadOnlySpan<byte> packet)
-        {
+        void IEventPacketSender.SendEventPacket(uint connectionId, ReadOnlySpan<byte> packet) =>
             TrySend(connectionId, UtpChannel.Event, packet);
-        }
 
         private void AcceptPendingConnections()
         {
@@ -168,7 +160,8 @@ namespace VoxelEngine.Net.Transport
             uint connectionId,
             NetworkConnection connection,
             IClientEventCommandHandler eventHandler,
-            IClientInputCommandHandler inputHandler)
+            IClientInputCommandHandler inputHandler,
+            IClientConvergenceCommandHandler convergenceHandler)
         {
             Span<byte> packetScratch = stackalloc byte[ChannelSetup.k_MaxEventPacketBytes];
 
@@ -190,7 +183,8 @@ namespace VoxelEngine.Net.Transport
                                        ClientEventPacketReceiver.TryDispatch(
                                            connectionId,
                                            packetScratch.Slice(0, bytesRead),
-                                           eventHandler);
+                                           eventHandler,
+                                           convergenceHandler);
                         }
                         else if (pipeline.Equals(_channels.Ephemeral) && inputHandler != null)
                         {
@@ -203,7 +197,6 @@ namespace VoxelEngine.Net.Transport
 
                         if (!accepted)
                             ProtocolError?.Invoke(connectionId);
-
                         break;
                     }
 
@@ -221,7 +214,6 @@ namespace VoxelEngine.Net.Transport
                 uint candidate = _nextConnectionId++;
                 if (_nextConnectionId == 0)
                     _nextConnectionId = 1;
-
                 if (candidate != 0 && !_connections.ContainsKey(candidate))
                     return candidate;
             }
@@ -236,29 +228,23 @@ namespace VoxelEngine.Net.Transport
             ConnectionClosed?.Invoke(connectionId);
         }
 
-        private NetworkPipeline PipelineFor(UtpChannel channel)
+        private NetworkPipeline PipelineFor(UtpChannel channel) => channel switch
         {
-            return channel switch
-            {
-                UtpChannel.Event => _channels.Event,
-                UtpChannel.Ephemeral => _channels.Ephemeral,
-                UtpChannel.Repair => _channels.Repair,
-                UtpChannel.Bulk => _channels.Bulk,
-                _ => throw new ArgumentOutOfRangeException(nameof(channel)),
-            };
-        }
+            UtpChannel.Event => _channels.Event,
+            UtpChannel.Ephemeral => _channels.Ephemeral,
+            UtpChannel.Repair => _channels.Repair,
+            UtpChannel.Bulk => _channels.Bulk,
+            _ => throw new ArgumentOutOfRangeException(nameof(channel)),
+        };
 
-        private static int MaxPacketBytes(UtpChannel channel)
+        private static int MaxPacketBytes(UtpChannel channel) => channel switch
         {
-            return channel switch
-            {
-                UtpChannel.Event => ChannelSetup.k_MaxEventPacketBytes,
-                UtpChannel.Ephemeral => ChannelSetup.k_MaxEphemeralPacketBytes,
-                UtpChannel.Repair => ChannelSetup.k_MaxRepairPacketBytes,
-                UtpChannel.Bulk => ChannelSetup.k_MaxBulkPacketBytes,
-                _ => 0,
-            };
-        }
+            UtpChannel.Event => ChannelSetup.k_MaxEventPacketBytes,
+            UtpChannel.Ephemeral => ChannelSetup.k_MaxEphemeralPacketBytes,
+            UtpChannel.Repair => ChannelSetup.k_MaxRepairPacketBytes,
+            UtpChannel.Bulk => ChannelSetup.k_MaxBulkPacketBytes,
+            _ => 0,
+        };
 
         private void ThrowIfDisposed()
         {
@@ -277,10 +263,8 @@ namespace VoxelEngine.Net.Transport
                 {
                     foreach (NetworkConnection connection in _connections.Values)
                         _driver.Disconnect(connection);
-
                     _driver.ScheduleUpdate().Complete();
                 }
-
                 _driver.Dispose();
             }
 
