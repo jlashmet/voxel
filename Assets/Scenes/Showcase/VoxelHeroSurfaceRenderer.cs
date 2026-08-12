@@ -18,13 +18,10 @@ namespace VoxelEngine.Showcase
     /// the legacy showcase greedy mesher without changing destruction, networking, or storage.
     ///
     /// Surface filtering is material-aware. Terrain may keep the broad legacy smoothing while
-    /// dressed masonry can recover a local signed-distance estimate from coverage/gradient, then
-    /// optionally preserve strongly axis-aligned planes. Profiles affect presentation only; they
-    /// never mutate authoritative voxels.
-    ///
-    /// This is intentionally bounded. A 5 cm visual lattice is appropriate for a close-up hero
-    /// component, not for every resident world region. Shipping integration can promote the same
-    /// idea into distance/tag-driven surface quality once the visual target is approved.
+    /// dressed masonry can recover local signed distance from occupancy coverage. A profile can
+    /// blend the tight radius-one recovery that preserves corners with the wider radius-two
+    /// recovery that removes digital-circle scallops, then recover strongly axis-aligned planes.
+    /// The profiles affect presentation only; they never mutate authoritative voxels.
     /// </summary>
     public sealed class VoxelHeroSurfaceRenderer : IDisposable
     {
@@ -158,12 +155,6 @@ namespace VoxelEngine.Showcase
             _density = null;
         }
 
-        /// <summary>
-        /// Samples exact binary occupancy at the authoritative voxel lattice and builds the legacy
-        /// two-pass filtered field. Material profiles can then replace that broad filter with the
-        /// same radius-one coverage/gradient distance recovery used by the production density path.
-        /// The legacy profile remains bit-for-bit equivalent to the previous hero renderer.
-        /// </summary>
         private void BuildBaseDensity(ShowcaseWorld world)
         {
             int margin = BlurPasses + 2;
@@ -204,9 +195,11 @@ namespace VoxelEngine.Showcase
                 float filtered = _baseDensity[index];
                 if (profile.DistanceRecovery > 0.00001f)
                 {
-                    float distanceRecovered = DistanceRecoveredDensity(x, y, z, original[index]);
+                    float distanceRecovered = DistanceRecoveredDensity(
+                        x, y, z, original[index], profile.CurveRecovery);
                     filtered = math.lerp(filtered, distanceRecovered, profile.DistanceRecovery);
                 }
+
                 float shaped = math.lerp(original[index], filtered, profile.Smoothing);
                 shaped -= profile.DensityBias;
                 shaped -= SurfaceModification(_baseMin + new int3(x, y, z), in profile);
@@ -215,12 +208,21 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Radius-one binomial coverage and its derivative recover signed distance from binary
-        /// occupancy. For an axis-aligned half-space the estimate lands exactly half a voxel from
-        /// the boundary; on a digital curve it infers a stable diagonal normal instead of simply
-        /// rounding every stair step into a blob.
+        /// Combines the radius-one and radius-two coverage/gradient distance estimators used by the
+        /// production voxel density path. Tight recovery preserves a 90-degree corner; wide recovery
+        /// gives a digital circle enough neighbourhood context to reconstruct a continuous curve.
         /// </summary>
-        private float DistanceRecoveredDensity(int centreX, int centreY, int centreZ, float raw)
+        private float DistanceRecoveredDensity(int centreX, int centreY, int centreZ,
+                                               float raw, float curveRecovery)
+        {
+            float tight = DistanceRecoveredDensityRadiusOne(centreX, centreY, centreZ, raw);
+            if (curveRecovery <= 0.00001f) return tight;
+            float wide = DistanceRecoveredDensityRadiusTwo(centreX, centreY, centreZ, tight);
+            return math.lerp(tight, wide, curveRecovery);
+        }
+
+        private float DistanceRecoveredDensityRadiusOne(int centreX, int centreY, int centreZ,
+                                                        float raw)
         {
             float coverage = 0f;
             float3 gradient = float3.zero;
@@ -229,18 +231,39 @@ namespace VoxelEngine.Showcase
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
             {
-                int qx = math.clamp(centreX + x, 0, _baseSize.x - 1);
-                int qy = math.clamp(centreY + y, 0, _baseSize.y - 1);
-                int qz = math.clamp(centreZ + z, 0, _baseSize.z - 1);
-                float occupied = _baseMaterials[BaseIndex(qx, qy, qz)]
-                    != VoxelDimensions.MaterialEmpty ? 1f : 0f;
-
+                float occupied = OccupiedAt(centreX + x, centreY + y, centreZ + z);
                 float wx = x == 0 ? 2f : 1f;
                 float wy = y == 0 ? 2f : 1f;
                 float wz = z == 0 ? 2f : 1f;
-                float dx = x;
-                float dy = y;
-                float dz = z;
+
+                coverage += occupied * wx * wy * wz;
+                gradient += occupied * new float3(x * wy * wz,
+                                                   wx * y * wz,
+                                                   wx * wy * z);
+            }
+
+            coverage *= 1f / 64f;
+            gradient *= 1f / 32f;
+            return RecoveredDensity(coverage, gradient, raw);
+        }
+
+        private float DistanceRecoveredDensityRadiusTwo(int centreX, int centreY, int centreZ,
+                                                        float fallback)
+        {
+            float coverage = 0f;
+            float3 gradient = float3.zero;
+
+            for (int z = -2; z <= 2; z++)
+            for (int y = -2; y <= 2; y++)
+            for (int x = -2; x <= 2; x++)
+            {
+                float occupied = OccupiedAt(centreX + x, centreY + y, centreZ + z);
+                float wx = BinomialRadiusTwo(x);
+                float wy = BinomialRadiusTwo(y);
+                float wz = BinomialRadiusTwo(z);
+                float dx = BinomialDerivativeRadiusTwo(x);
+                float dy = BinomialDerivativeRadiusTwo(y);
+                float dz = BinomialDerivativeRadiusTwo(z);
 
                 coverage += occupied * wx * wy * wz;
                 gradient += occupied * new float3(dx * wy * wz,
@@ -248,14 +271,42 @@ namespace VoxelEngine.Showcase
                                                    wx * wy * dz);
             }
 
-            coverage *= 1f / 64f;
-            gradient *= 1f / 32f;
-            float gradientMagnitude = math.length(gradient);
-            if (gradientMagnitude <= MinCoverageGradient) return raw;
-
-            float signedVoxels = (coverage - 0.5f) / gradientMagnitude;
-            return math.clamp(-signedVoxels, -1f, 1f);
+            coverage *= 1f / 4096f;
+            gradient *= 1f / 2048f;
+            return RecoveredDensity(coverage, gradient, fallback);
         }
+
+        private float OccupiedAt(int x, int y, int z)
+        {
+            x = math.clamp(x, 0, _baseSize.x - 1);
+            y = math.clamp(y, 0, _baseSize.y - 1);
+            z = math.clamp(z, 0, _baseSize.z - 1);
+            return _baseMaterials[BaseIndex(x, y, z)] != VoxelDimensions.MaterialEmpty ? 1f : 0f;
+        }
+
+        private static float RecoveredDensity(float coverage, float3 gradient, float fallback)
+        {
+            float gradientMagnitude = math.length(gradient);
+            if (gradientMagnitude <= MinCoverageGradient) return fallback;
+            float signedVoxels = (coverage - 0.5f) / gradientMagnitude;
+            return math.clamp(-signedVoxels, -1.5f, 1.5f);
+        }
+
+        private static float BinomialRadiusTwo(int offset)
+        {
+            int a = math.abs(offset);
+            return a == 0 ? 6f : a == 1 ? 4f : 1f;
+        }
+
+        private static float BinomialDerivativeRadiusTwo(int offset) => offset switch
+        {
+            -2 => -1f,
+            -1 => -2f,
+             0 => 0f,
+             1 => 2f,
+             2 => 1f,
+             _ => 0f
+        };
 
         /// <summary>
         /// Air participates in an iso-surface too, so it must use the adjacent solid's profile.
