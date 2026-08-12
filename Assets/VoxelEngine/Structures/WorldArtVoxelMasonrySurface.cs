@@ -12,12 +12,12 @@ namespace VoxelEngine.Structures
     public static class WorldArtVoxelMasonrySurface
     {
         /// <summary>
-        /// Recesses the radial mortar channels on the proud face of an arch without cutting through
-        /// the structural ring. The first layer is removed and the next layer is painted with the
-        /// joint material, producing a real 10 cm reveal with masonry immediately behind it.
+        /// Applies the hero arch-bay face treatment: radial archivolt joints plus matching shallow
+        /// ashlar joints on both piers. The front layer is removed only along mortar paths and the
+        /// next layer is painted with the joint material, leaving continuous structural stone behind.
         ///
-        /// The operation is deterministic and derives every dimension from the reusable arch spec.
-        /// It is safe on damaged arches: writing Empty into an already-empty damaged area is a no-op.
+        /// The method keeps the original name for the current lookdev call site; all dimensions and
+        /// bond choices are still derived from the reusable arch spec rather than the capture scene.
         /// </summary>
         public static void RecessArchivoltJoints(ref VoxelBrush brush,
                                                  in WorldArtVoxelArchSpec spec,
@@ -51,15 +51,82 @@ namespace VoxelEngine.Structures
                     int y = (int)math.round(sa * r);
                     int worldX = spec.BaseCentre.x + x;
                     int worldY = spec.BaseCentre.y + math.max(8, spec.PierHeight) + y;
-
-                    for (int d = 0; d < recessDepth; d++)
-                        brush.Set(worldX, worldY, frontZ + d, spec.EmptyMaterial);
-
-                    int backZ = frontZ + recessDepth;
-                    if (backZ < frontZ + depth)
-                        brush.Set(worldX, worldY, backZ, jointMaterial);
+                    RecessPoint(ref brush, worldX, worldY, frontZ, depth, recessDepth,
+                        spec.EmptyMaterial, jointMaterial);
                 }
             }
+
+            RecessPierJoints(ref brush, in spec, -1, spec.Seed + 101u, recessDepth, jointMaterial);
+            RecessPierJoints(ref brush, in spec, 1, spec.Seed + 211u, recessDepth, jointMaterial);
+        }
+
+        private static void RecessPierJoints(ref VoxelBrush brush, in WorldArtVoxelArchSpec spec,
+                                             int side, uint seed, int recessDepth,
+                                             byte jointMaterial)
+        {
+            int halfOpening = math.max(4, spec.HalfOpening);
+            int pierWidth = math.max(4, spec.PierWidth);
+            int pierHeight = math.max(8, spec.PierHeight);
+            int courseHeight = math.max(3, spec.CourseHeight);
+            int impostHeight = math.max(2, spec.ImpostHeight);
+            int depth = math.max(4, spec.Depth);
+            int pierOffset = halfOpening + (pierWidth + 1) / 2;
+            int plinthHeight = math.max(3, courseHeight - 1);
+            int shaftHeight = math.max(courseHeight * 2,
+                pierHeight - plinthHeight - impostHeight);
+            int leftX = spec.BaseCentre.x + side * pierOffset - pierWidth / 2;
+            int shaftY = spec.BaseCentre.y + plinthHeight;
+            int frontZ = spec.BaseCentre.z - depth / 2;
+            int rows = math.max(2, shaftHeight / courseHeight);
+
+            // Bed joints stop one voxel short of the pier arrises. That produces a real recessed
+            // shadow line across the face without cutting a staircase into the visible silhouette.
+            for (int row = 1; row < rows; row++)
+            {
+                int jointY = shaftY + row * courseHeight;
+                if (jointY >= shaftY + shaftHeight - 1) break;
+                for (int x = leftX + 1; x < leftX + pierWidth - 1; x++)
+                    RecessPoint(ref brush, x, jointY, frontZ, depth, recessDepth,
+                        spec.EmptyMaterial, jointMaterial);
+            }
+
+            // Match the component's staggered ashlar bond exactly so shader/material seams and
+            // physical face recesses remain coherent under destruction and deterministic rebuilds.
+            for (int row = 0; row < rows; row++)
+            {
+                int rowY = shaftY + row * courseHeight;
+                int rowTop = math.min(shaftY + shaftHeight, rowY + courseHeight);
+                int shift = (row & 1) == 0 ? -1 : 1;
+                if ((Hash(seed + (uint)(row * 37)) & 15u) == 0u) shift = 0;
+                int seamX = leftX + pierWidth / 2 + shift;
+                seamX = math.clamp(seamX, leftX + 3, leftX + pierWidth - 4);
+
+                for (int y = rowY + 1; y < rowTop - 1; y++)
+                    RecessPoint(ref brush, seamX, y, frontZ, depth, recessDepth,
+                        spec.EmptyMaterial, jointMaterial);
+            }
+        }
+
+        private static void RecessPoint(ref VoxelBrush brush, int x, int y, int frontZ,
+                                        int depth, int recessDepth, byte emptyMaterial,
+                                        byte jointMaterial)
+        {
+            for (int d = 0; d < recessDepth; d++)
+                brush.Set(x, y, frontZ + d, emptyMaterial);
+
+            int backZ = frontZ + recessDepth;
+            if (backZ < frontZ + depth)
+                brush.Set(x, y, backZ, jointMaterial);
+        }
+
+        private static uint Hash(uint x)
+        {
+            x ^= x >> 16;
+            x *= 0x7feb352du;
+            x ^= x >> 15;
+            x *= 0x846ca68bu;
+            x ^= x >> 16;
+            return x;
         }
     }
 }
