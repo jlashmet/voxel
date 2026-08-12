@@ -23,6 +23,7 @@ This document does not introduce a second networking stack. It evolves the exist
 7. **Late join is state-based.** Base terrain regenerates from seeds and only the compacted edit overlay/state is streamed.
 8. **Simulation interest is platform-neutral.** Draw distance/device quality may change presentation, never which nearby gameplay state a player receives.
 9. **Fixed clock, event-driven systems.** Server simulation remains fixed-tick; gameplay publishes semantic authoritative events that replication consumes after the tick is sealed.
+10. **Connection-owned identity.** Client packets never establish their own player identity; the server derives attribution from authenticated connection state.
 
 ## Traffic classes
 
@@ -79,7 +80,7 @@ commands / inputs
       v
 fixed authoritative tick
       |
-      +--> validation + simulation
+      +--> authentication + validation + simulation
       |
       v
 AuthoritativeEventStream
@@ -101,6 +102,25 @@ IEventPacketSender  <-- future concrete UTP host adapter
 ```
 
 Internal gameplay can generate many domain events. Replication does not automatically transmit all of them; it chooses the minimum deterministic facts required for clients to reproduce authoritative state.
+
+## Client alteration request
+
+`C_AlterationRequest` is now a 32-byte payload / 34-byte framed packet:
+
+```text
+clientTick     : uint      4 B
+origin         : int3     12 B
+kind           : byte      1 B
+material       : byte      1 B
+shapeKind      : uint      4 B
+shapeData      : uint      4 B
+requestedSeed  : uint      4 B
+clientSequence : ushort    2 B
+```
+
+There is no `playerId` on the wire. `ClientEventPacketReceiver` passes the transport connection ID separately to the authoritative handler, and `C_AlterationRequest.ToAuthoritativeEvent` requires server-owned tick, player ID, sequence, and seed explicitly.
+
+Using the same `(shapeKind, shapeData)` union as `AlterationEvent` removes the old brush/raw shape conversion ambiguity without increasing the packet size.
 
 ## First compact event batch
 
@@ -169,8 +189,8 @@ For each connection, the router first builds one event sequence in server arbitr
 ## Prediction and reconciliation
 
 1. Client submits an alteration request and immediately renders it in the speculative overlay.
-2. Server validates reach/rate/protected zones/etc., assigns authoritative ordering/seed, and commits the event.
-3. Server publishes the semantic event to the current authoritative tick stream.
+2. Server maps the connection to authoritative identity, validates reach/rate/protected zones/etc., and selects authoritative ordering/seed.
+3. Server materializes and publishes the semantic event to the current authoritative tick stream.
 4. At tick seal, replication routes/batches the event for interested clients.
 5. Client packet dispatch decodes the compact batch in wire order and feeds the existing deterministic `EventApplication.ApplyWithArbitration` path.
 6. Periodic region hash checks detect divergence.
@@ -187,14 +207,17 @@ Resolved on this branch:
 3. Live simulation interest no longer derives from device tier in the new replication path.
 4. Compact event batches use an explicit field-level codec instead of relying on the inconsistent legacy 32-byte `AlterationEvent.WireSize()` claim.
 5. A versioned message-kind envelope now provides an actual packet dispatch boundary.
+6. `C_AlterationRequest` is a canonical 32-byte payload / 34-byte framed packet.
+7. Client-authored `playerId` was removed from the request wire format; connection identity owns attribution.
+8. Client and server framed receive boundaries exist for alteration requests/batches without depending on a concrete UTP host implementation.
 
 Still open:
 
-1. `C_AlterationRequest.WireSize` and its existing encoder disagree; canonicalize all legacy/request codecs before they are connected to a real socket.
-2. The repository still lacks a concrete UTP host/connection lifecycle and send loop. `IEventPacketSender` is the adapter seam for it.
-3. Ephemeral input/player state should eventually leave the durable reliable mutation stream to avoid head-of-line blocking.
-4. Region hash/repair/reconnect/late-join paths are scaffolded but not yet integrated through the new framing/host boundary.
-5. The old `InterestFilter` should eventually be renamed/re-scoped to presentation/streaming or removed after callers migrate.
+1. The repository still lacks a concrete UTP host/connection lifecycle and send loop. `IEventPacketSender` is the adapter seam for it.
+2. Ephemeral input/player state should eventually leave the durable reliable mutation stream to avoid head-of-line blocking.
+3. Region hash/repair/reconnect/late-join paths are scaffolded but not yet integrated through the new framing/host boundary.
+4. The old `InterestFilter` should eventually be renamed/re-scoped to presentation/streaming or removed after callers migrate.
+5. `Validation` still contains placeholder reach/rate/player-state logic and must be completed before untrusted network requests can mutate production world state.
 
 ## Metrics to add before tuning further
 
@@ -235,7 +258,9 @@ Server-wide:
 - Cross-region interest fan-out with recipient deduplication.
 - Ordered compact batching.
 - Versioned packet framing.
+- Canonical framed client alteration request.
 - Client batch decode/application bridge.
+- Server framed request dispatch with connection-owned identity.
 - Transport-independent packet sender seam.
 
 ### M2 — Concrete transport + ephemeral traffic
