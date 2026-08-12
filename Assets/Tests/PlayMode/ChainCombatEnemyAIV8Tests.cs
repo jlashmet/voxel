@@ -1,12 +1,38 @@
 using System.Collections;
 using MountingForce.CombatPrototype;
 using NUnit.Framework;
+using UnityEngine;
 using UnityEngine.TestTools;
 
 namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class ChainCombatEnemyAIV8Tests
     {
+        [UnityTest]
+        public IEnumerator CurrentCascadeLabBootsWithEnemyAIStack()
+        {
+            var root = new GameObject("Cascade Lab V8 Test Root");
+            root.AddComponent<ChainCombatLabController>();
+            root.AddComponent<ChainCombatSetupActionsPanel>();
+            root.AddComponent<ChainCombatActivationOverlay>();
+            root.AddComponent<ChainCombatEventMarker>();
+            root.AddComponent<ChainCombatMotionPlayback>();
+            root.AddComponent<ChainEnemyIntentOverlay>();
+
+            yield return null;
+
+            Assert.That(GameObject.Find("Chain Combat Lab Camera"), Is.Not.Null);
+            Assert.That(GameObject.Find("Chain Combat Lab Light"), Is.Not.Null);
+            Assert.That(GameObject.Find("Chain Combat Lab Visuals"), Is.Not.Null);
+            Assert.That(GameObject.Find("Chain Unit - Stephen"), Is.Not.Null);
+            Assert.That(GameObject.Find("Chain Unit - Ogre"), Is.Not.Null);
+            Assert.That(root.GetComponent<ChainEnemyIntentOverlay>(), Is.Not.Null);
+            Assert.That(root.GetComponent<ChainCombatSetupActionsPanel>(), Is.Not.Null);
+
+            Object.Destroy(root);
+            yield return null;
+        }
+
         [UnityTest]
         public IEnumerator EnemyAIPlansFromBoardStateInsteadOfUsingAFixedScript()
         {
