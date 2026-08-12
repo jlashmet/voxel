@@ -14,6 +14,7 @@ namespace VoxelEngine.Net.Protocol
         C_PlayerInput = 1,
         C_AlterationRequest = 2,
         C_RegionRequest = 3,
+        C_PlayerInputBundle = 4,
 
         // Server -> client. Leave a range gap so packet captures are easy to read.
         S_AlterationEvent = 32,
@@ -32,10 +33,6 @@ namespace VoxelEngine.Net.Protocol
     ///   byte 0: protocol version
     ///   byte 1: ProtocolMessageKind
     /// The remainder of the packet is the message-specific payload.
-    ///
-    /// UTP already provides packet boundaries, reliability, and ordering, so length and checksum
-    /// fields here would be redundant overhead. Versioning is explicit so incompatible wire
-    /// changes fail closed instead of being mis-decoded as another message.
     /// </summary>
     public static class ProtocolEnvelope
     {
@@ -81,6 +78,7 @@ namespace VoxelEngine.Net.Protocol
                 case ProtocolMessageKind.C_PlayerInput:
                 case ProtocolMessageKind.C_AlterationRequest:
                 case ProtocolMessageKind.C_RegionRequest:
+                case ProtocolMessageKind.C_PlayerInputBundle:
                 case ProtocolMessageKind.S_AlterationEvent:
                 case ProtocolMessageKind.S_AlterationEventBatch:
                 case ProtocolMessageKind.S_AlterationRejected:
