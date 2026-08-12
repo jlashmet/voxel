@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Protocol;
@@ -12,10 +13,10 @@ namespace VoxelEngine.Net.Client
     }
 
     /// <summary>
-    /// Ordered client-side queue for authoritative EVENT packets.
-    /// Mutation batches and S_RegionHash checkpoints share one FIFO, so a hash is compared only
-    /// after every earlier mutation in the reliable EVENT stream has been applied. Missing region
-    /// residency stalls the queue head; later authority never leapfrogs it.
+    /// Ordered client-side queue for authoritative EVENT packets. Mutation batches and region hash
+    /// checkpoints share one FIFO. A verified local mismatch pauses the queue exactly after the hash
+    /// barrier; later authority remains buffered until a semantic snapshot for that checkpoint is
+    /// applied, preventing duplicate application of post-checkpoint events.
     /// </summary>
     public sealed class ClientAuthoritativeEventQueue
     {
@@ -29,6 +30,10 @@ namespace VoxelEngine.Net.Client
         private bool _hasLastReceivedEvent;
         private AlterationEvent _lastReceivedEvent;
         private uint _lastBarrierTick;
+        private bool _repairPending;
+        private int3 _repairRegion;
+        private uint _repairTick;
+        private uint _repairHash;
 
         public ClientAuthoritativeEventQueue(int maxPendingEvents = DefaultMaxPendingEvents)
         {
@@ -41,10 +46,12 @@ namespace VoxelEngine.Net.Client
         public int PendingEventCount => _pendingEvents;
         public int PendingHashCount => _pendingHashes;
         public int PendingAuthorityCount => _authority.Count;
+        public bool RepairPending => _repairPending;
+        public int3 RepairRegion => _repairRegion;
+        public uint RepairTick => _repairTick;
+        public uint RepairHash => _repairHash;
 
-        public bool TryEnqueueEventPacket(
-            ReadOnlySpan<byte> packet,
-            IClientEventNotificationSink notifications = null)
+        public bool TryEnqueueEventPacket(ReadOnlySpan<byte> packet, IClientEventNotificationSink notifications = null)
         {
             if (!ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out int payloadOffset))
                 return false;
@@ -86,8 +93,7 @@ namespace VoxelEngine.Net.Client
         private bool TryEnqueueBatch(ReadOnlySpan<byte> payload)
         {
             if (!S_AlterationEventBatch.TryDecodeHeader(payload, out var header) ||
-                header.count <= 0 ||
-                _pendingEvents + header.count > _maxPendingEvents ||
+                header.count <= 0 || _pendingEvents + header.count > _maxPendingEvents ||
                 header.tick < _lastBarrierTick)
                 return false;
 
@@ -98,8 +104,7 @@ namespace VoxelEngine.Net.Client
             for (int i = 0; i < header.count; i++)
             {
                 if (!S_AlterationEventBatch.TryDecodeEvent(payload, in header, i, out AlterationEvent evt) ||
-                    !DeterministicAlterationApplier.Supports(in evt) ||
-                    evt.tick < _lastBarrierTick ||
+                    !DeterministicAlterationApplier.Supports(in evt) || evt.tick < _lastBarrierTick ||
                     (hasPrior && CompareAuthority(in evt, in prior) < 0))
                     return false;
 
@@ -119,10 +124,6 @@ namespace VoxelEngine.Net.Client
         public int DrainReady(ref RegionTable table, ref BrickPool pool, out int appliedEvents) =>
             DrainReady(ref table, ref pool, out appliedEvents, null, out _);
 
-        /// <summary>
-        /// Drain all authority whose required region state is resident. Returns the number of
-        /// mutation batches applied; comparedHashes reports consumed hash barriers.
-        /// </summary>
         public int DrainReady(
             ref RegionTable table,
             ref BrickPool pool,
@@ -134,6 +135,9 @@ namespace VoxelEngine.Net.Client
             comparedHashes = 0;
             int appliedBatches = 0;
 
+            if (_repairPending)
+                return 0;
+
             while (_authority.Count > 0)
             {
                 PendingAuthority item = _authority.Peek();
@@ -144,19 +148,26 @@ namespace VoxelEngine.Net.Client
                         break;
 
                     uint localHash = SemanticRegionHasher.HashRegion(in region, in pool);
+                    _authority.Dequeue();
+                    _pendingHashes--;
+                    comparedHashes++;
+
                     if (localHash != checkpoint.mipHash)
                     {
+                        _repairPending = true;
+                        _repairRegion = checkpoint.regionCoord;
+                        _repairTick = checkpoint.serverTick;
+                        _repairHash = checkpoint.mipHash;
+
                         var mismatch = new C_RegionHashMismatch(
                             checkpoint.regionCoord,
                             checkpoint.serverTick,
                             localHash,
                             checkpoint.mipHash);
                         mismatchSink?.OnRegionHashMismatch(in mismatch);
+                        break;
                     }
 
-                    _authority.Dequeue();
-                    _pendingHashes--;
-                    comparedHashes++;
                     continue;
                 }
 
@@ -172,9 +183,7 @@ namespace VoxelEngine.Net.Client
                         ref pool,
                         in evt,
                         out var affectedBricks);
-
-                    if (affectedBricks.IsCreated)
-                        affectedBricks.Dispose();
+                    if (affectedBricks.IsCreated) affectedBricks.Dispose();
                     appliedEvents++;
                 }
 
@@ -187,6 +196,20 @@ namespace VoxelEngine.Net.Client
             return appliedBatches;
         }
 
+        /// <summary>Resume only when repair metadata exactly matches the paused hash barrier.</summary>
+        public bool CompleteRepair(int3 regionCoord, uint snapshotTick, uint semanticHash)
+        {
+            if (!_repairPending || !_repairRegion.Equals(regionCoord) ||
+                _repairTick != snapshotTick || _repairHash != semanticHash)
+                return false;
+
+            _repairPending = false;
+            _repairRegion = default;
+            _repairTick = 0;
+            _repairHash = 0;
+            return true;
+        }
+
         public void ResetAfterAuthoritativeSnapshot()
         {
             _authority.Clear();
@@ -196,6 +219,10 @@ namespace VoxelEngine.Net.Client
             _hasLastReceivedEvent = false;
             _lastReceivedEvent = default;
             _lastBarrierTick = 0;
+            _repairPending = false;
+            _repairRegion = default;
+            _repairTick = 0;
+            _repairHash = 0;
         }
 
         private static bool HasRequiredResidency(ref RegionTable table, AlterationEvent[] events)
@@ -203,8 +230,7 @@ namespace VoxelEngine.Net.Client
             for (int i = 0; i < events.Length; i++)
             {
                 AlterationEvent evt = events[i];
-                if (!DeterministicAlterationApplier.HasRequiredResidency(ref table, in evt))
-                    return false;
+                if (!DeterministicAlterationApplier.HasRequiredResidency(ref table, in evt)) return false;
             }
             return true;
         }
@@ -214,15 +240,10 @@ namespace VoxelEngine.Net.Client
             int tick = a.tick.CompareTo(b.tick);
             if (tick != 0) return tick;
             int player = a.playerId.CompareTo(b.playerId);
-            if (player != 0) return player;
-            return a.sequence.CompareTo(b.sequence);
+            return player != 0 ? player : a.sequence.CompareTo(b.sequence);
         }
 
-        private enum PendingKind : byte
-        {
-            Batch = 0,
-            Hash = 1,
-        }
+        private enum PendingKind : byte { Batch = 0, Hash = 1 }
 
         private readonly struct PendingAuthority
         {
