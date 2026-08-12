@@ -11,6 +11,11 @@ namespace VoxelEngine.Net.Server
         void ApplyInput(ushort playerId, in C_PlayerInput input, uint serverTick);
     }
 
+    public interface IProcessedInputAckSource
+    {
+        bool TryGetLastProcessedInputSequence(ushort playerId, out ushort sequence);
+    }
+
     public interface IAuthoritativeAlterationApplier
     {
         bool TryApplyAlteration(ref RegionTable table, ref BrickPool pool, in AlterationEvent evt);
@@ -30,7 +35,7 @@ namespace VoxelEngine.Net.Server
     /// Fixed-tick consumer of the frame-level ServerCommandInbox. Network arrival order is never
     /// authority; commands resolve through authenticated player identity and deterministic ordering.
     /// </summary>
-    public sealed class ServerCommandProcessor
+    public sealed class ServerCommandProcessor : IProcessedInputAckSource
     {
         private const uint MaxFutureInputTicks = 2;
 
@@ -45,6 +50,7 @@ namespace VoxelEngine.Net.Server
         private readonly List<ResolvedAlteration> _resolvedAlterations = new List<ResolvedAlteration>(128);
         private readonly List<ResolvedInput> _resolvedInputs = new List<ResolvedInput>(256);
         private readonly Dictionary<ushort, ushort> _lastDurableSequence = new Dictionary<ushort, ushort>(64);
+        private readonly Dictionary<ushort, ushort> _lastProcessedInputSequence = new Dictionary<ushort, ushort>(64);
 
         public long UnauthenticatedCommands { get; private set; }
         public long StaleOrDuplicateCommands { get; private set; }
@@ -86,10 +92,14 @@ namespace VoxelEngine.Net.Server
             ProcessAlterations(serverTick, ref table, ref pool, in zones, applier, publisher, rejectionSink);
         }
 
+        public bool TryGetLastProcessedInputSequence(ushort playerId, out ushort sequence) =>
+            _lastProcessedInputSequence.TryGetValue(playerId, out sequence);
+
         public void RemovePlayer(ushort playerId)
         {
             if (playerId == 0) return;
             _lastDurableSequence.Remove(playerId);
+            _lastProcessedInputSequence.Remove(playerId);
             _rateLimiter.RemovePlayer(playerId);
         }
 
@@ -151,7 +161,18 @@ namespace VoxelEngine.Net.Server
             {
                 ResolvedInput resolved = _resolvedInputs[i];
                 C_PlayerInput input = resolved.Queued.Input;
+
+                // The UTP receiver already deduplicates redundant bundles, but the fixed-tick
+                // boundary owns the authoritative acknowledgement and therefore also rejects a
+                // stale sequence if an alternate ingress ever bypasses that transport helper.
+                if (!IsNewInputSequence(resolved.PlayerId, input.sequence))
+                {
+                    StaleOrDuplicateCommands++;
+                    continue;
+                }
+
                 inputSink.ApplyInput(resolved.PlayerId, in input, serverTick);
+                _lastProcessedInputSequence[resolved.PlayerId] = input.sequence;
             }
         }
 
@@ -230,7 +251,18 @@ namespace VoxelEngine.Net.Server
         private bool IsNewDurableSequence(ushort playerId, ushort sequence)
         {
             if (!_lastDurableSequence.TryGetValue(playerId, out ushort last)) return true;
-            ushort delta = unchecked((ushort)(sequence - last));
+            return IsNewerSequence(sequence, last);
+        }
+
+        private bool IsNewInputSequence(ushort playerId, ushort sequence)
+        {
+            if (!_lastProcessedInputSequence.TryGetValue(playerId, out ushort last)) return true;
+            return IsNewerSequence(sequence, last);
+        }
+
+        private static bool IsNewerSequence(ushort candidate, ushort last)
+        {
+            ushort delta = unchecked((ushort)(candidate - last));
             return delta != 0 && delta < 0x8000;
         }
 
