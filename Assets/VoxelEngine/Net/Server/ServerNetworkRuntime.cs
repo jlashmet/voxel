@@ -7,10 +7,7 @@ using VoxelEngine.Net.Transport;
 
 namespace VoxelEngine.Net.Server
 {
-    /// <summary>
-    /// Composition root for the authoritative networking path.
-    /// Transport is pumped from the Unity frame loop; BeginTick/EndTick belong to the fixed clock.
-    /// </summary>
+    /// <summary>Composition root for authoritative UTP networking.</summary>
     public sealed class ServerNetworkRuntime : IDisposable, IAuthoritativeAlterationPublisher, IAlterationRejectionSink
     {
         private readonly UtpServerHost _host;
@@ -18,7 +15,9 @@ namespace VoxelEngine.Net.Server
         private readonly AlterationBatchPacketSink _packetSink;
         private readonly IClientEventCommandHandler _eventHandler;
         private readonly IClientInputCommandHandler _inputHandler;
+        private readonly IClientConvergenceCommandHandler _convergenceHandler;
         private readonly ServerCommandInbox _commandInbox;
+        private readonly ServerConvergenceInbox _convergenceInbox;
         private bool _disposed;
 
         public event Action<uint, NetworkEndpoint> ConnectionOpened;
@@ -30,28 +29,39 @@ namespace VoxelEngine.Net.Server
             ServerCommandInbox commandInbox,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(commandInbox, commandInbox, maxConnections, initialEventCapacity)
+            : this(commandInbox, commandInbox, null, maxConnections, initialEventCapacity)
         {
-            _commandInbox = commandInbox ?? throw new ArgumentNullException(nameof(commandInbox));
+        }
+
+        public ServerNetworkRuntime(
+            ServerCommandInbox commandInbox,
+            ServerConvergenceInbox convergenceInbox,
+            int maxConnections = 64,
+            int initialEventCapacity = 64)
+            : this(commandInbox, commandInbox, convergenceInbox, maxConnections, initialEventCapacity)
+        {
         }
 
         public ServerNetworkRuntime(
             IClientEventCommandHandler eventHandler,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(eventHandler, null, maxConnections, initialEventCapacity)
+            : this(eventHandler, null, null, maxConnections, initialEventCapacity)
         {
         }
 
         public ServerNetworkRuntime(
             IClientEventCommandHandler eventHandler,
             IClientInputCommandHandler inputHandler,
+            IClientConvergenceCommandHandler convergenceHandler,
             int maxConnections = 64,
             int initialEventCapacity = 64)
         {
             _eventHandler = eventHandler ?? throw new ArgumentNullException(nameof(eventHandler));
             _inputHandler = inputHandler;
+            _convergenceHandler = convergenceHandler;
             _commandInbox = ReferenceEquals(eventHandler, inputHandler) ? eventHandler as ServerCommandInbox : null;
+            _convergenceInbox = convergenceHandler as ServerConvergenceInbox;
             _host = new UtpServerHost(maxConnections);
             _replication = new EventDrivenReplicationPipeline(initialEventCapacity);
             _packetSink = new AlterationBatchPacketSink(_host);
@@ -68,6 +78,7 @@ namespace VoxelEngine.Net.Server
         public NetworkEndpoint LocalEndpoint => _disposed ? default : _host.LocalEndpoint;
         public EventDrivenReplicationPipeline Replication => _replication;
         public ServerCommandInbox CommandInbox => _commandInbox;
+        public ServerConvergenceInbox ConvergenceInbox => _convergenceInbox;
 
         public int Listen(NetworkEndpoint endpoint)
         {
@@ -84,7 +95,7 @@ namespace VoxelEngine.Net.Server
         public void PumpTransport()
         {
             ThrowIfDisposed();
-            _host.Pump(_eventHandler, _inputHandler);
+            _host.Pump(_eventHandler, _inputHandler, _convergenceHandler);
         }
 
         public void BeginTick(uint tick)
@@ -103,10 +114,17 @@ namespace VoxelEngine.Net.Server
         {
             ThrowIfDisposed();
             Span<byte> packet = stackalloc byte[AlterationRejectedPacket.PacketSize];
-            if (!AlterationRejectedPacket.TryEncode(packet, in rejection))
-                return;
+            if (AlterationRejectedPacket.TryEncode(packet, in rejection))
+                _host.TrySend(connectionId, UtpChannel.Event, packet);
+        }
 
-            _host.TrySend(connectionId, UtpChannel.Event, packet);
+        /// <summary>Queue one tick-scoped semantic hash behind earlier EVENT mutations.</summary>
+        public bool SendRegionHash(uint connectionId, in S_RegionHash hash)
+        {
+            ThrowIfDisposed();
+            Span<byte> packet = stackalloc byte[RegionHashPacket.PacketSize];
+            return RegionHashPacket.TryEncode(packet, in hash) &&
+                   _host.TrySend(connectionId, UtpChannel.Event, packet);
         }
 
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)
@@ -114,7 +132,6 @@ namespace VoxelEngine.Net.Server
             ThrowIfDisposed();
             if (!_host.ContainsConnection(connectionId))
                 return 0;
-
             return _replication.UpdateConnectionPosition(connectionId, playerVoxelPosition);
         }
 
@@ -144,6 +161,7 @@ namespace VoxelEngine.Net.Server
         {
             _replication.RemoveConnection(connectionId);
             _commandInbox?.RemoveConnection(connectionId);
+            _convergenceInbox?.RemoveConnection(connectionId);
             ConnectionClosed?.Invoke(connectionId);
         }
 
