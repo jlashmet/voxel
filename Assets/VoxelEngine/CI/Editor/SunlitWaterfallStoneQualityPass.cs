@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.Rendering;
 using VoxelEngine.Structures;
 
 namespace VoxelEngine.CI
@@ -52,8 +51,8 @@ namespace VoxelEngine.CI
                 lower.Socket("crown").position + new Vector3(0.18f, 0.02f, -0.16f),
                 0.20f, 541, palette.Get(WorldArtSurfaceRole.Moss));
 
-            // Several later lookdev stages instantiate superseded arch families. Cull those exact
-            // families immediately before the actual camera render, after all scene passes have run.
+            // Later lookdev stages still instantiate superseded arch variants. Cull all of them
+            // immediately before the actual camera render, after every composition pass has run.
             Camera.onPreCull -= CleanupBeforeRender;
             Camera.onPreCull += CleanupBeforeRender;
         }
@@ -62,11 +61,14 @@ namespace VoxelEngine.CI
         {
             Camera.onPreCull -= CleanupBeforeRender;
             DisableLegacyRuinGeometry();
-            HideLegacyVoxelStone();
+            DisableLegacyVoxelStoneRenderers();
         }
 
-        private static void HideLegacyVoxelStone()
+        private static void DisableLegacyVoxelStoneRenderers()
         {
+            // The original capture substrate has a voxel-carved arch underneath the presentation
+            // kit. VoxelSurfaceRenderer emits separate material renderers, so disable only renderers
+            // assigned the capture's dedicated warm-stone material; cliff/turf/dirt remain intact.
             Renderer[] renderers = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include,
                 FindObjectsSortMode.None);
             for (int i = 0; i < renderers.Length; i++)
@@ -74,21 +76,12 @@ namespace VoxelEngine.CI
                 Material[] materials = renderers[i].sharedMaterials;
                 for (int j = 0; j < materials.Length; j++)
                 {
-                    Material m = materials[j];
-                    if (m == null || m.name != "Voxel Warm Stone") continue;
-
-                    Color clear = new Color(0f, 0f, 0f, 0f);
-                    if (m.HasProperty("_Color")) m.SetColor("_Color", clear);
-                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", clear);
-                    if (m.HasProperty("_Mode")) m.SetFloat("_Mode", 3f);
-                    if (m.HasProperty("_Surface")) m.SetFloat("_Surface", 1f);
-                    if (m.HasProperty("_SrcBlend")) m.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-                    if (m.HasProperty("_DstBlend")) m.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-                    if (m.HasProperty("_ZWrite")) m.SetInt("_ZWrite", 0);
-                    m.DisableKeyword("_ALPHATEST_ON");
-                    m.EnableKeyword("_ALPHABLEND_ON");
-                    m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                    m.renderQueue = (int)RenderQueue.Transparent;
+                    Material material = materials[j];
+                    if (material != null && material.name.StartsWith("Voxel Warm Stone"))
+                    {
+                        renderers[i].enabled = false;
+                        break;
+                    }
                 }
             }
         }
