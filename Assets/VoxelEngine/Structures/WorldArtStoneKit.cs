@@ -19,9 +19,8 @@ namespace VoxelEngine.Structures
             float sz = 0.98f + Hash(seed + 11) * 0.04f;
             Vector3 varied = Vector3.Scale(size, new Vector3(sx, sy, sz));
 
-            // Keep ruin masonry planar. The old beveled-block primitive made repeated courses read
-            // like soft pebbles; this mesh keeps six hard faces and only lets the corners wander a
-            // few millimetres, which reads as hand-cut/chipped stone at scene distance.
+            // Broad planar faces with a narrow cut-stone chamfer. This catches a thin highlight on
+            // edges without returning to the pillowy rounded-block look of the generic primitive.
             WorldArtPiece piece = Piece(parent, name + " weathered ashlar", localPosition);
             MeshObject(piece.Transform, name + " cut ashlar mesh",
                 CreateCutAshlarMesh(varied, bevel, seed), palette.Get(WorldArtSurfaceRole.Stone));
@@ -185,56 +184,163 @@ namespace VoxelEngine.Structures
 
         private static Mesh CreateCutAshlarMesh(Vector3 size, float bevel, int seed)
         {
-            Vector3 h = size * 0.5f;
-            float chip = Mathf.Clamp(bevel * 0.22f, 0.0025f,
-                Mathf.Min(size.x, Mathf.Min(size.y, size.z)) * 0.022f);
+            float hx = size.x * 0.5f;
+            float hy = size.y * 0.5f;
+            float hz = size.z * 0.5f;
+            float maxChamfer = Mathf.Min(hx, Mathf.Min(hy, hz)) * 0.28f;
+            float b = Mathf.Clamp(bevel * (0.72f + Hash(seed + 257) * 0.16f), 0.006f, maxChamfer);
+            float xi = Mathf.Max(0.001f, hx - b);
+            float yi = Mathf.Max(0.001f, hy - b);
+            float zi = Mathf.Max(0.001f, hz - b);
 
-            Vector3[] c = new Vector3[8];
-            c[0] = Corner(-h.x, -h.y, -h.z, seed + 1, chip);
-            c[1] = Corner( h.x, -h.y, -h.z, seed + 2, chip);
-            c[2] = Corner( h.x,  h.y, -h.z, seed + 3, chip);
-            c[3] = Corner(-h.x,  h.y, -h.z, seed + 4, chip);
-            c[4] = Corner(-h.x, -h.y,  h.z, seed + 5, chip);
-            c[5] = Corner( h.x, -h.y,  h.z, seed + 6, chip);
-            c[6] = Corner( h.x,  h.y,  h.z, seed + 7, chip);
-            c[7] = Corner(-h.x,  h.y,  h.z, seed + 8, chip);
+            List<Vector3> vertices = new List<Vector3>(96);
+            List<int> triangles = new List<int>(132);
 
-            // Duplicate vertices per face so RecalculateNormals preserves crisp cut planes.
-            Vector3[] v =
-            {
-                c[0], c[3], c[2], c[1], // front
-                c[5], c[6], c[7], c[4], // back
-                c[4], c[7], c[3], c[0], // left
-                c[1], c[2], c[6], c[5], // right
-                c[3], c[7], c[6], c[2], // top
-                c[4], c[0], c[1], c[5]  // bottom
-            };
-            int[] tris =
-            {
-                 0, 1, 2,  0, 2, 3,
-                 4, 5, 6,  4, 6, 7,
-                 8, 9,10,  8,10,11,
-                12,13,14, 12,14,15,
-                16,17,18, 16,18,19,
-                20,21,22, 20,22,23
-            };
+            // Six calm architectural planes.
+            AddQuad(vertices, triangles,
+                new Vector3(-xi, -yi, -hz), new Vector3(-xi, yi, -hz),
+                new Vector3(xi, yi, -hz), new Vector3(xi, -yi, -hz), Vector3.back);
+            AddQuad(vertices, triangles,
+                new Vector3(xi, -yi, hz), new Vector3(xi, yi, hz),
+                new Vector3(-xi, yi, hz), new Vector3(-xi, -yi, hz), Vector3.forward);
+            AddQuad(vertices, triangles,
+                new Vector3(-hx, -yi, zi), new Vector3(-hx, yi, zi),
+                new Vector3(-hx, yi, -zi), new Vector3(-hx, -yi, -zi), Vector3.left);
+            AddQuad(vertices, triangles,
+                new Vector3(hx, -yi, -zi), new Vector3(hx, yi, -zi),
+                new Vector3(hx, yi, zi), new Vector3(hx, -yi, zi), Vector3.right);
+            AddQuad(vertices, triangles,
+                new Vector3(-xi, hy, -zi), new Vector3(-xi, hy, zi),
+                new Vector3(xi, hy, zi), new Vector3(xi, hy, -zi), Vector3.up);
+            AddQuad(vertices, triangles,
+                new Vector3(-xi, -hy, zi), new Vector3(-xi, -hy, -zi),
+                new Vector3(xi, -hy, -zi), new Vector3(xi, -hy, zi), Vector3.down);
 
-            Mesh mesh = new Mesh { name = "WorldArt planar cut ashlar" };
-            mesh.vertices = v;
-            mesh.triangles = tris;
+            // Twelve narrow chamfer strips. Separate normals let these catch light as cut edges
+            // while the face normals remain completely planar.
+            AddQuad(vertices, triangles,
+                new Vector3(-xi, yi, -hz), new Vector3(xi, yi, -hz),
+                new Vector3(xi, hy, -zi), new Vector3(-xi, hy, -zi),
+                new Vector3(0f, 1f, -1f));
+            AddQuad(vertices, triangles,
+                new Vector3(-xi, -yi, -hz), new Vector3(xi, -yi, -hz),
+                new Vector3(xi, -hy, -zi), new Vector3(-xi, -hy, -zi),
+                new Vector3(0f, -1f, -1f));
+            AddQuad(vertices, triangles,
+                new Vector3(-xi, -yi, -hz), new Vector3(-xi, yi, -hz),
+                new Vector3(-hx, yi, -zi), new Vector3(-hx, -yi, -zi),
+                new Vector3(-1f, 0f, -1f));
+            AddQuad(vertices, triangles,
+                new Vector3(xi, -yi, -hz), new Vector3(xi, yi, -hz),
+                new Vector3(hx, yi, -zi), new Vector3(hx, -yi, -zi),
+                new Vector3(1f, 0f, -1f));
+
+            AddQuad(vertices, triangles,
+                new Vector3(-xi, yi, hz), new Vector3(xi, yi, hz),
+                new Vector3(xi, hy, zi), new Vector3(-xi, hy, zi),
+                new Vector3(0f, 1f, 1f));
+            AddQuad(vertices, triangles,
+                new Vector3(-xi, -yi, hz), new Vector3(xi, -yi, hz),
+                new Vector3(xi, -hy, zi), new Vector3(-xi, -hy, zi),
+                new Vector3(0f, -1f, 1f));
+            AddQuad(vertices, triangles,
+                new Vector3(-xi, -yi, hz), new Vector3(-hx, -yi, zi),
+                new Vector3(-hx, yi, zi), new Vector3(-xi, yi, hz),
+                new Vector3(-1f, 0f, 1f));
+            AddQuad(vertices, triangles,
+                new Vector3(xi, -yi, hz), new Vector3(xi, yi, hz),
+                new Vector3(hx, yi, zi), new Vector3(hx, -yi, zi),
+                new Vector3(1f, 0f, 1f));
+
+            AddQuad(vertices, triangles,
+                new Vector3(-hx, yi, -zi), new Vector3(-hx, yi, zi),
+                new Vector3(-xi, hy, zi), new Vector3(-xi, hy, -zi),
+                new Vector3(-1f, 1f, 0f));
+            AddQuad(vertices, triangles,
+                new Vector3(-hx, -yi, -zi), new Vector3(-xi, -hy, -zi),
+                new Vector3(-xi, -hy, zi), new Vector3(-hx, -yi, zi),
+                new Vector3(-1f, -1f, 0f));
+            AddQuad(vertices, triangles,
+                new Vector3(hx, yi, -zi), new Vector3(xi, hy, -zi),
+                new Vector3(xi, hy, zi), new Vector3(hx, yi, zi),
+                new Vector3(1f, 1f, 0f));
+            AddQuad(vertices, triangles,
+                new Vector3(hx, -yi, -zi), new Vector3(hx, -yi, zi),
+                new Vector3(xi, -hy, zi), new Vector3(xi, -hy, -zi),
+                new Vector3(1f, -1f, 0f));
+
+            // Eight planar corner cuts finish the chamfer without rounding the silhouette.
+            AddTri(vertices, triangles,
+                new Vector3(-xi, yi, -hz), new Vector3(-xi, hy, -zi), new Vector3(-hx, yi, -zi),
+                new Vector3(-1f, 1f, -1f));
+            AddTri(vertices, triangles,
+                new Vector3(xi, yi, -hz), new Vector3(hx, yi, -zi), new Vector3(xi, hy, -zi),
+                new Vector3(1f, 1f, -1f));
+            AddTri(vertices, triangles,
+                new Vector3(-xi, -yi, -hz), new Vector3(-hx, -yi, -zi), new Vector3(-xi, -hy, -zi),
+                new Vector3(-1f, -1f, -1f));
+            AddTri(vertices, triangles,
+                new Vector3(xi, -yi, -hz), new Vector3(xi, -hy, -zi), new Vector3(hx, -yi, -zi),
+                new Vector3(1f, -1f, -1f));
+            AddTri(vertices, triangles,
+                new Vector3(-xi, yi, hz), new Vector3(-hx, yi, zi), new Vector3(-xi, hy, zi),
+                new Vector3(-1f, 1f, 1f));
+            AddTri(vertices, triangles,
+                new Vector3(xi, yi, hz), new Vector3(xi, hy, zi), new Vector3(hx, yi, zi),
+                new Vector3(1f, 1f, 1f));
+            AddTri(vertices, triangles,
+                new Vector3(-xi, -yi, hz), new Vector3(-xi, -hy, zi), new Vector3(-hx, -yi, zi),
+                new Vector3(-1f, -1f, 1f));
+            AddTri(vertices, triangles,
+                new Vector3(xi, -yi, hz), new Vector3(hx, -yi, zi), new Vector3(xi, -hy, zi),
+                new Vector3(1f, -1f, 1f));
+
+            Mesh mesh = new Mesh { name = "WorldArt planar chamfered ashlar" };
+            mesh.SetVertices(vertices);
+            mesh.SetTriangles(triangles, 0);
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;
         }
 
-        private static Vector3 Corner(float x, float y, float z, int seed, float amount)
+        private static void AddQuad(List<Vector3> vertices, List<int> triangles,
+            Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 expectedNormal)
         {
-            // Perturb inward/outward only slightly. Large noise belongs in damage composition, not
-            // in the base stone vocabulary, otherwise every block becomes a potato.
-            return new Vector3(
-                x + (Hash(seed * 3 + 1) - 0.5f) * amount,
-                y + (Hash(seed * 3 + 2) - 0.5f) * amount,
-                z + (Hash(seed * 3 + 3) - 0.5f) * amount);
+            int start = vertices.Count;
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), expectedNormal) < 0f)
+            {
+                Vector3 swap = b;
+                b = d;
+                d = swap;
+            }
+            vertices.Add(a);
+            vertices.Add(b);
+            vertices.Add(c);
+            vertices.Add(d);
+            triangles.Add(start);
+            triangles.Add(start + 1);
+            triangles.Add(start + 2);
+            triangles.Add(start);
+            triangles.Add(start + 2);
+            triangles.Add(start + 3);
+        }
+
+        private static void AddTri(List<Vector3> vertices, List<int> triangles,
+            Vector3 a, Vector3 b, Vector3 c, Vector3 expectedNormal)
+        {
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), expectedNormal) < 0f)
+            {
+                Vector3 swap = b;
+                b = c;
+                c = swap;
+            }
+            int start = vertices.Count;
+            vertices.Add(a);
+            vertices.Add(b);
+            vertices.Add(c);
+            triangles.Add(start);
+            triangles.Add(start + 1);
+            triangles.Add(start + 2);
         }
 
         private static Mesh CreateVoussoirMesh(float innerRadius, float outerRadius,
