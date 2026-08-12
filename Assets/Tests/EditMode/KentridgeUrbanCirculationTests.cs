@@ -4,7 +4,6 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -71,7 +70,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void CirculationCatalogueRealizesBothConnectorAxesAndNorthboundStairRise()
+        public void CirculationCatalogueKeepsContourSmoothButMakesStairStreetHardAndStepped()
         {
             FeatureCatalogue catalogue = KentridgeUrbanCirculationCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
@@ -80,21 +79,21 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(2, catalogue.Definitions.Length);
                 Assert.AreEqual(2, catalogue.ExplicitPlacements.Length);
 
-                for (int i = 0; i < catalogue.Definitions.Length; i++)
-                {
-                    Assert.AreEqual(FeatureKind.Landform, catalogue.Definitions[i].Kind);
-                    Assert.AreEqual(23, catalogue.Definitions[i].Precedence);
-                }
-
-                Assert.Greater(catalogue.Definitions[0].Footprint.x, 250);
-                Assert.Greater(catalogue.Definitions[0].Footprint.z, 35,
-                    "The upper connector should carry the widened secondary-street section.");
-                Assert.Greater(catalogue.Definitions[1].Footprint.z, 300,
-                    "The lower stair-street realization should span residential-to-market levels.");
-                Assert.That(catalogue.Definitions[1].Footprint.x, Is.InRange(20, 24));
-
-                bool sawReversedZRamp = false;
+                FeatureDefinition upper = catalogue.Definitions[0];
                 FeatureDefinition lower = catalogue.Definitions[1];
+                Assert.AreEqual(FeatureKind.Landform, upper.Kind);
+                Assert.AreEqual(23, upper.Precedence);
+                Assert.AreEqual(FeatureKind.Infrastructure, lower.Kind);
+                Assert.AreEqual(89, lower.Precedence);
+
+                Assert.Greater(upper.Footprint.x, 250);
+                Assert.Greater(upper.Footprint.z, 35,
+                    "The upper connector should carry the widened secondary-street section.");
+                Assert.Greater(lower.Footprint.z, 300,
+                    "The lower stair-street realization should span residential-to-market levels.");
+                Assert.That(lower.Footprint.x, Is.InRange(20, 24));
+
+                int stepBoxes = 0;
                 int pc = lower.ProgramOffset;
                 int end = pc + lower.ProgramLength;
                 while (pc < end)
@@ -103,18 +102,12 @@ namespace VoxelEngine.Tests.EditMode
                     int instruction = ShapeOps.InstructionLength(op);
                     Assert.Greater(instruction, 0);
                     if (op == ShapeOp.End) break;
-                    if (op == ShapeOp.EmitRamp)
-                    {
-                        int axis = catalogue.Program[pc + 2 + 6];
-                        if ((axis & 0x7F) == 2
-                            && (axis & BoxEmitter.ReverseRampBit) != 0)
-                            sawReversedZRamp = true;
-                    }
+                    if (op == ShapeOp.EmitBox) stepBoxes++;
                     pc += instruction;
                 }
 
-                Assert.IsTrue(sawReversedZRamp,
-                    "The west stair street should climb toward lower Z / Market Square.");
+                Assert.GreaterOrEqual(stepBoxes, 20,
+                    "The alternate ascent should compile to visible stair treads rather than one smooth ramp.");
             }
             finally
             {

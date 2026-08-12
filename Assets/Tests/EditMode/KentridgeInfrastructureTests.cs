@@ -16,6 +16,8 @@ namespace VoxelEngine.Tests.EditMode
                 Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue circulation = KentridgeVerticalConnectorCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue secondaryCirculation = KentridgeUrbanCirculationCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue verticalFrontage = KentridgeVerticalFrontageCatalogue.Build(
@@ -38,6 +40,10 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(9, circulation.Definitions.Length,
                     "Four stair flights, four retaining sections, and one campanile should compose the primary hardscape pass.");
                 Assert.AreEqual(9, circulation.ExplicitPlacements.Length);
+
+                Assert.AreEqual(2, secondaryCirculation.Definitions.Length);
+                Assert.AreEqual(1, CountDefinitions(secondaryCirculation, FeatureKind.Infrastructure),
+                    "The upper contour stays smooth while the lower alternate ascent is a hard stair street.");
 
                 Assert.AreEqual(2, massing.Definitions.Length,
                     "Macro urban organisation is rendered as two coarse silhouette heights.");
@@ -77,8 +83,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(82, infrastructureInstances,
-                    "Retaining skins, vertical fabric, working-quarter fabric/access, and hillside architecture must stay independently classified from gameplay structures.");
+                Assert.AreEqual(83, infrastructureInstances,
+                    "Retaining skins, alternate stair circulation, vertical fabric, working-quarter fabric/access, and hillside architecture must stay independently classified from gameplay structures.");
             }
             finally
             {
@@ -88,6 +94,7 @@ namespace VoxelEngine.Tests.EditMode
                 anchorUndercroft.Dispose();
                 verticalFrontage.Dispose();
                 massing.Dispose();
+                secondaryCirculation.Dispose();
                 circulation.Dispose();
                 terraces.Dispose();
             }

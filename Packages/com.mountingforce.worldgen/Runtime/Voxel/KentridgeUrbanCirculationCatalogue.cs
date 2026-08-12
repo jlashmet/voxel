@@ -10,10 +10,9 @@ using VoxelEngine.Core.Terrain;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Coarse voxel adapter for secondary urban circulation. It deliberately understands orthogonal
-    /// city connectors rather than one named route: horizontal contours and vertical stair streets
-    /// resolve through the same terrain/profile contract, while a later circulation grammar may turn
-    /// the coarse ramp into steps, landings, arcades, or bridge pieces.
+    /// Coarse voxel adapter for secondary urban circulation. Contour lanes remain smooth Landform;
+    /// semantic stair streets compile to crisp Infrastructure so alternate vertical routes are
+    /// visually/navigation-legible rather than disappearing into the hillside surface.
     /// </summary>
     public static class KentridgeUrbanCirculationCatalogue
     {
@@ -21,6 +20,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int SurfaceThicknessDm = 3;
         private const int BuriedFootingDm = 5;
         private const int ClearAboveDm = 24;
+        private const int StairRiseDm = 2;
 
         private readonly struct ConnectorBuild
         {
@@ -95,16 +95,19 @@ namespace MountingForce.WorldGen.Voxel
                 for (int p = 0; p < program.Length; p++)
                     catalogue.Program[programOffset + p] = program[p];
 
+                bool stairStreet = build.Connector.Kind == KentridgeUrbanConnectorKind.StairStreet;
                 catalogue.Definitions[i] = new FeatureDefinition
                 {
                     Name = new FixedString64Bytes(
                         "kentridge-urban-connector-" + build.Connector.Id),
-                    Kind = FeatureKind.Landform,
+                    Kind = stairStreet ? FeatureKind.Infrastructure : FeatureKind.Landform,
                     BasePlane = BasePlaneRule.FixedAltitude,
                     FixedAltitude = 0,
                     Footprint = build.Footprint,
                     MaxSlope = 32,
-                    Precedence = 23,
+                    // Contours belong with roads; stair streets must sit above smooth terrain and
+                    // anonymous fabric but remain below the more specialised access/gallery layers.
+                    Precedence = stairStreet ? (byte)89 : (byte)23,
                     ParameterOffset = 0,
                     ParameterCount = 0,
                     AnchorOffset = 0,
@@ -115,7 +118,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 4,
+                    MaxPrimitives = stairStreet ? 64 : 4,
                 };
 
                 catalogue.ExplicitPlacements[i] = build.Placement;
@@ -249,26 +252,22 @@ namespace MountingForce.WorldGen.Voxel
             ConnectorBuild build,
             VoxelWorldGenSettings settings)
         {
+            return build.Connector.Kind == KentridgeUrbanConnectorKind.StairStreet
+                ? StairProgram(build, settings)
+                : SmoothProgram(build, settings);
+        }
+
+        private static int[] SmoothProgram(
+            ConnectorBuild build,
+            VoxelWorldGenSettings settings)
+        {
             int scale = settings.VoxelsPerDecimetre;
             int fillHeight = (FillDepthDm + SurfaceThicknessDm) * scale;
             byte surface = settings.Materials.Resolve(MaterialRole.RoadSurface);
             byte support = settings.Materials.Resolve(MaterialRole.FoundationStone);
             var b = new ProgramBuilder();
 
-            b.Carve(
-                0,
-                build.SupportDepth + fillHeight,
-                0,
-                build.ExtentX,
-                build.ClearHeight,
-                build.ExtentZ);
-
-            if (build.SupportDepth > 0)
-                b.Box(
-                    0, 0, 0,
-                    build.ExtentX, build.SupportDepth, build.ExtentZ,
-                    support);
-
+            CarveAndSupport(b, build, fillHeight, support);
             b.Box(
                 0, build.SupportDepth, 0,
                 build.ExtentX, fillHeight, build.ExtentZ,
@@ -286,6 +285,73 @@ namespace MountingForce.WorldGen.Voxel
                     surface);
 
             return b.Finish();
+        }
+
+        private static int[] StairProgram(
+            ConnectorBuild build,
+            VoxelWorldGenSettings settings)
+        {
+            if (!build.Connector.IsVertical)
+                throw new InvalidOperationException(
+                    "Kentridge stair-street realization currently expects a vertical city segment.");
+
+            int scale = settings.VoxelsPerDecimetre;
+            int fillHeight = (FillDepthDm + SurfaceThicknessDm) * scale;
+            byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
+            var b = new ProgramBuilder();
+
+            CarveAndSupport(b, build, fillHeight, stone);
+
+            int nominalRise = Math.Max(1, StairRiseDm * scale);
+            int stepCount = Math.Max(2, (build.HeightDelta + nominalRise - 1) / nominalRise);
+            stepCount = Math.Min(stepCount, 48);
+            bool highAtMin = (build.RampAxis & BoxEmitter.ReverseRampBit) != 0;
+
+            for (int step = 0; step < stepCount; step++)
+            {
+                int start = build.ExtentZ * step / stepCount;
+                int end = build.ExtentZ * (step + 1) / stepCount;
+                int slice = Math.Max(1, end - start);
+                int level;
+                if (stepCount <= 1)
+                    level = 0;
+                else if (highAtMin)
+                    level = build.HeightDelta * (stepCount - 1 - step) / (stepCount - 1);
+                else
+                    level = build.HeightDelta * step / (stepCount - 1);
+
+                b.Box(
+                    0,
+                    build.SupportDepth,
+                    start,
+                    build.ExtentX,
+                    fillHeight + level,
+                    slice,
+                    stone);
+            }
+
+            return b.Finish();
+        }
+
+        private static void CarveAndSupport(
+            ProgramBuilder b,
+            ConnectorBuild build,
+            int fillHeight,
+            byte support)
+        {
+            b.Carve(
+                0,
+                build.SupportDepth + fillHeight,
+                0,
+                build.ExtentX,
+                build.ClearHeight,
+                build.ExtentZ);
+
+            if (build.SupportDepth > 0)
+                b.Box(
+                    0, 0, 0,
+                    build.ExtentX, build.SupportDepth, build.ExtentZ,
+                    support);
         }
 
         private sealed class ProgramBuilder
