@@ -1,3 +1,4 @@
+using System;
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Net.Protocol;
@@ -41,8 +42,8 @@ namespace VoxelEngine.Tests.EditMode
                 semanticHash: 0xAABBCCDD,
                 totalLength: chunk.Length,
                 offset: 0,
-                chunk,
-                out int written), Is.True);
+                chunk: chunk,
+                bytesWritten: out int written), Is.True);
             Assert.That(written, Is.EqualTo(packet.Length));
 
             Assert.That(RegionStateChunkPacket.TryDecode(packet, out var header, out var decodedChunk), Is.True);
@@ -60,16 +61,13 @@ namespace VoxelEngine.Tests.EditMode
             var packet = new byte[RegionStateChunkPacket.HeaderSize + 1];
             Assert.That(ProtocolEnvelope.TryWriteHeader(packet, ProtocolMessageKind.S_RegionData), Is.True);
 
-            // transferId=1
-            packet[2] = 1;
-            // totalLength at offset 26: MaxSnapshotBytes + 1
+            packet[2] = 1; // transferId=1
             uint hostileLength = (uint)RegionStateChunkPacket.MaxSnapshotBytes + 1u;
             packet[26] = (byte)hostileLength;
             packet[27] = (byte)(hostileLength >> 8);
             packet[28] = (byte)(hostileLength >> 16);
             packet[29] = (byte)(hostileLength >> 24);
-            // chunkLength=1 at offset 34
-            packet[34] = 1;
+            packet[34] = 1; // chunkLength=1
 
             Assert.That(RegionStateChunkPacket.TryDecode(packet, out _, out _), Is.False);
         }
