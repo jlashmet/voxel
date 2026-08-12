@@ -68,7 +68,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(17, structures,
                     "Every stable Kentridge building role should compile once.");
                 Assert.Greater(instances, structures,
-                    "Roads, terrace supports, paths, and dressing should accompany the buildings.");
+                    "District terraces, roads, supports, paths, and dressing should accompany buildings.");
                 Assert.Greater(primitiveCount, 100,
                     "Kentridge emitted implausibly little geometry.");
             }
@@ -99,6 +99,43 @@ namespace VoxelEngine.Tests.EditMode
                 "The civic summit should dominate the market terrace by many metres.");
             Assert.Greater(summit - lower, 150,
                 "Kentridge needs macro verticality, not decorative height variation.");
+        }
+
+        [Test]
+        public void DistrictTerracesCreateNeighbourhoodScaleShelves()
+        {
+            FeatureCatalogue terraces = KentridgeDistrictTerraceCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+
+            try
+            {
+                Assert.AreEqual(6, terraces.Definitions.Length,
+                    "The first hillside pass should expose six authored district shelves.");
+                Assert.AreEqual(6, terraces.ExplicitPlacements.Length);
+
+                int broadShelves = 0;
+                int tallestFootprint = 0;
+                for (int i = 0; i < terraces.Definitions.Length; i++)
+                {
+                    FeatureDefinition definition = terraces.Definitions[i];
+                    Assert.AreEqual(FeatureKind.Landform, definition.Kind);
+                    Assert.AreEqual(15, definition.Precedence,
+                        "District terrain must run before roads and parcel grading.");
+                    if (definition.Footprint.x >= 600)
+                        broadShelves++;
+                    if (definition.Footprint.y > tallestFootprint)
+                        tallestFootprint = definition.Footprint.y;
+                }
+
+                Assert.GreaterOrEqual(broadShelves, 4,
+                    "Most district terraces should span multiple neighbouring plots.");
+                Assert.Greater(tallestFootprint, 100,
+                    "Upper shelves should have enough vertical extent to cut/fill the hillside.");
+            }
+            finally
+            {
+                terraces.Dispose();
+            }
         }
 
         [Test]
