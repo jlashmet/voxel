@@ -54,8 +54,19 @@ namespace MountingForce.CombatPrototype
             }
         }
 
+        /// <summary>
+        /// Synchronize after a real board reset/round advance. If the board refused a command and the same physical
+        /// event is still pending, ownership is intentionally preserved; failed commands must never erase reservations.
+        /// </summary>
         public void Reset()
         {
+            ChainReactionOpportunity reaction = _board.PendingReaction;
+            if (reaction != null && reaction.Id == _trackedOpportunityId)
+            {
+                _lastMessage = string.Empty;
+                return;
+            }
+
             _trackedOpportunityId = 0;
             _reservedByCommandGroup = 0;
             _lastMessage = string.Empty;

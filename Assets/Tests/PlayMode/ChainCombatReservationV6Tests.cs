@@ -19,12 +19,10 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(board.TryUppercut(stephen.Id, ogre.Id), Is.True, board.LastMessage);
             Assert.That(board.PendingReaction.Kind, Is.EqualTo(ChainReactionKind.Airborne));
 
-            // P3 is allowed to say "I've got this" without the system proving that P3 has a valid answer.
             Assert.That(reservations.TryReserve(3), Is.True, reservations.LastMessage);
             Assert.That(reservations.ReservedByCommandGroup, Is.EqualTo(3));
 
-            // Madeline's actual capability does not answer Airborne. The failed attempt must not reveal alternatives
-            // or silently give the event away.
+            // Reservation is not a compatibility oracle. Madeline cannot answer Airborne, but P3 keeps ownership.
             Assert.That(reservations.TryClaim(madeline.Id, ChainReactionAbility.Repulse), Is.False);
             Assert.That(reservations.ReservedByCommandGroup, Is.EqualTo(3));
             Assert.That(board.PendingReaction.IsClaimed, Is.False);
@@ -89,7 +87,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(reservations.ReservedByCommandGroup, Is.EqualTo(0),
                 "A reservation owns one physical decision, not the whole future cascade.");
 
-            // The newly created collision can now be reserved by a different player.
             Assert.That(reservations.TryReserve(3), Is.True, reservations.LastMessage);
             Assert.That(reservations.ReservedByCommandGroup, Is.EqualTo(3));
 
@@ -117,6 +114,30 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(board.PendingReaction, Is.Not.Null,
                 "Passing the initial airborne window should let motion continue into the prepared collision.");
             Assert.That(reservations.ReservedByCommandGroup, Is.EqualTo(0));
+
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator FailedRoundAdvanceCannotEraseReservation()
+        {
+            var board = new ChainCombatBoard();
+            var reservations = new ChainReactionReservationCoordinator(board);
+            ChainUnitState stephen = Find(board, ChainRecruitKind.Stephen);
+            ChainUnitState ogre = Find(board, ChainRecruitKind.Ogre);
+
+            Assert.That(board.TryUppercut(stephen.Id, ogre.Id), Is.True, board.LastMessage);
+            Assert.That(reservations.TryReserve(2), Is.True, reservations.LastMessage);
+            int eventId = board.PendingReaction.Id;
+
+            Assert.That(board.EndRound(), Is.False, "The board must refuse to advance while a physical event is unresolved.");
+
+            // The controller synchronizes/reset-coordinates after EndRound attempts. A failed board command must not
+            // destroy ownership of the still-identical physical event.
+            reservations.Reset();
+            Assert.That(board.PendingReaction, Is.Not.Null);
+            Assert.That(board.PendingReaction.Id, Is.EqualTo(eventId));
+            Assert.That(reservations.ReservedByCommandGroup, Is.EqualTo(2));
 
             yield return null;
         }
