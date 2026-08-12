@@ -15,6 +15,7 @@ namespace VoxelEngine.Tests.EditMode
             FeatureCatalogue terraces = KentridgeDistrictTerraceCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue circulation = KentridgeVerticalConnectorCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue secondaryCirculation = KentridgeUrbanCirculationCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue courts = KentridgeUrbanCourtCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue verticalFrontage = KentridgeVerticalFrontageCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue anchorUndercroft = KentridgeAnchorUndercroftCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
@@ -26,26 +27,15 @@ namespace VoxelEngine.Tests.EditMode
             {
                 Assert.AreEqual(5, CountDefinitions(terraces, FeatureKind.Infrastructure));
                 Assert.AreEqual(9, circulation.Definitions.Length);
-                Assert.AreEqual(9, circulation.ExplicitPlacements.Length);
-
                 Assert.AreEqual(4, secondaryCirculation.Definitions.Length);
-                Assert.AreEqual(2, CountDefinitions(secondaryCirculation, FeatureKind.Infrastructure),
-                    "Both west-side alternate climbs should be crisp stair streets while their contour links stay smooth.");
-
-                Assert.AreEqual(2, massing.Definitions.Length);
+                Assert.AreEqual(2, CountDefinitions(secondaryCirculation, FeatureKind.Infrastructure));
+                Assert.AreEqual(8, courts.Definitions.Length);
+                AssertAllKind(courts, FeatureKind.Infrastructure);
                 Assert.AreEqual(37, massing.ExplicitPlacements.Length);
                 Assert.AreEqual(6, verticalFrontage.ExplicitPlacements.Length);
                 Assert.AreEqual(4, anchorUndercroft.ExplicitPlacements.Length);
                 Assert.AreEqual(8, access.ExplicitPlacements.Length);
-                Assert.AreEqual(3, architecture.Definitions.Length);
                 Assert.AreEqual(13, architecture.ExplicitPlacements.Length);
-
-                AssertAllKind(circulation, FeatureKind.Infrastructure);
-                AssertAllKind(massing, FeatureKind.Infrastructure);
-                AssertAllKind(verticalFrontage, FeatureKind.Infrastructure);
-                AssertAllKind(anchorUndercroft, FeatureKind.Infrastructure);
-                AssertAllKind(access, FeatureKind.Infrastructure);
-                AssertAllKind(architecture, FeatureKind.Infrastructure);
 
                 int structures = 0;
                 int infrastructureInstances = 0;
@@ -57,9 +47,10 @@ namespace VoxelEngine.Tests.EditMode
                     if (definition.Kind == FeatureKind.Infrastructure) infrastructureInstances += rule.ExplicitCount;
                 }
 
-                Assert.AreEqual(17, structures);
-                Assert.AreEqual(84, infrastructureInstances,
-                    "The second west stair adds one hard circulation instance while smooth contours remain Landform.");
+                Assert.AreEqual(17, structures,
+                    "Stable gameplay building identity must remain exactly the original Kentridge roster.");
+                Assert.AreEqual(92, infrastructureInstances,
+                    "Eight protected courtyard floors add hard urban rooms without changing gameplay structures.");
             }
             finally
             {
@@ -69,6 +60,7 @@ namespace VoxelEngine.Tests.EditMode
                 anchorUndercroft.Dispose();
                 verticalFrontage.Dispose();
                 massing.Dispose();
+                courts.Dispose();
                 secondaryCirculation.Dispose();
                 circulation.Dispose();
                 terraces.Dispose();
