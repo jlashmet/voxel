@@ -49,7 +49,6 @@ namespace VoxelEngine.Net.Transport
         public int ConnectionCount => _connections.Count;
         public NetworkEndpoint LocalEndpoint => IsCreated && _driver.Bound ? _driver.GetLocalEndpoint() : default;
 
-        /// <summary>Bind and begin listening. Returns the underlying UTP error code (0 on success).</summary>
         public int Listen(NetworkEndpoint endpoint)
         {
             ThrowIfDisposed();
@@ -67,11 +66,12 @@ namespace VoxelEngine.Net.Transport
         }
 
         /// <summary>
-        /// Pump incoming UDP/connection state once. Call from the Unity frame loop; this is not the
-        /// authoritative simulation tick. Accepted EVENT packets are dispatched to the supplied
-        /// command handler with the server-owned connection ID.
+        /// Pump incoming UDP/connection state once. Durable commands are dispatched from EVENT;
+        /// loss-tolerant player input is dispatched independently from EPHEMERAL.
         /// </summary>
-        public void Pump(IClientEventCommandHandler eventHandler)
+        public void Pump(
+            IClientEventCommandHandler eventHandler,
+            IClientInputCommandHandler inputHandler = null)
         {
             ThrowIfDisposed();
             if (eventHandler == null)
@@ -82,16 +82,13 @@ namespace VoxelEngine.Net.Transport
 
             _disconnectScratch.Clear();
             foreach (var pair in _connections)
-                PumpConnection(pair.Key, pair.Value, eventHandler);
+                PumpConnection(pair.Key, pair.Value, eventHandler, inputHandler);
 
             for (int i = 0; i < _disconnectScratch.Count; i++)
                 RemoveConnection(_disconnectScratch[i]);
         }
 
-        /// <summary>
-        /// Flush packets queued by EndSend immediately rather than waiting for the next transport
-        /// update. Call once after an authoritative replication flush, not once per packet.
-        /// </summary>
+        /// <summary>Flush all queued sends once after an authoritative replication/command batch.</summary>
         public void FlushSends()
         {
             ThrowIfDisposed();
@@ -114,7 +111,6 @@ namespace VoxelEngine.Net.Transport
             return true;
         }
 
-        /// <summary>Generic send path used by EVENT now and REPAIR/BULK as their framing lands.</summary>
         public bool TrySend(uint connectionId, UtpChannel channel, ReadOnlySpan<byte> packet)
         {
             ThrowIfDisposed();
@@ -174,8 +170,11 @@ namespace VoxelEngine.Net.Transport
         private void PumpConnection(
             uint connectionId,
             NetworkConnection connection,
-            IClientEventCommandHandler eventHandler)
+            IClientEventCommandHandler eventHandler,
+            IClientInputCommandHandler inputHandler)
         {
+            // Client->server packets are currently at most EVENT-sized (34 B alteration, 18 B input),
+            // so one bounded stack buffer handles either accepted client channel.
             Span<byte> packetScratch = stackalloc byte[ChannelSetup.k_MaxEventPacketBytes];
 
             NetworkEvent.Type eventType;
@@ -188,17 +187,29 @@ namespace VoxelEngine.Net.Transport
                 {
                     case NetworkEvent.Type.Data:
                     {
-                        // Client commands currently belong on EVENT. REPAIR and BULK are server->client
-                        // state channels; unexpected client traffic on them is ignored/fails closed.
-                        if (!pipeline.Equals(_channels.Event) ||
-                            !UtpPacketIO.TryRead(ref reader, packetScratch, out int bytesRead) ||
-                            !ClientEventPacketReceiver.TryDispatch(
-                                connectionId,
-                                packetScratch.Slice(0, bytesRead),
-                                eventHandler))
+                        bool accepted = false;
+
+                        if (pipeline.Equals(_channels.Event))
                         {
-                            ProtocolError?.Invoke(connectionId);
+                            accepted = UtpPacketIO.TryRead(ref reader, packetScratch, out int bytesRead) &&
+                                       ClientEventPacketReceiver.TryDispatch(
+                                           connectionId,
+                                           packetScratch.Slice(0, bytesRead),
+                                           eventHandler);
                         }
+                        else if (pipeline.Equals(_channels.Ephemeral) && inputHandler != null)
+                        {
+                            accepted = UtpPacketIO.TryRead(ref reader, packetScratch, out int bytesRead) &&
+                                       ClientEphemeralPacketReceiver.TryDispatch(
+                                           connectionId,
+                                           packetScratch.Slice(0, bytesRead),
+                                           inputHandler);
+                        }
+
+                        // REPAIR/BULK are server->client state channels. Any client traffic on them,
+                        // malformed framing, or unhandled EPHEMERAL traffic fails closed.
+                        if (!accepted)
+                            ProtocolError?.Invoke(connectionId);
 
                         break;
                     }
@@ -212,8 +223,6 @@ namespace VoxelEngine.Net.Transport
 
         private uint AllocateConnectionId()
         {
-            // 0 is reserved as the invalid/unassigned connection ID. Do not reuse IDs during the
-            // host lifetime; this keeps stale subscription/auth records from aliasing a new peer.
             while (true)
             {
                 uint candidate = _nextConnectionId++;
@@ -238,6 +247,7 @@ namespace VoxelEngine.Net.Transport
             return channel switch
             {
                 UtpChannel.Event => _channels.Event,
+                UtpChannel.Ephemeral => _channels.Ephemeral,
                 UtpChannel.Repair => _channels.Repair,
                 UtpChannel.Bulk => _channels.Bulk,
                 _ => throw new ArgumentOutOfRangeException(nameof(channel)),
@@ -249,6 +259,7 @@ namespace VoxelEngine.Net.Transport
             return channel switch
             {
                 UtpChannel.Event => ChannelSetup.k_MaxEventPacketBytes,
+                UtpChannel.Ephemeral => ChannelSetup.k_MaxEphemeralPacketBytes,
                 UtpChannel.Repair => ChannelSetup.k_MaxRepairPacketBytes,
                 UtpChannel.Bulk => ChannelSetup.k_MaxBulkPacketBytes,
                 _ => 0,
@@ -273,7 +284,6 @@ namespace VoxelEngine.Net.Transport
                     foreach (NetworkConnection connection in _connections.Values)
                         _driver.Disconnect(connection);
 
-                    // UTP requires an update after Disconnect for the peer notification to leave.
                     _driver.ScheduleUpdate().Complete();
                 }
 
