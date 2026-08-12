@@ -91,8 +91,6 @@ namespace VoxelEngine.CI
                 Transform untouchedBatch = FindBatchRoot(renderer, new Vector2Int(1, 0));
                 Assert.That(touchedBatch, Is.Not.Null);
                 Assert.That(untouchedBatch, Is.Not.Null);
-                int touchedBatchId = touchedBatch.gameObject.GetInstanceID();
-                int untouchedBatchId = untouchedBatch.gameObject.GetInstanceID();
 
                 MeshRenderer[] batchRenderers = FindAllBatchRenderers(renderer);
                 Assert.That(batchRenderers.Length, Is.EqualTo(6));
@@ -184,9 +182,9 @@ namespace VoxelEngine.CI
                 Transform preservedUntouchedBatch = FindBatchRoot(renderer, new Vector2Int(1, 0));
                 Assert.That(rebuiltTouchedBatch, Is.Not.Null);
                 Assert.That(preservedUntouchedBatch, Is.Not.Null);
-                Assert.That(rebuiltTouchedBatch.gameObject.GetInstanceID(), Is.Not.EqualTo(touchedBatchId),
+                Assert.That(object.ReferenceEquals(rebuiltTouchedBatch, touchedBatch), Is.False,
                             "The damaged cell should receive a rebuilt batch root.");
-                Assert.That(preservedUntouchedBatch.gameObject.GetInstanceID(), Is.EqualTo(untouchedBatchId),
+                Assert.That(object.ReferenceEquals(preservedUntouchedBatch, untouchedBatch), Is.True,
                             "An untouched spatial cell was unnecessarily destroyed/rebuilt.");
 
                 Assert.That(renderer.TryGetDynamicPresentationRoot(0, out Transform damagedRoot), Is.True,
