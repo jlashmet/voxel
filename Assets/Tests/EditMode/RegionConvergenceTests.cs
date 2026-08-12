@@ -29,8 +29,6 @@ namespace VoxelEngine.Tests.EditMode
                 int poolAIndex = poolA.Allocate();
                 poolA.FillBrick(poolAIndex, 3);
 
-                // Consume one slot only on B so the semantically identical brick gets a different
-                // allocator-local index.
                 int throwaway = poolB.Allocate();
                 poolB.FillBrick(throwaway, 9);
                 int poolBIndex = poolB.Allocate();
@@ -104,7 +102,7 @@ namespace VoxelEngine.Tests.EditMode
 
         [Test]
         [Category("Networking")]
-        public void ClientDriftProducesVerifiedTickScopedMismatchOverLoopback()
+        public void ClientDriftIsRepairedAtExactHashCheckpointAndAuthorityResumes()
         {
             using var server = new AuthoritativeServerSession(
                 serverSeed: 123,
@@ -115,6 +113,7 @@ namespace VoxelEngine.Tests.EditMode
             uint connectionId = 0;
             bool connected = false;
             bool verified = false;
+            bool repairApplied = false;
             ServerConvergenceManager.VerifiedRegionMismatch verifiedMismatch = default;
 
             server.ConnectionOpened += (id, _) => connectionId = id;
@@ -124,6 +123,8 @@ namespace VoxelEngine.Tests.EditMode
                 verifiedMismatch = mismatch;
             };
             client.Connected += () => connected = true;
+            client.RegionRepairApplied += (coord, tick) =>
+                repairApplied = coord.Equals(int3.zero) && tick == 2;
 
             Assert.That(server.Listen(NetworkEndpoint.LoopbackIpv4.WithPort(0)), Is.EqualTo(0));
             Assert.That(client.Connect(server.LocalEndpoint), Is.True);
@@ -142,35 +143,69 @@ namespace VoxelEngine.Tests.EditMode
                 clientTable.LoadRegion(int3.zero);
                 Assert.That(server.AuthenticateConnection(connectionId, 7, int3.zero, 64), Is.True);
 
-                // Tick 1 hashes identical state: no mismatch.
+                // Tick 1 hashes identical state.
                 server.ProcessAuthoritativeTick(1, ref serverTable, ref serverPool, in zones, inputSink);
                 PumpUntil(() => client.PendingRegionHashes == 1, () => Pump(client, server));
                 client.ApplyReadyAuthoritativeEvents(ref clientTable, ref clientPool, out _);
                 Assert.That(client.PendingRegionHashes, Is.Zero);
-                Assert.That(server.ConvergenceInbox.PendingCount, Is.Zero);
+                Assert.That(client.RepairPending, Is.False);
 
-                // Corrupt only the client material state.
+                // Corrupt only the client after the equal checkpoint.
                 Assert.That(VoxelAccess.SetVoxel(
                     ref clientTable,
                     ref clientPool,
                     new int3(1, 1, 1),
                     5), Is.True);
 
-                // Tick 2 hash reaches the ordered barrier, mismatch is sent immediately.
+                // Tick 2 hash reaches the ordered barrier. Client reports mismatch and pauses there.
                 server.ProcessAuthoritativeTick(2, ref serverTable, ref serverPool, in zones, inputSink);
                 PumpUntil(() => client.PendingRegionHashes == 1, () => Pump(client, server));
                 client.ApplyReadyAuthoritativeEvents(ref clientTable, ref clientPool, out _);
+                Assert.That(client.RepairPending, Is.True);
+                Assert.That(client.PendingRegionHashes, Is.Zero);
+                Assert.That(client.ApplyReadyAuthoritativeEvents(
+                    ref clientTable,
+                    ref clientPool,
+                    out int blockedEvents), Is.Zero);
+                Assert.That(blockedEvents, Is.Zero);
 
                 PumpUntil(() => server.ConvergenceInbox.PendingCount == 1, () => Pump(client, server));
 
-                // Tick 3 authenticates the report against the exact checkpoint the server issued.
+                // Tick 3 verifies the exact checkpoint, queues repair, and also queues the newer
+                // tick-3 hash. The client must not compare that newer barrier until repair succeeds.
                 server.ProcessAuthoritativeTick(3, ref serverTable, ref serverPool, in zones, inputSink);
                 Assert.That(verified, Is.True);
                 Assert.That(verifiedMismatch.ConnectionId, Is.EqualTo(connectionId));
                 Assert.That(verifiedMismatch.RegionCoord, Is.EqualTo(int3.zero));
                 Assert.That(verifiedMismatch.HashTick, Is.EqualTo(2));
                 Assert.That(verifiedMismatch.ClientHash, Is.Not.EqualTo(verifiedMismatch.ServerHash));
+                Assert.That(verifiedMismatch.RepairQueued, Is.True);
                 Assert.That(server.Convergence.VerifiedMismatchCount, Is.EqualTo(1));
+
+                PumpUntil(
+                    () => client.RepairSnapshotComplete && client.PendingRegionHashes >= 1,
+                    () => Pump(client, server));
+
+                Assert.That(client.RepairPending, Is.True);
+                client.ApplyReadyAuthoritativeEvents(ref clientTable, ref clientPool, out _);
+
+                Assert.That(repairApplied, Is.True);
+                Assert.That(client.RepairPending, Is.False);
+                Assert.That(VoxelAccess.GetVoxel(
+                    ref clientTable,
+                    in clientPool,
+                    new int3(1, 1, 1)), Is.EqualTo(VoxelDimensions.MaterialEmpty));
+
+                Assert.That(serverTable.TryGetRegion(int3.zero, out Region serverRegion), Is.True);
+                Assert.That(clientTable.TryGetRegion(int3.zero, out Region clientRegion), Is.True);
+                Assert.That(
+                    SemanticRegionHasher.HashRegion(in clientRegion, in clientPool),
+                    Is.EqualTo(SemanticRegionHasher.HashRegion(in serverRegion, in serverPool)));
+
+                // ApplyReady also resumes the queue and consumes the tick-3 equal hash barrier.
+                Assert.That(client.PendingRegionHashes, Is.Zero);
+                Assert.That(server.Convergence.RepairSnapshotsCompleted, Is.EqualTo(1));
+                Assert.That(server.Convergence.PendingRepairCount, Is.Zero);
             }
             finally
             {
