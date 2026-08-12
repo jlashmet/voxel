@@ -14,17 +14,50 @@ Three UTP pipelines, deliberately separate. Collapsing them is the failure mode 
 
 | Channel | Delivery | Priority | Carries |
 |---|---|---|---|
-| `EVENT` | Reliable, ordered per region | High | Alteration events, player input, player state |
+| `EVENT` | Reliable, ordered | High | Durable authoritative world/gameplay events and confirmations |
 | `REPAIR` | Reliable | Medium | Authoritative brick blobs correcting detected drift |
 | `BULK` | Reliable, fragmented | **Low — must never starve `EVENT`** | Region stream-in, mip refinement, late-join snapshots |
 
+`BULK` pipeline stage order is fragmentation then reliability. A lost fragment therefore retransmits that fragment rather than the entire logical payload.
+
 **Invariant**: `BULK` is rate-limited against the connection's estimated capacity such that `EVENT` latency is unaffected. This is load-bearing for the mobile target (C-002, SC-014).
+
+High-frequency ephemeral motion/input traffic may move to a separate unreliable-sequenced pipeline once the concrete host loop exists. Durable world mutations remain on `EVENT`. Do not mix large snapshot traffic into `EVENT`.
+
+---
+
+## Packet framing
+
+UTP already supplies packet boundaries, delivery semantics, and transport integrity. The custom protocol therefore adds only a two-byte envelope:
+
+| Offset | Type | Meaning |
+|---|---|---|
+| 0 | `byte` | protocol version (`1`) |
+| 1 | `byte` | message kind |
+| 2.. | bytes | message-specific payload |
+
+There is deliberately no redundant length or checksum field. Unsupported versions or unknown message kinds fail closed.
+
+Message-kind values are stable once shipped:
+
+| Value | Kind |
+|---:|---|
+| 1 | `C_PlayerInput` |
+| 2 | `C_AlterationRequest` |
+| 3 | `C_RegionRequest` |
+| 32 | `S_AlterationEvent` |
+| 33 | `S_AlterationEventBatch` |
+| 34 | `S_AlterationRejected` |
+| 35 | `S_RegionHash` |
+| 36 | `S_RegionRepair` |
+| 37 | `S_RegionData` |
+| 38 | `S_PlayerState` |
 
 ---
 
 ## Message types
 
-Sizes are indicative payload, excluding transport headers.
+Sizes below are message payloads unless explicitly stated; the two-byte protocol envelope is additional.
 
 ### Client → Server
 
@@ -52,7 +85,7 @@ Raw single-voxel edits are never sent individually: they are buffered ~100 ms an
 | actions | `ushort` bitfield |
 | viewDirection | quantised `int2` |
 
-Sent redundantly across several ticks; the server keeps an input ring buffer.
+Sent redundantly across several ticks; the server keeps an input ring buffer. This is ephemeral command traffic, not durable world history.
 
 #### `C_RegionRequest` (~16 B)
 
@@ -65,7 +98,9 @@ Sent redundantly across several ticks; the server keeps an input ring buffer.
 
 ### Server → Client
 
-#### `S_AlterationEvent` (~32 B)
+#### `S_AlterationEvent` (legacy single-event form)
+
+Semantic fields:
 
 | Field | Type |
 |---|---|
@@ -76,29 +111,59 @@ Sent redundantly across several ticks; the server keeps an input ring buffer.
 | material | `byte` |
 | seed | `uint` — **authoritative** |
 | playerId | `ushort` |
+| sequence | `ushort` |
 
-Expands deterministically on every client to potentially thousands of voxel writes. **This message is why SC-002 holds and why 64 players fit a constrained mobile connection.**
+Expands deterministically on every client to potentially thousands of voxel writes. It is retained as a compatibility/fallback concept while the canonical single-event codec is cleaned up; live replication should prefer the compact batch below.
 
-#### `S_AlterationRejected` (~10 B)
+#### `S_AlterationEventBatch` (18 + 24N B payload, N ≤ 48)
+
+The normal durable world-mutation packet. Events must share a server tick and encoding region. The header amortises tick/region metadata and origins are encoded relative to the region.
+
+Header:
+
+| Field | Type | Bytes |
+|---|---|---:|
+| regionCoord | `int3` | 12 |
+| tick | `uint` | 4 |
+| count | `ushort` | 2 |
+
+Each entry:
+
+| Field | Type | Bytes |
+|---|---|---:|
+| kind | `byte` | 1 |
+| material | `byte` | 1 |
+| localOrigin | `int16x3` | 6 |
+| shapeKind | `uint` | 4 |
+| shapeData | `uint` | 4 |
+| seed | `uint` | 4 |
+| playerId | `ushort` | 2 |
+| sequence | `ushort` | 2 |
+
+Maximum payload is 1,170 B for 48 events; with the two-byte envelope the packet is 1,172 B. Live mutation packets stay at or below a conservative 1,200-byte non-fragmented ceiling.
+
+**Ordering invariant**: events arrive in server arbitration order `(tick, playerId, sequence)`. Clients apply wire order directly and never re-sort. A sender may combine only consecutive events with the same tick/encoding region; it must not globally regroup events in a way that changes authoritative order.
+
+**Cause-not-effect invariant**: the batch contains deterministic causes. It never contains SDF samples, generated meshes, GPU buffers, or ordinary per-voxel destruction results.
+
+#### `S_AlterationRejected` (~8 B)
 
 | Field | Type |
 |---|---|
-| clientTick | `uint` |
-| reason | `byte` — enum below |
+| tick | `uint` |
+| playerId | `ushort` |
+| reason | `byte` |
 
 Reason codes are a contract, not debug text — FR-009 requires the player be shown why.
 
-`OUT_OF_REACH` · `PROTECTED_ZONE` · `RATE_LIMITED` · `DENSITY_CAP` · `NOT_ATTACHED` · `REGION_NOT_LOADED` · `IMPLAUSIBLE`
-
-#### `S_RegionHash` (~16 B)
+#### `S_RegionHash` (~17 B)
 
 | Field | Type |
 |---|---|
 | coord | `int3` |
-| tick | `uint` |
-| hash | `ulong` |
+| hash | `uint` |
 
-Cheap periodic drift detection. Mismatch → client requests repair.
+Cheap periodic drift detection. Mismatch → client requests repair. The concrete codec is authoritative over older indicative sizes in design prose.
 
 #### `S_RegionRepair` (variable, `REPAIR` channel)
 
@@ -135,6 +200,23 @@ Delta-encoded against the last acknowledged snapshot, filtered by interest manag
 
 ---
 
+## Fixed-tick, event-driven authority
+
+The simulation clock remains fixed and authoritative. Event-driven means systems communicate through semantic events inside that tick; it does **not** mean callbacks advance world state at arbitrary wall-clock times.
+
+Per server tick:
+
+1. collect commands/inputs;
+2. validate and resolve simulation in deterministic arbitration order;
+3. publish semantic authoritative events;
+4. seal the tick event stream;
+5. persistence/moderation/replication consume the sealed stream;
+6. replication interest-filters events, batches consecutive compatible alterations, and writes `EVENT` packets.
+
+Internal gameplay may produce more domain events than are transmitted. Replication sends only the minimum facts required for another client to reconstruct authoritative state.
+
+---
+
 ## Reconciliation
 
 The delicate part, and the reason no third-party framework was adopted (R-001).
@@ -152,7 +234,11 @@ The delicate part, and the reason no third-party framework was adopted (R-001).
 
 Every world and player message is position-tagged and filtered by receiver interest before send.
 
-**Invariant**: interest radius is a **simulation** parameter and must never be derived from draw distance or device tier (C-006). Coupling them would silently disadvantage mobile players. This is the specific C-006 trap; enforce by test (SC-013), not by convention.
+Simulation interest is fully 3D. Region coordinates use the authoritative 512-voxel region edge, including correct floor mapping for negative world coordinates. This matters for caves, underground kingdoms, mountains, towers, flying actors, and vertically separated gameplay.
+
+The server maintains both connection → regions and region → connections mappings. Event fan-out uses the inverse index and therefore scales with interested receivers rather than all connected clients. Cross-region effects route to the union of subscribers and each connection receives a given authoritative event at most once.
+
+**Invariant**: interest radius is a **simulation** parameter and must never be derived from draw distance or device tier (C-006). Coupling them would silently disadvantage mobile players. Bandwidth scheduling may adapt to connection quality; simulation visibility may not.
 
 ---
 
