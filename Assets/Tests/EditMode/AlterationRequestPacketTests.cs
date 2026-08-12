@@ -15,11 +15,10 @@ namespace VoxelEngine.Tests.EditMode
                 tick: 12345,
                 origin: new int3(-100, 200, 300),
                 eventKind: 2,
-                shapeRadius: 9,
-                shapeExtentsYz: 0x1234,
                 material: 7,
+                shapeKind: 0x00100009,
+                shapeData: 0x00000004,
                 seed: 0xCAFEBABE,
-                playerId: 4,
                 sequence: 99);
 
             var packet = new byte[AlterationRequestPacket.PacketSize];
@@ -34,7 +33,7 @@ namespace VoxelEngine.Tests.EditMode
         public void FramedRequestRejectsWrongKindAndTrailingBytes()
         {
             var request = new C_AlterationRequest(
-                1, int3.zero, 1, 1, 0, 0, 123, 1, 1);
+                1, int3.zero, 1, 0, 1, 1, 123, 1);
 
             var packet = new byte[AlterationRequestPacket.PacketSize];
             Assert.That(AlterationRequestPacket.TryEncode(packet, in request), Is.True);
@@ -48,8 +47,10 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void ServerDispatcherPassesAuthoritativeConnectionIdentitySeparately()
+        public void ServerDispatcherUsesConnectionOwnedIdentityWhenMaterializingAuthority()
         {
+            // Legacy compatibility caller supplies a deliberately spoofed playerId. It is ignored
+            // by the request wire format and cannot survive encode/decode.
             var request = new C_AlterationRequest(
                 tick: 50,
                 origin: new int3(4, 5, 6),
@@ -58,7 +59,7 @@ namespace VoxelEngine.Tests.EditMode
                 shapeExtentsYz: 0,
                 material: 0,
                 seed: 999,
-                playerId: 65535, // deliberately untrusted/spoofed payload value
+                playerId: ushort.MaxValue,
                 sequence: 7);
 
             var packet = new byte[AlterationRequestPacket.PacketSize];
@@ -67,8 +68,18 @@ namespace VoxelEngine.Tests.EditMode
             var handler = new RecordingHandler();
             Assert.That(ClientEventPacketReceiver.TryDispatch(123, packet, handler), Is.True);
             Assert.That(handler.ConnectionId, Is.EqualTo(123));
-            Assert.That(handler.Request.playerId, Is.EqualTo(ushort.MaxValue),
-                "Receiver decodes bytes but must leave identity replacement to authoritative handler.");
+
+            var authoritative = handler.Request.ToAuthoritativeEvent(
+                authoritativeTick: 51,
+                authoritativePlayerId: 12,
+                authoritativeSequence: 3,
+                authoritativeSeed: 1001);
+
+            Assert.That(authoritative.playerId, Is.EqualTo(12));
+            Assert.That(authoritative.tick, Is.EqualTo(51));
+            Assert.That(authoritative.sequence, Is.EqualTo(3));
+            Assert.That(authoritative.seed, Is.EqualTo(1001));
+            Assert.That(authoritative.shapeData, Is.EqualTo(2));
         }
 
         private sealed class RecordingHandler : IClientEventCommandHandler
