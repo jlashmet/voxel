@@ -64,7 +64,8 @@ namespace VoxelEngine.Net.Transport
         public void Pump(
             IClientEventCommandHandler eventHandler,
             IClientInputCommandHandler inputHandler = null,
-            IClientConvergenceCommandHandler convergenceHandler = null)
+            IClientConvergenceCommandHandler convergenceHandler = null,
+            IClientRegionRequestHandler regionRequestHandler = null)
         {
             ThrowIfDisposed();
             if (eventHandler == null)
@@ -75,7 +76,13 @@ namespace VoxelEngine.Net.Transport
 
             _disconnectScratch.Clear();
             foreach (var pair in _connections)
-                PumpConnection(pair.Key, pair.Value, eventHandler, inputHandler, convergenceHandler);
+                PumpConnection(
+                    pair.Key,
+                    pair.Value,
+                    eventHandler,
+                    inputHandler,
+                    convergenceHandler,
+                    regionRequestHandler);
 
             for (int i = 0; i < _disconnectScratch.Count; i++)
                 RemoveConnection(_disconnectScratch[i]);
@@ -161,7 +168,8 @@ namespace VoxelEngine.Net.Transport
             NetworkConnection connection,
             IClientEventCommandHandler eventHandler,
             IClientInputCommandHandler inputHandler,
-            IClientConvergenceCommandHandler convergenceHandler)
+            IClientConvergenceCommandHandler convergenceHandler,
+            IClientRegionRequestHandler regionRequestHandler)
         {
             Span<byte> packetScratch = stackalloc byte[ChannelSetup.k_MaxEventPacketBytes];
 
@@ -184,7 +192,8 @@ namespace VoxelEngine.Net.Transport
                                            connectionId,
                                            packetScratch.Slice(0, bytesRead),
                                            eventHandler,
-                                           convergenceHandler);
+                                           convergenceHandler,
+                                           regionRequestHandler);
                         }
                         else if (pipeline.Equals(_channels.Ephemeral) && inputHandler != null)
                         {
