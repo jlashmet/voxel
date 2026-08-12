@@ -4,11 +4,8 @@ using System.Collections.Generic;
 namespace VoxelEngine.Net.Server
 {
     /// <summary>
-    /// Server-owned alteration rate/allocation accounting.
-    ///
-    /// Validation queries this object without mutation. Counters are committed only after an
-    /// alteration is accepted/applied, so rejected or malformed requests cannot consume another
-    /// player's budget. Time is measured in authoritative server ticks, never client timestamps.
+    /// Server-owned alteration rate/allocation accounting. Validation queries without mutation;
+    /// counters commit only after authoritative application succeeds.
     /// </summary>
     public sealed class AlterationRateLimiter
     {
@@ -19,7 +16,7 @@ namespace VoxelEngine.Net.Server
         private readonly Dictionary<ushort, TickAllocation> _allocation = new Dictionary<ushort, TickAllocation>(64);
 
         public AlterationRateLimiter(
-            int ticksPerSecond = (int)ServerTickLoop.k_TickRateHz,
+            int ticksPerSecond = (int)AuthoritativeTickConfig.TickRateHz,
             int maxAlterationsPerSecond = Validation.k_MaxAlterationsPerSecond,
             int maxBricksPerTick = Validation.k_MaxBricksPerTick)
         {
@@ -34,33 +31,23 @@ namespace VoxelEngine.Net.Server
 
         public bool WouldExceedRate(ushort playerId, uint serverTick)
         {
-            if (playerId == 0)
-                return true;
-
-            if (!_acceptedTicks.TryGetValue(playerId, out Queue<uint> ticks))
-                return false;
-
+            if (playerId == 0) return true;
+            if (!_acceptedTicks.TryGetValue(playerId, out Queue<uint> ticks)) return false;
             Prune(ticks, serverTick);
             return ticks.Count >= _maxAlterationsPerSecond;
         }
 
         public bool WouldExceedAllocation(ushort playerId, uint serverTick, int estimatedBricks)
         {
-            if (playerId == 0 || estimatedBricks < 0 || estimatedBricks > _maxBricksPerTick)
-                return true;
-
-            if (!_allocation.TryGetValue(playerId, out TickAllocation allocation) || allocation.Tick != serverTick)
-                return false;
-
+            if (playerId == 0 || estimatedBricks < 0 || estimatedBricks > _maxBricksPerTick) return true;
+            if (!_allocation.TryGetValue(playerId, out TickAllocation allocation) || allocation.Tick != serverTick) return false;
             return allocation.UsedBricks + estimatedBricks > _maxBricksPerTick;
         }
 
         public void CommitAccepted(ushort playerId, uint serverTick, int estimatedBricks)
         {
-            if (playerId == 0)
-                throw new ArgumentOutOfRangeException(nameof(playerId));
-            if (estimatedBricks < 0 || estimatedBricks > _maxBricksPerTick)
-                throw new ArgumentOutOfRangeException(nameof(estimatedBricks));
+            if (playerId == 0) throw new ArgumentOutOfRangeException(nameof(playerId));
+            if (estimatedBricks < 0 || estimatedBricks > _maxBricksPerTick) throw new ArgumentOutOfRangeException(nameof(estimatedBricks));
 
             if (!_acceptedTicks.TryGetValue(playerId, out Queue<uint> ticks))
             {
@@ -95,21 +82,14 @@ namespace VoxelEngine.Net.Server
             uint oldestInclusive = serverTick >= (uint)_ticksPerSecond
                 ? serverTick - (uint)_ticksPerSecond + 1u
                 : 0u;
-
-            while (ticks.Count > 0 && ticks.Peek() < oldestInclusive)
-                ticks.Dequeue();
+            while (ticks.Count > 0 && ticks.Peek() < oldestInclusive) ticks.Dequeue();
         }
 
         private struct TickAllocation
         {
             public uint Tick;
             public int UsedBricks;
-
-            public TickAllocation(uint tick, int usedBricks)
-            {
-                Tick = tick;
-                UsedBricks = usedBricks;
-            }
+            public TickAllocation(uint tick, int usedBricks) { Tick = tick; UsedBricks = usedBricks; }
         }
     }
 }
