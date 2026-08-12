@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
@@ -185,9 +186,6 @@ namespace VoxelEngine.Net.Client
                             !fence.regionCoord.Equals(_snapshotCatchupRegion) ||
                             fence.snapshotTick != _snapshotCatchupTick)
                         {
-                            // One current-state transfer is allowed at a time. Seeing a different
-                            // fence before the expected one is a protocol/order violation; wait rather
-                            // than silently ending duplicate suppression at the wrong point.
                             break;
                         }
 
@@ -207,13 +205,12 @@ namespace VoxelEngine.Net.Client
                     S_RegionHash checkpoint = item.Hash;
 
                     if (_snapshotCatchupActive && checkpoint.serverTick > _snapshotCatchupTick)
-                        break; // The matching fence must precede any newer EVENT authority.
+                        break;
 
                     if (_snapshotCatchupActive &&
                         checkpoint.serverTick <= _snapshotCatchupTick &&
                         checkpoint.regionCoord.Equals(_snapshotCatchupRegion))
                     {
-                        // Current-state snapshot supersedes older hash barriers for this region.
                         _authority.Dequeue();
                         _pendingHashes--;
                         continue;
@@ -251,7 +248,7 @@ namespace VoxelEngine.Net.Client
                 bool catchupBatch = _snapshotCatchupActive && batchTick <= _snapshotCatchupTick;
 
                 if (_snapshotCatchupActive && batchTick > _snapshotCatchupTick)
-                    break; // A newer batch before the fence would violate the server fence contract.
+                    break;
 
                 if (!HasRequiredResidency(
                         ref table,
@@ -295,7 +292,6 @@ namespace VoxelEngine.Net.Client
             return appliedBatches;
         }
 
-        /// <summary>Resume only when exact checkpoint repair metadata matches the paused hash.</summary>
         public bool CompleteRepair(int3 regionCoord, uint snapshotTick, uint semanticHash)
         {
             if (_fullSnapshotWaitPending || !_repairPending || !_repairRegion.Equals(regionCoord) ||
@@ -306,10 +302,6 @@ namespace VoxelEngine.Net.Client
             return true;
         }
 
-        /// <summary>
-        /// Globally pause EVENT application while a current full-region snapshot is requested.
-        /// Exactly one such transfer may be outstanding because its EVENT fence is the resume marker.
-        /// </summary>
         public bool BeginFullRegionSnapshotWait(int3 regionCoord)
         {
             if (_snapshotCatchupActive)
@@ -324,10 +316,6 @@ namespace VoxelEngine.Net.Client
             return true;
         }
 
-        /// <summary>
-        /// Register a verified current-state replacement. EVENT replay remains in catch-up mode until
-        /// the matching reliable fence is consumed; an empty queue does not end catch-up.
-        /// </summary>
         public bool CompleteFullRegionSnapshot(
             uint transferId,
             int3 regionCoord,
