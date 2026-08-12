@@ -5,146 +5,74 @@ using VoxelEngine.Core.Features;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Composes Kentridge generation stages into the single immutable catalogue understood by the
-    /// voxel engine. Ordering is intentional and observable: themed ground cover first, broad
-    /// district terraces second, directed vertical roads/plaza third, hillside stair connectors
-    /// fourth, shallow foundation skirts fifth, prepared building plots sixth, frontage paths
-    /// seventh, semantic streetscape and private/public dressing next, and structures last.
+    /// Composes Kentridge's deterministic generation stages into the single immutable catalogue
+    /// consumed by the voxel engine. Stage order is semantic: terrain first, circulation and built
+    /// hillside fabric next, local plot/detail passes after that, and stable gameplay structures last.
     /// </summary>
     public static class KentridgeCombinedVoxelCatalogue
     {
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
-            FeatureCatalogue groundCover =
-                KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp);
-            FeatureCatalogue districtTerraces =
-                KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp);
-            FeatureCatalogue publicSpaces =
-                KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp);
-            FeatureCatalogue verticalConnectors =
-                KentridgeVerticalConnectorCatalogue.Build(seed, settings, Allocator.Temp);
-            FeatureCatalogue terraceSupports =
-                KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp);
-            FeatureCatalogue plotSurfaces =
+            FeatureCatalogue[] stages =
+            {
+                KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeVerticalConnectorCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(
-                    seed, settings, Allocator.Temp);
-            FeatureCatalogue frontagePaths =
-                KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp);
-            FeatureCatalogue streetDressing =
-                KentridgeStreetDressingCatalogue.Build(seed, settings, Allocator.Temp);
-            FeatureCatalogue plotDressing =
+                    seed, settings, Allocator.Temp),
+                KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeStreetDressingCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeVerticalPlacementAdapter.BuildPlotDressing(
-                    seed, settings, Allocator.Temp);
-            FeatureCatalogue townDressing =
+                    seed, settings, Allocator.Temp),
                 KentridgeVerticalPlacementAdapter.BuildTownDressing(
-                    seed, settings, Allocator.Temp);
-            FeatureCatalogue buildings =
+                    seed, settings, Allocator.Temp),
+
+                // Secondary hard architecture comes immediately before gameplay buildings. Where an
+                // embedded dwelling touches a named building, the stable role building wins last.
+                KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeVerticalPlacementAdapter.BuildStructures(
-                    seed, settings, Allocator.Temp);
+                    seed, settings, Allocator.Temp),
+            };
 
             try
             {
+                int definitions = 0;
+                int rules = 0;
+                int parameters = 0;
+                int anchors = 0;
+                int slots = 0;
+                int programLength = 0;
+                int materials = 0;
+                int explicitPlacements = 0;
+                int overrides = 0;
+
+                for (int i = 0; i < stages.Length; i++)
+                {
+                    FeatureCatalogue stage = stages[i];
+                    definitions += stage.Definitions.Length;
+                    rules += stage.Rules.Length;
+                    parameters += stage.Parameters.Length;
+                    anchors += stage.Anchors.Length;
+                    slots += stage.Slots.Length;
+                    programLength += stage.Program.Length;
+                    materials += stage.Materials.Length;
+                    explicitPlacements += stage.ExplicitPlacements.Length;
+                    overrides += stage.ParameterOverrides.Length;
+                }
+
                 FeatureCatalogue result = CatalogueLoader.Allocate(
-                    definitions: groundCover.Definitions.Length
-                               + districtTerraces.Definitions.Length
-                               + publicSpaces.Definitions.Length
-                               + verticalConnectors.Definitions.Length
-                               + terraceSupports.Definitions.Length
-                               + plotSurfaces.Definitions.Length
-                               + frontagePaths.Definitions.Length
-                               + streetDressing.Definitions.Length
-                               + plotDressing.Definitions.Length
-                               + townDressing.Definitions.Length
-                               + buildings.Definitions.Length,
-                    rules: groundCover.Rules.Length
-                         + districtTerraces.Rules.Length
-                         + publicSpaces.Rules.Length
-                         + verticalConnectors.Rules.Length
-                         + terraceSupports.Rules.Length
-                         + plotSurfaces.Rules.Length
-                         + frontagePaths.Rules.Length
-                         + streetDressing.Rules.Length
-                         + plotDressing.Rules.Length
-                         + townDressing.Rules.Length
-                         + buildings.Rules.Length,
-                    parameters: groundCover.Parameters.Length
-                              + districtTerraces.Parameters.Length
-                              + publicSpaces.Parameters.Length
-                              + verticalConnectors.Parameters.Length
-                              + terraceSupports.Parameters.Length
-                              + plotSurfaces.Parameters.Length
-                              + frontagePaths.Parameters.Length
-                              + streetDressing.Parameters.Length
-                              + plotDressing.Parameters.Length
-                              + townDressing.Parameters.Length
-                              + buildings.Parameters.Length,
-                    anchors: groundCover.Anchors.Length
-                           + districtTerraces.Anchors.Length
-                           + publicSpaces.Anchors.Length
-                           + verticalConnectors.Anchors.Length
-                           + terraceSupports.Anchors.Length
-                           + plotSurfaces.Anchors.Length
-                           + frontagePaths.Anchors.Length
-                           + streetDressing.Anchors.Length
-                           + plotDressing.Anchors.Length
-                           + townDressing.Anchors.Length
-                           + buildings.Anchors.Length,
-                    slots: groundCover.Slots.Length
-                         + districtTerraces.Slots.Length
-                         + publicSpaces.Slots.Length
-                         + verticalConnectors.Slots.Length
-                         + terraceSupports.Slots.Length
-                         + plotSurfaces.Slots.Length
-                         + frontagePaths.Slots.Length
-                         + streetDressing.Slots.Length
-                         + plotDressing.Slots.Length
-                         + townDressing.Slots.Length
-                         + buildings.Slots.Length,
-                    programLength: groundCover.Program.Length
-                                 + districtTerraces.Program.Length
-                                 + publicSpaces.Program.Length
-                                 + verticalConnectors.Program.Length
-                                 + terraceSupports.Program.Length
-                                 + plotSurfaces.Program.Length
-                                 + frontagePaths.Program.Length
-                                 + streetDressing.Program.Length
-                                 + plotDressing.Program.Length
-                                 + townDressing.Program.Length
-                                 + buildings.Program.Length,
-                    materials: groundCover.Materials.Length
-                             + districtTerraces.Materials.Length
-                             + publicSpaces.Materials.Length
-                             + verticalConnectors.Materials.Length
-                             + terraceSupports.Materials.Length
-                             + plotSurfaces.Materials.Length
-                             + frontagePaths.Materials.Length
-                             + streetDressing.Materials.Length
-                             + plotDressing.Materials.Length
-                             + townDressing.Materials.Length
-                             + buildings.Materials.Length,
-                    explicitPlacements: groundCover.ExplicitPlacements.Length
-                                      + districtTerraces.ExplicitPlacements.Length
-                                      + publicSpaces.ExplicitPlacements.Length
-                                      + verticalConnectors.ExplicitPlacements.Length
-                                      + terraceSupports.ExplicitPlacements.Length
-                                      + plotSurfaces.ExplicitPlacements.Length
-                                      + frontagePaths.ExplicitPlacements.Length
-                                      + streetDressing.ExplicitPlacements.Length
-                                      + plotDressing.ExplicitPlacements.Length
-                                      + townDressing.ExplicitPlacements.Length
-                                      + buildings.ExplicitPlacements.Length,
-                    overrides: groundCover.ParameterOverrides.Length
-                             + districtTerraces.ParameterOverrides.Length
-                             + publicSpaces.ParameterOverrides.Length
-                             + verticalConnectors.ParameterOverrides.Length
-                             + terraceSupports.ParameterOverrides.Length
-                             + plotSurfaces.ParameterOverrides.Length
-                             + frontagePaths.ParameterOverrides.Length
-                             + streetDressing.ParameterOverrides.Length
-                             + plotDressing.ParameterOverrides.Length
-                             + townDressing.ParameterOverrides.Length
-                             + buildings.ParameterOverrides.Length,
+                    definitions,
+                    rules,
+                    parameters,
+                    anchors,
+                    slots,
+                    programLength,
+                    materials,
+                    explicitPlacements,
+                    overrides,
                     allocator);
 
                 int definitionOffset = 0;
@@ -157,50 +85,14 @@ namespace MountingForce.WorldGen.Voxel
                 int placementOffset = 0;
                 int overrideOffset = 0;
 
-                Append(in groundCover, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in districtTerraces, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in publicSpaces, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in verticalConnectors, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in terraceSupports, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in plotSurfaces, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in frontagePaths, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in streetDressing, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in plotDressing, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in townDressing, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
-                Append(in buildings, ref result,
-                    ref definitionOffset, ref ruleOffset, ref parameterOffset,
-                    ref anchorOffset, ref slotOffset, ref programOffset,
-                    ref materialOffset, ref placementOffset, ref overrideOffset);
+                for (int i = 0; i < stages.Length; i++)
+                {
+                    FeatureCatalogue stage = stages[i];
+                    Append(in stage, ref result,
+                        ref definitionOffset, ref ruleOffset, ref parameterOffset,
+                        ref anchorOffset, ref slotOffset, ref programOffset,
+                        ref materialOffset, ref placementOffset, ref overrideOffset);
+                }
 
                 CatalogueLoadResult load = CatalogueLoader.Finalise(ref result);
                 if (load != CatalogueLoadResult.Ok)
@@ -214,17 +106,8 @@ namespace MountingForce.WorldGen.Voxel
             }
             finally
             {
-                groundCover.Dispose();
-                districtTerraces.Dispose();
-                publicSpaces.Dispose();
-                verticalConnectors.Dispose();
-                terraceSupports.Dispose();
-                plotSurfaces.Dispose();
-                frontagePaths.Dispose();
-                streetDressing.Dispose();
-                plotDressing.Dispose();
-                townDressing.Dispose();
-                buildings.Dispose();
+                for (int i = 0; i < stages.Length; i++)
+                    if (stages[i].IsCreated) stages[i].Dispose();
             }
         }
 

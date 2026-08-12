@@ -12,20 +12,28 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void HillsideInfrastructureIsHardButDoesNotInflateGameplayStructures()
         {
-            FeatureCatalogue infrastructure = KentridgeVerticalConnectorCatalogue.Build(
+            FeatureCatalogue circulation = KentridgeVerticalConnectorCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue architecture = KentridgeHillsideArchitectureCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue combined = KentridgeCombinedVoxelCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
 
             try
             {
-                Assert.AreEqual(9, infrastructure.Definitions.Length,
-                    "Four stair flights, four retaining sections, and one campanile should compose the first hardscape pass.");
-                Assert.AreEqual(9, infrastructure.ExplicitPlacements.Length);
+                Assert.AreEqual(9, circulation.Definitions.Length,
+                    "Four stair flights, four retaining sections, and one campanile should compose the primary hardscape pass.");
+                Assert.AreEqual(9, circulation.ExplicitPlacements.Length);
 
-                for (int i = 0; i < infrastructure.Definitions.Length; i++)
-                    Assert.AreEqual(FeatureKind.Infrastructure, infrastructure.Definitions[i].Kind,
-                        "Built hillside fabric must use the crisp hard-surface path without becoming a gameplay building.");
+                Assert.AreEqual(2, architecture.Definitions.Length,
+                    "Secondary hillside architecture should reuse a terrace-dwelling grammar and one civic bridge grammar.");
+                Assert.AreEqual(8, architecture.ExplicitPlacements.Length,
+                    "Seven embedded dwellings plus the overhead civic bridge should densify the hill without adding gameplay roles.");
+
+                for (int i = 0; i < circulation.Definitions.Length; i++)
+                    Assert.AreEqual(FeatureKind.Infrastructure, circulation.Definitions[i].Kind);
+                for (int i = 0; i < architecture.Definitions.Length; i++)
+                    Assert.AreEqual(FeatureKind.Infrastructure, architecture.Definitions[i].Kind);
 
                 int structures = 0;
                 int infrastructureInstances = 0;
@@ -41,13 +49,14 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(9, infrastructureInstances,
-                    "Hardscape should be independently classified from gameplay structures.");
+                Assert.AreEqual(17, infrastructureInstances,
+                    "Hard civic/ambient fabric should be independently classified from gameplay structures.");
             }
             finally
             {
                 combined.Dispose();
-                infrastructure.Dispose();
+                architecture.Dispose();
+                circulation.Dispose();
             }
         }
 
