@@ -1,136 +1,140 @@
 # Minimal Voxel Networking — Bandwidth Plan
 
-**Status:** M0–M2 foundations implemented; M3 exact-checkpoint convergence foundation implemented  
+**Status:** M0–M2 foundations implemented; M3 semantic convergence + current-state BULK foundation implemented  
 **Branch:** `feature/minimal-voxel-networking`  
 **Extends:** `architecture-notes.md` and `contracts/wire-protocol.md`
 
 ## Goal
 
-Make smooth/destructible multiplayer practical without replicating voxel effects, render meshes, SDF samples, GPU buffers, or ordinary per-voxel writes.
-
-The network transmits the smallest deterministic **cause** that reproduces authoritative state. The server owns truth; clients predict and converge using ordered semantic events plus bounded semantic state repair.
+Make smooth/destructible multiplayer practical without replicating voxel effects, render meshes, SDF samples, GPU buffers, or ordinary per-voxel writes. Replication sends deterministic causes; state transfer sends semantic state, never allocator-local storage identity.
 
 ## Non-negotiable invariants
 
-1. Server authority: packets are requests/intent, never direct state mutation.
-2. Connection-owned identity: client payloads do not establish player identity or authoritative position.
-3. Fixed clock + event-driven systems: frame-level network callbacks queue/copy bytes only; the fixed tick owns simulation changes.
-4. Cause, not effect: destruction transmits semantic origin/shape/seed/order, not voxel diffs.
-5. Same deterministic implementation on both peers: shared Core alteration applier and semantic region hasher.
-6. Interest before send: live authority is filtered by platform-neutral 3D simulation interest.
-7. Traffic lifetime determines transport semantics: stale input is unreliable; durable facts are reliable.
-8. No partial authority from streaming state: an event waits until all regions it may touch are resident.
-9. Hashes are ordered barriers, not asynchronous observations.
-10. Repair replaces exact semantic checkpoint state; allocator-local pool indices never cross the network.
+1. Server authority: packets are intent, never direct world mutation.
+2. Connection-owned identity/position.
+3. Fixed simulation clock; network callbacks only decode/copy into bounded ingress.
+4. Cause, not effect, for deterministic live mutations.
+5. Shared deterministic Core application/hash semantics on server and client.
+6. Platform-neutral 3D simulation interest before send/state request acceptance.
+7. EPHEMERAL for supersedable input; reliable channels for durable authority/state.
+8. Normal events never partially apply because a neighboring region is absent.
+9. Hashes and current-state fences are ordered EVENT barriers.
+10. Repair/current-state snapshots contain semantic materials + flags, never `BrickPool` indices.
 11. Late join/reconnect are state-based, not full-history replay.
+12. BULK is bounded/throttled and must yield to live traffic.
 
 ---
 
 ## Traffic classes
 
-### EPHEMERAL input — implemented
+### EPHEMERAL — implemented
 
-- UTP `UnreliableSequencedPipelineStage`.
-- Canonical input sample: **16 B**.
-- No player ID; no claimed position.
-- Normal packet: newest + two previous samples = max **51 B** framed.
-- At 30 Hz: about **1,530 B/s/client** custom payload before transport headers.
-- Server validates oldest→newest sequence order and deduplicates repeats per connection, including ushort wraparound.
+- `UnreliableSequencedPipelineStage`.
+- 16 B canonical input sample.
+- normal redundant bundle: max **51 B** (newest + two prior samples).
+- at 30 Hz: about **1,530 B/s/client** custom payload before transport headers.
+- connection-scoped sequence validation/deduplication with ushort wrap support.
 
-### EVENT durable authority — implemented foundation
+### EVENT — implemented foundation
 
-- Reliable ordered pipeline.
-- `C_AlterationRequest`: **34 B framed**.
-- `S_AlterationEventBatch`: max **1,172 B framed** for 48 semantic alterations.
-- Only consecutive events sharing tick/encoding region may batch.
-- Cross-region fan-out uses subscriber union and per-connection deduplication.
-- Alteration rejection: **10 B framed**.
-- Region hash barrier: **22 B framed**.
-- Region mismatch report: **26 B framed**.
+- reliable ordered pipeline.
+- alteration request: **34 B framed**.
+- alteration batch: max **1,172 B framed / 48 events**.
+- alteration rejection: **10 B framed**.
+- region hash barrier: **22 B framed**.
+- mismatch report: **26 B framed**.
+- expired-repair/full-state signal: **19 B framed**.
+- current-state cross-pipeline fence: **22 B framed**.
 
-### REPAIR — exact-checkpoint semantic repair implemented
+### REPAIR — exact-checkpoint semantic recovery implemented
 
-- Reliable, non-fragmented pipeline.
-- Live chunk max **1,024 B**, with up to **992 B semantic snapshot data**.
-- Server retains bounded semantic snapshots only for advertised hash checkpoints.
-- Default repair scheduler queues at most two repair packets per authoritative tick across active repairs; current loop favors fairness by advancing at most one chunk per repair per pass.
-- Client pauses later EVENT authority at the mismatched hash barrier until the matching snapshot applies and re-hashes correctly.
+- reliable, non-fragmented.
+- max **1,024 B packet / 992 B semantic chunk**.
+- exact semantic checkpoint retention only for advertised hashes.
+- client pauses at the mismatched hash, applies/re-hashes exact checkpoint state, then resumes later authority.
 
-### BULK — transport configured, state streaming still open
+### BULK — current semantic region state implemented foundation
 
-- Fragmentation → reliability pipeline.
-- Intended for region stream-in, late join, reconnect fallback, very large state, mip refinement.
-- Must be rate-limited so EVENT/EPHEMERAL latency stays stable.
-- Base terrain regenerates locally; only touched/current semantic state should transfer.
+- fragmentation → reliability.
+- live `S_RegionData` is `RegionStateChunkPacket`, not the old allocator-local scaffold.
+- 36 B header + up to **16,348 B** semantic payload = **16 KiB max packet**.
+- current full semantic snapshot cap: **16 MiB/region**.
+- one current-state transfer/connection at a time.
+- max 256 persistent deferred requests.
+- max 64 MiB pending snapshot bytes server-wide.
+- one BULK packet/connection/tick plus global packet cap.
+- per-connection rolling `BulkThrottle` currently uses wired/Wi-Fi default budget.
+
+The current-state format prioritizes correctness. Future late-join optimization should regenerate procedural base terrain from a seed and send only compacted touched overlay state when that is cheaper than the complete semantic snapshot.
 
 ---
 
-## Concrete authoritative runtime
+## Canonical runtime
 
 ```text
-Unity frame loop
-      |
-      v
- UtpServerHost
-      |
-      +--> EVENT decode ----------> ServerCommandInbox
-      |                              ServerConvergenceInbox
-      |
-      +--> EPHEMERAL decode ------> ServerCommandInbox
-                                       |
-                                fixed authoritative tick
-                                       |
-                         connection -> player registry
-                                       |
-                         rate/replay/reach/zone checks
-                                       |
-                         shared deterministic Core apply
-                                       |
-                         AuthoritativeEventStream
-                                       |
-                       3D interest + ordered batching
-                                       |
-                         queue mutation EVENT packets
-                                       |
-                         queue semantic hash barriers
-                                       |
-                         queue bounded REPAIR chunks
-                                       |
-                              one UTP send flush
+Unity frame pump
+    |
+    +--> EVENT ------> ServerCommandInbox
+    |                  ServerConvergenceInbox
+    |                  ServerRegionStateRequestInbox
+    |
+    +--> EPHEMERAL --> ServerCommandInbox
+                         |
+                   fixed server tick
+                         |
+             authenticated player state
+                         |
+          validation + deterministic apply
+                         |
+               authoritative events
+                         |
+            3D interest + batching
+                         |
+            mutation EVENT packets
+                         |
+          semantic hash EVENT barriers
+                         |
+      region request capture + EVENT fence
+                         |
+           bounded REPAIR + BULK sends
+                         |
+                  one UTP flush
 ```
 
-`AuthoritativeServerSession` is the canonical server networking composition root. The old `ServerTickLoop` networking scaffold is obsolete and intentionally no longer performs packet handling/convergence.
+`AuthoritativeServerSession` is the canonical composition root. `ServerTickLoop` is obsolete networking scaffold.
 
-### Server trust state
+---
 
-`ServerPlayerRegistry` owns:
+## Trust / command path
 
-- connection ID;
-- authenticated player ID;
-- authoritative voxel position;
-- collision half-extents;
-- reach;
-- world-edit permission.
+`ServerPlayerRegistry` owns connection ID, player ID, authoritative voxel position, collision volume, reach and edit permission.
 
-`ServerCommandProcessor` drains commands only at the fixed tick, validates client timestamps, deduplicates durable sequences, orders cross-player edits deterministically, substitutes authoritative tick/sequence/seed, validates against server state, applies the world change, and publishes only a successful real mutation.
+`ServerCommandProcessor`:
 
-`AlterationRateLimiter` uses server ticks. Rejected requests do not consume another player’s accepted budget.
+- drains only at fixed tick;
+- rejects implausible client ticks;
+- deduplicates durable sequences;
+- arbitrates by server-owned player/sequence order rather than packet arrival;
+- derives authoritative seed/order/tick;
+- validates reach/rate/permissions/zones/player volumes/density;
+- applies the real shared deterministic mutation before publishing it.
+
+Rejected requests do not consume accepted rate/allocation budget.
 
 ---
 
 ## Deterministic world mutation
 
-`Core/Edits/DeterministicAlterationApplier` is used by both authoritative server and client.
+`Core/Edits/DeterministicAlterationApplier` is shared by authority and clients.
 
-Current live canonical support:
+Current canonical support:
 
-- **explosion**: integer sphere, brick-batched writes, collapse once per touched brick, region commit once per touched brick;
-- required-region residency preflight prevents partial application;
-- unsupported brush/raw-batch semantics fail closed.
+- explosion: integer sphere + brick-batched writes;
+- full affected-region residency preflight;
+- collapse mixed bricks when they become uniform;
+- current-state catch-up variant applies old events everywhere except one region already replaced by an authoritative snapshot.
 
-A fully covered uniform brick clears without pool allocation. Partial bricks materialize once, mutate their voxel materials, then collapse if uniform.
-
-The client’s authoritative queue never lets a later batch leapfrog an earlier event waiting on region residency.
+Brush/raw-batch still fail closed pending canonical shared semantics.
 
 ---
 
@@ -138,124 +142,98 @@ The client’s authoritative queue never lets a later batch leapfrog an earlier 
 
 `SimulationInterest` + `RegionSubscriptionIndex` provide:
 
-- common 300 m load / 420 m unload hysteresis for all hardware tiers;
-- correct 512-voxel region edge;
-- full X/Y/Z interest;
-- correct negative-coordinate floor mapping;
-- connection→regions and region→connections indexes;
-- cross-region recipient union;
-- at-most-once event fan-out per connection.
+- 300 m load / 420 m unload hysteresis;
+- 512-voxel region edge;
+- full X/Y/Z interest including negative coordinates;
+- connection→regions + region→connections indexes;
+- cross-region recipient union/deduplication.
 
-Presentation distance may vary by hardware. Simulation visibility may not.
+Full-state requests are accepted only for authenticated, currently subscribed regions.
 
 ---
 
-## Drift detection
+## Semantic drift detection
 
-### Shared semantic hash
+`SemanticRegionHasher` includes region coordinate, hard-surface semantic bits, and materials. Mixed-brick pool indices are excluded.
 
-`Core/Storage/SemanticRegionHasher` hashes world semantics, not storage identity:
+Region checkpoint work is deterministically staggered across the configured interval (default 30 ticks), rather than serializing all interested regions on one frame.
 
-- region coordinate;
-- hard-surface semantic bit per brick;
-- uniform material, or all 512 mixed-brick material bytes.
+Mismatch verification now distinguishes:
 
-`BrickPool` indices are excluded, so two peers with different allocator histories still hash equal when their world material state is equal.
+- future tick → reject;
+- never-issued checkpoint still inside retention → reject;
+- exact issued retained checkpoint → exact REPAIR;
+- history legitimately older than retention → current-state BULK escalation.
 
-### Ordered hash barrier
-
-At a configured interval, the server:
-
-1. queues all same-tick mutation EVENT packets;
-2. captures an exact bounded semantic snapshot;
-3. computes semantic hash;
-4. queues `S_RegionHash(region,tick,hash)` on the same reliable EVENT stream;
-5. flushes later.
-
-The client stores alteration batches and hashes in one FIFO. Therefore a hash is compared only after every earlier mutation has applied.
-
-### Mismatch report verification
-
-On drift, the client sends `C_RegionHashMismatch(region,tick,clientHash,serverHash)` and pauses at that barrier.
-
-The server only accepts it if:
-
-- connection is authenticated;
-- connection is still subscribed to the region;
-- hashes actually differ;
-- server previously issued exactly that hash to that connection;
-- exact checkpoint snapshot still exists.
-
-Mismatch traffic has its own bounded ingress: default 16 pending/connection, 256 total, with newer same-region reports replacing older ones.
+This prevents an authenticated client from manufacturing an in-window hash report just to force an expensive full-region state transfer.
 
 ---
 
-## Exact semantic checkpoint repair
+## Exact checkpoint REPAIR
 
-### Snapshot format
+Semantic snapshot RLE:
 
-`SemanticRegionSnapshotCodec` uses semantic RLE across all region brick slots:
+- uniform run = **5 B**;
+- mixed brick = **514 B**;
+- hard-surface semantic bit included.
 
-- uniform run = **5 B** (`tag + ushort run + material + hard flag`);
-- mixed brick = **514 B** (`tag + hard flag + 512 materials`).
+Current exact-repair bounds:
 
-No pool index is encoded.
+- 256 KiB max checkpoint/region;
+- 8 MiB retained checkpoint bytes/server;
+- 90-tick retention;
+- max two REPAIR chunks queued per authoritative tick by default.
 
-Before target mutation the client validates:
+If a checkpoint cannot be retained under the configured bounds, its hash is skipped.
 
-- complete snapshot syntax;
-- exact region brick coverage;
-- required mixed-brick capacity.
+---
 
-It then releases target mixed bricks, rebuilds semantic state, commits, recomputes the shared semantic hash, and resumes authority only if that hash equals the paused checkpoint hash.
+## Current-state BULK recovery
 
-### Bounds
+### Why an EVENT fence is required
 
-Current defaults:
+A snapshot captured at tick `T` already contains effects of events through `T`, but those EVENT packets may still be queued/unapplied on the client. EVENT and BULK are separate reliable pipelines, so network arrival order cannot establish which facts the snapshot includes.
 
-- max checkpoint snapshot per region: **256 KiB**;
-- total retained server checkpoint bytes: **8 MiB**;
-- checkpoint/hash retention: 90 ticks;
-- hash interval: 30 ticks by default;
-- live REPAIR packet: max **1,024 B**;
-- live repair data/chunk: max **992 B**.
-
-If a region snapshot cannot fit the per-region/global checkpoint budget, the server **skips the hash** rather than advertising a checkpoint it cannot repair.
-
-Snapshots are shared across all clients for the same `(region,tick)` rather than retained per connection.
-
-### Repair ordering
-
-When a mismatch is found:
+The server therefore queues:
 
 ```text
-EVENT ... mutations <= T
-EVENT hash barrier T   <-- mismatch found, client pauses here
-EVENT later authority  <-- remains queued
-
-client -> EVENT mismatch report
-server -> REPAIR exact semantic snapshot at T
-client validates/applies/re-hashes
-client unpauses
-client applies queued EVENT authority > T
+EVENT mutation(s) through T
+EVENT due hash barrier(s)
+EVENT RegionStateFence(transferId, region, T)
+BULK semantic region snapshot at T
 ```
 
-REPAIR callbacks only assemble bytes; region replacement occurs from the explicit client world-update path.
+BULK may arrive before or after the fence. Correctness does not depend on cross-pipeline delivery order.
+
+### Client flow
+
+1. pause EVENT application before requesting current region state;
+2. assemble BULK bytes without world mutation;
+3. on explicit world-update path, atomically install the region and verify semantic hash;
+4. replay queued authority through `T` in all other affected regions while excluding the replaced region;
+5. supersede old hash barriers for the replaced region through `T`;
+6. remain in catch-up mode even if the EVENT queue temporarily empties;
+7. only the matching EVENT fence ends duplicate suppression;
+8. resume newer authority normally.
+
+This is the correctness foundation for expired checkpoint recovery, reconnect and late join.
 
 ---
 
-## Event history
+## Bounded state ingress / memory
 
-`RegionEventLog` was corrected from the scaffold implementation:
+Gameplay, convergence, and region-state requests use separate bounded ingress because their costs/lifetimes differ.
 
-- capacity remains 960 semantic events;
-- modulo wrap rather than a broken power-of-two bitmask;
-- tick stored per event;
-- multiple events at one tick preserved;
-- retained range copied in authority order;
-- compaction boundary honored.
+Current state-transfer bounds:
 
-This enables future event-suffix-vs-snapshot cost selection without relying on the old one-event-per-tick index.
+- region request inbox: 8 pending/connection, 256 global;
+- persistent manager deferred list: 256;
+- one active current-state transfer/connection;
+- current snapshot cap: 16 MiB;
+- pending snapshot memory cap: 64 MiB;
+- client assembler: one active transfer, max four completed snapshots / 32 MiB completed bytes.
+
+No world serialization occurs from a UTP callback.
 
 ---
 
@@ -263,43 +241,44 @@ This enables future event-suffix-vs-snapshot cost selection without relying on t
 
 ### Implemented
 
-1. Versioned framing.
-2. Compact durable alteration batches.
-3. 34 B alteration request with connection-owned identity.
-4. 16 B input samples + 51 B redundant EPHEMERAL bundles.
-5. Concrete UTP 6.5 server/client lifecycle.
-6. Dedicated EVENT/EPHEMERAL/REPAIR/BULK pipelines.
-7. Bounded frame→tick gameplay and convergence inboxes.
-8. Authenticated connection→player registry.
-9. Server tick timestamp/replay/rate/reach/permission validation path.
-10. Shared deterministic explosion application.
-11. 3D platform-neutral interest routing.
-12. Ordered client authority queue with residency deferral.
-13. Shared allocator-independent semantic region hashing.
-14. Tick-scoped ordered hash barriers.
-15. Verified 26 B mismatch reporting.
-16. Bounded exact-checkpoint semantic snapshot retention.
-17. Chunked ≤1,024 B REPAIR transport.
-18. Client repair assembly, semantic replacement, re-hash and authority resume.
-19. Corrected multi-event/wrap-safe `RegionEventLog`.
-20. Loopback/unit tests for the above are committed.
+1. Versioned framing and stable message registry.
+2. Compact cause-based alteration replication.
+3. Concrete Unity Transport server/client lifecycle.
+4. Separate EVENT / EPHEMERAL / REPAIR / BULK pipelines.
+5. 16 B input + redundant unreliable bundles.
+6. Bounded command ingress and connection-owned identity.
+7. Fixed-tick authoritative validation/application/publish pipeline.
+8. Full 3D simulation interest/inverse subscriber index.
+9. Shared deterministic explosion application.
+10. Ordered client authority FIFO + residency deferral.
+11. Allocator-independent semantic hashing.
+12. Staggered ordered hash barriers.
+13. Verified mismatch reports with future/fabricated-report rejection.
+14. Exact-checkpoint semantic REPAIR.
+15. Explicit full-resync-required signal.
+16. Framed 18 B current region requests.
+17. Bounded/throttled semantic BULK snapshot transfer.
+18. 22 B EVENT snapshot fence and excluded-region catch-up semantics.
+19. Automatic expired-checkpoint → current-state request escalation.
+20. Corrected multi-event/wrap-safe `RegionEventLog`.
+21. Unit/loopback test source for codec, catch-up and full current-state recovery.
 
-### Important: tests are not executed yet
+### Tests are still not executed
 
-The repository still has no GitHub Actions Unity test run for this branch. The new tests are source-level coverage only until Unity actually compiles/runs them.
+The test files are committed, but this branch still needs a real Unity compile/test run before any of them can be called passing.
 
 ### Still open
 
 1. Canonical deterministic brush application.
-2. Canonical raw-batch/RLE edit application.
-3. BULK region stream-in and late join through `ClientNetworkRuntime` / `ServerNetworkRuntime`.
-4. Reconnect/full-resync fallback when a mismatch checkpoint has expired or was never hashable under the snapshot cap.
-5. Event-suffix vs snapshot repair cost selection.
-6. `S_PlayerState` delta snapshots and player reconciliation using EPHEMERAL history.
-7. Per-channel bytes/packets/queue-age/retransmit instrumentation and explicit BULK scheduler/back-pressure.
-8. Mip/irradiance/derived-data rebuild scheduling after shared Core mutation/repair.
-9. Remove/rename remaining legacy `InterestFilter`, `RepairDispatch`, `WorldHistory`, and old protocol scaffolds once no callers depend on them.
-10. Adversarial packet-loss/jitter/late-join/reconnect/soak testing.
+2. Canonical raw-batch/RLE application.
+3. Progressive/base-seed + touched-overlay region streaming to reduce late-join bytes versus full semantic snapshots.
+4. Multi-region reconnect/late-join orchestration and prioritization around spawn/player motion.
+5. `S_PlayerState` snapshots + prediction/reconciliation using EPHEMERAL history.
+6. Event-suffix vs state-snapshot repair cost selection.
+7. Per-channel bytes/packets/queue age/retransmit instrumentation and connection-quality-aware BULK budgets.
+8. Derived mip/mesh/irradiance rebuild scheduling after mutation/repair/state replacement.
+9. Remove remaining legacy `InterestFilter`, `RepairDispatch`, `WorldHistory`, and old protocol scaffolds after caller migration.
+10. Adversarial loss/jitter/reconnect/late-join/BULK-saturation soak tests.
 
 ---
 
@@ -307,29 +286,27 @@ The repository still has no GitHub Actions Unity test run for this branch. The n
 
 Per connection/channel:
 
-- encoded and transport bytes/s;
-- packets/s + fill ratio;
-- reliable retransmit bytes/s;
+- encoded + transport bytes/s;
+- packets/s and fill ratio;
+- reliable retransmit bytes;
 - EVENT queue age p50/p95/p99;
-- EPHEMERAL recovered/deduplicated samples;
-- alteration batch size;
-- bytes/accepted alteration;
-- interest fan-out;
-- hash packets, skipped checkpoints, mismatches;
-- retained checkpoint bytes;
-- repair queued/chunk bytes/completion latency;
-- time spent paused at repair barriers;
+- EPHEMERAL recovered/duplicate samples;
+- alteration batch distribution;
+- hash/mismatch/repair rate;
+- exact repair bytes/latency;
+- full-state request/deferred/drop counts;
+- BULK bytes/throttle yield/transfer latency;
+- time client authority is paused/catching up;
 - late-join bytes/time-to-playable.
 
 Server CPU:
 
 - command validation;
 - deterministic mutation;
-- interest routing/encoding;
-- semantic hashing;
-- snapshot encoding;
-- repair scheduling;
-- compaction.
+- interest routing;
+- semantic hash/snapshot encoding;
+- REPAIR scheduling;
+- BULK serialization/scheduling.
 
 ---
 
@@ -337,41 +314,41 @@ Server CPU:
 
 ### M0 — baseline/invariants — complete
 
-Cause-not-effect plan + compact alteration codec.
+Cause-not-effect networking model and compact codec.
 
 ### M1 — event-driven replication — complete foundation
 
-Authoritative event stream, 3D subscriptions, ordered routing/batching, framing.
+Authoritative event stream, 3D interest, ordered routing/batching/framing.
 
 ### M2 — concrete transport + trust boundary — complete foundation
 
-UTP hosts, EPHEMERAL path, bounded inboxes, authenticated player state, fixed-tick command processor, real server/client composition roots.
+UTP hosts, EPHEMERAL traffic, bounded ingress, authenticated player registry, fixed-tick command processor.
 
 ### M3 — state convergence — foundation implemented
 
-Shared semantic hash, ordered hash barriers, mismatch verification, exact-checkpoint semantic snapshot repair, corrected hot event history.
+Semantic hashes, exact-checkpoint repair, expired-history current-state BULK fallback, cross-pipeline EVENT fence and deterministic catch-up.
 
-Remaining M3 work: event-suffix cost selection, checkpoint-expiry/full-resync fallback, reconnect/late join, player-state reconciliation.
+Remaining M3: optimized late-join/reconnect orchestration, event-suffix cost choice, player-state reconciliation.
 
 ### M4 — adversarial/soak
 
-- four-player simultaneous chain-reaction destruction;
-- heavy construction/raw edits once canonical;
-- vertically separated players/regions;
+- simultaneous chain-reaction destruction;
+- heavy construction/raw editing once canonical;
+- horizontal + vertical player separation;
 - packet loss/jitter/reordering;
-- dropped action-edge recovery;
-- deliberate client drift and multi-chunk repair;
-- expired checkpoint/full resync;
+- lost input edge recovery;
+- deliberate drift + multi-chunk repair;
+- expired checkpoint full-state fallback;
 - late join during destruction;
 - reconnect after long gap;
-- BULK saturation while EVENT/EPHEMERAL latency remains stable;
+- BULK saturation while EVENT/EPHEMERAL latency stays stable;
 - server tick spikes.
 
 ## Deliberate non-goals
 
-- Replicating SDF samples, chunks, meshes, render geometry, or GPU buffers.
-- Generic GameObject/RPC replication for voxel state.
-- Sending ordinary per-voxel diffs for deterministic edits.
-- Device-dependent gameplay interest radius.
-- Raw `BrickRef`/`BrickPool` indices on the wire.
-- Premature entropy coding before structural batching, interest filtering, convergence correctness and instrumentation are measured.
+- render/SDF/GPU replication;
+- generic GameObject/RPC voxel state;
+- ordinary per-voxel diffs for deterministic effects;
+- device-dependent gameplay interest;
+- raw `BrickRef`/`BrickPool` identities on the wire;
+- premature entropy coding before correctness/instrumentation measurements.
