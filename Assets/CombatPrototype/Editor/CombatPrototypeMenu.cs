@@ -26,6 +26,7 @@ namespace MountingForce.CombatPrototype.Editor
             GameObject root = new GameObject("Chain Combat Cascade Lab");
             root.AddComponent<ChainCombatLabController>();
             root.AddComponent<ChainCombatSetupActionsPanel>();
+            root.AddComponent<ChainExecutionPlanner>();
             root.AddComponent<ChainCombatActivationOverlay>();
             root.AddComponent<ChainCombatEventMarker>();
             root.AddComponent<ChainCombatMotionPlayback>();
