@@ -21,7 +21,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                                    float normalPlanarization = -1f,
                                    float planarSnapDistanceVoxels = 0.16f,
                                    float featurePreservation = 0f,
-                                   float featureNormalStrength = 0f)
+                                   float featureNormalStrength = 0f,
+                                   float featureCurvatureThreshold = 0.12f)
         {
             Smoothing = math.saturate(smoothing);
             BlurPasses = math.clamp(blurPasses, 0, MaxSupportedBlurPasses);
@@ -38,6 +39,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             PlanarSnapDistanceVoxels = math.clamp(planarSnapDistanceVoxels, 0.01f, 0.49f);
             FeaturePreservation = math.saturate(featurePreservation);
             FeatureNormalStrength = math.saturate(featureNormalStrength);
+            FeatureCurvatureThreshold = math.clamp(featureCurvatureThreshold, 0.002f, 1f);
         }
 
         public float Smoothing { get; }
@@ -51,15 +53,14 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public float CurveRecovery { get; }
         public float NormalPlanarization { get; }
         public float PlanarSnapDistanceVoxels { get; }
+        public float FeaturePreservation { get; }
+        public float FeatureNormalStrength { get; }
 
         /// <summary>
-        /// Blend from ordinary surface-nets averaging toward a QEF/Hermite vertex that preserves
-        /// intersecting planes. Zero is organic/smooth; one strongly preserves manufactured edges.
+        /// Local Hermite-normal variation (1-dot) required before sharp-feature QEF constraints turn
+        /// on. Large smooth curves stay below this threshold; compact manufactured corners exceed it.
         /// </summary>
-        public float FeaturePreservation { get; }
-
-        /// <summary>How strongly feature-preserving faces use their geometric face normal.</summary>
-        public float FeatureNormalStrength { get; }
+        public float FeatureCurvatureThreshold { get; }
 
         public static VoxelSurfaceProfile Legacy => new(0.92f, 2);
 
@@ -67,49 +68,49 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             smoothing: 0.94f,
             blurPasses: 2,
             distanceRecovery: 0.10f,
-            curveRecovery: 0.35f);
+            curveRecovery: 0.35f,
+            featureCurvatureThreshold: 0.30f);
 
         public static VoxelSurfaceProfile HardManufactured => new(
             smoothing: 0.82f,
             blurPasses: 0,
-            planarization: 0.90f,
-            planarizationThreshold: 0.52f,
+            planarization: 0.70f,
+            planarizationThreshold: 0.55f,
             distanceRecovery: 0.82f,
             curveRecovery: 0.18f,
-            normalPlanarization: 0.85f,
-            planarSnapDistanceVoxels: 0.20f,
-            featurePreservation: 0.90f,
-            featureNormalStrength: 0.85f);
+            normalPlanarization: 0.65f,
+            planarSnapDistanceVoxels: 0.14f,
+            featurePreservation: 0.94f,
+            featureNormalStrength: 0.88f,
+            featureCurvatureThreshold: 0.045f);
 
-        /// <summary>
-        /// Dressed stone receives no terrain blur. Strong QEF feature preservation allows smooth
-        /// curved masonry and sharp plane intersections to coexist in the same physical material.
-        /// </summary>
         public static VoxelSurfaceProfile DressedStone => new(
             smoothing: 0.96f,
             blurPasses: 0,
             densityBias: -0.004f,
-            planarization: 0.42f,
-            planarizationThreshold: 0.55f,
+            planarization: 0.28f,
+            planarizationThreshold: 0.58f,
             distanceRecovery: 1.0f,
             curveRecovery: 0.72f,
-            normalPlanarization: 0.45f,
-            planarSnapDistanceVoxels: 0.12f,
-            featurePreservation: 0.96f,
-            featureNormalStrength: 0.82f);
+            normalPlanarization: 0.30f,
+            planarSnapDistanceVoxels: 0.10f,
+            featurePreservation: 0.98f,
+            featureNormalStrength: 0.86f,
+            featureCurvatureThreshold: 0.055f);
 
         public static VoxelSurfaceProfile RecessedMasonryJoint => new(
             smoothing: 0.96f,
             blurPasses: 0,
             densityBias: -0.085f,
-            planarization: 0.42f,
-            planarizationThreshold: 0.55f,
+            planarization: 0.28f,
+            planarizationThreshold: 0.58f,
             distanceRecovery: 1.0f,
             curveRecovery: 0.72f,
-            normalPlanarization: 0.45f,
-            planarSnapDistanceVoxels: 0.12f,
-            featurePreservation: 0.96f,
-            featureNormalStrength: 0.82f);
+            normalPlanarization: 0.30f,
+            planarSnapDistanceVoxels: 0.10f,
+            featurePreservation: 0.98f,
+            featureNormalStrength: 0.86f,
+            featureCurvatureThreshold: 0.055f);
 
         public static VoxelSurfaceProfile RoughRock => new(
             smoothing: 0.82f,
@@ -119,10 +120,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             distanceRecovery: 0.48f,
             curveRecovery: 0.55f,
             featurePreservation: 0.16f,
-            featureNormalStrength: 0.08f);
+            featureNormalStrength: 0.08f,
+            featureCurvatureThreshold: 0.22f);
     }
 
-    /// <summary>Canonical surface behavior for the current material-id palette.</summary>
     public sealed class VoxelSurfaceProfileSet
     {
         private readonly VoxelSurfaceProfile[] _profiles = new VoxelSurfaceProfile[256];
@@ -168,7 +169,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                                                  distanceRecovery: 0.55f,
                                                  curveRecovery: 0.45f,
                                                  featurePreservation: 0.55f,
-                                                 featureNormalStrength: 0.40f));
+                                                 featureNormalStrength: 0.40f,
+                                                 featureCurvatureThreshold: 0.10f));
             return set;
         }
     }
