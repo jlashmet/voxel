@@ -8,19 +8,19 @@ using VoxelEngine.Core.Features;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Builds the visible masonry mass beneath raised Kentridge parcels.
+    /// Adds a shallow masonry foundation skirt beneath each Kentridge building parcel.
     ///
-    /// The ordinary plot-surface pass only needs enough material to grade a yard. Once Kentridge
-    /// owns a deliberately stacked skyline, some parcels sit many metres above the analytic terrain;
-    /// moving the shallow pad alone would create floating lawns. This pass turns those height
-    /// differences into architectural retaining plinths before the normal green terrace skin runs.
-    /// Lower plots receive only a shallow buried footing, while upper civic/noble plots expose tall
-    /// stone faces that make the elevation bands readable from the streets below.
+    /// Earlier vertical prototypes used this stage to build every parcel all the way down to the
+    /// analytic terrain. Once neighbourhood-scale district terraces became authoritative, those
+    /// independent columns made the town read as a collection of pedestals. The stage now replaces
+    /// only the upper skin of the shared hillside beneath each building. Plot grading runs afterward
+    /// and covers the top portion, leaving a modest stone collar where a yard edge or local cut makes
+    /// the foundation visible without recreating the giant parcel plinths.
     /// </summary>
     public static class KentridgeTerraceSupportCatalogue
     {
         private const int InsetDm = 2;
-        private const int BuriedFootingDm = 8;
+        private const int FoundationSkirtDm = 24;
 
         private readonly struct SupportBuild
         {
@@ -56,11 +56,7 @@ namespace MountingForce.WorldGen.Voxel
                 int width = Math.Max(1, (footprint.X - InsetDm * 2) * scale);
                 int depth = Math.Max(1, (footprint.Z - InsetDm * 2) * scale);
                 int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
-                int naturalLowest = KentridgeVerticalProfile.NaturalLowestUnderPlot(plot, seed, scale);
-
-                int exposedRise = Math.Max(0, targetSurface - naturalLowest);
-                int height = exposedRise + BuriedFootingDm * scale;
-                int y = targetSurface - height;
+                int height = FoundationSkirtDm * scale;
 
                 supports.Add(new SupportBuild(
                     plot,
@@ -69,7 +65,7 @@ namespace MountingForce.WorldGen.Voxel
                     height,
                     new int3(
                         (plot.PositionDm.X + InsetDm) * scale,
-                        y,
+                        targetSurface - height,
                         (plot.PositionDm.Y + InsetDm) * scale)));
             }
 
@@ -98,13 +94,14 @@ namespace MountingForce.WorldGen.Voxel
 
                 catalogue.Definitions[i] = new FeatureDefinition
                 {
-                    Name = new FixedString64Bytes("kentridge-terrace-support-" + support.Plot.RoleId),
+                    Name = new FixedString64Bytes("kentridge-foundation-skirt-" + support.Plot.RoleId),
                     Kind = FeatureKind.Landform,
                     BasePlane = BasePlaneRule.FixedAltitude,
                     FixedAltitude = 0,
                     Footprint = new int3(support.Width, support.Height, support.Depth),
                     MaxSlope = 32,
-                    // Roads are 20-25 and plot grading is 40. Retaining mass belongs between them.
+                    // District terraces own the macro mass at 15; roads are 20-25; parcel grading is
+                    // 40. This shallow collar belongs immediately before the local plot skin.
                     Precedence = 35,
                     ParameterOffset = 0,
                     ParameterCount = 0,
@@ -152,7 +149,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 catalogue.Dispose();
                 throw new InvalidOperationException(
-                    "Kentridge terrace support catalogue failed validation: " + result);
+                    "Kentridge foundation skirt catalogue failed validation: " + result);
             }
 
             return catalogue;
