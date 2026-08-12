@@ -4,10 +4,12 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
+using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Client;
 using VoxelEngine.Net.Interest;
 using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Server;
+using VoxelEngine.Net.Transport;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -98,7 +100,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             const uint tick = 17;
             var region = new int3(2, 0, -1);
-            int3 origin = region << 9;
+            int3 origin = region << VoxelDimensions.RegionVoxelEdgeLog2;
             var source = new[]
             {
                 Explosion(tick, origin + new int3(10, 20, 30), 1, 3),
@@ -119,6 +121,41 @@ namespace VoxelEngine.Tests.EditMode
             {
                 decoded.Dispose();
             }
+        }
+
+        [Test]
+        [Category("Bandwidth")]
+        public void PacketSinkFramesMaxBatchBelowLiveEventCeiling()
+        {
+            const uint tick = 21;
+            var region = new int3(4, 1, -2);
+            int3 origin = region << VoxelDimensions.RegionVoxelEdgeLog2;
+            var events = new AlterationEvent[S_AlterationEventBatch.MaxEventsPerBatch];
+            for (ushort i = 0; i < events.Length; i++)
+                events[i] = Explosion(tick, origin + new int3(i, 10, 20), 1, i);
+
+            var sender = new RecordingPacketSender();
+            var sink = new AlterationBatchPacketSink(sender);
+            sink.SendBatch(77, region, tick, events);
+
+            Assert.That(sender.ConnectionId, Is.EqualTo(77));
+            Assert.That(sender.Packet.Length, Is.EqualTo(AlterationBatchPacketSink.MaxPacketBytes));
+            Assert.That(sender.Packet.Length, Is.LessThanOrEqualTo(ChannelSetup.k_MaxEventPacketBytes));
+            Assert.That(ProtocolEnvelope.TryReadHeader(sender.Packet, out var kind, out int payloadOffset), Is.True);
+            Assert.That(kind, Is.EqualTo(ProtocolMessageKind.S_AlterationEventBatch));
+            Assert.That(S_AlterationEventBatch.TryDecodeHeader(
+                sender.Packet.AsSpan(payloadOffset), out var header), Is.True);
+            Assert.That(header.count, Is.EqualTo(S_AlterationEventBatch.MaxEventsPerBatch));
+        }
+
+        [Test]
+        public void ProtocolEnvelopeRejectsUnknownVersionAndKind()
+        {
+            byte[] wrongVersion = { (byte)(ProtocolEnvelope.CurrentVersion + 1), (byte)ProtocolMessageKind.S_AlterationEventBatch };
+            Assert.That(ProtocolEnvelope.TryReadHeader(wrongVersion, out _, out _), Is.False);
+
+            byte[] unknownKind = { ProtocolEnvelope.CurrentVersion, 255 };
+            Assert.That(ProtocolEnvelope.TryReadHeader(unknownKind, out _, out _), Is.False);
         }
 
         private static AlterationEvent Explosion(
@@ -174,6 +211,18 @@ namespace VoxelEngine.Tests.EditMode
                 }
 
                 return result;
+            }
+        }
+
+        private sealed class RecordingPacketSender : IEventPacketSender
+        {
+            public uint ConnectionId { get; private set; }
+            public byte[] Packet { get; private set; }
+
+            public void SendEventPacket(uint connectionId, ReadOnlySpan<byte> packet)
+            {
+                ConnectionId = connectionId;
+                Packet = packet.ToArray();
             }
         }
 
