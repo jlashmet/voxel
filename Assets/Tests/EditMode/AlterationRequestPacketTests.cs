@@ -42,7 +42,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(AlterationRequestPacket.TryDecode(packet, out _), Is.False);
 
             var oversized = new byte[AlterationRequestPacket.PacketSize + 1];
-            Assert.That(AlterationRequestPacket.TryEncode(oversized, in request), Is.True);
+            Assert.That(AlterationRequestPacket.TryEncode(oversized, in request), Is.False);
             Assert.That(AlterationRequestPacket.TryDecode(oversized, out _), Is.False);
         }
     }
