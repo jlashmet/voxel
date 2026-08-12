@@ -109,9 +109,9 @@ namespace VoxelEngine.Tests.EditMode
 
             try
             {
-                Assert.AreEqual(6, terraces.Definitions.Length,
-                    "The first hillside pass should expose six authored district shelves.");
-                Assert.AreEqual(6, terraces.ExplicitPlacements.Length);
+                Assert.AreEqual(9, terraces.Definitions.Length,
+                    "The hillside plan should expose nine authored semantic shelf pieces.");
+                Assert.AreEqual(9, terraces.ExplicitPlacements.Length);
 
                 int broadShelves = 0;
                 int tallestFootprint = 0;
@@ -121,14 +121,14 @@ namespace VoxelEngine.Tests.EditMode
                     Assert.AreEqual(FeatureKind.Landform, definition.Kind);
                     Assert.AreEqual(15, definition.Precedence,
                         "District terrain must run before roads and parcel grading.");
-                    if (definition.Footprint.x >= 600)
+                    if (definition.Footprint.x >= 300)
                         broadShelves++;
                     if (definition.Footprint.y > tallestFootprint)
                         tallestFootprint = definition.Footprint.y;
                 }
 
-                Assert.GreaterOrEqual(broadShelves, 4,
-                    "Most district terraces should span multiple neighbouring plots.");
+                Assert.GreaterOrEqual(broadShelves, 6,
+                    "Most terrace pieces should join multiple structures or public spaces.");
                 Assert.Greater(tallestFootprint, 100,
                     "Upper shelves should have enough vertical extent to cut/fill the hillside.");
             }
