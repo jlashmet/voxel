@@ -57,6 +57,7 @@ namespace MountingForce.CombatPrototype
         public GridPos Position { get; internal set; }
         public int MaxHp { get; }
         public int Hp { get; internal set; }
+        public bool MoveSpent { get; internal set; }
         public bool ActionSpent { get; internal set; }
         public bool ReactionSpent { get; internal set; }
         public bool Airborne { get; internal set; }
@@ -69,8 +70,8 @@ namespace MountingForce.CombatPrototype
         {
             Id = id;
             Position = position;
-            FallDirection = new GridPos(0, 0);
-            NotchedDirection = new GridPos(0, 0);
+            FallDirection = Zero;
+            NotchedDirection = Zero;
         }
 
         public int Id { get; }
@@ -81,6 +82,8 @@ namespace MountingForce.CombatPrototype
         public GridPos NotchedDirection { get; internal set; }
         public int NotchedByUnitId { get; internal set; }
         public bool IsNotched => NotchedDirection.X != 0 || NotchedDirection.Z != 0;
+
+        private static readonly GridPos Zero = new GridPos(0, 0);
     }
 
     public sealed class ChainReactionOpportunity
@@ -128,9 +131,15 @@ namespace MountingForce.CombatPrototype
     }
 
     /// <summary>
-    /// Deterministic combat sandbox for discovering and executing physical cascades.
-    /// The server exposes physical facts, not compatible reactions. Clients attempt to claim a fact with a recruit
-    /// and capability they believe applies; the first valid claim owns the next decision until execution/release.
+    /// Deterministic combat sandbox for physical cascades.
+    ///
+    /// Proactive turn economy is player-level rather than recruit-level: the first friendly recruit a command group
+    /// successfully uses becomes that player's active recruit for the round. That recruit receives one reposition and
+    /// one proactive action, in either order. Every living recruit remains eligible to claim its own reaction, whether
+    /// or not it is the active recruit. This keeps a huge roster tactically meaningful without creating huge turns.
+    ///
+    /// Physical events are public facts; compatible reactions are never enumerated. Clients must name the recruit and
+    /// capability they believe applies. The first valid claim owns the next decision until execution or release.
     /// </summary>
     public sealed class ChainCombatBoard
     {
@@ -149,6 +158,7 @@ namespace MountingForce.CombatPrototype
         private readonly HashSet<GridPos> _amplifiers = new HashSet<GridPos>();
         private readonly List<string> _log = new List<string>();
         private readonly HashSet<int> _cascadeGroups = new HashSet<int>();
+        private readonly Dictionary<int, int> _activeRecruitByGroup = new Dictionary<int, int>();
 
         private ChainMotionState _motion;
         private int _nextUnitId;
@@ -183,6 +193,11 @@ namespace MountingForce.CombatPrototype
         public int LastHandoffs { get; private set; }
         public int BestHandoffs { get; private set; }
 
+        public int GetActiveRecruitId(int commandGroup)
+        {
+            return _activeRecruitByGroup.TryGetValue(commandGroup, out int unitId) ? unitId : 0;
+        }
+
         public void Reset()
         {
             _units.Clear();
@@ -190,6 +205,7 @@ namespace MountingForce.CombatPrototype
             _amplifiers.Clear();
             _log.Clear();
             _cascadeGroups.Clear();
+            _activeRecruitByGroup.Clear();
             _motion = null;
             _nextUnitId = 1;
             _nextTreeId = 1;
@@ -227,18 +243,20 @@ namespace MountingForce.CombatPrototype
             AddTree(new GridPos(11, 4));
             AddTree(new GridPos(11, 8));
 
-            WriteLog("Round 1. The world reports what physically happened, never which recruit should answer it.");
+            WriteLog("Round 1. Each player may activate one recruit for a move + action; the full roster remains available for reactions.");
         }
 
         public ChainUnitState GetUnit(int id)
         {
-            for (int i = 0; i < _units.Count; i++) if (_units[i].Id == id) return _units[i];
+            for (int i = 0; i < _units.Count; i++)
+                if (_units[i].Id == id) return _units[i];
             return null;
         }
 
         public ChainTreeState GetTree(int id)
         {
-            for (int i = 0; i < _trees.Count; i++) if (_trees[i].Id == id) return _trees[i];
+            for (int i = 0; i < _trees.Count; i++)
+                if (_trees[i].Id == id) return _trees[i];
             return null;
         }
 
@@ -264,14 +282,15 @@ namespace MountingForce.CombatPrototype
 
         public bool TryMove(int unitId, GridPos destination)
         {
-            if (!TryGetNormalActor(unitId, out ChainUnitState unit)) return false;
+            if (!TryGetMoveActor(unitId, out ChainUnitState unit)) return false;
             if (!IsInBounds(destination)) return Fail("That cell is outside the battle board.");
             if (Distance(unit.Position, destination) > MoveRange) return Fail($"Move reaches at most {MoveRange} cells.");
             if (!IsCellOpen(destination)) return Fail("That cell is occupied.");
 
+            CommitActivation(unit);
             unit.Position = destination;
-            unit.ActionSpent = true;
-            WriteLog($"P{unit.CommandGroup} moved {unit.Name} to {destination}.");
+            unit.MoveSpent = true;
+            WriteLog($"P{unit.CommandGroup} moved active recruit {unit.Name} to {destination}. Its proactive action is still {(unit.ActionSpent ? "spent" : "ready")}.");
             return true;
         }
 
@@ -282,6 +301,7 @@ namespace MountingForce.CombatPrototype
             if (!IsEnemyTarget(unit, target) || Distance(unit.Position, target.Position) != 1)
                 return Fail("Strike needs an adjacent living enemy.");
 
+            CommitActivation(unit);
             unit.ActionSpent = true;
             Damage(target, 1, $"{unit.Name} struck {target.Name}");
             CheckBattleEnd();
@@ -296,6 +316,7 @@ namespace MountingForce.CombatPrototype
             if (!IsEnemyTarget(stephen, target) || Distance(stephen.Position, target.Position) != 1)
                 return Fail("Uppercut needs an adjacent living enemy.");
 
+            CommitActivation(stephen);
             GridPos direction = CardinalDirection(stephen.Position, target.Position);
             stephen.ActionSpent = true;
             target.Airborne = true;
@@ -316,6 +337,7 @@ namespace MountingForce.CombatPrototype
             GridPos direction = CardinalDirection(target.Position, aim);
             if (IsZero(direction)) return Fail("Aim away from the target to choose the hurl direction.");
 
+            CommitActivation(brutus);
             brutus.ActionSpent = true;
             _motion = NewMotion(target.Id, direction, 5, false);
             BeginCascade(brutus.CommandGroup, $"{brutus.Name} shoulder-hurled {target.Name}");
@@ -334,6 +356,7 @@ namespace MountingForce.CombatPrototype
             GridPos direction = CardinalDirection(weldon.Position, target.Position);
             if (IsZero(direction)) return Fail("Gust needs a direction away from Weldon.");
 
+            CommitActivation(weldon);
             weldon.ActionSpent = true;
             _motion = NewMotion(target.Id, direction, 3, false);
             BeginCascade(weldon.CommandGroup, $"{weldon.Name} gusted {target.Name}");
@@ -342,10 +365,6 @@ namespace MountingForce.CombatPrototype
             return true;
         }
 
-        /// <summary>
-        /// Madeline proactively manufactures geometry: choose two enemies and drive the first toward the second.
-        /// If they are not aligned on the chosen cardinal axis, the attempt can miss; that is intentional spatial skill.
-        /// </summary>
         public bool TryConverge(int madelineId, int movingTargetId, int anchorTargetId)
         {
             if (!TryGetNormalActor(madelineId, out ChainUnitState madeline) || madeline.Kind != ChainRecruitKind.Madeline)
@@ -361,6 +380,7 @@ namespace MountingForce.CombatPrototype
             GridPos direction = CardinalDirection(moving.Position, anchor.Position);
             if (IsZero(direction)) return Fail("Converge could not determine a direction between the targets.");
 
+            CommitActivation(madeline);
             madeline.ActionSpent = true;
             _motion = NewMotion(moving.Id, direction, 4, false);
             BeginCascade(madeline.CommandGroup, $"{madeline.Name} converged {moving.Name} toward {anchor.Name}");
@@ -369,10 +389,6 @@ namespace MountingForce.CombatPrototype
             return true;
         }
 
-        /// <summary>
-        /// Skitter can start a chain instead of waiting for one: a harpoon drags a target toward Skitter.
-        /// The pull still obeys the normal collision/environment rules.
-        /// </summary>
         public bool TryHarpoon(int skitterId, int targetId)
         {
             if (!TryGetNormalActor(skitterId, out ChainUnitState skitter) || skitter.Kind != ChainRecruitKind.Skitter)
@@ -385,6 +401,7 @@ namespace MountingForce.CombatPrototype
             GridPos direction = CardinalDirection(target.Position, skitter.Position);
             if (IsZero(direction)) return Fail("Harpoon could not determine a pull direction.");
 
+            CommitActivation(skitter);
             skitter.ActionSpent = true;
             _motion = NewMotion(target.Id, direction, 4, false);
             BeginCascade(skitter.CommandGroup, $"{skitter.Name} harpooned {target.Name} toward himself");
@@ -393,10 +410,6 @@ namespace MountingForce.CombatPrototype
             return true;
         }
 
-        /// <summary>
-        /// Grom spends a normal action preparing a directional environmental payoff. The notch does nothing by itself;
-        /// the team must still arrange a hard enough impact and Grom must later claim/execute Timber.
-        /// </summary>
         public bool TryNotchTree(int gromId, int treeId, GridPos aim)
         {
             if (!TryGetNormalActor(gromId, out ChainUnitState grom) || grom.Kind != ChainRecruitKind.Grom)
@@ -409,6 +422,7 @@ namespace MountingForce.CombatPrototype
             GridPos direction = CardinalDirection(tree.Position, aim);
             if (IsZero(direction)) return Fail("Aim away from the tree to choose the prepared fall direction.");
 
+            CommitActivation(grom);
             tree.NotchedDirection = direction;
             tree.NotchedByUnitId = grom.Id;
             tree.Stress = Math.Min(TreeBreakStress, tree.Stress + 2);
@@ -430,6 +444,7 @@ namespace MountingForce.CombatPrototype
             if (!IsCellOpenForConstruct(entrance) || !IsCellOpenForConstruct(exit))
                 return Fail("Portals need empty cells.");
 
+            CommitActivation(mira);
             PortalA = entrance;
             PortalB = exit;
             mira.ActionSpent = true;
@@ -444,6 +459,7 @@ namespace MountingForce.CombatPrototype
             if (!IsInBounds(position) || Distance(mira.Position, position) > ConstructRange || !IsCellOpenForConstruct(position))
                 return Fail("The multiplier needs an empty cell within Mira's 6-cell placement range.");
 
+            CommitActivation(mira);
             _amplifiers.Add(position);
             mira.ActionSpent = true;
             WriteLog($"{mira.Name} placed a force multiplier at {position}. Moving bodies crossing it amplify their remaining force.");
@@ -570,7 +586,8 @@ namespace MountingForce.CombatPrototype
 
             ChainUnitState target = GetUnit(targetId);
             GridPos direction = target == null ? Zero : CardinalDirection(target.Position, aim);
-            if (target == null || !target.IsAlive || IsZero(direction)) return Fail("Hook Yank needs a living event participant and a pull direction.");
+            if (target == null || !target.IsAlive || IsZero(direction))
+                return Fail("Hook Yank needs a living event participant and a pull direction.");
 
             GridPos oneStep = target.Position + direction;
             if (Distance(oneStep, skitter.Position) >= Distance(target.Position, skitter.Position))
@@ -590,7 +607,8 @@ namespace MountingForce.CombatPrototype
 
             ChainTreeState tree = GetTree(reaction.TreeId);
             GridPos direction = tree == null ? Zero : CardinalDirection(tree.Position, aim);
-            if (tree == null || !tree.Standing || IsZero(direction)) return Fail("Timber needs the struck standing tree and a fall direction.");
+            if (tree == null || !tree.Standing || IsZero(direction))
+                return Fail("Timber needs the struck standing tree and a fall direction.");
 
             bool followsNotch = tree.IsNotched && tree.NotchedDirection.Equals(direction);
             int fallLength = followsNotch ? 6 : 4;
@@ -616,7 +634,8 @@ namespace MountingForce.CombatPrototype
                 if (carried == null && hit.IsAlive) carried = hit;
             }
 
-            if (followsNotch) WriteLog($"Prepared tree payoff: Grom's notch extended reach and impact because the team used the planned direction.");
+            if (followsNotch)
+                WriteLog("Prepared tree payoff: Grom's notch extended reach and impact because the team used the planned direction.");
 
             if (carried != null)
             {
@@ -650,7 +669,10 @@ namespace MountingForce.CombatPrototype
             PendingReaction = null;
             WriteLog($"Nobody claimed the event: {description}");
 
-            if (kind == ChainReactionKind.Airborne && _motion != null) ResolveMotion();
+            if (kind == ChainReactionKind.Airborne && _motion != null)
+            {
+                ResolveMotion();
+            }
             else
             {
                 _motion = null;
@@ -671,17 +693,19 @@ namespace MountingForce.CombatPrototype
             if (BattleOver) return true;
 
             Round++;
+            _activeRecruitByGroup.Clear();
             for (int i = 0; i < _units.Count; i++)
             {
                 ChainUnitState unit = _units[i];
                 if (unit.Team == CombatTeam.Friendly && unit.IsAlive)
                 {
+                    unit.MoveSpent = false;
                     unit.ActionSpent = false;
                     unit.ReactionSpent = false;
                 }
             }
 
-            WriteLog($"Round {Round} begins. Normal actions and reactions refreshed.");
+            WriteLog($"Round {Round} begins. Each player may choose a new active recruit; all living recruits have reactions refreshed.");
             return true;
         }
 
@@ -718,6 +742,51 @@ namespace MountingForce.CombatPrototype
             return "devastating";
         }
 
+        private bool TryGetMoveActor(int unitId, out ChainUnitState unit)
+        {
+            if (!TryGetProactiveActor(unitId, out unit)) return false;
+            if (unit.MoveSpent) return Fail($"{unit.Name} already repositioned this round.");
+            return true;
+        }
+
+        private bool TryGetNormalActor(int unitId, out ChainUnitState unit)
+        {
+            if (!TryGetProactiveActor(unitId, out unit)) return false;
+            if (unit.ActionSpent) return Fail($"{unit.Name} already used its proactive action this round.");
+            return true;
+        }
+
+        private bool TryGetProactiveActor(int unitId, out ChainUnitState unit)
+        {
+            unit = GetUnit(unitId);
+            if (BattleOver) return Fail("The battle is over. Reset to play again.");
+            if (PendingReaction != null) return Fail("A physical event is unresolved. Someone must claim it or the group must pass.");
+            if (unit == null || !unit.IsAlive || unit.Team != CombatTeam.Friendly)
+                return Fail("Choose a living friendly recruit.");
+
+            if (_activeRecruitByGroup.TryGetValue(unit.CommandGroup, out int activeId) && activeId != unit.Id)
+            {
+                ChainUnitState active = GetUnit(activeId);
+                if (active == null || !active.IsAlive)
+                {
+                    _activeRecruitByGroup.Remove(unit.CommandGroup);
+                }
+                else
+                {
+                    return Fail($"P{unit.CommandGroup} already activated {active.Name} for proactive play this round. {unit.Name} is still fully available for reactions.");
+                }
+            }
+
+            return true;
+        }
+
+        private void CommitActivation(ChainUnitState unit)
+        {
+            if (_activeRecruitByGroup.ContainsKey(unit.CommandGroup)) return;
+            _activeRecruitByGroup[unit.CommandGroup] = unit.Id;
+            WriteLog($"P{unit.CommandGroup} activated {unit.Name}: one move + one proactive action this round; the rest of P{unit.CommandGroup}'s roster remains reaction-ready.");
+        }
+
         private bool CanClaim(ChainUnitState unit, ChainReactionAbility ability, ChainReactionOpportunity reaction)
         {
             switch (ability)
@@ -746,7 +815,8 @@ namespace MountingForce.CombatPrototype
         {
             unit = GetUnit(unitId);
             reaction = PendingReaction;
-            if (BattleOver || reaction == null || !reaction.IsClaimed) return Fail("Claim a physical event before executing a reaction.");
+            if (BattleOver || reaction == null || !reaction.IsClaimed)
+                return Fail("Claim a physical event before executing a reaction.");
             if (unit == null || !unit.IsAlive || unit.Kind != kind || reaction.ClaimedByUnitId != unit.Id || reaction.ClaimedAbility != ability)
                 return Fail("That recruit does not own this reaction claim.");
             return true;
@@ -822,7 +892,10 @@ namespace MountingForce.CombatPrototype
                         OpenOpportunity(ChainReactionKind.Collision, mover.Id, occupant.Id, 0, next, impactForce,
                             $"{mover.Name} collided with {occupant.Name} at force {impactForce} ({ForceWord(impactForce)}). Impact damage: {damage}.");
                     }
-                    else FinishCascadeIfIdle();
+                    else
+                    {
+                        FinishCascadeIfIdle();
+                    }
                     return;
                 }
 
@@ -1013,7 +1086,8 @@ namespace MountingForce.CombatPrototype
                 GridPos zStep = new GridPos(0, Sign(target.Position.Z - enemy.Position.Z));
                 GridPos first = (Round + enemy.Id) % 2 == 0 ? xStep : zStep;
                 GridPos second = (Round + enemy.Id) % 2 == 0 ? zStep : xStep;
-                if (TryEnemyStep(enemy, first) || TryEnemyStep(enemy, second)) WriteLog($"{enemy.Name} advanced toward {target.Name}.");
+                if (TryEnemyStep(enemy, first) || TryEnemyStep(enemy, second))
+                    WriteLog($"{enemy.Name} advanced toward {target.Name}.");
             }
         }
 
@@ -1042,16 +1116,6 @@ namespace MountingForce.CombatPrototype
                 }
             }
             return best;
-        }
-
-        private bool TryGetNormalActor(int unitId, out ChainUnitState unit)
-        {
-            unit = GetUnit(unitId);
-            if (BattleOver) return Fail("The battle is over. Reset to play again.");
-            if (PendingReaction != null) return Fail("A physical event is unresolved. Someone must claim it or the group must pass.");
-            if (unit == null || !unit.IsAlive || unit.Team != CombatTeam.Friendly) return Fail("Choose a living friendly recruit.");
-            if (unit.ActionSpent) return Fail($"{unit.Name} already used a normal action this round.");
-            return true;
         }
 
         private bool IsEnemyTarget(ChainUnitState actor, ChainUnitState target)
@@ -1094,7 +1158,10 @@ namespace MountingForce.CombatPrototype
                 BattleOver = true;
                 BattleResult = "Defeat — the command groups were wiped out.";
             }
-            else return;
+            else
+            {
+                return;
+            }
 
             PendingReaction = null;
             _motion = null;
