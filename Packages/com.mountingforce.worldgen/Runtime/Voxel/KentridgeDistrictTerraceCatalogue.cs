@@ -11,6 +11,8 @@ namespace MountingForce.WorldGen.Voxel
     /// Turns Kentridge's macro height profile into neighbourhood-scale urban shelves.
     /// District character controls transition depth: green edges stay compact while dense urban
     /// shelves receive broad stepped contour bands that can read as real intermediate terraces.
+    /// Urban shoulders also compile a crisp masonry retaining skin over the smooth earth mass so
+    /// the authored vertical city reads as built hillside infrastructure rather than brown plinths.
     /// </summary>
     public static class KentridgeDistrictTerraceCatalogue
     {
@@ -21,6 +23,8 @@ namespace MountingForce.WorldGen.Voxel
         private const int MixedShoulderWidthDm = 54;
         private const int UrbanShoulderWidthDm = 72;
         private const int ShoulderStepCount = 6;
+        private const int RetainingFaceThicknessDm = 2;
+        private const int RetainingCapDm = 2;
 
         private const byte AxisX = 0;
         private const byte AxisZ = 2;
@@ -117,25 +121,35 @@ namespace MountingForce.WorldGen.Voxel
             };
 
             var builds = new TerraceBuild[seeds.Length];
-            var programs = new int[seeds.Length][];
+            var terrainPrograms = new int[seeds.Length][];
+            var retainingPrograms = new int[seeds.Length][];
             int programLength = 0;
+            int retainingCount = 0;
 
             for (int i = 0; i < seeds.Length; i++)
             {
                 builds[i] = Resolve(seeds[i], seed, scale);
-                programs[i] = TerraceProgram(builds[i], settings);
-                programLength += programs[i].Length;
+                terrainPrograms[i] = TerraceProgram(builds[i], settings);
+                programLength += terrainPrograms[i].Length;
+
+                if (seeds[i].Surface == SurfaceCharacter.Urban)
+                {
+                    retainingPrograms[i] = RetainingFacingProgram(builds[i], settings);
+                    programLength += retainingPrograms[i].Length;
+                    retainingCount++;
+                }
             }
 
+            int definitionCount = seeds.Length + retainingCount;
             FeatureCatalogue catalogue = CatalogueLoader.Allocate(
-                definitions: seeds.Length,
-                rules: seeds.Length,
+                definitions: definitionCount,
+                rules: definitionCount,
                 parameters: 0,
                 anchors: 0,
                 slots: 0,
                 programLength: programLength,
                 materials: 0,
-                explicitPlacements: seeds.Length,
+                explicitPlacements: definitionCount,
                 overrides: 0,
                 allocator);
 
@@ -143,9 +157,8 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < builds.Length; i++)
             {
                 TerraceBuild build = builds[i];
-                int[] program = programs[i];
-                for (int p = 0; p < program.Length; p++)
-                    catalogue.Program[programOffset + p] = program[p];
+                int[] program = terrainPrograms[i];
+                CopyProgram(ref catalogue, programOffset, program);
 
                 catalogue.Definitions[i] = new FeatureDefinition
                 {
@@ -169,32 +182,49 @@ namespace MountingForce.WorldGen.Voxel
                     MaxPrimitives = 40,
                 };
 
-                catalogue.ExplicitPlacements[i] = new ExplicitPlacement
-                {
-                    Position = build.Position,
-                    Orientation = 0,
-                    OverrideOffset = 0,
-                    OverrideCount = 0,
-                };
-
-                catalogue.Rules[i] = new PlacementRule
-                {
-                    DefinitionId = i,
-                    CellEdge = FeatureBudget.PlacementCellEdgeVoxels,
-                    AttemptsPerCell = 0,
-                    AcceptProbability = 0,
-                    MinAltitude = 0,
-                    MaxAltitude = 1024,
-                    MaxSlope = 32,
-                    MinSpacing = 0,
-                    ClusterMin = 0,
-                    ClusterMax = 0,
-                    ExclusionMask = 0,
-                    ExplicitOffset = i,
-                    ExplicitCount = 1,
-                };
-
+                catalogue.ExplicitPlacements[i] = Placement(build.Position);
+                catalogue.Rules[i] = ExplicitRule(i, i);
                 programOffset += program.Length;
+            }
+
+            int retainingIndex = 0;
+            for (int i = 0; i < builds.Length; i++)
+            {
+                TerraceBuild build = builds[i];
+                if (build.Seed.Surface != SurfaceCharacter.Urban) continue;
+
+                int definitionId = seeds.Length + retainingIndex;
+                int[] program = retainingPrograms[i];
+                CopyProgram(ref catalogue, programOffset, program);
+
+                catalogue.Definitions[definitionId] = new FeatureDefinition
+                {
+                    Name = new FixedString64Bytes("kentridge-district-retaining-" + build.Seed.Id),
+                    Kind = FeatureKind.Infrastructure,
+                    BasePlane = BasePlaneRule.FixedAltitude,
+                    FixedAltitude = 0,
+                    Footprint = build.Footprint,
+                    MaxSlope = 32,
+                    // Above the smooth district mass, below roads. A road penetrating a terrace
+                    // therefore cuts through the retaining skin rather than receiving a wall across it.
+                    Precedence = 18,
+                    ParameterOffset = 0,
+                    ParameterCount = 0,
+                    AnchorOffset = 0,
+                    AnchorCount = 0,
+                    SlotOffset = 0,
+                    SlotCount = 0,
+                    ProgramOffset = programOffset,
+                    ProgramLength = program.Length,
+                    MaterialOffset = 0,
+                    MaterialCount = 0,
+                    MaxPrimitives = 64,
+                };
+
+                catalogue.ExplicitPlacements[definitionId] = Placement(build.Position);
+                catalogue.Rules[definitionId] = ExplicitRule(definitionId, definitionId);
+                programOffset += program.Length;
+                retainingIndex++;
             }
 
             CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
@@ -206,6 +236,37 @@ namespace MountingForce.WorldGen.Voxel
             }
 
             return catalogue;
+        }
+
+        private static ExplicitPlacement Placement(int3 position)
+        {
+            return new ExplicitPlacement
+            {
+                Position = position,
+                Orientation = 0,
+                OverrideOffset = 0,
+                OverrideCount = 0,
+            };
+        }
+
+        private static PlacementRule ExplicitRule(int definitionId, int placementOffset)
+        {
+            return new PlacementRule
+            {
+                DefinitionId = definitionId,
+                CellEdge = FeatureBudget.PlacementCellEdgeVoxels,
+                AttemptsPerCell = 0,
+                AcceptProbability = 0,
+                MinAltitude = 0,
+                MaxAltitude = 1024,
+                MaxSlope = 32,
+                MinSpacing = 0,
+                ClusterMin = 0,
+                ClusterMax = 0,
+                ExclusionMask = 0,
+                ExplicitOffset = placementOffset,
+                ExplicitCount = 1,
+            };
         }
 
         private static TerraceBuild Resolve(TerraceSeed terrace, uint seed, int scale)
@@ -240,7 +301,6 @@ namespace MountingForce.WorldGen.Voxel
                 Math.Max(Math.Max(northEdge, southEdge), Math.Max(westEdge, eastEdge)));
             int originY = Math.Min(lowestRelevant, naturalMin) - BuriedFootingDm * scale;
             int topY = Math.Max(highestRelevant, naturalMax) + ClearAboveDm * scale;
-            int shoulder = shoulderDm * scale;
 
             return new TerraceBuild(
                 terrace,
@@ -364,6 +424,43 @@ namespace MountingForce.WorldGen.Voxel
             return b.Finish();
         }
 
+        private static int[] RetainingFacingProgram(
+            TerraceBuild build,
+            VoxelWorldGenSettings settings)
+        {
+            int s = settings.VoxelsPerDecimetre;
+            byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
+            byte cap = settings.Materials.Resolve(MaterialRole.DarkMasonry);
+
+            int coreWidth = build.Seed.WidthDm * s;
+            int coreDepth = build.Seed.DepthDm * s;
+            int shoulder = build.Seed.ShoulderWidthDm * s;
+            int width = coreWidth + shoulder * 2;
+            int coreInset = shoulder;
+            var b = new ProgramBuilder();
+
+            // North/south bands span the complete terrace width. West/east bands stop at the core
+            // corners so the thin risers do not double-build the shoulder corners.
+            AddRetainingRisers(
+                b, 0, 0, width, shoulder,
+                build.NorthEdgeY, build.CoreSurfaceY,
+                AxisZ, true, s, stone, cap);
+            AddRetainingRisers(
+                b, 0, coreInset + coreDepth, width, shoulder,
+                build.SouthEdgeY, build.CoreSurfaceY,
+                AxisZ, false, s, stone, cap);
+            AddRetainingRisers(
+                b, 0, coreInset, shoulder, coreDepth,
+                build.WestEdgeY, build.CoreSurfaceY,
+                AxisX, true, s, stone, cap);
+            AddRetainingRisers(
+                b, coreInset + coreWidth, coreInset, shoulder, coreDepth,
+                build.EastEdgeY, build.CoreSurfaceY,
+                AxisX, false, s, stone, cap);
+
+            return b.Finish();
+        }
+
         private static void AddShoulder(ProgramBuilder b,
                                         int x, int z, int width, int depth,
                                         int edgeY, int coreY,
@@ -404,6 +501,62 @@ namespace MountingForce.WorldGen.Voxel
                     b.Box(x, lowY, pz, width, fillHeight, slice, material);
                 }
             }
+        }
+
+        private static void AddRetainingRisers(
+            ProgramBuilder b,
+            int x, int z, int width, int depth,
+            int edgeY, int coreY,
+            byte axis, bool outerAtNegativeAxis,
+            int scale,
+            byte stone, byte cap)
+        {
+            if (edgeY == coreY) return;
+
+            int axisLength = axis == AxisX ? width : depth;
+            int thickness = RetainingFaceThicknessDm * scale;
+            int capHeight = RetainingCapDm * scale;
+
+            for (int step = 0; step < ShoulderStepCount; step++)
+            {
+                int end = axisLength * (step + 1) / ShoulderStepCount;
+                int previousY = edgeY
+                    + (coreY - edgeY) * step / ShoulderStepCount;
+                int targetY = edgeY
+                    + (coreY - edgeY) * (step + 1) / ShoulderStepCount;
+                int lowY = Math.Min(previousY, targetY);
+                int highY = Math.Max(previousY, targetY);
+                int faceHeight = highY - lowY;
+                if (faceHeight <= 0) continue;
+
+                int boundary = outerAtNegativeAxis
+                    ? end - thickness
+                    : axisLength - end;
+                boundary = Math.Max(0, Math.Min(axisLength - thickness, boundary));
+
+                if (axis == AxisX)
+                {
+                    int px = x + boundary;
+                    b.Box(px, lowY, z,
+                        thickness, faceHeight + capHeight, depth, stone);
+                    b.Box(px, highY, z,
+                        thickness, capHeight, depth, cap);
+                }
+                else
+                {
+                    int pz = z + boundary;
+                    b.Box(x, lowY, pz,
+                        width, faceHeight + capHeight, thickness, stone);
+                    b.Box(x, highY, pz,
+                        width, capHeight, thickness, cap);
+                }
+            }
+        }
+
+        private static void CopyProgram(ref FeatureCatalogue catalogue, int offset, int[] program)
+        {
+            for (int i = 0; i < program.Length; i++)
+                catalogue.Program[offset + i] = program[i];
         }
 
         private sealed class ProgramBuilder
