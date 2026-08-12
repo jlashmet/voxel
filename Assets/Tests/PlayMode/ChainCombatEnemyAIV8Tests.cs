@@ -86,6 +86,7 @@ namespace VoxelEngine.Tests.PlayMode
         public IEnumerator OgreChargeUsesNormalPhysicsAndPausesEnemyPhaseForPlayerReaction()
         {
             var board = new ChainCombatBoard();
+            var reservations = new ChainReactionReservationCoordinator(board);
             ChainUnitState stephen = Find(board, ChainRecruitKind.Stephen);
             ChainUnitState madeline = Find(board, ChainRecruitKind.Madeline);
             ChainUnitState ogre = Find(board, ChainRecruitKind.Ogre);
@@ -109,12 +110,15 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(readiness.EnemyPhaseActive, Is.True);
             Assert.That(board.Round, Is.EqualTo(1), "The round cannot finish while the enemy-created event is unresolved.");
 
-            Assert.That(board.TryClaimReaction(madeline.Id, ChainReactionAbility.Repulse), Is.True, board.LastMessage,
-                "A player who was already Ready must still be able to take over an enemy-created collision.");
+            Assert.That(reservations.TryReserve(3), Is.True, reservations.LastMessage,
+                "P3 must be able to reserve an enemy-created collision even though P3 is already Ready.");
+            Assert.That(reservations.TryClaim(madeline.Id, ChainReactionAbility.Repulse), Is.True, reservations.LastMessage,
+                "The playable reservation layer must allow a Ready player to take over the enemy-created collision.");
             Assert.That(board.TryRepulse(madeline.Id, ogre.Id, new GridPos(0, 4)), Is.True, board.LastMessage);
+            reservations.Synchronize();
 
             while (board.PendingReaction != null)
-                Assert.That(board.PassReaction(), Is.True, board.LastMessage);
+                Assert.That(reservations.TryPass(), Is.True, reservations.LastMessage);
 
             Assert.That(readiness.TryAdvanceRound(), Is.True, readiness.LastMessage);
             Assert.That(board.Round, Is.EqualTo(2));
@@ -127,6 +131,7 @@ namespace VoxelEngine.Tests.PlayMode
         public IEnumerator GoblinPrefersShoveIntoTreeAndReadyGromCanTurnItIntoTimber()
         {
             var board = new ChainCombatBoard();
+            var reservations = new ChainReactionReservationCoordinator(board);
             ChainUnitState grom = Find(board, ChainRecruitKind.Grom);
             ChainUnitState goblinB = FindByName(board, "Goblin B");
             ChainTreeState tree = FindTree(board, new GridPos(11, 8));
@@ -151,13 +156,15 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(board.PendingReaction.TreeId, Is.EqualTo(tree.Id));
             Assert.That(readiness.EnemyPhaseActive, Is.True);
 
-            Assert.That(board.TryClaimReaction(grom.Id, ChainReactionAbility.Timber), Is.True, board.LastMessage,
-                "Ready status must not prevent Grom from exploiting the tree impact the enemy created.");
+            Assert.That(reservations.TryReserve(4), Is.True, reservations.LastMessage);
+            Assert.That(reservations.TryClaim(grom.Id, ChainReactionAbility.Timber), Is.True, reservations.LastMessage,
+                "Ready P4 must be able to reserve and exploit the tree impact the enemy created.");
             Assert.That(board.TryTimber(grom.Id, new GridPos(13, 8)), Is.True, board.LastMessage);
+            reservations.Synchronize();
             Assert.That(tree.Standing, Is.False);
 
             while (board.PendingReaction != null)
-                Assert.That(board.PassReaction(), Is.True, board.LastMessage);
+                Assert.That(reservations.TryPass(), Is.True, reservations.LastMessage);
 
             Assert.That(readiness.TryAdvanceRound(), Is.True, readiness.LastMessage);
             Assert.That(board.Round, Is.EqualTo(2));
