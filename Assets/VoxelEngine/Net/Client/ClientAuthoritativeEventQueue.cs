@@ -13,10 +13,10 @@ namespace VoxelEngine.Net.Client
     }
 
     /// <summary>
-    /// Ordered client-side queue for authoritative EVENT packets. Mutation batches and region hash
-    /// checkpoints share one FIFO. A verified local mismatch pauses the queue exactly after the hash
-    /// barrier; later authority remains buffered until a semantic snapshot for that checkpoint is
-    /// applied, preventing duplicate application of post-checkpoint events.
+    /// Ordered client-side queue for authoritative EVENT packets. Mutation batches, region hashes,
+    /// and full-state fences share one FIFO. Exact repair pauses at a hash barrier. Current-state
+    /// replacement pauses until BULK state is installed, then replays pre-fence authority everywhere
+    /// except the replaced region until the matching EVENT fence is reached.
     /// </summary>
     public sealed class ClientAuthoritativeEventQueue
     {
@@ -27,13 +27,23 @@ namespace VoxelEngine.Net.Client
         private int _pendingEvents;
         private int _pendingBatches;
         private int _pendingHashes;
+        private int _pendingFences;
         private bool _hasLastReceivedEvent;
         private AlterationEvent _lastReceivedEvent;
         private uint _lastBarrierTick;
+
         private bool _repairPending;
         private int3 _repairRegion;
         private uint _repairTick;
         private uint _repairHash;
+
+        private bool _fullSnapshotWaitPending;
+        private int3 _fullSnapshotWaitRegion;
+
+        private bool _snapshotCatchupActive;
+        private uint _snapshotCatchupTransferId;
+        private int3 _snapshotCatchupRegion;
+        private uint _snapshotCatchupTick;
 
         public ClientAuthoritativeEventQueue(int maxPendingEvents = DefaultMaxPendingEvents)
         {
@@ -45,11 +55,17 @@ namespace VoxelEngine.Net.Client
         public int PendingBatchCount => _pendingBatches;
         public int PendingEventCount => _pendingEvents;
         public int PendingHashCount => _pendingHashes;
+        public int PendingFenceCount => _pendingFences;
         public int PendingAuthorityCount => _authority.Count;
         public bool RepairPending => _repairPending;
         public int3 RepairRegion => _repairRegion;
         public uint RepairTick => _repairTick;
         public uint RepairHash => _repairHash;
+        public bool FullSnapshotWaitPending => _fullSnapshotWaitPending;
+        public int3 FullSnapshotWaitRegion => _fullSnapshotWaitRegion;
+        public bool SnapshotCatchupActive => _snapshotCatchupActive;
+        public int3 SnapshotCatchupRegion => _snapshotCatchupRegion;
+        public uint SnapshotCatchupTick => _snapshotCatchupTick;
 
         public bool TryEnqueueEventPacket(ReadOnlySpan<byte> packet, IClientEventNotificationSink notifications = null)
         {
@@ -70,6 +86,9 @@ namespace VoxelEngine.Net.Client
                 case ProtocolMessageKind.S_AlterationEventBatch:
                     return TryEnqueueBatch(packet.Slice(payloadOffset));
 
+                case ProtocolMessageKind.S_RegionStateFence:
+                    return TryEnqueueFence(packet);
+
                 default:
                     return false;
             }
@@ -87,6 +106,21 @@ namespace VoxelEngine.Net.Client
             _authority.Enqueue(PendingAuthority.ForHash(hash));
             _pendingHashes++;
             _lastBarrierTick = hash.serverTick;
+            return true;
+        }
+
+        private bool TryEnqueueFence(ReadOnlySpan<byte> packet)
+        {
+            if (!RegionStateFencePacket.TryDecode(packet, out S_RegionStateFence fence))
+                return false;
+
+            uint lastEventTick = _hasLastReceivedEvent ? _lastReceivedEvent.tick : 0u;
+            if (fence.snapshotTick < lastEventTick || fence.snapshotTick < _lastBarrierTick)
+                return false;
+
+            _authority.Enqueue(PendingAuthority.ForFence(fence));
+            _pendingFences++;
+            _lastBarrierTick = fence.snapshotTick;
             return true;
         }
 
@@ -135,15 +169,56 @@ namespace VoxelEngine.Net.Client
             comparedHashes = 0;
             int appliedBatches = 0;
 
-            if (_repairPending)
+            if (_repairPending || _fullSnapshotWaitPending)
                 return 0;
 
             while (_authority.Count > 0)
             {
                 PendingAuthority item = _authority.Peek();
+
+                if (item.Kind == PendingKind.Fence)
+                {
+                    S_RegionStateFence fence = item.Fence;
+                    if (_snapshotCatchupActive)
+                    {
+                        if (fence.transferId != _snapshotCatchupTransferId ||
+                            !fence.regionCoord.Equals(_snapshotCatchupRegion) ||
+                            fence.snapshotTick != _snapshotCatchupTick)
+                        {
+                            // One current-state transfer is allowed at a time. Seeing a different
+                            // fence before the expected one is a protocol/order violation; wait rather
+                            // than silently ending duplicate suppression at the wrong point.
+                            break;
+                        }
+
+                        _snapshotCatchupActive = false;
+                        _snapshotCatchupTransferId = 0;
+                        _snapshotCatchupRegion = default;
+                        _snapshotCatchupTick = 0;
+                    }
+
+                    _authority.Dequeue();
+                    _pendingFences--;
+                    continue;
+                }
+
                 if (item.Kind == PendingKind.Hash)
                 {
                     S_RegionHash checkpoint = item.Hash;
+
+                    if (_snapshotCatchupActive && checkpoint.serverTick > _snapshotCatchupTick)
+                        break; // The matching fence must precede any newer EVENT authority.
+
+                    if (_snapshotCatchupActive &&
+                        checkpoint.serverTick <= _snapshotCatchupTick &&
+                        checkpoint.regionCoord.Equals(_snapshotCatchupRegion))
+                    {
+                        // Current-state snapshot supersedes older hash barriers for this region.
+                        _authority.Dequeue();
+                        _pendingHashes--;
+                        continue;
+                    }
+
                     if (!table.TryGetRegion(checkpoint.regionCoord, out Region region) || !region.BrickRefs.IsCreated)
                         break;
 
@@ -172,17 +247,41 @@ namespace VoxelEngine.Net.Client
                 }
 
                 AlterationEvent[] events = item.Events;
-                if (!HasRequiredResidency(ref table, events))
+                uint batchTick = events.Length > 0 ? events[0].tick : 0u;
+                bool catchupBatch = _snapshotCatchupActive && batchTick <= _snapshotCatchupTick;
+
+                if (_snapshotCatchupActive && batchTick > _snapshotCatchupTick)
+                    break; // A newer batch before the fence would violate the server fence contract.
+
+                if (!HasRequiredResidency(
+                        ref table,
+                        events,
+                        catchupBatch,
+                        _snapshotCatchupRegion))
                     break;
 
                 for (int i = 0; i < events.Length; i++)
                 {
                     AlterationEvent evt = events[i];
-                    DeterministicAlterationApplier.TryApply(
-                        ref table,
-                        ref pool,
-                        in evt,
-                        out var affectedBricks);
+                    NativeList<int3> affectedBricks;
+                    if (catchupBatch)
+                    {
+                        DeterministicAlterationApplier.TryApplyExceptRegion(
+                            ref table,
+                            ref pool,
+                            in evt,
+                            _snapshotCatchupRegion,
+                            out affectedBricks);
+                    }
+                    else
+                    {
+                        DeterministicAlterationApplier.TryApply(
+                            ref table,
+                            ref pool,
+                            in evt,
+                            out affectedBricks);
+                    }
+
                     if (affectedBricks.IsCreated) affectedBricks.Dispose();
                     appliedEvents++;
                 }
@@ -196,17 +295,61 @@ namespace VoxelEngine.Net.Client
             return appliedBatches;
         }
 
-        /// <summary>Resume only when repair metadata exactly matches the paused hash barrier.</summary>
+        /// <summary>Resume only when exact checkpoint repair metadata matches the paused hash.</summary>
         public bool CompleteRepair(int3 regionCoord, uint snapshotTick, uint semanticHash)
         {
-            if (!_repairPending || !_repairRegion.Equals(regionCoord) ||
+            if (_fullSnapshotWaitPending || !_repairPending || !_repairRegion.Equals(regionCoord) ||
                 _repairTick != snapshotTick || _repairHash != semanticHash)
                 return false;
 
-            _repairPending = false;
-            _repairRegion = default;
-            _repairTick = 0;
-            _repairHash = 0;
+            ClearRepair();
+            return true;
+        }
+
+        /// <summary>
+        /// Globally pause EVENT application while a current full-region snapshot is requested.
+        /// Exactly one such transfer may be outstanding because its EVENT fence is the resume marker.
+        /// </summary>
+        public bool BeginFullRegionSnapshotWait(int3 regionCoord)
+        {
+            if (_snapshotCatchupActive)
+                return false;
+            if (_repairPending && !_repairRegion.Equals(regionCoord))
+                return false;
+            if (_fullSnapshotWaitPending)
+                return _fullSnapshotWaitRegion.Equals(regionCoord);
+
+            _fullSnapshotWaitPending = true;
+            _fullSnapshotWaitRegion = regionCoord;
+            return true;
+        }
+
+        /// <summary>
+        /// Register a verified current-state replacement. EVENT replay remains in catch-up mode until
+        /// the matching reliable fence is consumed; an empty queue does not end catch-up.
+        /// </summary>
+        public bool CompleteFullRegionSnapshot(
+            uint transferId,
+            int3 regionCoord,
+            uint snapshotTick)
+        {
+            if (transferId == 0 || !_fullSnapshotWaitPending ||
+                !_fullSnapshotWaitRegion.Equals(regionCoord))
+                return false;
+
+            if (_repairPending)
+            {
+                if (!_repairRegion.Equals(regionCoord) || snapshotTick < _repairTick)
+                    return false;
+                ClearRepair();
+            }
+
+            _fullSnapshotWaitPending = false;
+            _fullSnapshotWaitRegion = default;
+            _snapshotCatchupActive = true;
+            _snapshotCatchupTransferId = transferId;
+            _snapshotCatchupRegion = regionCoord;
+            _snapshotCatchupTick = snapshotTick;
             return true;
         }
 
@@ -216,21 +359,40 @@ namespace VoxelEngine.Net.Client
             _pendingEvents = 0;
             _pendingBatches = 0;
             _pendingHashes = 0;
+            _pendingFences = 0;
             _hasLastReceivedEvent = false;
             _lastReceivedEvent = default;
             _lastBarrierTick = 0;
+            ClearRepair();
+            _fullSnapshotWaitPending = false;
+            _fullSnapshotWaitRegion = default;
+            _snapshotCatchupActive = false;
+            _snapshotCatchupTransferId = 0;
+            _snapshotCatchupRegion = default;
+            _snapshotCatchupTick = 0;
+        }
+
+        private void ClearRepair()
+        {
             _repairPending = false;
             _repairRegion = default;
             _repairTick = 0;
             _repairHash = 0;
         }
 
-        private static bool HasRequiredResidency(ref RegionTable table, AlterationEvent[] events)
+        private static bool HasRequiredResidency(
+            ref RegionTable table,
+            AlterationEvent[] events,
+            bool excludeRegion,
+            int3 excludedRegion)
         {
             for (int i = 0; i < events.Length; i++)
             {
                 AlterationEvent evt = events[i];
-                if (!DeterministicAlterationApplier.HasRequiredResidency(ref table, in evt)) return false;
+                bool resident = excludeRegion
+                    ? DeterministicAlterationApplier.HasRequiredResidencyExcept(ref table, in evt, excludedRegion)
+                    : DeterministicAlterationApplier.HasRequiredResidency(ref table, in evt);
+                if (!resident) return false;
             }
             return true;
         }
@@ -243,25 +405,33 @@ namespace VoxelEngine.Net.Client
             return player != 0 ? player : a.sequence.CompareTo(b.sequence);
         }
 
-        private enum PendingKind : byte { Batch = 0, Hash = 1 }
+        private enum PendingKind : byte { Batch = 0, Hash = 1, Fence = 2 }
 
         private readonly struct PendingAuthority
         {
             public readonly PendingKind Kind;
             public readonly AlterationEvent[] Events;
             public readonly S_RegionHash Hash;
+            public readonly S_RegionStateFence Fence;
 
-            private PendingAuthority(PendingKind kind, AlterationEvent[] events, S_RegionHash hash)
+            private PendingAuthority(
+                PendingKind kind,
+                AlterationEvent[] events,
+                S_RegionHash hash,
+                S_RegionStateFence fence)
             {
                 Kind = kind;
                 Events = events;
                 Hash = hash;
+                Fence = fence;
             }
 
             public static PendingAuthority ForBatch(AlterationEvent[] events) =>
-                new PendingAuthority(PendingKind.Batch, events, default);
+                new PendingAuthority(PendingKind.Batch, events, default, default);
             public static PendingAuthority ForHash(S_RegionHash hash) =>
-                new PendingAuthority(PendingKind.Hash, null, hash);
+                new PendingAuthority(PendingKind.Hash, null, hash, default);
+            public static PendingAuthority ForFence(S_RegionStateFence fence) =>
+                new PendingAuthority(PendingKind.Fence, null, default, fence);
         }
     }
 }
