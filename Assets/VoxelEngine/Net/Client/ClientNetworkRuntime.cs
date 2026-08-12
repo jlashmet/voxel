@@ -22,6 +22,8 @@ namespace VoxelEngine.Net.Client
         private bool _disposed;
         private bool _fullRegionResyncRequired;
         private S_RegionResyncRequired _lastResyncRequirement;
+        private bool _automaticFullStateRequestPending;
+        private int3 _automaticFullStateRequestRegion;
 
         public event Action Connected;
         public event Action Disconnected;
@@ -64,7 +66,24 @@ namespace VoxelEngine.Net.Client
         public int CompletedFullStateTransfers => _fullState.CompletedCount;
 
         public bool Connect(NetworkEndpoint endpoint) { ThrowIfDisposed(); return _host.Connect(endpoint); }
-        public void PumpTransport() { ThrowIfDisposed(); _host.Pump(this); }
+
+        public void PumpTransport()
+        {
+            ThrowIfDisposed();
+            _host.Pump(this);
+
+            // Automatic escalation is scheduled by the EVENT callback but sent only after the UTP
+            // receive pump returns. This avoids re-entering NetworkDriver flush/send scheduling from
+            // inside packet dispatch.
+            if (_automaticFullStateRequestPending)
+            {
+                int3 region = _automaticFullStateRequestRegion;
+                _automaticFullStateRequestPending = false;
+                _automaticFullStateRequestRegion = default;
+                if (!TryRequestFullRegionState(region))
+                    PacketRejected?.Invoke();
+            }
+        }
 
         public int ApplyReadyAuthoritativeEvents(
             ref RegionTable table,
@@ -73,9 +92,6 @@ namespace VoxelEngine.Net.Client
         {
             ThrowIfDisposed();
 
-            // A current-state BULK snapshot is applied first. It may represent a later tick than the
-            // failed hash; CompleteFullRegionSnapshot switches the EVENT FIFO into excluded-region
-            // catch-up until the matching reliable fence is consumed.
             if (_fullState.TryDequeue(out var full))
             {
                 if (!_events.FullSnapshotWaitPending ||
@@ -157,8 +173,7 @@ namespace VoxelEngine.Net.Client
 
         /// <summary>
         /// Request a current semantic region snapshot. EVENT application is globally paused before
-        /// the request can leave this frame, and resumes only after verified BULK state plus its
-        /// matching EVENT fence.
+        /// the request is flushed, and resumes only after verified BULK state plus its matching fence.
         /// </summary>
         public bool TryRequestFullRegionState(int3 regionCoord)
         {
@@ -191,6 +206,8 @@ namespace VoxelEngine.Net.Client
             _events.ResetAfterAuthoritativeSnapshot();
             _fullRegionResyncRequired = false;
             _lastResyncRequirement = default;
+            _automaticFullStateRequestPending = false;
+            _automaticFullStateRequestRegion = default;
         }
 
         public void Disconnect() { ThrowIfDisposed(); _host.Disconnect(); }
@@ -225,11 +242,15 @@ namespace VoxelEngine.Net.Client
             _lastResyncRequirement = requirement;
             FullRegionResyncRequired?.Invoke(requirement);
 
-            if (requirement.reason == S_RegionResyncRequired.Reason.ServerStateUnavailable)
-                return _events.BeginFullRegionSnapshotWait(requirement.regionCoord);
+            if (!_events.BeginFullRegionSnapshotWait(requirement.regionCoord))
+                return false;
 
-            // Expired exact repair automatically escalates to current-state BULK recovery.
-            return TryRequestFullRegionState(requirement.regionCoord);
+            if (requirement.reason == S_RegionResyncRequired.Reason.ServerStateUnavailable)
+                return true;
+
+            _automaticFullStateRequestPending = true;
+            _automaticFullStateRequestRegion = requirement.regionCoord;
+            return true;
         }
 
         void IRegionHashMismatchSink.OnRegionHashMismatch(in C_RegionHashMismatch mismatch)
@@ -255,6 +276,8 @@ namespace VoxelEngine.Net.Client
             _events.ResetAfterAuthoritativeSnapshot();
             _fullRegionResyncRequired = false;
             _lastResyncRequirement = default;
+            _automaticFullStateRequestPending = false;
+            _automaticFullStateRequestRegion = default;
             Disconnected?.Invoke();
         }
 
@@ -277,6 +300,7 @@ namespace VoxelEngine.Net.Client
             _repair.Reset();
             _fullState.Reset();
             _events.ResetAfterAuthoritativeSnapshot();
+            _automaticFullStateRequestPending = false;
             _disposed = true;
         }
     }
