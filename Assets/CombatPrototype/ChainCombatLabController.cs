@@ -35,6 +35,7 @@ namespace MountingForce.CombatPrototype
 
         private ChainCombatBoard _board;
         private ChainReactionReservationCoordinator _reactionReservations;
+        private ChainRoundReadinessCoordinator _roundReadiness;
         private Camera _camera;
         private GameObject _visualRoot;
         private int _selectedUnitId;
@@ -57,7 +58,8 @@ namespace MountingForce.CombatPrototype
         {
             _board = new ChainCombatBoard();
             _reactionReservations = new ChainReactionReservationCoordinator(_board);
-            _uiMessage = "Four-player hot-seat lab: inspect the physical event, reserve it as a player, then decide which recruit can answer it.";
+            _roundReadiness = new ChainRoundReadinessCoordinator(_board);
+            _uiMessage = "Four-player hot-seat lab: use one active recruit, reserve physical events, and mark each player Ready when proactive play is done.";
             BuildPresentation();
             SelectFirstFriendly();
             _constructsDirty = true;
@@ -72,6 +74,7 @@ namespace MountingForce.CombatPrototype
             }
 
             _reactionReservations?.Synchronize();
+            _roundReadiness?.Synchronize();
             SyncUnits();
             SyncTrees();
             if (_constructsDirty)
@@ -216,9 +219,7 @@ namespace MountingForce.CombatPrototype
                     Vector3 direction = new Vector3(tree.FallDirection.X, 0f, tree.FallDirection.Z);
                     visual.transform.position = World(tree.Position, 0f) + direction * 1.55f;
                     if (direction.sqrMagnitude > 0.01f)
-                    {
                         visual.transform.rotation = Quaternion.FromToRotation(Vector3.up, direction.normalized);
-                    }
                 }
             }
         }
@@ -234,9 +235,7 @@ namespace MountingForce.CombatPrototype
             if (_board.PortalA.HasValue) _constructVisuals.Add(CreatePad("Chain Portal A", _board.PortalA.Value, new Color(0.28f, 0.55f, 1f), PrimitiveType.Cylinder));
             if (_board.PortalB.HasValue) _constructVisuals.Add(CreatePad("Chain Portal B", _board.PortalB.Value, new Color(0.75f, 0.28f, 1f), PrimitiveType.Cylinder));
             foreach (GridPos position in _board.Amplifiers)
-            {
                 _constructVisuals.Add(CreatePad("Chain Force x2", position, new Color(1f, 0.75f, 0.12f), PrimitiveType.Cube));
-            }
         }
 
         private GameObject CreatePad(string name, GridPos position, Color color, PrimitiveType type)
@@ -259,13 +258,11 @@ namespace MountingForce.CombatPrototype
             _scroll = GUILayout.BeginScrollView(_scroll);
 
             GUILayout.Label("MOUNTING FORCE — CASCADE LAB", _titleStyle);
-            GUILayout.Label($"Round {_board.Round} • four command groups • reserve → choose → execute", _smallStyle);
+            GUILayout.Label($"Round {_board.Round} • active recruit + Ready • reserve → choose → execute", _smallStyle);
             GUILayout.Label($"Last cascade: {_board.LastCascadeSteps} steps / {_board.LastCascadePlayers} players   Best: {_board.BestCascadeSteps} / {_board.BestCascadePlayers}", _smallStyle);
 
             if (_board.CurrentCascadeSteps > 0)
-            {
                 GUILayout.Label($"LIVE CASCADE: {_board.CurrentCascadeSteps} deliberate steps across {_board.CurrentCascadePlayers} player(s)", _headerStyle);
-            }
 
             GUILayout.Space(6f);
             DrawOpportunity();
@@ -289,24 +286,17 @@ namespace MountingForce.CombatPrototype
             }
 
             GUILayout.Space(8f);
-            GUILayout.Label("STATUS", _headerStyle);
-            GUILayout.Label(string.IsNullOrEmpty(_uiMessage) ? _board.LastMessage : _uiMessage, _smallStyle);
+            DrawReadiness();
 
             GUILayout.Space(8f);
-            GUI.enabled = !_board.BattleOver;
-            if (GUILayout.Button("End round → enemies act"))
-            {
-                _board.EndRound();
-                _reactionReservations.Reset();
-                _uiMessage = _board.LastMessage;
-                CancelCommand(false);
-            }
-            GUI.enabled = true;
+            GUILayout.Label("STATUS", _headerStyle);
+            GUILayout.Label(string.IsNullOrEmpty(_uiMessage) ? _board.LastMessage : _uiMessage, _smallStyle);
 
             if (GUILayout.Button("Reset battle"))
             {
                 _board.Reset();
                 _reactionReservations.Reset();
+                _roundReadiness.Reset();
                 _uiMessage = "Battle reset. Try a different route through the same geometry.";
                 CancelCommand(false);
                 SelectFirstFriendly();
@@ -322,6 +312,50 @@ namespace MountingForce.CombatPrototype
 
             GUILayout.EndScrollView();
             GUILayout.EndArea();
+        }
+
+        private void DrawReadiness()
+        {
+            GUILayout.Label("PLAYER READY", _headerStyle);
+            GUILayout.Label("Ready means: no more proactive moves/actions this round. It does NOT disable reactions or event reservations.", _smallStyle);
+
+            GUILayout.BeginHorizontal();
+            for (int group = 1; group <= 4; group++)
+            {
+                bool ready = _roundReadiness.IsReady(group);
+                GUI.enabled = !_board.BattleOver;
+                if (GUILayout.Button(ready ? $"P{group} READY ✓" : $"P{group} Ready"))
+                {
+                    _roundReadiness.TrySetReady(group, !ready);
+                    _uiMessage = _roundReadiness.LastMessage;
+                    CancelCommand(false);
+                }
+            }
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+
+            if (_roundReadiness.AllLivingPlayersReady)
+            {
+                GUI.enabled = !_board.BattleOver && _board.PendingReaction == null;
+                if (GUILayout.Button("All living players Ready → enemies act"))
+                {
+                    bool advanced = _roundReadiness.TryAdvanceRound();
+                    _uiMessage = _roundReadiness.LastMessage;
+                    if (advanced)
+                    {
+                        _reactionReservations.Reset();
+                        CancelCommand(false);
+                    }
+                }
+                GUI.enabled = true;
+
+                if (_board.PendingReaction != null)
+                    GUILayout.Label("Everyone is Ready, but the current physical event must still be resolved or passed before enemies act.", _smallStyle);
+            }
+            else
+            {
+                GUILayout.Label("Enemy phase is locked until every living player group is Ready.", _smallStyle);
+            }
         }
 
         private void DrawOpportunity()
@@ -404,7 +438,8 @@ namespace MountingForce.CombatPrototype
                 ChainUnitState unit = _board.Units[i];
                 if (unit.Team != CombatTeam.Friendly || !unit.IsAlive) continue;
                 string marker = unit.Id == _selectedUnitId ? "▶ " : string.Empty;
-                if (GUILayout.Button($"{marker}P{unit.CommandGroup} {unit.Name} — {RosterSummary(unit.Kind)}"))
+                string ready = _roundReadiness.IsReady(unit.CommandGroup) ? " [READY]" : string.Empty;
+                if (GUILayout.Button($"{marker}P{unit.CommandGroup} {unit.Name}{ready} — {RosterSummary(unit.Kind)}"))
                 {
                     _selectedUnitId = unit.Id;
                     CancelCommand(false);
@@ -415,10 +450,11 @@ namespace MountingForce.CombatPrototype
 
         private void DrawSelected(ChainUnitState unit)
         {
+            bool playerReady = _roundReadiness.IsReady(unit.CommandGroup);
             GUILayout.Label($"SELECTED — P{unit.CommandGroup} {unit.Name}", _headerStyle);
-            GUILayout.Label($"HP {unit.Hp}/{unit.MaxHp} • move {(unit.MoveSpent ? "spent" : "ready")} • action {(unit.ActionSpent ? "spent" : "ready")} • reaction {(unit.ReactionSpent ? "spent" : "ready")}", _smallStyle);
+            GUILayout.Label($"HP {unit.Hp}/{unit.MaxHp} • move {(unit.MoveSpent ? "spent" : "ready")} • action {(unit.ActionSpent ? "spent" : "ready")} • reaction {(unit.ReactionSpent ? "spent" : "ready")} • player {(playerReady ? "READY" : "planning")}", _smallStyle);
 
-            GUI.enabled = _board.PendingReaction == null;
+            GUI.enabled = _board.PendingReaction == null && !playerReady;
             if (GUILayout.Button("Move")) BeginCommand(CommandMode.Move, "Click an empty cell within 3 Manhattan cells.");
             if (GUILayout.Button("Strike")) BeginCommand(CommandMode.Strike, "Click an adjacent enemy for a plain 1-damage strike.");
 
@@ -449,6 +485,9 @@ namespace MountingForce.CombatPrototype
             }
             GUI.enabled = true;
 
+            if (playerReady)
+                GUILayout.Label("P is Ready: proactive controls are closed, but reactions below remain fully available.", _smallStyle);
+
             ChainReactionAbility ability = ReactionFor(unit.Kind);
             if (ability != ChainReactionAbility.None)
             {
@@ -460,9 +499,7 @@ namespace MountingForce.CombatPrototype
                 bool canAttempt = reaction != null && reservedBy == unit.CommandGroup && !reaction.IsClaimed && !unit.ReactionSpent;
                 GUI.enabled = canAttempt;
                 if (GUILayout.Button($"Try {ChainCombatBoard.AbilityName(ability)} on P{unit.CommandGroup}'s reserved event"))
-                {
                     TryClaim(unit, ability);
-                }
                 GUI.enabled = true;
 
                 if (reaction != null && reservedBy == 0)
@@ -520,18 +557,18 @@ namespace MountingForce.CombatPrototype
                     }
                     break;
                 case CommandMode.Move:
-                    success = _board.TryMove(_selectedUnitId, cell);
+                    success = TryProactive(() => _board.TryMove(_selectedUnitId, cell));
                     break;
                 case CommandMode.Strike:
-                    success = clicked != null && _board.TryBasicHit(_selectedUnitId, clicked.Id);
+                    success = clicked != null && TryProactive(() => _board.TryBasicHit(_selectedUnitId, clicked.Id));
                     if (clicked == null) _uiMessage = "Click an adjacent enemy.";
                     break;
                 case CommandMode.Uppercut:
-                    success = clicked != null && _board.TryUppercut(_selectedUnitId, clicked.Id);
+                    success = clicked != null && TryProactive(() => _board.TryUppercut(_selectedUnitId, clicked.Id));
                     if (clicked == null) _uiMessage = "Click an adjacent enemy.";
                     break;
                 case CommandMode.Gust:
-                    success = clicked != null && _board.TryGust(_selectedUnitId, clicked.Id);
+                    success = clicked != null && TryProactive(() => _board.TryGust(_selectedUnitId, clicked.Id));
                     if (clicked == null) _uiMessage = "Click an enemy within Weldon's range.";
                     break;
                 case CommandMode.ShoulderPick:
@@ -547,7 +584,7 @@ namespace MountingForce.CombatPrototype
                     current.Use();
                     return;
                 case CommandMode.ShoulderAim:
-                    success = _board.TryShoulderHurl(_selectedUnitId, _stagedTargetId, cell);
+                    success = TryProactive(() => _board.TryShoulderHurl(_selectedUnitId, _stagedTargetId, cell));
                     break;
                 case CommandMode.PortalEntrance:
                     _portalEntrance = cell;
@@ -559,12 +596,12 @@ namespace MountingForce.CombatPrototype
                 case CommandMode.PortalExit:
                     if (_hasPortalEntrance)
                     {
-                        success = _board.TryPlacePortalPair(_selectedUnitId, _portalEntrance, cell);
+                        success = TryProactive(() => _board.TryPlacePortalPair(_selectedUnitId, _portalEntrance, cell));
                         if (success) _constructsDirty = true;
                     }
                     break;
                 case CommandMode.Amplifier:
-                    success = _board.TryPlaceAmplifier(_selectedUnitId, cell);
+                    success = TryProactive(() => _board.TryPlaceAmplifier(_selectedUnitId, cell));
                     if (success) _constructsDirty = true;
                     break;
                 case CommandMode.ReactionPick:
@@ -592,7 +629,7 @@ namespace MountingForce.CombatPrototype
                     _uiMessage = _board.LastMessage;
                     CancelCommand(false);
                 }
-                else if (!string.IsNullOrEmpty(_board.LastMessage))
+                else if (!string.IsNullOrEmpty(_board.LastMessage) && string.IsNullOrEmpty(_uiMessage))
                 {
                     _uiMessage = _board.LastMessage;
                 }
@@ -601,22 +638,28 @@ namespace MountingForce.CombatPrototype
             current.Use();
         }
 
+        private bool TryProactive(System.Func<bool> command)
+        {
+            ChainUnitState unit = _board.GetUnit(_selectedUnitId);
+            if (unit == null) return false;
+            if (!_roundReadiness.CanUseProactive(unit.CommandGroup))
+            {
+                _uiMessage = $"P{unit.CommandGroup} is Ready. Unready P{unit.CommandGroup} before taking another proactive action; reactions remain available.";
+                return false;
+            }
+            return command();
+        }
+
         private bool ExecuteReactionAim(GridPos cell)
         {
             switch (_activeReactionAbility)
             {
-                case ChainReactionAbility.Crosswind:
-                    return _board.TryCrosswind(_selectedUnitId, cell);
-                case ChainReactionAbility.CatchThrow:
-                    return _board.TryCatchThrow(_selectedUnitId, cell);
-                case ChainReactionAbility.Repulse:
-                    return _board.TryRepulse(_selectedUnitId, _stagedTargetId, cell);
-                case ChainReactionAbility.FollowThrough:
-                    return _board.TryFollowThrough(_selectedUnitId, _stagedTargetId, cell);
-                case ChainReactionAbility.HookYank:
-                    return _board.TryHookYank(_selectedUnitId, _stagedTargetId, cell);
-                case ChainReactionAbility.Timber:
-                    return _board.TryTimber(_selectedUnitId, cell);
+                case ChainReactionAbility.Crosswind: return _board.TryCrosswind(_selectedUnitId, cell);
+                case ChainReactionAbility.CatchThrow: return _board.TryCatchThrow(_selectedUnitId, cell);
+                case ChainReactionAbility.Repulse: return _board.TryRepulse(_selectedUnitId, _stagedTargetId, cell);
+                case ChainReactionAbility.FollowThrough: return _board.TryFollowThrough(_selectedUnitId, _stagedTargetId, cell);
+                case ChainReactionAbility.HookYank: return _board.TryHookYank(_selectedUnitId, _stagedTargetId, cell);
+                case ChainReactionAbility.Timber: return _board.TryTimber(_selectedUnitId, cell);
                 default:
                     _uiMessage = "No claimed reaction is waiting for aim.";
                     return false;
@@ -671,6 +714,13 @@ namespace MountingForce.CombatPrototype
 
         private void BeginCommand(CommandMode mode, string message)
         {
+            ChainUnitState unit = _board.GetUnit(_selectedUnitId);
+            if (unit != null && !_roundReadiness.CanUseProactive(unit.CommandGroup) && mode != CommandMode.ReactionPick && mode != CommandMode.ReactionAim)
+            {
+                _uiMessage = $"P{unit.CommandGroup} is Ready. Unready that player before starting another proactive action.";
+                return;
+            }
+
             _command = mode;
             _uiMessage = message;
             _stagedTargetId = 0;
@@ -683,7 +733,7 @@ namespace MountingForce.CombatPrototype
             _stagedTargetId = 0;
             _activeReactionAbility = ChainReactionAbility.None;
             _hasPortalEntrance = false;
-            if (updateMessage) _uiMessage = "Aim cancelled. Any player reservation remains until that player releases it; any concrete board claim remains until changed or executed.";
+            if (updateMessage) _uiMessage = "Aim cancelled. Player readiness and event reservations remain unchanged.";
         }
 
         private void SelectFirstFriendly()
@@ -786,9 +836,7 @@ namespace MountingForce.CombatPrototype
         private static Color UnitColor(ChainUnitState unit)
         {
             if (unit.Team == CombatTeam.Enemy)
-            {
                 return unit.Kind == ChainRecruitKind.Ogre ? new Color(0.68f, 0.18f, 0.13f) : new Color(0.86f, 0.32f, 0.25f);
-            }
 
             switch (unit.CommandGroup)
             {
