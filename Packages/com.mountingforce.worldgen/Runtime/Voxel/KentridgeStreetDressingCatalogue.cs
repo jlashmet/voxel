@@ -220,7 +220,9 @@ namespace MountingForce.WorldGen.Voxel
             switch (kind)
             {
                 case StreetPropKind.Lamp: return new int3(9 * scale, 44 * scale, 9 * scale);
-                case StreetPropKind.Bench: return new int3(28 * scale, 18 * scale, 8 * scale);
+                // Square X/Z bounds make both authored bench quarter-turns footprint-safe. The
+                // actual bench remains a narrow 28x8 dm mesh within this conservative envelope.
+                case StreetPropKind.Bench: return new int3(28 * scale, 18 * scale, 28 * scale);
                 case StreetPropKind.Planter: return new int3(14 * scale, 12 * scale, 14 * scale);
                 default: throw new ArgumentOutOfRangeException(nameof(kind));
             }
