@@ -47,24 +47,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
                 int hash = StableHash(plan.Seed, plot.RoleId);
                 int side = (hash & 1) == 0 ? -1 : 1;
-                int x;
-                int z;
-
-                if (plot.Frontage == FrontageDirection.South
-                    || plot.Frontage == FrontageDirection.North)
-                {
-                    x = side < 0
-                        ? plot.PositionDm.X - 22
-                        : plot.PositionDm.X + footprint.X + 22;
-                    z = plot.PositionDm.Y + footprint.Z * 3 / 4;
-                }
-                else
-                {
-                    x = plot.PositionDm.X + footprint.X * 3 / 4;
-                    z = side < 0
-                        ? plot.PositionDm.Y - 22
-                        : plot.PositionDm.Y + footprint.Z + 22;
-                }
+                ResidentialTreePoint(plot, footprint, side, out int x, out int z);
 
                 SemanticTreeSpecies species;
                 if (plot.RoleId == (int)KentridgeRole.AbandonedHouse)
@@ -73,7 +56,36 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     species = ResidentialSpecies(hash);
 
                 int height = 86 + PositiveMod(hash >> 3, 30);
-                TryAdd(plan, result, x, z, height, species, ref ordinal);
+                if (TryAdd(plan, result, x, z, height, species, ref ordinal))
+                    continue;
+
+                // Dense mixed-use blocks can occupy the first hashed side of a house. Preserve the
+                // stable hash preference, but deterministically mirror to the other side rather than
+                // silently dropping that residence's tree identity.
+                ResidentialTreePoint(plot, footprint, -side, out x, out z);
+                if (!TryAdd(plan, result, x, z, height, species, ref ordinal))
+                    throw new InvalidOperationException(
+                        "Kentridge residence has no clear semantic tree side: role " + plot.RoleId);
+            }
+        }
+
+        private static void ResidentialTreePoint(BuildingPlot plot, Int3 footprint, int side,
+                                                 out int x, out int z)
+        {
+            if (plot.Frontage == FrontageDirection.South
+                || plot.Frontage == FrontageDirection.North)
+            {
+                x = side < 0
+                    ? plot.PositionDm.X - 22
+                    : plot.PositionDm.X + footprint.X + 22;
+                z = plot.PositionDm.Y + footprint.Z * 3 / 4;
+            }
+            else
+            {
+                x = plot.PositionDm.X + footprint.X * 3 / 4;
+                z = side < 0
+                    ? plot.PositionDm.Y - 22
+                    : plot.PositionDm.Y + footprint.Z + 22;
             }
         }
 
