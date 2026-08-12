@@ -61,16 +61,13 @@ namespace MountingForce.CombatPrototype
         {
             if (intent.Kind == ChainEnemyIntentKind.Charge)
             {
-                for (int step = 1; step <= 6; step++)
-                {
-                    GridPos cell = enemy.Position + intent.Direction * step;
-                    if (!_board.IsInBounds(cell)) break;
-                    DrawCellMarker(cell, DirectionGlyph(intent.Direction));
-
-                    ChainUnitState occupant = _board.FindUnitAt(cell);
-                    ChainTreeState tree = _board.FindStandingTreeAt(cell);
-                    if ((occupant != null && occupant.Id != enemy.Id) || tree != null) break;
-                }
+                DrawMotionLane(enemy.Position, enemy.Id, intent.Direction, 6);
+            }
+            else if (intent.Kind == ChainEnemyIntentKind.Shove)
+            {
+                ChainUnitState target = _board.GetUnit(intent.TargetUnitId);
+                if (target != null && target.IsAlive)
+                    DrawMotionLane(target.Position, target.Id, intent.Direction, 4);
             }
             else if (intent.Kind == ChainEnemyIntentKind.Advance)
             {
@@ -81,6 +78,20 @@ namespace MountingForce.CombatPrototype
             {
                 ChainUnitState target = _board.GetUnit(intent.TargetUnitId);
                 if (target != null && target.IsAlive) DrawCellMarker(target.Position, "HIT");
+            }
+        }
+
+        private void DrawMotionLane(GridPos origin, int movingUnitId, GridPos direction, int distance)
+        {
+            for (int step = 1; step <= distance; step++)
+            {
+                GridPos cell = origin + direction * step;
+                if (!_board.IsInBounds(cell)) break;
+                DrawCellMarker(cell, DirectionGlyph(direction));
+
+                ChainUnitState occupant = _board.FindUnitAt(cell);
+                ChainTreeState tree = _board.FindStandingTreeAt(cell);
+                if ((occupant != null && occupant.Id != movingUnitId) || tree != null) break;
             }
         }
 
@@ -116,6 +127,11 @@ namespace MountingForce.CombatPrototype
                 {
                     ChainUnitState target = _board.GetUnit(intent.TargetUnitId);
                     return $"{enemy.Name}: ATTACK\n{(target == null ? "lost target" : target.Name)}";
+                }
+                case ChainEnemyIntentKind.Shove:
+                {
+                    ChainUnitState target = _board.GetUnit(intent.TargetUnitId);
+                    return $"{enemy.Name}: SHOVE {DirectionName(intent.Direction).ToUpperInvariant()}\n{(target == null ? "lost target" : target.Name)} • force 4";
                 }
                 case ChainEnemyIntentKind.Charge:
                     return $"{enemy.Name}: CHARGE {DirectionName(intent.Direction).ToUpperInvariant()}\nforce 6";
