@@ -143,13 +143,6 @@ namespace VoxelEngine.Showcase
             _density = null;
         }
 
-        /// <summary>
-        /// Builds one occupancy field per supported blur depth, then selects the field independently
-        /// for every material sample. This is the critical distinction from the old renderer: a
-        /// dressed-stone sample selecting blurPasses=0 is never touched by the two-pass terrain blur.
-        /// Air samples inherit the nearest solid material's profile so both sides of an iso crossing
-        /// use the same reconstruction contract.
-        /// </summary>
         private void BuildBaseDensity(ShowcaseWorld world)
         {
             int margin = MaxBlurPasses + 2;
@@ -224,7 +217,6 @@ namespace VoxelEngine.Showcase
         {
             float coverage = 0f;
             float3 gradient = float3.zero;
-
             for (int z = -1; z <= 1; z++)
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
@@ -236,7 +228,6 @@ namespace VoxelEngine.Showcase
                 coverage += occupied * wx * wy * wz;
                 gradient += occupied * new float3(x * wy * wz, wx * y * wz, wx * wy * z);
             }
-
             coverage *= 1f / 64f;
             gradient *= 1f / 32f;
             return RecoveredDensity(coverage, gradient, raw);
@@ -247,7 +238,6 @@ namespace VoxelEngine.Showcase
         {
             float coverage = 0f;
             float3 gradient = float3.zero;
-
             for (int z = -2; z <= 2; z++)
             for (int y = -2; y <= 2; y++)
             for (int x = -2; x <= 2; x++)
@@ -262,7 +252,6 @@ namespace VoxelEngine.Showcase
                 coverage += occupied * wx * wy * wz;
                 gradient += occupied * new float3(dx * wy * wz, wx * dy * wz, wx * wy * dz);
             }
-
             coverage *= 1f / 4096f;
             gradient *= 1f / 2048f;
             return RecoveredDensity(coverage, gradient, fallback);
@@ -317,7 +306,6 @@ namespace VoxelEngine.Showcase
                 if (qx < 0 || qy < 0 || qz < 0
                     || qx >= _baseSize.x || qy >= _baseSize.y || qz >= _baseSize.z)
                     continue;
-
                 byte candidate = _baseMaterials[BaseIndex(qx, qy, qz)];
                 if (candidate == VoxelDimensions.MaterialEmpty) continue;
                 float distance = dx * dx + dy * dy + dz * dz;
@@ -343,7 +331,6 @@ namespace VoxelEngine.Showcase
             int sx = _baseSize.x;
             int sy = _baseSize.y;
             int sz = _baseSize.z;
-
             for (int z = 0; z < sz; z++)
             for (int y = 0; y < sy; y++)
             for (int x = 0; x < sx; x++)
@@ -354,7 +341,6 @@ namespace VoxelEngine.Showcase
                     (values[BaseIndex(xm, y, z)] + values[BaseIndex(x, y, z)] * 2f
                      + values[BaseIndex(xp, y, z)]) * 0.25f;
             }
-
             for (int z = 0; z < sz; z++)
             for (int y = 0; y < sy; y++)
             for (int x = 0; x < sx; x++)
@@ -365,7 +351,6 @@ namespace VoxelEngine.Showcase
                     (scratch[BaseIndex(x, ym, z)] + scratch[BaseIndex(x, y, z)] * 2f
                      + scratch[BaseIndex(x, yp, z)]) * 0.25f;
             }
-
             for (int z = 0; z < sz; z++)
             for (int y = 0; y < sy; y++)
             for (int x = 0; x < sx; x++)
@@ -376,7 +361,6 @@ namespace VoxelEngine.Showcase
                     (values[BaseIndex(x, y, zm)] + values[BaseIndex(x, y, z)] * 2f
                      + values[BaseIndex(x, y, zp)]) * 0.25f;
             }
-
             Array.Copy(scratch, values, values.Length);
         }
 
@@ -399,7 +383,6 @@ namespace VoxelEngine.Showcase
             float3 f = math.frac(local);
             i0 = math.clamp(i0, int3.zero, _baseSize - new int3(2));
             int3 i1 = i0 + 1;
-
             float c000 = BaseDensityAt(i0.x, i0.y, i0.z);
             float c100 = BaseDensityAt(i1.x, i0.y, i0.z);
             float c010 = BaseDensityAt(i0.x, i1.y, i0.z);
@@ -423,14 +406,12 @@ namespace VoxelEngine.Showcase
             int[] outside = new int[4];
             int insideCount = 0;
             int outsideCount = 0;
-
             for (int i = 0; i < 4; i++)
             {
                 int id = ids[i];
                 if (values[id] < 0f) inside[insideCount++] = id;
                 else outside[outsideCount++] = id;
             }
-
             if (insideCount == 0 || insideCount == 4) return;
             if (insideCount == 1)
             {
@@ -450,7 +431,6 @@ namespace VoxelEngine.Showcase
                     Interpolate(positions[o], positions[inside[1]], values[o], values[inside[1]]));
                 return;
             }
-
             int i0 = inside[0];
             int i1 = inside[1];
             int o0 = outside[0];
@@ -476,14 +456,18 @@ namespace VoxelEngine.Showcase
             float3 na = Gradient(a);
             float3 nb = Gradient(b);
             float3 nc = Gradient(c);
-            float3 averageNormal = math.normalizesafe(na + nb + nc, new float3(0f, 1f, 0f));
+            float3 materialNormal = math.normalizesafe(na + nb + nc, new float3(0f, 1f, 0f));
 
-            byte material = SurfaceMaterial(world, centroid, averageNormal);
+            byte material = SurfaceMaterial(world, centroid, materialNormal);
             if (material == VoxelDimensions.MaterialEmpty || material >= MaterialCount) material = 1;
             VoxelSurfaceProfile profile = _surfaceProfiles.Get(material);
             a = Planarize(a, na, in profile);
             b = Planarize(b, nb, in profile);
             c = Planarize(c, nc, in profile);
+            na = PlanarizeNormal(na, in profile);
+            nb = PlanarizeNormal(nb, in profile);
+            nc = PlanarizeNormal(nc, in profile);
+            float3 averageNormal = math.normalizesafe(na + nb + nc, materialNormal);
 
             if (math.dot(math.cross(b - a, c - a), averageNormal) < 0f)
             {
@@ -510,18 +494,10 @@ namespace VoxelEngine.Showcase
                                         in VoxelSurfaceProfile profile)
         {
             if (profile.Planarization <= 0.00001f) return position;
-            float3 n = math.abs(normal);
-            float dominance = n.x;
-            int axis = 0;
-            if (n.y > dominance) { dominance = n.y; axis = 1; }
-            if (n.z > dominance) { dominance = n.z; axis = 2; }
+            GetDominantAxis(normal, out int axis, out float dominance);
             if (dominance <= profile.PlanarizationThreshold) return position;
-
-            float range = math.max(0.0001f, 1f - profile.PlanarizationThreshold);
-            float axisWeight = math.saturate((dominance - profile.PlanarizationThreshold) / range);
-            axisWeight *= axisWeight;
-            float strength = profile.Planarization * axisWeight;
-
+            float strength = PlanarWeight(dominance, profile.PlanarizationThreshold)
+                           * profile.Planarization;
             if (axis == 0)
             {
                 float target = math.round(position.x - 0.5f) + 0.5f;
@@ -538,6 +514,38 @@ namespace VoxelEngine.Showcase
                 position.z = math.lerp(position.z, target, strength);
             }
             return position;
+        }
+
+        private static float3 PlanarizeNormal(float3 normal, in VoxelSurfaceProfile profile)
+        {
+            if (profile.NormalPlanarization <= 0.00001f) return normal;
+            GetDominantAxis(normal, out int axis, out float dominance);
+            if (dominance <= profile.PlanarizationThreshold) return normal;
+            float strength = PlanarWeight(dominance, profile.PlanarizationThreshold)
+                           * profile.NormalPlanarization;
+            float sign = axis == 0 ? math.sign(normal.x)
+                       : axis == 1 ? math.sign(normal.y)
+                                   : math.sign(normal.z);
+            float3 target = axis == 0 ? new float3(sign, 0f, 0f)
+                          : axis == 1 ? new float3(0f, sign, 0f)
+                                      : new float3(0f, 0f, sign);
+            return math.normalizesafe(math.lerp(normal, target, strength), target);
+        }
+
+        private static void GetDominantAxis(float3 normal, out int axis, out float dominance)
+        {
+            float3 n = math.abs(normal);
+            dominance = n.x;
+            axis = 0;
+            if (n.y > dominance) { dominance = n.y; axis = 1; }
+            if (n.z > dominance) { dominance = n.z; axis = 2; }
+        }
+
+        private static float PlanarWeight(float dominance, float threshold)
+        {
+            float range = math.max(0.0001f, 1f - threshold);
+            float weight = math.saturate((dominance - threshold) / range);
+            return weight * weight;
         }
 
         private float3 Gradient(float3 worldVoxel)
@@ -560,7 +568,6 @@ namespace VoxelEngine.Showcase
             int3 i0 = (int3)math.floor(clamped);
             int3 i1 = math.min(i0 + 1, _sampleSize - new int3(1));
             float3 f = math.frac(clamped);
-
             float c000 = DensityAt(i0.x, i0.y, i0.z);
             float c100 = DensityAt(i1.x, i0.y, i0.z);
             float c010 = DensityAt(i0.x, i1.y, i0.z);
@@ -583,7 +590,6 @@ namespace VoxelEngine.Showcase
             int3 centre = (int3)math.round(position - outwardNormal * 0.65f);
             byte material = SampleMaterial(ref table, in pool, centre);
             if (material != VoxelDimensions.MaterialEmpty) return material;
-
             float best = float.PositiveInfinity;
             byte bestMaterial = 0;
             for (int z = -1; z <= 1; z++)
@@ -611,14 +617,12 @@ namespace VoxelEngine.Showcase
                                    worldBrick.z >> VoxelDimensions.RegionEdgeLog2);
             if (!table.TryGetRegion(regionCoord, out Region region))
                 return VoxelDimensions.MaterialEmpty;
-
             int bx = worldBrick.x & VoxelDimensions.RegionEdgeMask;
             int by = worldBrick.y & VoxelDimensions.RegionEdgeMask;
             int bz = worldBrick.z & VoxelDimensions.RegionEdgeMask;
             BrickRef brick = region.GetBrick(bx, by, bz);
             if (brick.IsEmpty) return VoxelDimensions.MaterialEmpty;
             if (brick.IsUniform) return brick.UniformMaterial;
-
             int lx = FloorMod(voxel.x, BrickEdge);
             int ly = FloorMod(voxel.y, BrickEdge);
             int lz = FloorMod(voxel.z, BrickEdge);
@@ -632,7 +636,6 @@ namespace VoxelEngine.Showcase
             for (int material = 1; material < MaterialCount; material++)
             {
                 if (_vertices[material].Count == 0) continue;
-
                 var mesh = new Mesh
                 {
                     name = $"Voxel Hero material {material}",
@@ -643,7 +646,6 @@ namespace VoxelEngine.Showcase
                 mesh.SetTriangles(_triangles[material], 0, true);
                 mesh.RecalculateBounds();
                 _meshes.Add(mesh);
-
                 var go = new GameObject(MaterialName(material));
                 go.transform.SetParent(_root.transform, false);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
@@ -656,7 +658,6 @@ namespace VoxelEngine.Showcase
                     renderer.sharedMaterial = placeholder;
                     _placeholderMaterials.Add(placeholder);
                 }
-
                 VertexCount += mesh.vertexCount;
                 RegionMeshCount++;
             }
@@ -683,24 +684,10 @@ namespace VoxelEngine.Showcase
 
         private static string MaterialName(int material) => material switch
         {
-            1 => "stone",
-            2 => "wood",
-            3 => "sand",
-            4 => "glass",
-            5 => "bedrock",
-            6 => "darkstone",
-            7 => "slate",
-            8 => "roof",
-            9 => "cloth",
-            10 => "grass",
-            11 => "water",
-            12 => "gold",
-            13 => "dirt",
-            14 => "moss",
-            15 => "window",
-            16 => "cascade",
-            17 => "crystal",
-            _ => $"material-{material}"
+            1 => "stone", 2 => "wood", 3 => "sand", 4 => "glass", 5 => "bedrock",
+            6 => "darkstone", 7 => "slate", 8 => "roof", 9 => "cloth", 10 => "grass",
+            11 => "water", 12 => "gold", 13 => "dirt", 14 => "moss", 15 => "window",
+            16 => "cascade", 17 => "crystal", _ => $"material-{material}"
         };
 
         private static int FloorDiv(int value, int divisor)
