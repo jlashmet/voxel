@@ -92,7 +92,16 @@ namespace VoxelEngine.Net.Server
         {
             ThrowIfDisposed();
             Span<byte> packet = stackalloc byte[RegionHashPacket.PacketSize];
-            return RegionHashPacket.TryEncode(packet, in hash) && _host.TrySend(connectionId, UtpChannel.Event, packet);
+            return RegionHashPacket.TryEncode(packet, in hash) &&
+                   _host.TrySend(connectionId, UtpChannel.Event, packet);
+        }
+
+        public bool SendRegionResyncRequired(uint connectionId, in S_RegionResyncRequired message)
+        {
+            ThrowIfDisposed();
+            Span<byte> packet = stackalloc byte[RegionResyncRequiredPacket.PacketSize];
+            return RegionResyncRequiredPacket.TryEncode(packet, in message) &&
+                   _host.TrySend(connectionId, UtpChannel.Event, packet);
         }
 
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)
@@ -103,10 +112,6 @@ namespace VoxelEngine.Net.Server
                 : 0;
         }
 
-        /// <summary>
-        /// Encode/queue mutation EVENT packets but do not flush the transport yet. Hash checkpoints
-        /// must be appended after this call so reliable EVENT order is mutation(s) -> hash barrier.
-        /// </summary>
         public void FlushReplication()
         {
             ThrowIfDisposed();
