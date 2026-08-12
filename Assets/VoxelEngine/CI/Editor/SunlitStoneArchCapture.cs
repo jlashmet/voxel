@@ -69,7 +69,7 @@ namespace VoxelEngine.CI
 
                 var surfaceProfiles = new VoxelSurfaceProfileSet()
                     .Set(Mat.Stone, VoxelSurfaceProfile.DressedStone)
-                    .Set(Mat.DarkStone, VoxelSurfaceProfile.DressedStone)
+                    .Set(Mat.DarkStone, VoxelSurfaceProfile.RecessedMasonryJoint)
                     .Set(Mat.Moss, new VoxelSurfaceProfile(
                         smoothing: 0.90f,
                         densityBias: -0.004f,
@@ -126,9 +126,9 @@ namespace VoxelEngine.CI
                 string metadata =
                     "capture=AAA voxel-only arch hero study\n" +
                     "geometry=VoxelBrush -> material-aware bounded voxel extraction\n" +
-                    "surfaceProfile=stone+joint:s1.00/dr1.00/cr0.72/p0.78\n" +
+                    "surfaceProfile=stone:s1.00/dr1.00/cr0.72/p0.78 joint:bias-0.085\n" +
                     $"archivoltProjectionVoxels={spec.ArchivoltProjection}\n" +
-                    "masonryDetail=component-driven seams + deterministic stone relief\n" +
+                    "masonryDetail=component-driven seams + recessed joint geometry + deterministic stone relief\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
                     "heroSurfaceSampleMetres=0.05\n" +
