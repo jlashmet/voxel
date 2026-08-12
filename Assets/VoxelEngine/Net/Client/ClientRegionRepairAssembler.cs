@@ -61,8 +61,8 @@ namespace VoxelEngine.Net.Client
         }
 
         /// <summary>
-        /// Apply an assembled snapshot only when the paused authority queue expects exactly this
-        /// region/tick/hash checkpoint. After replacement, recompute the semantic hash before resume.
+        /// Apply only when queue metadata matches and the encoded snapshot itself hashes to the
+        /// advertised semantic hash. Bad state is rejected before any target bricks are released.
         /// </summary>
         public bool TryApplyCompleted(
             ref RegionTable table,
@@ -73,6 +73,13 @@ namespace VoxelEngine.Net.Client
                 !authorityQueue.RepairRegion.Equals(_regionCoord) ||
                 authorityQueue.RepairTick != _snapshotTick ||
                 authorityQueue.RepairHash != _semanticHash)
+                return false;
+
+            if (!SemanticRegionSnapshotCodec.TryComputeSemanticHash(
+                    _regionCoord,
+                    _snapshot,
+                    out uint encodedHash) ||
+                encodedHash != _semanticHash)
                 return false;
 
             if (!SemanticRegionSnapshotCodec.TryApply(
