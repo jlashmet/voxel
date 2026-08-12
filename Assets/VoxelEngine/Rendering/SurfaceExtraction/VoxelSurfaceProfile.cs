@@ -85,6 +85,21 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             planarizationThreshold: 0.89f,
             distanceRecovery: 1.0f,
             curveRecovery: 0.72f);
+
+        /// <summary>
+        /// Thin mortar or dressed-stone joint bands should follow the exact same reconstruction as
+        /// their surrounding masonry, but sit slightly behind the stone face. Keeping the curve and
+        /// planarization settings identical prevents a joint material from introducing a separate
+        /// silhouette while the negative density bias produces a real shallow recess in derived
+        /// presentation geometry. Authoritative voxel connectivity remains untouched.
+        /// </summary>
+        public static VoxelSurfaceProfile RecessedMasonryJoint => new(
+            smoothing: 1.0f,
+            densityBias: -0.085f,
+            planarization: 0.78f,
+            planarizationThreshold: 0.89f,
+            distanceRecovery: 1.0f,
+            curveRecovery: 0.72f);
     }
 
     /// <summary>
