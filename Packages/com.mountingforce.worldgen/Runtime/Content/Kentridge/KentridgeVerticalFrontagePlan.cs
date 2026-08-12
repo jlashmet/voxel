@@ -76,15 +76,15 @@ namespace MountingForce.WorldGen.Content.Kentridge
     }
 
     /// <summary>
-    /// Promotes the downhill/court edge of every dense upper block into occupied vertical city
+    /// Promotes the downhill edge of every dense upper block into occupied vertical city
     /// fabric. Lower Ward remains landscape-led; Market, Upper, Civic and Noble blocks receive one
-    /// continuous undercroft/loggia face whose gateway is exactly the court gap already reserved by
-    /// the macro block plan.
+    /// continuous undercroft/loggia face whose gateway stays aligned with the court gap already reserved
+    /// on the opposite public edge of the macro block plan.
     /// </summary>
     public static class KentridgeVerticalFrontagePlanner
     {
         public const int TopBelowShelfDm = 3;
-        public const int FrontInsetDm = 8;
+        public const int FrontInsetDm = 0;
 
         public static KentridgeVerticalFrontagePlan Build(uint seed)
         {
@@ -109,12 +109,18 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     out int depthDm, out int bayPitchDm);
                 int heightDm = Math.Max(40, block.EmbedBelowShelfDm - 4);
 
+                // The public/court run sits on the uphill side of the block. The visible retaining
+                // face is the opposite MaxZ edge. Keep the same X-axis gateway so the lower opening,
+                // stair route and upper court form one legible vertical circulation line.
+                Int2 lowerStart = new Int2(block.MinDm.X, block.MaxDm.Y);
+                Int2 lowerEnd = new Int2(block.MaxDm.X, block.MaxDm.Y);
+
                 zones.Add(new KentridgeVerticalFrontageZone(
                     block.Id + "-vertical-frontage",
                     block.Band,
                     block.District,
-                    run.StartDm,
-                    run.EndDm,
+                    lowerStart,
+                    lowerEnd,
                     block.ElevationSampleDm,
                     run.GapCentreDm,
                     run.GapWidthDm,
