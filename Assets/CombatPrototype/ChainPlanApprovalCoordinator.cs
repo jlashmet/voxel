@@ -72,7 +72,7 @@ namespace MountingForce.CombatPrototype
                 int previousRevision = _trackedRevision;
                 bool planBecameEmpty = _trackedHadActions && !hasActions;
                 bool authoritativeBoardChanged = boardFingerprint != _trackedBoardFingerprint;
-                bool committedApprovedPlan = planBecameEmpty && authoritativeBoardChanged;
+                bool committedApprovedPlan = planBecameEmpty && authoritativeBoardChanged && _readiness.AllLivingPlayersReady;
 
                 if (committedApprovedPlan)
                 {
