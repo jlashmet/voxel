@@ -1,20 +1,25 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using VoxelEngine.Showcase;
 using VoxelEngine.Structures;
 
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Deterministic hero-asset review for the reusable masonry arch bay. The camera is deliberately
-    /// close: if joints, bevels, bond, silhouette or damage look procedural here, the asset fails.
+    /// Close hero review for the real destructible voxel architecture path. No presentation meshes
+    /// are used for the arch or its stones: VoxelBrush writes world data and VoxelSurfaceRenderer
+    /// is solely responsible for the visible masonry surface.
     /// </summary>
     public static class SunlitStoneArchCapture
     {
         private const int Width = 1120;
         private const int Height = 1376;
+        private static readonly int3 RegionCoord = new(1, 0, 0);
 
         public static void Run()
         {
@@ -22,38 +27,61 @@ namespace VoxelEngine.CI
             string outDir = Path.Combine(projectRoot, "Artifacts", "WorldArtKit");
             Directory.CreateDirectory(outDir);
 
-            GameObject root = null;
+            ShowcaseWorld world = null;
+            VoxelSurfaceRenderer voxelSurface = null;
             GameObject cameraObject = null;
             GameObject keyObject = null;
             GameObject fillObject = null;
             RenderTexture target = null;
             Texture2D capture = null;
+            var owned = new List<UnityEngine.Object>();
 
             try
             {
-                Shader shader = Shader.Find("VoxelEngine/SunlitSmooth");
-                if (shader == null) throw new InvalidOperationException("SunlitSmooth shader not found.");
+                const uint seed = 0xA341u;
+                world = new ShowcaseWorld(seed, 64_000, 1, 2);
+                world.GenerateRegionBlocking(RegionCoord);
 
-                WorldArtPalette palette = BuildPalette(shader);
-                root = new GameObject("AAA Arch Bay Hero Study");
+                int cx = RegionCoord.x * ShowcaseWorld.RegionVoxelEdge + ShowcaseWorld.RegionVoxelEdge / 2;
+                int cz = ShowcaseWorld.RegionVoxelEdge / 2;
+                int terrainY = world.SurfaceHeight(cx, cz);
+                int baseY = terrainY + 5;
 
-                WorldArtPiece hero = WorldArtArchBay.Build(root.transform,
-                    "AAA reusable intact arch bay", Vector3.zero,
-                    1.62f, 3.58f, 1.10f, 0.48f, 0.58f, 0.94f,
-                    0xA341, palette, WorldArtArchDamage.Intact);
+                var brush = new VoxelBrush(world.Table, world.Pool, 4_000_000);
 
-                // A small amount of restrained dressing tests sockets without hiding masonry.
-                WorldArtKit.MossCluster(root.transform, "Hero study crown moss",
-                    hero.Socket("crown").position + new Vector3(-0.54f, 0.04f, -0.50f),
-                    0.24f, 0x719, palette.Get(WorldArtSurfaceRole.Moss));
+                // Isolate the hero asset from generated terrain so every visible architectural
+                // decision in this capture comes from the reusable voxel builder.
+                brush.FillBulk(new int3(cx - 42, baseY, cz - 24),
+                    new int3(84, 72, 48), Mat.Empty);
+                WorldArtPrimitives.RoundedBox(ref brush,
+                    new int3(cx - 34, baseY - 4, cz - 18),
+                    new int3(68, 5, 36), 2, Mat.DarkStone);
 
-                BuildGround(root.transform, shader);
+                WorldArtVoxelArchSpec spec = WorldArtVoxelArchSpec.Hero(
+                    new int3(cx, baseY, cz), Mat.Stone, Mat.Empty, seed);
+                spec.Damage = WorldArtVoxelArchDamage.Intact;
+                WorldArtVoxelArchSockets sockets = WorldArtVoxelArchitecture.ArchBay(ref brush, in spec);
+
+                if (brush.BudgetExceeded)
+                    throw new InvalidOperationException("Voxel hero arch exceeded VoxelBrush budget.");
+
+                world.DirtyRegions.Add(RegionCoord);
+                voxelSurface = new VoxelSurfaceRenderer { CastShadows = true };
+                for (int i = 0; i < 120; i++)
+                {
+                    voxelSurface.Sync(world, 400.0);
+                    if (world.DirtyRegions.Count == 0 && voxelSurface.PendingRebuilds == 0) break;
+                }
+                if (voxelSurface.RegionMeshCount == 0 || voxelSurface.VertexCount == 0)
+                    throw new InvalidOperationException("Voxel hero arch produced no surface geometry.");
+
+                ApplyVoxelPalette(voxelSurface.Root, owned);
                 SetupLighting(out keyObject, out fillObject);
-                SetupCamera(out cameraObject, out Camera camera, hero);
+                SetupCamera(sockets, out cameraObject, out Camera camera);
 
                 target = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32)
                 {
-                    name = "AAA Arch Bay Review",
+                    name = "AAA Voxel Arch Review",
                     antiAliasing = 4
                 };
                 target.Create();
@@ -76,11 +104,18 @@ namespace VoxelEngine.CI
                     camera.targetTexture = null;
                 }
 
-                File.WriteAllText(Path.Combine(outDir, "sunlit-cleric.txt"),
-                    "capture=AAA reusable arch bay hero study\n" +
-                    "qualityBar=close-up hero asset\n" +
-                    "damage=Intact\n" +
-                    "seed=0xA341\n");
+                string metadata =
+                    "capture=AAA voxel-only arch hero study\n" +
+                    "geometry=VoxelBrush -> VoxelSurfaceRenderer\n" +
+                    "unityPresentationMeshes=0\n" +
+                    "voxelSizeMetres=0.10\n" +
+                    $"seed=0x{seed:X}\n" +
+                    $"baseY={baseY}\n" +
+                    $"voxelWrites={brush.VoxelsWritten}\n" +
+                    $"bulkVoxelWrites={brush.BulkVoxelsWritten}\n" +
+                    $"surfaceVertices={voxelSurface.VertexCount}\n";
+                File.WriteAllText(Path.Combine(outDir, "sunlit-cleric.txt"), metadata);
+                Debug.Log($"CI voxel arch hero study written to {outDir}\n{metadata}");
             }
             catch (Exception exception)
             {
@@ -99,108 +134,102 @@ namespace VoxelEngine.CI
                 if (cameraObject != null) UnityEngine.Object.DestroyImmediate(cameraObject);
                 if (keyObject != null) UnityEngine.Object.DestroyImmediate(keyObject);
                 if (fillObject != null) UnityEngine.Object.DestroyImmediate(fillObject);
-                if (root != null) UnityEngine.Object.DestroyImmediate(root);
+                foreach (UnityEngine.Object o in owned)
+                    if (o != null) UnityEngine.Object.DestroyImmediate(o);
+                voxelSurface?.Dispose();
+                world?.Dispose();
             }
         }
 
-        private static WorldArtPalette BuildPalette(Shader shader)
+        private static void ApplyVoxelPalette(GameObject root, List<UnityEngine.Object> owned)
         {
-            return new WorldArtPalette()
-                .Set(WorldArtSurfaceRole.Stone, Stone(shader))
-                .Set(WorldArtSurfaceRole.Moss, Moss(shader));
+            Shader shader = Shader.Find("VoxelEngine/SunlitSmooth");
+            if (shader == null) throw new InvalidOperationException("SunlitSmooth shader not found.");
+
+            Material stone = MakeStone(shader, "Hero voxel limestone",
+                new Color(0.70f, 0.65f, 0.54f),
+                new Color(0.53f, 0.49f, 0.41f),
+                new Color(0.84f, 0.79f, 0.68f));
+            Material baseStone = MakeStone(shader, "Hero voxel plinth stone",
+                new Color(0.34f, 0.35f, 0.32f),
+                new Color(0.25f, 0.26f, 0.24f),
+                new Color(0.42f, 0.43f, 0.39f));
+            owned.Add(stone);
+            owned.Add(baseStone);
+
+            foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                string n = renderer.gameObject.name.ToLowerInvariant();
+                renderer.sharedMaterial = n.Contains("darkstone") || n.Contains("structural")
+                    ? baseStone
+                    : stone;
+            }
         }
 
-        private static Material Stone(Shader shader)
+        private static Material MakeStone(Shader shader, string name, Color baseColor,
+            Color secondary, Color top)
         {
-            Material m = new Material(shader) { name = "Hero study limestone" };
-            SetColor(m, "_BaseColor", new Color(0.78f, 0.72f, 0.60f));
-            SetColor(m, "_SecondaryColor", new Color(0.61f, 0.55f, 0.45f));
-            SetColor(m, "_TopColor", new Color(0.92f, 0.87f, 0.75f));
+            Material m = new Material(shader) { name = name };
+            SetColor(m, "_BaseColor", baseColor);
+            SetColor(m, "_SecondaryColor", secondary);
+            SetColor(m, "_TopColor", top);
             SetFloat(m, "_SurfaceKind", 2f);
-            SetFloat(m, "_TextureScale", 0.24f);
-            SetFloat(m, "_TextureStrength", 0.35f);
-            SetFloat(m, "_DetailScale", 0.055f);
-            SetFloat(m, "_DetailStrength", 0.08f);
-            SetFloat(m, "_TopStrength", 0.26f);
-            SetFloat(m, "_RimStrength", 0.025f);
-            SetFloat(m, "_Smoothness", 0.035f);
+            SetFloat(m, "_TextureScale", 0.22f);
+            SetFloat(m, "_TextureStrength", 0.30f);
+            SetFloat(m, "_DetailScale", 0.050f);
+            SetFloat(m, "_DetailStrength", 0.075f);
+            SetFloat(m, "_TopStrength", 0.22f);
+            SetFloat(m, "_RimStrength", 0.020f);
+            SetFloat(m, "_Smoothness", 0.025f);
             return m;
-        }
-
-        private static Material Moss(Shader shader)
-        {
-            Material m = new Material(shader) { name = "Hero study moss" };
-            SetColor(m, "_BaseColor", new Color(0.25f, 0.40f, 0.10f));
-            SetColor(m, "_SecondaryColor", new Color(0.16f, 0.28f, 0.07f));
-            SetColor(m, "_TopColor", new Color(0.42f, 0.55f, 0.16f));
-            SetFloat(m, "_SurfaceKind", 1f);
-            SetFloat(m, "_TextureStrength", 0.20f);
-            SetFloat(m, "_TopStrength", 0.34f);
-            SetFloat(m, "_Smoothness", 0.015f);
-            return m;
-        }
-
-        private static void BuildGround(Transform parent, Shader shader)
-        {
-            Material ground = new Material(shader) { name = "Neutral stone-study ground" };
-            SetColor(ground, "_BaseColor", new Color(0.26f, 0.27f, 0.24f));
-            SetColor(ground, "_SecondaryColor", new Color(0.21f, 0.22f, 0.20f));
-            SetColor(ground, "_TopColor", new Color(0.31f, 0.32f, 0.28f));
-            SetFloat(ground, "_SurfaceKind", 0f);
-            SetFloat(ground, "_TextureStrength", 0.10f);
-            SetFloat(ground, "_Smoothness", 0.02f);
-
-            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            floor.name = "Hero study ground";
-            floor.transform.SetParent(parent, false);
-            floor.transform.position = new Vector3(0f, -0.42f, 0.45f);
-            floor.transform.localScale = new Vector3(12f, 0.55f, 8f);
-            Collider c = floor.GetComponent<Collider>();
-            if (c != null) UnityEngine.Object.DestroyImmediate(c);
-            floor.GetComponent<MeshRenderer>().sharedMaterial = ground;
         }
 
         private static void SetupLighting(out GameObject keyObject, out GameObject fillObject)
         {
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.35f, 0.39f, 0.45f);
-            RenderSettings.ambientEquatorColor = new Color(0.27f, 0.28f, 0.27f);
-            RenderSettings.ambientGroundColor = new Color(0.12f, 0.12f, 0.11f);
+            RenderSettings.ambientSkyColor = new Color(0.34f, 0.38f, 0.44f);
+            RenderSettings.ambientEquatorColor = new Color(0.25f, 0.26f, 0.25f);
+            RenderSettings.ambientGroundColor = new Color(0.10f, 0.10f, 0.095f);
             RenderSettings.ambientIntensity = 0.62f;
             RenderSettings.fog = false;
 
-            keyObject = new GameObject("Arch study warm key");
+            keyObject = new GameObject("Voxel arch warm key");
             Light key = keyObject.AddComponent<Light>();
             key.type = LightType.Directional;
-            key.color = new Color(1.0f, 0.88f, 0.69f);
-            key.intensity = 1.18f;
+            key.color = new Color(1.0f, 0.88f, 0.70f);
+            key.intensity = 1.20f;
             key.shadows = LightShadows.Soft;
-            key.shadowStrength = 0.72f;
-            keyObject.transform.rotation = Quaternion.Euler(36f, -42f, 0f);
+            key.shadowStrength = 0.74f;
+            keyObject.transform.rotation = Quaternion.Euler(34f, -40f, 0f);
 
-            fillObject = new GameObject("Arch study cool fill");
+            fillObject = new GameObject("Voxel arch cool fill");
             Light fill = fillObject.AddComponent<Light>();
             fill.type = LightType.Directional;
-            fill.color = new Color(0.62f, 0.73f, 0.88f);
-            fill.intensity = 0.34f;
+            fill.color = new Color(0.62f, 0.72f, 0.88f);
+            fill.intensity = 0.30f;
             fill.shadows = LightShadows.None;
-            fillObject.transform.rotation = Quaternion.Euler(24f, 128f, 0f);
+            fillObject.transform.rotation = Quaternion.Euler(22f, 132f, 0f);
         }
 
-        private static void SetupCamera(out GameObject cameraObject, out Camera camera, WorldArtPiece hero)
+        private static void SetupCamera(WorldArtVoxelArchSockets sockets,
+            out GameObject cameraObject, out Camera camera)
         {
-            cameraObject = new GameObject("AAA Arch Study Camera");
+            float s = VoxelSurfaceRenderer.VoxelSize;
+            Vector3 opening = new Vector3(sockets.Opening.x, sockets.Opening.y, sockets.Opening.z) * s;
+            Vector3 crown = new Vector3(sockets.Crown.x, sockets.Crown.y, sockets.Crown.z) * s;
+            Vector3 focus = Vector3.Lerp(opening, crown, 0.35f);
+
+            cameraObject = new GameObject("AAA Voxel Arch Study Camera");
             camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.18f, 0.20f, 0.23f, 1f);
-            camera.fieldOfView = 32f;
+            camera.backgroundColor = new Color(0.17f, 0.19f, 0.22f, 1f);
+            camera.fieldOfView = 31f;
             camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 50f;
+            camera.farClipPlane = 80f;
             camera.allowHDR = false;
             camera.allowMSAA = true;
 
-            Vector3 focus = hero.Socket("opening").position + new Vector3(0f, 0.56f, 0f);
-            cameraObject.transform.position = new Vector3(5.9f, 4.45f, -10.6f);
+            cameraObject.transform.position = focus + new Vector3(5.8f, 2.8f, -9.8f);
             cameraObject.transform.LookAt(focus);
         }
 
