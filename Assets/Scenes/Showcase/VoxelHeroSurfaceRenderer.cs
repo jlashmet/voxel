@@ -9,8 +9,8 @@ using VoxelEngine.Rendering.SurfaceExtraction;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Bounded close-up renderer for evaluating authoritative voxel structures at hero distance.
-    /// Material surface profiles decide how occupancy is reconstructed before polygonization.
+    /// Bounded close-up renderer for authoritative voxel structures. Material profiles select the
+    /// density blur/recovery and feature preservation used to derive presentation geometry.
     /// </summary>
     public sealed class VoxelHeroSurfaceRenderer : IDisposable
     {
@@ -30,12 +30,8 @@ namespace VoxelEngine.Showcase
 
         private static readonly int[,] Tetrahedra =
         {
-            { 0, 5, 1, 6 },
-            { 0, 1, 2, 6 },
-            { 0, 2, 3, 6 },
-            { 0, 3, 7, 6 },
-            { 0, 7, 4, 6 },
-            { 0, 4, 5, 6 }
+            { 0, 5, 1, 6 }, { 0, 1, 2, 6 }, { 0, 2, 3, 6 },
+            { 0, 3, 7, 6 }, { 0, 7, 4, 6 }, { 0, 4, 5, 6 }
         };
 
         private readonly int3 _minVoxel;
@@ -129,12 +125,8 @@ namespace VoxelEngine.Showcase
                 if (!anyInside || !anyOutside) continue;
 
                 for (int t = 0; t < 6; t++)
-                {
-                    PolygoniseTetra(world,
-                        Tetrahedra[t, 0], Tetrahedra[t, 1],
-                        Tetrahedra[t, 2], Tetrahedra[t, 3],
-                        cornerPosition, cornerDensity);
-                }
+                    PolygoniseTetra(world, Tetrahedra[t, 0], Tetrahedra[t, 1],
+                        Tetrahedra[t, 2], Tetrahedra[t, 3], cornerPosition, cornerDensity);
             }
 
             UploadMeshes();
@@ -143,6 +135,11 @@ namespace VoxelEngine.Showcase
             _density = null;
         }
 
+        /// <summary>
+        /// Builds raw/one-pass/two-pass occupancy fields once, then lets each material select its
+        /// own field before distance recovery. Stone choosing zero blur is therefore never melted by
+        /// terrain smoothing. Empty samples inherit the nearest solid profile at an iso crossing.
+        /// </summary>
         private void BuildBaseDensity(ShowcaseWorld world)
         {
             int margin = MaxBlurPasses + 2;
@@ -162,10 +159,9 @@ namespace VoxelEngine.Showcase
             {
                 int3 p = _baseMin + new int3(x, y, z);
                 byte material = SampleMaterial(ref table, in pool, p);
-                float value = material != VoxelDimensions.MaterialEmpty ? -1f : 1f;
                 int index = BaseIndex(x, y, z);
                 _baseMaterials[index] = material;
-                original[index] = value;
+                original[index] = material != VoxelDimensions.MaterialEmpty ? -1f : 1f;
             }
 
             var blurLevels = new float[MaxBlurPasses + 1][];
@@ -184,8 +180,7 @@ namespace VoxelEngine.Showcase
             for (int x = 0; x < _baseSize.x; x++)
             {
                 int index = BaseIndex(x, y, z);
-                byte profileMaterial = ProfileMaterialAt(x, y, z);
-                VoxelSurfaceProfile profile = _surfaceProfiles.Get(profileMaterial);
+                VoxelSurfaceProfile profile = _surfaceProfiles.Get(ProfileMaterialAt(x, y, z));
                 float raw = original[index];
                 float filtered = blurLevels[profile.BlurPasses][index];
 
@@ -281,12 +276,7 @@ namespace VoxelEngine.Showcase
 
         private static float BinomialDerivativeRadiusTwo(int offset) => offset switch
         {
-            -2 => -1f,
-            -1 => -2f,
-             0 => 0f,
-             1 => 2f,
-             2 => 1f,
-             _ => 0f
+            -2 => -1f, -1 => -2f, 0 => 0f, 1 => 2f, 2 => 1f, _ => 0f
         };
 
         private byte ProfileMaterialAt(int x, int y, int z)
@@ -461,18 +451,33 @@ namespace VoxelEngine.Showcase
             byte material = SurfaceMaterial(world, centroid, materialNormal);
             if (material == VoxelDimensions.MaterialEmpty || material >= MaterialCount) material = 1;
             VoxelSurfaceProfile profile = _surfaceProfiles.Get(material);
-            a = Planarize(a, na, in profile);
-            b = Planarize(b, nb, in profile);
-            c = Planarize(c, nc, in profile);
-            na = PlanarizeNormal(na, in profile);
-            nb = PlanarizeNormal(nb, in profile);
-            nc = PlanarizeNormal(nc, in profile);
-            float3 averageNormal = math.normalizesafe(na + nb + nc, materialNormal);
 
-            if (math.dot(math.cross(b - a, c - a), averageNormal) < 0f)
+            int maskA = FeatureSnap(ref a, na, in profile);
+            int maskB = FeatureSnap(ref b, nb, in profile);
+            int maskC = FeatureSnap(ref c, nc, in profile);
+
+            float3 faceNormal = math.normalizesafe(math.cross(b - a, c - a), materialNormal);
+            if (math.dot(faceNormal, materialNormal) < 0f)
             {
                 (b, c) = (c, b);
                 (nb, nc) = (nc, nb);
+                (maskB, maskC) = (maskC, maskB);
+                faceNormal = -faceNormal;
+            }
+
+            int featureMask = maskA | maskB | maskC;
+            if (featureMask != 0 && profile.NormalPlanarization > 0.00001f)
+            {
+                float faceDominance = math.max(math.abs(faceNormal.x),
+                    math.max(math.abs(faceNormal.y), math.abs(faceNormal.z)));
+                float faceWeight = PlanarWeight(faceDominance, profile.PlanarizationThreshold)
+                                 * profile.NormalPlanarization;
+                if (faceWeight > 0.00001f)
+                {
+                    na = math.normalizesafe(math.lerp(na, faceNormal, faceWeight), faceNormal);
+                    nb = math.normalizesafe(math.lerp(nb, faceNormal, faceWeight), faceNormal);
+                    nc = math.normalizesafe(math.lerp(nc, faceNormal, faceWeight), faceNormal);
+                }
             }
 
             List<Vector3> vertices = _vertices[material];
@@ -490,61 +495,47 @@ namespace VoxelEngine.Showcase
             triangles.Add(start + 2);
         }
 
-        private static float3 Planarize(float3 position, float3 normal,
-                                        in VoxelSurfaceProfile profile)
+        /// <summary>
+        /// Snaps only axes that both look planar in the gradient and are already close to an exact
+        /// half-voxel boundary. Multiple axes may snap at a true edge/corner. A circular SDF point
+        /// away from those planes is untouched, so curve recovery is not undone by planarization.
+        /// Returns a bit mask of axes that participated.
+        /// </summary>
+        private static int FeatureSnap(ref float3 position, float3 normal,
+                                       in VoxelSurfaceProfile profile)
         {
-            if (profile.Planarization <= 0.00001f) return position;
-            GetDominantAxis(normal, out int axis, out float dominance);
-            if (dominance <= profile.PlanarizationThreshold) return position;
-            float strength = PlanarWeight(dominance, profile.PlanarizationThreshold)
-                           * profile.Planarization;
-            if (axis == 0)
+            if (profile.Planarization <= 0.00001f) return 0;
+            int mask = 0;
+            float3 absNormal = math.abs(normal);
+
+            for (int axis = 0; axis < 3; axis++)
             {
-                float target = math.round(position.x - 0.5f) + 0.5f;
-                position.x = math.lerp(position.x, target, strength);
+                float component = axis == 0 ? absNormal.x : axis == 1 ? absNormal.y : absNormal.z;
+                if (component <= profile.PlanarizationThreshold) continue;
+
+                float value = axis == 0 ? position.x : axis == 1 ? position.y : position.z;
+                float target = math.round(value - 0.5f) + 0.5f;
+                float distance = math.abs(value - target);
+                if (distance > profile.PlanarSnapDistanceVoxels) continue;
+
+                float directional = PlanarWeight(component, profile.PlanarizationThreshold);
+                float proximity = 1f - distance / profile.PlanarSnapDistanceVoxels;
+                proximity *= proximity;
+                float strength = profile.Planarization * directional * proximity;
+                float snapped = math.lerp(value, target, strength);
+
+                if (axis == 0) position.x = snapped;
+                else if (axis == 1) position.y = snapped;
+                else position.z = snapped;
+                mask |= 1 << axis;
             }
-            else if (axis == 1)
-            {
-                float target = math.round(position.y - 0.5f) + 0.5f;
-                position.y = math.lerp(position.y, target, strength);
-            }
-            else
-            {
-                float target = math.round(position.z - 0.5f) + 0.5f;
-                position.z = math.lerp(position.z, target, strength);
-            }
-            return position;
+            return mask;
         }
 
-        private static float3 PlanarizeNormal(float3 normal, in VoxelSurfaceProfile profile)
-        {
-            if (profile.NormalPlanarization <= 0.00001f) return normal;
-            GetDominantAxis(normal, out int axis, out float dominance);
-            if (dominance <= profile.PlanarizationThreshold) return normal;
-            float strength = PlanarWeight(dominance, profile.PlanarizationThreshold)
-                           * profile.NormalPlanarization;
-            float sign = axis == 0 ? math.sign(normal.x)
-                       : axis == 1 ? math.sign(normal.y)
-                                   : math.sign(normal.z);
-            float3 target = axis == 0 ? new float3(sign, 0f, 0f)
-                          : axis == 1 ? new float3(0f, sign, 0f)
-                                      : new float3(0f, 0f, sign);
-            return math.normalizesafe(math.lerp(normal, target, strength), target);
-        }
-
-        private static void GetDominantAxis(float3 normal, out int axis, out float dominance)
-        {
-            float3 n = math.abs(normal);
-            dominance = n.x;
-            axis = 0;
-            if (n.y > dominance) { dominance = n.y; axis = 1; }
-            if (n.z > dominance) { dominance = n.z; axis = 2; }
-        }
-
-        private static float PlanarWeight(float dominance, float threshold)
+        private static float PlanarWeight(float component, float threshold)
         {
             float range = math.max(0.0001f, 1f - threshold);
-            float weight = math.saturate((dominance - threshold) / range);
+            float weight = math.saturate((component - threshold) / range);
             return weight * weight;
         }
 
@@ -590,6 +581,7 @@ namespace VoxelEngine.Showcase
             int3 centre = (int3)math.round(position - outwardNormal * 0.65f);
             byte material = SampleMaterial(ref table, in pool, centre);
             if (material != VoxelDimensions.MaterialEmpty) return material;
+
             float best = float.PositiveInfinity;
             byte bestMaterial = 0;
             for (int z = -1; z <= 1; z++)
