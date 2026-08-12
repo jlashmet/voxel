@@ -36,7 +36,7 @@ namespace MountingForce.CombatPrototype
 
         private const float MainSidebarWidth = 420f;
         private const float PanelX = 10f;
-        private const float PanelY = 205f;
+        private const float PanelY = 10f;
         private const float PanelWidth = 390f;
         private const float PreviewStepSeconds = 0.85f;
 
@@ -44,12 +44,15 @@ namespace MountingForce.CombatPrototype
             "_board", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo SelectedField = typeof(ChainCombatLabController).GetField(
             "_selectedUnitId", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo ReadinessField = typeof(ChainCombatLabController).GetField(
+            "_roundReadiness", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private readonly ChainExecutionPlan _plan = new ChainExecutionPlan();
         private readonly Dictionary<int, GameObject> _ghostUnits = new Dictionary<int, GameObject>();
 
         private ChainCombatLabController _controller;
         private ChainCombatBoard _board;
+        private ChainRoundReadinessCoordinator _roundReadiness;
         private ChainExecutionPreview _preview;
         private Camera _camera;
         private GameObject _ghostRoot;
@@ -122,6 +125,8 @@ namespace MountingForce.CombatPrototype
             if (_controller == null) _controller = GetComponent<ChainCombatLabController>();
             if (_controller != null && BoardField != null)
                 _board = BoardField.GetValue(_controller) as ChainCombatBoard;
+            if (_controller != null && ReadinessField != null)
+                _roundReadiness = ReadinessField.GetValue(_controller) as ChainRoundReadinessCoordinator;
         }
 
         private void ResolveCamera()
@@ -149,7 +154,7 @@ namespace MountingForce.CombatPrototype
             Rect panel = PanelRect;
             GUILayout.BeginArea(panel, GUI.skin.box);
             GUILayout.Label("EXECUTION PLAN — GHOST", _header);
-            GUILayout.Label("Shared order is explicit. Root actions drag; reaction rows stay causally attached to their root.", _small);
+            GUILayout.Label("This is the proactive authoring surface. Shared order is explicit; reactions stay causally attached to their root.", _small);
 
             DrawPreviewTransport();
             GUILayout.Space(4f);
@@ -247,6 +252,14 @@ namespace MountingForce.CombatPrototype
                 return;
             }
 
+            bool playerReady = _roundReadiness != null && _roundReadiness.IsReady(selected.CommandGroup);
+            if (playerReady)
+            {
+                if (_aim != AimMode.None) ResetAim(false);
+                GUILayout.Label($"P{selected.CommandGroup} is READY. Unready that player on the right before changing proactive instructions; planned/live reactions remain available.", _small);
+                return;
+            }
+
             if (_aim != AimMode.None)
             {
                 GUILayout.Label("AIMING: " + AimName(_aim), _header);
@@ -254,8 +267,8 @@ namespace MountingForce.CombatPrototype
             }
 
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Move")) BeginAim(AimMode.Move, "Choose the ghost destination.");
-            if (GUILayout.Button("Strike")) BeginAim(AimMode.Strike, "Choose a ghost enemy target.");
+            if (GUILayout.Button("Plan Move")) BeginAim(AimMode.Move, "Choose the ghost destination.");
+            if (GUILayout.Button("Plan Strike")) BeginAim(AimMode.Strike, "Choose a ghost enemy target.");
             GUILayout.EndHorizontal();
 
             switch (selected.Kind)
@@ -353,7 +366,6 @@ namespace MountingForce.CombatPrototype
         {
             if (current == null || current.type != EventType.MouseDown || current.button != 0) return;
             if (PanelRect.Contains(current.mousePosition)) return;
-            if (new Rect(10f, 10f, 310f, 185f).Contains(current.mousePosition)) return;
             if (current.mousePosition.x >= Screen.width - MainSidebarWidth) return;
             if (!TryMouseToGrid(current.mousePosition, out GridPos cell)) return;
 

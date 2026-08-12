@@ -14,7 +14,7 @@ namespace VoxelEngine.Tests.PlayMode
         {
             var root = new GameObject("Cascade Lab V8 Test Root");
             root.AddComponent<ChainCombatLabController>();
-            root.AddComponent<ChainCombatSetupActionsPanel>();
+            root.AddComponent<ChainExecutionPlanner>();
             root.AddComponent<ChainCombatActivationOverlay>();
             root.AddComponent<ChainCombatEventMarker>();
             root.AddComponent<ChainCombatMotionPlayback>();
@@ -28,7 +28,10 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(GameObject.Find("Chain Unit - Stephen"), Is.Not.Null);
             Assert.That(GameObject.Find("Chain Unit - Ogre"), Is.Not.Null);
             Assert.That(root.GetComponent<ChainEnemyIntentOverlay>(), Is.Not.Null);
-            Assert.That(root.GetComponent<ChainCombatSetupActionsPanel>(), Is.Not.Null);
+            Assert.That(root.GetComponent<ChainExecutionPlanner>(), Is.Not.Null,
+                "The launched combat lab should use the shared execution planner for proactive authoring.");
+            Assert.That(root.GetComponent<ChainCombatSetupActionsPanel>(), Is.Null,
+                "The obsolete direct proactive setup panel must not compete with the execution planner.");
 
             Object.Destroy(root);
             yield return null;

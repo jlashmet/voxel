@@ -4,10 +4,10 @@ using UnityEngine;
 namespace MountingForce.CombatPrototype
 {
     /// <summary>
-    /// Playable hot-seat stand-in for four network players. It exposes what each recruit does, but never computes
-    /// or highlights compatible reactions. A player first reserves a physical event, then chooses a recruit/capability
-    /// from their own roster and finally aims the reaction. Reservation therefore solves multiplayer ownership without
-    /// turning the UI into a combo recommender.
+    /// Playable hot-seat stand-in for four network players. With ChainExecutionPlanner present, proactive actions are
+    /// authored exclusively through the shared ghost plan while this sidebar owns live event reservation/reaction flow,
+    /// roster memory, readiness, status, and logs. Without the planner it retains the original direct-action controls
+    /// for isolated prototype/debug scenes.
     /// </summary>
     public sealed class ChainCombatLabController : MonoBehaviour
     {
@@ -53,13 +53,14 @@ namespace MountingForce.CombatPrototype
         private bool _constructsDirty;
 
         private Rect SidebarRect => new Rect(Screen.width - SidebarWidth, 0f, SidebarWidth, Screen.height);
+        private bool PlannerOwnsProactive => GetComponent<ChainExecutionPlanner>() != null;
 
         private void Awake()
         {
             _board = new ChainCombatBoard();
             _reactionReservations = new ChainReactionReservationCoordinator(_board);
             _roundReadiness = new ChainRoundReadinessCoordinator(_board);
-            _uiMessage = "Four-player hot-seat lab: use one active recruit, reserve physical events, and mark each player Ready when proactive play is done.";
+            _uiMessage = "Author proactive play in the ghost plan on the left. This sidebar owns live reactions and player Ready state.";
             BuildPresentation();
             SelectFirstFriendly();
             _constructsDirty = true;
@@ -258,7 +259,7 @@ namespace MountingForce.CombatPrototype
             _scroll = GUILayout.BeginScrollView(_scroll);
 
             GUILayout.Label("MOUNTING FORCE — CASCADE LAB", _titleStyle);
-            GUILayout.Label($"Round {_board.Round} • active recruit + Ready • reserve → choose → execute", _smallStyle);
+            GUILayout.Label($"Round {_board.Round} • plan on left • live reactions here • Ready → enemies", _smallStyle);
             GUILayout.Label($"Last cascade: {_board.LastCascadeSteps} steps / {_board.LastCascadePlayers} players   Best: {_board.BestCascadeSteps} / {_board.BestCascadePlayers}", _smallStyle);
 
             if (_board.CurrentCascadeSteps > 0)
@@ -297,7 +298,7 @@ namespace MountingForce.CombatPrototype
                 _board.Reset();
                 _reactionReservations.Reset();
                 _roundReadiness.Reset();
-                _uiMessage = "Battle reset. Try a different route through the same geometry.";
+                _uiMessage = "Battle reset. Author a new future in the execution plan.";
                 CancelCommand(false);
                 SelectFirstFriendly();
                 _constructsDirty = true;
@@ -317,7 +318,7 @@ namespace MountingForce.CombatPrototype
         private void DrawReadiness()
         {
             GUILayout.Label("PLAYER READY", _headerStyle);
-            GUILayout.Label("Ready means: no more proactive moves/actions this round. It does NOT disable reactions or event reservations.", _smallStyle);
+            GUILayout.Label("Ready means: no more proactive plan edits for that player this round. It does NOT disable planned/live reactions or event reservations.", _smallStyle);
 
             GUILayout.BeginHorizontal();
             for (int group = 1; group <= 4; group++)
@@ -363,14 +364,14 @@ namespace MountingForce.CombatPrototype
             ChainReactionOpportunity reaction = _board.PendingReaction;
             if (reaction == null)
             {
-                GUILayout.Label("No unresolved physical event.", _smallStyle);
+                GUILayout.Label("No unresolved live physical event. Planned future events appear in the ghost panel on the left.", _smallStyle);
                 return;
             }
 
             _reactionReservations.Synchronize();
             int reservedBy = _reactionReservations.ReservedByCommandGroup;
 
-            GUILayout.Label($"PHYSICAL EVENT #{reaction.Id}: {reaction.Kind}", _headerStyle);
+            GUILayout.Label($"LIVE PHYSICAL EVENT #{reaction.Id}: {reaction.Kind}", _headerStyle);
             GUILayout.Label(reaction.Description, _smallStyle);
 
             if (reservedBy == 0)
@@ -432,7 +433,7 @@ namespace MountingForce.CombatPrototype
         private void DrawRoster()
         {
             GUILayout.Label("ROSTER MEMORY", _headerStyle);
-            GUILayout.Label("This is your toolbox, not a combo list. Learn what each piece does and where it has to be.", _smallStyle);
+            GUILayout.Label("Select here or on the battlefield. The left planner exposes the selected recruit's proactive toolbox; this sidebar only offers live reactions.", _smallStyle);
             for (int i = 0; i < _board.Units.Count; i++)
             {
                 ChainUnitState unit = _board.Units[i];
@@ -454,36 +455,45 @@ namespace MountingForce.CombatPrototype
             GUILayout.Label($"SELECTED — P{unit.CommandGroup} {unit.Name}", _headerStyle);
             GUILayout.Label($"HP {unit.Hp}/{unit.MaxHp} • move {(unit.MoveSpent ? "spent" : "ready")} • action {(unit.ActionSpent ? "spent" : "ready")} • reaction {(unit.ReactionSpent ? "spent" : "ready")} • player {(playerReady ? "READY" : "planning")}", _smallStyle);
 
-            GUI.enabled = _board.PendingReaction == null && !playerReady;
-            if (GUILayout.Button("Move")) BeginCommand(CommandMode.Move, "Click an empty cell within 3 Manhattan cells.");
-            if (GUILayout.Button("Strike")) BeginCommand(CommandMode.Strike, "Click an adjacent enemy for a plain 1-damage strike.");
-
-            switch (unit.Kind)
+            if (PlannerOwnsProactive)
             {
-                case ChainRecruitKind.Stephen:
-                    if (GUILayout.Button("Uppercut")) BeginCommand(CommandMode.Uppercut, "Click an adjacent enemy. It launches away from Stephen with 5 momentum.");
-                    GUILayout.Label("ACTION — Uppercut: launch an adjacent enemy away from Stephen.", _smallStyle);
-                    break;
-                case ChainRecruitKind.Brutus:
-                    if (GUILayout.Button("Shoulder Hurl")) BeginCommand(CommandMode.ShoulderPick, "Click an adjacent enemy, then click a direction for the hurl.");
-                    GUILayout.Label("ACTION — Shoulder Hurl: throw an adjacent enemy in a direction you choose with 5 force.", _smallStyle);
-                    break;
-                case ChainRecruitKind.Weldon:
-                    if (GUILayout.Button("Gust")) BeginCommand(CommandMode.Gust, "Click an enemy within 4 cells. Gust pushes directly away from Weldon.");
-                    GUILayout.Label("ACTION — Gust: push an enemy within 4 cells directly away from Weldon.", _smallStyle);
-                    break;
-                case ChainRecruitKind.Mira:
-                    if (GUILayout.Button("Place linked portals"))
-                    {
-                        _command = CommandMode.PortalEntrance;
-                        _hasPortalEntrance = false;
-                        _uiMessage = "Click portal entrance, then exit. Moving bodies preserve direction and momentum.";
-                    }
-                    if (GUILayout.Button("Place force multiplier")) BeginCommand(CommandMode.Amplifier, "Click an empty cell within Mira's 6-cell range.");
-                    GUILayout.Label("ACTION — Portal pair: preserve direction/momentum. Force multiplier: amplifies remaining force.", _smallStyle);
-                    break;
+                GUILayout.Label(playerReady
+                    ? "PROACTIVE — locked while this player is Ready. Unready them to edit their ghost-plan instructions."
+                    : "PROACTIVE — use the EXECUTION PLAN on the left. Live actions cannot bypass the shared ghost plan.", _smallStyle);
             }
-            GUI.enabled = true;
+            else
+            {
+                GUI.enabled = _board.PendingReaction == null && !playerReady;
+                if (GUILayout.Button("Move")) BeginCommand(CommandMode.Move, "Click an empty cell within 3 Manhattan cells.");
+                if (GUILayout.Button("Strike")) BeginCommand(CommandMode.Strike, "Click an adjacent enemy for a plain 1-damage strike.");
+
+                switch (unit.Kind)
+                {
+                    case ChainRecruitKind.Stephen:
+                        if (GUILayout.Button("Uppercut")) BeginCommand(CommandMode.Uppercut, "Click an adjacent enemy. It launches away from Stephen with 5 momentum.");
+                        GUILayout.Label("ACTION — Uppercut: launch an adjacent enemy away from Stephen.", _smallStyle);
+                        break;
+                    case ChainRecruitKind.Brutus:
+                        if (GUILayout.Button("Shoulder Hurl")) BeginCommand(CommandMode.ShoulderPick, "Click an adjacent enemy, then click a direction for the hurl.");
+                        GUILayout.Label("ACTION — Shoulder Hurl: throw an adjacent enemy in a direction you choose with 5 force.", _smallStyle);
+                        break;
+                    case ChainRecruitKind.Weldon:
+                        if (GUILayout.Button("Gust")) BeginCommand(CommandMode.Gust, "Click an enemy within 4 cells. Gust pushes directly away from Weldon.");
+                        GUILayout.Label("ACTION — Gust: push an enemy within 4 cells directly away from Weldon.", _smallStyle);
+                        break;
+                    case ChainRecruitKind.Mira:
+                        if (GUILayout.Button("Place linked portals"))
+                        {
+                            _command = CommandMode.PortalEntrance;
+                            _hasPortalEntrance = false;
+                            _uiMessage = "Click portal entrance, then exit. Moving bodies preserve direction and momentum.";
+                        }
+                        if (GUILayout.Button("Place force multiplier")) BeginCommand(CommandMode.Amplifier, "Click an empty cell within Mira's 6-cell range.");
+                        GUILayout.Label("ACTION — Portal pair: preserve direction/momentum. Force multiplier: amplifies remaining force.", _smallStyle);
+                        break;
+                }
+                GUI.enabled = true;
+            }
 
             if (playerReady)
                 GUILayout.Label("P is Ready: proactive controls are closed, but reactions below remain fully available.", _smallStyle);
@@ -492,7 +502,7 @@ namespace MountingForce.CombatPrototype
             if (ability != ChainReactionAbility.None)
             {
                 GUILayout.Space(4f);
-                GUILayout.Label($"REACTION — {ReactionDescription(unit.Kind)}", _smallStyle);
+                GUILayout.Label($"LIVE REACTION — {ReactionDescription(unit.Kind)}", _smallStyle);
 
                 ChainReactionOpportunity reaction = _board.PendingReaction;
                 int reservedBy = _reactionReservations.ReservedByCommandGroup;
@@ -640,6 +650,12 @@ namespace MountingForce.CombatPrototype
 
         private bool TryProactive(System.Func<bool> command)
         {
+            if (PlannerOwnsProactive)
+            {
+                _uiMessage = "Proactive live execution is disabled while the shared execution planner is present.";
+                return false;
+            }
+
             ChainUnitState unit = _board.GetUnit(_selectedUnitId);
             if (unit == null) return false;
             if (!_roundReadiness.CanUseProactive(unit.CommandGroup))
@@ -718,6 +734,12 @@ namespace MountingForce.CombatPrototype
             if (unit != null && !_roundReadiness.CanUseProactive(unit.CommandGroup) && mode != CommandMode.ReactionPick && mode != CommandMode.ReactionAim)
             {
                 _uiMessage = $"P{unit.CommandGroup} is Ready. Unready that player before starting another proactive action.";
+                return;
+            }
+
+            if (PlannerOwnsProactive && mode != CommandMode.ReactionPick && mode != CommandMode.ReactionAim)
+            {
+                _uiMessage = "Author that proactive instruction in the execution plan on the left.";
                 return;
             }
 
