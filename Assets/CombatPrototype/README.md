@@ -4,97 +4,168 @@ A deliberately small playable experiment for Mounting Force's turn-based, multip
 
 ## Goal
 
-Test whether a player can learn a small roster's capabilities, position recruits and constructs, and invent long physical chains **without the UI calculating or highlighting combos**.
+Test whether players can learn a roster's physical capabilities, arrange the battlefield, claim emergent reaction windows, and invent long cooperative chains **without the UI calculating or highlighting combos**.
 
-The prototype exposes what each recruit can do. It does not show compatible reactions, valid combo paths, combo counts, or suggested targets.
+The prototype exposes causes and effects. It does not show compatible reactions, valid combo paths, combo counts, recommended characters, or suggested targets.
 
 ## Run it
 
 1. Check out `prototype/chain-combat` and let Unity compile.
 2. In Unity, choose **Mounting Force > Chain Combat Prototype > Open & Play**.
-3. The launcher asks before discarding any dirty scene, opens an empty temporary scene, adds the prototype controller, and enters Play Mode.
-4. Click a friendly capsule, choose an action in the right panel, then click the board.
+3. The launcher asks before discarding any dirty scene, opens an empty temporary scene, adds the current cascade-lab components, and enters Play Mode.
+4. Select a friendly capsule, choose a proactive action or attempt a reaction claim, then aim directly on the board.
 
-This prototype intentionally does not modify Build Settings or require a committed scene asset.
+The prototype intentionally does not modify Build Settings or require a committed scene asset.
 
-## Command groups
+## Four command groups
 
-This is currently local hot-seat input with one mouse, but recruits are labeled as two command groups to approximate two co-op players:
+This is still local hot-seat input with one mouse, but the battlefield is divided into four player-owned command groups:
 
-- **P1:** Stephen, Mira
-- **P2:** Weldon, Madeline, Grom
+- **P1:** Stephen, Brutus
+- **P2:** Weldon
+- **P3:** Madeline, Mira
+- **P4:** Grom, Skitter
 
-The player can select either group's recruits at any time. That is deliberate: normal actions are free-order so we can experiment with planning and cross-player handoffs before adding transport/replication.
+### One active recruit per player
+
+Each round, the first recruit a player successfully uses for proactive play becomes that player's **active recruit** for the round.
+
+That recruit gets:
+
+- one reposition;
+- one proactive action;
+- its normal personal reaction, if a matching event later occurs.
+
+The move and action may happen in either order. A failed target/placement attempt does not commit the activation.
+
+A second recruit in the same command group cannot take another proactive turn that round. It **can still claim and execute reactions**. This is the core scaling experiment: adding dozens of recruits should expand the player's reaction/toolbox possibilities without creating dozens of normal turns.
+
+The activation overlay shows only who each player committed and whether that recruit's move/action are spent. It does not reveal reaction compatibility.
 
 ## Recruits
 
-### Stephen
+### Stephen — P1
 
 - Move / Strike
-- **Uppercut:** launches an adjacent enemy away from Stephen with integer momentum.
+- **Uppercut:** launch an adjacent enemy with force 5.
+- **Follow Through reaction:** after a nearby creature collision, kick either participant in a chosen direction with force 5.
 
-### Mira
-
-- Move / Strike
-- **Linked Portals:** place an entrance and exit. A moving body entering either exits the other with the same direction and remaining force.
-- **Force Multiplier:** a moving body crossing the rune doubles its remaining force, capped to keep the experiment bounded.
-
-### Weldon
+### Brutus — P1
 
 - Move / Strike
-- **Crosswind reaction:** if a creature is airborne within range, manually choose its new cardinal flight direction. Momentum is preserved.
+- **Shoulder Hurl:** throw an adjacent enemy in a chosen direction with force 5.
+- **Catch & Throw reaction:** claim a nearby airborne creature, catch it beside Brutus, and rethrow it with force 7.
 
-### Madeline
-
-- Move / Strike
-- **Repulse reaction:** after a collision within range, choose one collision participant and manually choose the direction to blast it.
-
-### Grom
+### Weldon — P2
 
 - Move / Strike
-- **Timber reaction:** after a tree impact within range, manually choose which cardinal direction the tree falls. A fallen tree crushes units along four cells.
+- **Gust:** push an enemy away with force 3.
+- **Crosswind reaction:** redirect a nearby airborne creature's existing momentum without replacing its force.
+
+### Madeline — P3
+
+- Move / Strike
+- **Converge:** drive one enemy toward another with force 4 to deliberately build future collision geometry.
+- **Repulse reaction:** after a collision, choose either participant and blast it in a chosen direction with force 4.
+
+### Mira — P3
+
+- Move / Strike
+- **Linked Portals:** place an entrance and exit. Moving bodies preserve direction and remaining force through the pair.
+- **Force Multiplier:** a moving body crossing the rune amplifies its remaining force, capped to keep the experiment bounded.
+
+### Grom — P4
+
+- Move / Strike
+- **Notch Tree:** prepare a standing tree for a chosen fall direction and add structural stress.
+- **Timber reaction:** after a meaningful tree impact, commit the struck tree to a fall direction. Following a prepared notch increases reach and damage.
+
+### Skitter — P4
+
+- Move / Strike
+- **Harpoon:** proactively pull an enemy toward Skitter with force 4, potentially manufacturing a collision.
+- **Hook Yank reaction:** after a collision or tree impact, pull an involved creature toward Skitter with force 5.
 
 ## Combat rhythm
 
-Every friendly recruit gets:
+A normal round now has two intertwined economies:
 
-- one normal action per round;
-- one reaction per round.
+1. **Proactive activation:** each player chooses one recruit to move/set up/attack with.
+2. **Reaction ownership:** every living recruit can still attempt its own reaction once per round when a physical event it understands occurs.
 
-Actions can create a physical event. The simulation pauses on three event types in this slice:
+The simulation pauses on three event types in this slice:
 
 - airborne;
 - creature collision;
 - tree impact.
 
-The game does **not** say which recruit can react. Select someone whose capability you think applies, use the ability, and aim it. You can also pass the event. Passing an airborne event lets its momentum continue; passing a stopped collision/tree event ends that branch.
+A physical event starts **unclaimed**. The game reports only what physically happened: participants, location, direction when relevant, and impact force. It does not enumerate characters who can answer it.
 
-Enemies take a small deterministic move/attack step when the round ends, then friendly action/reaction resources refresh.
+A player selects a recruit and attempts the reaction they think applies. The first valid claim becomes authoritative ownership of that event. Claiming is not execution: the owner must still choose the participant/direction/aim. The owner may release the claim so another player can take it.
+
+A claimed event cannot be globally passed out from under its owner. An unclaimed airborne event can be passed to let its motion continue; passing a stopped collision/tree event ends that branch.
+
+## Force and environment
+
+Momentum is not just travel distance. Impact force determines damage and whether some environmental events are meaningful enough to react to.
+
+- weak collisions do little damage;
+- amplified/high-force collisions hurt more;
+- weak tree bumps do not automatically become Timber opportunities;
+- trees accumulate stress;
+- a correctly used Grom notch produces a stronger environmental payoff;
+- portals preserve force;
+- force multipliers can turn the same launch into a much harder eventual collision.
+
+This keeps the physical simulation learnable: players can reason about *how hard* something is moving, not only binary state tags.
+
+## Readability without solving
+
+The world communicates the fact, not the answer:
+
+- airborne bodies are visibly elevated;
+- moving bodies animate through their resolved path rather than teleporting between ordinary grid cells;
+- collision/tree-impact locations get a world-space physical-event marker;
+- impact markers expose force/severity;
+- struck trees visibly stress/shake;
+- notched trees show their prepared direction;
+- no eligible-reactor highlights or combo arrows are drawn.
+
+Authoritative gameplay remains integer/grid/deterministic. The smoothing and event-marker layers are presentation only and never feed Unity transforms back into simulation state.
+
+## Cooperative chain telemetry
+
+The board tracks:
+
+- deliberate cascade steps;
+- distinct player command groups participating;
+- actual player-to-player handoffs.
+
+This is post-action feedback for tuning cooperative play, not a pre-action hint system.
 
 ## Example to discover, not UI-script
 
-The initial positions make a multi-character physical chain possible using the roster and the tree on the east side. The README intentionally does not spell out the exact clicks. The point of the experiment is to see whether the capability descriptions and spatial presentation are enough for a player to figure it out.
-
-Portals and force multipliers let you build different routes over later rounds rather than relying entirely on the initial map geometry.
+The initial positions intentionally admit multiple routes through the same physical facts. The README does not provide an exact click sequence. The experiment is successful only if players can infer useful chains from capability knowledge and battlefield geometry themselves.
 
 ## Architecture
 
-`CombatCore.cs` owns all gameplay-relevant state and uses an integer grid, integer HP, integer force, deterministic ordering, and explicit reaction events. It does not reference UnityEngine.
+`ChainCombatBoard.cs` owns the current deterministic cascade experiment: unit state, player activation ownership, force/motion, physical events, claim reservation, reaction execution, environment stress, and round refresh.
 
-`CombatPrototypeController.cs` is presentation/input only. It creates primitive Unity geometry, converts clicks into grid positions, and renders the current authoritative state. Unity transforms, colors, camera math, and the ground-plane raycast do not feed floating-point values back into authoritative simulation except by quantizing the clicked cell to integer coordinates.
+`ChainCombatLabController.cs` is the main presentation/input shell. Additional prototype components add proactive setup controls, player-activation status, physical-event markers, and smoothed visual playback. Those presentation systems use the authoritative board but do not calculate combo recommendations.
 
-The split is intentional so the experiment can later be driven by server-authoritative commands rather than replacing prototype physics code.
+The split is intended to support eventual server-authoritative multiplayer commands without replacing prototype physics rules.
 
 ## Intentionally missing
 
 - network transport / server replication;
 - simultaneous multi-device input;
 - real voxel terrain/destruction integration;
-- animation and polished VFX;
+- polished character animation/VFX/audio;
 - pathfinding;
-- AI beyond a deterministic nearest-target step;
-- character progression / large recruit roster;
+- sophisticated enemy disruption/counterplay;
+- large production roster/content authoring pipeline;
+- campaign progression;
 - persistent battle setup;
-- combo scoring or rewards.
+- final reaction-frequency/command-resource tuning.
 
-Those should wait until we know whether positioning + capability knowledge + interactive reaction handoffs are actually fun.
+Those should wait until the small lab proves that player activation + capability knowledge + claimable reaction handoffs are actually fun.
