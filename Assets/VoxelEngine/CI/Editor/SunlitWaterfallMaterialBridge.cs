@@ -82,6 +82,7 @@ namespace VoxelEngine.CI
             SunlitWaterfallLushPass.Apply(camera);
             SunlitWaterfallVerticalityPass.Apply(camera);
             SunlitWaterfallReferencePass.Apply(camera);
+            SunlitWaterfallCleanupPass.Apply(camera);
             SunlitWaterfallSurfacePass.Apply(camera);
         }
     }
