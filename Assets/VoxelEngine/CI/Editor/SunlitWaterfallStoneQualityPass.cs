@@ -4,10 +4,8 @@ using VoxelEngine.Structures;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Stone-only quality pass. Replaces the generic and one-off ruin vocabularies with proper
-    /// coursed ashlar and radial voussoir masonry. No terrain, water, vegetation or camera changes
-    /// live here: this pass exists so stone quality can be iterated independently until the ruin
-    /// vocabulary is production-worthy.
+    /// Stone-only quality pass. Replaces generic and one-off ruin vocabulary with the reusable
+    /// architectural arch bay so masonry quality can be judged independently of terrain work.
     /// </summary>
     internal static class SunlitWaterfallStoneQualityPass
     {
@@ -38,32 +36,26 @@ namespace VoxelEngine.CI
 
             Vector3 o = camera.transform.position - new Vector3(0.10f, 5.05f, -22.6f);
 
-            // Treat the hero ruin as a small vertical complex rather than a single isolated arch.
-            // The upper broken bay overlaps the lower mass enough to read as a surviving second
-            // storey, giving the eye a climbable foreground-to-sky line instead of another tower.
-            WorldArtPiece hero = WorldArtStoneKit.RuinArch(root, "AAA hero ruin arch",
-                o + new Vector3(-5.55f, 1.55f, 5.35f),
-                1.48f, 8, new Vector3(0.60f, 0.52f, 0.82f), 0.84f, true, 101, palette);
+            // Hero-quality architectural bay: broad piers, explicit imposts, a thick archivolt,
+            // recessed backing ring, spandrel mass and real wall returns. Keep this foreground and
+            // large enough that the CI image exposes bad masonry instead of hiding it at thumbnail size.
+            WorldArtPiece hero = WorldArtArchBay.Build(root, "AAA hero architectural arch bay",
+                o + new Vector3(-5.25f, 1.28f, 5.12f),
+                1.52f, 3.62f, 1.18f, 0.50f, 0.56f, 0.92f,
+                101, palette, WorldArtArchDamage.BrokenLeftHaunch);
 
-            WorldArtPiece upper = WorldArtStoneKit.RuinArch(root, "AAA upper ruin arch",
-                o + new Vector3(-5.18f, 5.35f, 5.48f),
-                0.88f, 4, new Vector3(0.44f, 0.40f, 0.66f), 0.69f, true, 173, palette);
+            WorldArtPiece lower = WorldArtArchBay.Build(root, "AAA lower architectural arch bay",
+                o + new Vector3(-5.92f, 0.34f, 8.26f),
+                0.84f, 1.72f, 0.74f, 0.38f, 0.34f, 0.62f,
+                131, palette, WorldArtArchDamage.Intact);
 
-            WorldArtPiece lower = WorldArtStoneKit.RuinArch(root, "AAA lower ruin arch",
-                o + new Vector3(-5.95f, 0.45f, 8.30f),
-                0.82f, 4, new Vector3(0.42f, 0.40f, 0.58f), 0.60f, false, 131, palette);
-
-            // Re-attach overgrowth to semantic stone sockets so dressing remains subordinate to
-            // masonry and demonstrates that the shared socket contract survives visual iteration.
-            WorldArtKit.MossCluster(root, "AAA keystone moss",
-                hero.Socket("keystone").position + new Vector3(-0.34f, 0.03f, 0f),
-                0.38f, 503, palette.Get(WorldArtSurfaceRole.Moss));
-            WorldArtKit.MossCluster(root, "AAA upper arch moss",
-                upper.Socket("crown").position + new Vector3(0.16f, 0.01f, -0.18f),
-                0.22f, 527, palette.Get(WorldArtSurfaceRole.Moss));
+            // Dressing is deliberately sparse until the stone itself survives close inspection.
+            WorldArtKit.MossCluster(root, "AAA hero keystone moss",
+                hero.Socket("keystone").position + new Vector3(-0.28f, 0.035f, -0.04f),
+                0.30f, 503, palette.Get(WorldArtSurfaceRole.Moss));
             WorldArtKit.MossCluster(root, "AAA lower arch moss",
-                lower.Socket("crown").position + new Vector3(0.22f, 0.02f, -0.22f),
-                0.24f, 541, palette.Get(WorldArtSurfaceRole.Moss));
+                lower.Socket("crown").position + new Vector3(0.18f, 0.02f, -0.16f),
+                0.20f, 541, palette.Get(WorldArtSurfaceRole.Moss));
         }
 
         private static void Disable(string name)
@@ -74,11 +66,6 @@ namespace VoxelEngine.CI
 
         private static void DisableLegacyRuinGeometry()
         {
-            // Earlier lookdev stages contain two different obsolete ruin implementations:
-            // capsule-based "Rounded ashlar" and VerticalityPass's rotated cube arch. Disable only
-            // those exact masonry objects. Vegetation, cliffs, upper-ruin scale cues and all other
-            // vertical composition remain untouched; the shared WorldArtStoneKit becomes the sole
-            // source of the foreground/hero arches.
             Transform[] all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include,
                 FindObjectsSortMode.None);
             for (int i = 0; i < all.Length; i++)
