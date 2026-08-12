@@ -1,6 +1,6 @@
 # Minimal Voxel Networking — Bandwidth Plan
 
-**Status:** M0–M2 foundations implemented; M3 semantic convergence + current-state BULK foundation implemented  
+**Status:** M0–M2 foundations implemented; M3 semantic convergence/current-state BULK + canonical cube brush foundation implemented  
 **Branch:** `feature/minimal-voxel-networking`  
 **Extends:** `architecture-notes.md` and `contracts/wire-protocol.md`
 
@@ -22,6 +22,7 @@ Make smooth/destructible multiplayer practical without replicating voxel effects
 10. Repair/current-state snapshots contain semantic materials + flags, never `BrickPool` indices.
 11. Late join/reconnect are state-based, not full-history replay.
 12. BULK is bounded/throttled and must yield to live traffic.
+13. One canonical shape definition drives request decoding, validation, interest routing, server application, client replay and bandwidth accounting.
 
 ---
 
@@ -51,6 +52,7 @@ Make smooth/destructible multiplayer practical without replicating voxel effects
 - reliable, non-fragmented.
 - max **1,024 B packet / 992 B semantic chunk**.
 - exact semantic checkpoint retention only for advertised hashes.
+- encoded snapshot hash is verified before target storage mutation.
 - client pauses at the mismatched hash, applies/re-hashes exact checkpoint state, then resumes later authority.
 
 ### BULK — current semantic region state implemented foundation
@@ -129,12 +131,41 @@ Rejected requests do not consume accepted rate/allocation budget.
 
 Current canonical support:
 
-- explosion: integer sphere + brick-batched writes;
-- full affected-region residency preflight;
-- collapse mixed bricks when they become uniform;
-- current-state catch-up variant applies old events everywhere except one region already replaced by an authoritative snapshot.
+### Explosion
 
-Brush/raw-batch still fail closed pending canonical shared semantics.
+- integer sphere expansion;
+- brick-batched destruction;
+- full affected-region residency preflight;
+- mixed bricks collapse when they become uniform.
+
+### Axis-aligned cube brush
+
+`BrushShapeCodec` now owns the single live brush representation:
+
+```text
+shapeKind byte 0 : full X dimension in bricks
+shapeKind byte 1 : full Y dimension in bricks
+shapeKind byte 2 : full Z dimension in bricks
+shapeKind byte 3 : shape type (1 = cube)
+shapeData bit 0  : authored hard-surface semantic flag
+```
+
+- dimensions are full dimensions, not radii;
+- dimensions are `1..64` bricks;
+- arbitrary voxel origins are allowed, so a nominal one-brick cube may straddle two world bricks;
+- exact inclusive voxel bounds drive validation, rate/allocation budget and interest routing;
+- server/client use the same brick-batched fill/remove implementation;
+- full-brick uniform writes remain `BrickRef.Uniform` and allocate no mixed slot;
+- partial uniform writes materialize at most once and collapse once;
+- semantic-only hard-surface changes are committed even when material bytes already match;
+- every potentially affected region is resident before any mutation;
+- current-state catch-up can apply pre-fence events everywhere except one region already replaced by an authoritative snapshot.
+
+The previous brush shape union was invalid because extent Y and the shape discriminator overlapped. Compatibility request constructors now canonicalize legacy X/Y/Z arguments before they can enter the live protocol.
+
+Constructive cube placement attachment is checked over every voxel immediately outside the six faces rather than six face-center samples, so valid edge/corner support is not rejected.
+
+Sphere/cylinder/extrude/rotated brushes and raw-batch/RLE edits still fail closed pending canonical shared semantics.
 
 ---
 
@@ -148,6 +179,8 @@ Brush/raw-batch still fail closed pending canonical shared semantics.
 - connection→regions + region→connections indexes;
 - cross-region recipient union/deduplication.
 
+Explosion and cube-brush fan-out use canonical effect bounds. Cube brush routing no longer treats dimensions as radius padding, avoiding unnecessary adjacent-region sends near boundaries.
+
 Full-state requests are accepted only for authenticated, currently subscribed regions.
 
 ---
@@ -158,7 +191,7 @@ Full-state requests are accepted only for authenticated, currently subscribed re
 
 Region checkpoint work is deterministically staggered across the configured interval (default 30 ticks), rather than serializing all interested regions on one frame.
 
-Mismatch verification now distinguishes:
+Mismatch verification distinguishes:
 
 - future tick → reject;
 - never-issued checkpoint still inside retention → reject;
@@ -209,12 +242,13 @@ BULK may arrive before or after the fence. Correctness does not depend on cross-
 
 1. pause EVENT application before requesting current region state;
 2. assemble BULK bytes without world mutation;
-3. on explicit world-update path, atomically install the region and verify semantic hash;
-4. replay queued authority through `T` in all other affected regions while excluding the replaced region;
-5. supersede old hash barriers for the replaced region through `T`;
-6. remain in catch-up mode even if the EVENT queue temporarily empties;
-7. only the matching EVENT fence ends duplicate suppression;
-8. resume newer authority normally.
+3. verify encoded semantic hash before target mutation;
+4. on explicit world-update path, atomically install the region and verify the live semantic hash;
+5. replay queued authority through `T` in all other affected regions while excluding the replaced region;
+6. supersede old hash barriers for the replaced region through `T`;
+7. remain in catch-up mode even if the EVENT queue temporarily empties;
+8. only the matching EVENT fence ends duplicate suppression;
+9. resume newer authority normally.
 
 This is the correctness foundation for expired checkpoint recovery, reconnect and late join.
 
@@ -250,18 +284,21 @@ No world serialization occurs from a UTP callback.
 7. Fixed-tick authoritative validation/application/publish pipeline.
 8. Full 3D simulation interest/inverse subscriber index.
 9. Shared deterministic explosion application.
-10. Ordered client authority FIFO + residency deferral.
-11. Allocator-independent semantic hashing.
-12. Staggered ordered hash barriers.
-13. Verified mismatch reports with future/fabricated-report rejection.
-14. Exact-checkpoint semantic REPAIR.
-15. Explicit full-resync-required signal.
-16. Framed 18 B current region requests.
-17. Bounded/throttled semantic BULK snapshot transfer.
-18. 22 B EVENT snapshot fence and excluded-region catch-up semantics.
-19. Automatic expired-checkpoint → current-state request escalation.
-20. Corrected multi-event/wrap-safe `RegionEventLog`.
-21. Unit/loopback test source for codec, catch-up and full current-state recovery.
+10. Canonical axis-aligned cube brush packing + deterministic server/client application.
+11. Exact cube bounds for validation, budget and interest routing.
+12. Hard-surface brush semantics and exact boundary attachment validation.
+13. Ordered client authority FIFO + residency deferral.
+14. Allocator-independent semantic hashing.
+15. Staggered ordered hash barriers.
+16. Verified mismatch reports with future/fabricated-report rejection.
+17. Exact-checkpoint semantic REPAIR with pre-mutation snapshot hash verification.
+18. Explicit full-resync-required signal.
+19. Framed 18 B current region requests.
+20. Bounded/throttled semantic BULK snapshot transfer.
+21. 22 B EVENT snapshot fence and excluded-region catch-up semantics.
+22. Automatic expired-checkpoint → current-state request escalation.
+23. Corrected multi-event/wrap-safe `RegionEventLog`.
+24. Unit/loopback test source for transport, convergence, current-state recovery and canonical cube brushes.
 
 ### Tests are still not executed
 
@@ -269,16 +306,17 @@ The test files are committed, but this branch still needs a real Unity compile/t
 
 ### Still open
 
-1. Canonical deterministic brush application.
-2. Canonical raw-batch/RLE application.
+1. Canonical raw-batch/RLE application.
+2. Additional deterministic brush shapes/rotation if gameplay actually needs them; do not re-enable the legacy encodings.
 3. Progressive/base-seed + touched-overlay region streaming to reduce late-join bytes versus full semantic snapshots.
 4. Multi-region reconnect/late-join orchestration and prioritization around spawn/player motion.
 5. `S_PlayerState` snapshots + prediction/reconciliation using EPHEMERAL history.
 6. Event-suffix vs state-snapshot repair cost selection.
 7. Per-channel bytes/packets/queue age/retransmit instrumentation and connection-quality-aware BULK budgets.
 8. Derived mip/mesh/irradiance rebuild scheduling after mutation/repair/state replacement.
-9. Remove remaining legacy `InterestFilter`, `RepairDispatch`, `WorldHistory`, and old protocol scaffolds after caller migration.
-10. Adversarial loss/jitter/reconnect/late-join/BULK-saturation soak tests.
+9. Density-cap accounting should evolve from conservative touched-brick estimates to maintained per-region mixed-brick counts before construction is tuned aggressively.
+10. Remove remaining legacy `InterestFilter`, `RepairDispatch`, `WorldHistory`, old immediate-apply client receiver and old protocol scaffolds after caller migration.
+11. Adversarial loss/jitter/reconnect/late-join/BULK-saturation/heavy-construction soak tests.
 
 ---
 
@@ -292,6 +330,9 @@ Per connection/channel:
 - EVENT queue age p50/p95/p99;
 - EPHEMERAL recovered/duplicate samples;
 - alteration batch distribution;
+- brush touched-bricks vs mixed-growth distribution;
+- bytes per accepted explosion/brush;
+- interest fan-out by event type;
 - hash/mismatch/repair rate;
 - exact repair bytes/latency;
 - full-state request/deferred/drop counts;
@@ -302,6 +343,7 @@ Per connection/channel:
 Server CPU:
 
 - command validation;
+- brush attachment validation;
 - deterministic mutation;
 - interest routing;
 - semantic hash/snapshot encoding;
@@ -324,22 +366,23 @@ Authoritative event stream, 3D interest, ordered routing/batching/framing.
 
 UTP hosts, EPHEMERAL traffic, bounded ingress, authenticated player registry, fixed-tick command processor.
 
-### M3 — state convergence — foundation implemented
+### M3 — state convergence + canonical construction primitive — foundation implemented
 
-Semantic hashes, exact-checkpoint repair, expired-history current-state BULK fallback, cross-pipeline EVENT fence and deterministic catch-up.
+Semantic hashes, exact-checkpoint repair, expired-history current-state BULK fallback, cross-pipeline EVENT fence/deterministic catch-up, and canonical cube brush authority/replication.
 
-Remaining M3: optimized late-join/reconnect orchestration, event-suffix cost choice, player-state reconciliation.
+Remaining M3: optimized late-join/reconnect orchestration, event-suffix cost choice, player-state reconciliation and raw-batch semantics.
 
 ### M4 — adversarial/soak
 
 - simultaneous chain-reaction destruction;
-- heavy construction/raw editing once canonical;
+- heavy canonical cube construction;
+- heavy raw editing once canonical;
 - horizontal + vertical player separation;
 - packet loss/jitter/reordering;
 - lost input edge recovery;
 - deliberate drift + multi-chunk repair;
 - expired checkpoint full-state fallback;
-- late join during destruction;
+- late join during destruction/construction;
 - reconnect after long gap;
 - BULK saturation while EVENT/EPHEMERAL latency stays stable;
 - server tick spikes.
@@ -351,4 +394,5 @@ Remaining M3: optimized late-join/reconnect orchestration, event-suffix cost cho
 - ordinary per-voxel diffs for deterministic effects;
 - device-dependent gameplay interest;
 - raw `BrickRef`/`BrickPool` identities on the wire;
+- resurrecting ambiguous legacy brush packing;
 - premature entropy coding before correctness/instrumentation measurements.
