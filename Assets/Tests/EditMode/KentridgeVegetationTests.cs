@@ -17,8 +17,8 @@ namespace VoxelEngine.Tests.EditMode
             List<VegetationCandidate> b = KentridgeVegetationLayoutPlanner.Build(
                 KentridgeDefinition.Build(Seed));
 
-            Assert.AreEqual(37, a.Count,
-                "Kentridge should have a sparse authored tree layer, not random forest scatter.");
+            Assert.AreEqual(38, a.Count,
+                "Kentridge should have a sparse authored tree layer with every residential role represented.");
             Assert.AreEqual(a.Count, b.Count);
 
             var roots = new HashSet<long>();
