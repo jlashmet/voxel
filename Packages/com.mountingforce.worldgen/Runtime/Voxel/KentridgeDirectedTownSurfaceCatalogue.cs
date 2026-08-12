@@ -32,27 +32,32 @@ namespace MountingForce.WorldGen.Voxel
                     PlacementRule rule = catalogue.Rules[ruleIndex];
                     FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
 
-                    for (int i = 0; i < rule.ExplicitCount; i++)
-                    {
-                        int placementIndex = rule.ExplicitOffset + i;
-                        ExplicitPlacement placement = catalogue.ExplicitPlacements[placementIndex];
-                        int orientation = placement.Orientation & 3;
+                    // Direction adaptation mutates a definition's program, not one evaluated copy of
+                    // it. The source catalogue intentionally owns one definition per road/plaza piece;
+                    // enforce that contract so a future deduplication cannot reverse a shared program.
+                    if (rule.ExplicitCount != 1)
+                        throw new InvalidOperationException(
+                            "Directed Kentridge public-space definitions must own exactly one placement: "
+                            + definition.Name);
 
-                        if (orientation == 0)
-                            continue;
-                        if (orientation != 2)
-                            throw new InvalidOperationException(
-                                "Kentridge public roads only support direct or reversed half-turn ramps.");
+                    int placementIndex = rule.ExplicitOffset;
+                    ExplicitPlacement placement = catalogue.ExplicitPlacements[placementIndex];
+                    int orientation = placement.Orientation & 3;
 
-                        bool foundRamp = ReverseRamps(ref catalogue, in definition);
-                        if (!foundRamp)
-                            throw new InvalidOperationException(
-                                "A reversed Kentridge public-space placement contained no ramp: "
-                                + definition.Name);
+                    if (orientation == 0)
+                        continue;
+                    if (orientation != 2)
+                        throw new InvalidOperationException(
+                            "Kentridge public roads only support direct or reversed half-turn ramps.");
 
-                        placement.Orientation = 0;
-                        catalogue.ExplicitPlacements[placementIndex] = placement;
-                    }
+                    bool foundRamp = ReverseRamps(ref catalogue, in definition);
+                    if (!foundRamp)
+                        throw new InvalidOperationException(
+                            "A reversed Kentridge public-space placement contained no ramp: "
+                            + definition.Name);
+
+                    placement.Orientation = 0;
+                    catalogue.ExplicitPlacements[placementIndex] = placement;
                 }
 
                 return catalogue;
@@ -86,6 +91,10 @@ namespace MountingForce.WorldGen.Voxel
                 {
                     int axisIndex = pc + 2 + RampAxisOperand;
                     int axis = catalogue.Program[axisIndex];
+                    int baseAxis = axis & BoxEmitter.RampAxisMask;
+                    if (baseAxis != 0 && baseAxis != 2)
+                        throw new InvalidOperationException(
+                            "Kentridge public road ramp used an unsupported axis: " + axis);
                     if ((axis & BoxEmitter.ReverseRampBit) != 0)
                         throw new InvalidOperationException(
                             "Kentridge ramp was already marked reversed before direction adaptation.");
