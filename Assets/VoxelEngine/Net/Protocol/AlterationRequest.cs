@@ -7,23 +7,8 @@ namespace VoxelEngine.Net.Protocol
 {
     /// <summary>
     /// C_AlterationRequest — client-to-server request for a semantic world alteration.
-    ///
-    /// Payload (32 bytes, no alignment padding):
-    ///   Offset  Size  Field
-    ///   0       4     clientTick (uint)
-    ///   4       12    origin (int3)
-    ///   16      1     eventKind (byte)
-    ///   17      1     material (byte)
-    ///   18      4     shapeKind (uint)
-    ///   22      4     shapeData (uint)
-    ///   26      4     requestedSeed (uint)
-    ///   30      2     clientSequence (ushort)
-    ///
-    /// With ProtocolEnvelope the complete packet is 34 bytes.
-    ///
-    /// There is deliberately NO playerId on the wire. Player identity is authoritative connection
-    /// state and must never be accepted from an untrusted client payload. The full 8-byte shape
-    /// union matches AlterationEvent so request -> authoritative event conversion is lossless.
+    /// Payload is exactly 32 bytes; framed packet is 34 bytes.
+    /// There is no player ID: identity is authoritative connection state.
     /// </summary>
     public struct C_AlterationRequest : IEquatable<C_AlterationRequest>
     {
@@ -38,7 +23,6 @@ namespace VoxelEngine.Net.Protocol
         public uint seed;
         public ushort sequence;
 
-        /// <summary>Canonical constructor matching the actual wire fields.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public C_AlterationRequest(
             uint tick,
@@ -61,9 +45,9 @@ namespace VoxelEngine.Net.Protocol
         }
 
         /// <summary>
-        /// Compatibility constructor for existing callers from the pre-envelope scaffold.
-        /// The playerId argument is intentionally ignored: identity no longer belongs to the client
-        /// wire message. New code should use the canonical constructor above.
+        /// Compatibility constructor for the old radius/extents call shape. playerId is ignored.
+        /// Brush callers are canonicalized to an axis-aligned cube with byte-sized full dimensions.
+        /// New code should use the canonical constructor plus BrushShapeCodec directly.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public C_AlterationRequest(
@@ -96,20 +80,27 @@ namespace VoxelEngine.Net.Protocol
                     uint ex = shapeRadius;
                     uint ey = (uint)((shapeExtentsYz >> 8) & 0xFF);
                     uint ez = (uint)(shapeExtentsYz & 0xFF);
-                    shapeKind = ex | (ey << 16);
-                    shapeData = ez;
+                    if (ex >= 1 && ex <= byte.MaxValue && ey >= 1 && ez >= 1)
+                    {
+                        shapeKind = BrushShapeCodec.PackCube((byte)ex, (byte)ey, (byte)ez);
+                        shapeData = 0;
+                    }
+                    else
+                    {
+                        // Deliberately invalid canonical brush; server validation fails closed.
+                        shapeKind = 0;
+                        shapeData = 0;
+                    }
                     break;
                 }
 
                 default:
-                    // Preserve the two legacy 16-bit shape words without inventing semantics.
                     shapeKind = shapeRadius;
                     shapeData = shapeExtentsYz;
                     break;
             }
         }
 
-        /// <summary>Encode only the 32-byte message payload.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Encode(Span<byte> dst)
         {
@@ -127,7 +118,6 @@ namespace VoxelEngine.Net.Protocol
             WriteUint16(dst, 30, sequence);
         }
 
-        /// <summary>Decode only the 32-byte message payload.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static C_AlterationRequest Decode(ReadOnlySpan<byte> src)
         {
@@ -144,10 +134,6 @@ namespace VoxelEngine.Net.Protocol
                 ReadUint16(src, 30));
         }
 
-        /// <summary>
-        /// Materialize the server-owned semantic event after authentication/validation has selected
-        /// authoritative identity, tick, sequence, and seed. No shape re-packing is required.
-        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public AlterationEvent ToAuthoritativeEvent(
             uint authoritativeTick,
@@ -173,14 +159,10 @@ namespace VoxelEngine.Net.Protocol
         public int3 OriginAsInt3() => origin;
 
         public bool Equals(C_AlterationRequest other) =>
-            tick == other.tick &&
-            math.all(origin == other.origin) &&
-            eventKind == other.eventKind &&
-            material == other.material &&
-            shapeKind == other.shapeKind &&
-            shapeData == other.shapeData &&
-            seed == other.seed &&
-            sequence == other.sequence;
+            tick == other.tick && math.all(origin == other.origin) &&
+            eventKind == other.eventKind && material == other.material &&
+            shapeKind == other.shapeKind && shapeData == other.shapeData &&
+            seed == other.seed && sequence == other.sequence;
 
         public override bool Equals(object obj) => obj is C_AlterationRequest o && Equals(o);
 
