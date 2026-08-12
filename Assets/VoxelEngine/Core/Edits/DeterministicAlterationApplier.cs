@@ -13,11 +13,26 @@ namespace VoxelEngine.Core.Edits
     {
         public static bool Supports(in AlterationEvent evt) => evt.kind == AlterationEvent.KindExplosion;
 
+        /// <summary>True only when every region whose voxels may be touched by the event is resident.</summary>
+        public static bool HasRequiredResidency(ref RegionTable table, in AlterationEvent evt) =>
+            HasRequiredResidencyInternal(ref table, in evt, false, default);
+
         /// <summary>
-        /// True only when every region whose voxels may be touched by the event is resident.
-        /// Peers must not partially apply an event based on their current streaming set.
+        /// Residency preflight for current-state catch-up. The excluded region has already been
+        /// replaced by an authoritative snapshot and therefore must not block or receive the replayed
+        /// pre-fence event; all other potentially affected regions must still be resident.
         /// </summary>
-        public static bool HasRequiredResidency(ref RegionTable table, in AlterationEvent evt)
+        public static bool HasRequiredResidencyExcept(
+            ref RegionTable table,
+            in AlterationEvent evt,
+            int3 excludedRegion) =>
+            HasRequiredResidencyInternal(ref table, in evt, true, excludedRegion);
+
+        private static bool HasRequiredResidencyInternal(
+            ref RegionTable table,
+            in AlterationEvent evt,
+            bool hasExcludedRegion,
+            int3 excludedRegion)
         {
             if (!Supports(in evt))
                 return false;
@@ -34,8 +49,13 @@ namespace VoxelEngine.Core.Edits
             for (int rz = minRegion.z; rz <= maxRegion.z; rz++)
             for (int ry = minRegion.y; ry <= maxRegion.y; ry++)
             for (int rx = minRegion.x; rx <= maxRegion.x; rx++)
-                if (!table.IsResident(new int3(rx, ry, rz)))
+            {
+                int3 regionCoord = new int3(rx, ry, rz);
+                if (hasExcludedRegion && regionCoord.Equals(excludedRegion))
+                    continue;
+                if (!table.IsResident(regionCoord))
                     return false;
+            }
 
             return true;
         }
@@ -49,7 +69,29 @@ namespace VoxelEngine.Core.Edits
             switch (evt.kind)
             {
                 case AlterationEvent.KindExplosion:
-                    return ApplyExplosion(ref table, ref pool, in evt, out affectedBricks);
+                    return ApplyExplosion(ref table, ref pool, in evt, false, default, out affectedBricks);
+                default:
+                    affectedBricks = new NativeList<int3>(0, Allocator.Temp);
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Apply an event everywhere except one semantic region. Used only after a current-state BULK
+        /// snapshot has replaced that region; replaying pre-fence authority into it would duplicate
+        /// effects already represented by the snapshot.
+        /// </summary>
+        public static bool TryApplyExceptRegion(
+            ref RegionTable table,
+            ref BrickPool pool,
+            in AlterationEvent evt,
+            int3 excludedRegion,
+            out NativeList<int3> affectedBricks)
+        {
+            switch (evt.kind)
+            {
+                case AlterationEvent.KindExplosion:
+                    return ApplyExplosion(ref table, ref pool, in evt, true, excludedRegion, out affectedBricks);
                 default:
                     affectedBricks = new NativeList<int3>(0, Allocator.Temp);
                     return false;
@@ -60,11 +102,14 @@ namespace VoxelEngine.Core.Edits
             ref RegionTable table,
             ref BrickPool pool,
             in AlterationEvent evt,
+            bool hasExcludedRegion,
+            int3 excludedRegion,
             out NativeList<int3> affectedBricks)
         {
             affectedBricks = new NativeList<int3>(64, Allocator.Temp);
             int radiusVoxels = evt.Radius() * VoxelDimensions.BrickEdge;
-            if (radiusVoxels <= 0 || !HasRequiredResidency(ref table, in evt))
+            if (radiusVoxels <= 0 ||
+                !HasRequiredResidencyInternal(ref table, in evt, hasExcludedRegion, excludedRegion))
                 return false;
 
             long radiusSq = (long)radiusVoxels * radiusVoxels;
@@ -88,6 +133,9 @@ namespace VoxelEngine.Core.Edits
                             continue;
 
                         int3 regionCoord = worldBrick >> VoxelDimensions.RegionEdgeLog2;
+                        if (hasExcludedRegion && regionCoord.Equals(excludedRegion))
+                            continue;
+
                         if (!table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
                             return false;
 
