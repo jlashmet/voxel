@@ -37,6 +37,7 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private sealed class BatchPresentation
         {
+            public Vector2Int Key;
             public GameObject Root;
             public Mesh[] LodMeshes;
             public readonly List<int> TreeIndices = new();
@@ -47,6 +48,9 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private readonly List<TreePresentation> _trees = new();
         private readonly List<BatchPresentation> _batches = new();
+        private readonly Dictionary<Vector2Int, BatchPresentation> _batchByKey = new();
+        private readonly HashSet<Vector2Int> _dirtyBatchKeys = new();
+        private readonly List<int> _cellTreeIndices = new();
         private readonly List<int> _filteredBarkIndices = new(16384);
         private readonly List<int> _filteredLeafIndices = new(16384);
         private MaterialPropertyBlock _damageProperties;
@@ -54,6 +58,7 @@ namespace VoxelEngine.Rendering.Vegetation
         private bool _damageDirty = true;
 
         public double LastRebuildMilliseconds { get; private set; }
+        public int LastDamageBatchRebuildCount { get; private set; }
         public int PresentationCount => _trees.Count;
         public int DynamicPresentationCount { get; private set; }
         public int DynamicMeshCount => DynamicPresentationCount * 3;
@@ -258,6 +263,14 @@ namespace VoxelEngine.Rendering.Vegetation
             renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
         }
 
+        private static Vector2Int BatchKeyFor(in TreeInstance instance)
+        {
+            Vector3 position = (Vector3)instance.PositionMetres;
+            return new Vector2Int(
+                Mathf.FloorToInt(position.x / BatchSizeMetres),
+                Mathf.FloorToInt(position.z / BatchSizeMetres));
+        }
+
         private void EnsureDynamicPresentation(TreePresentation tree)
         {
             if (tree.Root != null) return;
@@ -347,10 +360,6 @@ namespace VoxelEngine.Rendering.Vegetation
         private void RebuildBatches()
         {
             ClearBatches();
-            BatchedTreeCount = 0;
-
-            for (int i = 0; i < _trees.Count; i++)
-                _trees[i].IsBatched = false;
 
             IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
             var groups = new Dictionary<Vector2Int, List<int>>();
@@ -358,10 +367,7 @@ namespace VoxelEngine.Rendering.Vegetation
             {
                 if (!IsHealthyForBatch(i, damage)) continue;
 
-                Vector3 position = (Vector3)_trees[i].Instance.PositionMetres;
-                var key = new Vector2Int(
-                    Mathf.FloorToInt(position.x / BatchSizeMetres),
-                    Mathf.FloorToInt(position.z / BatchSizeMetres));
+                Vector2Int key = BatchKeyFor(_trees[i].Instance);
                 if (!groups.TryGetValue(key, out List<int> treeIndices))
                 {
                     treeIndices = new List<int>();
@@ -406,6 +412,7 @@ namespace VoxelEngine.Rendering.Vegetation
 
             var batch = new BatchPresentation
             {
+                Key = key,
                 Root = root,
                 LodMeshes = new Mesh[3],
             };
@@ -436,6 +443,7 @@ namespace VoxelEngine.Rendering.Vegetation
 
             BatchedTreeCount += treeIndices.Count;
             _batches.Add(batch);
+            _batchByKey[key] = batch;
         }
 
         private Mesh BuildCombinedBatchMesh(List<int> treeIndices, int lod,
@@ -624,7 +632,7 @@ namespace VoxelEngine.Rendering.Vegetation
         {
             IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
             int count = Mathf.Min(_trees.Count, damage.Count);
-            bool batchesDirty = false;
+            _dirtyBatchKeys.Clear();
 
             for (int i = 0; i < count; i++)
             {
@@ -643,7 +651,7 @@ namespace VoxelEngine.Rendering.Vegetation
                     && !damage[i].Severed
                     && damageAmount <= HealthyDamageEpsilon;
                 if (tree.IsBatched != shouldBatch)
-                    batchesDirty = true;
+                    _dirtyBatchKeys.Add(BatchKeyFor(tree.Instance));
 
                 if (!tree.IsBatched)
                 {
@@ -653,42 +661,95 @@ namespace VoxelEngine.Rendering.Vegetation
                 }
             }
 
-            if (batchesDirty)
+            LastDamageBatchRebuildCount = 0;
+            if (_dirtyBatchKeys.Count == 0) return;
+
+            foreach (Vector2Int key in _dirtyBatchKeys)
             {
-                RebuildBatches();
-                for (int i = 0; i < count; i++)
+                RebuildBatchCell(key, damage);
+                LastDamageBatchRebuildCount++;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                TreePresentation tree = _trees[i];
+                if (tree.IsBatched) continue;
+                if (tree.DirectCutCount > 0) ApplyRemovedGeometry(tree);
+                ApplyDamageMaterial(tree);
+            }
+        }
+
+        private void RebuildBatchCell(Vector2Int key,
+                                      IReadOnlyList<TreeWorldState.TreeDamageState> damage)
+        {
+            if (_batchByKey.TryGetValue(key, out BatchPresentation oldBatch))
+            {
+                for (int i = 0; i < oldBatch.TreeIndices.Count; i++)
                 {
-                    TreePresentation tree = _trees[i];
-                    if (tree.IsBatched) continue;
-                    if (tree.DirectCutCount > 0) ApplyRemovedGeometry(tree);
-                    ApplyDamageMaterial(tree);
+                    int treeIndex = oldBatch.TreeIndices[i];
+                    if ((uint)treeIndex >= (uint)_trees.Count) continue;
+                    if (!_trees[treeIndex].IsBatched) continue;
+                    _trees[treeIndex].IsBatched = false;
+                    BatchedTreeCount = Mathf.Max(0, BatchedTreeCount - 1);
                 }
+
+                DestroyBatchObjects(oldBatch);
+                _batchByKey.Remove(key);
+                _batches.Remove(oldBatch);
+            }
+
+            _cellTreeIndices.Clear();
+            for (int i = 0; i < _trees.Count; i++)
+            {
+                TreePresentation tree = _trees[i];
+                if (BatchKeyFor(tree.Instance) != key) continue;
+                if (IsHealthyForBatch(i, damage)) _cellTreeIndices.Add(i);
+            }
+
+            if (_cellTreeIndices.Count > 0)
+                BuildBatch(key, _cellTreeIndices);
+
+            for (int i = 0; i < _trees.Count; i++)
+            {
+                TreePresentation tree = _trees[i];
+                if (BatchKeyFor(tree.Instance) != key) continue;
+                if (tree.IsBatched)
+                    DestroyDynamicPresentation(tree);
+                else
+                    EnsureDynamicPresentation(tree);
+            }
+        }
+
+        private void DestroyBatchObjects(BatchPresentation batch)
+        {
+            if (batch == null) return;
+            if (batch.LodMeshes != null)
+            {
+                for (int lod = 0; lod < batch.LodMeshes.Length; lod++)
+                    if (batch.LodMeshes[lod] != null) Destroy(batch.LodMeshes[lod]);
+            }
+            if (batch.Root != null)
+            {
+                batch.Root.SetActive(false);
+                Destroy(batch.Root);
             }
         }
 
         private void ClearBatches()
         {
             for (int i = 0; i < _batches.Count; i++)
-            {
-                BatchPresentation batch = _batches[i];
-                if (batch.LodMeshes != null)
-                {
-                    for (int lod = 0; lod < batch.LodMeshes.Length; lod++)
-                        if (batch.LodMeshes[lod] != null) Destroy(batch.LodMeshes[lod]);
-                }
-                if (batch.Root != null)
-                {
-                    batch.Root.SetActive(false);
-                    Destroy(batch.Root);
-                }
-            }
+                DestroyBatchObjects(_batches[i]);
             _batches.Clear();
+            _batchByKey.Clear();
+            for (int i = 0; i < _trees.Count; i++)
+                _trees[i].IsBatched = false;
+            BatchedTreeCount = 0;
+            LastDamageBatchRebuildCount = 0;
         }
 
         private void ClearGenerated()
         {
             ClearBatches();
-            BatchedTreeCount = 0;
             for (int i = 0; i < _trees.Count; i++)
                 DestroyDynamicPresentation(_trees[i]);
             _trees.Clear();
