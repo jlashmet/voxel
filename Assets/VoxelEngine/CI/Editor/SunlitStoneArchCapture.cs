@@ -59,6 +59,7 @@ namespace VoxelEngine.CI
                     new int3(cx, baseY, cz), Mat.Stone, Mat.Empty, seed, Mat.DarkStone);
                 spec.Damage = WorldArtVoxelArchDamage.Intact;
                 WorldArtVoxelArchSockets sockets = WorldArtVoxelArchitecture.ArchBay(ref brush, in spec);
+                WorldArtVoxelMasonrySurface.RecessArchivoltJoints(ref brush, in spec);
                 WorldArtVoxelSocket[] semanticSockets =
                     WorldArtVoxelArchSocketLibrary.Build(in spec, in sockets);
 
@@ -128,8 +129,9 @@ namespace VoxelEngine.CI
                     "geometry=VoxelBrush -> material-aware bounded voxel extraction\n" +
                     "surfaceProfile=stone:s1.00/dr1.00/cr0.72/p0.78 joint:bias-0.085\n" +
                     "stoneFaceNormalPlanarization=0.72\n" +
+                    "archivoltJointRecessVoxels=1\n" +
                     $"archivoltProjectionVoxels={spec.ArchivoltProjection}\n" +
-                    "masonryDetail=component-driven seams + recessed joint geometry + deterministic stone relief\n" +
+                    "masonryDetail=component-driven seams + shallow structural-face channels + deterministic stone relief\n" +
                     "unityPresentationMeshes=0\n" +
                     "voxelSizeMetres=0.10\n" +
                     "heroSurfaceSampleMetres=0.05\n" +
