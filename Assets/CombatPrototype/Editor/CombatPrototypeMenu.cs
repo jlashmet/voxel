@@ -29,6 +29,7 @@ namespace MountingForce.CombatPrototype.Editor
             root.AddComponent<ChainCombatActivationOverlay>();
             root.AddComponent<ChainCombatEventMarker>();
             root.AddComponent<ChainCombatMotionPlayback>();
+            root.AddComponent<ChainEnemyIntentOverlay>();
             EditorApplication.isPlaying = true;
         }
     }
