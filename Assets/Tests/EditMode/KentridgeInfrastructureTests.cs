@@ -16,6 +16,7 @@ namespace VoxelEngine.Tests.EditMode
             FeatureCatalogue circulation = KentridgeVerticalConnectorCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue secondaryCirculation = KentridgeUrbanCirculationCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue courts = KentridgeUrbanCourtCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
+            FeatureCatalogue piazza = KentridgeMarketPiazzaCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue massing = KentridgeUrbanMassingCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue verticalFrontage = KentridgeVerticalFrontageCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
             FeatureCatalogue galleries = KentridgeVerticalGalleryCatalogue.Build(Seed, BuildSettings(), Allocator.Temp);
@@ -33,6 +34,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(2, CountDefinitions(secondaryCirculation, FeatureKind.Infrastructure));
                 Assert.AreEqual(8, courts.Definitions.Length);
                 AssertAllKind(courts, FeatureKind.Infrastructure);
+                Assert.AreEqual(1, piazza.ExplicitPlacements.Length,
+                    "The existing semantic Market Square should receive one hard shared-space surface.");
+                AssertAllKind(piazza, FeatureKind.Infrastructure);
                 Assert.AreEqual(37, massing.ExplicitPlacements.Length);
                 Assert.AreEqual(6, verticalFrontage.ExplicitPlacements.Length);
                 Assert.AreEqual(5, galleries.ExplicitPlacements.Length,
@@ -57,8 +61,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.AreEqual(17, structures,
                     "Stable gameplay building identity must remain exactly the original Kentridge roster.");
-                Assert.AreEqual(98, infrastructureInstances,
-                    "The upper court skybridge adds one hard over/under circulation instance without changing gameplay structures.");
+                Assert.AreEqual(99, infrastructureInstances,
+                    "The hard Market Square adds one public-space instance without changing gameplay structures.");
             }
             finally
             {
@@ -70,6 +74,7 @@ namespace VoxelEngine.Tests.EditMode
                 galleries.Dispose();
                 verticalFrontage.Dispose();
                 massing.Dispose();
+                piazza.Dispose();
                 courts.Dispose();
                 secondaryCirculation.Dispose();
                 circulation.Dispose();
