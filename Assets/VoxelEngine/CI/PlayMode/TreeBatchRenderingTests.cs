@@ -75,6 +75,8 @@ namespace VoxelEngine.CI
                             "Healthy batched trees must not retain dormant per-tree meshes.");
                 Assert.That(renderer.ResidentSkeletonCount, Is.EqualTo(0),
                             "Healthy batched trees must release their procedural skeletons after batch geometry is built.");
+                Assert.That(renderer.PeakResidentSkeletonCountDuringLastRebuild, Is.LessThanOrEqualTo(1),
+                            "Healthy batch construction should stream one procedural skeleton at a time.");
                 Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(6),
                             "Two healthy batches should own exactly six LOD meshes.");
                 Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(8),
@@ -325,6 +327,7 @@ namespace VoxelEngine.CI
             for (int i = 0; i < renderer.transform.childCount; i++)
             {
                 Transform child = renderer.transform.GetChild(i);
+                if (!child.gameObject.activeInHierarchy) continue;
                 if (child.name.StartsWith("Tree Batch ")) result.Add(child);
             }
             return result;
@@ -336,6 +339,7 @@ namespace VoxelEngine.CI
             for (int i = 0; i < renderer.transform.childCount; i++)
             {
                 Transform child = renderer.transform.GetChild(i);
+                if (!child.gameObject.activeInHierarchy) continue;
                 if (child.name == name) return child;
             }
             return null;
@@ -355,6 +359,7 @@ namespace VoxelEngine.CI
             for (int i = 0; i < renderer.transform.childCount; i++)
             {
                 Transform child = renderer.transform.GetChild(i);
+                if (!child.gameObject.activeInHierarchy) continue;
                 if (child.name.StartsWith(prefix)) return child;
             }
             return null;
