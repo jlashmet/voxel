@@ -14,7 +14,7 @@ Shader "VoxelEngine/SunlitSkyGradient"
             Name "SkyGradient"
             ZWrite Off
             ZTest LEqual
-            Cull Back
+            Cull Off
             HLSLPROGRAM
             #pragma target 2.0
             #pragma vertex Vert
