@@ -19,6 +19,7 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeVerticalConnectorCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp),
+                KentridgeUrbanSidewalkCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeStreetDressingCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeVerticalPlacementAdapter.BuildPlotDressing(seed, settings, Allocator.Temp),
