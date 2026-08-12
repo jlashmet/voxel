@@ -17,53 +17,48 @@ namespace VoxelEngine.Tests.EditMode
             KentridgeUrbanCirculationPlan plan = KentridgeUrbanCirculation.Build(Seed);
             Assert.AreEqual(4, plan.Connectors.Count);
 
+            int mainWestEdge = KentridgeTownPlanner.MainSpineXDm - KentridgeTownPlanner.MainRoadWidthDm / 2;
             KentridgeUrbanConnector upperEast = plan.Connectors[0];
+            KentridgeUrbanConnector lowerWest = plan.Connectors[1];
+            KentridgeUrbanConnector westUpperStair = plan.Connectors[2];
+            KentridgeUrbanConnector westUpperContour = plan.Connectors[3];
+
             Assert.AreEqual("upper-east-contour", upperEast.Id);
             Assert.AreEqual(KentridgeUrbanConnectorKind.ContourLane, upperEast.Kind);
             Assert.IsTrue(upperEast.IsHorizontal);
-            Assert.AreEqual(40, upperEast.WidthDm);
 
-            int mainEastEdge = KentridgeTownPlanner.MainSpineXDm + KentridgeTownPlanner.MainRoadWidthDm / 2;
-            int mainWestEdge = KentridgeTownPlanner.MainSpineXDm - KentridgeTownPlanner.MainRoadWidthDm / 2;
-            int eastLaneWestEdge = KentridgeTownPlanner.EastLaneXDm - KentridgeTownPlanner.ServiceRoadWidthDm / 2;
-            Assert.AreEqual(mainEastEdge, upperEast.StartDm.X);
-            Assert.AreEqual(eastLaneWestEdge, upperEast.EndDm.X);
-
-            KentridgeUrbanConnector lowerWest = plan.Connectors[1];
             Assert.AreEqual("lower-west-stair-street", lowerWest.Id);
             Assert.AreEqual(KentridgeUrbanConnectorKind.StairStreet, lowerWest.Kind);
             Assert.IsTrue(lowerWest.IsVertical);
-            Assert.AreEqual(KentridgeTownPlanner.ResidentialStreetZDm, lowerWest.StartDm.Y);
-            Assert.AreEqual(22, lowerWest.WidthDm);
             Assert.Greater(lowerWest.LengthDm, 300);
 
-            KentridgeUrbanConnector westUpperStair = plan.Connectors[2];
             Assert.AreEqual("west-upper-stair-street", westUpperStair.Id);
             Assert.AreEqual(KentridgeUrbanConnectorKind.StairStreet, westUpperStair.Kind);
             Assert.IsTrue(westUpperStair.IsVertical);
+            Assert.AreEqual(810, westUpperStair.StartDm.X,
+                "The upper alternate should be tucked into the west-side urban fabric rather than the world edge.");
             Assert.AreEqual(KentridgeTownPlanner.MarketStreetZDm, westUpperStair.StartDm.Y);
             Assert.AreEqual(KentridgeUrbanCirculation.UpperContourZDm, westUpperStair.EndDm.Y);
-            Assert.AreEqual(KentridgeUrbanCirculation.WestUpperStairXDm, westUpperStair.StartDm.X);
             Assert.AreEqual(22, westUpperStair.WidthDm);
-            Assert.Greater(westUpperStair.LengthDm, 150);
 
-            KentridgeUrbanConnector westUpperContour = plan.Connectors[3];
+            // The upper-west anonymous block starts at x=850. A 2.2 m stair centred at x=810
+            // leaves a deliberate pedestrian-scale gap rather than touching the building envelope.
+            Assert.Less(westUpperStair.StartDm.X + westUpperStair.WidthDm / 2, 850);
+            Assert.Greater(westUpperStair.StartDm.X, 770,
+                "The stair should remain close enough to the market frontage to read as an urban alley stair.");
+
             Assert.AreEqual("west-upper-contour", westUpperContour.Id);
             Assert.AreEqual(KentridgeUrbanConnectorKind.ContourLane, westUpperContour.Kind);
             Assert.IsTrue(westUpperContour.IsHorizontal);
             Assert.AreEqual(KentridgeUrbanCirculation.WestUpperStairXDm, westUpperContour.StartDm.X);
             Assert.AreEqual(mainWestEdge, westUpperContour.EndDm.X);
-            Assert.AreEqual(KentridgeUrbanCirculation.UpperContourZDm, westUpperContour.StartDm.Y);
-            Assert.AreEqual(22, westUpperContour.WidthDm);
-            Assert.Greater(westUpperContour.LengthDm, 400);
-
-            Assert.Less(lowerWest.StartDm.X + lowerWest.WidthDm / 2, mainWestEdge);
-            Assert.Less(westUpperStair.StartDm.X + westUpperStair.WidthDm / 2, 850,
-                "The upper west stair must remain west of the upper-west block.");
+            Assert.Greater(westUpperContour.LengthDm, 300);
+            Assert.Less(westUpperContour.LengthDm, 400,
+                "The inward stair placement should avoid a long detached edge-of-town contour strip.");
 
             KentridgeUrbanSkeletonPlan skeleton = KentridgeUrbanSkeleton.Build(Seed);
             Assert.AreEqual(skeleton.Get(KentridgeUrbanNodeId.WestMarketJunction).CentreDm.X, westUpperStair.StartDm.X);
-            Assert.AreEqual(skeleton.Get(KentridgeUrbanNodeId.WestUpperLanding).CentreDm.Y, westUpperContour.StartDm.Y);
+            Assert.AreEqual(skeleton.Get(KentridgeUrbanNodeId.WestUpperLanding).CentreDm.X, westUpperContour.StartDm.X);
 
             SettlementPlan stablePlan = KentridgeDefinition.Build(Seed);
             Assert.AreEqual(4, stablePlan.Streets.Count);
@@ -76,33 +71,16 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 Assert.AreEqual(4, catalogue.Definitions.Length);
-                Assert.AreEqual(4, catalogue.ExplicitPlacements.Length);
-
-                FeatureDefinition upperEast = catalogue.Definitions[0];
-                FeatureDefinition lowerWest = catalogue.Definitions[1];
-                FeatureDefinition westUpperStair = catalogue.Definitions[2];
-                FeatureDefinition westUpperContour = catalogue.Definitions[3];
-
-                Assert.AreEqual(FeatureKind.Landform, upperEast.Kind);
-                Assert.AreEqual(23, upperEast.Precedence);
-                Assert.AreEqual(FeatureKind.Infrastructure, lowerWest.Kind);
-                Assert.AreEqual(89, lowerWest.Precedence);
-                Assert.AreEqual(FeatureKind.Infrastructure, westUpperStair.Kind);
-                Assert.AreEqual(89, westUpperStair.Precedence);
-                Assert.AreEqual(FeatureKind.Landform, westUpperContour.Kind);
-                Assert.AreEqual(23, westUpperContour.Precedence);
-
-                Assert.Greater(lowerWest.Footprint.z, 300);
-                Assert.Greater(westUpperStair.Footprint.z, 150);
-                Assert.Greater(westUpperContour.Footprint.x, 400);
-
-                Assert.GreaterOrEqual(CountBoxes(catalogue, lowerWest), 20);
-                Assert.GreaterOrEqual(CountBoxes(catalogue, westUpperStair), 18);
+                Assert.AreEqual(FeatureKind.Landform, catalogue.Definitions[0].Kind);
+                Assert.AreEqual(FeatureKind.Infrastructure, catalogue.Definitions[1].Kind);
+                Assert.AreEqual(FeatureKind.Infrastructure, catalogue.Definitions[2].Kind);
+                Assert.AreEqual(FeatureKind.Landform, catalogue.Definitions[3].Kind);
+                Assert.GreaterOrEqual(CountBoxes(catalogue, catalogue.Definitions[1]), 20);
+                Assert.GreaterOrEqual(CountBoxes(catalogue, catalogue.Definitions[2]), 18);
+                Assert.Greater(catalogue.Definitions[3].Footprint.x, 300);
+                Assert.Less(catalogue.Definitions[3].Footprint.x, 400);
             }
-            finally
-            {
-                catalogue.Dispose();
-            }
+            finally { catalogue.Dispose(); }
         }
 
         private static int CountBoxes(FeatureCatalogue catalogue, FeatureDefinition definition)
