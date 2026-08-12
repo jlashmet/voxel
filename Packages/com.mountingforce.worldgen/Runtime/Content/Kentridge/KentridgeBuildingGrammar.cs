@@ -63,12 +63,14 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
         public bool IsGenerated => Mode == KentridgeBuildingMode.Generated;
         public bool IsShop => Archetype == StructureArchetype.Shop;
+        public bool IsHospitality => Archetype == StructureArchetype.Inn;
     }
 
     /// <summary>
     /// Deterministic architectural grammar for stable Kentridge roles. Roles constrain a vocabulary
     /// of footprint, height, frontage, roof, wing, and facade choices instead of selecting a complete
-    /// prefab. Bespoke civic/industrial landmarks stay bespoke for this migration slice.
+    /// prefab. Church/industrial/noble landmarks remain bespoke while houses, shops, inn and pub now
+    /// compile from stable role-specific forms.
     /// </summary>
     public static class KentridgeBuildingGrammar
     {
@@ -77,6 +79,16 @@ namespace MountingForce.WorldGen.Content.Kentridge
             KentridgeRole role = (KentridgeRole)plot.RoleId;
             switch (role)
             {
+                case KentridgeRole.Inn:
+                    return Generated(plot, KentridgeFootprintForm.RearWing,
+                        KentridgeRoofForm.TwinGable, KentridgeFrontageRhythm.ThreeBay,
+                        KentridgeWindowStyle.Warm, 132, 104, 3, 0, 4, 30,
+                        40, 36, true, true);
+                case KentridgeRole.Pub:
+                    return Generated(plot, KentridgeFootprintForm.SideWing,
+                        KentridgeRoofForm.GableWithLeanTo, KentridgeFrontageRhythm.Asymmetric,
+                        KentridgeWindowStyle.Warm, 112, 92, 2, -12, 2, 24,
+                        28, 42, false, false);
                 case KentridgeRole.WeaponShop:
                     return Generated(plot, KentridgeFootprintForm.RearWing,
                         KentridgeRoofForm.GableWithLeanTo, KentridgeFrontageRhythm.ThreeBay,
@@ -151,7 +163,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
         {
             return archetype == StructureArchetype.Townhouse
                 || archetype == StructureArchetype.WideHouse
-                || archetype == StructureArchetype.Shop;
+                || archetype == StructureArchetype.Shop
+                || archetype == StructureArchetype.Inn;
         }
 
         public static void ValidateGenerated(KentridgeBuildingForm form)
