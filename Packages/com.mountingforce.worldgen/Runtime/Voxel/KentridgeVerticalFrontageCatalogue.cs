@@ -8,9 +8,11 @@ using VoxelEngine.Core.Features;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Compiles the macro vertical-frontage plan into continuous occupied undercrofts. These are not
-    /// extra gameplay buildings: they are the architectural face of the terrace itself, behind the
-    /// varied upper frontage and below galleries/access that need to cut through it.
+    /// Compiles the macro vertical-frontage plan into continuous occupied undercrofts. The undercroft
+    /// depth is embedded into the terrace: its rear wall is uphill and its open pier/lintel face ends
+    /// exactly on the authored downhill block edge. The programme excavates the occupied volume before
+    /// rebuilding hard architecture, so these read as rooms cut into the hill rather than projections
+    /// pasted onto the outside of it.
     /// </summary>
     public static class KentridgeVerticalFrontageCatalogue
     {
@@ -68,8 +70,8 @@ namespace MountingForce.WorldGen.Voxel
                         zone.HeightDm * s,
                         zone.DepthDm * s),
                     MaxSlope = 32,
-                    // Anonymous buildings are 86 and must remain visually in front of this shared
-                    // terrace facade. Galleries/dwellings/access are 90+ and can further specialise it.
+                    // Court paving shares 85 but sits at shelf level. Anonymous buildings are 86 and
+                    // win above/through this excavation; access/galleries at 90+ can specialise it.
                     Precedence = Precedence,
                     ParameterOffset = 0,
                     ParameterCount = 0,
@@ -81,7 +83,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 96,
+                    MaxPrimitives = 98,
                 };
 
                 int shelfSurface = KentridgeVerticalProfile.SurfaceYAtDm(
@@ -95,7 +97,8 @@ namespace MountingForce.WorldGen.Voxel
                         zone.MinXDm * s,
                         shelfSurface
                             - (zone.HeightDm + KentridgeVerticalFrontagePlanner.TopBelowShelfDm) * s,
-                        (zone.StartDm.Y + KentridgeVerticalFrontagePlanner.FrontInsetDm) * s),
+                        (zone.StartDm.Y - zone.DepthDm
+                            + KentridgeVerticalFrontagePlanner.FrontInsetDm) * s),
                     Orientation = 0,
                     OverrideOffset = 0,
                     OverrideCount = 0,
@@ -159,15 +162,21 @@ namespace MountingForce.WorldGen.Voxel
             int gapStart = math.clamp(gapCentre - gapWidth / 2, 0, math.max(0, width - gapWidth));
             int gapEnd = math.min(width, gapStart + gapWidth);
 
-            // The vertical city face is intentionally an open arcade, not another retaining box.
-            // Floor/deck/back-wall spans stop at the court opening, so the lower route can visibly
-            // continue through the facade and up to the protected court above.
+            // Excavate the room into the shelf before rebuilding the hard architectural shell. This
+            // is what makes the undercroft visible after moving its depth back inside the terrace.
+            int clearH = math.max(1, height - baseH - topH);
+            b.Carve(0, baseH, 0, width, clearH, depth);
+
+            // Floor and roof deck stop at the aligned gateway, leaving that bay open through the full
+            // undercroft depth for later vertical circulation.
             AddSpan(b, 0, gapStart, 0, 0, depth, baseH, stone);
             AddSpan(b, gapEnd, width, 0, 0, depth, baseH, stone);
             AddSpan(b, 0, gapStart, height - topH, 0, depth, topH, stone);
             AddSpan(b, gapEnd, width, height - topH, 0, depth, topH, stone);
 
-            int backZ = math.max(wall, depth - wall);
+            // Local z=0 is uphill/rear. The visible open frontage is at the far/downhill edge.
+            int backZ = 0;
+            int frontZ = math.max(0, depth - wall);
             int backH = math.max(1, height - baseH - topH);
             AddSpan(b, 0, gapStart, baseH, backZ, wall, backH, stone);
             AddSpan(b, gapEnd, width, baseH, backZ, wall, backH, stone);
@@ -186,25 +195,24 @@ namespace MountingForce.WorldGen.Voxel
                 if (bayWidth <= openingSide * 2 + 4 * s) continue;
                 if (Overlaps(bayStart, bayEnd, gapStart, gapEnd)) continue;
 
-                // Freestanding front structure keeps the long edge visually porous from oblique street
-                // views. There are no sealed side/end walls.
-                b.Box(bayStart, baseH, 0,
+                b.Box(bayStart, baseH, frontZ,
                     Math.Min(pier, bayWidth), height - baseH - topH, wall, frame);
-                b.Box(bayStart, height - topH - lintel, 0,
+                b.Box(bayStart, height - topH - lintel, frontZ,
                     bayWidth, lintel, wall, frame);
 
+                // Warm recessed panels sit on the uphill rear wall and are visible through the open
+                // downhill bays, giving the terrace face real depth instead of a flat lit wall.
                 int openingX = bayStart + openingSide;
                 int openingW = bayWidth - openingSide * 2;
                 int maxOpeningH = Math.Max(1, height - topH - openingBottom - 2 * s);
                 int h = Math.Min(openingH, maxOpeningH);
-                int panelZ = Math.Max(wall + s, backZ - 2 * s);
+                int panelZ = Math.Min(math.max(wall, wall + s), math.max(wall, depth - 2 * s));
                 b.Box(openingX, openingBottom, panelZ,
-                    openingW, h, 2 * s, warm);
+                    openingW, h, Math.Min(2 * s, Math.Max(1, depth - panelZ)), warm);
             }
 
-            // Finish the outside corner without closing the end into a blank wall.
             if (!Overlaps(Math.Max(0, width - pier), width, gapStart, gapEnd))
-                b.Box(Math.Max(0, width - pier), baseH, 0,
+                b.Box(Math.Max(0, width - pier), baseH, frontZ,
                     Math.Min(pier, width), height - baseH - topH, wall, frame);
 
             return b.Finish();
