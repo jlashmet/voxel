@@ -5,7 +5,9 @@ namespace MountingForce.CombatPrototype
 {
     /// <summary>
     /// Playable hot-seat stand-in for four network players. It exposes what each recruit does, but never computes
-    /// or highlights compatible reactions. Players claim an event by choosing a recruit/capability, then aim it.
+    /// or highlights compatible reactions. A player first reserves a physical event, then chooses a recruit/capability
+    /// from their own roster and finally aims the reaction. Reservation therefore solves multiplayer ownership without
+    /// turning the UI into a combo recommender.
     /// </summary>
     public sealed class ChainCombatLabController : MonoBehaviour
     {
@@ -32,6 +34,7 @@ namespace MountingForce.CombatPrototype
         private readonly List<GameObject> _constructVisuals = new List<GameObject>();
 
         private ChainCombatBoard _board;
+        private ChainReactionReservationCoordinator _reactionReservations;
         private Camera _camera;
         private GameObject _visualRoot;
         private int _selectedUnitId;
@@ -53,7 +56,8 @@ namespace MountingForce.CombatPrototype
         private void Awake()
         {
             _board = new ChainCombatBoard();
-            _uiMessage = "Four-player hot-seat lab: inspect capabilities, talk through a plan, and claim physical events yourself.";
+            _reactionReservations = new ChainReactionReservationCoordinator(_board);
+            _uiMessage = "Four-player hot-seat lab: inspect the physical event, reserve it as a player, then decide which recruit can answer it.";
             BuildPresentation();
             SelectFirstFriendly();
             _constructsDirty = true;
@@ -67,6 +71,7 @@ namespace MountingForce.CombatPrototype
                 _camera.rect = new Rect(0f, 0f, viewportWidth, 1f);
             }
 
+            _reactionReservations?.Synchronize();
             SyncUnits();
             SyncTrees();
             if (_constructsDirty)
@@ -254,7 +259,7 @@ namespace MountingForce.CombatPrototype
             _scroll = GUILayout.BeginScrollView(_scroll);
 
             GUILayout.Label("MOUNTING FORCE — CASCADE LAB", _titleStyle);
-            GUILayout.Label($"Round {_board.Round} • four command groups • authoritative claims", _smallStyle);
+            GUILayout.Label($"Round {_board.Round} • four command groups • reserve → choose → execute", _smallStyle);
             GUILayout.Label($"Last cascade: {_board.LastCascadeSteps} steps / {_board.LastCascadePlayers} players   Best: {_board.BestCascadeSteps} / {_board.BestCascadePlayers}", _smallStyle);
 
             if (_board.CurrentCascadeSteps > 0)
@@ -292,6 +297,7 @@ namespace MountingForce.CombatPrototype
             if (GUILayout.Button("End round → enemies act"))
             {
                 _board.EndRound();
+                _reactionReservations.Reset();
                 _uiMessage = _board.LastMessage;
                 CancelCommand(false);
             }
@@ -300,6 +306,7 @@ namespace MountingForce.CombatPrototype
             if (GUILayout.Button("Reset battle"))
             {
                 _board.Reset();
+                _reactionReservations.Reset();
                 _uiMessage = "Battle reset. Try a different route through the same geometry.";
                 CancelCommand(false);
                 SelectFirstFriendly();
@@ -326,30 +333,66 @@ namespace MountingForce.CombatPrototype
                 return;
             }
 
+            _reactionReservations.Synchronize();
+            int reservedBy = _reactionReservations.ReservedByCommandGroup;
+
             GUILayout.Label($"PHYSICAL EVENT #{reaction.Id}: {reaction.Kind}", _headerStyle);
             GUILayout.Label(reaction.Description, _smallStyle);
-            if (!reaction.IsClaimed)
+
+            if (reservedBy == 0)
             {
-                GUILayout.Label("UNCLAIMED — select a recruit and try the reaction you think applies. The game will not list compatible characters.", _smallStyle);
+                GUILayout.Label("UNRESERVED — decide who will take responsibility for this physical fact. Reserving does not prove that player has a valid reaction.", _smallStyle);
+                GUILayout.BeginHorizontal();
+                for (int group = 1; group <= 4; group++)
+                {
+                    if (GUILayout.Button($"P{group} reserve"))
+                    {
+                        _reactionReservations.TryReserve(group);
+                        _uiMessage = _reactionReservations.LastMessage;
+                        CancelCommand(false);
+                    }
+                }
+                GUILayout.EndHorizontal();
             }
             else
             {
-                ChainUnitState owner = _board.GetUnit(reaction.ClaimedByUnitId);
-                GUILayout.Label($"CLAIMED: P{reaction.ClaimedByCommandGroup} {owner?.Name} — {ChainCombatBoard.AbilityName(reaction.ClaimedAbility)}", _headerStyle);
-                if (owner != null && GUILayout.Button("Release this claim"))
+                GUILayout.Label($"RESERVED: P{reservedBy} — P{reservedBy} now chooses a recruit/ability from memory. Other players cannot steal the event.", _headerStyle);
+
+                if (reaction.IsClaimed)
                 {
-                    _board.TryReleaseClaim(owner.Id);
-                    _uiMessage = _board.LastMessage;
+                    ChainUnitState owner = _board.GetUnit(reaction.ClaimedByUnitId);
+                    GUILayout.Label($"CONCRETE CHOICE: {owner?.Name} — {ChainCombatBoard.AbilityName(reaction.ClaimedAbility)}", _smallStyle);
+                    if (owner != null && GUILayout.Button("Change recruit / ability (keep P reservation)"))
+                    {
+                        _reactionReservations.TryReleaseClaim(owner.Id);
+                        _uiMessage = _reactionReservations.LastMessage;
+                        CancelCommand(false);
+                    }
+                }
+                else
+                {
+                    GUILayout.Label("No recruit/ability chosen yet. Select one of this player's recruits below and try the reaction you think applies.", _smallStyle);
+                }
+
+                if (GUILayout.Button($"P{reservedBy} releases event to everyone"))
+                {
+                    _reactionReservations.TryReleaseReservation(reservedBy);
+                    _uiMessage = _reactionReservations.LastMessage;
                     CancelCommand(false);
                 }
             }
 
+            GUI.enabled = reservedBy == 0;
             if (GUILayout.Button("Everyone passes / let physics continue"))
             {
-                _board.PassReaction();
-                _uiMessage = _board.LastMessage;
+                _reactionReservations.TryPass();
+                _uiMessage = _reactionReservations.LastMessage;
                 CancelCommand(false);
             }
+            GUI.enabled = true;
+
+            if (reservedBy != 0)
+                GUILayout.Label($"Passing is locked while P{reservedBy} owns the decision; that player must release it first.", _smallStyle);
         }
 
         private void DrawRoster()
@@ -373,7 +416,7 @@ namespace MountingForce.CombatPrototype
         private void DrawSelected(ChainUnitState unit)
         {
             GUILayout.Label($"SELECTED — P{unit.CommandGroup} {unit.Name}", _headerStyle);
-            GUILayout.Label($"HP {unit.Hp}/{unit.MaxHp} • action {(unit.ActionSpent ? "spent" : "ready")} • reaction {(unit.ReactionSpent ? "spent" : "ready")}", _smallStyle);
+            GUILayout.Label($"HP {unit.Hp}/{unit.MaxHp} • move {(unit.MoveSpent ? "spent" : "ready")} • action {(unit.ActionSpent ? "spent" : "ready")} • reaction {(unit.ReactionSpent ? "spent" : "ready")}", _smallStyle);
 
             GUI.enabled = _board.PendingReaction == null;
             if (GUILayout.Button("Move")) BeginCommand(CommandMode.Move, "Click an empty cell within 3 Manhattan cells.");
@@ -387,7 +430,7 @@ namespace MountingForce.CombatPrototype
                     break;
                 case ChainRecruitKind.Brutus:
                     if (GUILayout.Button("Shoulder Hurl")) BeginCommand(CommandMode.ShoulderPick, "Click an adjacent enemy, then click a direction for the hurl.");
-                    GUILayout.Label("ACTION — Shoulder Hurl: throw an adjacent enemy in a direction you choose with 4 momentum.", _smallStyle);
+                    GUILayout.Label("ACTION — Shoulder Hurl: throw an adjacent enemy in a direction you choose with 5 force.", _smallStyle);
                     break;
                 case ChainRecruitKind.Weldon:
                     if (GUILayout.Button("Gust")) BeginCommand(CommandMode.Gust, "Click an enemy within 4 cells. Gust pushes directly away from Weldon.");
@@ -401,7 +444,7 @@ namespace MountingForce.CombatPrototype
                         _uiMessage = "Click portal entrance, then exit. Moving bodies preserve direction and momentum.";
                     }
                     if (GUILayout.Button("Place force multiplier")) BeginCommand(CommandMode.Amplifier, "Click an empty cell within Mira's 6-cell range.");
-                    GUILayout.Label("ACTION — Portal pair: preserve direction/momentum. Force multiplier: doubles remaining momentum.", _smallStyle);
+                    GUILayout.Label("ACTION — Portal pair: preserve direction/momentum. Force multiplier: amplifies remaining force.", _smallStyle);
                     break;
             }
             GUI.enabled = true;
@@ -411,18 +454,29 @@ namespace MountingForce.CombatPrototype
             {
                 GUILayout.Space(4f);
                 GUILayout.Label($"REACTION — {ReactionDescription(unit.Kind)}", _smallStyle);
-                if (GUILayout.Button($"Claim event with {ChainCombatBoard.AbilityName(ability)}"))
+
+                ChainReactionOpportunity reaction = _board.PendingReaction;
+                int reservedBy = _reactionReservations.ReservedByCommandGroup;
+                bool canAttempt = reaction != null && reservedBy == unit.CommandGroup && !reaction.IsClaimed && !unit.ReactionSpent;
+                GUI.enabled = canAttempt;
+                if (GUILayout.Button($"Try {ChainCombatBoard.AbilityName(ability)} on P{unit.CommandGroup}'s reserved event"))
                 {
                     TryClaim(unit, ability);
                 }
+                GUI.enabled = true;
+
+                if (reaction != null && reservedBy == 0)
+                    GUILayout.Label("Reserve the event for a player before choosing a concrete reaction.", _smallStyle);
+                else if (reaction != null && reservedBy != unit.CommandGroup)
+                    GUILayout.Label($"P{reservedBy} owns this decision. {unit.Name} cannot claim it unless that reservation is released.", _smallStyle);
             }
         }
 
         private void TryClaim(ChainUnitState unit, ChainReactionAbility ability)
         {
-            if (!_board.TryClaimReaction(unit.Id, ability))
+            if (!_reactionReservations.TryClaim(unit.Id, ability))
             {
-                _uiMessage = _board.LastMessage;
+                _uiMessage = _reactionReservations.LastMessage;
                 return;
             }
 
@@ -432,18 +486,18 @@ namespace MountingForce.CombatPrototype
             if (ability == ChainReactionAbility.Repulse || ability == ChainReactionAbility.FollowThrough)
             {
                 _command = CommandMode.ReactionPick;
-                _uiMessage = $"P{unit.CommandGroup} claimed it. Click one of the collision participants, then aim.";
+                _uiMessage = $"P{unit.CommandGroup} chose {unit.Name}. Click one of the collision participants, then aim.";
             }
             else if (ability == ChainReactionAbility.HookYank && reaction != null && reaction.Kind == ChainReactionKind.Collision)
             {
                 _command = CommandMode.ReactionPick;
-                _uiMessage = $"P{unit.CommandGroup} claimed it. Choose a collision participant to hook, then aim the pull.";
+                _uiMessage = $"P{unit.CommandGroup} chose {unit.Name}. Choose a collision participant to hook, then aim the pull.";
             }
             else
             {
                 if (ability == ChainReactionAbility.HookYank && reaction != null) _stagedTargetId = reaction.PrimaryUnitId;
                 _command = CommandMode.ReactionAim;
-                _uiMessage = $"P{unit.CommandGroup} owns the event. Aim {ChainCombatBoard.AbilityName(ability)} on the board.";
+                _uiMessage = $"P{unit.CommandGroup} owns the event with {unit.Name}. Aim {ChainCombatBoard.AbilityName(ability)} on the board.";
             }
         }
 
@@ -534,6 +588,7 @@ namespace MountingForce.CombatPrototype
             {
                 if (success)
                 {
+                    _reactionReservations.Synchronize();
                     _uiMessage = _board.LastMessage;
                     CancelCommand(false);
                 }
@@ -628,7 +683,7 @@ namespace MountingForce.CombatPrototype
             _stagedTargetId = 0;
             _activeReactionAbility = ChainReactionAbility.None;
             _hasPortalEntrance = false;
-            if (updateMessage) _uiMessage = "Aim cancelled. Any authoritative reaction claim remains reserved until released or executed.";
+            if (updateMessage) _uiMessage = "Aim cancelled. Any player reservation remains until that player releases it; any concrete board claim remains until changed or executed.";
         }
 
         private void SelectFirstFriendly()
@@ -667,7 +722,7 @@ namespace MountingForce.CombatPrototype
                 case ChainRecruitKind.Brutus: return "Catch & Throw — when a creature is airborne within 3 cells, catch it beside Brutus and rethrow it (7 force).";
                 case ChainRecruitKind.Weldon: return "Crosswind — when an airborne creature is within 6 cells, redirect its current momentum without replacing it.";
                 case ChainRecruitKind.Madeline: return "Repulse — after a collision within 5 cells, choose either participant and blast it away (4 force).";
-                case ChainRecruitKind.Grom: return "Timber — after a tree impact within 5 cells, choose the tree's four-cell fall direction.";
+                case ChainRecruitKind.Grom: return "Timber — after a tree impact within 5 cells, choose the tree's fall direction.";
                 case ChainRecruitKind.Skitter: return "Hook Yank — after a collision or tree impact within 6 cells, pull an involved creature toward Skitter (5 force).";
                 default: return "No special reaction in this lab.";
             }
@@ -680,10 +735,10 @@ namespace MountingForce.CombatPrototype
                 case ChainRecruitKind.Stephen: return "Uppercut | collision kick";
                 case ChainRecruitKind.Brutus: return "directed hurl | catch airborne";
                 case ChainRecruitKind.Weldon: return "gust | redirect airborne";
-                case ChainRecruitKind.Madeline: return "collision repulse";
+                case ChainRecruitKind.Madeline: return "converge | collision repulse";
                 case ChainRecruitKind.Mira: return "portals | force multiplier";
-                case ChainRecruitKind.Grom: return "fell struck trees";
-                case ChainRecruitKind.Skitter: return "hook collision/tree victims";
+                case ChainRecruitKind.Grom: return "notch tree | fell struck tree";
+                case ChainRecruitKind.Skitter: return "harpoon | hook collision/tree victims";
                 default: return kind.ToString();
             }
         }
@@ -702,7 +757,7 @@ namespace MountingForce.CombatPrototype
                 case CommandMode.PortalExit: return "PORTAL EXIT";
                 case CommandMode.Amplifier: return "FORCE MULTIPLIER";
                 case CommandMode.ReactionPick: return "REACTION PARTICIPANT";
-                case CommandMode.ReactionAim: return "CLAIMED REACTION AIM";
+                case CommandMode.ReactionAim: return "RESERVED REACTION AIM";
                 default: return "NONE";
             }
         }
