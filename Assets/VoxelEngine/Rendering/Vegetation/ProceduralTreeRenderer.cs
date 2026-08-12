@@ -10,12 +10,11 @@ namespace VoxelEngine.Rendering.Vegetation
     /// <summary>
     /// Runtime presentation of semantic tree state. Healthy trees are data-only records whose
     /// geometry lives in spatial batches. A per-tree GameObject/LOD/mesh presentation is created
-    /// only when a tree cannot participate in a healthy batch (singletons or damaged trees).
+    /// only when a tree leaves the healthy batch path because it is damaged.
     /// </summary>
     public sealed class ProceduralTreeRenderer : MonoBehaviour
     {
         private const float BatchSizeMetres = 32f;
-        private const int MinimumTreesPerBatch = 2;
         private const float HealthyDamageEpsilon = 0.0001f;
 
         private sealed class TreePresentation
@@ -372,10 +371,7 @@ namespace VoxelEngine.Rendering.Vegetation
             }
 
             foreach (KeyValuePair<Vector2Int, List<int>> pair in groups)
-            {
-                if (pair.Value.Count < MinimumTreesPerBatch) continue;
                 BuildBatch(pair.Key, pair.Value);
-            }
 
             for (int i = 0; i < _trees.Count; i++)
             {
