@@ -6,7 +6,7 @@ namespace VoxelEngine.Net.Server
 {
     /// <summary>
     /// Stateless validation of a server-materialized AlterationEvent.
-    /// Rate/allocation accounting is committed only after authoritative application succeeds.
+    /// Bounds and budget estimates use the same canonical shape semantics as the shared applier.
     /// </summary>
     public static class AuthoritativeAlterationValidator
     {
@@ -19,7 +19,8 @@ namespace VoxelEngine.Net.Server
             Validation.DensityCap densityCap,
             in ProtectedZones zones = default)
         {
-            if (!evt.Validate() || evt.playerId != player.PlayerId || !player.CanAlterWorld)
+            if (!evt.Validate() || evt.playerId != player.PlayerId || !player.CanAlterWorld ||
+                !DeterministicAlterationApplier.Supports(in evt))
                 return Validation.ValidationResult.InvalidTarget;
 
             int estimatedBricks = EstimateAffectedBricks(in evt);
@@ -41,8 +42,6 @@ namespace VoxelEngine.Net.Server
             if (constructive && !HasAttachment(minVoxel, maxVoxel, ref table, in pool))
                 return Validation.ValidationResult.NotAttached;
 
-            // Destruction cannot make a mixed-brick density cap worse; applying the placement-only
-            // cap to explosions could incorrectly prevent players from reducing world complexity.
             if (constructive && WouldExceedDensity(in evt, estimatedBricks, ref table, densityCap))
                 return Validation.ValidationResult.OverDensity;
 
@@ -51,55 +50,73 @@ namespace VoxelEngine.Net.Server
 
         public static int EstimateAffectedBricks(in AlterationEvent evt)
         {
-            long estimate;
             switch (evt.kind)
             {
                 case AlterationEvent.KindExplosion:
                 {
                     long r = evt.Radius();
-                    estimate = (419L * r * r * r + 99L) / 100L;
-                    break;
+                    long estimate = (419L * r * r * r + 99L) / 100L;
+                    return estimate > int.MaxValue ? int.MaxValue : (int)estimate;
                 }
-                case AlterationEvent.KindBrush:
+
+                case AlterationEvent.KindBrush when BrushShapeCodec.Validate(evt.shapeKind, evt.shapeData):
                 {
-                    int3 e = evt.BrushExtents();
-                    estimate = (long)e.x * e.y * e.z;
-                    break;
+                    BrushShapeCodec.GetCubeVoxelBounds(
+                        evt.origin,
+                        evt.BrushExtents(),
+                        out int3 minVoxel,
+                        out int3 maxVoxel);
+                    int3 minBrick = minVoxel >> VoxelDimensions.BrickEdgeLog2;
+                    int3 maxBrick = maxVoxel >> VoxelDimensions.BrickEdgeLog2;
+                    long sx = (long)maxBrick.x - minBrick.x + 1;
+                    long sy = (long)maxBrick.y - minBrick.y + 1;
+                    long sz = (long)maxBrick.z - minBrick.z + 1;
+                    long estimate = sx * sy * sz;
+                    return estimate > int.MaxValue ? int.MaxValue : (int)estimate;
                 }
+
                 case AlterationEvent.KindRawBatch:
-                    estimate = evt.shapeData & 0xFFFFu;
-                    break;
+                    return evt.shapeData <= int.MaxValue ? (int)(evt.shapeData & 0xFFFFu) : int.MaxValue;
+
                 default:
                     return 0;
             }
-
-            return estimate > int.MaxValue ? int.MaxValue : (int)estimate;
         }
 
         public static void GetVoxelBounds(in AlterationEvent evt, out int3 minVoxel, out int3 maxVoxel)
         {
-            int3 padding;
             switch (evt.kind)
             {
                 case AlterationEvent.KindExplosion:
                 {
                     int radiusVoxels = evt.Radius() * VoxelDimensions.BrickEdge;
-                    padding = new int3(radiusVoxels);
-                    break;
+                    int3 padding = new int3(radiusVoxels);
+                    minVoxel = evt.origin - padding;
+                    maxVoxel = evt.origin + padding;
+                    return;
                 }
-                case AlterationEvent.KindBrush:
-                    padding = evt.BrushExtents() * VoxelDimensions.BrickEdge;
-                    break;
-                case AlterationEvent.KindRawBatch:
-                    padding = new int3(VoxelDimensions.BrickEdge);
-                    break;
-                default:
-                    padding = int3.zero;
-                    break;
-            }
 
-            minVoxel = evt.origin - padding;
-            maxVoxel = evt.origin + padding;
+                case AlterationEvent.KindBrush when BrushShapeCodec.Validate(evt.shapeKind, evt.shapeData):
+                    BrushShapeCodec.GetCubeVoxelBounds(
+                        evt.origin,
+                        evt.BrushExtents(),
+                        out minVoxel,
+                        out maxVoxel);
+                    return;
+
+                case AlterationEvent.KindRawBatch:
+                {
+                    int3 padding = new int3(VoxelDimensions.BrickEdge);
+                    minVoxel = evt.origin - padding;
+                    maxVoxel = evt.origin + padding;
+                    return;
+                }
+
+                default:
+                    minVoxel = evt.origin;
+                    maxVoxel = evt.origin;
+                    return;
+            }
         }
 
         private static bool IsWithinReach(int3 target, int3 playerPosition, int reachVoxels)
@@ -120,7 +137,6 @@ namespace VoxelEngine.Net.Server
             ref RegionTable table,
             in BrickPool pool)
         {
-            // Six explicit probes avoid allocating a managed array in the validation hot path.
             int3 center = (minVoxel + maxVoxel) / 2;
 
             if (IsSolidAtVoxel(ref table, in pool, new int3(minVoxel.x - 1, center.y, center.z))) return true;
@@ -142,11 +158,7 @@ namespace VoxelEngine.Net.Server
             if (densityCap.totalBricks <= 0)
                 return false;
 
-            int3 regionCoord = new int3(
-                evt.origin.x >> VoxelDimensions.RegionVoxelEdgeLog2,
-                evt.origin.y >> VoxelDimensions.RegionVoxelEdgeLog2,
-                evt.origin.z >> VoxelDimensions.RegionVoxelEdgeLog2);
-
+            int3 regionCoord = evt.origin >> VoxelDimensions.RegionVoxelEdgeLog2;
             if (!table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
                 return false;
 
@@ -160,15 +172,8 @@ namespace VoxelEngine.Net.Server
 
         private static bool IsSolidAtVoxel(ref RegionTable table, in BrickPool pool, int3 voxelCoord)
         {
-            int3 brickCoord = new int3(
-                voxelCoord.x >> VoxelDimensions.BrickEdgeLog2,
-                voxelCoord.y >> VoxelDimensions.BrickEdgeLog2,
-                voxelCoord.z >> VoxelDimensions.BrickEdgeLog2);
-
-            int3 regionCoord = new int3(
-                brickCoord.x >> VoxelDimensions.RegionEdgeLog2,
-                brickCoord.y >> VoxelDimensions.RegionEdgeLog2,
-                brickCoord.z >> VoxelDimensions.RegionEdgeLog2);
+            int3 brickCoord = voxelCoord >> VoxelDimensions.BrickEdgeLog2;
+            int3 regionCoord = brickCoord >> VoxelDimensions.RegionEdgeLog2;
 
             if (!table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
                 return false;
