@@ -237,6 +237,40 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void StreetscapeDressingMarksTheClimbWithoutInflatingBuildingCount()
+        {
+            FeatureCatalogue dressing = KentridgeStreetDressingCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+
+            try
+            {
+                Assert.AreEqual(3, dressing.Definitions.Length,
+                    "Street furnishing should reuse lamp, bench, and planter definitions.");
+                Assert.AreEqual(30, dressing.ExplicitPlacements.Length,
+                    "The streetscape pass should remain sparse and deliberately authored.");
+
+                int explicitCount = 0;
+                for (int i = 0; i < dressing.Rules.Length; i++)
+                {
+                    explicitCount += dressing.Rules[i].ExplicitCount;
+                    Assert.AreEqual(FeatureKind.Landform,
+                        dressing.Definitions[dressing.Rules[i].DefinitionId].Kind,
+                        "Street furniture must not become semantic buildings.");
+                }
+
+                Assert.AreEqual(30, explicitCount);
+                Assert.AreEqual(24, dressing.Rules[0].ExplicitCount,
+                    "Most street furniture should be lamps that reveal the vertical road rhythm.");
+                Assert.AreEqual(3, dressing.Rules[1].ExplicitCount);
+                Assert.AreEqual(3, dressing.Rules[2].ExplicitCount);
+            }
+            finally
+            {
+                dressing.Dispose();
+            }
+        }
+
+        [Test]
         public void PlotDressingFollowsDistrictsAndFrontages()
         {
             FeatureCatalogue dressing = KentridgePlotDressingCatalogue.Build(
