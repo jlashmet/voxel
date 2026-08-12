@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
@@ -15,6 +16,7 @@ namespace VoxelEngine.Rendering.Vegetation
     public sealed class ProceduralTreeDetachedLimbPresenter : MonoBehaviour
     {
         private const float LifetimeSeconds = 7f;
+        private const float TrunkHingeSeconds = 0.90f;
         private static ProceduralTreeDetachedLimbPresenter s_Instance;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -124,9 +126,21 @@ namespace VoxelEngine.Rendering.Vegetation
             }
 
             if (trunkCut)
+            {
+                // The sever point is the body origin. Pin that point briefly while leaving rotation
+                // unconstrained so the upper tree visibly hinges from the stump before it becomes
+                // ordinary falling debris. This avoids the initial gravity drop that made base cuts
+                // read like the crown was yanked downward instead of a tree being felled.
+                body.constraints = RigidbodyConstraints.FreezePositionX
+                                 | RigidbodyConstraints.FreezePositionY
+                                 | RigidbodyConstraints.FreezePositionZ;
                 ApplyTopple(body, bounds, impulse);
+                StartCoroutine(ReleaseTrunkHinge(body));
+            }
             else
+            {
                 ApplyBranchThrow(body, instance.Seed, cut.BranchIndex, impulse);
+            }
 
             var cleanup = go.AddComponent<GeneratedTreeMeshCleanup>();
             cleanup.Mesh = mesh;
@@ -188,6 +202,18 @@ namespace VoxelEngine.Rendering.Vegetation
                 (((spinSeed >> 16) & 255u) / 127.5f) - 1f).normalized;
             if (spinAxis.sqrMagnitude < 0.1f) spinAxis = Vector3.right;
             body.angularVelocity = spinAxis * 2.4f;
+        }
+
+        private static IEnumerator ReleaseTrunkHinge(Rigidbody body)
+        {
+            yield return new WaitForSeconds(TrunkHingeSeconds);
+            if (body == null) yield break;
+
+            Vector3 angularVelocity = body.angularVelocity;
+            body.linearVelocity = Vector3.zero;
+            body.constraints = RigidbodyConstraints.None;
+            body.angularVelocity = angularVelocity;
+            body.WakeUp();
         }
 
         private sealed class GeneratedTreeMeshCleanup : MonoBehaviour
