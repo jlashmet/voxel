@@ -6,7 +6,7 @@ namespace VoxelEngine.Core.Features
     /// <summary>What kind of thing a definition describes. Selects the generation path.</summary>
     public enum FeatureKind : byte
     {
-        /// <summary>Buildings, walls, towers. Adapts to the ground and sits on it.</summary>
+        /// <summary>Gameplay buildings and other independently addressed structures.</summary>
         Structure = 0,
 
         /// <summary>Caves and interiors. Removes terrain rather than adding to it.</summary>
@@ -17,6 +17,14 @@ namespace VoxelEngine.Core.Features
 
         /// <summary>Static water. A shape, not a simulation.</summary>
         WaterBody = 3,
+
+        /// <summary>
+        /// Built hardscape that belongs to settlement circulation/topography rather than the stable
+        /// gameplay-building roster: retaining walls, stairs, bridges, arcades, campaniles, town
+        /// walls, and similar civic fabric. Infrastructure renders through the crisp hard-surface
+        /// path but is intentionally not counted as a gameplay <see cref="Structure"/>.
+        /// </summary>
+        Infrastructure = 4,
     }
 
     /// <summary>How an instance decides what altitude it sits at.</summary>
