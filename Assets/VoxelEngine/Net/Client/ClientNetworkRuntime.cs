@@ -7,12 +7,11 @@ using VoxelEngine.Net.Transport;
 namespace VoxelEngine.Net.Client
 {
     /// <summary>
-    /// Client-side composition root mirroring ServerNetworkRuntime.
-    ///
-    /// Transport pumping only decodes/queues authoritative EVENT packets. World mutation happens
-    /// later through ApplyReadyAuthoritativeEvents once required regions are resident.
+    /// Client-side composition root. EVENT packets enter the ordered authority queue; hash barriers
+    /// are compared only after earlier mutations apply, and verified mismatches are reported back on
+    /// reliable EVENT with the exact hash tick.
     /// </summary>
-    public sealed class ClientNetworkRuntime : IDisposable, IUtpClientPacketHandler
+    public sealed class ClientNetworkRuntime : IDisposable, IUtpClientPacketHandler, IRegionHashMismatchSink
     {
         private readonly UtpClientHost _host;
         private readonly ClientAuthoritativeEventQueue _events;
@@ -23,6 +22,7 @@ namespace VoxelEngine.Net.Client
         public event Action Disconnected;
         public event Action PacketRejected;
         public event Action<int> SendError;
+        public event Action<C_RegionHashMismatch> RegionHashMismatchDetected;
 
         public ClientNetworkRuntime(
             IClientEventNotificationSink notifications = null,
@@ -42,6 +42,7 @@ namespace VoxelEngine.Net.Client
         public NetworkEndpoint LocalEndpoint => _disposed ? default : _host.LocalEndpoint;
         public int PendingAuthoritativeEvents => _events.PendingEventCount;
         public int PendingAuthoritativeBatches => _events.PendingBatchCount;
+        public int PendingRegionHashes => _events.PendingHashCount;
 
         public bool Connect(NetworkEndpoint endpoint)
         {
@@ -61,7 +62,12 @@ namespace VoxelEngine.Net.Client
             out int appliedEvents)
         {
             ThrowIfDisposed();
-            return _events.DrainReady(ref table, ref pool, out appliedEvents);
+            return _events.DrainReady(
+                ref table,
+                ref pool,
+                out appliedEvents,
+                this,
+                out _);
         }
 
         public bool TrySendPlayerInput(in C_PlayerInput input)
@@ -96,10 +102,23 @@ namespace VoxelEngine.Net.Client
 
         bool IUtpClientPacketHandler.HandlePacket(UtpChannel channel, ReadOnlySpan<byte> packet)
         {
-            // REPAIR/BULK are intentionally not consumed here until their state application paths
-            // migrate onto this runtime. Failing closed prevents accidental cross-channel decoding.
             return channel == UtpChannel.Event &&
                    _events.TryEnqueueEventPacket(packet, _notifications);
+        }
+
+        void IRegionHashMismatchSink.OnRegionHashMismatch(in C_RegionHashMismatch mismatch)
+        {
+            Span<byte> packet = stackalloc byte[RegionHashMismatchPacket.PacketSize];
+            if (!RegionHashMismatchPacket.TryEncode(packet, in mismatch) ||
+                !_host.TrySend(UtpChannel.Event, packet))
+            {
+                PacketRejected?.Invoke();
+                return;
+            }
+
+            // Mismatches are rare and repair latency matters more than batching this 26-byte packet.
+            _host.FlushSends();
+            RegionHashMismatchDetected?.Invoke(mismatch);
         }
 
         private void OnConnected() => Connected?.Invoke();
