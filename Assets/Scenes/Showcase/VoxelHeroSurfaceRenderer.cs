@@ -10,7 +10,7 @@ namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Bounded close-up renderer for authoritative voxel structures. Material profiles select the
-    /// density blur/recovery and feature preservation used to derive presentation geometry.
+    /// density reconstruction and how strongly Hermite/QEF surface nets preserve sharp features.
     /// </summary>
     public sealed class VoxelHeroSurfaceRenderer : IDisposable
     {
@@ -28,11 +28,20 @@ namespace VoxelEngine.Showcase
             new(0, 0, 1), new(1, 0, 1), new(1, 1, 1), new(0, 1, 1)
         };
 
-        private static readonly int[,] Tetrahedra =
+        private static readonly int2[] CubeEdges =
         {
-            { 0, 5, 1, 6 }, { 0, 1, 2, 6 }, { 0, 2, 3, 6 },
-            { 0, 3, 7, 6 }, { 0, 7, 4, 6 }, { 0, 4, 5, 6 }
+            new(0, 1), new(1, 2), new(2, 3), new(3, 0),
+            new(4, 5), new(5, 6), new(6, 7), new(7, 4),
+            new(0, 4), new(1, 5), new(2, 6), new(3, 7)
         };
+
+        private struct DualCell
+        {
+            public bool Active;
+            public float3 Position;
+            public float3 Normal;
+            public byte Material;
+        }
 
         private readonly int3 _minVoxel;
         private readonly int3 _sizeVoxels;
@@ -77,7 +86,7 @@ namespace VoxelEngine.Showcase
             _sizeVoxels = math.max(sizeVoxels, new int3(2));
             _sampleSize = _sizeVoxels * SamplesPerVoxel + 1;
             _surfaceProfiles = surfaceProfiles ?? VoxelSurfaceProfileSet.Canonical();
-            _root = new GameObject("Voxel Hero Material-Aware Surface") { hideFlags = HideFlags.DontSave };
+            _root = new GameObject("Voxel Hero Material QEF Surface") { hideFlags = HideFlags.DontSave };
 
             for (int m = 1; m < MaterialCount; m++)
             {
@@ -99,16 +108,31 @@ namespace VoxelEngine.Showcase
         {
             BuildBaseDensity(world);
             BuildHalfVoxelDensity();
+            BuildDualContourSurface(world);
+            UploadMeshes();
+            _baseDensity = null;
+            _baseMaterials = null;
+            _density = null;
+        }
 
-            int sx = _sampleSize.x;
-            int sy = _sampleSize.y;
-            int sz = _sampleSize.z;
+        /// <summary>
+        /// One vertex is built for every sign-changing cell. Hermite intersection planes form a QEF;
+        /// a material's FeaturePreservation blends from ordinary surface-net averaging toward the QEF
+        /// minimizer. Smooth materials therefore remain smooth, while dressed stone can retain plane
+        /// intersections without giving up continuous curved portions of the same object.
+        /// </summary>
+        private void BuildDualContourSurface(ShowcaseWorld world)
+        {
+            int cx = _sampleSize.x - 1;
+            int cy = _sampleSize.y - 1;
+            int cz = _sampleSize.z - 1;
+            var cells = new DualCell[cx * cy * cz];
             var cornerDensity = new float[8];
             var cornerPosition = new float3[8];
 
-            for (int z = 0; z < sz - 1; z++)
-            for (int y = 0; y < sy - 1; y++)
-            for (int x = 0; x < sx - 1; x++)
+            for (int z = 0; z < cz; z++)
+            for (int y = 0; y < cy; y++)
+            for (int x = 0; x < cx; x++)
             {
                 bool anyInside = false;
                 bool anyOutside = false;
@@ -124,21 +148,258 @@ namespace VoxelEngine.Showcase
                 }
                 if (!anyInside || !anyOutside) continue;
 
-                for (int t = 0; t < 6; t++)
-                    PolygoniseTetra(world, Tetrahedra[t, 0], Tetrahedra[t, 1],
-                        Tetrahedra[t, 2], Tetrahedra[t, 3], cornerPosition, cornerDensity);
+                cells[CellIndex(x, y, z, cx, cy)] = BuildDualCell(
+                    world, cornerPosition, cornerDensity,
+                    (float3)_minVoxel + new float3(x, y, z) * SampleStepVoxels);
             }
 
-            UploadMeshes();
-            _baseDensity = null;
-            _baseMaterials = null;
-            _density = null;
+            // X-directed sign-changing sample edges.
+            for (int z = 1; z < _sampleSize.z - 1; z++)
+            for (int y = 1; y < _sampleSize.y - 1; y++)
+            for (int x = 0; x < _sampleSize.x - 1; x++)
+            {
+                float d0 = DensityAt(x, y, z);
+                float d1 = DensityAt(x + 1, y, z);
+                if ((d0 < 0f) == (d1 < 0f)) continue;
+                EmitDualQuad(
+                    cells[CellIndex(x, y - 1, z - 1, cx, cy)],
+                    cells[CellIndex(x, y,     z - 1, cx, cy)],
+                    cells[CellIndex(x, y,     z,     cx, cy)],
+                    cells[CellIndex(x, y - 1, z,     cx, cy)],
+                    d0 < 0f ? new float3(1, 0, 0) : new float3(-1, 0, 0));
+            }
+
+            // Y-directed sign-changing sample edges.
+            for (int z = 1; z < _sampleSize.z - 1; z++)
+            for (int y = 0; y < _sampleSize.y - 1; y++)
+            for (int x = 1; x < _sampleSize.x - 1; x++)
+            {
+                float d0 = DensityAt(x, y, z);
+                float d1 = DensityAt(x, y + 1, z);
+                if ((d0 < 0f) == (d1 < 0f)) continue;
+                EmitDualQuad(
+                    cells[CellIndex(x - 1, y, z - 1, cx, cy)],
+                    cells[CellIndex(x - 1, y, z,     cx, cy)],
+                    cells[CellIndex(x,     y, z,     cx, cy)],
+                    cells[CellIndex(x,     y, z - 1, cx, cy)],
+                    d0 < 0f ? new float3(0, 1, 0) : new float3(0, -1, 0));
+            }
+
+            // Z-directed sign-changing sample edges.
+            for (int z = 0; z < _sampleSize.z - 1; z++)
+            for (int y = 1; y < _sampleSize.y - 1; y++)
+            for (int x = 1; x < _sampleSize.x - 1; x++)
+            {
+                float d0 = DensityAt(x, y, z);
+                float d1 = DensityAt(x, y, z + 1);
+                if ((d0 < 0f) == (d1 < 0f)) continue;
+                EmitDualQuad(
+                    cells[CellIndex(x - 1, y - 1, z, cx, cy)],
+                    cells[CellIndex(x,     y - 1, z, cx, cy)],
+                    cells[CellIndex(x,     y,     z, cx, cy)],
+                    cells[CellIndex(x - 1, y,     z, cx, cy)],
+                    d0 < 0f ? new float3(0, 0, 1) : new float3(0, 0, -1));
+            }
+        }
+
+        private DualCell BuildDualCell(ShowcaseWorld world, float3[] positions, float[] values,
+                                       float3 cellMin)
+        {
+            float3 averagePosition = float3.zero;
+            float3 averageNormal = float3.zero;
+            int crossings = 0;
+
+            float a00 = 0f, a01 = 0f, a02 = 0f;
+            float a11 = 0f, a12 = 0f, a22 = 0f;
+            float3 rhs = float3.zero;
+
+            for (int e = 0; e < CubeEdges.Length; e++)
+            {
+                int a = CubeEdges[e].x;
+                int b = CubeEdges[e].y;
+                float da = values[a];
+                float db = values[b];
+                if ((da < 0f) == (db < 0f)) continue;
+
+                float3 p = Interpolate(positions[a], positions[b], da, db);
+                float3 n = Gradient(p);
+                averagePosition += p;
+                averageNormal += n;
+                crossings++;
+
+                float plane = math.dot(n, p);
+                a00 += n.x * n.x;
+                a01 += n.x * n.y;
+                a02 += n.x * n.z;
+                a11 += n.y * n.y;
+                a12 += n.y * n.z;
+                a22 += n.z * n.z;
+                rhs += n * plane;
+            }
+
+            if (crossings == 0) return default;
+            averagePosition /= crossings;
+            averageNormal = math.normalizesafe(averageNormal, new float3(0, 1, 0));
+
+            byte material = SurfaceMaterial(world, averagePosition, averageNormal);
+            if (material == VoxelDimensions.MaterialEmpty || material >= MaterialCount) material = 1;
+            VoxelSurfaceProfile profile = _surfaceProfiles.Get(material);
+
+            float3 position = averagePosition;
+            if (profile.FeaturePreservation > 0.00001f)
+            {
+                // Regularization keeps under-constrained smooth/coplanar cells stable while still
+                // allowing intersecting Hermite planes to pull a sharp-feature material to the edge.
+                float lambda = math.lerp(3.5f, 0.035f, profile.FeaturePreservation);
+                a00 += lambda;
+                a11 += lambda;
+                a22 += lambda;
+                rhs += averagePosition * lambda;
+
+                float3 qef = SolveSymmetric3x3(
+                    a00, a01, a02, a11, a12, a22, rhs, averagePosition);
+                float3 cellMax = cellMin + SampleStepVoxels;
+                qef = math.clamp(qef, cellMin, cellMax);
+                position = math.lerp(averagePosition, qef, profile.FeaturePreservation);
+            }
+
+            FeatureSnap(ref position, averageNormal, in profile);
+            return new DualCell
+            {
+                Active = true,
+                Position = position,
+                Normal = averageNormal,
+                Material = material
+            };
+        }
+
+        private void EmitDualQuad(DualCell a, DualCell b, DualCell c, DualCell d,
+                                  float3 expectedNormal)
+        {
+            if (!a.Active || !b.Active || !c.Active || !d.Active) return;
+            byte material = ResolveQuadMaterial(a.Material, b.Material, c.Material, d.Material);
+            if (material == VoxelDimensions.MaterialEmpty || material >= MaterialCount) material = 1;
+            VoxelSurfaceProfile profile = _surfaceProfiles.Get(material);
+
+            EmitDualTriangle(material, a, b, c, expectedNormal, in profile);
+            EmitDualTriangle(material, a, c, d, expectedNormal, in profile);
+        }
+
+        private void EmitDualTriangle(byte material, DualCell a, DualCell b, DualCell c,
+                                      float3 expectedNormal, in VoxelSurfaceProfile profile)
+        {
+            float3 pa = a.Position;
+            float3 pb = b.Position;
+            float3 pc = c.Position;
+            float3 na = a.Normal;
+            float3 nb = b.Normal;
+            float3 nc = c.Normal;
+
+            float3 faceNormal = math.normalizesafe(math.cross(pb - pa, pc - pa), expectedNormal);
+            if (math.dot(faceNormal, expectedNormal) < 0f)
+            {
+                (pb, pc) = (pc, pb);
+                (nb, nc) = (nc, nb);
+                faceNormal = -faceNormal;
+            }
+
+            // Smooth curves keep interpolated Hermite normals. Where neighboring normals disagree
+            // sharply, the material may blend toward the geometric face normal to reveal an edge.
+            float minDot = math.min(math.dot(na, nb), math.min(math.dot(nb, nc), math.dot(nc, na)));
+            float angularVariation = 1f - math.clamp(minDot, -1f, 1f);
+            float featureEvidence = math.saturate((angularVariation - 0.018f) / 0.30f);
+            float normalWeight = profile.FeatureNormalStrength * featureEvidence;
+            if (normalWeight > 0.00001f)
+            {
+                na = math.normalizesafe(math.lerp(na, faceNormal, normalWeight), faceNormal);
+                nb = math.normalizesafe(math.lerp(nb, faceNormal, normalWeight), faceNormal);
+                nc = math.normalizesafe(math.lerp(nc, faceNormal, normalWeight), faceNormal);
+            }
+
+            List<Vector3> vertices = _vertices[material];
+            List<Vector3> normals = _normals[material];
+            List<int> triangles = _triangles[material];
+            int start = vertices.Count;
+            vertices.Add((Vector3)(pa * VoxelSize));
+            vertices.Add((Vector3)(pb * VoxelSize));
+            vertices.Add((Vector3)(pc * VoxelSize));
+            normals.Add((Vector3)na);
+            normals.Add((Vector3)nb);
+            normals.Add((Vector3)nc);
+            triangles.Add(start);
+            triangles.Add(start + 1);
+            triangles.Add(start + 2);
+        }
+
+        private static byte ResolveQuadMaterial(byte a, byte b, byte c, byte d)
+        {
+            if (a == b || a == c || a == d) return a;
+            if (b == c || b == d) return b;
+            if (c == d) return c;
+            return a;
+        }
+
+        private static float3 SolveSymmetric3x3(float a00, float a01, float a02,
+                                                float a11, float a12, float a22,
+                                                float3 rhs, float3 fallback)
+        {
+            float c00 = a11 * a22 - a12 * a12;
+            float c01 = a02 * a12 - a01 * a22;
+            float c02 = a01 * a12 - a02 * a11;
+            float c11 = a00 * a22 - a02 * a02;
+            float c12 = a01 * a02 - a00 * a12;
+            float c22 = a00 * a11 - a01 * a01;
+            float determinant = a00 * c00 + a01 * c01 + a02 * c02;
+            if (math.abs(determinant) < 1e-7f) return fallback;
+            float invDet = 1f / determinant;
+            return new float3(
+                (c00 * rhs.x + c01 * rhs.y + c02 * rhs.z) * invDet,
+                (c01 * rhs.x + c11 * rhs.y + c12 * rhs.z) * invDet,
+                (c02 * rhs.x + c12 * rhs.y + c22 * rhs.z) * invDet);
+        }
+
+        private static int CellIndex(int x, int y, int z, int cx, int cy) => x + cx * (y + cy * z);
+
+        private static float3 Interpolate(float3 a, float3 b, float da, float db)
+        {
+            float denominator = da - db;
+            float t = math.abs(denominator) > 1e-6f ? da / denominator : 0.5f;
+            return math.lerp(a, b, math.clamp(t, 0f, 1f));
+        }
+
+        private static void FeatureSnap(ref float3 position, float3 normal,
+                                        in VoxelSurfaceProfile profile)
+        {
+            if (profile.Planarization <= 0.00001f) return;
+            float3 absNormal = math.abs(normal);
+            for (int axis = 0; axis < 3; axis++)
+            {
+                float component = axis == 0 ? absNormal.x : axis == 1 ? absNormal.y : absNormal.z;
+                if (component <= profile.PlanarizationThreshold) continue;
+                float value = axis == 0 ? position.x : axis == 1 ? position.y : position.z;
+                float target = math.round(value - 0.5f) + 0.5f;
+                float distance = math.abs(value - target);
+                if (distance > profile.PlanarSnapDistanceVoxels) continue;
+                float directional = PlanarWeight(component, profile.PlanarizationThreshold);
+                float proximity = 1f - distance / profile.PlanarSnapDistanceVoxels;
+                float strength = profile.Planarization * directional * proximity * proximity;
+                float snapped = math.lerp(value, target, strength);
+                if (axis == 0) position.x = snapped;
+                else if (axis == 1) position.y = snapped;
+                else position.z = snapped;
+            }
+        }
+
+        private static float PlanarWeight(float component, float threshold)
+        {
+            float range = math.max(0.0001f, 1f - threshold);
+            float weight = math.saturate((component - threshold) / range);
+            return weight * weight;
         }
 
         /// <summary>
-        /// Builds raw/one-pass/two-pass occupancy fields once, then lets each material select its
-        /// own field before distance recovery. Stone choosing zero blur is therefore never melted by
-        /// terrain smoothing. Empty samples inherit the nearest solid profile at an iso crossing.
+        /// Builds raw/one-pass/two-pass occupancy fields once, then lets each material choose its
+        /// own field before recovery. A zero-blur material is never touched by terrain filtering.
         /// </summary>
         private void BuildBaseDensity(ShowcaseWorld world)
         {
@@ -152,7 +413,6 @@ namespace VoxelEngine.Showcase
 
             ref RegionTable table = ref world.Table;
             ref BrickPool pool = ref world.Pool;
-
             for (int z = 0; z < _baseSize.z; z++)
             for (int y = 0; y < _baseSize.y; y++)
             for (int x = 0; x < _baseSize.x; x++)
@@ -183,14 +443,11 @@ namespace VoxelEngine.Showcase
                 VoxelSurfaceProfile profile = _surfaceProfiles.Get(ProfileMaterialAt(x, y, z));
                 float raw = original[index];
                 float filtered = blurLevels[profile.BlurPasses][index];
-
                 if (profile.DistanceRecovery > 0.00001f)
                 {
-                    float distanceRecovered = DistanceRecoveredDensity(
-                        x, y, z, raw, profile.CurveRecovery);
-                    filtered = math.lerp(filtered, distanceRecovered, profile.DistanceRecovery);
+                    float recovered = DistanceRecoveredDensity(x, y, z, raw, profile.CurveRecovery);
+                    filtered = math.lerp(filtered, recovered, profile.DistanceRecovery);
                 }
-
                 float shaped = math.lerp(raw, filtered, profile.Smoothing);
                 shaped -= profile.DensityBias;
                 shaped -= SurfaceModification(_baseMin + new int3(x, y, z), in profile);
@@ -198,17 +455,15 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private float DistanceRecoveredDensity(int centreX, int centreY, int centreZ,
-                                               float raw, float curveRecovery)
+        private float DistanceRecoveredDensity(int x, int y, int z, float raw, float curveRecovery)
         {
-            float tight = DistanceRecoveredDensityRadiusOne(centreX, centreY, centreZ, raw);
+            float tight = DistanceRecoveredDensityRadiusOne(x, y, z, raw);
             if (curveRecovery <= 0.00001f) return tight;
-            float wide = DistanceRecoveredDensityRadiusTwo(centreX, centreY, centreZ, tight);
+            float wide = DistanceRecoveredDensityRadiusTwo(x, y, z, tight);
             return math.lerp(tight, wide, curveRecovery);
         }
 
-        private float DistanceRecoveredDensityRadiusOne(int centreX, int centreY, int centreZ,
-                                                        float raw)
+        private float DistanceRecoveredDensityRadiusOne(int cx, int cy, int cz, float raw)
         {
             float coverage = 0f;
             float3 gradient = float3.zero;
@@ -216,7 +471,7 @@ namespace VoxelEngine.Showcase
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
             {
-                float occupied = OccupiedAt(centreX + x, centreY + y, centreZ + z);
+                float occupied = OccupiedAt(cx + x, cy + y, cz + z);
                 float wx = x == 0 ? 2f : 1f;
                 float wy = y == 0 ? 2f : 1f;
                 float wz = z == 0 ? 2f : 1f;
@@ -228,8 +483,7 @@ namespace VoxelEngine.Showcase
             return RecoveredDensity(coverage, gradient, raw);
         }
 
-        private float DistanceRecoveredDensityRadiusTwo(int centreX, int centreY, int centreZ,
-                                                        float fallback)
+        private float DistanceRecoveredDensityRadiusTwo(int cx, int cy, int cz, float fallback)
         {
             float coverage = 0f;
             float3 gradient = float3.zero;
@@ -237,7 +491,7 @@ namespace VoxelEngine.Showcase
             for (int y = -2; y <= 2; y++)
             for (int x = -2; x <= 2; x++)
             {
-                float occupied = OccupiedAt(centreX + x, centreY + y, centreZ + z);
+                float occupied = OccupiedAt(cx + x, cy + y, cz + z);
                 float wx = BinomialRadiusTwo(x);
                 float wy = BinomialRadiusTwo(y);
                 float wz = BinomialRadiusTwo(z);
@@ -262,10 +516,9 @@ namespace VoxelEngine.Showcase
 
         private static float RecoveredDensity(float coverage, float3 gradient, float fallback)
         {
-            float gradientMagnitude = math.length(gradient);
-            if (gradientMagnitude <= MinCoverageGradient) return fallback;
-            float signedVoxels = (coverage - 0.5f) / gradientMagnitude;
-            return math.clamp(-signedVoxels, -1.5f, 1.5f);
+            float magnitude = math.length(gradient);
+            if (magnitude <= MinCoverageGradient) return fallback;
+            return math.clamp(-(coverage - 0.5f) / magnitude, -1.5f, 1.5f);
         }
 
         private static float BinomialRadiusTwo(int offset)
@@ -283,7 +536,6 @@ namespace VoxelEngine.Showcase
         {
             byte material = _baseMaterials[BaseIndex(x, y, z)];
             if (material != VoxelDimensions.MaterialEmpty) return material;
-
             float bestDistance = float.PositiveInfinity;
             byte bestMaterial = VoxelDimensions.MaterialEmpty;
             for (int dz = -MaxBlurPasses; dz <= MaxBlurPasses; dz++)
@@ -388,168 +640,17 @@ namespace VoxelEngine.Showcase
             return math.lerp(math.lerp(x00, x10, f.y), math.lerp(x01, x11, f.y), f.z);
         }
 
-        private void PolygoniseTetra(ShowcaseWorld world, int a, int b, int c, int d,
-            float3[] positions, float[] values)
-        {
-            int[] ids = { a, b, c, d };
-            int[] inside = new int[4];
-            int[] outside = new int[4];
-            int insideCount = 0;
-            int outsideCount = 0;
-            for (int i = 0; i < 4; i++)
-            {
-                int id = ids[i];
-                if (values[id] < 0f) inside[insideCount++] = id;
-                else outside[outsideCount++] = id;
-            }
-            if (insideCount == 0 || insideCount == 4) return;
-            if (insideCount == 1)
-            {
-                int i = inside[0];
-                EmitTriangle(world,
-                    Interpolate(positions[i], positions[outside[0]], values[i], values[outside[0]]),
-                    Interpolate(positions[i], positions[outside[1]], values[i], values[outside[1]]),
-                    Interpolate(positions[i], positions[outside[2]], values[i], values[outside[2]]));
-                return;
-            }
-            if (insideCount == 3)
-            {
-                int o = outside[0];
-                EmitTriangle(world,
-                    Interpolate(positions[o], positions[inside[0]], values[o], values[inside[0]]),
-                    Interpolate(positions[o], positions[inside[2]], values[o], values[inside[2]]),
-                    Interpolate(positions[o], positions[inside[1]], values[o], values[inside[1]]));
-                return;
-            }
-            int i0 = inside[0];
-            int i1 = inside[1];
-            int o0 = outside[0];
-            int o1 = outside[1];
-            float3 p00 = Interpolate(positions[i0], positions[o0], values[i0], values[o0]);
-            float3 p01 = Interpolate(positions[i0], positions[o1], values[i0], values[o1]);
-            float3 p10 = Interpolate(positions[i1], positions[o0], values[i1], values[o0]);
-            float3 p11 = Interpolate(positions[i1], positions[o1], values[i1], values[o1]);
-            EmitTriangle(world, p00, p01, p11);
-            EmitTriangle(world, p00, p11, p10);
-        }
-
-        private static float3 Interpolate(float3 a, float3 b, float da, float db)
-        {
-            float denominator = da - db;
-            float t = math.abs(denominator) > 1e-6f ? da / denominator : 0.5f;
-            return math.lerp(a, b, math.clamp(t, 0f, 1f));
-        }
-
-        private void EmitTriangle(ShowcaseWorld world, float3 a, float3 b, float3 c)
-        {
-            float3 centroid = (a + b + c) / 3f;
-            float3 na = Gradient(a);
-            float3 nb = Gradient(b);
-            float3 nc = Gradient(c);
-            float3 materialNormal = math.normalizesafe(na + nb + nc, new float3(0f, 1f, 0f));
-
-            byte material = SurfaceMaterial(world, centroid, materialNormal);
-            if (material == VoxelDimensions.MaterialEmpty || material >= MaterialCount) material = 1;
-            VoxelSurfaceProfile profile = _surfaceProfiles.Get(material);
-
-            int maskA = FeatureSnap(ref a, na, in profile);
-            int maskB = FeatureSnap(ref b, nb, in profile);
-            int maskC = FeatureSnap(ref c, nc, in profile);
-
-            float3 faceNormal = math.normalizesafe(math.cross(b - a, c - a), materialNormal);
-            if (math.dot(faceNormal, materialNormal) < 0f)
-            {
-                (b, c) = (c, b);
-                (nb, nc) = (nc, nb);
-                (maskB, maskC) = (maskC, maskB);
-                faceNormal = -faceNormal;
-            }
-
-            int featureMask = maskA | maskB | maskC;
-            if (featureMask != 0 && profile.NormalPlanarization > 0.00001f)
-            {
-                float faceDominance = math.max(math.abs(faceNormal.x),
-                    math.max(math.abs(faceNormal.y), math.abs(faceNormal.z)));
-                float faceWeight = PlanarWeight(faceDominance, profile.PlanarizationThreshold)
-                                 * profile.NormalPlanarization;
-                if (faceWeight > 0.00001f)
-                {
-                    na = math.normalizesafe(math.lerp(na, faceNormal, faceWeight), faceNormal);
-                    nb = math.normalizesafe(math.lerp(nb, faceNormal, faceWeight), faceNormal);
-                    nc = math.normalizesafe(math.lerp(nc, faceNormal, faceWeight), faceNormal);
-                }
-            }
-
-            List<Vector3> vertices = _vertices[material];
-            List<Vector3> normals = _normals[material];
-            List<int> triangles = _triangles[material];
-            int start = vertices.Count;
-            vertices.Add((Vector3)(a * VoxelSize));
-            vertices.Add((Vector3)(b * VoxelSize));
-            vertices.Add((Vector3)(c * VoxelSize));
-            normals.Add((Vector3)na);
-            normals.Add((Vector3)nb);
-            normals.Add((Vector3)nc);
-            triangles.Add(start);
-            triangles.Add(start + 1);
-            triangles.Add(start + 2);
-        }
-
-        /// <summary>
-        /// Snaps only axes that both look planar in the gradient and are already close to an exact
-        /// half-voxel boundary. Multiple axes may snap at a true edge/corner. A circular SDF point
-        /// away from those planes is untouched, so curve recovery is not undone by planarization.
-        /// Returns a bit mask of axes that participated.
-        /// </summary>
-        private static int FeatureSnap(ref float3 position, float3 normal,
-                                       in VoxelSurfaceProfile profile)
-        {
-            if (profile.Planarization <= 0.00001f) return 0;
-            int mask = 0;
-            float3 absNormal = math.abs(normal);
-
-            for (int axis = 0; axis < 3; axis++)
-            {
-                float component = axis == 0 ? absNormal.x : axis == 1 ? absNormal.y : absNormal.z;
-                if (component <= profile.PlanarizationThreshold) continue;
-
-                float value = axis == 0 ? position.x : axis == 1 ? position.y : position.z;
-                float target = math.round(value - 0.5f) + 0.5f;
-                float distance = math.abs(value - target);
-                if (distance > profile.PlanarSnapDistanceVoxels) continue;
-
-                float directional = PlanarWeight(component, profile.PlanarizationThreshold);
-                float proximity = 1f - distance / profile.PlanarSnapDistanceVoxels;
-                proximity *= proximity;
-                float strength = profile.Planarization * directional * proximity;
-                float snapped = math.lerp(value, target, strength);
-
-                if (axis == 0) position.x = snapped;
-                else if (axis == 1) position.y = snapped;
-                else position.z = snapped;
-                mask |= 1 << axis;
-            }
-            return mask;
-        }
-
-        private static float PlanarWeight(float component, float threshold)
-        {
-            float range = math.max(0.0001f, 1f - threshold);
-            float weight = math.saturate((component - threshold) / range);
-            return weight * weight;
-        }
-
         private float3 Gradient(float3 worldVoxel)
         {
             float3 local = (worldVoxel - (float3)_minVoxel) * SamplesPerVoxel;
             const float h = 0.90f;
-            float dx = SampleDensity(local + new float3(h, 0f, 0f))
-                     - SampleDensity(local - new float3(h, 0f, 0f));
-            float dy = SampleDensity(local + new float3(0f, h, 0f))
-                     - SampleDensity(local - new float3(0f, h, 0f));
-            float dz = SampleDensity(local + new float3(0f, 0f, h))
-                     - SampleDensity(local - new float3(0f, 0f, h));
-            return math.normalizesafe(new float3(dx, dy, dz), new float3(0f, 1f, 0f));
+            float dx = SampleDensity(local + new float3(h, 0, 0))
+                     - SampleDensity(local - new float3(h, 0, 0));
+            float dy = SampleDensity(local + new float3(0, h, 0))
+                     - SampleDensity(local - new float3(0, h, 0));
+            float dz = SampleDensity(local + new float3(0, 0, h))
+                     - SampleDensity(local - new float3(0, 0, h));
+            return math.normalizesafe(new float3(dx, dy, dz), new float3(0, 1, 0));
         }
 
         private float SampleDensity(float3 sampleCoordinate)
@@ -581,15 +682,13 @@ namespace VoxelEngine.Showcase
             int3 centre = (int3)math.round(position - outwardNormal * 0.65f);
             byte material = SampleMaterial(ref table, in pool, centre);
             if (material != VoxelDimensions.MaterialEmpty) return material;
-
             float best = float.PositiveInfinity;
             byte bestMaterial = 0;
             for (int z = -1; z <= 1; z++)
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
             {
-                int3 q = centre + new int3(x, y, z);
-                byte candidate = SampleMaterial(ref table, in pool, q);
+                byte candidate = SampleMaterial(ref table, in pool, centre + new int3(x, y, z));
                 if (candidate == VoxelDimensions.MaterialEmpty) continue;
                 float distance = x * x + y * y + z * z;
                 if (distance >= best) continue;
