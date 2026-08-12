@@ -34,10 +34,11 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeVerticalPlacementAdapter.BuildTownDressing(
                     seed, settings, Allocator.Temp),
 
-                // The semantic block plan compiles to varied anonymous buildings. A separate access
-                // layer then joins their embedded door level to the upper courts with contour walks,
-                // open gateways, and real stair cuts through the shelf face.
+                // The semantic block plan compiles to varied anonymous buildings. Named large anchors
+                // get derived downhill service bays where their plot support would otherwise remain
+                // bare, then the access layer joins embedded door levels back to upper courts.
                 KentridgeUrbanFabricCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeUrbanAccessCatalogue.Build(seed, settings, Allocator.Temp),
 
                 // Secondary hard architecture comes immediately before gameplay buildings. Where an
