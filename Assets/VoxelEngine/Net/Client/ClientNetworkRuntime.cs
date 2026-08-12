@@ -7,14 +7,14 @@ using VoxelEngine.Net.Transport;
 namespace VoxelEngine.Net.Client
 {
     /// <summary>
-    /// Client-side composition root. EVENT packets enter the ordered authority queue; hash barriers
-    /// are compared only after earlier mutations apply, and verified mismatches are reported back on
-    /// reliable EVENT with the exact hash tick.
+    /// Client-side composition root. EVENT authority is ordered; REPAIR packets are assembled off
+    /// the callback path and applied only during the explicit world-update call.
     /// </summary>
     public sealed class ClientNetworkRuntime : IDisposable, IUtpClientPacketHandler, IRegionHashMismatchSink
     {
         private readonly UtpClientHost _host;
         private readonly ClientAuthoritativeEventQueue _events;
+        private readonly ClientRegionRepairAssembler _repair;
         private readonly IClientEventNotificationSink _notifications;
         private bool _disposed;
 
@@ -23,6 +23,7 @@ namespace VoxelEngine.Net.Client
         public event Action PacketRejected;
         public event Action<int> SendError;
         public event Action<C_RegionHashMismatch> RegionHashMismatchDetected;
+        public event Action<int3, uint> RegionRepairApplied;
 
         public ClientNetworkRuntime(
             IClientEventNotificationSink notifications = null,
@@ -30,6 +31,7 @@ namespace VoxelEngine.Net.Client
         {
             _notifications = notifications;
             _events = new ClientAuthoritativeEventQueue(maxPendingAuthoritativeEvents);
+            _repair = new ClientRegionRepairAssembler();
             _host = new UtpClientHost();
 
             _host.Connected += OnConnected;
@@ -43,18 +45,11 @@ namespace VoxelEngine.Net.Client
         public int PendingAuthoritativeEvents => _events.PendingEventCount;
         public int PendingAuthoritativeBatches => _events.PendingBatchCount;
         public int PendingRegionHashes => _events.PendingHashCount;
+        public bool RepairPending => _events.RepairPending;
+        public bool RepairSnapshotComplete => _repair.IsComplete;
 
-        public bool Connect(NetworkEndpoint endpoint)
-        {
-            ThrowIfDisposed();
-            return _host.Connect(endpoint);
-        }
-
-        public void PumpTransport()
-        {
-            ThrowIfDisposed();
-            _host.Pump(this);
-        }
+        public bool Connect(NetworkEndpoint endpoint) { ThrowIfDisposed(); return _host.Connect(endpoint); }
+        public void PumpTransport() { ThrowIfDisposed(); _host.Pump(this); }
 
         public int ApplyReadyAuthoritativeEvents(
             ref RegionTable table,
@@ -62,6 +57,26 @@ namespace VoxelEngine.Net.Client
             out int appliedEvents)
         {
             ThrowIfDisposed();
+
+            if (_events.RepairPending)
+            {
+                if (!_repair.IsComplete)
+                {
+                    appliedEvents = 0;
+                    return 0;
+                }
+
+                int3 repairedRegion = _repair.RegionCoord;
+                uint repairedTick = _repair.SnapshotTick;
+                if (!_repair.TryApplyCompleted(ref table, ref pool, _events))
+                {
+                    appliedEvents = 0;
+                    return 0;
+                }
+
+                RegionRepairApplied?.Invoke(repairedRegion, repairedTick);
+            }
+
             return _events.DrainReady(
                 ref table,
                 ref pool,
@@ -70,40 +85,31 @@ namespace VoxelEngine.Net.Client
                 out _);
         }
 
-        public bool TrySendPlayerInput(in C_PlayerInput input)
-        {
-            ThrowIfDisposed();
-            return _host.TrySendPlayerInput(in input);
-        }
-
-        public bool TrySendAlterationRequest(in C_AlterationRequest request)
-        {
-            ThrowIfDisposed();
-            return _host.TrySendAlterationRequest(in request);
-        }
-
-        public void FlushSends()
-        {
-            ThrowIfDisposed();
-            _host.FlushSends();
-        }
+        public bool TrySendPlayerInput(in C_PlayerInput input) { ThrowIfDisposed(); return _host.TrySendPlayerInput(in input); }
+        public bool TrySendAlterationRequest(in C_AlterationRequest request) { ThrowIfDisposed(); return _host.TrySendAlterationRequest(in request); }
+        public void FlushSends() { ThrowIfDisposed(); _host.FlushSends(); }
 
         public void ResetAfterAuthoritativeSnapshot()
         {
             ThrowIfDisposed();
+            _repair.Reset();
             _events.ResetAfterAuthoritativeSnapshot();
         }
 
-        public void Disconnect()
-        {
-            ThrowIfDisposed();
-            _host.Disconnect();
-        }
+        public void Disconnect() { ThrowIfDisposed(); _host.Disconnect(); }
 
         bool IUtpClientPacketHandler.HandlePacket(UtpChannel channel, ReadOnlySpan<byte> packet)
         {
-            return channel == UtpChannel.Event &&
-                   _events.TryEnqueueEventPacket(packet, _notifications);
+            switch (channel)
+            {
+                case UtpChannel.Event:
+                    return _events.TryEnqueueEventPacket(packet, _notifications);
+                case UtpChannel.Repair:
+                    return _repair.TryAcceptPacket(packet);
+                default:
+                    // BULK remains a separate streaming/late-join migration.
+                    return false;
+            }
         }
 
         void IRegionHashMismatchSink.OnRegionHashMismatch(in C_RegionHashMismatch mismatch)
@@ -116,7 +122,6 @@ namespace VoxelEngine.Net.Client
                 return;
             }
 
-            // Mismatches are rare and repair latency matters more than batching this 26-byte packet.
             _host.FlushSends();
             RegionHashMismatchDetected?.Invoke(mismatch);
         }
@@ -128,20 +133,18 @@ namespace VoxelEngine.Net.Client
 
         private void ThrowIfDisposed()
         {
-            if (_disposed)
-                throw new ObjectDisposedException(nameof(ClientNetworkRuntime));
+            if (_disposed) throw new ObjectDisposedException(nameof(ClientNetworkRuntime));
         }
 
         public void Dispose()
         {
-            if (_disposed)
-                return;
-
+            if (_disposed) return;
             _host.Connected -= OnConnected;
             _host.Disconnected -= OnDisconnected;
             _host.PacketRejected -= OnPacketRejected;
             _host.SendError -= OnSendError;
             _host.Dispose();
+            _repair.Reset();
             _events.ResetAfterAuthoritativeSnapshot();
             _disposed = true;
         }
