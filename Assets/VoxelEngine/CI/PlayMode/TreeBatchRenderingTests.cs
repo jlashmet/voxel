@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -12,7 +13,7 @@ namespace VoxelEngine.CI
     /// <summary>
     /// Rendering contract for spatial tree batching. Healthy trees must contribute real pixels
     /// without retaining per-tree GameObjects or meshes; first damage lazily materializes only the
-    /// affected tree while the rest of the forest stays batched.
+    /// affected tree and rebuilds only its own spatial batch cell.
     /// </summary>
     public sealed class TreeBatchRenderingTests
     {
@@ -41,9 +42,14 @@ namespace VoxelEngine.CI
                 var instances = new TreeInstance[8];
                 for (int i = 0; i < instances.Length; i++)
                 {
+                    bool secondCell = i >= 4;
+                    int local = i % 4;
                     instances[i] = new TreeInstance
                     {
-                        PositionMetres = new float3(3f + (i % 4) * 5f, 0f, 3f + (i / 4) * 5f),
+                        PositionMetres = new float3(
+                            (secondCell ? 35f : 3f) + local * 5f,
+                            0f,
+                            3f + (local % 2) * 5f),
                         Species = (TreeSpecies)(i % 7),
                         Seed = 0xA341316Cu + (uint)i * 2654435761u,
                         Scale = 0.92f + (i % 3) * 0.06f,
@@ -53,25 +59,25 @@ namespace VoxelEngine.CI
 
                 for (int frame = 0;
                      frame < 90 && (renderer.PresentationCount != instances.Length
-                                    || renderer.BatchCount != 1
+                                    || renderer.BatchCount != 2
                                     || renderer.BatchedTreeCount != instances.Length);
                      frame++)
                     yield return null;
 
                 Assert.That(renderer.PresentationCount, Is.EqualTo(instances.Length));
-                Assert.That(renderer.BatchCount, Is.EqualTo(1),
-                            "Eight healthy trees in one 32 m cell should collapse to one render batch.");
+                Assert.That(renderer.BatchCount, Is.EqualTo(2),
+                            "Eight healthy trees split across two 32 m cells should produce two batches.");
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(instances.Length));
                 Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0),
                             "Healthy batched trees must not retain per-tree GameObjects.");
                 Assert.That(renderer.DynamicMeshCount, Is.EqualTo(0),
                             "Healthy batched trees must not retain dormant per-tree meshes.");
-                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(3),
-                            "The only resident tree meshes should be the batch's three LOD meshes.");
-                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(4),
-                            "One healthy batch should own one root plus three LOD objects.");
-                Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(2),
-                            "One healthy batch should render as bark + leaves for the selected LOD.");
+                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(6),
+                            "Two healthy batches should own exactly six LOD meshes.");
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(8),
+                            "Two healthy batches should own two roots plus six LOD objects.");
+                Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(4),
+                            "Two healthy batches should render bark + leaves for each selected LOD.");
 
                 for (int i = 0; i < instances.Length; i++)
                 {
@@ -81,19 +87,26 @@ namespace VoxelEngine.CI
                                 $"Healthy batched tree {i} unexpectedly left a GameObject in the hierarchy.");
                 }
 
-                Transform batchRoot = FindBatchRoot(renderer);
-                Assert.That(batchRoot, Is.Not.Null);
-                MeshRenderer[] batchRenderers = batchRoot.GetComponentsInChildren<MeshRenderer>(true);
-                MeshFilter[] batchFilters = batchRoot.GetComponentsInChildren<MeshFilter>(true);
-                Assert.That(batchRenderers.Length, Is.EqualTo(3));
-                Assert.That(batchFilters.Length, Is.EqualTo(3));
+                Transform touchedBatch = FindBatchRoot(renderer, new Vector2Int(0, 0));
+                Transform untouchedBatch = FindBatchRoot(renderer, new Vector2Int(1, 0));
+                Assert.That(touchedBatch, Is.Not.Null);
+                Assert.That(untouchedBatch, Is.Not.Null);
+                int touchedBatchId = touchedBatch.gameObject.GetInstanceID();
+                int untouchedBatchId = untouchedBatch.gameObject.GetInstanceID();
 
+                MeshRenderer[] batchRenderers = FindAllBatchRenderers(renderer);
+                Assert.That(batchRenderers.Length, Is.EqualTo(6));
                 int batchVertices = 0;
-                foreach (MeshFilter filter in batchFilters)
+                foreach (Transform batchRoot in FindBatchRoots(renderer))
                 {
-                    Assert.That(filter.sharedMesh, Is.Not.Null);
-                    Assert.That(filter.sharedMesh.subMeshCount, Is.EqualTo(2));
-                    batchVertices += filter.sharedMesh.vertexCount;
+                    MeshFilter[] batchFilters = batchRoot.GetComponentsInChildren<MeshFilter>(true);
+                    Assert.That(batchFilters.Length, Is.EqualTo(3));
+                    foreach (MeshFilter filter in batchFilters)
+                    {
+                        Assert.That(filter.sharedMesh, Is.Not.Null);
+                        Assert.That(filter.sharedMesh.subMeshCount, Is.EqualTo(2));
+                        batchVertices += filter.sharedMesh.vertexCount;
+                    }
                 }
                 Assert.That(batchVertices, Is.GreaterThan(0));
 
@@ -145,25 +158,36 @@ namespace VoxelEngine.CI
 
                 int changedPixels = CountChangedPixels(withBatch, withoutBatch, 8);
                 Assert.That(changedPixels, Is.GreaterThan(1024),
-                            "The combined batch exists structurally but does not contribute enough real pixels.");
+                            "The combined batches exist structurally but do not contribute enough real pixels.");
 
                 TreeWorldState.SetDamage(0, 0.70f, false);
                 for (int frame = 0;
                      frame < 60 && (renderer.BatchedTreeCount != instances.Length - 1
-                                    || renderer.DynamicPresentationCount != 1);
+                                    || renderer.DynamicPresentationCount != 1
+                                    || renderer.LastDamageBatchRebuildCount != 1);
                      frame++)
                     yield return null;
 
-                Assert.That(renderer.BatchCount, Is.EqualTo(1));
+                Assert.That(renderer.BatchCount, Is.EqualTo(2));
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(instances.Length - 1));
                 Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(1));
+                Assert.That(renderer.LastDamageBatchRebuildCount, Is.EqualTo(1),
+                            "One damaged tree should invalidate exactly one spatial batch cell.");
                 Assert.That(renderer.DynamicMeshCount, Is.EqualTo(3));
-                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(6),
-                            "After first damage only the batch and one dynamic tree should own meshes.");
-                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(8),
-                            "One batch plus one dynamic tree should own eight hierarchy objects total.");
-                Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(4),
-                            "Seven healthy trees should remain one batch while the damaged tree uses two dynamic draws.");
+                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(9),
+                            "After first damage two batches plus one dynamic tree should own nine LOD meshes.");
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(12),
+                            "Two batches plus one dynamic tree should own twelve hierarchy objects total.");
+                Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(6));
+
+                Transform rebuiltTouchedBatch = FindBatchRoot(renderer, new Vector2Int(0, 0));
+                Transform preservedUntouchedBatch = FindBatchRoot(renderer, new Vector2Int(1, 0));
+                Assert.That(rebuiltTouchedBatch, Is.Not.Null);
+                Assert.That(preservedUntouchedBatch, Is.Not.Null);
+                Assert.That(rebuiltTouchedBatch.gameObject.GetInstanceID(), Is.Not.EqualTo(touchedBatchId),
+                            "The damaged cell should receive a rebuilt batch root.");
+                Assert.That(preservedUntouchedBatch.gameObject.GetInstanceID(), Is.EqualTo(untouchedBatchId),
+                            "An untouched spatial cell was unnecessarily destroyed/rebuilt.");
 
                 Assert.That(renderer.TryGetDynamicPresentationRoot(0, out Transform damagedRoot), Is.True,
                             "Damaged tree did not lazily materialize after leaving its batch.");
@@ -175,7 +199,7 @@ namespace VoxelEngine.CI
 
                 for (int i = 1; i < instances.Length; i++)
                     Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False,
-                                $"Unchanged healthy tree {i} should remain data-only inside the batch.");
+                                $"Unchanged healthy tree {i} should remain data-only inside its batch.");
             }
             finally
             {
@@ -246,14 +270,34 @@ namespace VoxelEngine.CI
             return bounds;
         }
 
-        private static Transform FindBatchRoot(ProceduralTreeRenderer renderer)
+        private static List<Transform> FindBatchRoots(ProceduralTreeRenderer renderer)
         {
+            var result = new List<Transform>();
             for (int i = 0; i < renderer.transform.childCount; i++)
             {
                 Transform child = renderer.transform.GetChild(i);
-                if (child.name.StartsWith("Tree Batch ")) return child;
+                if (child.name.StartsWith("Tree Batch ")) result.Add(child);
+            }
+            return result;
+        }
+
+        private static Transform FindBatchRoot(ProceduralTreeRenderer renderer, Vector2Int key)
+        {
+            string name = $"Tree Batch {key.x},{key.y}";
+            for (int i = 0; i < renderer.transform.childCount; i++)
+            {
+                Transform child = renderer.transform.GetChild(i);
+                if (child.name == name) return child;
             }
             return null;
+        }
+
+        private static MeshRenderer[] FindAllBatchRenderers(ProceduralTreeRenderer renderer)
+        {
+            var result = new List<MeshRenderer>();
+            foreach (Transform root in FindBatchRoots(renderer))
+                result.AddRange(root.GetComponentsInChildren<MeshRenderer>(true));
+            return result.ToArray();
         }
 
         private static Transform FindTreeRoot(ProceduralTreeRenderer renderer, int index)
