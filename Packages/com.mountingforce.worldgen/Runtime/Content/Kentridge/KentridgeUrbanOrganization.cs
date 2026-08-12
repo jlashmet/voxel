@@ -135,7 +135,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
             var runs = new List<KentridgeFrontageRun>(6)
             {
-                // Dense roofs climb immediately behind/below the three named market shops.
+                // Market fabric stays deliberately lower than the upper/civic bands. Density, not
+                // raw height, gives the market its urban weight and keeps the summit hierarchy clear.
                 new KentridgeFrontageRun(
                     "market-lower-cascade",
                     KentridgeUrbanBand.MarketBelt,
@@ -144,10 +145,11 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     new Int2(1110, 676),
                     FrontageDirection.South,
                     new Int2(900, KentridgeTownPlanner.MarketStreetZDm),
-                    85, 2, 3, 58, 56),
+                    85, 2, 2, 58, 56),
 
                 // Upper town is intentionally split around the main spine. The gap is the visual
-                // ascent and must remain legible all the way to the civic crown.
+                // ascent and must remain legible all the way to the civic crown. Height variation
+                // begins here so the silhouette accelerates as the player climbs.
                 new KentridgeFrontageRun(
                     "upper-west-cascade",
                     KentridgeUrbanBand.UpperWard,
@@ -168,7 +170,9 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     new Int2(1320, 340),
                     70, 2, 3, 58, 56),
 
-                // Civic fabric frames the summit rather than filling its centre.
+                // Civic fabric frames the summit rather than filling its centre. Anonymous civic
+                // mass is consistently tall so the church/campanile emerge from a real crown rather
+                // than from a scatter of unrelated roof heights.
                 new KentridgeFrontageRun(
                     "civic-west-cascade",
                     KentridgeUrbanBand.CivicCrown,
@@ -177,7 +181,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     new Int2(1110, 226),
                     FrontageDirection.South,
                     new Int2(1000, 150),
-                    75, 2, 3, 58, 56),
+                    75, 3, 3, 58, 56),
 
                 new KentridgeFrontageRun(
                     "civic-east-cascade",
@@ -187,10 +191,11 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     new Int2(1390, 218),
                     FrontageDirection.South,
                     new Int2(1300, 150),
-                    75, 2, 3, 58, 56),
+                    75, 3, 3, 58, 56),
 
-                // Radcliffe's ridge is a separate high mass on the east, balancing the civic crown
-                // without competing with the church/campanile as the central skyline hierarchy.
+                // Radcliffe's ridge is a strong secondary mass but its anonymous fabric is kept one
+                // storey below the civic crown. The mansion can still be prominent without stealing
+                // the settlement-wide skyline from the church/campanile.
                 new KentridgeFrontageRun(
                     "noble-south-cascade",
                     KentridgeUrbanBand.NobleRidge,
@@ -199,7 +204,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     new Int2(1810, 382),
                     FrontageDirection.South,
                     new Int2(1650, 250),
-                    72, 2, 3, 58, 56),
+                    72, 2, 2, 58, 56),
             };
 
             var thresholds = new List<KentridgeUrbanThreshold>(1)
