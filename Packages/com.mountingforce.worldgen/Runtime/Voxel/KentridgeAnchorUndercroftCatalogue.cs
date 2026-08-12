@@ -4,14 +4,14 @@ using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
+using VoxelEngine.Core.Terrain;
 
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Occupies the otherwise bare downhill support faces beneath large named anchors that are not
-    /// already covered by KentridgeHillsideArchitectureCatalogue. Sites are derived from stable role
-    /// plots, then split into bays across the plot's downhill edge; no world-space coordinates are
-    /// authored here.
+    /// Occupies the downhill support faces beneath the two largest lower anchors with architecture
+    /// whose height is derived from the actual shelf-to-natural-terrain drop. This prevents a shallow
+    /// decorative undercroft from leaving the lower half of a tall terrace as a bare brown pedestal.
     /// </summary>
     public static class KentridgeAnchorUndercroftCatalogue
     {
@@ -26,7 +26,10 @@ namespace MountingForce.WorldGen.Voxel
         private const int BayGapDm = 8;
         private const int EdgeMarginDm = 8;
         private const int DownhillEdgeInsetDm = BodyFrontInsetDm;
-        private const int FeatureHeightDm = 40;
+        private const int RoofAllowanceDm = 12;
+        private const int MinSupportHeightDm = 28;
+        private const int MaxSupportHeightDm = 78;
+        private const int NaturalSampleBeyondEdgeDm = 18;
 
         private enum UndercroftStyle : byte
         {
@@ -39,18 +42,12 @@ namespace MountingForce.WorldGen.Voxel
             public readonly KentridgeRole Role;
             public readonly UndercroftStyle Style;
             public readonly int BayCount;
-            public readonly int EmbedBelowShelfDm;
 
-            public RoleSpec(
-                KentridgeRole role,
-                UndercroftStyle style,
-                int bayCount,
-                int embedBelowShelfDm)
+            public RoleSpec(KentridgeRole role, UndercroftStyle style, int bayCount)
             {
                 Role = role;
                 Style = style;
                 BayCount = bayCount;
-                EmbedBelowShelfDm = embedBelowShelfDm;
             }
         }
 
@@ -59,18 +56,12 @@ namespace MountingForce.WorldGen.Voxel
             public readonly int DefinitionId;
             public readonly Int2 PositionDm;
             public readonly BuildingPlot Plot;
-            public readonly int EmbedBelowShelfDm;
 
-            public Site(
-                int definitionId,
-                Int2 positionDm,
-                BuildingPlot plot,
-                int embedBelowShelfDm)
+            public Site(int definitionId, Int2 positionDm, BuildingPlot plot)
             {
                 DefinitionId = definitionId;
                 PositionDm = positionDm;
                 Plot = plot;
-                EmbedBelowShelfDm = embedBelowShelfDm;
             }
         }
 
@@ -80,9 +71,15 @@ namespace MountingForce.WorldGen.Voxel
             Allocator allocator)
         {
             SettlementPlan plan = KentridgeDefinition.Build(seed);
-            List<Site> sites = BuildSites(plan);
-            int[] hospitalityProgram = HospitalityProgram(settings);
-            int[] workingProgram = WorkingProgram(settings);
+            BuildingPlot pubPlot = FindPlot(plan, KentridgeRole.Pub);
+            BuildingPlot warehousePlot = FindPlot(plan, KentridgeRole.Warehouse);
+            int s = settings.VoxelsPerDecimetre;
+
+            int hospitalityHeightDm = SupportHeightDm(pubPlot, seed, s);
+            int workingHeightDm = SupportHeightDm(warehousePlot, seed, s);
+            List<Site> sites = BuildSites(pubPlot, warehousePlot);
+            int[] hospitalityProgram = HospitalityProgram(settings, hospitalityHeightDm);
+            int[] workingProgram = WorkingProgram(settings, workingHeightDm);
             int programLength = hospitalityProgram.Length + workingProgram.Length;
 
             int hospitalityCount = 0;
@@ -105,22 +102,25 @@ namespace MountingForce.WorldGen.Voxel
             CopyProgram(ref catalogue, 0, hospitalityProgram);
             CopyProgram(ref catalogue, hospitalityProgram.Length, workingProgram);
 
-            int s = settings.VoxelsPerDecimetre;
             catalogue.Definitions[HospitalityDefinition] = Definition(
                 "kentridge-anchor-pub-undercroft",
                 0,
                 hospitalityProgram.Length,
+                hospitalityHeightDm,
                 s);
             catalogue.Definitions[WorkingDefinition] = Definition(
                 "kentridge-anchor-warehouse-undercroft",
                 hospitalityProgram.Length,
                 workingProgram.Length,
+                workingHeightDm,
                 s);
 
             int placement = 0;
-            WriteSites(sites, HospitalityDefinition, seed, s, ref catalogue, ref placement);
+            WriteSites(sites, HospitalityDefinition, hospitalityHeightDm,
+                seed, s, ref catalogue, ref placement);
             int workingOffset = placement;
-            WriteSites(sites, WorkingDefinition, seed, s, ref catalogue, ref placement);
+            WriteSites(sites, WorkingDefinition, workingHeightDm,
+                seed, s, ref catalogue, ref placement);
 
             catalogue.Rules[HospitalityDefinition] = ExplicitRule(
                 HospitalityDefinition, 0, hospitalityCount);
@@ -138,22 +138,22 @@ namespace MountingForce.WorldGen.Voxel
             return catalogue;
         }
 
-        private static List<Site> BuildSites(SettlementPlan plan)
+        private static List<Site> BuildSites(
+            BuildingPlot pubPlot,
+            BuildingPlot warehousePlot)
         {
             RoleSpec[] specs =
             {
-                // The upper inn already has a dedicated hillside annex/gallery. The lower Pub and
-                // Working warehouse are the two large anchor plots whose downhill supports remained
-                // visually bare in the overview passes.
-                new RoleSpec(KentridgeRole.Pub, UndercroftStyle.Hospitality, 2, 27),
-                new RoleSpec(KentridgeRole.Warehouse, UndercroftStyle.Working, 2, 31),
+                new RoleSpec(KentridgeRole.Pub, UndercroftStyle.Hospitality, 2),
+                new RoleSpec(KentridgeRole.Warehouse, UndercroftStyle.Working, 2),
             };
+            BuildingPlot[] plots = { pubPlot, warehousePlot };
 
             var sites = new List<Site>(4);
             for (int i = 0; i < specs.Length; i++)
             {
                 RoleSpec spec = specs[i];
-                BuildingPlot plot = FindPlot(plan, spec.Role);
+                BuildingPlot plot = plots[i];
                 Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
                 int available = footprint.X
                               - EdgeMarginDm * 2
@@ -172,12 +172,10 @@ namespace MountingForce.WorldGen.Voxel
 
                 for (int bay = 0; bay < spec.BayCount; bay++)
                 {
-                    int x = firstX + bay * bayPitch;
                     sites.Add(new Site(
                         definitionId,
-                        new Int2(x, z),
-                        plot,
-                        spec.EmbedBelowShelfDm));
+                        new Int2(firstX + bay * bayPitch, z),
+                        plot));
                 }
             }
 
@@ -198,10 +196,31 @@ namespace MountingForce.WorldGen.Voxel
             throw new InvalidOperationException("Missing Kentridge anchor role: " + role);
         }
 
+        private static int SupportHeightDm(BuildingPlot plot, uint seed, int scale)
+        {
+            Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+            int centreXDm = plot.PositionDm.X + footprint.X / 2;
+            int downhillZDm = plot.PositionDm.Y + footprint.Z + NaturalSampleBeyondEdgeDm;
+            int shelfSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
+            int naturalSurface = TerrainSampler.HeightAt(
+                centreXDm * scale,
+                downhillZDm * scale,
+                seed);
+
+            int dropVoxels = math.max(0, shelfSurface - naturalSurface);
+            int dropDm = (dropVoxels + scale - 1) / scale;
+
+            // Sink several decimetres into natural ground so the facade visibly grows from terrain
+            // rather than hovering at the sampled boundary. The cap prevents pathological terrain
+            // noise from creating a tower below an otherwise ordinary anchor.
+            return math.clamp(dropDm + 5, MinSupportHeightDm, MaxSupportHeightDm);
+        }
+
         private static FeatureDefinition Definition(
             string name,
             int programOffset,
             int programLength,
+            int supportHeightDm,
             int scale)
         {
             return new FeatureDefinition
@@ -212,11 +231,9 @@ namespace MountingForce.WorldGen.Voxel
                 FixedAltitude = 0,
                 Footprint = new int3(
                     EnvelopeDm * scale,
-                    FeatureHeightDm * scale,
+                    (supportHeightDm + RoofAllowanceDm) * scale,
                     EnvelopeDm * scale),
                 MaxSlope = 32,
-                // Above anonymous fabric/galleries, below pedestrian access, civic bridge and every
-                // gameplay structure. These bays can mask bare support but never a stable role.
                 Precedence = 93,
                 ParameterOffset = 0,
                 ParameterCount = 0,
@@ -228,13 +245,14 @@ namespace MountingForce.WorldGen.Voxel
                 ProgramLength = programLength,
                 MaterialOffset = 0,
                 MaterialCount = 0,
-                MaxPrimitives = 48,
+                MaxPrimitives = 72,
             };
         }
 
         private static void WriteSites(
             List<Site> sites,
             int definitionId,
+            int supportHeightDm,
             uint seed,
             int scale,
             ref FeatureCatalogue catalogue,
@@ -251,7 +269,7 @@ namespace MountingForce.WorldGen.Voxel
                 {
                     Position = new int3(
                         site.PositionDm.X * scale,
-                        shelfSurface - site.EmbedBelowShelfDm * scale,
+                        shelfSurface - supportHeightDm * scale,
                         site.PositionDm.Y * scale),
                     Orientation = 0,
                     OverrideOffset = 0,
@@ -280,7 +298,9 @@ namespace MountingForce.WorldGen.Voxel
             };
         }
 
-        private static int[] HospitalityProgram(VoxelWorldGenSettings settings)
+        private static int[] HospitalityProgram(
+            VoxelWorldGenSettings settings,
+            int supportHeightDm)
         {
             int s = settings.VoxelsPerDecimetre;
             byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
@@ -294,8 +314,9 @@ namespace MountingForce.WorldGen.Voxel
             int z = BodyFrontInsetDm * s;
             int w = BodyWidthDm * s;
             int d = BodyDepthDm * s;
-            int foundation = 4 * s;
-            int wallH = 21 * s;
+            int foundation = 5 * s;
+            int bodyH = supportHeightDm * s;
+            int wallH = bodyH - foundation;
             int t = 4 * s;
 
             b.Box(x, 0, z, w, foundation, d, stone);
@@ -303,29 +324,36 @@ namespace MountingForce.WorldGen.Voxel
             b.Carve(x + t, foundation, z + t,
                 w - 2 * t, wallH, d - 2 * t);
 
-            AddWindowZ(b, x + 9 * s, foundation + 8 * s, z,
-                13 * s, 9 * s, t + s, warm);
-            AddWindowZ(b, x + w - 22 * s, foundation + 8 * s, z,
-                13 * s, 9 * s, t + s, warm);
+            // Each ~2.2 m band becomes a believable lower service floor. The top level aligns with
+            // the Pub shelf, turning the entire exposed face into occupied architecture.
+            int levelStep = 22 * s;
+            for (int levelY = foundation; levelY + 17 * s < bodyH; levelY += levelStep)
+            {
+                AddWindowZ(b, x + 9 * s, levelY + 7 * s, z,
+                    13 * s, 9 * s, t + s, warm);
+                AddWindowZ(b, x + w - 22 * s, levelY + 7 * s, z,
+                    13 * s, 9 * s, t + s, warm);
+                b.Box(x, levelY + levelStep - 3 * s, z - s,
+                    w, 3 * s, 3 * s, timber);
+            }
+
             int doorW = 12 * s;
             int doorX = x + w / 2 - doorW / 2;
             b.Carve(doorX, foundation, z, doorW, 18 * s, t + s);
-
             b.Box(x, foundation, z - s, 4 * s, wallH, 3 * s, timber);
             b.Box(x + w - 4 * s, foundation, z - s, 4 * s, wallH, 3 * s, timber);
-            b.Box(x, foundation + wallH - 4 * s, z - s,
-                w, 4 * s, 3 * s, timber);
 
-            // A shallow service balcony ties the lower room row into the Pub shelf above.
-            b.Box(x + 4 * s, foundation + wallH - 2 * s, z - 8 * s,
+            b.Box(x + 4 * s, bodyH - 3 * s, z - 8 * s,
                 w - 8 * s, 3 * s, 12 * s, timber);
-            b.Prism(x - 3 * s, foundation + wallH, z - 3 * s,
+            b.Prism(x - 3 * s, bodyH, z - 3 * s,
                 w + 6 * s, 10 * s, d + 6 * s,
                 PrismProfile.Shed, roof);
             return b.Finish();
         }
 
-        private static int[] WorkingProgram(VoxelWorldGenSettings settings)
+        private static int[] WorkingProgram(
+            VoxelWorldGenSettings settings,
+            int supportHeightDm)
         {
             int s = settings.VoxelsPerDecimetre;
             byte stone = settings.Materials.Resolve(MaterialRole.DarkMasonry);
@@ -338,8 +366,9 @@ namespace MountingForce.WorldGen.Voxel
             int z = BodyFrontInsetDm * s;
             int w = BodyWidthDm * s;
             int d = BodyDepthDm * s;
-            int foundation = 5 * s;
-            int wallH = 21 * s;
+            int foundation = 6 * s;
+            int bodyH = supportHeightDm * s;
+            int wallH = bodyH - foundation;
             int t = 5 * s;
 
             b.Box(x, 0, z, w, foundation, d, stone);
@@ -349,11 +378,18 @@ namespace MountingForce.WorldGen.Voxel
 
             int cargoW = 28 * s;
             int cargoX = x + w / 2 - cargoW / 2;
-            b.Carve(cargoX, foundation, z, cargoW, 18 * s, t + s);
-            AddWindowZ(b, x + 8 * s, foundation + 12 * s, z,
-                12 * s, 7 * s, t + s, glass);
-            AddWindowZ(b, x + w - 20 * s, foundation + 12 * s, z,
-                12 * s, 7 * s, t + s, glass);
+            b.Carve(cargoX, foundation, z, cargoW, 20 * s, t + s);
+
+            int levelStep = 24 * s;
+            for (int levelY = foundation; levelY + 18 * s < bodyH; levelY += levelStep)
+            {
+                AddWindowZ(b, x + 8 * s, levelY + 10 * s, z,
+                    12 * s, 7 * s, t + s, glass);
+                AddWindowZ(b, x + w - 20 * s, levelY + 10 * s, z,
+                    12 * s, 7 * s, t + s, glass);
+                b.Box(x, levelY + levelStep - 3 * s, z - s,
+                    w, 3 * s, 4 * s, stone);
+            }
 
             for (int i = 0; i < 4; i++)
             {
@@ -362,9 +398,7 @@ namespace MountingForce.WorldGen.Voxel
                     4 * s, wallH, 4 * s, stone);
             }
 
-            b.Box(x, foundation + wallH - 3 * s, z - s,
-                w, 3 * s, 4 * s, stone);
-            b.Prism(x - 3 * s, foundation + wallH, z - 3 * s,
+            b.Prism(x - 3 * s, bodyH, z - 3 * s,
                 w + 6 * s, 9 * s, d + 6 * s,
                 PrismProfile.Shed, roof);
             return b.Finish();
