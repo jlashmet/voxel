@@ -19,6 +19,10 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp),
+
+                // Secondary contour circulation belongs to urban organisation, not stable gameplay
+                // streets. It links the central upper ascent to the east ridge without moving roles.
+                KentridgeUrbanCirculationCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeVerticalConnectorCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(
