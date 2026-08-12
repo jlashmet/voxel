@@ -8,7 +8,7 @@ using VoxelEngine.Net.Transport;
 namespace VoxelEngine.Net.Server
 {
     /// <summary>Composition root for authoritative UTP networking.</summary>
-    public sealed class ServerNetworkRuntime : IDisposable, IAuthoritativeAlterationPublisher, IAlterationRejectionSink
+    public sealed class ServerNetworkRuntime : IDisposable, IAuthoritativeAlterationPublisher, IAlterationRejectionSink, IPlayerStateBundleSink
     {
         private readonly UtpServerHost _host;
         private readonly EventDrivenReplicationPipeline _replication;
@@ -138,6 +138,14 @@ namespace VoxelEngine.Net.Server
             Span<byte> packet = stackalloc byte[RegionStateFencePacket.PacketSize];
             return RegionStateFencePacket.TryEncode(packet, in fence) &&
                    _host.TrySend(connectionId, UtpChannel.Event, packet);
+        }
+
+        public bool SendPlayerStateBundle(uint connectionId, ReadOnlySpan<S_PlayerState> states)
+        {
+            ThrowIfDisposed();
+            Span<byte> packet = stackalloc byte[PlayerStateBundlePacket.MaxPacketSize];
+            return PlayerStateBundlePacket.TryEncode(packet, states, out int bytesWritten) &&
+                   _host.TrySend(connectionId, UtpChannel.Ephemeral, packet.Slice(0, bytesWritten));
         }
 
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)
