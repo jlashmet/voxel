@@ -1,4 +1,5 @@
 using System.Linq;
+using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using NUnit.Framework;
 
