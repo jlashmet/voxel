@@ -52,6 +52,52 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
+        public void DetachedStoneKeepsMossAsPresentationMetadata()
+        {
+            var world = new ShowcaseWorld(124u, 4096, 1, 2);
+            try
+            {
+                int3 column = new int3(20, 0, 20);
+                Set(world, column, ShowcaseWorld.MatBedrock);
+                for (int y = 1; y <= 6; y++)
+                {
+                    var cell = new VoxelCell
+                    {
+                        BaseMaterialId = ShowcaseWorld.MatStone,
+                        Surface = new VoxelSurfaceSemantics
+                        {
+                            StyleId = SurfaceStyles.Rounded,
+                            CoatingId = Coatings.Moss,
+                        },
+                    };
+                    VoxelAccess.SetCell(ref world.Table, ref world.Pool,
+                                        column + new int3(0, y, 0), in cell);
+                }
+
+                world.RemoveAndResolveCollapse(column + new int3(0, 3, 0));
+
+                int samples = 0;
+                while (world.TryDequeueDetachedChunk(out var chunk))
+                {
+                    Assert.AreEqual(chunk.Voxels.Length, chunk.Materials.Length);
+                    Assert.AreEqual(chunk.Voxels.Length, chunk.Coatings.Length);
+                    for (int i = 0; i < chunk.Voxels.Length; i++)
+                    {
+                        Assert.AreEqual(ShowcaseWorld.MatStone, chunk.Materials[i]);
+                        Assert.AreEqual(Coatings.Moss, chunk.Coatings[i]);
+                        samples++;
+                    }
+                }
+
+                Assert.AreEqual(3, samples);
+            }
+            finally
+            {
+                world.Dispose();
+            }
+        }
+
+        [Test]
         public void DetachedBeamBeyondFormerScanBoundaryCollapsesCompletely()
         {
             var world = new ShowcaseWorld(321u, 8192, 1, 2);
@@ -378,7 +424,7 @@ namespace VoxelEngine.Tests.PlayMode
                 debris.Step(world, 0.016f);
                 Assert.Greater(debris.ActiveChunks, 0,
                     "detached voxels were never submitted to the GPU");
-                world.RegionsNeedingUpload.Clear();
+                ulong versionAfterCollapse = world.Changes.CurrentVersion;
 
                 // Moving debris is presentation data. It must not rewrite/upload the voxel grid
                 // every frame—the exact hot path that made repeated tornadoes progressively lag.
@@ -387,7 +433,7 @@ namespace VoxelEngine.Tests.PlayMode
                     debris.Step(world, 0.016f);
                     yield return null;
                 }
-                Assert.Zero(world.RegionsNeedingUpload.Count,
+                Assert.AreEqual(versionAfterCollapse, world.Changes.CurrentVersion,
                     "GPU flight rewrote authoritative voxel regions before settlement");
 
                 float deadline = Time.realtimeSinceStartup + 2.5f;
@@ -406,7 +452,7 @@ namespace VoxelEngine.Tests.PlayMode
                     if (Get(world, new int3(x, y, z)) == ShowcaseWorld.MatWood) rebaked++;
                 Assert.AreEqual(2, rebaked,
                     "expired visual debris rejoined the authoritative collision grid");
-                Assert.Zero(world.RegionsNeedingUpload.Count,
+                Assert.AreEqual(versionAfterCollapse, world.Changes.CurrentVersion,
                     "expiry triggered a second geometry upload/explosion cycle");
             }
             finally

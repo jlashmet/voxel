@@ -1,14 +1,15 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using VoxelEngine.Rendering.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering
 {
     /// <summary>
     /// URP renderer feature for the derived voxel-world presentation.
     ///
-    /// World surfaces remain one raster architecture: hard structures, smooth terrain, and water
-    /// are derived from the same authoritative sparse voxels. The authored sky is a separate
+    /// Solid geometry uses one feature-aware extraction architecture; water remains a specialized
+    /// domain derived from the same authoritative sparse voxels. The authored sky is a separate
     /// background pass because mesh rasterization no longer owns camera-miss pixels.
     /// </summary>
     public class VoxelRenderFeature : ScriptableRendererFeature
@@ -23,8 +24,6 @@ namespace VoxelEngine.Rendering
         [SerializeField] private Shader m_SurfaceShader;
         [Tooltip("Hidden/VoxelEngine/WaterSurface")]
         [SerializeField] private Shader m_WaterShader;
-        [Tooltip("BrickRaymarch.compute; temporary owner of CSBuildDensity during the surface migration.")]
-        [SerializeField] private ComputeShader m_DensityCompute;
 
         [Header("Stylized surface textures")]
         [SerializeField] private Texture2D m_StoneTexture;
@@ -80,13 +79,13 @@ namespace VoxelEngine.Rendering
                          m_RockTexture, m_SlateTexture, m_GrassTexture, m_DirtTexture,
                          m_StoneNormal, m_WoodNormal, m_SandNormal, m_RockNormal,
                          m_SlateNormal, m_GrassNormal, m_DirtNormal,
-                         m_DarkStoneTexture, m_DarkStoneNormal, m_SkyTexture,
-                         m_DensityCompute);
+                         m_DarkStoneTexture, m_DarkStoneNormal, m_SkyTexture);
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
             if (!m_Enabled || m_Pass == null) return;
+            VoxelRenderBridge.RenderFeatureEnqueueCount++;
 
             if (m_SkyPass != null)
             {
@@ -112,8 +111,7 @@ namespace VoxelEngine.Rendering
             m_Pass = null;
         }
 
-        public int LastBricksUploaded => m_Pass?.LastBricksUploaded ?? 0;
-        public int ResidentSlots => m_Pass?.ResidentSlots ?? 0;
         public VoxelRenderPass Pass => m_Pass;
+        public VoxelSurfaceMetrics Metrics => m_Pass != null ? m_Pass.Metrics : default;
     }
 }

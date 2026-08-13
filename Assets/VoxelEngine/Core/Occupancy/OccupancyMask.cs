@@ -8,7 +8,7 @@ namespace VoxelEngine.Core.Occupancy
     /// Bit-per-voxel occupancy for one brick: 512 bits across 8 x 64-bit words.
     ///
     /// This is the most-consumed structure in the engine. It is built once and read
-    /// five ways — empty-space skipping in the raymarch, streaming detail level,
+    /// five ways — empty-space skipping in extraction, streaming detail level,
     /// far-field replication payload, connectivity flood-fill, and support
     /// propagation. Its layout is effectively a public interface; changing it
     /// ripples everywhere.
@@ -21,7 +21,7 @@ namespace VoxelEngine.Core.Occupancy
 
         /// <summary>
         /// Linear voxel index within a brick. Layout is x-major within a row, then y,
-        /// then z, so consecutive x steps are consecutive bits — the raymarch walks x
+        /// then z, so consecutive x steps are consecutive bits — traversal along x
         /// most often, and this keeps that walk inside one word wherever possible.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -47,7 +47,7 @@ namespace VoxelEngine.Core.Occupancy
 
         /// <summary>
         /// True when no voxel in the brick is occupied. One of the two hot early-outs
-        /// in the raymarch — an empty brick is skipped without touching voxel data.
+        /// in extraction/traversal — an empty brick is skipped without touching voxel data.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsEmpty(in NativeArray<ulong> words, int wordOffset)

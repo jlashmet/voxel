@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using VoxelEngine.Rendering;
+using VoxelEngine.Rendering.SurfaceExtraction;
 
 namespace VoxelEngine.Showcase
 {
@@ -12,8 +14,8 @@ namespace VoxelEngine.Showcase
         private const float SampleSeconds = 0.25f;
         private const float StatsWindowSeconds = 5f;
         private const float Margin = 6f;
-        private const float Width = 164f;
-        private const float Height = 22f;
+        private const float Width = 510f;
+        private const float Height = 40f;
 
         private float _elapsed;
         private int _frames;
@@ -59,6 +61,14 @@ namespace VoxelEngine.Showcase
             }
 
             _label = $"FPS {fps:0}   MIN {_minFps:0}   MAX {_maxFps:0}";
+            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+            _label += $"\nSURFACE p95  frame {metrics.SchedulerPrepareTiming.P95Ms:0.0}  "
+                    + $"discover {metrics.SurfaceDiscoveryTiming.P95Ms:0.0}  "
+                    + $"snapshot {metrics.SnapshotTiming.P95Ms:0.0}  "
+                    + $"compact {metrics.TopologyCompactTiming.P95Ms:0.0}  "
+                    + $"merge {metrics.FacetedMergeTiming.P95Ms:0.0}  "
+                    + $"upload {metrics.UploadTiming.P95Ms:0.0} ms  "
+                    + $"queue {metrics.QueueLatencyTiming.P95Ms:0} ms";
             _elapsed = 0f;
             _frames = 0;
         }
@@ -69,7 +79,7 @@ namespace VoxelEngine.Showcase
             {
                 fontSize = 11,
                 fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
+                alignment = TextAnchor.MiddleLeft,
                 padding = new RectOffset(4, 4, 2, 2)
             };
 

@@ -37,6 +37,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             public ComputeBuffer Args;
             public bool Ready;
             public int IndexCount;
+            public long GpuBytes { get; private set; }
+            public ulong SourceVersion { get; internal set; }
 
             internal Entry(int3 coordinate) => Coordinate = coordinate;
 
@@ -73,6 +75,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 Indices = nextIndices;
                 Args = nextArgs;
                 IndexCount = indices.Count;
+                GpuBytes = (long)vertices.Count * SmoothSurfaceVertex.Stride
+                         + (long)indices.Count * sizeof(uint) + 4L * sizeof(uint);
                 Ready = true;
             }
 
@@ -106,6 +110,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 Args = null;
                 Ready = false;
                 IndexCount = 0;
+                GpuBytes = 0;
             }
         }
 
@@ -114,11 +119,14 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             public bool Active;
             public int3 Coordinate;
             public int Cursor;
+            public ulong SourceVersion;
         }
 
         private readonly Dictionary<int3, HashSet<int3>> _waterBricks = new();
         private readonly Dictionary<int3, Entry> _entries = new();
         private readonly HashSet<int3> _dirty = new();
+        private readonly Dictionary<int3, ulong> _desiredVersions = new();
+        private ulong _versionCounter;
         private readonly List<int3> _buildBricks = new(256);
         private readonly List<Entry> _visible = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
@@ -130,6 +138,18 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         public int ResidentCount => _entries.Count;
         public int DirtyCount => _dirty.Count + (_build.Active ? 1 : 0);
+        public ulong CompletedBuildCount { get; private set; }
+        public ulong StaleBuildCount { get; private set; }
+        public ulong UploadedGeometryBytes { get; private set; }
+        public long ResidentGpuBytes
+        {
+            get
+            {
+                long total = 0;
+                foreach (Entry entry in _entries.Values) total += entry.GpuBytes;
+                return total;
+            }
+        }
         public IReadOnlyList<Entry> Visible => _visible;
 
         public void InvalidateSurfaceBricks(ref RegionTable table, in BrickPool pool,
@@ -151,12 +171,12 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                         set = new HashSet<int3>();
                         _waterBricks.Add(chunk, set);
                     }
-                    if (set.Add(worldBrick)) _dirty.Add(chunk);
+                    if (set.Add(worldBrick)) Invalidate(chunk);
                 }
                 else if (_waterBricks.TryGetValue(chunk, out HashSet<int3> existing)
                          && existing.Remove(worldBrick))
                 {
-                    _dirty.Add(chunk);
+                    Invalidate(chunk);
                 }
 
                 // A changed surface brick can expose/hide a face owned by a neighbouring water
@@ -184,7 +204,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 {
                     int3 delta = math.abs(ownerRegion - dirtyRegion);
                     if (math.max(delta.x, math.max(delta.y, delta.z)) > 1) continue;
-                    _dirty.Add(pair.Key);
+                    Invalidate(pair.Key);
                     break;
                 }
             }
@@ -245,6 +265,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                     _waterBricks.Remove(best);
                     if (_entries.TryGetValue(best, out Entry stale)) stale.Dispose();
                     _entries.Remove(best);
+                    _desiredVersions.Remove(best);
                     continue;
                 }
 
@@ -252,7 +273,14 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 foreach (int3 brick in set) _buildBricks.Add(brick);
                 _vertices.Clear();
                 _indices.Clear();
-                _build = new BuildState { Active = true, Coordinate = best, Cursor = 0 };
+                _build = new BuildState
+                {
+                    Active = true,
+                    Coordinate = best,
+                    Cursor = 0,
+                    SourceVersion = _desiredVersions.TryGetValue(best, out ulong version)
+                        ? version : 0
+                };
                 return true;
             }
 
@@ -279,6 +307,17 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         private void FinishBuild()
         {
+            if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
+                && desired > _build.SourceVersion)
+            {
+                StaleBuildCount++;
+                _build = default;
+                _buildBricks.Clear();
+                _vertices.Clear();
+                _indices.Clear();
+                return;
+            }
+
             if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
             {
                 entry = new Entry(_build.Coordinate);
@@ -286,6 +325,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
 
             entry.Upload(_vertices, _indices);
+            CompletedBuildCount++;
+            UploadedGeometryBytes += (ulong)entry.GpuBytes;
+            entry.SourceVersion = _build.SourceVersion;
+            _desiredVersions.Remove(_build.Coordinate);
             _build = default;
             _buildBricks.Clear();
             _vertices.Clear();
@@ -479,7 +522,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         private void MarkKnownDirty(int3 chunk)
         {
-            if (_waterBricks.ContainsKey(chunk)) _dirty.Add(chunk);
+            if (_waterBricks.ContainsKey(chunk)) Invalidate(chunk);
+        }
+
+        private void Invalidate(int3 chunk)
+        {
+            _desiredVersions[chunk] = ++_versionCounter;
+            _dirty.Add(chunk);
         }
 
         private static int3 WorldBrickChunk(int3 worldBrick) =>
@@ -504,6 +553,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 int3 chunk = gone[i];
                 _waterBricks.Remove(chunk);
                 _dirty.Remove(chunk);
+                _desiredVersions.Remove(chunk);
                 if (_entries.TryGetValue(chunk, out Entry entry)) entry.Dispose();
                 _entries.Remove(chunk);
                 if (_build.Active && _build.Coordinate.Equals(chunk))
@@ -522,6 +572,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _entries.Clear();
             _waterBricks.Clear();
             _dirty.Clear();
+            _desiredVersions.Clear();
             _buildBricks.Clear();
             _visible.Clear();
             _vertices.Clear();

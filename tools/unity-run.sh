@@ -35,6 +35,7 @@
 #   UNITY_MAX_MINUTES       wall-clock ceiling                          (default 6)
 #   UNITY_MIN_FREE_MB       required free memory before starting        (default 4096)
 #   UNITY_FLOOR_FREE_MB     kill if system free memory falls below this  (default 8192)
+#   UNITY_MAX_SWAP_GROWTH_MB kill if swap grows this much during a run    (default 512)
 #   UNITY_ALLOW_CONCURRENT  set to 1 to bypass guard 1 — think first
 #   UNITY_BIN               path to the Unity binary
 
@@ -44,6 +45,7 @@ MAX_RSS_MB=${UNITY_MAX_RSS_MB:-6144}
 MAX_MINUTES=${UNITY_MAX_MINUTES:-6}
 MIN_FREE_MB=${UNITY_MIN_FREE_MB:-4096}
 FLOOR_FREE_MB=${UNITY_FLOOR_FREE_MB:-8192}
+MAX_SWAP_GROWTH_MB=${UNITY_MAX_SWAP_GROWTH_MB:-512}
 UNITY_BIN=${UNITY_BIN:-/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/MacOS/Unity}
 
 if [[ ! -x "$UNITY_BIN" ]]; then
@@ -74,12 +76,20 @@ system_free_mb() {
 
 free_mb=$(system_free_mb)
 
+swap_used_mb() {
+  local value
+  value=$(sysctl vm.swapusage 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="used") {gsub(/M/,"",$(i+2)); print int($(i+2));}}')
+  echo "${value:-0}"
+}
+
+initial_swap_mb=$(swap_used_mb)
+
 if (( free_mb < MIN_FREE_MB )); then
   echo "unity-run: REFUSING — only ${free_mb} MB free, need ${MIN_FREE_MB} MB." >&2
   exit 4
 fi
 
-echo "unity-run: starting (${free_mb} MB free, rss ceiling ${MAX_RSS_MB} MB, free floor ${FLOOR_FREE_MB} MB, limit ${MAX_MINUTES} min)"
+echo "unity-run: starting (${free_mb} MB free, rss ceiling ${MAX_RSS_MB} MB, free floor ${FLOOR_FREE_MB} MB, swap-growth ceiling ${MAX_SWAP_GROWTH_MB} MB, limit ${MAX_MINUTES} min)"
 
 # -- run under a watchdog -----------------------------------------------------
 
@@ -126,9 +136,19 @@ while kill -0 "$unity_pid" 2>/dev/null; do
   elapsed=$(( $(date +%s) - start ))
 
   system_free=$(system_free_mb)
+  swap_now=$(swap_used_mb)
+  swap_growth=$(( swap_now - initial_swap_mb ))
 
   # Written every poll so a run that takes the machine down still leaves evidence.
-  echo "elapsed=${elapsed}s rss=${rss}MB peak=${peak}MB systemFree=${system_free}MB" > "$status_file"
+  echo "elapsed=${elapsed}s rss=${rss}MB peak=${peak}MB systemFree=${system_free}MB swapGrowth=${swap_growth}MB" > "$status_file"
+
+  if (( swap_growth > MAX_SWAP_GROWTH_MB )); then
+    echo "unity-run: KILLING — swap grew ${swap_growth} MB (ceiling ${MAX_SWAP_GROWTH_MB} MB)" >&2
+    pkill -9 -P "$unity_pid" 2>/dev/null
+    kill -9 "$unity_pid" 2>/dev/null
+    wait "$unity_pid" 2>/dev/null
+    exit 8
+  fi
 
   # The guard that actually matters. RSS missed a 200 GB run entirely; free memory did not.
   if (( system_free < FLOOR_FREE_MB )); then
@@ -155,7 +175,7 @@ while kill -0 "$unity_pid" 2>/dev/null; do
     exit 6
   fi
 
-  sleep 0.5
+  sleep 0.1
 done
 
 wait "$unity_pid"

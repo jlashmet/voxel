@@ -33,7 +33,7 @@ namespace VoxelEngine.Net.Server
         /// <param name="region">The region whose state is being hashed.</param>
         /// <returns>A 32-bit FNV-1a hash of the region's current state.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static uint HashRegion(in Region region)
+        public static uint HashRegion(in Region region, in BrickPool pool)
         {
             uint hash = k_FnvOffsetBasis;
 
@@ -42,17 +42,30 @@ namespace VoxelEngine.Net.Server
             hash = FnvMix(hash, (uint)region.Coord.y);
             hash = FnvMix(hash, (uint)region.Coord.z);
 
-            // Hash the full brick reference grid.
-            //
-            // BrickRef already encodes all three states in one int (empty, uniform material,
-            // or pool index), so hashing it captures the region's structure exactly. Every
-            // entry is hashed rather than sampled: a sampled hash cannot detect drift in the
-            // entries it skips, which would defeat the point of drift detection.
+            // Hash logical brick state, never the physical mixed-pool slot. Two peers can hold
+            // identical cells at different pool indices after eviction/restore or allocation in
+            // a different order; including that index would report false authoritative drift.
+            // Every entry is hashed rather than sampled so no cell can escape drift detection.
             if (region.BrickRefs.IsCreated)
             {
                 var bricks = region.BrickRefs;
                 for (int i = 0; i < bricks.Length; i++)
-                    hash = FnvMix(hash, (uint)bricks[i].Value);
+                {
+                    BrickRef brick = bricks[i];
+                    if (!brick.IsMixed)
+                    {
+                        hash = FnvMix(hash, 0x80000000u | brick.UniformMaterial);
+                        continue;
+                    }
+                    hash = FnvMix(hash, 0u); // mixed logical payload follows
+                    int offset = pool.VoxelOffset(brick.PoolIndex);
+                    for (int v = 0; v < VoxelDimensions.VoxelsPerBrick; v++)
+                    {
+                        hash = FnvMix(hash, pool.Voxels[offset + v]);
+                        hash = FnvMix(hash, pool.SurfaceSemantics[offset + v]);
+                        hash = FnvMix(hash, pool.BoundarySamples[offset + v]);
+                    }
+                }
             }
 
             return hash;

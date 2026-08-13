@@ -27,7 +27,7 @@ Supporting artifacts:
 These are architectural commitments, not preferences. Violating one is a defect.
 
 - **Determinism**: no authoritative state may derive from GPU output or floating-point arithmetic. Cross-client agreement is integer Burst jobs on the CPU.
-- **Single source of truth**: visual and collision representations derive from the same brickmap. One DDA traversal, two callers.
+- **Single source of truth**: visual and collision representations derive from the same authoritative voxel cells. Collision uses discrete occupancy; curvature is derived presentation and never gameplay truth.
 - **Server authority**: client prediction is presentation, never truth.
 - **Tiering boundary**: device class affects presentation parameters only — never interest radius, tick rate, collision, world state, or any `Core` job.
 - **Platform scope**: PC, console, and **high-end mobile only**. Mid-tier and low-tier phones are out of scope.

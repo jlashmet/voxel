@@ -25,7 +25,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             Vector3 eye = showcase.transform.position;
             Vector3 feet = eye - Vector3.up * 1.65f;
-            const float voxelSize = VoxelSurfaceRenderer.VoxelSize;
+            const float voxelSize = ShowcaseWorld.VoxelSize;
 
             Assert.Less(eye.z, 0f, "Spawn must remain on the open southern approach.");
             Assert.Greater(eye.x, ShowcaseWorld.RegionMetres * 0.5f + 8f,

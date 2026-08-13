@@ -6,13 +6,18 @@ namespace VoxelEngine.Core.Features.Emitters
     public static class PrismEmitter
     {
         public static Primitive Prism(int3 min, int3 size, PrismProfile profile, byte material,
-                                      PrimitiveMode mode, int order)
+                                      PrimitiveMode mode, int order,
+                                      ushort surfaceStyle = 0, byte coating = 0)
         {
             return new Primitive
             {
                 Shape = PrimitiveShape.Prism,
                 Mode = mode,
                 Material = material,
+                SurfaceStyle = surfaceStyle,
+                Coating = coating,
+                Axis = 2,
+                Direction = 1,
                 Profile = profile,
                 Order = order,
                 A = min,
@@ -24,10 +29,12 @@ namespace VoxelEngine.Core.Features.Emitters
         {
             if (!BoxEmitter.BoxContains(in p, voxel)) return false;
 
-            int width = p.B.x - p.A.x + 1;
+            int profileAxis = p.Axis == 0 ? 2 : 0;
+            int width = p.B[profileAxis] - p.A[profileAxis] + 1;
             int height = p.B.y - p.A.y + 1;
 
-            int x = voxel.x - p.A.x;
+            int x = voxel[profileAxis] - p.A[profileAxis];
+            if (p.Direction < 0) x = width - 1 - x;
             int y = voxel.y - p.A.y;
 
             switch (p.Profile)

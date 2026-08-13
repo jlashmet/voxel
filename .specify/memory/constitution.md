@@ -21,11 +21,11 @@ All computation participating in cross-client agreement — edit expansion, conn
 
 ## II. One source of truth for geometry
 
-**Visual and collision representations MUST derive from the same data, through the same traversal.**
+**Visual and collision representations MUST derive from the same authoritative voxel cells.**
 
-*Why*: divergence between what a player sees and what stops a bullet is the defect players notice most and trust least. Two representations will drift; the only reliable prevention is structural — one DDA traversal with two callers.
+*Why*: divergence between what a player sees and what stops a bullet is the defect players notice most and trust least. The discrete voxel grid therefore remains authoritative for collision, hit resolution, destruction, persistence, and replication. Rendering may reconstruct curvature from immutable surface-style and adjacency catalogues, but that derived geometry is presentation and may never feed authoritative decisions.
 
-*Enforcement*: no collision query may consult GPU state. No rendering path may hold authoritative state. Any proposal introducing a second geometric representation requires an amendment.
+*Enforcement*: no collision query may consult rendered meshes or GPU state. No rendering path may hold authoritative state. Every rendered surface must be reproducibly invalidated from a versioned voxel change and must identify the source version it consumed.
 
 ## III. The server is authoritative; prediction is presentation
 
@@ -70,3 +70,12 @@ Pools are fixed-capacity with eviction rather than growth. Logs compact. Player 
 ## Amendment
 
 Amendments require: the failure mode the change permits, why it is acceptable, and what replaces the removed protection. Recorded here with a date, never as a per-feature exception.
+
+### 2026-08-12 — Derived curved presentation surfaces
+
+Principle II previously required visual and collision representations to use one DDA traversal.
+That prevented non-cubic visual reconstruction even though both systems already consumed the same
+voxel world. The amendment permits a derived presentation mesh, accepting that its curved
+silhouette may not exactly match discrete collision. The removed traversal-level protection is
+replaced by authoritative `VoxelCell` state, immutable surface/join catalogues, versioned change
+records, stale-build rejection, and the prohibition against using extracted geometry for gameplay.

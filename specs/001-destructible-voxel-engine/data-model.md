@@ -26,7 +26,8 @@ The unit of allocation. 8³ = 512 voxels.
 | Field | Type | Size | Notes |
 |---|---|---|---|
 | voxels | `byte[512]` | 512 B | Only allocated for *mixed* bricks |
-| occupancy | `ulong[8]` | 64 B | One bit per voxel; drives raymarch skipping, connectivity, support |
+| surface semantics | `ushort[512]` | 1024 B | Style, coating, and flags parallel to material bytes |
+| occupancy | `ulong[8]` | 64 B | One bit per voxel; drives connectivity, support, and extraction |
 
 Three states, and the distinction is the whole memory argument:
 
@@ -34,7 +35,7 @@ Three states, and the distinction is the whole memory argument:
 |---|---|---|
 | Empty | Null pointer in the region's brick grid | 0 B |
 | Uniform | Pointer to a shared palette brick for that material | 0 B marginal |
-| Mixed | Index into the brick pool | 576 B |
+| Mixed | Index into the brick pool | 2112 B |
 
 **Invariant**: a brick whose voxels become uniform must be collapsed back to a palette pointer and its pool slot freed. Failing to do this is the slow memory leak this design is most susceptible to.
 
@@ -43,6 +44,8 @@ Three states, and the distinction is the whole memory argument:
 | Field | Type | Notes |
 |---|---|---|
 | storage | `NativeArray<byte>` | One large allocation; fixed size from the tiering budget |
+| surfaceSemantics | `NativeArray<ushort>` | Parallel compact style/coating/flags allocation |
+| boundarySamples | `NativeArray<byte>` | Parallel authored geometry constraint; zero means occupancy-only |
 | occupancy | `NativeArray<ulong>` | Parallel array |
 | freeList | `NativeList<int>` | Indices of unused slots |
 | capacity | `int` | Set per device class (C-006 permits this) |
@@ -164,7 +167,7 @@ Derived, not stored — it *is* the occupancy mip hierarchy, consumed at a chose
 |---|---|
 | Near field render | 0 (full bricks) |
 | Mid field | 2–3 |
-| Far field / implicit raymarch | 5+ |
+| Far field / implicit surface | 5+ |
 | Far-field replication payload | 5+ |
 | Server structural graph | Top level, always resident |
 
@@ -185,7 +188,7 @@ Cheap lookup during validation. Covers spawns and objectives (FR-018).
 |---|---|
 | brickPoolCapacity | Yes |
 | fullDetailRadius / mipTransitionDistance | Yes |
-| raymarchResolution / maxStepsPerRay | Yes |
+| voxelRenderScale | Yes |
 | irradianceProbeDensity | Yes |
 | maxVisualOnlyDebris | Yes |
 | maxViewDistance | Yes |

@@ -169,6 +169,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             // Bounded by: header + count × (brickIndex + tag(4) + poolIndex(4) + voxels(512) + occupancy(64)).
             int maxEntryBytes = sizeof(int) + 4 + 4 + VoxelEngine.Core.Storage.VoxelDimensions.VoxelsPerBrick
+                              + VoxelEngine.Core.Storage.VoxelDimensions.VoxelsPerBrick * sizeof(ushort)
                               + VoxelEngine.Core.Storage.VoxelDimensions.OccupancyWordsPerBrick * sizeof(ulong);
 
             // The worst-case snapshot is: header (19 B approx) + count × maxEntryBytes.

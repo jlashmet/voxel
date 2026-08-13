@@ -396,7 +396,7 @@ namespace MountingForce.WorldGen.Voxel
                             PrimitiveMode mode = PrimitiveMode.Fill)
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, (int)mode);
+                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
             }
 
             public void Ramp(int x, int y, int z, int sx, int sy, int sz,
@@ -405,7 +405,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitRamp, x, y, z, sx, sy, sz,
-                   axis, material, (int)mode);
+                   axis, material, 0, 0, (int)mode);
             }
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>

@@ -6,7 +6,8 @@ namespace VoxelEngine.Core.Features.Emitters
     public static class CylinderEmitter
     {
         public static Primitive Cylinder(int3 centre, int radius, int height, byte axis,
-                                         byte material, PrimitiveMode mode, int order)
+                                         byte material, PrimitiveMode mode, int order,
+                                         ushort surfaceStyle = 0, byte coating = 0)
         {
             if (radius < 0) radius = 0;
             if (height < 1) height = 1;
@@ -34,6 +35,8 @@ namespace VoxelEngine.Core.Features.Emitters
                 Shape = PrimitiveShape.Cylinder,
                 Mode = mode,
                 Material = material,
+                SurfaceStyle = surfaceStyle,
+                Coating = coating,
                 Axis = axis,
                 Order = order,
                 A = min,
