@@ -8,7 +8,7 @@ namespace VoxelEngine.Showcase
         private void Update()
         {
             if (!Application.isPlaying) return;
-            VoxelRenderBridge.SunDirection = new Vector3(0.08f, 0.96f, -0.24f).normalized;
+            VoxelRenderBridge.SunDirection = new Vector3(-0.24f, 0.96f, -0.24f).normalized;
         }
     }
 }
