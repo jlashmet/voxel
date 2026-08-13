@@ -30,15 +30,16 @@ namespace VoxelEngine.Structures
         public const byte MasonryMedium = 19; // warm 40 cm dressed limestone
         public const byte MasonryLarge = 20;
 
-        // Terrain look-development materials. These deliberately continue the same voxel palette
-        // rather than introducing a second renderer/material system for environment art.
-        public const byte TerrainTurf = 21;
-        public const byte TerrainLimestone = 22;
-        public const byte TerrainEarth = 23;
-        public const byte TerrainPathStone = 24;
-        public const byte FlowerWhite = 25;
-        public const byte FlowerYellow = 26;
-        public const byte FlowerPink = 27;
-        public const byte FlowerBlue = 28;
+        // Terrain authoring names intentionally reuse compatible rows from the existing voxel
+        // presentation catalogue. Only the pale flower needs a new neutral row; everything else
+        // keeps the established texture arrays, surface response and production shader path.
+        public const byte TerrainTurf = Grass;
+        public const byte TerrainLimestone = MasonryMedium;
+        public const byte TerrainEarth = Dirt;
+        public const byte TerrainPathStone = MasonrySmall;
+        public const byte FlowerWhite = 21;
+        public const byte FlowerYellow = Gold;
+        public const byte FlowerPink = Cloth;
+        public const byte FlowerBlue = Cascade;
     }
 }
