@@ -1,6 +1,8 @@
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Rendering;
 using VoxelEngine.Structures;
 
 namespace VoxelEngine.Showcase
@@ -9,10 +11,9 @@ namespace VoxelEngine.Showcase
     {
         private bool _tonalOverlayApplied;
 
-        // Start runs after OnEnable/Rebuild has authored the world, but before the following test
-        // frames settle. That makes this a normal authoring pass rather than a renderer callback.
         private void Start()
         {
+            VoxelRenderBridge.SunDirection = new Vector3(-0.18f, 0.95f, -0.25f).normalized;
             ApplyTonalOverlay();
         }
 
@@ -25,9 +26,8 @@ namespace VoxelEngine.Showcase
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
             {
                 int top = HeightVoxel(x, z);
-                byte material = GroundToneMaterial(x, z);
-                byte coating = GroundToneCoating(x, z);
-                writer.SetStyled(x, top, z, material, SurfaceStyles.Smooth, coating);
+                writer.SetStyled(x, top, z, GroundToneMaterial(x, z),
+                    SurfaceStyles.Smooth, GroundToneCoating(x, z));
             }
 
             if (writer.BudgetExceeded)
@@ -43,32 +43,29 @@ namespace VoxelEngine.Showcase
 
         private static byte GroundToneMaterial(int x, int z)
         {
-            if (z < 35)
+            if (z < 45)
                 return Mat.Moss;
 
-            float depth = math.saturate((z - 75f) / 440f);
-            float warmField = 0.50f
-                            + 0.24f * math.sin(x * 0.045f + z * 0.016f)
-                            + 0.18f * math.sin(z * 0.031f - x * 0.019f + 1.1f);
-            float warmThreshold = math.lerp(0.18f, 0.54f, depth);
-            if (z > 110 && warmField < warmThreshold)
-                return Mat.Sand;
+            if (z > 125)
+            {
+                float depth = math.saturate((z - 125f) / 420f);
+                float warmChance = math.lerp(0.16f, 0.52f, depth);
+                if (Hash01(x, z) < warmChance)
+                    return Mat.Sand;
+            }
 
             return Mat.Grass;
         }
 
         private static byte GroundToneCoating(int x, int z)
         {
-            int path = PathCenterVoxel(z);
-            int fromPath = math.abs(x - path);
-
-            if (z < 5 && fromPath > 22)
+            int fromPath = math.abs(x - PathCenterVoxel(z));
+            if (z < 5 && fromPath > 18)
                 return Coatings.Moss;
-            if (z < 55 && fromPath > 38)
+            if (z < 55 && fromPath > 34)
                 return Coatings.Moss;
-            if (z < 105 && fromPath > 78)
+            if (z < 105 && fromPath > 82)
                 return Coatings.Moss;
-
             return Coatings.None;
         }
     }
