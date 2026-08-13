@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using NUnit.Framework;
+using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Core.Edits;
@@ -48,7 +49,6 @@ namespace VoxelEngine.Tests.EditMode
                 authoritativePositionVoxels: int3.zero,
                 reachVoxels: 64), Is.True);
 
-            // EPHEMERAL input uses connection-owned player 7.
             var input = new C_PlayerInput(
                 tick: 10,
                 sequence: 1,
@@ -58,8 +58,7 @@ namespace VoxelEngine.Tests.EditMode
                 toolMaterial: 0);
             Assert.That(client.TrySendPlayerInput(in input), Is.True);
 
-            // Durable edit inside authoritative reach.
-            var acceptedRequest = Request(10, 1, int3.zero, 0xDEADBEEF);
+            var acceptedRequest = Request(10, 1, new int3(32, 32, 32), 0xDEADBEEF);
             Assert.That(client.TrySendAlterationRequest(in acceptedRequest), Is.True);
             client.FlushSends();
 
@@ -71,54 +70,62 @@ namespace VoxelEngine.Tests.EditMode
                     client.Pump(clientHandler);
                 });
 
-            RegionTable table = default;
-            BrickPool pool = default;
+            var table = new RegionTable(1, Allocator.TempJob);
+            var pool = new BrickPool(4, Allocator.TempJob);
             ProtectedZones zones = default;
-            server.ProcessAuthoritativeTick(10, ref table, ref pool, in zones, inputSink, applier);
+            table.LoadRegion(int3.zero);
+            try
+            {
+                server.ProcessAuthoritativeTick(10, ref table, ref pool, in zones, inputSink, applier);
 
-            PumpUntil(
-                () => clientHandler.BatchCount == 1,
-                () =>
-                {
-                    client.Pump(clientHandler);
-                    server.PumpTransport();
-                });
+                PumpUntil(
+                    () => clientHandler.BatchCount == 1,
+                    () =>
+                    {
+                        client.Pump(clientHandler);
+                        server.PumpTransport();
+                    });
 
-            Assert.That(inputSink.Count, Is.EqualTo(1));
-            Assert.That(inputSink.LastPlayerId, Is.EqualTo(7));
-            Assert.That(clientHandler.LastEvent.playerId, Is.EqualTo(7));
-            Assert.That(clientHandler.LastEvent.tick, Is.EqualTo(10));
-            Assert.That(clientHandler.LastEvent.sequence, Is.EqualTo(1));
-            Assert.That(clientHandler.LastEvent.seed, Is.Not.EqualTo(acceptedRequest.seed));
+                Assert.That(inputSink.Count, Is.EqualTo(1));
+                Assert.That(inputSink.LastPlayerId, Is.EqualTo(7));
+                Assert.That(clientHandler.LastEvent.playerId, Is.EqualTo(7));
+                Assert.That(clientHandler.LastEvent.tick, Is.EqualTo(10));
+                Assert.That(clientHandler.LastEvent.sequence, Is.EqualTo(1));
+                Assert.That(clientHandler.LastEvent.seed, Is.Not.EqualTo(acceptedRequest.seed));
 
-            // Same authenticated player now attempts an edit outside server-owned reach.
-            var rejectedRequest = Request(11, 2, new int3(1000, 0, 0), 123);
-            Assert.That(client.TrySendAlterationRequest(in rejectedRequest), Is.True);
-            client.FlushSends();
+                var rejectedRequest = Request(11, 2, new int3(1000, 0, 0), 123);
+                Assert.That(client.TrySendAlterationRequest(in rejectedRequest), Is.True);
+                client.FlushSends();
 
-            PumpUntil(
-                () => server.CommandInbox.PendingAlterations > 0,
-                () =>
-                {
-                    server.PumpTransport();
-                    client.Pump(clientHandler);
-                });
+                PumpUntil(
+                    () => server.CommandInbox.PendingAlterations > 0,
+                    () =>
+                    {
+                        server.PumpTransport();
+                        client.Pump(clientHandler);
+                    });
 
-            server.ProcessAuthoritativeTick(11, ref table, ref pool, in zones, inputSink, applier);
+                server.ProcessAuthoritativeTick(11, ref table, ref pool, in zones, inputSink, applier);
 
-            PumpUntil(
-                () => clientHandler.RejectionCount == 1,
-                () =>
-                {
-                    client.Pump(clientHandler);
-                    server.PumpTransport();
-                });
+                PumpUntil(
+                    () => clientHandler.RejectionCount == 1,
+                    () =>
+                    {
+                        client.Pump(clientHandler);
+                        server.PumpTransport();
+                    });
 
-            Assert.That(clientHandler.LastRejection.playerId, Is.EqualTo(7));
-            Assert.That(clientHandler.LastRejection.tick, Is.EqualTo(11));
-            Assert.That(clientHandler.LastRejection.ReasonEnum(),
-                Is.EqualTo(S_AlterationRejected.Reason.OutOfReach));
-            Assert.That(applier.Count, Is.EqualTo(1));
+                Assert.That(clientHandler.LastRejection.playerId, Is.EqualTo(7));
+                Assert.That(clientHandler.LastRejection.tick, Is.EqualTo(11));
+                Assert.That(clientHandler.LastRejection.ReasonEnum(),
+                    Is.EqualTo(S_AlterationRejected.Reason.OutOfReach));
+                Assert.That(applier.Count, Is.EqualTo(1));
+            }
+            finally
+            {
+                table.Dispose();
+                pool.Dispose();
+            }
         }
 
         private static C_AlterationRequest Request(uint tick, ushort sequence, int3 origin, uint requestedSeed) =>
@@ -140,7 +147,6 @@ namespace VoxelEngine.Tests.EditMode
                 pump();
                 Thread.Sleep(1);
             }
-
             Assert.That(condition(), Is.True, "Authoritative UTP loopback condition was not reached.");
         }
 
@@ -148,7 +154,6 @@ namespace VoxelEngine.Tests.EditMode
         {
             public int Count { get; private set; }
             public ushort LastPlayerId { get; private set; }
-
             public void ApplyInput(ushort playerId, in C_PlayerInput input, uint serverTick)
             {
                 Count++;
@@ -159,7 +164,6 @@ namespace VoxelEngine.Tests.EditMode
         private sealed class AcceptingApplier : IAuthoritativeAlterationApplier
         {
             public int Count { get; private set; }
-
             public bool TryApplyAlteration(ref RegionTable table, ref BrickPool pool, in AlterationEvent evt)
             {
                 Count++;
@@ -178,15 +182,12 @@ namespace VoxelEngine.Tests.EditMode
             {
                 if (channel != UtpChannel.Event ||
                     !ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out int payloadOffset))
-                {
                     return false;
-                }
 
                 if (kind == ProtocolMessageKind.S_AlterationRejected)
                 {
                     if (!AlterationRejectedPacket.TryDecode(packet, out S_AlterationRejected rejection))
                         return false;
-
                     LastRejection = rejection;
                     RejectionCount++;
                     return true;
@@ -198,9 +199,7 @@ namespace VoxelEngine.Tests.EditMode
                 ReadOnlySpan<byte> payload = packet.Slice(payloadOffset);
                 if (!S_AlterationEventBatch.TryDecodeHeader(payload, out var batch) ||
                     !S_AlterationEventBatch.TryDecodeEvent(payload, in batch, 0, out AlterationEvent evt))
-                {
                     return false;
-                }
 
                 LastEvent = evt;
                 BatchCount++;
