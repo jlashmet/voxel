@@ -109,10 +109,10 @@ namespace VoxelEngine.Showcase
         {
             Camera camera = SceneCamera;
             camera.backgroundColor = new Color(0.74f, 0.75f, 0.44f, 1f);
-            camera.fieldOfView = 26f;
+            camera.fieldOfView = 28f;
             camera.farClipPlane = 160f;
-            camera.transform.position = new Vector3(-0.30f, 16.0f, -17.0f);
-            camera.transform.LookAt(new Vector3(0.15f, 4.2f, 25.0f));
+            camera.transform.position = new Vector3(-0.60f, 23.0f, -20.0f);
+            camera.transform.LookAt(new Vector3(0.10f, 2.0f, 12.0f));
 
             VoxelRenderBridge.SurfaceDebugTint = Color.white;
             VoxelRenderBridge.SunDirection = new Vector3(-0.43f, 0.87f, -0.24f).normalized;
