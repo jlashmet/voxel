@@ -52,7 +52,7 @@ namespace VoxelEngine.Showcase
         private void ApplyTonalOverlay()
         {
             if (!_built || _tonalOverlayApplied) return;
-            var writer = new VoxelBrush(_table, _pool, in _palette, 1_500_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 2_000_000);
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
             {
@@ -60,6 +60,7 @@ namespace VoxelEngine.Showcase
                 writer.SetStyled(x, top, z, GroundToneMaterial(x, z), SurfaceStyles.Smooth,
                     GroundToneCoating(x, z));
             }
+            AddTerraceBands(ref writer);
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain tonal overlay exceeded voxel authoring budget.");
             _table = writer.Table;
