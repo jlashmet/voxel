@@ -1,28 +1,28 @@
 using System;
+using MountingForce.WorldGen.Content.Kentridge;
 
-namespace MountingForce.WorldGen.Content.Kentridge
+namespace MountingForce.WorldGen.Architecture
 {
-    public enum KentridgeBuildingMode : byte { Generated, Bespoke }
-    public enum KentridgeFootprintForm : byte { Rectangle, RearWing, SideWing, SteppedUpper }
-    public enum KentridgeRoofForm : byte { Gable, SteepGable, TwinGable, GableWithLeanTo }
-    public enum KentridgeFrontageRhythm : byte { TwoBay, ThreeBay, Asymmetric }
-    public enum KentridgeWindowStyle : byte { Glass, Warm, Open }
+    public enum StructureGenerationMode : byte { Generated, Bespoke }
+    public enum FootprintForm : byte { Rectangle, RearWing, SideWing, SteppedUpper }
+    public enum RoofForm : byte { Gable, SteepGable, TwinGable, GableWithLeanTo }
+    public enum FrontageRhythm : byte { TwoBay, ThreeBay, Asymmetric }
+    public enum WindowTreatment : byte { Glass, Warm, Open }
 
     /// <summary>
-    /// Architectural detail compiled from Kentridge's high-level BuildingPlot intent. The settlement
-    /// layer owns role, district, placement, frontage, and archetype; this lower layer owns the
-    /// footprint variation, facade rhythm, roof, windows, wings, and other local architectural detail.
+    /// Detailed, renderer-independent result produced by the architectural generation layer.
+    /// Settlement planning never authors this type directly.
     /// </summary>
-    public readonly struct KentridgeBuildingForm
+    public readonly struct StructureForm
     {
         public readonly int RoleId;
         public readonly StructureArchetype Archetype;
         public readonly DistrictKind District;
-        public readonly KentridgeBuildingMode Mode;
-        public readonly KentridgeFootprintForm Footprint;
-        public readonly KentridgeRoofForm Roof;
-        public readonly KentridgeFrontageRhythm FrontageRhythm;
-        public readonly KentridgeWindowStyle WindowStyle;
+        public readonly StructureGenerationMode Mode;
+        public readonly FootprintForm Footprint;
+        public readonly RoofForm Roof;
+        public readonly FrontageRhythm FrontageRhythm;
+        public readonly WindowTreatment WindowTreatment;
         public readonly int WidthDm;
         public readonly int DepthDm;
         public readonly int Storeys;
@@ -34,13 +34,13 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public readonly bool WingOnRight;
         public readonly bool ChimneyOnRight;
 
-        public KentridgeBuildingForm(
+        public StructureForm(
             int roleId, StructureArchetype archetype, DistrictKind district,
-            KentridgeBuildingMode mode, KentridgeFootprintForm footprint,
-            KentridgeRoofForm roof, KentridgeFrontageRhythm frontageRhythm,
-            KentridgeWindowStyle windowStyle, int widthDm, int depthDm, int storeys,
-            int doorOffsetDm, int upperOverhangDm, int roofHeightDm,
-            int wingWidthDm, int wingDepthDm, bool wingOnRight, bool chimneyOnRight)
+            StructureGenerationMode mode, FootprintForm footprint, RoofForm roof,
+            FrontageRhythm frontageRhythm, WindowTreatment windowTreatment,
+            int widthDm, int depthDm, int storeys, int doorOffsetDm,
+            int upperOverhangDm, int roofHeightDm, int wingWidthDm, int wingDepthDm,
+            bool wingOnRight, bool chimneyOnRight)
         {
             RoleId = roleId;
             Archetype = archetype;
@@ -49,7 +49,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
             Footprint = footprint;
             Roof = roof;
             FrontageRhythm = frontageRhythm;
-            WindowStyle = windowStyle;
+            WindowTreatment = windowTreatment;
             WidthDm = widthDm;
             DepthDm = depthDm;
             Storeys = storeys;
@@ -62,103 +62,153 @@ namespace MountingForce.WorldGen.Content.Kentridge
             ChimneyOnRight = chimneyOnRight;
         }
 
-        public bool IsGenerated => Mode == KentridgeBuildingMode.Generated;
+        public bool IsGenerated => Mode == StructureGenerationMode.Generated;
         public bool IsShop => Archetype == StructureArchetype.Shop;
         public bool IsHospitality => Archetype == StructureArchetype.Inn;
     }
 
     /// <summary>
-    /// Lower-level deterministic architecture compiler for Kentridge structure intent. This is kept
-    /// in MountingForce.WorldGen.Architecture so the settlement/content assembly cannot depend on it.
+    /// Public handoff from high-level settlement intent to lower-level architectural detail.
+    /// The settlement chooses a style; style-specific compilers remain private to this assembly.
     /// </summary>
-    public static class KentridgeBuildingGrammar
+    public static class ArchitectureCompiler
     {
-        public static KentridgeBuildingForm Resolve(BuildingPlot plot, uint seed)
+        public static StructureForm Resolve(StructureIntent intent, ArchitectureTheme theme, uint seed)
         {
-            KentridgeRole role = (KentridgeRole)plot.RoleId;
+            if (intent.StyleId == KentridgeDefinition.Id)
+                return KentridgeStructureCompiler.Resolve(intent, theme, seed);
+
+            throw new ArgumentException(
+                "No architecture compiler is registered for style '" + intent.StyleId + "'.",
+                nameof(intent));
+        }
+
+        public static void ValidateGenerated(
+            StructureIntent intent, ArchitectureTheme theme, StructureForm form)
+        {
+            if (!form.IsGenerated) return;
+
+            if (form.RoleId != intent.RoleId
+                || form.Archetype != intent.Archetype
+                || form.District != intent.District)
+                throw new InvalidOperationException(
+                    "Architecture compiler changed high-level structure identity.");
+
+            if (form.Storeys < 1)
+                throw new InvalidOperationException(
+                    "Generated architecture must contain at least one storey.");
+            if (form.WidthDm <= 0 || form.DepthDm <= 0 || form.RoofHeightDm <= 0)
+                throw new InvalidOperationException(
+                    "Generated architecture contains non-positive dimensions.");
+
+            int lateralExtent = form.WidthDm
+                              + 2 * form.UpperOverhangDm
+                              + 2 * theme.RoofOverhangDm;
+            int depthExtent = form.DepthDm
+                            + form.UpperOverhangDm
+                            + 2 * theme.RoofOverhangDm;
+            if (lateralExtent > intent.EnvelopeDm.X - 12
+                || depthExtent > intent.EnvelopeDm.Z - 12)
+                throw new InvalidOperationException(
+                    "Generated architecture escaped its high-level structure envelope.");
+
+            if (form.Footprint == FootprintForm.RearWing && form.WingDepthDm <= 0)
+                throw new InvalidOperationException("Rear-wing form is missing its wing.");
+            if (form.Footprint == FootprintForm.SideWing && form.WingWidthDm <= 0)
+                throw new InvalidOperationException("Side-wing form is missing its wing.");
+        }
+    }
+
+    /// <summary>Kentridge style implementation hidden behind ArchitectureCompiler.</summary>
+    internal static class KentridgeStructureCompiler
+    {
+        public static StructureForm Resolve(
+            StructureIntent intent, ArchitectureTheme theme, uint seed)
+        {
+            KentridgeRole role = (KentridgeRole)intent.RoleId;
             switch (role)
             {
                 case KentridgeRole.Inn:
-                    return Generated(plot, KentridgeFootprintForm.RearWing,
-                        KentridgeRoofForm.TwinGable, KentridgeFrontageRhythm.ThreeBay,
-                        KentridgeWindowStyle.Warm, 132, 104, 3, 0, 4, 30,
+                    return Generated(intent, theme, FootprintForm.RearWing,
+                        RoofForm.TwinGable, FrontageRhythm.ThreeBay,
+                        WindowTreatment.Warm, 132, 104, 3, 0, 4, 30,
                         40, 36, true, true);
                 case KentridgeRole.Pub:
-                    return Generated(plot, KentridgeFootprintForm.SideWing,
-                        KentridgeRoofForm.GableWithLeanTo, KentridgeFrontageRhythm.Asymmetric,
-                        KentridgeWindowStyle.Warm, 112, 92, 2, -12, 2, 24,
+                    return Generated(intent, theme, FootprintForm.SideWing,
+                        RoofForm.GableWithLeanTo, FrontageRhythm.Asymmetric,
+                        WindowTreatment.Warm, 112, 92, 2, -12, 2, 24,
                         28, 42, false, false);
                 case KentridgeRole.WeaponShop:
-                    return Generated(plot, KentridgeFootprintForm.RearWing,
-                        KentridgeRoofForm.GableWithLeanTo, KentridgeFrontageRhythm.ThreeBay,
-                        KentridgeWindowStyle.Glass, 94, 70, 2, -10, 0, 20,
+                    return Generated(intent, theme, FootprintForm.RearWing,
+                        RoofForm.GableWithLeanTo, FrontageRhythm.ThreeBay,
+                        WindowTreatment.Glass, 94, 70, 2, -10, 0, 20,
                         30, 26, false, true);
                 case KentridgeRole.ArmorShop:
-                    return Generated(plot, KentridgeFootprintForm.SideWing,
-                        KentridgeRoofForm.TwinGable, KentridgeFrontageRhythm.TwoBay,
-                        KentridgeWindowStyle.Glass, 84, 72, 2, 10, 2, 24,
+                    return Generated(intent, theme, FootprintForm.SideWing,
+                        RoofForm.TwinGable, FrontageRhythm.TwoBay,
+                        WindowTreatment.Glass, 84, 72, 2, 10, 2, 24,
                         22, 32, true, false);
                 case KentridgeRole.MagicShop:
-                    return Generated(plot, KentridgeFootprintForm.SteppedUpper,
-                        KentridgeRoofForm.SteepGable, KentridgeFrontageRhythm.Asymmetric,
-                        KentridgeWindowStyle.Warm, 72, 68, 3, -8, 5, 32,
+                    return Generated(intent, theme, FootprintForm.SteppedUpper,
+                        RoofForm.SteepGable, FrontageRhythm.Asymmetric,
+                        WindowTreatment.Warm, 72, 68, 3, -8, 5, 32,
                         0, 0, false, true);
                 case KentridgeRole.MayorHouse:
-                    return Generated(plot, KentridgeFootprintForm.RearWing,
-                        KentridgeRoofForm.TwinGable, KentridgeFrontageRhythm.ThreeBay,
-                        KentridgeWindowStyle.Warm, 90, 78, 3, 0, 4, 30,
+                    return Generated(intent, theme, FootprintForm.RearWing,
+                        RoofForm.TwinGable, FrontageRhythm.ThreeBay,
+                        WindowTreatment.Warm, 90, 78, 3, 0, 4, 30,
                         28, 28, true, false);
                 case KentridgeRole.AbandonedHouse:
-                    return Generated(plot, KentridgeFootprintForm.SideWing,
-                        KentridgeRoofForm.GableWithLeanTo, KentridgeFrontageRhythm.Asymmetric,
-                        KentridgeWindowStyle.Open, 66, 66, 2, -10, 0, 20,
+                    return Generated(intent, theme, FootprintForm.SideWing,
+                        RoofForm.GableWithLeanTo, FrontageRhythm.Asymmetric,
+                        WindowTreatment.Open, 66, 66, 2, -10, 0, 20,
                         18, 28, false, false);
             }
 
-            if (!UsesGeneratedHouseGrammar(plot.Archetype))
-                return Bespoke(plot);
+            if (!UsesGeneratedHouseGrammar(intent.Archetype))
+                return Bespoke(intent);
 
-            uint h = Hash(seed, plot.RoleId, (int)plot.Archetype, (int)plot.District);
-            bool wide = plot.Archetype == StructureArchetype.WideHouse;
+            uint h = Hash(seed, intent.RoleId, (int)intent.Archetype, (int)intent.District);
+            bool wide = intent.Archetype == StructureArchetype.WideHouse;
             int width = wide ? 84 + (int)(h % 13u) : 66 + (int)(h % 11u);
             int depth = wide ? 74 + (int)((h >> 5) % 13u) : 64 + (int)((h >> 5) % 11u);
-            KentridgeFootprintForm footprint = (KentridgeFootprintForm)((h >> 9) % 4u);
-            KentridgeRoofForm roof = (KentridgeRoofForm)((h >> 12) % 4u);
-            KentridgeFrontageRhythm rhythm = (KentridgeFrontageRhythm)((h >> 15) % 3u);
+            FootprintForm footprint = (FootprintForm)((h >> 9) % 4u);
+            RoofForm roof = (RoofForm)((h >> 12) % 4u);
+            FrontageRhythm rhythm = (FrontageRhythm)((h >> 15) % 3u);
 
             int storeys = 2;
-            if ((plot.District == DistrictKind.Civic || plot.District == DistrictKind.Market)
+            if ((intent.District == DistrictKind.Civic || intent.District == DistrictKind.Market)
                 && ((h >> 18) & 1u) != 0)
                 storeys = 3;
 
             int overhang = storeys > 1 ? (int)((h >> 20) % 3u) * 2 : 0;
-            if (footprint == KentridgeFootprintForm.SteppedUpper)
+            if (footprint == FootprintForm.SteppedUpper)
                 overhang = Math.Max(overhang, 4);
 
             int wingWidth = 0;
             int wingDepth = 0;
-            if (footprint == KentridgeFootprintForm.RearWing)
+            if (footprint == FootprintForm.RearWing)
             {
                 wingWidth = wide ? 26 : 22;
                 wingDepth = wide ? 28 : 24;
             }
-            else if (footprint == KentridgeFootprintForm.SideWing)
+            else if (footprint == FootprintForm.SideWing)
             {
                 wingWidth = wide ? 22 : 18;
                 wingDepth = wide ? 34 : 28;
             }
 
-            int roofHeight = roof == KentridgeRoofForm.SteepGable
+            int roofHeight = roof == RoofForm.SteepGable
                 ? 30
                 : 21 + (int)((h >> 23) % 6u);
             int doorOffset = ((int)((h >> 26) % 3u) - 1) * 8;
 
-            return Generated(plot, footprint, roof, rhythm, KentridgeWindowStyle.Glass,
+            return Generated(intent, theme, footprint, roof, rhythm, WindowTreatment.Glass,
                 width, depth, storeys, doorOffset, overhang, roofHeight,
                 wingWidth, wingDepth, ((h >> 28) & 1u) != 0, ((h >> 29) & 1u) != 0);
         }
 
-        public static bool UsesGeneratedHouseGrammar(StructureArchetype archetype)
+        private static bool UsesGeneratedHouseGrammar(StructureArchetype archetype)
         {
             return archetype == StructureArchetype.Townhouse
                 || archetype == StructureArchetype.WideHouse
@@ -166,56 +216,27 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 || archetype == StructureArchetype.Inn;
         }
 
-        public static void ValidateGenerated(KentridgeBuildingForm form)
-        {
-            if (!form.IsGenerated) return;
-            if (!UsesGeneratedHouseGrammar(form.Archetype))
-                throw new InvalidOperationException(
-                    "Generated Kentridge form uses unsupported archetype: " + form.Archetype);
-            if (form.Storeys < 2 || form.Storeys > 3)
-                throw new InvalidOperationException(
-                    "Generated Kentridge form has invalid storey count for role " + form.RoleId);
-            if (form.WidthDm <= 0 || form.DepthDm <= 0 || form.RoofHeightDm <= 0)
-                throw new InvalidOperationException(
-                    "Generated Kentridge form has invalid dimensions for role " + form.RoleId);
-
-            Int3 envelope = KentridgeDefinition.FootprintDm(form.Archetype);
-            ArchitectureTheme theme = KentridgeDefinition.Theme;
-            int lateralExtent = form.WidthDm
-                              + 2 * form.UpperOverhangDm
-                              + 2 * theme.RoofOverhangDm;
-            int depthExtent = form.DepthDm
-                            + form.UpperOverhangDm
-                            + 2 * theme.RoofOverhangDm;
-            if (lateralExtent > envelope.X - 12 || depthExtent > envelope.Z - 12)
-                throw new InvalidOperationException(
-                    "Generated Kentridge form exceeds its stable plot envelope for role " + form.RoleId);
-            if (form.Footprint == KentridgeFootprintForm.RearWing && form.WingDepthDm <= 0)
-                throw new InvalidOperationException("Rear-wing form is missing its wing.");
-            if (form.Footprint == KentridgeFootprintForm.SideWing && form.WingWidthDm <= 0)
-                throw new InvalidOperationException("Side-wing form is missing its wing.");
-        }
-
-        private static KentridgeBuildingForm Generated(
-            BuildingPlot plot, KentridgeFootprintForm footprint, KentridgeRoofForm roof,
-            KentridgeFrontageRhythm rhythm, KentridgeWindowStyle windows,
+        private static StructureForm Generated(
+            StructureIntent intent, ArchitectureTheme theme,
+            FootprintForm footprint, RoofForm roof,
+            FrontageRhythm rhythm, WindowTreatment windows,
             int width, int depth, int storeys, int doorOffset, int overhang,
             int roofHeight, int wingWidth, int wingDepth, bool wingRight, bool chimneyRight)
         {
-            var form = new KentridgeBuildingForm(
-                plot.RoleId, plot.Archetype, plot.District, KentridgeBuildingMode.Generated,
+            var form = new StructureForm(
+                intent.RoleId, intent.Archetype, intent.District, StructureGenerationMode.Generated,
                 footprint, roof, rhythm, windows, width, depth, storeys, doorOffset,
                 overhang, roofHeight, wingWidth, wingDepth, wingRight, chimneyRight);
-            ValidateGenerated(form);
+            ArchitectureCompiler.ValidateGenerated(intent, theme, form);
             return form;
         }
 
-        private static KentridgeBuildingForm Bespoke(BuildingPlot plot)
+        private static StructureForm Bespoke(StructureIntent intent)
         {
-            return new KentridgeBuildingForm(
-                plot.RoleId, plot.Archetype, plot.District, KentridgeBuildingMode.Bespoke,
-                KentridgeFootprintForm.Rectangle, KentridgeRoofForm.Gable,
-                KentridgeFrontageRhythm.TwoBay, KentridgeWindowStyle.Glass,
+            return new StructureForm(
+                intent.RoleId, intent.Archetype, intent.District, StructureGenerationMode.Bespoke,
+                FootprintForm.Rectangle, RoofForm.Gable,
+                FrontageRhythm.TwoBay, WindowTreatment.Glass,
                 0, 0, 0, 0, 0, 0, 0, 0, false, false);
         }
 
