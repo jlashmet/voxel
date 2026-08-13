@@ -103,6 +103,7 @@ namespace VoxelEngine.Showcase
         {
             BuildValley(ref writer);
             BuildPath(ref writer);
+            BuildRockFields(ref writer);
         }
 
         private static void BuildValley(ref VoxelBrush writer)
@@ -138,6 +139,78 @@ namespace VoxelEngine.Showcase
                         SurfaceStyles.Rounded, false);
                 }
                 z += rng.NextInt(6, 10) + (int)math.round(progress * 3f);
+            }
+        }
+
+        private static void BuildRockFields(ref VoxelBrush writer)
+        {
+            var rng = new Unity.Mathematics.Random(Seed);
+            for (int shelf = 0; shelf < 40; shelf++)
+            {
+                int z = rng.NextInt(-35, 405);
+                int side = rng.NextInt(0, 2) == 0 ? -1 : 1;
+                int centreX = side * rng.NextInt(48, 116);
+                int count = rng.NextInt(3, 8);
+                int stride = rng.NextInt(5, 9);
+                for (int i = 0; i < count; i++)
+                {
+                    int x = centreX + (i - count / 2) * stride + rng.NextInt(-2, 3);
+                    int zz = z + rng.NextInt(-3, 4);
+                    int hx = rng.NextInt(3, 7);
+                    int hy = rng.NextInt(2, 5);
+                    int hz = rng.NextInt(3, 7);
+                    int y = HeightVoxel(x, zz) + hy - rng.NextInt(1, 3);
+                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                        math.min(2, math.min(hx, hz)), Mat.TerrainLimestone,
+                        SurfaceStyles.Rounded, rng.NextFloat() < 0.58f);
+                }
+            }
+
+            for (int i = 0; i < 145; i++)
+            {
+                int z = rng.NextInt(-45, 410);
+                int x = rng.NextInt(TerrainXMin + 7, TerrainXMax - 7);
+                int path = PathCenterVoxel(z);
+                int keepClear = z < 90 ? 15 : 8;
+                if (math.abs(x - path) < keepClear)
+                    x += x < path ? -keepClear : keepClear;
+                int hx = rng.NextInt(2, 6);
+                int hy = rng.NextInt(2, 5);
+                int hz = rng.NextInt(2, 6);
+                if (z < 25 && rng.NextFloat() < 0.45f)
+                {
+                    hx += 2;
+                    hy += 1;
+                    hz += 2;
+                }
+                int y = HeightVoxel(x, z) + hy - rng.NextInt(1, 3);
+                StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
+                    math.min(2, math.min(hx, hz)), Mat.TerrainLimestone,
+                    SurfaceStyles.Rounded, rng.NextFloat() < 0.30f);
+            }
+
+            BuildForegroundOutcrop(ref writer, new int3(-88, 0, -34), 10, ref rng);
+            BuildForegroundOutcrop(ref writer, new int3(82, 0, -12), 10, ref rng);
+            BuildForegroundOutcrop(ref writer, new int3(72, 0, 58), 8, ref rng);
+        }
+
+        private static void BuildForegroundOutcrop(ref VoxelBrush writer, int3 centre, int scale,
+            ref Unity.Mathematics.Random rng)
+        {
+            for (int layer = 0; layer < 3; layer++)
+            {
+                int count = 6 - layer;
+                for (int i = 0; i < count; i++)
+                {
+                    int x = centre.x + (i - count / 2) * (scale - 2) + rng.NextInt(-2, 3);
+                    int z = centre.z + layer * 5 + rng.NextInt(-2, 3);
+                    int hx = rng.NextInt(3, scale / 2 + 2);
+                    int hy = rng.NextInt(3, 6);
+                    int hz = rng.NextInt(3, scale / 2 + 2);
+                    int y = HeightVoxel(x, z) + layer * 4 + hy - 2;
+                    StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
+                        2, Mat.TerrainLimestone, SurfaceStyles.Rounded, rng.NextFloat() < 0.72f);
+                }
             }
         }
 
