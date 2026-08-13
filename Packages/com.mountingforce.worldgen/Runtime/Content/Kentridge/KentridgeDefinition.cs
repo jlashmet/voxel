@@ -33,6 +33,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
     public static class KentridgeDefinition
     {
         public const string Id = "kentridge";
+        public const int AnonymousFabricEnvelopeDm = 72;
         public static readonly Int2 TownCentreDm = new Int2(1170, 520);
 
         public static ArchitectureTheme Theme => new ArchitectureTheme(
@@ -64,6 +65,21 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public static StructureIntent StructureIntent(BuildingPlot plot)
         {
             return new StructureIntent(plot, Id, FootprintDm(plot.Archetype));
+        }
+
+        /// <summary>
+        /// Anonymous frontage handoff. The band is carried only as a deterministic variation context;
+        /// it does not prescribe any roof, window, facade, awning, annex, or chimney choice.
+        /// </summary>
+        public static UrbanFabricIntent UrbanFabricIntent(KentridgeFrontageRun run)
+        {
+            return new UrbanFabricIntent(
+                Id,
+                run.District,
+                run.MinStoreys,
+                run.MaxStoreys,
+                AnonymousFabricEnvelopeDm,
+                (int)run.Band);
         }
 
         /// <summary>Maximum authored structure envelope for an archetype, in decimetres.</summary>
