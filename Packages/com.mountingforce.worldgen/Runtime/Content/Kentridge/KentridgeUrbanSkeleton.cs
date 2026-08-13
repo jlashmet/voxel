@@ -17,6 +17,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
         WestMarketLanding = 9,
         WestMarketJunction = 10,
         WestUpperLanding = 11,
+        EastResidentialJunction = 12,
     }
 
     public enum KentridgeUrbanNodeKind : byte
@@ -101,7 +102,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public static KentridgeUrbanSkeletonPlan Build(uint seed)
         {
             _ = seed;
-            var nodes = new List<KentridgeUrbanNode>(12)
+            var nodes = new List<KentridgeUrbanNode>(13)
             {
                 new KentridgeUrbanNode(KentridgeUrbanNodeId.SouthApproach, KentridgeUrbanNodeKind.Arrival, KentridgeUrbanBand.LowerWard, DistrictKind.Residential, new Int2(KentridgeTownPlanner.MainSpineXDm, 1030), new Int2(55, 35), 1),
                 new KentridgeUrbanNode(KentridgeUrbanNodeId.ResidentialJunction, KentridgeUrbanNodeKind.Junction, KentridgeUrbanBand.LowerWard, DistrictKind.Residential, new Int2(KentridgeTownPlanner.MainSpineXDm, KentridgeTownPlanner.ResidentialStreetZDm), new Int2(45, 32), 2),
@@ -115,9 +116,10 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 new KentridgeUrbanNode(KentridgeUrbanNodeId.WestMarketLanding, KentridgeUrbanNodeKind.Landing, KentridgeUrbanBand.MarketBelt, DistrictKind.Market, new Int2(KentridgeUrbanCirculation.LowerWestStairXDm, KentridgeUrbanCirculation.LowerWestStairNorthZDm), new Int2(20, 18), 2),
                 new KentridgeUrbanNode(KentridgeUrbanNodeId.WestMarketJunction, KentridgeUrbanNodeKind.Junction, KentridgeUrbanBand.MarketBelt, DistrictKind.Market, new Int2(KentridgeUrbanCirculation.WestUpperStairXDm, KentridgeTownPlanner.MarketStreetZDm), new Int2(22, 18), 2),
                 new KentridgeUrbanNode(KentridgeUrbanNodeId.WestUpperLanding, KentridgeUrbanNodeKind.Landing, KentridgeUrbanBand.UpperWard, DistrictKind.Market, new Int2(KentridgeUrbanCirculation.WestUpperStairXDm, KentridgeUrbanCirculation.UpperContourZDm), new Int2(24, 18), 2),
+                new KentridgeUrbanNode(KentridgeUrbanNodeId.EastResidentialJunction, KentridgeUrbanNodeKind.Junction, KentridgeUrbanBand.LowerWard, DistrictKind.Residential, new Int2(KentridgeTownPlanner.EastLaneXDm, KentridgeTownPlanner.ResidentialStreetZDm), new Int2(38, 28), 2),
             };
 
-            var links = new List<KentridgeUrbanLink>(14)
+            var links = new List<KentridgeUrbanLink>(16)
             {
                 new KentridgeUrbanLink("approach-to-residential", KentridgeUrbanNodeId.SouthApproach, KentridgeUrbanNodeId.ResidentialJunction, KentridgeUrbanLinkKind.PrimaryStreet),
                 new KentridgeUrbanLink("residential-to-market", KentridgeUrbanNodeId.ResidentialJunction, KentridgeUrbanNodeId.MarketSquare, KentridgeUrbanLinkKind.PrimaryStreet),
@@ -133,6 +135,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 new KentridgeUrbanLink("market-to-west-market-junction", KentridgeUrbanNodeId.MarketSquare, KentridgeUrbanNodeId.WestMarketJunction, KentridgeUrbanLinkKind.PrimaryStreet),
                 new KentridgeUrbanLink("west-market-junction-to-upper-stair", KentridgeUrbanNodeId.WestMarketJunction, KentridgeUrbanNodeId.WestUpperLanding, KentridgeUrbanLinkKind.SecondaryStair),
                 new KentridgeUrbanLink("west-upper-to-upper-landing", KentridgeUrbanNodeId.WestUpperLanding, KentridgeUrbanNodeId.UpperLanding, KentridgeUrbanLinkKind.SecondaryContour),
+                new KentridgeUrbanLink("residential-to-east-residential", KentridgeUrbanNodeId.ResidentialJunction, KentridgeUrbanNodeId.EastResidentialJunction, KentridgeUrbanLinkKind.PrimaryStreet),
+                new KentridgeUrbanLink("east-residential-to-working", KentridgeUrbanNodeId.EastResidentialJunction, KentridgeUrbanNodeId.WorkingYard, KentridgeUrbanLinkKind.PrimaryStreet),
             };
 
             Validate(nodes, links);
