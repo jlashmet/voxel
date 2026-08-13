@@ -10,23 +10,24 @@ namespace VoxelEngine.Showcase
             Camera camera = SceneCamera;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.72f, 0.73f, 0.43f, 1f);
-            camera.fieldOfView = 31.5f;
+            camera.fieldOfView = 28f;
             camera.nearClipPlane = 0.08f;
             camera.farClipPlane = 120f;
             camera.allowHDR = false;
             camera.allowMSAA = true;
 
-            // The reference is a terrain-filled portrait composition with no visible horizon.
-            // Pitch the production camera down far enough that even its upper ray lands on the
-            // authored valley, while retaining enough perspective for large foreground stones.
-            camera.transform.position = new Vector3(-0.8f, 20.5f, -16.5f);
-            camera.transform.LookAt(new Vector3(0.2f, 1.8f, 6.0f));
+            // The reference is a terrain-filled portrait composition with a long valley view and
+            // no sky. Keep the upper camera ray on the far terrain while preserving foreground
+            // perspective and a deeper midground than the first lookdev framing.
+            camera.transform.position = new Vector3(-0.6f, 23.0f, -20.0f);
+            camera.transform.LookAt(new Vector3(0.1f, 2.0f, 12.0f));
 
-            // Warm, high-key daylight is a major part of the reference's yellow-green palette.
-            VoxelRenderBridge.SurfaceDebugTint = new Color(1.05f, 1.02f, 0.88f, 1f);
+            // Keep the production material colours intact. The earlier non-white debug tint
+            // exaggerated channels into a neon false-colour look and is not presentation lighting.
+            VoxelRenderBridge.SurfaceDebugTint = Color.white;
             VoxelRenderBridge.SunDirection = new Vector3(-0.58f, 0.74f, -0.34f).normalized;
-            VoxelRenderBridge.SkyHorizon = new Color(0.79f, 0.80f, 0.51f, 1f);
-            VoxelRenderBridge.SkyZenith = new Color(0.70f, 0.75f, 0.44f, 1f);
+            VoxelRenderBridge.SkyHorizon = new Color(0.78f, 0.77f, 0.47f, 1f);
+            VoxelRenderBridge.SkyZenith = new Color(0.68f, 0.72f, 0.42f, 1f);
         }
     }
 }
