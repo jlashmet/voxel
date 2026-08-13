@@ -12,14 +12,50 @@ namespace VoxelEngine.Rendering.Vegetation
     /// </summary>
     public static class ProceduralTreeMeshBuilder
     {
+        // Dynamic tree damage used to allocate these large temporary lists for every generated LOD
+        // and every detached limb. The renderer is main-thread only, so one prewarmed scratch set can
+        // be safely reused sequentially and keeps destruction from creating multi-megabyte GC bursts.
+        private sealed class MeshScratch
+        {
+            public readonly List<Vector3> Vertices = new(8192);
+            public readonly List<Vector3> Normals = new(8192);
+            public readonly List<Color> Colours = new(8192);
+            public readonly List<Vector2> Uv0 = new(8192);
+            public readonly List<Vector2> Uv1 = new(8192);
+            public readonly List<int> BarkIndices = new(12288);
+            public readonly List<int> LeafIndices = new(12288);
+
+            public void Clear()
+            {
+                Vertices.Clear();
+                Normals.Clear();
+                Colours.Clear();
+                Uv0.Clear();
+                Uv1.Clear();
+                BarkIndices.Clear();
+                LeafIndices.Clear();
+            }
+        }
+
+        private static readonly MeshScratch s_Scratch = new();
+
         public static Mesh BuildMesh(ProceduralTreeSkeleton skeleton, int lod,
                                      HashSet<int> removedBranches = null) =>
-            BuildMeshInternal(skeleton, lod, removedBranches, null);
+            BuildMeshInternal(skeleton, lod, removedBranches, null, Vector3.zero);
 
         /// <summary>Builds only one detached connected branch subtree.</summary>
         public static Mesh BuildSubsetMesh(ProceduralTreeSkeleton skeleton, int lod,
                                            HashSet<int> includedBranches) =>
-            BuildMeshInternal(skeleton, lod, null, includedBranches);
+            BuildMeshInternal(skeleton, lod, null, includedBranches, Vector3.zero);
+
+        /// <summary>
+        /// Builds one detached subtree already rebased around a requested local-space pivot. This
+        /// avoids reading and rewriting Mesh.vertices just to move a severed limb's Rigidbody origin.
+        /// </summary>
+        public static Mesh BuildSubsetMesh(ProceduralTreeSkeleton skeleton, int lod,
+                                           HashSet<int> includedBranches,
+                                           Vector3 positionOffset) =>
+            BuildMeshInternal(skeleton, lod, null, includedBranches, positionOffset);
 
         /// <summary>
         /// Appends one tree directly into caller-owned mesh buffers. Batch rendering uses this path
@@ -70,33 +106,32 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private static Mesh BuildMeshInternal(ProceduralTreeSkeleton skeleton, int lod,
                                               HashSet<int> removedBranches,
-                                              HashSet<int> includedBranches)
+                                              HashSet<int> includedBranches,
+                                              Vector3 positionOffset)
         {
-            var vertices = new List<Vector3>(8192);
-            var normals = new List<Vector3>(8192);
-            var colours = new List<Color>(8192);
-            var uv0 = new List<Vector2>(8192);
-            var uv1 = new List<Vector2>(8192);
-            var barkIndices = new List<int>(12288);
-            var leafIndices = new List<int>(12288);
+            MeshScratch scratch = s_Scratch;
+            scratch.Clear();
 
-            AppendMeshData(skeleton, lod, Vector3.zero,
-                           vertices, normals, colours, uv0, uv1,
-                           barkIndices, leafIndices, removedBranches, includedBranches);
+            AppendMeshData(skeleton, lod, positionOffset,
+                           scratch.Vertices, scratch.Normals, scratch.Colours,
+                           scratch.Uv0, scratch.Uv1,
+                           scratch.BarkIndices, scratch.LeafIndices,
+                           removedBranches, includedBranches);
 
             var mesh = new Mesh
             {
                 name = $"ProceduralTree_LOD{math.clamp(lod, 0, 2)}",
-                indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16,
+                indexFormat = scratch.Vertices.Count > 65535
+                    ? IndexFormat.UInt32 : IndexFormat.UInt16,
             };
-            mesh.SetVertices(vertices);
-            mesh.SetNormals(normals);
-            mesh.SetColors(colours);
-            mesh.SetUVs(0, uv0);
-            mesh.SetUVs(1, uv1);
+            mesh.SetVertices(scratch.Vertices);
+            mesh.SetNormals(scratch.Normals);
+            mesh.SetColors(scratch.Colours);
+            mesh.SetUVs(0, scratch.Uv0);
+            mesh.SetUVs(1, scratch.Uv1);
             mesh.subMeshCount = 2;
-            mesh.SetTriangles(barkIndices, 0, false);
-            mesh.SetTriangles(leafIndices, 1, false);
+            mesh.SetTriangles(scratch.BarkIndices, 0, false);
+            mesh.SetTriangles(scratch.LeafIndices, 1, false);
             mesh.RecalculateBounds();
             return mesh;
         }
