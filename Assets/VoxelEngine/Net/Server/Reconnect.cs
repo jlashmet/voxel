@@ -58,7 +58,8 @@ namespace VoxelEngine.Net.Server
                 return RepatchChoice.FullData; // Zero bytes = "full data" at zero cost.
 
             // Hashes differ — estimate repair delta size.
-            // A repair delta contains only changed bricks, each approximately 576 B (mixed) or 4 B (uniform).
+            // A repair delta contains only changed bricks, each approximately 2112 B (mixed)
+            // or 4 B (uniform).
             // The heuristic: count how many brick-level hashes differ between client and server state.
             int deltaEstimate = EstimateDeltaSize(serverHash, clientHash, regionSizeEstimateBytes);
 

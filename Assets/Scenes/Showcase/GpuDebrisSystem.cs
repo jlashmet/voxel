@@ -137,7 +137,7 @@ namespace VoxelEngine.Showcase
                 for (int i = 0; i < sourceCount; i++)
                 {
                     pivot += ((Vector3)(float3)chunk.Voxels[i] + Vector3.one * 0.5f)
-                           * VoxelSurfaceRenderer.VoxelSize;
+                           * ShowcaseWorld.VoxelSize;
                 }
                 pivot /= sourceCount;
 
@@ -170,13 +170,14 @@ namespace VoxelEngine.Showcase
                     if (firstVisibleSource < 0) firstVisibleSource = sourceIndex;
                     Vector3 centre = ((Vector3)(float3)chunk.Voxels[sourceIndex]
                                    + Vector3.one * 0.5f)
-                                   * VoxelSurfaceRenderer.VoxelSize;
+                                   * ShowcaseWorld.VoxelSize;
                     Vector3 local = centre - pivot;
                     collisionRadius = math.max(collisionRadius, local.magnitude + 0.087f);
                     _instances[instanceStart + i] = new GpuInstance
                     {
                         LocalSlot = new Vector4(local.x, local.y, local.z, slot),
-                        Colour = MaterialColour(chunk.Materials[sourceIndex], visualScale),
+                        Colour = MaterialColour(chunk.Materials[sourceIndex],
+                                                CoatingAt(chunk, sourceIndex), visualScale),
                     };
                 }
 
@@ -301,7 +302,12 @@ namespace VoxelEngine.Showcase
                             ordinal * sourceCount / math.max(1, visibleCount));
         }
 
-        private static Vector4 MaterialColour(byte material, float scale)
+        private static byte CoatingAt(ShowcaseWorld.DetachedVoxelChunk chunk, int index) =>
+            chunk.Coatings != null && index < chunk.Coatings.Length
+                ? chunk.Coatings[index]
+                : Coatings.None;
+
+        private static Vector4 MaterialColour(byte material, byte coating, float scale)
         {
             Vector4 colour = material switch
             {
@@ -316,8 +322,24 @@ namespace VoxelEngine.Showcase
                 15 => new Vector4(0.18f, 0.20f, 0.19f, scale),
                 16 => new Vector4(0.22f, 0.62f, 0.78f, scale),
                 17 => new Vector4(0.08f, 0.56f, 0.82f, scale),
+                18 => new Vector4(0.65f, 0.56f, 0.41f, scale),
+                19 => new Vector4(0.68f, 0.58f, 0.42f, scale),
+                20 => new Vector4(0.63f, 0.54f, 0.40f, scale),
                 _ => new Vector4(0.48f, 0.50f, 0.54f, scale),
             };
+
+            Vector3 overlay = coating switch
+            {
+                Coatings.Moss => new Vector3(0.17f, 0.38f, 0.11f),
+                Coatings.Snow => new Vector3(0.88f, 0.91f, 0.94f),
+                Coatings.Soot => new Vector3(0.08f, 0.07f, 0.06f),
+                Coatings.Wet => new Vector3(0.12f, 0.20f, 0.23f),
+                _ => new Vector3(colour.x, colour.y, colour.z),
+            };
+            float blend = coating == Coatings.None ? 0f : coating == Coatings.Wet ? 0.3f : 0.62f;
+            colour.x = math.lerp(colour.x, overlay.x, blend);
+            colour.y = math.lerp(colour.y, overlay.y, blend);
+            colour.z = math.lerp(colour.z, overlay.z, blend);
             return colour;
         }
 

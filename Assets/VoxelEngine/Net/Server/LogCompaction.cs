@@ -21,7 +21,8 @@ namespace VoxelEngine.Net.Server
     ///     byte — entry tag: 0=uniform/material, 1=mixed/pool-reference
     ///     union(tag):
     ///       uniform: byte material, byte pad (4 B total per entry)
-    ///       mixed:   int poolIndex, NativeArray<byte> voxels(512 B), NativeArray<ulong> occupancy(8 B)
+    ///       mixed:   int poolIndex, voxels(512 B), surface semantics(1024 B),
+    ///                boundary samples(512 B), occupancy(64 B)
     ///
     /// Memory bound: snapshot size is proportional to the number of *altered* bricks, not
     /// the region volume. A fully uniform region with one altered brick stores only that brick.
@@ -161,6 +162,20 @@ namespace VoxelEngine.Net.Server
                         snapshot[offset + v] = pool.Voxels[voxelOffset + v];
                     offset += VoxelDimensions.VoxelsPerBrick;
 
+                    // Surface style/coating state is authoritative and travels with material.
+                    for (int v = 0; v < VoxelDimensions.VoxelsPerBrick; v++)
+                    {
+                        ushort surface = pool.SurfaceSemantics[voxelOffset + v];
+                        snapshot[offset + v * sizeof(ushort)] = (byte)surface;
+                        snapshot[offset + v * sizeof(ushort) + 1] = (byte)(surface >> 8);
+                    }
+                    offset += VoxelDimensions.VoxelsPerBrick * sizeof(ushort);
+
+                    // Authored solid-boundary constraints are authoritative geometry state.
+                    for (int v = 0; v < VoxelDimensions.VoxelsPerBrick; v++)
+                        snapshot[offset + v] = pool.BoundarySamples[voxelOffset + v];
+                    offset += VoxelDimensions.VoxelsPerBrick;
+
                     // Write occupancy data (8 words = 64 bytes).
                     int occOffset = pool.OccupancyOffset(entry.PoolIndex);
                     for (int o = 0; o < VoxelDimensions.OccupancyWordsPerBrick; o++)
@@ -229,7 +244,8 @@ namespace VoxelEngine.Net.Server
                 if (tag == TagMixed)
                 {
                     // Layout must mirror CreateSnapshot exactly:
-                    //   tag(1) pad(3) poolIndex(4) voxels(512) occupancy(64)
+                    //   tag(1) pad(3) poolIndex(4) voxels(512) surfaces(1024)
+                    //   boundaries(512) occupancy(64)
                     offset += 4; // tag + 3 pad
 
                     // The stored pool index is not reused. After eviction every slot is back
@@ -242,6 +258,16 @@ namespace VoxelEngine.Net.Server
                     int voxelOffset = pool.VoxelOffset(newPoolIdx);
                     for (int v = 0; v < VoxelDimensions.VoxelsPerBrick; v++)
                         pool.Voxels[voxelOffset + v] = snapshot[offset + v];
+                    offset += VoxelDimensions.VoxelsPerBrick;
+
+                    for (int v = 0; v < VoxelDimensions.VoxelsPerBrick; v++)
+                        pool.SurfaceSemantics[voxelOffset + v] = (ushort)(
+                            snapshot[offset + v * sizeof(ushort)]
+                            | (snapshot[offset + v * sizeof(ushort) + 1] << 8));
+                    offset += VoxelDimensions.VoxelsPerBrick * sizeof(ushort);
+
+                    for (int v = 0; v < VoxelDimensions.VoxelsPerBrick; v++)
+                        pool.BoundarySamples[voxelOffset + v] = snapshot[offset + v];
                     offset += VoxelDimensions.VoxelsPerBrick;
 
                     int occOffset = pool.OccupancyOffset(newPoolIdx);
@@ -307,9 +333,12 @@ namespace VoxelEngine.Net.Server
             public int SerializedSize()
             {
                 // Mixed layout, matching the writer byte for byte:
-                //   brickIndex(4) + tag(1) + pad(3) + poolIndex(4) + voxels(512) + occupancy(64)
+                //   brickIndex(4) + tag(1) + pad(3) + poolIndex(4) + voxels(512)
+                //   + surface semantics(1024) + boundary samples(512) + occupancy(64)
                 if (Tag == TagMixed)
                     return 4 + 1 + 3 + sizeof(int)
+                         + VoxelDimensions.VoxelsPerBrick
+                         + VoxelDimensions.VoxelsPerBrick * sizeof(ushort)
                          + VoxelDimensions.VoxelsPerBrick
                          + VoxelDimensions.OccupancyWordsPerBrick * sizeof(ulong);
                 // TagUniform: 4 + 1 + 1 + 2(pad).

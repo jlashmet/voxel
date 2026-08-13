@@ -22,7 +22,7 @@ namespace VoxelEngine.Showcase
     public sealed class CharacterMotor
     {
         /// <summary>Metres per voxel.</summary>
-        private const float VoxelSize = VoxelSurfaceRenderer.VoxelSize;
+        private const float VoxelSize = ShowcaseWorld.VoxelSize;
 
         public float Height = 1.8f;
         public float Radius = 0.3f;

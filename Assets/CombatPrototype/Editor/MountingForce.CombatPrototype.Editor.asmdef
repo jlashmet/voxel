@@ -1,0 +1,18 @@
+{
+  "name": "MountingForce.CombatPrototype.Editor",
+  "rootNamespace": "MountingForce.CombatPrototype.Editor",
+  "references": [
+    "MountingForce.CombatPrototype"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

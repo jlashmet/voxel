@@ -10,7 +10,7 @@ namespace VoxelEngine.Core.Storage
     ///
     ///   Empty    -> no allocation at all
     ///   Uniform  -> no allocation; the material is encoded in the reference itself
-    ///   Mixed    -> an index into <see cref="BrickPool"/>, 576 bytes
+    ///   Mixed    -> an index into <see cref="BrickPool"/>, 2112 bytes
     ///
     /// Only bricks containing a *surface* are mixed. Solid rock underground and open
     /// sky both cost nothing regardless of volume, so resident memory tracks surface

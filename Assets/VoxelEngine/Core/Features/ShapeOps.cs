@@ -29,51 +29,66 @@ namespace VoxelEngine.Core.Features
 
         // -- emit ---------------------------------------------------------------
 
-        /// <summary>minX, minY, minZ, sizeX, sizeY, sizeZ, material, mode</summary>
+        /// <summary>minX, minY, minZ, sizeX, sizeY, sizeZ, material, style, coating, mode</summary>
         EmitBox = 1,
 
-        /// <summary>centreX, baseY, centreZ, radius, height, axis, material, mode</summary>
+        /// <summary>centreX, baseY, centreZ, radius, height, axis, material, style, coating, mode</summary>
         EmitCylinder = 2,
 
-        /// <summary>minX, minY, minZ, sizeX, sizeY, sizeZ, profile, material, mode</summary>
+        /// <summary>minX, minY, minZ, sizeX, sizeY, sizeZ, profile, material, style, coating, mode</summary>
         EmitPrism = 3,
 
-        /// <summary>ax, ay, az, bx, by, bz, radius, material, mode</summary>
+        /// <summary>ax, ay, az, bx, by, bz, radius, material, style, coating, mode</summary>
         EmitCapsule = 4,
 
-        /// <summary>minX, minY, minZ, sizeX, sizeY, sizeZ, axis, material, mode</summary>
+        /// <summary>minX, minY, minZ, sizeX, sizeY, sizeZ, axis, material, style, coating, mode</summary>
         EmitRamp = 5,
+
+        /// <summary>minX, minY, minZ, sizeX, sizeY, sizeZ, radius, material, style, coating, mode</summary>
+        EmitRoundedBox = 6,
+
+        /// <summary>centreX, centreY, centreZ, radiusX, radiusY, radiusZ, material, style, coating, mode</summary>
+        EmitEllipsoid = 7,
+
+        /// <summary>baseX, baseY, baseZ, height, baseRadius, topRadius, axis, material, style, coating, mode</summary>
+        EmitFrustum = 8,
+
+        /// <summary>centreX, centreY, centreZ, outerRadius, innerRadius, depth, axis, half, material, style, coating, mode</summary>
+        EmitAnnulus = 9,
+
+        /// <summary>centreX, centreY, centreZ, outerRadius, innerRadius, depth, axis, startX, startY, endX, endY, material, style, coating, mode</summary>
+        EmitArcWedge = 10,
 
         // -- control ------------------------------------------------------------
 
         /// <summary>count, strideX, strideY, strideZ, bodyInstructionCount</summary>
-        Repeat = 6,
+        Repeat = 11,
 
         /// <summary>register, min, max, bodyInstructionCount</summary>
-        IfRange = 7,
+        IfRange = 12,
 
         /// <summary>offsetX, offsetY, offsetZ</summary>
-        PushTransform = 8,
+        PushTransform = 13,
 
         /// <summary>(none)</summary>
-        PopTransform = 9,
+        PopTransform = 14,
 
         /// <summary>slotIndex</summary>
-        CallSlot = 10,
+        CallSlot = 15,
 
         // -- query --------------------------------------------------------------
 
         /// <summary>destRegister, offsetX, offsetZ</summary>
-        SampleGround = 11,
+        SampleGround = 16,
 
         /// <summary>destRegister, min, max, quantum</summary>
-        DrawRange = 12,
+        DrawRange = 17,
 
         /// <summary>anchorIndex, x, y, z, facing</summary>
-        SetAnchor = 13,
+        SetAnchor = 18,
 
         /// <summary>destRegister, valueA, valueB, operation</summary>
-        Arithmetic = 14,
+        Arithmetic = 19,
     }
 
     /// <summary>Operations available to <see cref="ShapeOp.Arithmetic"/>. Integer only.</summary>
@@ -115,11 +130,16 @@ namespace VoxelEngine.Core.Features
         private static readonly int[] Operands =
         {
             0, // End
-            8, // EmitBox
-            8, // EmitCylinder
-            9, // EmitPrism
-            9, // EmitCapsule
-            9, // EmitRamp
+            10, // EmitBox
+            10, // EmitCylinder
+            11, // EmitPrism
+            11, // EmitCapsule
+            11, // EmitRamp
+            11, // EmitRoundedBox
+            10, // EmitEllipsoid
+            11, // EmitFrustum
+            12, // EmitAnnulus
+            15, // EmitArcWedge
             5, // Repeat
             4, // IfRange
             3, // PushTransform
@@ -145,6 +165,6 @@ namespace VoxelEngine.Core.Features
         }
 
         public static bool IsEmit(ShapeOp op) =>
-            op >= ShapeOp.EmitBox && op <= ShapeOp.EmitRamp;
+            op >= ShapeOp.EmitBox && op <= ShapeOp.EmitArcWedge;
     }
 }

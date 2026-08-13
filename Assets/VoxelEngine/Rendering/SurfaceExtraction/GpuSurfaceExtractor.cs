@@ -6,18 +6,6 @@ using UnityEngine.Rendering;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction
 {
-    /// <summary>A GPU-authored Surface Nets vertex. One slot exists for every density cell.</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public struct SmoothSurfaceVertex
-    {
-        public Vector3 Position;
-        public Vector3 Normal;
-        public uint Material;
-        public uint Active;
-
-        public const int Stride = 32;
-    }
-
     /// <summary>
     /// Extracts a continuous indexed surface from a dense scalar lattice entirely on the GPU.
     ///

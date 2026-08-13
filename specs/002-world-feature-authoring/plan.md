@@ -3,12 +3,13 @@
 **Feature Directory**: `002-world-feature-authoring`
 **Created**: 2026-08-07
 **Spec**: [spec.md](./spec.md)
-**Status**: Draft
+**Status**: Implemented through deterministic curved primitives; later authoring milestones remain tracked in tasks.md
 
 ## Summary
 
 Feature definitions are authored as data: parameters with declared ranges, compiled to an integer
-**shape program** that emits **primitives** — boxes, cylinders, prisms, capsule chains — rather
+**shape program** that emits **primitives** — including boxes, cylinders, prisms, capsules,
+rounded boxes, ellipsoids, frusta, annuli, and arc wedges — rather
 than voxels. A **placement lattice** decides where instances go: for each cell of a fixed grid, a
 seeded hash of `(seed, definitionId, cellCoord)` yields candidates with jittered positions and
 parameter draws. A region generating itself scans the bounded neighbourhood of cells that could
@@ -31,7 +32,7 @@ actually touched.
 | Testing | Parity tests for cross-platform and cross-order determinism; EditMode tests for the shape-program evaluator and catalogue validation; PlayMode tests for streaming budget and seams. All Unity runs via `tools/unity-run.sh`. |
 | Target Platform | PC, console, high-end mobile. Feature existence and placement are identical on all three (Principle IV). |
 | Performance Goals | Per `device-matrix.md`, extended per research R-008: 8 ms feature generation per region, ≤4096 primitives and ≤512 candidates scanned per region. |
-| Constraints | Region-local generation; integer-only in `Core`; server authority for mutable state; bounded memory; one geometric representation. |
+| Constraints | Region-local generation; integer-only in `Core`; server authority for mutable state; bounded memory; one authoritative voxel representation with derived presentation geometry. |
 | Scale / Scope | 4 km × 4 km × 1 km world, ≤256 definitions per catalogue, max footprint 128 m, placement cell 64 m. |
 
 ## Constitution Check
@@ -57,7 +58,7 @@ Assets/VoxelEngine/
       FeatureDefinition.cs        # parameters, ranges, footprint, anchors, materials
       ShapeProgram.cs             # integer opcode array + evaluator
       ShapeOps.cs                 # opcode set
-      Primitive.cs                # box | cylinder | prism | capsule chain | ramp
+      Primitive.cs                # planar, rounded, radial, and arc-wedge primitives
       ParameterDraw.cs            # seeded integer draws within declared ranges
       PlacementLattice.cs         # cell -> candidates, pure function of (seed, def, cell)
       CandidateScan.cs            # region -> candidates intersecting it, ordered
@@ -107,7 +108,7 @@ TerrainAdaptation(height fn, footprint) ─────────────�
                                                      │
                           ┌──────────────────────────┼───────────────────────┐
                           ▼                          ▼                       ▼
-                    Collision (DDA)          Raymarch renderer        Occupancy mips
+                    Collision (DDA)       Solid surface extractor     Occupancy mips
                                                                              │
                                                                              ▼
                                                                    Far field (+ coarse
