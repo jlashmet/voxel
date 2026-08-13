@@ -78,11 +78,45 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.png"
           test -s "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.txt"
 
+      - name: Materialize exact visual reference
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import pathlib
+          import re
+          import struct
+          import zlib
+
+          source = pathlib.Path("Assets/Tests/PlayMode/TerrainLookdevScreenshotTests.cs").read_text()
+          match = re.search(r'private const string ReferenceRgbBase64\s*=\s*(.*?);', source, re.S)
+          if not match:
+              raise SystemExit("ReferenceRgbBase64 not found")
+          encoded = ''.join(re.findall(r'"([A-Za-z0-9+/=]+)"', match.group(1)))
+          rgb = base64.b64decode(encoded)
+          width, height = 32, 48
+          expected = width * height * 3
+          if len(rgb) != expected:
+              raise SystemExit(f"reference byte count {len(rgb)} != {expected}")
+
+          def chunk(kind, payload):
+              return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xffffffff)
+
+          rows = b''.join(b'\x00' + rgb[y * width * 3:(y + 1) * width * 3] for y in range(height))
+          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(rows, 9)) + chunk(b'IEND', b'')
+          out = pathlib.Path("Artifacts/Terrain/terrain-reference.png")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_bytes(png)
+          print(f"Wrote exact embedded reference to {out}")
+          PY
+
       - name: Show terrain metadata
         if: always()
         shell: bash
         run: |
           test ! -f "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.txt" || cat "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.txt"
+          test ! -f "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-similarity.txt" || cat "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-similarity.txt"
 
       - name: Upload terrain visual
         if: always()
