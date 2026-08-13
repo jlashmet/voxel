@@ -44,5 +44,17 @@ namespace VoxelEngine.CI
             AssetDatabase.SaveAssets();
             Debug.Log($"Terrain look-development scene written to {TerrainScenePath}");
         }
+
+        public static void CaptureTerrain()
+        {
+            var root = new GameObject("Terrain Capture Camera");
+            root.tag = "MainCamera";
+            TerrainLookdev lookdev = root.AddComponent<TerrainLookdev>();
+            lookdev.Rebuild();
+            Camera camera = lookdev.SceneCamera;
+            for (int i = 0; i < 32; i++) camera.Render();
+            lookdev.Shutdown();
+            Object.DestroyImmediate(root);
+        }
     }
 }
