@@ -8,11 +8,11 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void UrbanSkeletonDefinesPrimaryClimbEastLoopAndTwoWestAlternateAscentStages()
+        public void UrbanSkeletonDefinesPrimaryClimbAndMultipleDistrictLoops()
         {
             KentridgeUrbanSkeletonPlan plan = KentridgeUrbanSkeleton.Build(Seed);
-            Assert.AreEqual(12, plan.Nodes.Count);
-            Assert.AreEqual(14, plan.Links.Count);
+            Assert.AreEqual(13, plan.Nodes.Count);
+            Assert.AreEqual(16, plan.Links.Count);
 
             KentridgeUrbanNode market = plan.Get(KentridgeUrbanNodeId.MarketSquare);
             Assert.AreEqual(KentridgeDefinition.TownCentreDm.X, market.CentreDm.X);
@@ -21,19 +21,22 @@ namespace VoxelEngine.Tests.EditMode
             KentridgeUrbanNode westMarketJunction = plan.Get(KentridgeUrbanNodeId.WestMarketJunction);
             Assert.AreEqual(KentridgeUrbanCirculation.WestUpperStairXDm, westMarketJunction.CentreDm.X);
             Assert.AreEqual(KentridgeTownPlanner.MarketStreetZDm, westMarketJunction.CentreDm.Y);
-            Assert.AreEqual(KentridgeUrbanNodeKind.Junction, westMarketJunction.Kind);
 
             KentridgeUrbanNode westUpper = plan.Get(KentridgeUrbanNodeId.WestUpperLanding);
             Assert.AreEqual(KentridgeUrbanCirculation.WestUpperStairXDm, westUpper.CentreDm.X);
             Assert.AreEqual(KentridgeUrbanCirculation.UpperContourZDm, westUpper.CentreDm.Y);
-            Assert.AreEqual(KentridgeUrbanBand.UpperWard, westUpper.Band);
+
+            KentridgeUrbanNode eastResidential = plan.Get(KentridgeUrbanNodeId.EastResidentialJunction);
+            Assert.AreEqual(KentridgeTownPlanner.EastLaneXDm, eastResidential.CentreDm.X);
+            Assert.AreEqual(KentridgeTownPlanner.ResidentialStreetZDm, eastResidential.CentreDm.Y);
+            Assert.AreEqual(KentridgeUrbanNodeKind.Junction, eastResidential.Kind);
 
             int secondaryContours = 0;
             int secondaryStairs = 0;
             bool upperToRidge = false;
-            bool marketToWestJunction = false;
-            bool westJunctionToUpper = false;
             bool westUpperToCentralUpper = false;
+            bool residentialToEast = false;
+            bool eastToWorking = false;
 
             for (int i = 0; i < plan.Links.Count; i++)
             {
@@ -47,20 +50,22 @@ namespace VoxelEngine.Tests.EditMode
                 else if (link.Kind == KentridgeUrbanLinkKind.SecondaryStair)
                 {
                     secondaryStairs++;
-                    if (link.From == KentridgeUrbanNodeId.WestMarketJunction && link.To == KentridgeUrbanNodeId.WestUpperLanding) westJunctionToUpper = true;
                 }
-                else if (link.Kind == KentridgeUrbanLinkKind.PrimaryStreet && link.From == KentridgeUrbanNodeId.MarketSquare && link.To == KentridgeUrbanNodeId.WestMarketJunction)
+                else if (link.Kind == KentridgeUrbanLinkKind.PrimaryStreet)
                 {
-                    marketToWestJunction = true;
+                    if (link.From == KentridgeUrbanNodeId.ResidentialJunction && link.To == KentridgeUrbanNodeId.EastResidentialJunction) residentialToEast = true;
+                    if (link.From == KentridgeUrbanNodeId.EastResidentialJunction && link.To == KentridgeUrbanNodeId.WorkingYard) eastToWorking = true;
                 }
             }
 
             Assert.AreEqual(2, secondaryContours);
             Assert.AreEqual(3, secondaryStairs);
             Assert.IsTrue(upperToRidge);
-            Assert.IsTrue(marketToWestJunction);
-            Assert.IsTrue(westJunctionToUpper);
             Assert.IsTrue(westUpperToCentralUpper);
+            Assert.IsTrue(residentialToEast,
+                "The existing residential street must be represented all the way to the east service lane.");
+            Assert.IsTrue(eastToWorking,
+                "The working yard should participate in the lower-east loop rather than remain a semantic dead end.");
         }
 
         [Test]
@@ -71,12 +76,14 @@ namespace VoxelEngine.Tests.EditMode
             KentridgeUrbanNode upper = plan.Get(KentridgeUrbanNodeId.UpperLanding);
             KentridgeUrbanNode civic = plan.Get(KentridgeUrbanNodeId.CivicCrown);
             KentridgeUrbanNode westUpper = plan.Get(KentridgeUrbanNodeId.WestUpperLanding);
+            KentridgeUrbanNode eastResidential = plan.Get(KentridgeUrbanNodeId.EastResidentialJunction);
 
             Assert.GreaterOrEqual(market.OpenSpaceHalfExtentsDm.X, 100);
             Assert.GreaterOrEqual(market.OpenSpaceHalfExtentsDm.Y, 60);
             Assert.Greater(upper.OpenSpaceHalfExtentsDm.X, 0);
             Assert.Greater(civic.OpenSpaceHalfExtentsDm.X, upper.OpenSpaceHalfExtentsDm.X);
             Assert.Greater(westUpper.OpenSpaceHalfExtentsDm.X, 0);
+            Assert.Greater(eastResidential.OpenSpaceHalfExtentsDm.X, 0);
         }
     }
 }
