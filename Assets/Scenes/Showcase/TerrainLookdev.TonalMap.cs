@@ -52,7 +52,7 @@ namespace VoxelEngine.Showcase
         private void ApplyTonalOverlay()
         {
             if (!_built || _tonalOverlayApplied) return;
-            var writer = new VoxelBrush(_table, _pool, in _palette, 3_000_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 2_600_000);
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
             {
@@ -65,7 +65,7 @@ namespace VoxelEngine.Showcase
                     GroundToneCoating(x, z));
             }
 
-            AddSurfaceCushions(ref writer);
+            AddRaisedRockFields(ref writer);
 
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain tonal overlay exceeded voxel authoring budget.");
@@ -76,43 +76,68 @@ namespace VoxelEngine.Showcase
             _tonalOverlayApplied = true;
         }
 
-        private static void AddSurfaceCushions(ref VoxelBrush writer)
+        private static void AddRaisedRockFields(ref VoxelBrush writer)
         {
-            var rng = new Unity.Mathematics.Random(Seed ^ 0xA17F29u);
-            for (int i = 0; i < 1050; i++)
+            var rng = new Unity.Mathematics.Random(Seed ^ 0x39C17u);
+            for (int cluster = 0; cluster < 52; cluster++)
             {
-                int z = rng.NextInt(-48, 390);
-                int x = rng.NextInt(TerrainXMin + 8, TerrainXMax - 8);
-                int pathDistance = math.abs(x - PathCenterVoxel(z));
-                if (z < 190 && pathDistance < 22) continue;
+                int z = rng.NextInt(-28, 345);
+                int path = PathCenterVoxel(z);
+                int side = rng.NextBool() ? -1 : 1;
+                int centreX = path + side * rng.NextInt(36, 145);
+                if (centreX < TerrainXMin + 10 || centreX > TerrainXMax - 10) continue;
 
-                float depth = math.saturate((z + 48f) / 438f);
-                int rx = rng.NextInt(2, depth < 0.42f ? 8 : 6);
-                int rz = rng.NextInt(3, depth < 0.42f ? 10 : 7);
-                int ry = rng.NextInt(1, 3);
+                int count = rng.NextInt(3, 8);
+                int stride = rng.NextInt(5, 10);
+                for (int i = 0; i < count; i++)
+                {
+                    int x = centreX + (i - count / 2) * stride + rng.NextInt(-3, 4);
+                    int zz = z + rng.NextInt(-6, 7) + (i - count / 2) / 2;
+                    if (x < TerrainXMin + 5 || x > TerrainXMax - 5) continue;
+                    if (math.abs(x - PathCenterVoxel(zz)) < 24) continue;
+
+                    int hx = rng.NextInt(2, 6);
+                    int hy = rng.NextInt(1, 4);
+                    int hz = rng.NextInt(2, 6);
+                    int top = HeightVoxel(x, zz) + ReferenceReliefVoxels(x, zz);
+                    StampRoundedBox(ref writer, new int3(x, top + hy - 1, zz),
+                        new int3(hx, hy, hz), math.min(2, math.min(hx, hz)),
+                        Mat.TerrainLimestone, SurfaceStyles.Rounded, rng.NextFloat() < 0.36f);
+                }
+            }
+
+            for (int i = 0; i < 120; i++)
+            {
+                int z = rng.NextInt(-35, 330);
+                int x = rng.NextInt(TerrainXMin + 8, TerrainXMax - 8);
+                if (math.abs(x - PathCenterVoxel(z)) < 26) continue;
+                int hx = rng.NextInt(2, 4);
+                int hy = rng.NextInt(1, 3);
+                int hz = rng.NextInt(2, 4);
                 int top = HeightVoxel(x, z) + ReferenceReliefVoxels(x, z);
-                StampEllipsoid(ref writer, new int3(x, top + ry, z),
-                    new int3(rx, ry, rz), GroundToneMaterial(x, z), SurfaceStyles.Smooth);
+                StampRoundedBox(ref writer, new int3(x, top + hy - 1, z),
+                    new int3(hx, hy, hz), 1, Mat.TerrainLimestone,
+                    SurfaceStyles.Rounded, rng.NextFloat() < 0.24f);
             }
         }
 
         private static int ReferenceReliefVoxels(int x, int z)
         {
             float relief = 0f;
-            relief += 10f * SoftHill(x, z, -112, 24, 78, 72);
-            relief += 10f * SoftHill(x, z, 108, 30, 80, 74);
-            relief += 10f * SoftHill(x, z, -108, 105, 102, 88);
-            relief += 11f * SoftHill(x, z, 104, 118, 104, 90);
-            relief += 9f * SoftHill(x, z, -98, 205, 118, 104);
-            relief += 10f * SoftHill(x, z, 96, 218, 118, 106);
-            relief += 8f * SoftHill(x, z, -86, 315, 128, 116);
-            relief += 8f * SoftHill(x, z, 82, 332, 130, 120);
+            relief += 7f * SoftHill(x, z, -112, 24, 82, 76);
+            relief += 7f * SoftHill(x, z, 108, 30, 84, 78);
+            relief += 7f * SoftHill(x, z, -108, 105, 108, 94);
+            relief += 8f * SoftHill(x, z, 104, 118, 110, 96);
+            relief += 6f * SoftHill(x, z, -98, 205, 124, 110);
+            relief += 7f * SoftHill(x, z, 96, 218, 124, 112);
+            relief += 5f * SoftHill(x, z, -86, 315, 134, 122);
+            relief += 5f * SoftHill(x, z, 82, 332, 136, 126);
 
             float fromValley = math.abs(x - PathCenterVoxel(z));
-            float valleyMask = math.smoothstep(0f, 1f, math.saturate((fromValley - 12f) / 72f));
-            float farRelease = math.saturate((z - 240f) / 130f);
-            valleyMask = math.lerp(valleyMask, 0.72f + 0.28f * valleyMask, farRelease);
-            return Mathf.RoundToInt(math.min(relief * valleyMask, 18f));
+            float valleyMask = math.smoothstep(0f, 1f, math.saturate((fromValley - 10f) / 78f));
+            float farRelease = math.saturate((z - 250f) / 140f);
+            valleyMask = math.lerp(valleyMask, 0.70f + 0.30f * valleyMask, farRelease);
+            return Mathf.RoundToInt(math.min(relief * valleyMask, 12f));
         }
 
         private static float SoftHill(int x, int z, int cx, int cz, int rx, int rz)
