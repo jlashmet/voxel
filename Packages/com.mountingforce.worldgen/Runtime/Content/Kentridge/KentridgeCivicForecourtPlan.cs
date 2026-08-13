@@ -46,8 +46,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
             BuildingPlot mayor = FindPlot(settlement, KentridgeRole.MayorHouse);
             Int3 churchEnvelope = KentridgeDefinition.FootprintDm(church.Archetype);
 
-            int minX = church.MinDm.X + churchEnvelope.X;
-            int maxX = mayor.MinDm.X;
+            int minX = church.PositionDm.X + churchEnvelope.X;
+            int maxX = mayor.PositionDm.X;
             int minZ = crown.CentreDm.Y - crown.OpenSpaceHalfExtentsDm.Y;
             int maxZ = crown.CentreDm.Y + crown.OpenSpaceHalfExtentsDm.Y;
 
