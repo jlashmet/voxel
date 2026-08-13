@@ -31,9 +31,9 @@ namespace VoxelEngine.Showcase
 
             Vector4 sourceSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 sourceSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
-            SetTurfPresentation(TerrainTurfNear, new Color(0.23f, 0.25f, 0.13f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfMid, new Color(0.45f, 0.43f, 0.23f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfFar, new Color(0.70f, 0.59f, 0.35f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfNear, new Color(0.18f, 0.25f, 0.095f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfMid, new Color(0.38f, 0.43f, 0.17f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfFar, new Color(0.62f, 0.59f, 0.27f), sourceSampling, sourceSurface);
         }
 
         private static void SetTurfPresentation(byte material, Color colour,
@@ -101,33 +101,21 @@ namespace VoxelEngine.Showcase
         private static byte GroundToneMaterial(int x, int z)
         {
             float depth = math.saturate((z + 70f) / 630f);
-            float fromPath = math.abs(x - PathCenterVoxel(z));
-            float side = math.clamp((x - PathCenterVoxel(z)) / 150f, -1f, 1f);
             float macro = math.sin(x * 0.018f + z * 0.010f)
                         + 0.65f * math.sin(x * 0.010f - z * 0.016f + 1.7f)
                         + 0.35f * math.sin((x + z) * 0.007f - 0.8f);
 
-            // Foreground: the reference has a darker centre route framed by brighter shoulders.
             if (depth < 0.28f)
-            {
-                float centreBias = math.saturate(1f - fromPath / 58f);
-                return macro < 0.05f + centreBias * 0.85f ? TerrainTurfNear : TerrainTurfMid;
-            }
+                return macro < 0.18f ? TerrainTurfNear : TerrainTurfMid;
 
-            // Midground: its left bank is generally warmer/brighter while the right bank carries
-            // the largest dark vegetation masses. Preserve that broad asymmetry without speckle.
             if (depth < 0.60f)
             {
-                float darkCut = -0.76f + side * 0.62f;
-                float brightCut = 0.72f + side * 0.72f;
-                if (macro < darkCut) return TerrainTurfNear;
-                if (macro > brightCut) return TerrainTurfFar;
+                if (macro < -0.72f) return TerrainTurfNear;
+                if (macro > 0.58f) return TerrainTurfFar;
                 return TerrainTurfMid;
             }
 
-            // The upper third of the source is predominantly bright yellow-green; isolated darker
-            // structure should come from terrain and rocks rather than broad dark turf regions.
-            return TerrainTurfFar;
+            return macro < -0.78f ? TerrainTurfMid : TerrainTurfFar;
         }
 
         private static byte GroundToneCoating(int x, int z)
