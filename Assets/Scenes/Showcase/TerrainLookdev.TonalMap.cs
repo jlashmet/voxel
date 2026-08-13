@@ -9,11 +9,14 @@ namespace VoxelEngine.Showcase
     {
         private bool _tonalOverlayApplied;
 
-        // The original image has a strong atmospheric value structure: a bright yellow-green far
-        // valley and much darker mossy foreground shoulders. Apply that structure to the authored
-        // ground cells before the production renderer culls its first frame. This still changes
-        // semantic voxels only; extraction, materials and shading remain the normal voxel path.
-        private void OnPreCull()
+        // Start runs after OnEnable/Rebuild has authored the world, but before the following test
+        // frames settle. That makes this a normal authoring pass rather than a renderer callback.
+        private void Start()
+        {
+            ApplyTonalOverlay();
+        }
+
+        private void ApplyTonalOverlay()
         {
             if (!_built || _tonalOverlayApplied) return;
 
@@ -40,8 +43,6 @@ namespace VoxelEngine.Showcase
 
         private static byte GroundToneMaterial(int x, int z)
         {
-            // Near turf is intrinsically darker. The far basin uses broad warm swaths instead of
-            // the previous per-voxel sand confetti so the image reads as sunlit grass at distance.
             if (z < 35)
                 return Mat.Moss;
 
@@ -61,8 +62,6 @@ namespace VoxelEngine.Showcase
             int path = PathCenterVoxel(z);
             int fromPath = math.abs(x - path);
 
-            // Preserve a lighter central route while allowing both near shoulders to fall into
-            // the deep moss values visible at the bottom of the reference.
             if (z < 5 && fromPath > 22)
                 return Coatings.Moss;
             if (z < 55 && fromPath > 38)
