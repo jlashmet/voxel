@@ -31,9 +31,9 @@ namespace VoxelEngine.Showcase
 
             Vector4 sourceSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 sourceSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
-            SetTurfPresentation(TerrainTurfNear, new Color(0.25f, 0.34f, 0.13f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfMid, new Color(0.36f, 0.43f, 0.17f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfFar, new Color(0.46f, 0.47f, 0.21f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfNear, new Color(0.27f, 0.34f, 0.15f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfMid, new Color(0.40f, 0.43f, 0.20f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfFar, new Color(0.53f, 0.51f, 0.25f), sourceSampling, sourceSurface);
         }
 
         private static void SetTurfPresentation(byte material, Color colour,
@@ -42,11 +42,11 @@ namespace VoxelEngine.Showcase
             VoxelPresentationCatalogue.MaterialAlbedo[material] =
                 new Vector4(colour.r, colour.g, colour.b, 1f);
             VoxelPresentationCatalogue.MaterialSampling[material] =
-                new Vector4(sourceSampling.x, sourceSampling.y, sourceSampling.z, 0.10f);
+                new Vector4(sourceSampling.x, sourceSampling.y, sourceSampling.z, 0.05f);
             VoxelPresentationCatalogue.MaterialSurface[material] =
-                new Vector4(sourceSurface.x, 0.045f, 0.82f, 0f);
+                new Vector4(sourceSurface.x, 0.025f, 0.82f, 0f);
             VoxelPresentationCatalogue.MaterialVariation[material] =
-                new Vector4(0.68f, 0.015f, 0f, 0.01f);
+                new Vector4(0.68f, 0.006f, 0f, 0.004f);
         }
 
         private void ApplyTonalOverlay()
