@@ -18,6 +18,10 @@ namespace VoxelEngine.Showcase
     public sealed partial class TerrainLookdev : MonoBehaviour
     {
         private const uint Seed = 0x51A17u;
+        private const int TerrainXMin = -125;
+        private const int TerrainXMax = 125;
+        private const int TerrainZMin = -55;
+        private const int TerrainZMax = 420;
         private RegionTable _table;
         private BrickPool _pool;
         private MaterialPalette _palette;
@@ -97,6 +101,35 @@ namespace VoxelEngine.Showcase
 
         private void AuthorTerrain(ref VoxelBrush writer)
         {
+            BuildValley(ref writer);
+        }
+
+        private static void BuildValley(ref VoxelBrush writer)
+        {
+            for (int z = TerrainZMin; z <= TerrainZMax; z++)
+            for (int x = TerrainXMin; x <= TerrainXMax; x++)
+            {
+                int top = HeightVoxel(x, z);
+                writer.FillColumnBulk(x, top - 4, top, z, Mat.TerrainEarth);
+                writer.SetStyled(x, top, z, Mat.TerrainTurf, SurfaceStyles.Smooth);
+            }
+        }
+
+        private static int HeightVoxel(int x, int z)
+        {
+            float xm = x * 0.1f;
+            float zm = z * 0.1f;
+            float valleyCenter = 0.65f * Mathf.Sin(zm * 0.105f - 0.45f);
+            float dx = xm - valleyCenter;
+            float sideRise = 0.0105f * dx * dx;
+            float farRise = Mathf.Max(0f, zm - 12f) * 0.050f;
+            float rolling = 0.58f * Mathf.Sin(xm * 0.20f + zm * 0.115f)
+                          + 0.34f * Mathf.Sin(xm * 0.43f - zm * 0.073f + 1.8f)
+                          + 0.20f * Mathf.Cos(xm * 0.71f + zm * 0.16f);
+            float broad = 0.48f * Mathf.Sin(zm * 0.060f + 0.7f)
+                        + 0.32f * Mathf.Cos((xm + zm) * 0.086f);
+            float channel = -0.65f * Mathf.Exp(-(dx * dx) / 22f);
+            return Mathf.RoundToInt((0.40f + sideRise + farRise + rolling + broad + channel) * 10f);
         }
 
         private VoxelWorldView WorldView() => new()
