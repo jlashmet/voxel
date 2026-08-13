@@ -372,7 +372,7 @@ namespace VoxelEngine.Showcase
 
             float metres = 0.95f + sideRise + farRise + channel + broad + shoulderRoll;
             float terraced = Mathf.Floor(metres / 0.38f) * 0.38f;
-            metres = Mathf.Lerp(metres, terraced, 0.14f);
+            metres = Mathf.Lerp(metres, terraced, 0.02f);
             return Mathf.RoundToInt(metres * 10f);
         }
 
