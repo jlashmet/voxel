@@ -91,7 +91,9 @@ namespace VoxelEngine.CI
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(
                     Seed, BuildSettings(), Allocator.Persistent);
                 table = new RegionTable(64, Allocator.Persistent);
-                pool = new BrickPool(65536, Allocator.Persistent);
+                // This diagnostic deliberately keeps the entire authored town resident at once;
+                // production streaming does not. Give only the capture enough pool space for that.
+                pool = new BrickPool(262144, Allocator.Persistent);
 
                 int featureInstances = 0;
                 int featureVoxels = 0;
@@ -164,6 +166,9 @@ namespace VoxelEngine.CI
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
                 surfaceCache = new CpuTransvoxelChunkCache();
+                // Whole-town CI intentionally exceeds runtime streaming residency/radius.
+                surfaceCache.MaxViewDistanceMetres = camera.farClipPlane;
+                surfaceCache.MaxResidentChunks = 8192;
                 surfaceCache.InvalidateSurfaceBricks(SurfaceChunkSeeds(minX, maxX, minZ, maxZ));
                 for (int iteration = 0; iteration < 8192 && surfaceCache.DirtyCount > 0; iteration++)
                 {
