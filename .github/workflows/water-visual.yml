@@ -1,0 +1,64 @@
+name: Water Visual
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - water
+    paths:
+      - 'Assets/VoxelEngine/CI/Editor/WaterStudyCapture.cs'
+      - 'Assets/VoxelEngine/CI/Editor/WaterStudyCapture.cs.meta'
+      - '.github/workflows/water-visual.yml'
+
+# The guarded launcher also refuses to start beside an open editor. Keep water captures
+# serialized on their own workflow ref as an additional layer of protection.
+concurrency:
+  group: water-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture-water:
+    name: Render isolated Sunlit water study
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Render water study through guarded Unity launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts/Water"
+          chmod +x tools/unity-run.sh
+          tools/unity-run.sh \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.CI.WaterStudyCapture.Run \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/Water/unity.log" \
+            -quit
+          test -s "$GITHUB_WORKSPACE/Artifacts/Water/water-study.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/Water/water-study.txt"
+
+      - name: Show water metadata and Unity tail
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$GITHUB_WORKSPACE/Artifacts/Water/water-study.txt" ]]; then
+            cat "$GITHUB_WORKSPACE/Artifacts/Water/water-study.txt"
+          fi
+          if [[ -f "$GITHUB_WORKSPACE/Artifacts/Water/unity.log" ]]; then
+            tail -n 120 "$GITHUB_WORKSPACE/Artifacts/Water/unity.log"
+          fi
+
+      - name: Upload water artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: water-study-${{ github.sha }}
+          path: Artifacts/Water/
+          if-no-files-found: warn
+          retention-days: 14
