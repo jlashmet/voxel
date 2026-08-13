@@ -8,8 +8,8 @@ namespace VoxelEngine.Showcase
         {
             Camera camera = SceneCamera;
             camera.fieldOfView = 21.7f;
-            camera.transform.position = new Vector3(-0.40f, 23.0f, -20.0f);
-            camera.transform.LookAt(new Vector3(-0.33f, 2.20f, 12.15f));
+            camera.transform.position = new Vector3(-0.59f, 23.10f, -20.0f);
+            camera.transform.LookAt(new Vector3(-0.52f, 2.30f, 12.15f));
         }
     }
 }
