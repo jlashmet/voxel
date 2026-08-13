@@ -1,11 +1,8 @@
 namespace VoxelEngine.Structures
 {
     /// <summary>
-    /// Palette indices for authored structures.
-    ///
-    /// A castle read as programmer art partly because it had three materials. Stone that is all
-    /// one grey has no plinth, no string course, no weathering — the eye needs the bands to read
-    /// masonry rather than a extruded rectangle.
+    /// Palette indices for authored structures and authored environment materials.
+    /// IDs are semantic voxel materials; presentation is supplied by VoxelPresentationCatalogue.
     /// </summary>
     public static class Mat
     {
@@ -32,5 +29,16 @@ namespace VoxelEngine.Structures
         public const byte MasonrySmall = 18;
         public const byte MasonryMedium = 19; // warm 40 cm dressed limestone
         public const byte MasonryLarge = 20;
+
+        // Terrain look-development materials. These deliberately continue the same voxel palette
+        // rather than introducing a second renderer/material system for environment art.
+        public const byte TerrainTurf = 21;
+        public const byte TerrainLimestone = 22;
+        public const byte TerrainEarth = 23;
+        public const byte TerrainPathStone = 24;
+        public const byte FlowerWhite = 25;
+        public const byte FlowerYellow = 26;
+        public const byte FlowerPink = 27;
+        public const byte FlowerBlue = 28;
     }
 }
