@@ -31,9 +31,9 @@ namespace VoxelEngine.Showcase
 
             Vector4 sourceSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 sourceSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
-            SetTurfPresentation(TerrainTurfNear, new Color(0.18f, 0.25f, 0.095f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfMid, new Color(0.38f, 0.43f, 0.17f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfFar, new Color(0.62f, 0.59f, 0.27f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfNear, new Color(0.23f, 0.27f, 0.12f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfMid, new Color(0.42f, 0.43f, 0.20f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfFar, new Color(0.56f, 0.55f, 0.28f), sourceSampling, sourceSurface);
         }
 
         private static void SetTurfPresentation(byte material, Color colour,
