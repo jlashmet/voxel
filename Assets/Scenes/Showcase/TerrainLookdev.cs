@@ -104,6 +104,8 @@ namespace VoxelEngine.Showcase
             BuildValley(ref writer);
             BuildPath(ref writer);
             BuildRockFields(ref writer);
+            BuildTurfCushions(ref writer);
+            BuildFlowers(ref writer);
         }
 
         private static void BuildValley(ref VoxelBrush writer)
@@ -211,6 +213,56 @@ namespace VoxelEngine.Showcase
                     StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
                         2, Mat.TerrainLimestone, SurfaceStyles.Rounded, rng.NextFloat() < 0.72f);
                 }
+            }
+        }
+
+        private static void BuildTurfCushions(ref VoxelBrush writer)
+        {
+            var rng = new Unity.Mathematics.Random(Seed ^ 0x7B19u);
+            for (int i = 0; i < 230; i++)
+            {
+                int z = rng.NextInt(-48, 410);
+                int x = rng.NextInt(TerrainXMin + 4, TerrainXMax - 4);
+                int rx = rng.NextInt(2, 6);
+                int rz = rng.NextInt(2, 7);
+                int ry = rng.NextInt(1, 3);
+                StampEllipsoid(ref writer, new int3(x, HeightVoxel(x, z) + ry, z),
+                    new int3(rx, ry, rz), Mat.TerrainTurf, SurfaceStyles.Smooth);
+            }
+        }
+
+        private static void BuildFlowers(ref VoxelBrush writer)
+        {
+            var rng = new Unity.Mathematics.Random(Seed ^ 0xD451u);
+            for (int i = 0; i < 230; i++)
+            {
+                int z = rng.NextInt(-45, 390);
+                float distance = math.saturate((z + 45f) / 435f);
+                if (rng.NextFloat() < distance * 0.42f) continue;
+                int x = rng.NextInt(TerrainXMin + 7, TerrainXMax - 7);
+                int y = HeightVoxel(x, z) + 2;
+                byte flower = Mat.FlowerWhite;
+                float colour = rng.NextFloat();
+                if (colour > 0.72f && colour <= 0.84f) flower = Mat.FlowerYellow;
+                else if (colour > 0.84f && colour <= 0.94f) flower = Mat.FlowerPink;
+                else if (colour > 0.94f) flower = Mat.FlowerBlue;
+                writer.SetStyled(x, y - 1, z, Mat.TerrainTurf, SurfaceStyles.Rounded);
+                writer.SetStyled(x, y, z, flower, SurfaceStyles.Rounded);
+            }
+        }
+
+        private static void StampEllipsoid(ref VoxelBrush writer, int3 centre, int3 radius,
+            byte material, ushort style)
+        {
+            float3 inv = 1f / math.max((float3)radius, 1f);
+            for (int z = -radius.z; z <= radius.z; z++)
+            for (int y = -radius.y; y <= radius.y; y++)
+            for (int x = -radius.x; x <= radius.x; x++)
+            {
+                float3 p = new float3(x, y, z) * inv;
+                if (math.lengthsq(p) > 1f) continue;
+                writer.SetStyled(centre.x + x, centre.y + y, centre.z + z,
+                    material, style);
             }
         }
 
