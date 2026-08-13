@@ -60,7 +60,9 @@ namespace VoxelEngine.Tests.PlayMode
         private void RunOneTierMemoryTest(DeviceTier tier, int brickPoolCapacityBytes, float maxWorldMemoryMB)
         {
             var table = new RegionTable(1024, Allocator.Persistent);
-            var pool = new BrickPool(brickPoolCapacityBytes, Allocator.Persistent);
+            var pool = new BrickPool(
+                math.max(1, brickPoolCapacityBytes / VoxelDimensions.BytesPerMixedBrick),
+                Allocator.Persistent);
 
             float3 playerPos = new float3(64f, 64f, 64f); // start inside a region.
             float3 velocity = new float3(10f, 0f, 0f);   // along +X.

@@ -215,9 +215,10 @@ namespace VoxelEngine.Structures
         /// mistake in the plan, and finding out by running it costs an afternoon and a reboot.
         /// </summary>
         public static VoxelBrush Build(ref RegionTable table, ref BrickPool pool,
-                                       in CastlePlan plan, uint terrainSeed)
+                                       in CastlePlan plan, uint terrainSeed,
+                                       in MaterialPalette palette)
         {
-            var brush = new VoxelBrush(table, pool);
+            var brush = new VoxelBrush(table, pool, in palette);
 
             long estimate = EstimateWrites(in plan);
             if (estimate > brush.WriteBudget)

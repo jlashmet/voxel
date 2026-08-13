@@ -38,10 +38,8 @@ namespace VoxelEngine.Collision
     /// <summary>
     /// Burst-accelerated raycast over the shared DDA traversal from <see cref="DdaTraversal"/>.
     ///
-    /// Returns the first solid brick along a ray from origin in direction. Both collision and
-    /// rendering use this same code path (Constitution Principle II: Single source of truth).
-    /// The raymarcher simply uses the same DDA but reads through a different code path for
-    /// visual output — the traversal logic is identical.
+    /// Returns the first solid brick along a ray from origin in direction. Rendering derives
+    /// presentation meshes from the same cells but never feeds this authoritative query.
     /// </summary>
     [BurstCompile]
     public static class VoxelRaycast

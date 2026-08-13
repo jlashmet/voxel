@@ -30,6 +30,7 @@ namespace VoxelEngine.Showcase
     /// </summary>
     public sealed class ShowcaseWorld : IDisposable
     {
+        public const float VoxelSize = 0.1f;
         // -- material indices ----------------------------------------------------
 
         public const byte MatStone = 1;
@@ -71,6 +72,10 @@ namespace VoxelEngine.Showcase
         private BrickPool _pool;
         private FeatureCatalogue _catalogue;
         private MaterialPalette _palette;
+        private SurfaceCatalogue _surfaceCatalogue;
+        private CoatingCatalogue _coatingCatalogue;
+        private MaterialAdjacencyCatalogue _materialAdjacencyCatalogue;
+        private readonly ProfileBlockStore _profileBlocks = new();
         private uint _editCounter;
         private CastlePlan _castlePlan;
         private bool _hasCastlePlan;
@@ -78,7 +83,6 @@ namespace VoxelEngine.Showcase
         private bool _castleFrontGateOpen;
 
         private readonly HashSet<int3> _generated = new();
-        private readonly HashSet<int3> _dirtyRegions = new();
         private readonly Queue<DetachedVoxelChunk> _detachedChunks = new();
 
         private static readonly int3[] s_Neighbours =
@@ -91,12 +95,14 @@ namespace VoxelEngine.Showcase
         {
             public int3 Position;
             public byte Material;
+            public byte Coating;
         }
 
         public sealed class DetachedVoxelChunk
         {
             public int3[] Voxels;
             public byte[] Materials;
+            public byte[] Coatings;
             public int SourceVoxelCount;
             public float3 ImpactMetres;
             public float3 ImpulseDirection;
@@ -120,23 +126,18 @@ namespace VoxelEngine.Showcase
         public const int MaxQueuedDetachedChunks = 256;
         private const int MaxVisualChunksPerCollapse = 192;
 
-        /// <summary>
-        /// Regions whose brick pointer grid changed and must be re-uploaded to the GPU mirror.
-        /// Separate from <see cref="DirtyRegions"/> because the two consumers drain at different
-        /// rates: the mesher takes one region per budget slice, the uploader takes all of them.
-        /// </summary>
-        private readonly HashSet<int3> _regionsNeedingUpload = new();
+        private readonly VoxelChangeJournal _changes = new();
         private readonly List<int3> _pendingLoads = new();
 
         public ref RegionTable Table => ref _table;
         public ref BrickPool Pool => ref _pool;
         public MaterialPalette Palette => _palette;
+        public SurfaceCatalogue SurfaceRules => _surfaceCatalogue;
+        public CoatingCatalogue CoatingRules => _coatingCatalogue;
+        public MaterialAdjacencyCatalogue MaterialAdjacencyRules =>
+            _materialAdjacencyCatalogue;
 
-        /// <summary>Regions whose geometry changed and need their surface mesh rebuilt.</summary>
-        public HashSet<int3> DirtyRegions => _dirtyRegions;
-
-        /// <summary>Regions whose brick pointers the renderer must re-upload.</summary>
-        public HashSet<int3> RegionsNeedingUpload => _regionsNeedingUpload;
+        public VoxelChangeJournal Changes => _changes;
 
         public uint Seed { get; }
 
@@ -172,24 +173,51 @@ namespace VoxelEngine.Showcase
             _pool = new BrickPool(brickPoolCapacity, Allocator.Persistent);
 
             _palette = default;
-            _palette.Register(MatStone, 200, DestructionClass.Crumble);
-            _palette.Register(MatWood, 90, DestructionClass.Splinter);
-            _palette.Register(MatSand, 20, DestructionClass.Powder);
-            _palette.Register(MatGlass, 10, DestructionClass.Powder);
-            _palette.Register(MatBedrock, 255, DestructionClass.None);
+            const uint weatherCoatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
+                                        | (1u << Coatings.Soot) | (1u << Coatings.Wet);
+            _palette.Register(MatStone, 200, DestructionClass.Crumble,
+                              SurfaceStyles.Smooth, weatherCoatings);
+            _palette.Register(MatWood, 90, DestructionClass.Splinter,
+                              SurfaceStyles.Planar, weatherCoatings);
+            _palette.Register(MatSand, 20, DestructionClass.Powder,
+                              SurfaceStyles.Smooth, 1u << Coatings.Wet);
+            _palette.Register(MatGlass, 10, DestructionClass.Powder,
+                              SurfaceStyles.Sharp, 1u << Coatings.Wet);
+            _palette.Register(MatBedrock, 255, DestructionClass.None,
+                              SurfaceStyles.Planar, 0u);
 
             // Castle materials. Weathering and roofing read as different stone, which is most of
             // what stops masonry looking extruded.
-            _palette.Register(6, 210, DestructionClass.Crumble);   // dark stone
-            _palette.Register(7, 120, DestructionClass.Crumble);   // slate
-            _palette.Register(8, 110, DestructionClass.Crumble);   // tile
-            _palette.Register(9, 15, DestructionClass.Splinter);   // cloth
-            _palette.Register(10, 25, DestructionClass.Powder);    // grass
-            _palette.Register(11, 5, DestructionClass.Spreading);  // water
-            _palette.Register(12, 180, DestructionClass.Crumble);  // gold
-            _palette.Register(13, 30, DestructionClass.Powder);    // dirt
-            _palette.Register(14, 40, DestructionClass.Powder);    // moss
-            _palette.Register(15, 18, DestructionClass.Powder);    // leaded window glass
+            _palette.Register(6, 210, DestructionClass.Crumble,
+                              SurfaceStyles.Smooth, weatherCoatings); // dark stone
+            _palette.Register(7, 120, DestructionClass.Crumble,
+                              SurfaceStyles.Planar, weatherCoatings); // slate
+            _palette.Register(8, 110, DestructionClass.Crumble,
+                              SurfaceStyles.Planar, weatherCoatings); // tile
+            _palette.Register(9, 15, DestructionClass.Splinter,
+                              SurfaceStyles.Planar, weatherCoatings); // cloth
+            _palette.Register(10, 25, DestructionClass.Powder,
+                              SurfaceStyles.Smooth, weatherCoatings); // grass
+            _palette.Register(11, 5, DestructionClass.Spreading,
+                              SurfaceStyles.Smooth, 0u); // water
+            _palette.Register(12, 180, DestructionClass.Crumble,
+                              SurfaceStyles.Sharp, 1u << Coatings.Soot); // gold
+            _palette.Register(13, 30, DestructionClass.Powder,
+                              SurfaceStyles.Smooth, weatherCoatings); // dirt
+            _palette.Register(14, 40, DestructionClass.Powder,
+                              SurfaceStyles.Smooth, weatherCoatings); // legacy moss material
+            _palette.Register(15, 18, DestructionClass.Powder,
+                              SurfaceStyles.Sharp, 1u << Coatings.Wet); // leaded window glass
+            _palette.Register(Mat.MasonrySmall, 200, DestructionClass.Crumble,
+                              SurfaceStyles.MasonryJoint, weatherCoatings);
+            _palette.Register(Mat.MasonryMedium, 210, DestructionClass.Crumble,
+                              SurfaceStyles.MasonryJoint, weatherCoatings);
+            _palette.Register(Mat.MasonryLarge, 220, DestructionClass.Crumble,
+                              SurfaceStyles.MasonryJoint, weatherCoatings);
+
+            _surfaceCatalogue = SurfaceCatalogue.CreateBuiltIns();
+            _coatingCatalogue = CoatingCatalogue.CreateBuiltIns();
+            _materialAdjacencyCatalogue = default;
 
             _catalogue = ShowcaseCatalogue.Build(seed, Allocator.Persistent);
         }
@@ -302,8 +330,7 @@ namespace VoxelEngine.Showcase
                 // regenerates from the seed on return.
                 ResidencyManager.EvictWithoutWriteBack(rc, ref _table, ref _pool);
                 _generated.Remove(rc);
-                _dirtyRegions.Remove(rc);
-                _regionsNeedingUpload.Remove(rc);
+                _changes.PublishRegion(rc, VoxelChangeKind.Residency);
                 RegionsEvicted++;
             }
 
@@ -462,15 +489,10 @@ namespace VoxelEngine.Showcase
             ResidencyManager.TouchRegion(coord);
 
             _generated.Add(coord);
-            _dirtyRegions.Add(coord);
-            _regionsNeedingUpload.Add(coord);
+            _changes.PublishRegion(coord, VoxelChangeKind.All);
 
             // Neighbours must re-mesh too: faces along the shared border were meshed as the edge
             // of the loaded world and are now interior.
-            _dirtyRegions.Add(coord + new int3(1, 0, 0));
-            _dirtyRegions.Add(coord + new int3(-1, 0, 0));
-            _dirtyRegions.Add(coord + new int3(0, 0, 1));
-            _dirtyRegions.Add(coord + new int3(0, 0, -1));
 
             // Features are generated after terrain, so they carve and build against finished
             // ground. Everything here is a function of (seed, catalogue, region coordinate) —
@@ -498,7 +520,7 @@ namespace VoxelEngine.Showcase
 
             // The pointer grid is only final now. Anything uploaded earlier described a
             // half-built region.
-            _regionsNeedingUpload.Add(coord);
+            _changes.PublishRegion(coord, VoxelChangeKind.All);
 
             FinishRegionForced();
 
@@ -578,27 +600,69 @@ namespace VoxelEngine.Showcase
                 GenerateRegionBlocking(neighbour);
             }
 
-            var brush = CastleBuilder.Build(ref _table, ref _pool, in plan, Seed);
+            var brush = CastleBuilder.Build(ref _table, ref _pool, in plan, Seed, in _palette);
+            int referenceArchVoxels = BuildReferenceArch(new int3(cx - 120, 0, cz - 210));
             _castlePlan = plan;
             _hasCastlePlan = true;
             _castleTrapdoorOpen = false;
             _castleFrontGateOpen = false;
             BuildCastlePresentationLights(in plan);
 
-            CastleVoxels = brush.TotalVoxelsWritten;
+            CastleVoxels = brush.TotalVoxelsWritten + referenceArchVoxels;
 
             // Everything the castle touched has to be re-meshed and re-uploaded.
             for (int rz = minRz; rz <= maxRz; rz++)
             for (int rx = minRx; rx <= maxRx; rx++)
             {
                 var rc = new int3(rx, 0, rz);
-                _dirtyRegions.Add(rc);
-                _regionsNeedingUpload.Add(rc);
+                _changes.PublishRegion(rc, VoxelChangeKind.All);
+            }
+        }
+
+        private int BuildReferenceArch(int3 horizontalOrigin)
+        {
+            int ground = SurfaceHeight(horizontalOrigin.x, horizontalOrigin.z);
+            int3 origin = new(horizontalOrigin.x, ground + 1, horizontalOrigin.z);
+            var arch = new ArchFeatureDefinition
+            {
+                ClearSpan = 64,
+                PierHeight = 48,
+                RingThickness = 10,
+                Depth = 12,
+                VoussoirCount = 13,
+                StoneMaterial = Mat.DarkStone,
+                PierStyle = SurfaceStyles.Rounded,
+                RingStyle = SurfaceStyles.MasonryJoint,
+                Coating = Coatings.Moss
+            };
+
+            var primitives = new NativeList<Primitive>(arch.Metadata.MaxPrimitives, Allocator.Temp);
+            try
+            {
+                ArchValidationError validation = arch.Validate(
+                    in _palette, in _surfaceCatalogue, in _coatingCatalogue);
+                if (validation != ArchValidationError.None
+                    || !arch.Emit(origin, primitives, _profileBlocks))
+                    throw new InvalidOperationException(
+                        $"The built-in reference arch is invalid: {validation}.");
+                int3 max = origin + arch.Metadata.Footprint;
+                RasterResult result = PrimitiveRasteriser.Rasterise(
+                    primitives.AsArray(), origin, max, ref _table, ref _pool);
+                ReferenceArchMin = origin;
+                ReferenceArchMax = max;
+                return result.VoxelsWritten;
+            }
+            finally
+            {
+                primitives.Dispose();
             }
         }
 
         /// <summary>Voxels the castle wrote. Reported in the HUD so its cost is visible.</summary>
         public long CastleVoxels { get; private set; }
+        public int3 ReferenceArchMin { get; private set; }
+        public int3 ReferenceArchMax { get; private set; }
+        public ProfileBlockStore ProfileBlocks => _profileBlocks;
 
         public Vector4[] CastlePresentationLights { get; private set; } = Array.Empty<Vector4>();
         public Vector4[] CastlePresentationLightColours { get; private set; } = Array.Empty<Vector4>();
@@ -687,7 +751,7 @@ namespace VoxelEngine.Showcase
                 int3 min = CastleBuilder.FrontGateMinimum(in _castlePlan);
                 return new Vector3(min.x + CastleBuilder.FrontGateWidth * 0.5f,
                                    min.y,
-                                   min.z - 8f) * VoxelSurfaceRenderer.VoxelSize;
+                                   min.z - 8f) * VoxelSize;
             }
         }
 
@@ -802,7 +866,13 @@ namespace VoxelEngine.Showcase
 
                 if ((int)(rng.NextUint() & 0xFF) < resistance) continue;
 
-                removed.Add(new FallingVoxel { Position = v, Material = existing });
+                VoxelCell cell = VoxelAccess.GetCell(ref _table, in _pool, v);
+                removed.Add(new FallingVoxel
+                {
+                    Position = v,
+                    Material = existing,
+                    Coating = cell.Surface.CoatingId,
+                });
             }
 
             voxels.Dispose();
@@ -822,9 +892,15 @@ namespace VoxelEngine.Showcase
             byte material = VoxelAccess.GetVoxel(ref _table, in _pool, voxel);
             if (material == VoxelDimensions.MaterialEmpty || !_palette.IsDestructible(material))
                 return 0;
+            VoxelCell cell = VoxelAccess.GetCell(ref _table, in _pool, voxel);
             var removed = new List<FallingVoxel>(1)
             {
-                new() { Position = voxel, Material = material },
+                new()
+                {
+                    Position = voxel,
+                    Material = material,
+                    Coating = cell.Surface.CoatingId,
+                },
             };
             if (ClearVoxelsBulk(removed) == 0) return 0;
             int collapsed = ResolveUnsupportedAfterRemoval(removed, voxel, 1, default);
@@ -838,13 +914,13 @@ namespace VoxelEngine.Showcase
         /// <summary>Returns the centre height at which a detached chunk should meet solid world.</summary>
         public float FindLandingCentreY(float3 pivotMetres, float halfHeightMetres)
         {
-            int x = (int)math.floor(pivotMetres.x / VoxelSurfaceRenderer.VoxelSize);
-            int z = (int)math.floor(pivotMetres.z / VoxelSurfaceRenderer.VoxelSize);
+            int x = (int)math.floor(pivotMetres.x / VoxelSize);
+            int z = (int)math.floor(pivotMetres.z / VoxelSize);
             int startY = (int)math.floor((pivotMetres.y - halfHeightMetres)
-                                        / VoxelSurfaceRenderer.VoxelSize) - 1;
+                                        / VoxelSize) - 1;
             for (int y = math.min(startY, RegionVoxelEdge - 1); y >= 0; y--)
                 if (VoxelAccess.IsSolid(ref _table, in _pool, new int3(x, y, z)))
-                    return (y + 1) * VoxelSurfaceRenderer.VoxelSize + halfHeightMetres;
+                    return (y + 1) * VoxelSize + halfHeightMetres;
             return halfHeightMetres;
         }
 
@@ -905,7 +981,7 @@ namespace VoxelEngine.Showcase
                     region.BrickRefs[brickIndex] = BrickRef.Uniform(uniform);
                 }
 
-                MarkDirtyBrick(regionCoord, localBrick);
+                MarkDirtyBrick(worldBrick);
             }
 
             foreach (int3 regionCoord in touchedRegions)
@@ -918,16 +994,13 @@ namespace VoxelEngine.Showcase
             return cleared;
         }
 
-        private void MarkDirtyBrick(int3 regionCoord, int3 localBrick)
+        private void MarkDirtyBrick(int3 worldBrick)
         {
-            _dirtyRegions.Add(regionCoord);
-            _regionsNeedingUpload.Add(regionCoord);
-            if (localBrick.x == 0) _dirtyRegions.Add(regionCoord + new int3(-1, 0, 0));
-            if (localBrick.x == VoxelDimensions.RegionEdgeMask)
-                _dirtyRegions.Add(regionCoord + new int3(1, 0, 0));
-            if (localBrick.z == 0) _dirtyRegions.Add(regionCoord + new int3(0, 0, -1));
-            if (localBrick.z == VoxelDimensions.RegionEdgeMask)
-                _dirtyRegions.Add(regionCoord + new int3(0, 0, 1));
+            int3 min = worldBrick << VoxelDimensions.BrickEdgeLog2;
+            int3 regionCoord = worldBrick >> VoxelDimensions.RegionEdgeLog2;
+            _changes.Publish(regionCoord, min, min + VoxelDimensions.BrickEdge,
+                VoxelChangeKind.Occupancy | VoxelChangeKind.BaseMaterial
+                | VoxelChangeKind.SurfaceStyle | VoxelChangeKind.Coating);
         }
 
         private int ResolveUnsupportedAfterRemoval(List<FallingVoxel> removed, int3 impact, int radius,
@@ -992,7 +1065,13 @@ namespace VoxelEngine.Showcase
                         break;
                     }
 
-                    component.Add(new FallingVoxel { Position = current, Material = material });
+                    VoxelCell cell = VoxelAccess.GetCell(ref _table, in _pool, current);
+                    component.Add(new FallingVoxel
+                    {
+                        Position = current,
+                        Material = material,
+                        Coating = cell.Surface.CoatingId,
+                    });
                     if (component.Count >= MaxCollapseComponentVoxels)
                     {
                         overflow = true;
@@ -1237,8 +1316,14 @@ namespace VoxelEngine.Showcase
                             || !_palette.IsDestructible(material)) continue;
                         int3 position = (worldBrick << VoxelDimensions.BrickEdgeLog2)
                                       + new int3(x, y, z);
+                        byte coating = _pool.GetSurface(brick.PoolIndex, index).CoatingId;
                         AddVisualSample(visual,
-                            new FallingVoxel { Position = position, Material = material });
+                            new FallingVoxel
+                            {
+                                Position = position,
+                                Material = material,
+                                Coating = coating,
+                            });
                         _pool.SetVoxel(brick.PoolIndex, index, VoxelDimensions.MaterialEmpty);
                     }
 
@@ -1253,7 +1338,7 @@ namespace VoxelEngine.Showcase
                 if (visual.SourceVoxelCount == 0) continue;
                 buckets.Add(visual);
                 touchedRegions.Add(regionCoord);
-                MarkDirtyBrick(regionCoord, localBrick);
+                MarkDirtyBrick(worldBrick);
             }
 
             foreach (int3 regionCoord in touchedRegions)
@@ -1279,16 +1364,18 @@ namespace VoxelEngine.Showcase
                 {
                     Voxels = new int3[bucket.Samples.Count],
                     Materials = new byte[bucket.Samples.Count],
+                    Coatings = new byte[bucket.Samples.Count],
                     SourceVoxelCount = math.max(bucket.SourceVoxelCount,
                                                 (int)math.ceil(bucket.SourceVoxelCount
                                                                * coverageScale)),
-                    ImpactMetres = ((float3)impact + 0.5f) * VoxelSurfaceRenderer.VoxelSize,
+                    ImpactMetres = ((float3)impact + 0.5f) * VoxelSize,
                     ImpulseDirection = impulseDirection,
                 };
                 for (int i = 0; i < bucket.Samples.Count; i++)
                 {
                     chunk.Voxels[i] = bucket.Samples[i].Position;
                     chunk.Materials[i] = bucket.Samples[i].Material;
+                    chunk.Coatings[i] = bucket.Samples[i].Coating;
                 }
                 _detachedChunks.Enqueue(chunk);
             }
@@ -1447,16 +1534,18 @@ namespace VoxelEngine.Showcase
                 {
                     Voxels = new int3[voxels.Count],
                     Materials = new byte[voxels.Count],
+                    Coatings = new byte[voxels.Count],
                     SourceVoxelCount = math.max(bucket.SourceVoxelCount,
                                                 (int)math.ceil(bucket.SourceVoxelCount
                                                                * coverageScale)),
-                    ImpactMetres = ((float3)impact + 0.5f) * VoxelSurfaceRenderer.VoxelSize,
+                    ImpactMetres = ((float3)impact + 0.5f) * VoxelSize,
                     ImpulseDirection = impulseDirection,
                 };
                 for (int i = 0; i < voxels.Count; i++)
                 {
                     chunk.Voxels[i] = voxels[i].Position;
                     chunk.Materials[i] = voxels[i].Material;
+                    chunk.Coatings[i] = voxels[i].Coating;
                 }
                 _detachedChunks.Enqueue(chunk);
             }
@@ -1502,27 +1591,20 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Marks the region owning this voxel for a mesh rebuild, plus the neighbour when the
-        /// voxel sits on a region border — a face there is exposed by geometry on the far side.
+        /// Publishes the exact changed cell. The scheduler expands the extraction halo.
         /// </summary>
         private void MarkDirty(int3 voxel)
         {
             var rc = new int3(voxel.x >> VoxelDimensions.RegionVoxelEdgeLog2,
                               voxel.y >> VoxelDimensions.RegionVoxelEdgeLog2,
                               voxel.z >> VoxelDimensions.RegionVoxelEdgeLog2);
-            _dirtyRegions.Add(rc);
 
-            // An edit can allocate or collapse a brick, which rewrites the pointer, so the GPU
-            // copy of this region's grid is stale until it is sent again.
-            _regionsNeedingUpload.Add(rc);
+            // Storage may allocate or collapse a mixed brick, but render domains consume only
+            // this logical changed range and expand their own extraction halos.
+            _changes.Publish(rc, voxel, voxel + 1,
+                VoxelChangeKind.Occupancy | VoxelChangeKind.BaseMaterial
+                | VoxelChangeKind.SurfaceStyle | VoxelChangeKind.Coating);
 
-            int lx = voxel.x & (RegionVoxelEdge - 1);
-            int lz = voxel.z & (RegionVoxelEdge - 1);
-
-            if (lx == 0) _dirtyRegions.Add(rc + new int3(-1, 0, 0));
-            if (lx == RegionVoxelEdge - 1) _dirtyRegions.Add(rc + new int3(1, 0, 0));
-            if (lz == 0) _dirtyRegions.Add(rc + new int3(0, 0, -1));
-            if (lz == RegionVoxelEdge - 1) _dirtyRegions.Add(rc + new int3(0, 0, 1));
         }
 
         // -- brush stamps --------------------------------------------------------

@@ -5,6 +5,7 @@ using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Collision;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering;
+using VoxelEngine.Tiering;
 
 namespace VoxelEngine.Showcase
 {
@@ -46,7 +47,7 @@ namespace VoxelEngine.Showcase
         [SerializeField] private uint m_Seed = 0x5EED1234;
 
         [Tooltip("Mixed-brick pool capacity. Bounded by configuration, never by world size. " +
-                 "Each slot is 576 B, so 262144 slots is about 151 MB.")]
+                 "Each slot currently costs 2112 B; runtime clamps this to the device tier.")]
         [SerializeField] private int m_BrickPoolCapacity = 262144;
 
         [Header("Streaming")]
@@ -60,9 +61,6 @@ namespace VoxelEngine.Showcase
         [Tooltip("Milliseconds per frame spent generating terrain. Work resumes mid-region.")]
         [SerializeField] private float m_GenerateBudgetMs = 3f;
 
-        [Tooltip("Milliseconds per frame spent building surface meshes. Work resumes mid-region.")]
-        [SerializeField] private float m_MeshBudgetMs = 4f;
-
         [Header("Character")]
         [SerializeField] private bool m_FlyMode;
         [SerializeField] private float m_WalkSpeed = 5.5f;
@@ -74,18 +72,8 @@ namespace VoxelEngine.Showcase
         [SerializeField] private int m_MinBrushRadius = 2;
         [SerializeField] private int m_MaxBrushRadius = 40;
 
-        [Header("Renderer")]
-        [Tooltip("Raymarch the brickmap on the GPU (the engine path). Off falls back to the " +
-                 "demo's mesh builder, which is only kept for A/B comparison.")]
-        [SerializeField] private bool m_UseRaymarch = true;
-
-        [Header("Presentation")]
-        [Tooltip("Presentation-only. Shadows across a streamed world are expensive.")]
-        [SerializeField] private bool m_CastShadows;
-
         private ShowcaseWorld _world;
         private GpuDebrisSystem _gpuDebris;
-        private VoxelSurfaceRenderer _renderer;
         private CharacterMotor _motor;
         private bool _spawned;
 
@@ -126,26 +114,34 @@ namespace VoxelEngine.Showcase
         {
             if (!Application.isPlaying) return;
 
-            // Clamped rather than trusted: the pool is 576 bytes per slot, so a mistyped
-            // inspector value is hundreds of megabytes before anything reports a problem.
-            int capacity = Mathf.Clamp(m_BrickPoolCapacity, 4096, 262144);
+            // Clamp by bytes, not an obsolete slot count. Sidecars change per-slot cost; tier
+            // budgets remain the authority and cannot silently be exceeded by an inspector value.
+            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            int tierSlots = Mathf.Max(4096, tierBytes / VoxelDimensions.BytesPerMixedBrick);
+            int capacity = Mathf.Clamp(m_BrickPoolCapacity, 4096, tierSlots);
 
             _world = new ShowcaseWorld(m_Seed, capacity,
                                        m_LoadRadiusRegions, m_UnloadRadiusRegions);
             _gpuDebris = new GpuDebrisSystem();
-            _renderer = new VoxelSurfaceRenderer { CastShadows = m_CastShadows };
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 
             // Hand the world to the render feature. URP owns the feature and constructs it, so
             // the world registers itself rather than being injected.
-            VoxelRenderBridge.RegionsNeedingUpload = _world.RegionsNeedingUpload;
+            VoxelRenderBridge.SolidBackend =
+                VoxelRenderBridge.SolidSurfaceBackend.GpuSurfaceNets;
+            VoxelRenderBridge.ResetSurfacePassDiagnostics("showcase-enabled");
+            VoxelRenderBridge.Changes = _world.Changes;
             VoxelRenderBridge.TerrainSeed = _world.Seed;
             VoxelRenderBridge.FarBaseHeight = ShowcaseWorld.BaseHeightVoxels;
+            VoxelRenderBridge.FarFieldEnabled = true;
             VoxelRenderBridge.Source = () => new VoxelWorldView
             {
                 Table = _world.Table,
                 Pool = _world.Pool,
-                CameraRegion = ShowcaseWorld.RegionAt(transform.position),
+                Palette = _world.Palette,
+                SurfaceCatalogue = _world.SurfaceRules,
+                CoatingCatalogue = _world.CoatingRules,
+                ProfileBlocks = _world.ProfileBlocks,
             };
             _spawned = false;
 
@@ -160,10 +156,9 @@ namespace VoxelEngine.Showcase
             VoxelRenderBridge.LocalLightColours = System.Array.Empty<Vector4>();
             VoxelRenderBridge.FlashlightEnabled = false;
             VoxelRenderBridge.Source = null;
-            VoxelRenderBridge.RegionsNeedingUpload = null;
+            VoxelRenderBridge.Changes = null;
+            VoxelRenderBridge.FarFieldEnabled = false;
 
-            _renderer?.Dispose();
-            _renderer = null;
             _gpuDebris?.Dispose();
             _gpuDebris = null;
             for (int i = 0; i < _tornadoes.Count; i++)
@@ -221,7 +216,7 @@ namespace VoxelEngine.Showcase
 
         private void Update()
         {
-            if (!Application.isPlaying || _world == null || _renderer == null) return;
+            if (!Application.isPlaying || _world == null) return;
 
             {
                 if (!_spawned) Spawn();
@@ -237,24 +232,6 @@ namespace VoxelEngine.Showcase
                 _world.StepStreaming(transform.position, m_GenerateBudgetMs);
             }
 
-            if (m_UseRaymarch)
-            {
-                // The raymarch reads the brickmap directly, so the mesh path is not just
-                // unnecessary — leaving it on would draw the world twice.
-                // Do not clear RegionsNeedingUpload here. It is the world telling the renderer
-                // which pointer grids changed, and the renderer clears it once consumed. The
-                // driver clearing it every frame meant a region's pointers were uploaded once,
-                // while it was still generating, and never refreshed — so the GPU held pointers
-                // to pool slots that had since been freed and reused, and the raymarch drew
-                // nothing at all once generation completed.
-                _renderer.SetVisible(false);
-            }
-            else
-            {
-                _renderer.SetVisible(true);
-                _renderer.CastShadows = m_CastShadows;
-                _renderer.Sync(_world, m_MeshBudgetMs);
-            }
         }
 
         // -- movement ------------------------------------------------------------
@@ -319,7 +296,6 @@ namespace VoxelEngine.Showcase
         private void HandleKeys()
         {
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
-            if (Input.GetKeyDown(KeyCode.T)) m_CastShadows = !m_CastShadows;
 
             if (Input.GetKeyDown(KeyCode.F))
             {
@@ -484,15 +460,15 @@ namespace VoxelEngine.Showcase
                     }
                     if (semanticTreeHit || changed > 0)
                     {
-                        float3 impactMetres = (float3)hit * VoxelSurfaceRenderer.VoxelSize;
+                        float3 impactMetres = (float3)hit * ShowcaseWorld.VoxelSize;
                         ProceduralTreeDamageService.ApplyBlast(
-                            impactMetres, shot.ImpactRadius * VoxelSurfaceRenderer.VoxelSize,
+                            impactMetres, shot.ImpactRadius * ShowcaseWorld.VoxelSize,
                             (float3)shot.Direction);
                     }
                     _lastEditMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
                     _lastEditLabel = $"tornado impact r{shot.ImpactRadius}: {changed:N0} voxels, " +
                                      $"{(_gpuDebris?.ActiveVoxels ?? 0):N0} falling";
-                    SpawnImpactBurst((Vector3)((float3)hit * VoxelSurfaceRenderer.VoxelSize));
+                    SpawnImpactBurst((Vector3)((float3)hit * ShowcaseWorld.VoxelSize));
                     DestroyTornado(shot);
                     _tornadoes.RemoveAt(i);
                     continue;
@@ -549,7 +525,7 @@ namespace VoxelEngine.Showcase
                 float treeDistance = math.lengthsq(treeHitMetres - (float3)from);
                 if (!found || treeDistance < nearestDistance)
                 {
-                    hit = (int3)math.round(treeHitMetres / VoxelSurfaceRenderer.VoxelSize);
+                    hit = (int3)math.round(treeHitMetres / ShowcaseWorld.VoxelSize);
                     semanticTreeHit = true;
                     found = true;
                 }
@@ -561,7 +537,7 @@ namespace VoxelEngine.Showcase
                                          ref bool found, ref float nearestDistance, ref int3 hit)
         {
             if (!TryTornadoLineImpact(from + offset, to + offset, out int3 candidate)) return;
-            float distance = math.lengthsq((float3)candidate * VoxelSurfaceRenderer.VoxelSize
+            float distance = math.lengthsq((float3)candidate * ShowcaseWorld.VoxelSize
                                            - (float3)from);
             if (distance >= nearestDistance) return;
             nearestDistance = distance;
@@ -571,8 +547,8 @@ namespace VoxelEngine.Showcase
 
         private bool TryTornadoLineImpact(Vector3 from, Vector3 to, out int3 hit)
         {
-            int3 start = (int3)math.floor((float3)from / VoxelSurfaceRenderer.VoxelSize);
-            int3 end = (int3)math.floor((float3)to / VoxelSurfaceRenderer.VoxelSize);
+            int3 start = (int3)math.floor((float3)from / ShowcaseWorld.VoxelSize);
+            int3 end = (int3)math.floor((float3)to / ShowcaseWorld.VoxelSize);
             var cursor = DdaTraversal.Cursor.Between(start, end);
 
             while (cursor.MoveNext())
@@ -670,8 +646,8 @@ namespace VoxelEngine.Showcase
         {
             if (_tornadoMaterial != null) return;
             // UI/Default is a late transparent vertex-colour shader. The custom voxel pass
-            // fills the opaque target immediately before transparents, so a regular opaque
-            // material is overwritten even when its geometry is nearer than the raymarched world.
+            // fills the opaque target immediately before transparents, so the effect stays in the
+            // late transparent queue and composes over extracted voxel geometry.
             Shader shader = Shader.Find("UI/Default");
             if (shader == null) shader = Shader.Find("Sprites/Default");
             if (shader == null) shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
@@ -717,7 +693,7 @@ namespace VoxelEngine.Showcase
 
         private void OnGUI()
         {
-            if (!Application.isPlaying || _world == null || _renderer == null) return;
+            if (!Application.isPlaying || _world == null) return;
 
             // Keep only contextual gameplay guidance; the persistent diagnostics overlay is gone.
             if (InteractionPromptVisible)

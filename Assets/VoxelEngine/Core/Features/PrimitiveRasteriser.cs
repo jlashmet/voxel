@@ -59,9 +59,14 @@ namespace VoxelEngine.Core.Features
             for (var i = 0; i < primitives.Length; i++)
             {
                 var primitive = primitives[i];
-                if (!primitive.Intersects(subVolumeMin, subVolumeMax)) continue;
-
                 primitive.Bounds(out var min, out var max);
+                bool hasBoundary = CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
+                    in primitive, primitive.A, out _);
+                bool geometryIntersects = primitive.Intersects(subVolumeMin, subVolumeMax);
+                bool boundaryIntersects = hasBoundary
+                    && math.all(min - 2 < subVolumeMax)
+                    && math.all(max + 2 >= subVolumeMin);
+                if (!geometryIntersects && !boundaryIntersects) continue;
 
                 int x0 = math.max(min.x, subVolumeMin.x), x1 = math.min(max.x, subVolumeMax.x - 1);
                 int y0 = math.max(min.y, subVolumeMin.y), y1 = math.min(max.y, subVolumeMax.y - 1);
@@ -78,16 +83,16 @@ namespace VoxelEngine.Core.Features
                     continue;
                 }
 
-                bool hardWrite = markHardSurface
-                              && primitive.Mode != PrimitiveMode.Carve
-                              && primitive.Mode != PrimitiveMode.PaintSolid;
-
                 for (int z = z0; z <= z1; z++)
                 for (int y = y0; y <= y1; y++)
                 for (int x = x0; x <= x1; x++)
                 {
                     var voxel = new int3(x, y, z);
-                    if (!Contains(in primitive, voxel)) continue;
+                    bool contains = primitive.Mode == PrimitiveMode.SurfaceDetail
+                        && primitive.Shape == PrimitiveShape.Capsule
+                        ? CapsuleChainEmitter.ContainsQ4(in primitive, voxel, 8)
+                        : Contains(in primitive, voxel);
+                    if (!contains) continue;
 
                     if (primitive.Mode == PrimitiveMode.FillIfEmpty
                         && VoxelAccess.IsSolid(ref table, in pool, voxel))
@@ -97,13 +102,54 @@ namespace VoxelEngine.Core.Features
                         && !VoxelAccess.IsSolid(ref table, in pool, voxel))
                         continue;
 
-                    byte material = primitive.Mode == PrimitiveMode.Carve
-                        ? VoxelDimensions.MaterialEmpty
-                        : primitive.Material;
+                    if (primitive.Mode == PrimitiveMode.SurfaceDetail)
+                    {
+                        VoxelCell current = VoxelAccess.GetCell(ref table, in pool, voxel);
+                        if (!current.IsSolid) continue;
+                        if (primitive.SurfaceStyle != SurfaceStyles.MaterialDefault)
+                            current.Surface.StyleId = primitive.SurfaceStyle;
+                        current.Surface.Detail = (byte)math.min(31, primitive.SurfaceDetail);
+                        current.Surface.Flags |= primitive.SurfaceFlags;
+                        if (VoxelAccess.SetCell(ref table, ref pool, voxel, in current))
+                            result.VoxelsWritten++;
+                        continue;
+                    }
 
-                    if (VoxelAccess.SetVoxel(ref table, ref pool, voxel, material, hardWrite))
+                    VoxelCell cell;
+                    if (primitive.Mode == PrimitiveMode.Carve)
+                    {
+                        cell = default;
+                    }
+                    else if (primitive.Mode == PrimitiveMode.PaintSolid)
+                    {
+                        cell = VoxelAccess.GetCell(ref table, in pool, voxel);
+                        cell.BaseMaterialId = primitive.Material;
+                    }
+                    else
+                    {
+                        ushort style = primitive.SurfaceStyle;
+                        if (markHardSurface && style == SurfaceStyles.MaterialDefault)
+                            style = SurfaceStyles.Planar;
+                        cell = new VoxelCell
+                        {
+                            BaseMaterialId = primitive.Material,
+                            Surface = new VoxelSurfaceSemantics
+                            {
+                                StyleId = style,
+                                CoatingId = primitive.Coating,
+                                Flags = primitive.SurfaceFlags,
+                                Detail = (byte)math.min(31, primitive.SurfaceDetail)
+                            }
+                        };
+                    }
+
+                    if (VoxelAccess.SetCell(ref table, ref pool, voxel, in cell))
                         result.VoxelsWritten++;
                 }
+
+                if (primitive.Mode != PrimitiveMode.SurfaceDetail)
+                    RasteriseBoundaryHalo(in primitive, subVolumeMin, subVolumeMax,
+                                          ref table, ref pool, ref result);
 
                 result.PrimitivesRasterised++;
             }
@@ -143,7 +189,7 @@ namespace VoxelEngine.Core.Features
 
                         if (paintY < subVolumeMinY || paintY >= subVolumeMaxY) continue;
                         if (VoxelAccess.SetVoxel(ref table, ref pool, voxel,
-                                                 primitive.Material, false))
+                                                 primitive.Material))
                             result.VoxelsWritten++;
                     }
 
@@ -152,7 +198,70 @@ namespace VoxelEngine.Core.Features
             }
         }
 
-        /// <summary>Membership test, dispatched by shape.</summary>
+        private static void RasteriseBoundaryHalo(
+            in Primitive primitive, int3 subVolumeMin, int3 subVolumeMax,
+            ref RegionTable table, ref BrickPool pool, ref RasterResult result)
+        {
+            if (!CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
+                    in primitive, primitive.A, out _)) return;
+
+            primitive.Bounds(out int3 boundsMin, out int3 boundsMax);
+            int3 min = math.max(boundsMin - 2, subVolumeMin);
+            int3 max = math.min(boundsMax + 2, subVolumeMax - 1);
+            for (int z = min.z; z <= max.z; z++)
+            for (int y = min.y; y <= max.y; y++)
+            for (int x = min.x; x <= max.x; x++)
+            {
+                int3 voxel = new(x, y, z);
+                if (!CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
+                        in primitive, voxel, out int shapeDistanceQ4)) continue;
+                if (math.abs(shapeDistanceQ4) > 32) continue;
+
+                // A carve inverts the primitive field: inside the carved volume is outside solid.
+                int solidDistanceQ4 = primitive.Mode == PrimitiveMode.Carve
+                    ? -shapeDistanceQ4 : shapeDistanceQ4;
+                VoxelCell current = VoxelAccess.GetCell(ref table, in pool, voxel);
+                bool signMatchesOccupancy = current.IsSolid
+                    ? solidDistanceQ4 >= 0 : solidDistanceQ4 <= 0;
+                if (!signMatchesOccupancy) continue;
+
+                // Fill constraints belong only to cells written with the primitive's material.
+                // This prevents an overlapping decorative primitive from reshaping foreign solids.
+                if (primitive.Mode != PrimitiveMode.Carve && current.IsSolid
+                    && current.BaseMaterialId != primitive.Material) continue;
+
+                if (solidDistanceQ4 == 0)
+                    solidDistanceQ4 = current.IsSolid ? 1 : -1;
+
+                int extrusionAxis = primitive.Shape == PrimitiveShape.Annulus
+                    || primitive.Shape == PrimitiveShape.ArcWedge
+                    || primitive.Shape == PrimitiveShape.Frustum
+                    || primitive.Shape == PrimitiveShape.RoundedBox && primitive.Axis <= 2
+                    ? primitive.Axis : 3;
+                VoxelBoundarySample boundary =
+                    VoxelBoundarySample.FromSignedQ4(solidDistanceQ4, extrusionAxis);
+                if (current.Boundary.IsAuthored)
+                {
+                    int existingDistanceQ4 = current.Boundary.SignedQ4;
+                    bool candidateWins = primitive.Mode == PrimitiveMode.Carve
+                        ? solidDistanceQ4 < existingDistanceQ4
+                        : solidDistanceQ4 > existingDistanceQ4;
+                    if (!candidateWins) continue;
+                }
+                if (current.Boundary.Equals(boundary)) continue;
+                current.Boundary = boundary;
+                if (VoxelAccess.SetCell(ref table, ref pool, voxel, in current))
+                    result.VoxelsWritten++;
+            }
+        }
+
+        /// <summary>
+        /// Membership test, dispatched by shape.
+        ///
+        /// A pure function of the primitive and the world coordinate — deliberately taking no
+        /// sub-volume, so it is impossible to write a shape whose answer depends on which region
+        /// is asking.
+        /// </summary>
         public static bool Contains(in Primitive primitive, int3 voxel)
         {
             switch (primitive.Shape)
@@ -162,6 +271,12 @@ namespace VoxelEngine.Core.Features
                 case PrimitiveShape.Cylinder: return CylinderEmitter.Contains(in primitive, voxel);
                 case PrimitiveShape.Prism: return PrismEmitter.Contains(in primitive, voxel);
                 case PrimitiveShape.Capsule: return CapsuleChainEmitter.Contains(in primitive, voxel);
+                case PrimitiveShape.RoundedBox:
+                case PrimitiveShape.Ellipsoid:
+                case PrimitiveShape.Frustum:
+                case PrimitiveShape.Annulus:
+                case PrimitiveShape.ArcWedge:
+                    return CurvedPrimitiveEmitter.Contains(in primitive, voxel);
                 default: return false;
             }
         }

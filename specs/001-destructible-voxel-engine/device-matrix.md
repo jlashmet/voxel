@@ -48,7 +48,7 @@ Three tiers. Mid-tier and low-tier mobile are **out of scope** (`spec.md` Out of
 | Budget | PC | Console | Mobile-HE |
 |---|---|---|---|
 | **Brick pool** | 1.5 GB | 1.0 GB | 384 MB |
-| Approx. unique bricks (576 B each) | ~2.7 M | ~1.8 M | ~700 K |
+| Approx. unique mixed bricks (2,112 B each) | ~727 K | ~508 K | ~190 K |
 | Region pointer tables | 192 MB | 128 MB | 48 MB |
 | Debris and transient | 128 MB | 96 MB | 32 MB |
 | **Total world-attributable** | ~1.8 GB | ~1.2 GB | ~464 MB |
@@ -67,8 +67,8 @@ Three tiers. Mid-tier and low-tier mobile are **out of scope** (`spec.md` Out of
 | Max view distance | 10 km | 10 km | 6 km |
 | Region load radius | 500 m | 450 m | 300 m |
 | Region unload radius | 650 m | 600 m | 420 m |
-| Raymarch render scale | 1.0 | 1.0 | 0.75 + upscale |
-| Max steps per ray | 256 | 256 | 128 |
+| Voxel render scale | 1.0 | 1.0 | 0.75 + upscale |
+| Solid extraction build budget | 0.20 ms/frame | 0.20 ms/frame | 0.20 ms/frame |
 | Irradiance probe spacing | 2 m | 2 m | 4 m |
 | Max visual-only debris bodies | 2000 | 1500 | 400 |
 
@@ -155,12 +155,13 @@ The spike (T008–T011) fills this table. **Pass condition: Mobile-HE voxel rend
 
 | Measurement | Target | Measured |
 |---|---|---|
-| Full-detail raymarch, Mobile-HE, 0.75 scale | ≤ 9 ms | _pending_ |
+| Full-detail solid rendering, Mobile-HE, 0.75 scale | ≤ 9 ms | _pending_ |
 | Implicit-only contingency, Mobile-HE | ≤ 5 ms | _pending_ |
-| Full-detail raymarch, PC, 1.0 scale | ≤ 6 ms | _pending_ |
+| Full-detail solid rendering, PC, 1.0 scale | ≤ 6 ms | _pending_ |
 | Brick pool 384 MB resident, Mobile-HE | no thermal throttle over 20 min | _pending_ |
 
-**Go/no-go (T011)**: if full-detail exceeds 9 ms on Mobile-HE, ship mobile on the implicit/mip path at all distances — lower fidelity, same data, same collision. A mesh-based mobile path remains explicitly excluded.
+**Go/no-go (T011)**: if full-detail exceeds 9 ms on Mobile-HE, reduce presentation
+radius/resolution and use the implicit far field sooner—lower fidelity, same data, same collision.
 
 ---
 
@@ -168,7 +169,7 @@ The spike (T008–T011) fills this table. **Pass condition: Mobile-HE voxel rend
 
 Restates `architecture-notes.md` §8.1 as the enforceable test matrix for SC-013.
 
-**May tier**: brick pool capacity · detail radius and mip transitions · raymarch render scale and step budget · irradiance probe spacing · visual-only debris count · max view distance.
+**May tier**: brick pool capacity · detail radius and mip transitions · voxel render scale · irradiance probe spacing · visual-only debris count · max view distance.
 
 **May not tier**: tick rate · world-update latency budget · interest radius · collision and hit resolution · world state · any `Core` integer job · reconciliation window.
 

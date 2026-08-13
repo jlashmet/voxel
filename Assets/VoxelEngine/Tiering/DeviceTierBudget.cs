@@ -10,7 +10,7 @@ namespace VoxelEngine.Tiering
     /// Only three tiers exist — PC, Console, and Mobile-HE (Constitution Principle IV: platform
     /// scope is PC, console, and high-end mobile only). Mid-tier and low-tier phones are out of
     /// scope. Tier selection drives *presentation parameters* exclusively: pool capacity, detail
-    /// radius, render scale, step budget, probe spacing, debris count, and view distance.
+    /// radius, render scale, probe spacing, debris count, and view distance.
     ///
     /// The following fields are STRUCTURALLY ABSENT from this type because they must never tier:
     ///   - interestRadius (the specific C-006 trap)
@@ -42,7 +42,6 @@ namespace VoxelEngine.Tiering
     ///   - brickPoolCapacity       (memory budget for mixed bricks)
     ///   - detailRadius            (full-detail mip-0 render radius)
     ///   - renderScale             (render resolution fraction, 0.75 on Mobile-HE)
-    ///   - stepBudget              (max raymarch steps per ray)
     ///   - probeSpacing            (irradiance probe placement spacing in world units)
     ///   - maxDebris               (maximum visual-only debris bodies)
     ///   - maxViewDistance         (farthest distance bricks are rendered)
@@ -57,9 +56,6 @@ namespace VoxelEngine.Tiering
 
         /// <summary>Render resolution scale fraction — 1.0 on PC/Console, 0.75 on Mobile-HE.</summary>
         public readonly float RenderScale;
-
-        /// <summary>Maximum raymarch steps per ray — 256 on PC/Console, 128 on Mobile-HE (device-matrix.md).</summary>
-        public readonly int StepBudget;
 
         /// <summary>Irradiance probe spacing in world units — 2 m on PC/Console, 4 m on Mobile-HE.</summary>
         public readonly float ProbeSpacing;
@@ -81,7 +77,6 @@ namespace VoxelEngine.Tiering
             int brickPoolCapacity,
             int detailRadius,
             float renderScale,
-            int stepBudget,
             float probeSpacing,
             int maxDebris,
             int maxViewDistance,
@@ -91,7 +86,6 @@ namespace VoxelEngine.Tiering
             BrickPoolCapacity = brickPoolCapacity;
             DetailRadius = detailRadius;
             RenderScale = renderScale;
-            StepBudget = stepBudget;
             ProbeSpacing = probeSpacing;
             MaxDebris = maxDebris;
             MaxViewDistance = maxViewDistance;
@@ -109,7 +103,6 @@ namespace VoxelEngine.Tiering
                     brickPoolCapacity:  1_536_000_000,    // 1.5 GB
                     detailRadius:       400,               // 400 m full-detail radius
                     renderScale:        1.0f,              // Native resolution
-                    stepBudget:         256,               // 256 max steps per ray
                     probeSpacing:       2f,                // 2 m probe spacing
                     maxDebris:          2000,              // 2000 visual-only debris bodies
                     maxViewDistance:    10000,             // 10 km
@@ -121,7 +114,6 @@ namespace VoxelEngine.Tiering
                     brickPoolCapacity:  1_073_741_824,     // 1.0 GB
                     detailRadius:       350,               // 350 m full-detail radius
                     renderScale:        1.0f,              // Native resolution
-                    stepBudget:         256,               // 256 max steps per ray
                     probeSpacing:       2f,                // 2 m probe spacing
                     maxDebris:          1500,              // 1500 visual-only debris bodies
                     maxViewDistance:    10000,             // 10 km
@@ -133,7 +125,6 @@ namespace VoxelEngine.Tiering
                     brickPoolCapacity:  402_653_184,       // 384 MB
                     detailRadius:       200,               // 200 m full-detail radius
                     renderScale:        0.75f,             // 0.75 scale + upscale (device-matrix.md)
-                    stepBudget:         128,               // 128 max steps per ray (device-matrix.md)
                     probeSpacing:       4f,                // 4 m probe spacing (half density of PC/Console)
                     maxDebris:          400,               // 400 visual-only debris bodies (device-matrix.md)
                     maxViewDistance:    6000,              // 6 km max view distance
@@ -181,6 +172,6 @@ namespace VoxelEngine.Tiering
         /// <summary>String representation for debugging and telemetry.</summary>
         public override string ToString() =>
             $"Budget(cap={BrickPoolCapacity}, detail={DetailRadius}m, scale={RenderScale}, " +
-            $"steps={StepBudget}, probes={ProbeSpacing}m, debris={MaxDebris}, view={MaxViewDistance}m)";
+            $"probes={ProbeSpacing}m, debris={MaxDebris}, view={MaxViewDistance}m)";
     }
 }

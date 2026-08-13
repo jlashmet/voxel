@@ -3,22 +3,8 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
     Properties
     {
         _BaseColor("Base Color", Color) = (1, 1, 1, 1)
-        _StoneTexture("Stone", 2D) = "white" {}
-        _WoodTexture("Wood", 2D) = "white" {}
-        _SandTexture("Sand", 2D) = "white" {}
-        _RockTexture("Rock", 2D) = "white" {}
-        _SlateTexture("Slate", 2D) = "white" {}
-        _GrassTexture("Grass", 2D) = "white" {}
-        _DirtTexture("Dirt", 2D) = "white" {}
-        _DarkStoneTexture("Dark Stone", 2D) = "white" {}
-        _StoneNormal("Stone Normal", 2D) = "bump" {}
-        _WoodNormal("Wood Normal", 2D) = "bump" {}
-        _SandNormal("Sand Normal", 2D) = "bump" {}
-        _RockNormal("Rock Normal", 2D) = "bump" {}
-        _SlateNormal("Slate Normal", 2D) = "bump" {}
-        _GrassNormal("Grass Normal", 2D) = "bump" {}
-        _DirtNormal("Dirt Normal", 2D) = "bump" {}
-        _DarkStoneNormal("Dark Stone Normal", 2D) = "bump" {}
+        _AlbedoTextures("Material Albedo Array", 2DArray) = "white" {}
+        _NormalTextures("Material Normal Array", 2DArray) = "bump" {}
     }
     SubShader
     {
@@ -49,23 +35,18 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             StructuredBuffer<uint> _SurfaceIndices;
             uint _SurfaceIndexBase;
             float4 _BaseColor;
-            float4 _MaterialColours[18];
-            TEXTURE2D(_StoneTexture);      SAMPLER(sampler_StoneTexture);
-            TEXTURE2D(_WoodTexture);
-            TEXTURE2D(_SandTexture);
-            TEXTURE2D(_RockTexture);
-            TEXTURE2D(_SlateTexture);
-            TEXTURE2D(_GrassTexture);
-            TEXTURE2D(_DirtTexture);
-            TEXTURE2D(_DarkStoneTexture);
-            TEXTURE2D(_StoneNormal);
-            TEXTURE2D(_WoodNormal);
-            TEXTURE2D(_SandNormal);
-            TEXTURE2D(_RockNormal);
-            TEXTURE2D(_SlateNormal);
-            TEXTURE2D(_GrassNormal);
-            TEXTURE2D(_DirtNormal);
-            TEXTURE2D(_DarkStoneNormal);
+            float4 _MaterialAlbedo[32];
+            float4 _MaterialSampling[32];
+            float4 _MaterialSurface[32];
+            float4 _MaterialVariation[32];
+            float4 _CoatingTint[16];
+            float4 _CoatingSampling[16];
+            float4 _CoatingResponse[16];
+            float4 _SurfacePattern[32];
+            float4 _SurfaceJointColour[32];
+            float4 _SurfaceDetailResponse[32];
+            TEXTURE2D_ARRAY(_AlbedoTextures); SAMPLER(sampler_AlbedoTextures);
+            TEXTURE2D_ARRAY(_NormalTextures); SAMPLER(sampler_NormalTextures);
 
             float4 _SunDirection;
             float4 _SkyHorizon;
@@ -73,17 +54,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             float _VoxelSize;
             float _DebugCoverage;
 
-            // These remain bound because cutaway/material helpers and future cheap shadowing use
-            // the authoritative sparse world. The old fragment-time 48-step voxel shadow march
-            // is intentionally not used: doing dozens of brick lookups for every covered pixel
-            // defeated the point of rasterising the extracted surface.
-            StructuredBuffer<int> _RegionWindow;
-            StructuredBuffer<int> _BrickRefs;
-            StructuredBuffer<uint> _BrickVoxels;
-            float4 _WindowOrigin;
-            uint _WindowX;
-            uint _WindowY;
-            uint _WindowZ;
             uint _CutawayEnabled;
             float4 _CutawayMinVoxel;
             float4 _CutawayMaxVoxel;
@@ -124,87 +94,40 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 return lerp(_SkyHorizon.rgb, _SkyZenith.rgb, saturate(direction.y * 0.5 + 0.5));
             }
 
-            float3 SampleTextureAt(uint material, float2 uv)
-            {
-                if (material == 1u)  return SAMPLE_TEXTURE2D(_StoneTexture, sampler_StoneTexture, uv).rgb;
-                if (material == 2u)  return SAMPLE_TEXTURE2D(_WoodTexture, sampler_StoneTexture, uv).rgb;
-                if (material == 3u)  return SAMPLE_TEXTURE2D(_SandTexture, sampler_StoneTexture, uv).rgb;
-                if (material == 7u)  return SAMPLE_TEXTURE2D(_SlateTexture, sampler_StoneTexture, uv).rgb;
-                if (material == 8u)  return SAMPLE_TEXTURE2D(_SlateTexture, sampler_StoneTexture, uv).rgb
-                                           * float3(1.18, 0.68, 0.58);
-                if (material == 10u) return SAMPLE_TEXTURE2D(_GrassTexture, sampler_StoneTexture, uv).rgb;
-                if (material == 13u) return SAMPLE_TEXTURE2D(_DirtTexture, sampler_StoneTexture, uv).rgb;
-                if (material == 14u) return SAMPLE_TEXTURE2D(_GrassTexture, sampler_StoneTexture, uv).rgb * 0.72;
-                return 1.0;
-            }
-
             float2 SurfaceUV(float3 normal, float3 hitVoxel)
             {
                 float3 a = abs(normal);
-                if (a.y >= a.x && a.y >= a.z) return hitVoxel.xz / 36.0;
-                if (a.x >= a.z) return hitVoxel.zy / 36.0;
-                return hitVoxel.xy / 36.0;
+                if (a.y >= a.x && a.y >= a.z) return hitVoxel.xz;
+                if (a.x >= a.z) return hitVoxel.zy;
+                return hitVoxel.xy;
             }
 
-            float3 SampleSurfaceTexture(uint material, float2 uv, float3 hitVoxel,
-                                        float hitDistance, float3 fallback, float lod)
+            float3 SampleAlbedoLayer(float layer, float2 uv)
             {
-                float3 texel = fallback;
-                if (material == 6u)
-                {
-                    float exteriorWeathering = smoothstep(110.0, 170.0, hitVoxel.y)
-                                             * (1.0 - smoothstep(120.0, 220.0, hitDistance));
-                    float3 caveRock = SAMPLE_TEXTURE2D(_RockTexture, sampler_StoneTexture, uv).rgb;
-                    float3 agedMasonry = SAMPLE_TEXTURE2D(_DarkStoneTexture, sampler_StoneTexture, uv).rgb;
-                    texel = lerp(caveRock, agedMasonry, exteriorWeathering);
-                }
-                else if (material == 1u || material == 2u || material == 3u || material == 7u
-                      || material == 8u || material == 10u || material == 13u || material == 14u)
-                {
-                    texel = SampleTextureAt(material, uv);
-                }
-                return texel;
+                return SAMPLE_TEXTURE2D_ARRAY(_AlbedoTextures, sampler_AlbedoTextures,
+                                              uv, layer).rgb;
             }
 
-            float3 SampleTriplanarSurfaceTexture(uint material, float3 hitVoxel, float3 normal,
-                                                 float hitDistance, float3 fallback, float lod)
+            float3 SampleMaterialAlbedo(float4 sampling, float4 surface,
+                                        float3 hitVoxel, float3 normal)
             {
+                float layer = sampling.x;
+                float scale = surface.x;
+                float3 face = SampleAlbedoLayer(layer, SurfaceUV(normal, hitVoxel) * scale);
                 float3 weights = pow(abs(normal), 4.0);
                 weights /= max(weights.x + weights.y + weights.z, 0.0001);
-                float3 alongX = SampleSurfaceTexture(material, hitVoxel.zy / 36.0, hitVoxel,
-                                                     hitDistance, fallback, lod);
-                float3 alongY = SampleSurfaceTexture(material, hitVoxel.xz / 36.0, hitVoxel,
-                                                     hitDistance, fallback, lod);
-                float3 alongZ = SampleSurfaceTexture(material, hitVoxel.xy / 36.0, hitVoxel,
-                                                     hitDistance, fallback, lod);
-                return alongX * weights.x + alongY * weights.y + alongZ * weights.z;
+                float3 triplanar = SampleAlbedoLayer(layer, hitVoxel.zy * scale) * weights.x
+                                 + SampleAlbedoLayer(layer, hitVoxel.xz * scale) * weights.y
+                                 + SampleAlbedoLayer(layer, hitVoxel.xy * scale) * weights.z;
+                return lerp(face, triplanar, saturate(sampling.z));
             }
 
-            float3 SamplePackedNormal(uint material, float2 uv, float3 hitVoxel, float hitDistance)
+            float3 SampleSurfaceNormal(float4 sampling, float4 surface,
+                                       float3 surfaceNormal, float3 hitVoxel)
             {
-                if (material == 1u)  return SAMPLE_TEXTURE2D(_StoneNormal, sampler_StoneTexture, uv).rgb;
-                if (material == 2u)  return SAMPLE_TEXTURE2D(_WoodNormal, sampler_StoneTexture, uv).rgb;
-                if (material == 3u)  return SAMPLE_TEXTURE2D(_SandNormal, sampler_StoneTexture, uv).rgb;
-                if (material == 7u || material == 8u)
-                                     return SAMPLE_TEXTURE2D(_SlateNormal, sampler_StoneTexture, uv).rgb;
-                if (material == 10u || material == 14u)
-                                     return SAMPLE_TEXTURE2D(_GrassNormal, sampler_StoneTexture, uv).rgb;
-                if (material == 13u) return SAMPLE_TEXTURE2D(_DirtNormal, sampler_StoneTexture, uv).rgb;
-                if (material == 6u)
-                {
-                    float exteriorWeathering = smoothstep(110.0, 170.0, hitVoxel.y)
-                                             * (1.0 - smoothstep(120.0, 220.0, hitDistance));
-                    float3 caveNormal = SAMPLE_TEXTURE2D(_RockNormal, sampler_StoneTexture, uv).rgb;
-                    float3 masonryNormal = SAMPLE_TEXTURE2D(_DarkStoneNormal, sampler_StoneTexture, uv).rgb;
-                    return lerp(caveNormal, masonryNormal, exteriorWeathering);
-                }
-                return float3(0.5, 0.5, 1.0);
-            }
-
-            float3 SampleSurfaceNormal(uint material, float2 uv, float3 surfaceNormal,
-                                       float3 hitVoxel, float hitDistance)
-            {
-                float3 packed = SamplePackedNormal(material, uv, hitVoxel, hitDistance);
+                float2 uv = SurfaceUV(surfaceNormal, hitVoxel) * surface.x;
+                float3 packed = SAMPLE_TEXTURE2D_ARRAY(_NormalTextures, sampler_NormalTextures,
+                                                       uv, sampling.y).rgb;
                 float3 tangentNormal = normalize(packed * 2.0 - 1.0);
                 float3 a = abs(surfaceNormal);
                 float3 tangent;
@@ -236,59 +159,89 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
 
                 float3 faceNormal = normalize(input.normalNS);
                 float3 normal = faceNormal;
-                uint material = min(input.material, 17u);
-                float3 albedo = _MaterialColours[material].rgb;
-                if (dot(albedo, albedo) < 1e-6) albedo = 1.0;
+                uint material = min(input.material & 0xFFu, 31u);
+                uint coating = min((input.material >> 8u) & 0xFFu, 15u);
+                uint surfaceStyle = min((input.material >> 16u) & 0xFFu, 31u);
+                uint packedSurface = (input.material >> 24u) & 0xFFu;
+                uint surfaceFlags = packedSurface & 0x07u;
+                float surfaceDetail = float(packedSurface >> 3u) / 31.0;
+                float4 materialSampling = _MaterialSampling[material];
+                float4 materialSurface = _MaterialSurface[material];
+                float4 materialVariation = _MaterialVariation[material];
+                float3 albedo = _MaterialAlbedo[material].rgb;
 
                 float3 hitVoxel = input.positionWS / max(_VoxelSize, 1e-4);
                 float hitDistance = length(input.positionWS - GetCameraPositionWS());
 
-                float textureLod = clamp(log2(max(1.0, hitDistance * 0.36)), 0.0, 8.0);
-                float2 surfaceUv = SurfaceUV(normal, hitVoxel);
-                bool smoothMaterial = material == 1u || material == 3u || material == 5u
-                                   || material == 6u || material == 10u || material == 14u;
-                float3 mappedNormal = SampleSurfaceNormal(material, surfaceUv, normal,
-                                                          hitVoxel, hitDistance);
-                float normalStrength = (material == 1u || material == 6u) ? 0.18 : 0.16;
+                float3 mappedNormal = SampleSurfaceNormal(materialSampling, materialSurface,
+                                                          normal, hitVoxel);
+                float normalStrength = materialSurface.y;
                 normalStrength *= 1.0 - smoothstep(18.0, 64.0, hitDistance);
                 normal = normalize(lerp(normal, mappedNormal, normalStrength));
 
-                float3 textured = smoothMaterial
-                    ? SampleTriplanarSurfaceTexture(material, hitVoxel, normal,
-                                                    hitDistance, albedo, textureLod)
-                    : SampleSurfaceTexture(material, surfaceUv, hitVoxel,
-                                           hitDistance, albedo, textureLod);
-                float textureWeight = lerp(0.28, 0.12, saturate(hitDistance / 350.0));
+                float3 textured = SampleMaterialAlbedo(materialSampling, materialSurface,
+                                                       hitVoxel, normal);
+                float textureWeight = materialSampling.w
+                                    * lerp(1.0, 0.44, saturate(hitDistance / 350.0));
+                float3 directTexture = lerp(albedo, textured, textureWeight);
+                float textureLuminance = dot(textured, float3(0.2126, 0.7152, 0.0722));
+                float detail = clamp(textureLuminance / max(materialVariation.x, 0.08),
+                                     0.68, 1.24);
+                float3 chroma = textured / max(textureLuminance, 0.08);
+                float3 luminanceTexture = albedo
+                                        * lerp(1.0, detail, materialVariation.y)
+                                        * lerp(1.0, chroma, materialVariation.z);
+                albedo = lerp(directTexture, luminanceTexture, saturate(materialSurface.w));
 
-                if (material == 1u)
-                {
-                    float textureLuminance = dot(textured, float3(0.2126, 0.7152, 0.0722));
-                    float detail = clamp(textureLuminance / 0.68, 0.74, 1.20);
-                    float3 chroma = textured / max(textureLuminance, 0.08);
-                    albedo *= lerp(1.0, detail, 0.58);
-                    albedo *= lerp(1.0, chroma, 0.06);
-                }
-                else if (material == 6u)
-                {
-                    float textureLuminance = dot(textured, float3(0.2126, 0.7152, 0.0722));
-                    float detail = clamp(textureLuminance / 0.58, 0.68, 1.24);
-                    float3 chroma = textured / max(textureLuminance, 0.08);
-                    albedo *= lerp(1.0, detail, 0.72);
-                    albedo *= lerp(1.0, chroma, 0.025);
-                }
-                else
-                {
-                    albedo = lerp(albedo, textured, textureWeight);
-                }
+                // Coatings are presentation overlays. They never replace the base material ID
+                // used by destruction/collision and arrive independently in packed attributes.
+                float4 coatingSampling = _CoatingSampling[coating];
+                float4 coatingResponse = _CoatingResponse[coating];
+                float3 coatingTexture = SampleAlbedoLayer(coatingSampling.x,
+                    SurfaceUV(faceNormal, hitVoxel) * coatingSampling.y);
+                float3 coatingColour = lerp(_CoatingTint[coating].rgb,
+                    coatingTexture * _CoatingTint[coating].rgb, coatingSampling.z);
+                float upward = smoothstep(-0.15, 0.65, normal.y);
+                float orientation = lerp(coatingResponse.x, coatingResponse.y, upward);
+                float coatingNoise = sin(dot(hitVoxel, float3(0.19, 0.13, 0.23)))
+                                   * sin(dot(hitVoxel, float3(-0.071, 0.113, 0.053)) + 1.7);
+                float coatingAmount = saturate(coatingSampling.w * orientation
+                                             * (1.0 + coatingNoise * coatingResponse.z));
+                albedo = lerp(albedo, coatingColour, coatingAmount);
 
-                if (material == 1u || material == 6u)
-                {
-                    float fineNoise = sin(dot(hitVoxel, float3(0.33, 0.27, 0.39)) + material * 0.71)
-                                    * sin(dot(hitVoxel, float3(-0.21, 0.43, 0.17)) - material * 0.37);
-                    float macroNoise = sin(dot(hitVoxel, float3(0.041, 0.029, 0.037)) + material)
-                                     * sin(dot(hitVoxel, float3(-0.023, 0.035, 0.031)));
-                    albedo *= (0.99 + fineNoise * 0.018) * (0.97 + macroNoise * 0.075);
-                }
+                // Surface patterns are indexed by style, rather than recognizing a style ID.
+                float4 pattern = _SurfacePattern[surfaceStyle];
+                float course = abs(frac(hitVoxel.y / max(pattern.y, 1.0)) - 0.5);
+                float stagger = floor(hitVoxel.y / max(pattern.y, 1.0)) * pattern.z * 0.5;
+                float vertical = abs(frac((hitVoxel.x + hitVoxel.z + stagger)
+                                   / max(pattern.z, 1.0)) - 0.5);
+                float joint = 1.0 - smoothstep(0.035, 0.095, min(course, vertical));
+                float preservePattern = ((surfaceFlags & 2u) != 0u) ? 1.0 : 0.0;
+                float patternAmount = pattern.x * pattern.w * joint * preservePattern;
+                albedo = lerp(albedo, _SurfaceJointColour[surfaceStyle].rgb, patternAmount);
+
+                // Authored detail is generic scalar data. The style row supplies its response;
+                // no feature or material identity is compiled into this shader.
+                float4 detailResponse = _SurfaceDetailResponse[surfaceStyle];
+                // Detail codes are style-independent authoring channels: zero is neutral,
+                // 1..15 select signed per-piece variation, and 16..31 describe continuous
+                // high detail such as seams or wear. The style row controls every response.
+                float detailCode = surfaceDetail * 31.0;
+                float pieceMask = step(0.5, detailCode) * (1.0 - step(15.5, detailCode));
+                float pieceSignal = clamp((detailCode - 8.0) / 7.0, -1.0, 1.0);
+                float pieceVariation = pieceSignal * detailResponse.z * pieceMask;
+                albedo *= 1.0 + pieceVariation;
+                float detailMask = smoothstep(1.0 - saturate(detailResponse.w), 1.0,
+                                              surfaceDetail);
+                albedo = lerp(albedo, _SurfaceJointColour[surfaceStyle].rgb,
+                              detailMask * detailResponse.x);
+
+                float fineNoise = sin(dot(hitVoxel, float3(0.33, 0.27, 0.39)) + material * 0.71)
+                                * sin(dot(hitVoxel, float3(-0.21, 0.43, 0.17)) - material * 0.37);
+                float macroNoise = sin(dot(hitVoxel, float3(0.041, 0.029, 0.037)) + material)
+                                 * sin(dot(hitVoxel, float3(-0.023, 0.035, 0.031)));
+                albedo *= 1.0 + fineNoise * materialVariation.w * 0.24
+                              + macroNoise * materialVariation.w;
 
                 float ndotl = saturate(dot(normal, _SunDirection.xyz));
                 float fill = saturate(dot(normal, -_SunDirection.xyz)) * 0.06;
@@ -310,11 +263,11 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                                      + fill * ao);
 
                 float3 viewToCamera = normalize(GetCameraPositionWS() - input.positionWS);
-                float roughness = material == 17u ? 0.10
-                                : material == 4u || material == 15u ? 0.24
-                                : material == 7u || material == 8u ? 0.42
-                                : material == 11u || material == 16u ? 0.18
-                                : material == 14u ? 0.48 : 0.76;
+                float coatingRoughnessWeight = step(0.0, coatingResponse.w) * coatingAmount;
+                float roughness = lerp(materialSurface.z, coatingResponse.w,
+                                       coatingRoughnessWeight);
+                roughness = lerp(roughness, detailResponse.y,
+                                 step(0.0, detailResponse.y) * detailMask);
                 float3 halfVector = normalize(_SunDirection.xyz + viewToCamera);
                 float specular = pow(saturate(dot(normal, halfVector)), lerp(96.0, 9.0, roughness))
                                * lerp(0.42, 0.035, roughness) * shadow * ndotl;
@@ -354,9 +307,6 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 float cameraBounce = saturate(dot(normal, normalize(toCamera)))
                                    * saturate(1.0 - cameraDistance / 18.0) * 0.24;
                 lit += albedo * cameraBounce * float3(1.16, 0.78, 0.46);
-
-                if (material == 4u) lit += albedo * 0.10;
-                if (material == 12u) lit += albedo * 0.34;
 
                 lit *= 1.02;
                 lit = saturate((lit * (2.51 * lit + 0.03))

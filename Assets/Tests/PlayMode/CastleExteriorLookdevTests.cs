@@ -10,6 +10,7 @@ using UnityEngine.TestTools;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures;
 using VoxelEngine.Rendering;
+using VoxelEngine.Rendering.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -43,26 +44,11 @@ namespace VoxelEngine.Tests.PlayMode
             _camera = Camera.main;
             Assert.NotNull(_camera);
 
-            // Generous because the first render after a shader edit blocks on compilation, which
-            // can take minutes and has nothing to do with upload progress. A tight deadline here
-            // failed the whole suite every time a shader changed.
-            float deadline = Time.realtimeSinceStartup + 240f;
             var uploadTarget = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGB32);
             _camera.targetTexture = uploadTarget;
-            while ((_world.Pool.DirtyBricks.Length > 0 || _world.RegionsNeedingUpload.Count > 0)
-                   && Time.realtimeSinceStartup < deadline)
-            {
-                _camera.Render();
-                yield return null;
-            }
-            Assert.Zero(_world.Pool.DirtyBricks.Length);
-            Assert.Zero(_world.RegionsNeedingUpload.Count);
-
-            // Density invalidation includes neighbouring bricks, so the final voxel-upload frame
-            // may leave a small coalesced GPU-only tail. Give that bounded queue several render
-            // dispatches before judging pixels; this is still dramatically cheaper than building
-            // the entire castle as the first-line functional test.
-            for (int densityDrainFrame = 0; densityDrainFrame < 4; densityDrainFrame++)
+            // Surface extraction is incremental; give its bounded queue several render
+            // frames before judging pixels.
+            for (int densityDrainFrame = 0; densityDrainFrame < 8; densityDrainFrame++)
             {
                 _camera.Render();
                 yield return null;
@@ -240,6 +226,19 @@ namespace VoxelEngine.Tests.PlayMode
                 warmupTarget.Release();
                 Object.DestroyImmediate(warmupTarget);
                 Capture(camera, Path.Combine(OutputDirectory, views[i].name + ".png"));
+                UnityEngine.Debug.Log($"### VIEW_METRICS {views[i].name}: "
+                                    + VoxelRenderBridge.LastSurfacePassState);
+                VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
+                    $"{views[i].name} has known coarse chunks inside the camera frustum "
+                  + "without ready geometry; this produces rectangular holes in the castle.");
+                if (views[i].name == "approach" || views[i].name == "reference_hero"
+                    || views[i].name == "wall")
+                {
+                    Assert.Greater(metrics.VisibleDetailSolidChunks, 0,
+                        $"{views[i].name} lost its fine surface tier and would silently "
+                      + "fall back to coarse coverage geometry.");
+                }
             }
 
             timer.Stop();

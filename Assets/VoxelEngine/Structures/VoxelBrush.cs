@@ -21,6 +21,7 @@ namespace VoxelEngine.Structures
     {
         private RegionTable _table;
         private BrickPool _pool;
+        private MaterialPalette _palette;
 
         /// <summary>Per-voxel writes — the expensive kind, and what the budget governs.</summary>
         public int VoxelsWritten;
@@ -56,11 +57,19 @@ namespace VoxelEngine.Structures
         {
             _table = table;
             _pool = pool;
+            _palette = default;
             VoxelsWritten = 0;
             BricksWritten = 0;
             BulkVoxelsWritten = 0;
             WriteBudget = writeBudget;
             BudgetExceeded = false;
+        }
+
+        public VoxelBrush(RegionTable table, BrickPool pool, in MaterialPalette palette,
+                          int writeBudget = DefaultWriteBudget)
+            : this(table, pool, writeBudget)
+        {
+            _palette = palette;
         }
 
         /// <summary>
@@ -83,8 +92,60 @@ namespace VoxelEngine.Structures
                 return;
             }
 
-            if (VoxelAccess.SetVoxel(ref _table, ref _pool, new int3(x, y, z), material))
+            int3 voxel = new(x, y, z);
+            // Moss is an overlay when it lands on an existing structure. This preserves stone's
+            // destruction/collision identity while still allowing legacy free-standing foliage
+            // volumes to be authored into empty space.
+            if (material == Mat.Moss && VoxelAccess.IsSolid(ref _table, in _pool, voxel))
+            {
+                Coat(x, y, z, Coatings.Moss);
+                return;
+            }
+
+            VoxelCell current = VoxelAccess.GetCell(ref _table, in _pool, voxel);
+            ushort style = DefaultStructureStyle(material);
+            if (!current.IsSolid && style != SurfaceStyles.MaterialDefault)
+                SetStyled(x, y, z, material, style);
+            else if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel, material))
                 VoxelsWritten++;
+        }
+
+        public void SetStyled(int x, int y, int z, byte material, ushort surfaceStyle,
+                              byte coating = Coatings.None,
+                              VoxelSurfaceFlags flags = VoxelSurfaceFlags.None)
+        {
+            if (coating != Coatings.None && _palette.IsCreated
+                && !_palette.AllowsCoating(material, coating)) return;
+            if (VoxelsWritten >= WriteBudget)
+            {
+                BudgetExceeded = true;
+                return;
+            }
+
+            var cell = new VoxelCell
+            {
+                BaseMaterialId = material,
+                Surface = new VoxelSurfaceSemantics
+                {
+                    StyleId = surfaceStyle,
+                    CoatingId = coating,
+                    Flags = flags
+                }
+            };
+            if (VoxelAccess.SetCell(ref _table, ref _pool, new int3(x, y, z), in cell))
+                VoxelsWritten++;
+        }
+
+        /// <summary>Applies a presentation coating while preserving base material and style.</summary>
+        public void Coat(int x, int y, int z, byte coating)
+        {
+            int3 voxel = new(x, y, z);
+            VoxelCell cell = VoxelAccess.GetCell(ref _table, in _pool, voxel);
+            if (!cell.IsSolid || cell.Surface.CoatingId == coating) return;
+            if (coating != Coatings.None && _palette.IsCreated
+                && !_palette.AllowsCoating(cell.BaseMaterialId, coating)) return;
+            cell.Surface.CoatingId = coating;
+            if (VoxelAccess.SetCell(ref _table, ref _pool, voxel, in cell)) VoxelsWritten++;
         }
 
         /// <summary>
@@ -97,6 +158,15 @@ namespace VoxelEngine.Structures
         /// </summary>
         public void FillBulk(int3 min, int3 size, byte material)
         {
+            if (material == Mat.Moss)
+            {
+                for (int z = 0; z < size.z; z++)
+                for (int y = 0; y < size.y; y++)
+                for (int x = 0; x < size.x; x++)
+                    Set(min.x + x, min.y + y, min.z + z, material);
+                return;
+            }
+
             int3 max = min + size;
 
             int3 brickMin = new int3(min.x >> 3, min.y >> 3, min.z >> 3);
@@ -235,9 +305,23 @@ namespace VoxelEngine.Structures
             // Hand back the pool slot, or the brick leaks for the life of the session.
             if (existing.IsMixed) _pool.Free(existing.PoolIndex);
 
-            region.BrickRefs[index] = material == Mat.Empty
-                ? BrickRef.Empty
-                : BrickRef.Uniform(material);
+            ushort style = DefaultStructureStyle(material);
+            if (material == Mat.Empty || style == SurfaceStyles.MaterialDefault)
+            {
+                region.BrickRefs[index] = material == Mat.Empty
+                    ? BrickRef.Empty : BrickRef.Uniform(material);
+            }
+            else
+            {
+                int poolIndex = _pool.Allocate();
+                var cell = new VoxelCell
+                {
+                    BaseMaterialId = material,
+                    Surface = new VoxelSurfaceSemantics { StyleId = style }
+                };
+                _pool.FillBrick(poolIndex, in cell);
+                region.BrickRefs[index] = BrickRef.FromPoolIndex(poolIndex);
+            }
 
             region.Dirty = true;
             _table.CommitRegion(region);
@@ -248,8 +332,19 @@ namespace VoxelEngine.Structures
             BricksWritten++;
         }
 
+        private static ushort DefaultStructureStyle(byte material)
+        {
+            if (material == Mat.Empty || material == Mat.Sand || material == Mat.Grass
+                || material == Mat.Dirt || material == Mat.Moss || material == Mat.Water)
+                return SurfaceStyles.MaterialDefault;
+            return SurfaceStyles.Planar;
+        }
+
         public byte Get(int x, int y, int z) =>
             VoxelAccess.GetVoxel(ref _table, in _pool, new int3(x, y, z));
+
+        public byte GetCoating(int x, int y, int z) =>
+            VoxelAccess.GetCell(ref _table, in _pool, new int3(x, y, z)).Surface.CoatingId;
 
         public bool IsSolid(int x, int y, int z) => Get(x, y, z) != Mat.Empty;
 
@@ -442,7 +537,11 @@ namespace VoxelEngine.Structures
 
                 int x = min.x + (depthAxis == 0 ? d : w);
                 int z = min.z + (depthAxis == 2 ? d : w);
-                Set(x, min.y + h, z, material);
+                if (material == Mat.Empty)
+                    Set(x, min.y + h, z, material);
+                else
+                    SetStyled(x, min.y + h, z, material, SurfaceStyles.Rounded,
+                              Coatings.None, VoxelSurfaceFlags.PreserveFeature);
             }
         }
 
@@ -513,7 +612,7 @@ namespace VoxelEngine.Structures
         /// Cheap and disproportionately effective: uniform colour is most of what makes voxel
         /// architecture look untouched by time.
         /// </summary>
-        public void Weather(int3 min, int3 size, byte material, uint seed, int chanceOutOf100)
+        public void Weather(int3 min, int3 size, byte coating, uint seed, int chanceOutOf100)
         {
             var rng = new Random(seed | 1u);
 
@@ -526,7 +625,7 @@ namespace VoxelEngine.Structures
                 if (IsSolid(wx, wy + 1, wz)) continue;          // only exposed tops
                 if (rng.NextInt(0, 100) >= chanceOutOf100) continue;
 
-                Set(wx, wy, wz, material);
+                Coat(wx, wy, wz, coating);
             }
         }
     }
