@@ -74,7 +74,13 @@ namespace VoxelEngine.Showcase
             _surfaces = SurfaceCatalogue.CreateBuiltIns();
             _coatings = CoatingCatalogue.CreateBuiltIns();
             _profiles = new ProfileBlockStore();
-            AuthorTerrain();
+
+            var writer = new VoxelBrush(_table, _pool, in _palette, 4_000_000);
+            AuthorTerrain(ref writer);
+            if (writer.BudgetExceeded)
+                throw new System.InvalidOperationException("Terrain lookdev exceeded voxel authoring budget.");
+            _table = writer.Table;
+            _pool = writer.Pool;
 
             _changes = new VoxelChangeJournal();
             using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
@@ -87,6 +93,10 @@ namespace VoxelEngine.Showcase
             VoxelRenderBridge.FarFieldEnabled = false;
             VoxelRenderBridge.TerrainSeed = Seed;
             _built = true;
+        }
+
+        private void AuthorTerrain(ref VoxelBrush writer)
+        {
         }
 
         private VoxelWorldView WorldView() => new()
