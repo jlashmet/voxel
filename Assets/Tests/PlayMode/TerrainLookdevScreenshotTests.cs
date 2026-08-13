@@ -5,6 +5,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using VoxelEngine.Rendering;
+using VoxelEngine.Rendering.SurfaceExtraction;
 using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
