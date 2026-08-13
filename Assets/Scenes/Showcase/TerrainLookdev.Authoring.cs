@@ -1,4 +1,9 @@
 namespace VoxelEngine.Showcase
 {
-    public sealed partial class TerrainLookdev { }
+    public sealed partial class TerrainLookdev
+    {
+        private void AuthorTerrain()
+        {
+        }
+    }
 }
