@@ -64,6 +64,26 @@ namespace VoxelEngine.Core.Storage
                                  OccupancyMask.VoxelIndex(voxelInBrick.x, voxelInBrick.y, voxelInBrick.z));
         }
 
+        /// <summary>Reads base material and independent reconstruction semantics.</summary>
+        public static VoxelCell GetCell(ref RegionTable table, in BrickPool pool, int3 worldVoxel)
+        {
+            Decompose(worldVoxel, out var regionCoord, out var brickInRegion, out var voxelInBrick);
+            if (!table.TryGetRegion(regionCoord, out var region)) return default;
+
+            var brick = region.GetBrick(brickInRegion.x, brickInRegion.y, brickInRegion.z);
+            if (brick.IsUniform)
+                return new VoxelCell { BaseMaterialId = brick.UniformMaterial };
+
+            int voxelIndex = OccupancyMask.VoxelIndex(
+                voxelInBrick.x, voxelInBrick.y, voxelInBrick.z);
+            return new VoxelCell
+            {
+                BaseMaterialId = pool.GetVoxel(brick.PoolIndex, voxelIndex),
+                Surface = pool.GetSurface(brick.PoolIndex, voxelIndex),
+                Boundary = pool.GetBoundary(brick.PoolIndex, voxelIndex)
+            };
+        }
+
         /// <summary>
         /// Writes a voxel, maintaining the allocation invariants in both directions.
         ///
@@ -80,16 +100,27 @@ namespace VoxelEngine.Core.Storage
         ///   leak this design is most susceptible to, and it is why the collapse lives
         ///   inside the write rather than in a periodic sweep that can be forgotten.
         ///
-        /// When <paramref name="markHardSurface"/> is true the containing brick is also tagged as
-        /// authored hard geometry. This semantic change counts as a world change even when the
-        /// requested material already matches, because derived render meshes still need to be
-        /// rebuilt with the correct geometry vocabulary.
-        ///
-        /// Returns true when material or rendering semantics actually changed, so callers can
+        /// Returns true when material actually changed, so callers can
         /// skip mip rebuild, replication, and structural re-evaluation for true no-op writes.
         /// </summary>
         public static bool SetVoxel(ref RegionTable table, ref BrickPool pool,
-                                    int3 worldVoxel, byte material, bool markHardSurface = false)
+                                    int3 worldVoxel, byte material)
+        {
+            VoxelCell cell = GetCell(ref table, in pool, worldVoxel);
+            cell.BaseMaterialId = material;
+            if (!cell.IsSolid)
+            {
+                cell.Surface = default;
+                // Direct destruction no longer knows the original analytic boundary. The
+                // occupancy fallback is conservative and affects only this edited sample.
+                cell.Boundary = default;
+            }
+            return SetCell(ref table, ref pool, worldVoxel, in cell);
+        }
+
+        /// <summary>Writes the complete logical voxel value.</summary>
+        public static bool SetCell(ref RegionTable table, ref BrickPool pool,
+                                   int3 worldVoxel, in VoxelCell cell)
         {
             Decompose(worldVoxel, out var regionCoord, out var brickInRegion, out var voxelInBrick);
 
@@ -97,26 +128,18 @@ namespace VoxelEngine.Core.Storage
             var brickIdx = Region.BrickIndex(brickInRegion.x, brickInRegion.y, brickInRegion.z);
             var brick = region.BrickRefs[brickIdx];
             var voxelIdx = OccupancyMask.VoxelIndex(voxelInBrick.x, voxelInBrick.y, voxelInBrick.z);
-            bool semanticChanged = markHardSurface && region.MarkHardSurfaceBrick(brickIdx);
+            VoxelCell normalized = cell;
+            if (!normalized.IsSolid) normalized.Surface = default;
 
             if (brick.IsUniform)
             {
-                // Writing the material the brick already is everywhere normally changes nothing.
-                // A new hard-surface tag is the exception: commit it even though no voxel bytes
-                // changed, otherwise authored stone stamped over natural stone loses its meaning.
-                if (brick.UniformMaterial == material)
-                {
-                    if (semanticChanged)
-                    {
-                        region.Dirty = true;
-                        table.CommitRegion(region);
-                    }
-                    return semanticChanged;
-                }
+                if (brick.UniformMaterial == normalized.BaseMaterialId
+                    && normalized.Surface.Packed == 0u
+                    && !normalized.Boundary.IsAuthored) return false;
 
                 var newIndex = pool.Allocate();
                 pool.FillBrick(newIndex, brick.UniformMaterial);
-                pool.SetVoxel(newIndex, voxelIdx, material);
+                pool.SetCell(newIndex, voxelIdx, in normalized);
 
                 region.BrickRefs[brickIdx] = BrickRef.FromPoolIndex(newIndex);
                 region.Dirty = true;
@@ -125,17 +148,15 @@ namespace VoxelEngine.Core.Storage
             }
 
             var poolIndex = brick.PoolIndex;
-            if (pool.GetVoxel(poolIndex, voxelIdx) == material)
+            var current = new VoxelCell
             {
-                if (semanticChanged)
-                {
-                    region.Dirty = true;
-                    table.CommitRegion(region);
-                }
-                return semanticChanged;
-            }
+                BaseMaterialId = pool.GetVoxel(poolIndex, voxelIdx),
+                Surface = pool.GetSurface(poolIndex, voxelIdx),
+                Boundary = pool.GetBoundary(poolIndex, voxelIdx)
+            };
+            if (current.Equals(normalized)) return false;
 
-            pool.SetVoxel(poolIndex, voxelIdx, material);
+            pool.SetCell(poolIndex, voxelIdx, in normalized);
 
             // Collapse check. Cheap relative to the write itself, and the only thing
             // standing between this engine and unbounded pool growth.

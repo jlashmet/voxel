@@ -1,7 +1,7 @@
 # Contract: Shape Program
 
 **Feature**: [../spec.md](../spec.md) · **Research**: [R-003](../research.md)
-**Version**: 1
+**Version**: 2
 
 A shape program is a flat array of integer opcodes. Given resolved parameters it emits
 **primitives**, never voxels. This indirection is what makes a feature evaluable over an arbitrary
@@ -43,13 +43,20 @@ origin before orientation is applied.
 
 | Opcode | Operands | Emits |
 |---|---|---|
-| `EMIT_BOX` | min(x,y,z), size(x,y,z), material, mode | Axis-aligned box |
-| `EMIT_CYLINDER` | centre(x,z), baseY, radius, height, axis, material, mode | Cylinder on a cardinal axis |
-| `EMIT_PRISM` | min(x,y,z), size(x,y,z), profile, material, mode | Extruded profile (gable, shed, arch) |
-| `EMIT_CAPSULE_CHAIN` | pointCount, radius, material, mode | Tunnel segment chain, points from registers |
-| `EMIT_RAMP` | min(x,y,z), size(x,y,z), direction, material, mode | Wedge, for stairs and terrain skirts |
+| `EMIT_BOX` | min, size, material, style, coating, mode | Axis-aligned box |
+| `EMIT_CYLINDER` | centre, radius, height, axis, material, style, coating, mode | Cylinder on a cardinal axis |
+| `EMIT_PRISM` | min, size, profile, material, style, coating, mode | Extruded gable, shed, or arch profile |
+| `EMIT_CAPSULE` | endpointA, endpointB, radius, material, style, coating, mode | Capsule/tunnel segment |
+| `EMIT_RAMP` | min, size, axis, material, style, coating, mode | Cardinal wedge |
+| `EMIT_ROUNDED_BOX` | min, size, radius, material, style, coating, mode | Box with integer-radius corners |
+| `EMIT_ELLIPSOID` | centre, radii, material, style, coating, mode | Integer-predicate ellipsoid |
+| `EMIT_FRUSTUM` | baseCentre, height, baseRadius, topRadius, axis, material, style, coating, mode | Conical frustum |
+| `EMIT_ANNULUS` | centre, outerRadius, innerRadius, depth, axis, half, material, style, coating, mode | Full or architectural half-annulus |
+| `EMIT_ARC_WEDGE` | centre, radii, depth, axis, startDirection, endDirection, material, style, coating, mode | Joint-aware annular/voussoir wedge |
 
-`mode` is `Fill`, `Carve`, or `FillIfEmpty`.
+`mode` is `Fill`, `Carve`, or `FillIfEmpty`. All shape membership predicates are integer-only;
+`style` and `coating` are stable catalogue IDs written into the same authoritative cell as the
+base material.
 
 ### Control
 

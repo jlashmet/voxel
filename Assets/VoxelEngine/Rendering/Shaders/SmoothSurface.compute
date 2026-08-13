@@ -208,16 +208,6 @@ uint FarFieldMaterial(int3 voxel)
          : ((float)voxel.y < (float)g_FarBaseHeight ? 3u : 10u);
 }
 
-// CSBuildDensity was authored for the previous hybrid renderer: only these materials were put
-// into the smooth scalar field because timber/slate/glass/etc. were expected to be drawn by the
-// raymarch/depth-restore path. Surface Nets is now the sole geometry renderer, so those authored
-// solids must not read as empty merely because their cached smooth density is zero.
-bool UsesCachedSmoothField(uint material)
-{
-    return material == 1u || material == 3u || material == 5u || material == 6u
-        || material == 10u || material == 13u || material == 14u;
-}
-
 bool IsMeshedSolid(uint material)
 {
     // Water/cascade need their own transparent surface treatment. Everything else that occupies
@@ -227,14 +217,12 @@ bool IsMeshedSolid(uint material)
 
 float MixedBrickDensity(int poolIndex, int3 localVoxel)
 {
-    int voxelIndex = localVoxel.x | (localVoxel.y << 3) | (localVoxel.z << 6);
     uint material = VoxelMaterial(poolIndex, localVoxel);
-    uint packed = g_BrickDensity[poolIndex * 128 + (voxelIndex >> 2)];
-    float cached = ((packed >> ((voxelIndex & 3) * 8)) & 0xFFu) * (1.0 / 255.0);
-
-    if (IsMeshedSolid(material) && !UsesCachedSmoothField(material))
-        return 1.0;
-    return cached;
+    // Runtime extraction must not depend on a CPU-built scalar lattice. Authoritative
+    // occupancy is already mirrored in g_BrickVoxels; Surface Nets reconstructs the continuous
+    // boundary directly from those samples. Per-material curvature can perturb this field in a
+    // later compute-only refinement without changing ownership of geometry.
+    return IsMeshedSolid(material) ? 1.0 : 0.0;
 }
 
 float DensityAt(int3 p)

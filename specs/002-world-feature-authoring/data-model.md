@@ -105,9 +105,12 @@ Emitted by evaluating a `ShapeProgram` against resolved parameters.
 
 | Field | Type | Notes |
 |---|---|---|
-| `Shape` | `enum` | `Box`, `Cylinder`, `Prism`, `CapsuleChain`, `Ramp`. |
+| `Shape` | `enum` | `Box`, `Cylinder`, `Prism`, `Capsule`, `Ramp`, `RoundedBox`, `Ellipsoid`, `Frustum`, `Annulus`, `ArcWedge`. |
 | `Bounds` | `int3 min, max` | World voxel space. |
-| `Material` | `byte` | Palette index. `0` with `Mode = Carve` removes. |
+| `Material` | `byte` | Base-material palette index. `0` with `Mode = Carve` removes. |
+| `SurfaceStyle` | `ushort` | Reconstruction style; zero resolves through the base material. |
+| `Coating` | `byte` | Optional overlay such as moss; does not replace base material. |
+| `SurfaceFlags` | `byte` | Intentional seam and sharp-feature preservation metadata. |
 | `Mode` | `enum` | `Fill`, `Carve`, `FillIfEmpty`. |
 | `Order` | `int` | Within-instance ordering; later wins. |
 
@@ -115,6 +118,8 @@ Emitted by evaluating a `ShapeProgram` against resolved parameters.
 - Every primitive lies inside its instance's footprint, or generation is a defect.
 - Clipping to a sub-volume is exact: the union of an instance's primitives clipped to disjoint
   sub-volumes equals the same primitives rasterised whole (Milestone 1 exit criterion).
+- Cardinal orientation rotates shape centres, axes, ellipsoid radii, and arc boundary directions
+  without introducing floating-point predicates.
 
 ### ResolvedAnchor
 

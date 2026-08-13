@@ -6,7 +6,7 @@ using VoxelEngine.Core.Occupancy;
 namespace VoxelEngine.Core.Storage
 {
     /// <summary>
-    /// Fixed-capacity pool of mixed bricks, backed by two flat native arrays and a
+    /// Fixed-capacity pool of mixed bricks, backed by parallel flat native arrays and a
     /// free list.
     ///
     /// Capacity comes from the device tier budget (device-matrix.md: 1.5 GB on PC,
@@ -25,23 +25,25 @@ namespace VoxelEngine.Core.Storage
         /// <summary>Voxel bytes: Capacity * 512, contiguous.</summary>
         public NativeArray<byte> Voxels;
 
+        /// <summary>
+        /// Packed <see cref="VoxelSurfaceSemantics"/> values parallel to <see cref="Voxels"/>.
+        /// A zero value means the material default style and no coating. Keeping this beside the
+        /// mixed-brick payload allows curved and planar cells to coexist in one brick without a
+        /// second brick classifier.
+        /// </summary>
+        public NativeArray<ushort> SurfaceSemantics;
+
+        /// <summary>
+        /// Quantized authored boundary distances parallel to <see cref="Voxels"/>. This payload
+        /// belongs to geometry, not presentation. Zero falls back to occupancy reconstruction.
+        /// </summary>
+        public NativeArray<byte> BoundarySamples;
+
         /// <summary>Occupancy words: Capacity * 8, contiguous and parallel to Voxels.</summary>
         public NativeArray<ulong> Occupancy;
 
         private NativeList<int> _freeList;
         private int _highWater;
-
-        /// <summary>
-        /// One byte per slot: 1 when the brick has changed since the last upload.
-        ///
-        /// The renderer mirrors this pool in GPU memory and cannot afford to re-upload
-        /// megabytes per edit, so the pool records what changed. A flag plus a list keeps the
-        /// hot path to one branch — bulk terrain fill touches millions of voxels but only
-        /// thousands of distinct bricks, and only the first write to each appends.
-        /// </summary>
-        private NativeArray<byte> _dirtyFlags;
-
-        private NativeList<int> _dirtyBricks;
 
         public int Capacity { get; private set; }
 
@@ -64,11 +66,13 @@ namespace VoxelEngine.Core.Storage
             Capacity = capacity;
             Voxels = new NativeArray<byte>(capacity * VoxelDimensions.VoxelsPerBrick,
                                            allocator, NativeArrayOptions.ClearMemory);
+            SurfaceSemantics = new NativeArray<ushort>(capacity * VoxelDimensions.VoxelsPerBrick,
+                                                     allocator, NativeArrayOptions.ClearMemory);
+            BoundarySamples = new NativeArray<byte>(capacity * VoxelDimensions.VoxelsPerBrick,
+                                                    allocator, NativeArrayOptions.ClearMemory);
             Occupancy = new NativeArray<ulong>(capacity * VoxelDimensions.OccupancyWordsPerBrick,
                                               allocator, NativeArrayOptions.ClearMemory);
             _freeList = new NativeList<int>(capacity >> 4, allocator);
-            _dirtyFlags = new NativeArray<byte>(capacity, allocator, NativeArrayOptions.ClearMemory);
-            _dirtyBricks = new NativeList<int>(capacity >> 4, allocator);
             _highWater = 0;
         }
 
@@ -125,11 +129,6 @@ namespace VoxelEngine.Core.Storage
             if ((uint)brickIndex >= (uint)_highWater)
                 throw new ArgumentOutOfRangeException(nameof(brickIndex));
 
-            // Keep the dirty flag when the slot is already queued. If this slot is reused before
-            // upload, ClearBrick changes its contents in place and the existing queue entry is
-            // exactly the notification the renderer needs. Clearing only the flag while leaving
-            // that entry in _dirtyBricks makes reuse append the same index again; site sculpting
-            // can then inflate the queue by hundreds of thousands of duplicates.
             _freeList.Add(brickIndex);
         }
 
@@ -137,13 +136,16 @@ namespace VoxelEngine.Core.Storage
         {
             var vo = VoxelOffset(brickIndex);
             for (var i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
+            {
                 Voxels[vo + i] = VoxelDimensions.MaterialEmpty;
+                SurfaceSemantics[vo + i] = 0;
+                BoundarySamples[vo + i] = 0;
+            }
 
             var oo = OccupancyOffset(brickIndex);
             for (var i = 0; i < VoxelDimensions.OccupancyWordsPerBrick; i++)
                 Occupancy[oo + i] = 0UL;
 
-            MarkDirty(brickIndex);
         }
 
         /// <summary>Fill a freshly allocated brick with a single material, e.g. when a uniform brick is being split.</summary>
@@ -151,53 +153,34 @@ namespace VoxelEngine.Core.Storage
         {
             var vo = VoxelOffset(brickIndex);
             for (var i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
+            {
                 Voxels[vo + i] = material;
+                SurfaceSemantics[vo + i] = 0;
+                BoundarySamples[vo + i] = 0;
+            }
 
             var oo = OccupancyOffset(brickIndex);
             var occupied = material != VoxelDimensions.MaterialEmpty;
             for (var i = 0; i < VoxelDimensions.OccupancyWordsPerBrick; i++)
                 Occupancy[oo + i] = occupied ? ulong.MaxValue : 0UL;
 
-            MarkDirty(brickIndex);
         }
 
-        /// <summary>Bricks changed since <see cref="ClearDirtyBricks"/>. Consumed by the uploader.</summary>
-        public NativeList<int> DirtyBricks => _dirtyBricks;
-
-        /// <summary>Marks a brick as changed. Cheap enough to sit in the write path.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void MarkDirty(int brickIndex)
+        /// <summary>Fills a mixed slot with one logical cell value, retaining its semantics.</summary>
+        public void FillBrick(int brickIndex, in VoxelCell cell)
         {
-            if (!_dirtyFlags.IsCreated || (uint)brickIndex >= (uint)_dirtyFlags.Length) return;
-            if (_dirtyFlags[brickIndex] != 0) return;
+            int vo = VoxelOffset(brickIndex);
+            ushort surface = cell.IsSolid ? cell.Surface.PackedStorage : (ushort)0;
+            for (int i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
+            {
+                Voxels[vo + i] = cell.BaseMaterialId;
+                SurfaceSemantics[vo + i] = surface;
+                BoundarySamples[vo + i] = cell.Boundary.Packed;
+            }
 
-            _dirtyFlags[brickIndex] = 1;
-            _dirtyBricks.Add(brickIndex);
-        }
-
-        /// <summary>
-        /// Clears one brick's dirty flag once the uploader has consumed it.
-        ///
-        /// A flag that is never cleared is worse than one that is never set: <see cref="MarkDirty"/>
-        /// early-returns on it, so every later change to that slot is silently dropped and the
-        /// GPU keeps stale voxels forever.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ClearDirty(int brickIndex)
-        {
-            if (!_dirtyFlags.IsCreated || (uint)brickIndex >= (uint)_dirtyFlags.Length) return;
-            _dirtyFlags[brickIndex] = 0;
-        }
-
-        /// <summary>Clears the dirty set after the uploader has consumed it.</summary>
-        public void ClearDirtyBricks()
-        {
-            if (!_dirtyBricks.IsCreated) return;
-
-            for (var i = 0; i < _dirtyBricks.Length; i++)
-                _dirtyFlags[_dirtyBricks[i]] = 0;
-
-            _dirtyBricks.Clear();
+            int oo = OccupancyOffset(brickIndex);
+            for (int i = 0; i < VoxelDimensions.OccupancyWordsPerBrick; i++)
+                Occupancy[oo + i] = cell.IsSolid ? ulong.MaxValue : 0UL;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -205,14 +188,42 @@ namespace VoxelEngine.Core.Storage
             Voxels[VoxelOffset(brickIndex) + voxelIndex];
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public VoxelSurfaceSemantics GetSurface(int brickIndex, int voxelIndex) =>
+            VoxelSurfaceSemantics.FromStorage(SurfaceSemantics[VoxelOffset(brickIndex) + voxelIndex]);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public VoxelBoundarySample GetBoundary(int brickIndex, int voxelIndex) => new()
+        {
+            Packed = BoundarySamples[VoxelOffset(brickIndex) + voxelIndex]
+        };
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetVoxel(int brickIndex, int voxelIndex, byte material)
         {
-            Voxels[VoxelOffset(brickIndex) + voxelIndex] = material;
+            int offset = VoxelOffset(brickIndex) + voxelIndex;
+            Voxels[offset] = material;
+            // Material-only writes preserve independent surface state while occupied. Destruction
+            // clears it so curvature/coatings cannot remain attached to empty space.
+            if (material == VoxelDimensions.MaterialEmpty)
+            {
+                SurfaceSemantics[offset] = 0;
+                BoundarySamples[offset] = 0;
+            }
             var occ = Occupancy;
             OccupancyMask.Set(ref occ, OccupancyOffset(brickIndex), voxelIndex,
                               material != VoxelDimensions.MaterialEmpty);
 
-            MarkDirty(brickIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetCell(int brickIndex, int voxelIndex, in VoxelCell cell)
+        {
+            int offset = VoxelOffset(brickIndex) + voxelIndex;
+            Voxels[offset] = cell.BaseMaterialId;
+            SurfaceSemantics[offset] = cell.IsSolid ? cell.Surface.PackedStorage : (ushort)0;
+            BoundarySamples[offset] = cell.Boundary.Packed;
+            var occ = Occupancy;
+            OccupancyMask.Set(ref occ, OccupancyOffset(brickIndex), voxelIndex, cell.IsSolid);
         }
 
         /// <summary>
@@ -233,6 +244,22 @@ namespace VoxelEngine.Core.Storage
                 }
             }
 
+            // BrickRef can encode only a uniform material. Any surface override therefore keeps
+            // the brick mixed even when every material byte is identical.
+            for (var i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
+            {
+                if (SurfaceSemantics[vo + i] != 0)
+                {
+                    material = 0;
+                    return false;
+                }
+                if (BoundarySamples[vo + i] != 0)
+                {
+                    material = 0;
+                    return false;
+                }
+            }
+
             material = first;
             return true;
         }
@@ -240,10 +267,10 @@ namespace VoxelEngine.Core.Storage
         public void Dispose()
         {
             if (Voxels.IsCreated) Voxels.Dispose();
+            if (SurfaceSemantics.IsCreated) SurfaceSemantics.Dispose();
+            if (BoundarySamples.IsCreated) BoundarySamples.Dispose();
             if (Occupancy.IsCreated) Occupancy.Dispose();
             if (_freeList.IsCreated) _freeList.Dispose();
-            if (_dirtyFlags.IsCreated) _dirtyFlags.Dispose();
-            if (_dirtyBricks.IsCreated) _dirtyBricks.Dispose();
             Capacity = 0;
             _highWater = 0;
         }

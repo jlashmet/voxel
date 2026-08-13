@@ -243,7 +243,7 @@ namespace MountingForce.WorldGen.Voxel
 
             public void Box(int x, int y, int z, int sx, int sy, int sz, byte material,
                             PrimitiveMode mode = PrimitiveMode.Fill) =>
-                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, (int)mode);
+                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
                 Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);

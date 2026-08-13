@@ -53,6 +53,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly HashSet<int3> _visibleCoordinates = new();
         private readonly HashSet<int3> _retiredToFiner = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
+        private bool _hasRefinementParent;
+        private int3 _refinementParent;
 
         public GpuSurfaceChunkCache(int bricksPerAxis = DefaultBricksPerAxis,
                                     int sourceStep = DefaultSourceStep)
@@ -84,6 +86,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public int ResidentCount => _entries.Count;
         public int KnownCount => _known.Count;
         public int DirtyCount => _dirty.Count;
+        public int MissingVisibleCount { get; private set; }
         public IReadOnlyList<Entry> Scheduled => _scheduled;
         public IReadOnlyList<Entry> Visible => _visible;
 
@@ -163,13 +166,40 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             Vector3 cameraChunk = cameraWorldPosition / (VoxelsPerAxis * voxelSize);
             for (int build = 0; build < MaxBuildsPerFrame; build++)
             {
-                Vector2 targetViewport = TargetViewport(frameIndex, build);
-                bool found = TryFindNearest(_dirty, cameraChunk, camera, voxelSize,
-                                            targetViewport, requireMissing: false,
-                                            out int3 coordinate);
+                // A refinement tier must finish neighbouring children before its coarse parent
+                // can be retired. Scattering those few slots over viewport tiles leaves every
+                // parent incomplete and the fine geometry permanently hidden. Coverage tiers
+                // still use the tiled priority so holes fill across the whole screen.
+                Vector2 targetViewport = Coarser != null
+                    ? new Vector2(0.5f, 0.5f)
+                    : TargetViewport(frameIndex, build);
+                bool found = false;
+                int3 coordinate = default;
+                if (Coarser != null && _hasRefinementParent)
+                {
+                    found = TryFindNearest(_dirty, cameraChunk, camera, voxelSize,
+                        targetViewport, requireMissing: false, out coordinate,
+                        _refinementParent);
+                    if (!found)
+                        found = TryFindNearest(_known, cameraChunk, camera, voxelSize,
+                            targetViewport, requireMissing: true, out coordinate,
+                            _refinementParent);
+                    if (!found) _hasRefinementParent = false;
+                }
                 if (!found)
-                    found = TryFindNearest(_known, cameraChunk, camera, voxelSize,
-                                           targetViewport, requireMissing: true, out coordinate);
+                {
+                    found = TryFindNearest(_dirty, cameraChunk, camera, voxelSize,
+                        targetViewport, requireMissing: false, out coordinate);
+                    if (!found)
+                        found = TryFindNearest(_known, cameraChunk, camera, voxelSize,
+                            targetViewport, requireMissing: true, out coordinate);
+                    if (found && Coarser != null)
+                    {
+                        _refinementParent = ParentCoordinate(coordinate);
+                        _hasRefinementParent = true;
+                        EnsureParentChildrenKnown(_refinementParent);
+                    }
+                }
                 if (!found) break;
 
                 if (!_entries.TryGetValue(coordinate, out Entry entry))
@@ -208,6 +238,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _visible.Clear();
             _visibleCoordinates.Clear();
             _retiredToFiner.Clear();
+            MissingVisibleCount = 0;
             if (camera == null) return _visible;
             GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
 
@@ -229,6 +260,20 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 entry.LastUsedFrame = frameIndex;
                 _visible.Add(entry);
                 _visibleCoordinates.Add(entry.Coordinate);
+            }
+
+            // A capacity-limited cache may look healthy if metrics count only the entries that
+            // happened to win residency. Count known, in-frustum chunks that have no ready entry
+            // so tests can reject the large rectangular holes that this renderer once produced.
+            foreach (int3 coordinate in _known)
+            {
+                if (_entries.TryGetValue(coordinate, out Entry entry) && entry.Ready) continue;
+                if (!InDistanceRange(coordinate,
+                        camera.transform.position / (VoxelsPerAxis * voxelSize), voxelSize))
+                    continue;
+                Bounds bounds = WorldBounds(coordinate, voxelSize);
+                if (GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
+                    MissingVisibleCount++;
             }
             return _visible;
         }
@@ -270,7 +315,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         private bool TryFindNearest(HashSet<int3> candidates, Vector3 cameraChunk, Camera camera,
                                     float voxelSize, Vector2 targetViewport, bool requireMissing,
-                                    out int3 nearest)
+                                    out int3 nearest, int3? requiredParent = null)
         {
             nearest = default;
             bool found = false;
@@ -278,6 +323,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             foreach (int3 candidate in candidates)
             {
                 if (requireMissing && _entries.ContainsKey(candidate)) continue;
+                if (requiredParent.HasValue
+                    && !math.all(ParentCoordinate(candidate) == requiredParent.Value))
+                    continue;
                 if (camera != null && !InDistanceRange(candidate, cameraChunk, voxelSize))
                     continue;
                 float distance = PriorityScore(candidate, cameraChunk, camera, voxelSize,
@@ -288,6 +336,20 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 found = true;
             }
             return found;
+        }
+
+        private void EnsureParentChildrenKnown(int3 parent)
+        {
+            if (Coarser == null || Coarser.VoxelsPerAxis <= VoxelsPerAxis) return;
+            int ratio = Coarser.VoxelsPerAxis / VoxelsPerAxis;
+            int3 origin = parent * ratio;
+            for (int z = 0; z < ratio; z++)
+            for (int y = 0; y < ratio; y++)
+            for (int x = 0; x < ratio; x++)
+            {
+                int3 child = origin + new int3(x, y, z);
+                if (_known.Add(child)) _dirty.Add(child);
+            }
         }
 
         private int ResidencyCeiling =>
@@ -335,6 +397,15 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                                               coordinate.z + 0.5f);
             float distance = (chunkCentre - cameraChunk).magnitude * VoxelsPerAxis * voxelSize;
             return distance >= MinDistance && distance <= MaxDistance;
+        }
+
+        private Bounds WorldBounds(int3 coordinate, float voxelSize)
+        {
+            Vector3 centre = new Vector3(coordinate.x + 0.5f, coordinate.y + 0.5f,
+                                         coordinate.z + 0.5f)
+                           * (VoxelsPerAxis * voxelSize);
+            float size = VoxelsPerAxis * voxelSize + voxelSize * 2f;
+            return new Bounds(centre, Vector3.one * size);
         }
 
         private static float PriorityScore(int3 coordinate, Vector3 cameraChunk, Camera camera,

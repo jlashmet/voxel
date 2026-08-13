@@ -3,7 +3,7 @@ namespace VoxelEngine.Core.Storage
     /// <summary>
     /// The dimensional constants the whole engine is built on. Everything here is a
     /// power of two so that coordinate decomposition is shifts and masks rather than
-    /// division — this runs inside the innermost loop of raymarching, collision, and
+    /// division — this runs inside the innermost loop of extraction, collision, and
     /// edit expansion.
     ///
     /// See specs/001-destructible-voxel-engine/device-matrix.md for the world extent
@@ -33,13 +33,18 @@ namespace VoxelEngine.Core.Storage
 
         /// <summary>Voxels per region edge: 8 * 64 = 512.</summary>
         public const int RegionVoxelEdgeLog2 = BrickEdgeLog2 + RegionEdgeLog2;
+        public const int RegionVoxelEdge = 1 << RegionVoxelEdgeLog2;
 
         /// <summary>
-        /// Bytes for one mixed brick: 512 voxel bytes + 8 occupancy words (64 B) = 576 B.
+        /// Bytes for one mixed brick: 512 material + 1024 surface semantics + 512 authored
+        /// boundary samples + 64 occupancy = 2112 B.
         /// Empty and uniform bricks cost zero — that asymmetry is what makes a
         /// kilometre-scale world fit a capped memory budget.
         /// </summary>
-        public const int BytesPerMixedBrick = VoxelsPerBrick + OccupancyWordsPerBrick * 8;
+        public const int BytesPerMixedBrick = VoxelsPerBrick
+            + VoxelsPerBrick * sizeof(ushort)
+            + VoxelsPerBrick
+            + OccupancyWordsPerBrick * sizeof(ulong);
 
         /// <summary>Material index reserved for empty space. Never stored in a palette.</summary>
         public const byte MaterialEmpty = 0;

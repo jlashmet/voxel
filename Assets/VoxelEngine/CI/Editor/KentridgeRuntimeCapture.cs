@@ -32,7 +32,6 @@ namespace VoxelEngine.CI
         private const int Width = 1600;
         private const int Height = 1000;
         private const float VoxelSize = 0.1f;
-        private const int HardBricksPerAxis = 16;
         private const int MaterialCount = 18;
 
         private readonly struct CaptureView
@@ -70,7 +69,6 @@ namespace VoxelEngine.CI
             FeatureCatalogue catalogue = default;
             RegionTable table = default;
             BrickPool pool = default;
-            CpuHardSurfaceChunkCache hardCache = null;
             CpuTransvoxelChunkCache smoothCache = null;
             GameObject cameraObject = null;
             Material[] hardPalette = null;
@@ -121,10 +119,10 @@ namespace VoxelEngine.CI
                     throw new InvalidOperationException(
                         "Kentridge produced no voxel geometry on generated terrain.");
 
-                int hardBricks = CountHardBricks(ref table);
-                if (hardBricks == 0)
+                int surfaceBricks = CountAuthoredSurfaceBricks(ref table, in pool);
+                if (surfaceBricks == 0)
                     throw new InvalidOperationException(
-                        "Kentridge generated no semantic hard-surface bricks.");
+                        "Kentridge generated no authored surface-semantics bricks.");
 
                 cameraObject = new GameObject("CI Kentridge Runtime Camera");
                 Camera camera = cameraObject.AddComponent<Camera>();
@@ -154,42 +152,20 @@ namespace VoxelEngine.CI
                 hardPalette = BuildHardPalette(previewShader);
                 smoothPalette = BuildSmoothPalette(previewShader);
 
-                hardCache = new CpuHardSurfaceChunkCache(HardBricksPerAxis);
-                for (int iteration = 0; iteration < 1024; iteration++)
-                {
-                    hardCache.Sync(ref table, in pool, null, cameraObject.transform.position,
-                                   VoxelSize, 100.0);
-                    if (hardCache.PendingCount == 0) break;
-                }
-                if (hardCache.PendingCount != 0)
-                    throw new InvalidOperationException(
-                        $"Hard extraction did not settle; {hardCache.PendingCount} chunks remain.");
-
-                IReadOnlyList<CpuHardSurfaceChunkCache.Entry> hardVisible =
-                    hardCache.CollectVisible(camera, VoxelSize);
-                if (hardVisible.Count == 0)
-                    throw new InvalidOperationException(
-                        "Kentridge hard-surface extraction produced no visible chunks.");
-
-                int hardTriangles = 0;
-                for (int i = 0; i < hardVisible.Count; i++)
-                {
-                    Mesh mesh = MeshEntry(hardVisible[i], out int triangles);
-                    hardTriangles += triangles;
-                    AddMeshObject(
-                        $"CI Kentridge Hard {hardVisible[i].Coordinate}", mesh, hardPalette);
-                }
-
                 smoothCache = new CpuTransvoxelChunkCache();
                 List<int3> smoothSeeds = SmoothChunkSeeds(minX, maxX, minZ, maxZ);
                 smoothCache.InvalidateSurfaceBricks(smoothSeeds);
+                MaterialPalette materialPalette = BuildMaterialPalette();
+                SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
+                CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
 
                 int previousDirty = int.MaxValue;
                 int stalled = 0;
                 for (int iteration = 0; iteration < 8192 && smoothCache.DirtyCount > 0; iteration++)
                 {
-                    smoothCache.Prepare(ref table, in pool, camera, VoxelSize,
-                                        frame: 1, budgetMs: 100.0);
+                    smoothCache.Prepare(ref table, in pool, in materialPalette,
+                        in surfaces, in coatings, null, camera, VoxelSize,
+                        frame: 1, budgetMs: 100.0);
                     int dirty = smoothCache.DirtyCount;
                     if (dirty == previousDirty)
                     {
@@ -252,9 +228,7 @@ namespace VoxelEngine.CI
                     $"streets={plan.Streets.Count}\n" +
                     $"featureInstances={featureInstances}\n" +
                     $"featureVoxels={featureVoxels}\n" +
-                    $"hardBricks={hardBricks}\n" +
-                    $"hardChunks={hardVisible.Count}\n" +
-                    $"hardTriangles={hardTriangles}\n" +
+                    $"surfaceBricks={surfaceBricks}\n" +
                     $"smoothChunks={smoothVisible.Count}\n" +
                     $"smoothTriangles={smoothTriangles}\n" +
                     $"boundsDm={minX},{minZ}..{maxX},{maxZ}\n" +
@@ -283,7 +257,6 @@ namespace VoxelEngine.CI
                 DestroyPalette(hardPalette);
                 DestroyPalette(smoothPalette);
                 smoothCache?.Dispose();
-                hardCache?.Dispose();
                 if (catalogue.IsCreated) catalogue.Dispose();
                 if (table.IsCreated) table.Dispose();
                 if (pool.IsCreated) pool.Dispose();
@@ -330,6 +303,15 @@ namespace VoxelEngine.CI
                     cz * CpuTransvoxelChunkCache.BricksPerAxis));
             }
             return result;
+        }
+
+        private static MaterialPalette BuildMaterialPalette()
+        {
+            MaterialPalette palette = default;
+            for (byte material = 1; material < MaterialCount; material++)
+                palette.Register(material, 128, DestructionClass.Crumble,
+                                 SurfaceStyles.Planar, uint.MaxValue);
+            return palette;
         }
 
         private static int FloorDiv(int value, int divisor)
@@ -437,7 +419,7 @@ namespace VoxelEngine.CI
             return new VoxelWorldGenSettings(1, materials);
         }
 
-        private static int CountHardBricks(ref RegionTable table)
+        private static int CountAuthoredSurfaceBricks(ref RegionTable table, in BrickPool pool)
         {
             int count = 0;
             NativeArray<int3> resident = table.GetResidentCoords(Allocator.Temp);
@@ -446,13 +428,18 @@ namespace VoxelEngine.CI
                 for (int r = 0; r < resident.Length; r++)
                 {
                     if (!table.TryGetRegion(resident[r], out Region region)) continue;
-                    for (int i = 0; i < region.HardSurfaceWords.Length; i++)
+                    for (int i = 0; i < region.BrickRefs.Length; i++)
                     {
-                        ulong word = region.HardSurfaceWords[i];
-                        while (word != 0UL)
+                        BrickRef brick = region.BrickRefs[i];
+                        if (!brick.IsMixed) continue;
+                        int offset = brick.PoolIndex * VoxelDimensions.VoxelsPerBrick;
+                        for (int voxel = 0; voxel < VoxelDimensions.VoxelsPerBrick; voxel++)
                         {
+                            if (pool.SurfaceSemantics[offset + voxel] == 0
+                                && pool.BoundarySamples[offset + voxel] == 0)
+                                continue;
                             count++;
-                            word &= word - 1UL;
+                            break;
                         }
                     }
                 }
@@ -501,14 +488,6 @@ namespace VoxelEngine.CI
             maxX += padding;
             minZ -= padding;
             maxZ += padding;
-        }
-
-        private static Mesh MeshEntry(CpuHardSurfaceChunkCache.Entry entry,
-                                      out int triangleCount)
-        {
-            return MeshFromBuffers(
-                entry.Vertices, entry.Indices, entry.IndexCount,
-                $"CI Kentridge Hard {entry.Coordinate}", out triangleCount);
         }
 
         private static Mesh MeshEntry(CpuTransvoxelChunkCache.Entry entry,

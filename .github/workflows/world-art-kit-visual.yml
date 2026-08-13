@@ -1,0 +1,71 @@
+name: Sunlit Waterfall Environment Visual
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/sunlit-environment-kit
+
+concurrency:
+  group: sunlit-waterfall-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture-world-art:
+    name: Render Sunlit Waterfall environment
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          echo "Unity version: ${UNITY_VERSION}"
+          echo "Unity path: ${UNITY_PATH}"
+          if [[ ! -x "${UNITY_PATH}" ]]; then
+            echo "Unity executable was not found at ${UNITY_PATH}" >&2
+            exit 1
+          fi
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Render deterministic environment target
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$GITHUB_WORKSPACE/Artifacts/WorldArtKit"
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts/WorldArtKit"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelEngine.CI.SunlitStonePrimitiveCapture.Run \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/unity.log" \
+            -quit
+
+          test -s "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/sunlit-cleric.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/sunlit-cleric.txt"
+
+      - name: Show lookdev metadata
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/sunlit-cleric.txt" ]]; then
+            cat "$GITHUB_WORKSPACE/Artifacts/WorldArtKit/sunlit-cleric.txt"
+          fi
+
+      - name: Upload world-art artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunlit-environment-${{ github.sha }}
+          path: Artifacts/WorldArtKit/
+          if-no-files-found: warn
+          retention-days: 14

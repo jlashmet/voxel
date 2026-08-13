@@ -21,6 +21,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
     {
         /// <summary>Indirect draw arguments are four uints per chunk.</summary>
         public const int ArgsStride = 4;
+        public const long MaxArenaBytes = 288L * 1024L * 1024L;
 
         private readonly int[] _freeSlots;
         private int _freeCount;
@@ -36,20 +37,52 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             // Quads are six indices; a partial quad can never be drawn.
             IndicesPerChunk = indicesPerChunk / 6 * 6;
 
-            Vertices = new ComputeBuffer(checked(slotCount * cellsPerChunk),
-                                         SmoothSurfaceVertex.Stride,
-                                         ComputeBufferType.Structured);
-            Indices = new ComputeBuffer(checked(slotCount * IndicesPerChunk), sizeof(uint),
-                                        ComputeBufferType.Structured);
-            Args = new ComputeBuffer(checked(slotCount * ArgsStride), sizeof(uint),
-                                     ComputeBufferType.IndirectArguments);
+            long requestedBytes = ComputeByteSize(slotCount, cellsPerChunk, IndicesPerChunk);
+            if (requestedBytes > MaxArenaBytes)
+                throw new ArgumentOutOfRangeException(nameof(slotCount),
+                    $"GPU surface arena requests {requestedBytes / (1024 * 1024)} MiB; " +
+                    $"the hard limit is {MaxArenaBytes / (1024 * 1024)} MiB.");
+
+            try
+            {
+                Vertices = new ComputeBuffer(checked(slotCount * cellsPerChunk),
+                                             SmoothSurfaceVertex.Stride,
+                                             ComputeBufferType.Structured);
+                Indices = new ComputeBuffer(checked(slotCount * IndicesPerChunk), sizeof(uint),
+                                            ComputeBufferType.Structured);
+                Args = new ComputeBuffer(checked(slotCount * ArgsStride), sizeof(uint),
+                                         ComputeBufferType.IndirectArguments);
+            }
+            catch
+            {
+                Vertices?.Release();
+                Indices?.Release();
+                Args?.Release();
+                Vertices = null;
+                Indices = null;
+                Args = null;
+                throw;
+            }
 
             // Every slot starts as an empty, valid draw. An unextracted slot that is somehow
             // drawn then renders nothing rather than reading uninitialised counts.
             var emptyArgs = new uint[slotCount * ArgsStride];
             for (int slot = 0; slot < slotCount; slot++)
                 emptyArgs[slot * ArgsStride + 1] = 1u; // instance count
-            Args.SetData(emptyArgs);
+            try
+            {
+                Args.SetData(emptyArgs);
+            }
+            catch
+            {
+                Vertices?.Release();
+                Indices?.Release();
+                Args?.Release();
+                Vertices = null;
+                Indices = null;
+                Args = null;
+                throw;
+            }
 
             _freeSlots = new int[slotCount];
             for (int i = 0; i < slotCount; i++) _freeSlots[i] = slotCount - 1 - i;
@@ -66,10 +99,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public int FreeSlots => _freeCount;
 
         /// <summary>Bytes held by this arena. Stated so a budget can be asserted against it.</summary>
-        public long ByteSize => (long)SlotCount
-                              * (CellsPerChunk * SmoothSurfaceVertex.Stride
-                                 + IndicesPerChunk * sizeof(uint)
-                                 + ArgsStride * sizeof(uint));
+        public long ByteSize => ComputeByteSize(SlotCount, CellsPerChunk, IndicesPerChunk);
+
+        public static long ComputeByteSize(int slotCount, int cellsPerChunk, int indicesPerChunk)
+            => checked((long)slotCount
+                     * ((long)cellsPerChunk * SmoothSurfaceVertex.Stride
+                        + (long)indicesPerChunk * sizeof(uint)
+                        + ArgsStride * sizeof(uint)));
 
         public bool IsCreated => Vertices != null && Vertices.IsValid();
 

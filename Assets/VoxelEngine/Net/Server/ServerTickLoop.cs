@@ -94,7 +94,8 @@ namespace VoxelEngine.Net.Server
         /// <param name="brickStorage">NativeArray of current region brick data for simulation.</param>
         /// <param name="regions">The authoritative region table, used for drift hashing.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Update(float deltaTime, NativeArray<byte> brickStorage, ref RegionTable regions)
+        public void Update(float deltaTime, NativeArray<byte> brickStorage,
+                           ref RegionTable regions, in BrickPool pool)
         {
             // Accumulate simulated time and advance tick when threshold crossed.
             _simulatedTimeMs += deltaTime * 1000f;
@@ -102,7 +103,7 @@ namespace VoxelEngine.Net.Server
             if (_simulatedTimeMs >= k_TickDurationMs)
             {
                 _simulatedTimeMs -= k_TickDurationMs;
-                AdvanceTick(brickStorage, ref regions);
+                AdvanceTick(brickStorage, ref regions, in pool);
             }
         }
 
@@ -122,7 +123,8 @@ namespace VoxelEngine.Net.Server
         }
 
         /// <summary>Advances the simulation by one tick. Internal — called by Update.</summary>
-        private void AdvanceTick(NativeArray<byte> brickStorage, ref RegionTable regions)
+        private void AdvanceTick(NativeArray<byte> brickStorage, ref RegionTable regions,
+                                 in BrickPool pool)
         {
             _currentTick++;
 
@@ -136,7 +138,7 @@ namespace VoxelEngine.Net.Server
             _worldHistory.RecordSnapshot(_currentTick, brickStorage);
 
             // 4. Compute and broadcast region hashes for drift detection.
-            BroadcastRegionHashes(ref regions);
+            BroadcastRegionHashes(ref regions, in pool);
 
             // 5. Clean up input buffers older than the rollback window.
             CleanupOldInputs();
@@ -203,7 +205,7 @@ namespace VoxelEngine.Net.Server
         /// The authoritative region table. Passed in rather than held as a field because the
         /// tick loop owns scheduling, not world storage.
         /// </param>
-        private void BroadcastRegionHashes(ref RegionTable regions)
+        private void BroadcastRegionHashes(ref RegionTable regions, in BrickPool pool)
         {
             var coords = _regionHashes.GetKeyArray(Unity.Collections.Allocator.Temp);
             foreach (var coord in coords)
@@ -214,7 +216,7 @@ namespace VoxelEngine.Net.Server
                 if (!regions.TryGetRegion(coord, out var hashRegion))
                     continue;
 
-                uint newHash = RegionHasher.HashRegion(in hashRegion);
+                uint newHash = RegionHasher.HashRegion(in hashRegion, in pool);
 
                 if (newHash != previousHash)
                 {

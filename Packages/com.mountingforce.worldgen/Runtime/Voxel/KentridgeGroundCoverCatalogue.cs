@@ -336,7 +336,7 @@ namespace MountingForce.WorldGen.Voxel
             public void PaintSurface(int x, int y, int z,
                                      int sx, int sy, int sz, byte material) =>
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                   material, (int)PrimitiveMode.PaintSurface);
+                   material, 0, 0, (int)PrimitiveMode.PaintSurface);
 
             public int[] Finish()
             {

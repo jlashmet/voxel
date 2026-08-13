@@ -19,6 +19,7 @@ namespace VoxelEngine.Core.Storage
     {
         /// <summary>Number of registered materials in the palette.</summary>
         public int Count => _count;
+        public uint Version { get; private set; }
 
         private byte _count;
 
@@ -27,6 +28,9 @@ namespace VoxelEngine.Core.Storage
         // types, and this keeps MaterialPalette blittable and usable inside Burst jobs.
         private fixed byte _hardness[MaxMaterials];
         private fixed byte _destructionClass[MaxMaterials];
+        private fixed ushort _defaultSurfaceStyle[MaxMaterials];
+        private fixed uint _allowedCoatings[MaxMaterials];
+        private fixed byte _registered[MaxMaterials];
 
         public bool IsCreated => _count > 0;
 
@@ -34,13 +38,34 @@ namespace VoxelEngine.Core.Storage
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Register(byte index, byte hardness, DestructionClass destructionClass)
         {
+            Register(index, hardness, destructionClass, SurfaceStyles.Smooth, uint.MaxValue);
+        }
+
+        public void Register(byte index, byte hardness, DestructionClass destructionClass,
+                             ushort defaultSurfaceStyle, uint allowedCoatings)
+        {
             if ((uint)index >= (uint)MaxMaterials)
                 return; // Silently ignore — palette entries beyond capacity are undefined.
 
             _hardness[index] = hardness;
             _destructionClass[index] = (byte)destructionClass;
+            _defaultSurfaceStyle[index] = defaultSurfaceStyle;
+            _allowedCoatings[index] = allowedCoatings;
+            _registered[index] = 1;
+            Version++;
             if (index + 1 > _count) _count = (byte)(index + 1);
         }
+
+        public ushort GetDefaultSurfaceStyle(byte materialIndex) =>
+            IsRegistered(materialIndex)
+                ? _defaultSurfaceStyle[materialIndex] : SurfaceStyles.Smooth;
+
+        public bool IsRegistered(byte materialIndex) =>
+            materialIndex < _count && _registered[materialIndex] != 0;
+
+        public bool AllowsCoating(byte materialIndex, byte coatingId) =>
+            IsRegistered(materialIndex) && coatingId < 32
+            && (_allowedCoatings[materialIndex] & (1u << coatingId)) != 0;
 
         /// <summary>Look up the destruction class for a given material index.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -205,6 +205,18 @@ namespace VoxelEngine.Tests.PlayMode
                     }
                 }
             }
+            BrickRef styledBrick = r.BrickRefs[Region.BrickIndex(0, 0, 0)];
+            var styledCell = new VoxelCell
+            {
+                BaseMaterialId = 9,
+                Surface = new VoxelSurfaceSemantics
+                {
+                    StyleId = SurfaceStyles.Rounded,
+                    CoatingId = Coatings.Moss
+                },
+                Boundary = VoxelBoundarySample.FromSignedQ4(7)
+            };
+            _pool.SetCell(styledBrick.PoolIndex, 0, in styledCell);
             _table.CommitRegion(r);
 
             // Verify pre-compaction state.
@@ -235,6 +247,12 @@ namespace VoxelEngine.Tests.PlayMode
             Region restored = _table.LoadRegion(regionCoord);
             Assert.IsTrue(HasMaterialInRegion(restored, (byte)9),
                 "Compacted brick state must be faithfully restored.");
+            VoxelCell restoredCell = VoxelAccess.GetCell(ref _table, in _pool, int3.zero);
+            Assert.AreEqual(9, restoredCell.BaseMaterialId);
+            Assert.AreEqual(SurfaceStyles.Rounded, restoredCell.Surface.StyleId);
+            Assert.AreEqual(Coatings.Moss, restoredCell.Surface.CoatingId);
+            Assert.AreEqual(7, restoredCell.Boundary.SignedQ4,
+                "compaction must preserve authored geometry constraints");
         }
 
         /// <summary>Test helper: check if a region contains any bricks of the given material.</summary>

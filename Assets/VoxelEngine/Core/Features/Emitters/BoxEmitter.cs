@@ -21,13 +21,16 @@ namespace VoxelEngine.Core.Features.Emitters
         public const byte ReverseRampBit = 0x80;
         public const byte RampAxisMask = 0x7F;
 
-        public static Primitive Box(int3 min, int3 size, byte material, PrimitiveMode mode, int order)
+        public static Primitive Box(int3 min, int3 size, byte material, PrimitiveMode mode, int order,
+                                    ushort surfaceStyle = 0, byte coating = 0)
         {
             return new Primitive
             {
                 Shape = PrimitiveShape.Box,
                 Mode = mode,
                 Material = material,
+                SurfaceStyle = surfaceStyle,
+                Coating = coating,
                 Order = order,
                 A = min,
                 B = min + math.max(size, new int3(1, 1, 1)) - 1,
@@ -39,14 +42,18 @@ namespace VoxelEngine.Core.Features.Emitters
         /// OR <see cref="ReverseRampBit"/> into the axis to make it rise toward the negative end.
         /// </summary>
         public static Primitive Ramp(int3 min, int3 size, byte axis, byte material,
-                                     PrimitiveMode mode, int order)
+                                     PrimitiveMode mode, int order,
+                                     ushort surfaceStyle = 0, byte coating = 0)
         {
             return new Primitive
             {
                 Shape = PrimitiveShape.Ramp,
                 Mode = mode,
                 Material = material,
-                Axis = axis,
+                SurfaceStyle = surfaceStyle,
+                Coating = coating,
+                Axis = (byte)(axis & RampAxisMask),
+                Direction = (sbyte)((axis & ReverseRampBit) != 0 ? -1 : 1),
                 Order = order,
                 A = min,
                 B = min + math.max(size, new int3(1, 1, 1)) - 1,
@@ -70,7 +77,6 @@ namespace VoxelEngine.Core.Features.Emitters
             if (!BoxContains(in p, voxel)) return false;
 
             int axis = p.Axis & RampAxisMask;
-            bool reverse = (p.Axis & ReverseRampBit) != 0;
 
             int along = axis == 0 ? voxel.x - p.A.x
                       : axis == 2 ? voxel.z - p.A.z
@@ -81,7 +87,7 @@ namespace VoxelEngine.Core.Features.Emitters
                      : p.B.y - p.A.y;
 
             if (span <= 0) return true;
-            if (reverse) along = span - along;
+            if (p.Direction < 0) along = span - along;
 
             int height = p.B.y - p.A.y + 1;
             int allowed = ((along + 1) * height) / (span + 1);
