@@ -31,9 +31,9 @@ namespace VoxelEngine.Showcase
 
             Vector4 sourceSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 sourceSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
-            SetTurfPresentation(TerrainTurfNear, new Color(0.18f, 0.25f, 0.095f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfMid, new Color(0.38f, 0.43f, 0.17f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfFar, new Color(0.62f, 0.59f, 0.27f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfNear, new Color(0.23f, 0.25f, 0.13f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfMid, new Color(0.45f, 0.43f, 0.23f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfFar, new Color(0.70f, 0.59f, 0.35f), sourceSampling, sourceSurface);
         }
 
         private static void SetTurfPresentation(byte material, Color colour,
@@ -75,15 +75,11 @@ namespace VoxelEngine.Showcase
 
         private static int ReferenceReliefVoxels(int x, int z)
         {
-            // The base height field already forms the valley. The reference is much less canyon-like,
-            // so lift the central floor instead of stacking more symmetric hills on both shoulders.
             float fromPath = math.abs(x - PathCenterVoxel(z));
             float centre = math.saturate(1f - fromPath / 82f);
             float distanceFade = 1f - 0.35f * math.saturate((z - 250f) / 230f);
             float relief = 3.8f * centre * centre * distanceFade;
 
-            // A few broad, overlapping masses make the surface asymmetric without the repeated
-            // contour bands produced by narrow shelves or per-cell noise.
             relief += 2.2f * SoftHill(x, z, -78, 62, 150, 158);
             relief += 1.6f * SoftHill(x, z, 104, 155, 170, 190);
             relief += 1.8f * SoftHill(x, z, -72, 302, 180, 205);
@@ -105,24 +101,33 @@ namespace VoxelEngine.Showcase
         private static byte GroundToneMaterial(int x, int z)
         {
             float depth = math.saturate((z + 70f) / 630f);
+            float fromPath = math.abs(x - PathCenterVoxel(z));
+            float side = math.clamp((x - PathCenterVoxel(z)) / 150f, -1f, 1f);
             float macro = math.sin(x * 0.018f + z * 0.010f)
                         + 0.65f * math.sin(x * 0.010f - z * 0.016f + 1.7f)
                         + 0.35f * math.sin((x + z) * 0.007f - 0.8f);
 
-            // The reference gets darker and more contrasty toward the camera, while its far field
-            // is a broad, bright yellow-green mass. Keep transitions spatially broad so the result
-            // reads as vegetation patches rather than voxel confetti.
+            // Foreground: the reference has a darker centre route framed by brighter shoulders.
             if (depth < 0.28f)
-                return macro < 0.18f ? TerrainTurfNear : TerrainTurfMid;
+            {
+                float centreBias = math.saturate(1f - fromPath / 58f);
+                return macro < 0.05f + centreBias * 0.85f ? TerrainTurfNear : TerrainTurfMid;
+            }
 
+            // Midground: its left bank is generally warmer/brighter while the right bank carries
+            // the largest dark vegetation masses. Preserve that broad asymmetry without speckle.
             if (depth < 0.60f)
             {
-                if (macro < -0.72f) return TerrainTurfNear;
-                if (macro > 0.58f) return TerrainTurfFar;
+                float darkCut = -0.76f + side * 0.62f;
+                float brightCut = 0.72f + side * 0.72f;
+                if (macro < darkCut) return TerrainTurfNear;
+                if (macro > brightCut) return TerrainTurfFar;
                 return TerrainTurfMid;
             }
 
-            return macro < -0.78f ? TerrainTurfMid : TerrainTurfFar;
+            // The upper third of the source is predominantly bright yellow-green; isolated darker
+            // structure should come from terrain and rocks rather than broad dark turf regions.
+            return TerrainTurfFar;
         }
 
         private static byte GroundToneCoating(int x, int z)
