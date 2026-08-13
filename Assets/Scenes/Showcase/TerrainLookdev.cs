@@ -102,6 +102,7 @@ namespace VoxelEngine.Showcase
         private void AuthorTerrain(ref VoxelBrush writer)
         {
             BuildValley(ref writer);
+            BuildPath(ref writer);
         }
 
         private static void BuildValley(ref VoxelBrush writer)
@@ -113,6 +114,58 @@ namespace VoxelEngine.Showcase
                 writer.FillColumnBulk(x, top - 4, top, z, Mat.TerrainEarth);
                 writer.SetStyled(x, top, z, Mat.TerrainTurf, SurfaceStyles.Smooth);
             }
+        }
+
+        private static void BuildPath(ref VoxelBrush writer)
+        {
+            var rng = new Unity.Mathematics.Random(Seed ^ 0x2231u);
+            int z = -50;
+            while (z < 330)
+            {
+                float progress = math.saturate((z + 50f) / 380f);
+                int centreX = PathCenterVoxel(z);
+                int halfWidth = math.max(3, (int)math.round(math.lerp(15f, 4f, progress)));
+                int halfX = math.max(2, (int)math.round(math.lerp(5f, 2f, progress)));
+                int halfZ = math.max(2, (int)math.round(math.lerp(4f, 2f, progress)));
+                int stride = halfX * 2 - 1;
+                for (int x = -halfWidth; x <= halfWidth; x += stride)
+                {
+                    int px = centreX + x + rng.NextInt(-2, 3);
+                    int pz = z + rng.NextInt(-2, 3);
+                    int py = HeightVoxel(px, pz) + 1;
+                    StampRoundedBox(ref writer, new int3(px, py, pz),
+                        new int3(halfX, 1, halfZ), 1, Mat.TerrainPathStone,
+                        SurfaceStyles.Rounded, false);
+                }
+                z += rng.NextInt(6, 10) + (int)math.round(progress * 3f);
+            }
+        }
+
+        private static void StampRoundedBox(ref VoxelBrush writer, int3 centre, int3 half,
+            int radius, byte material, ushort style, bool mossTop)
+        {
+            radius = math.max(1, radius);
+            int3 inner = math.max(half - radius, 0);
+            for (int z = -half.z; z <= half.z; z++)
+            for (int y = -half.y; y <= half.y; y++)
+            for (int x = -half.x; x <= half.x; x++)
+            {
+                float3 q = math.abs(new float3(x, y, z)) - (float3)inner;
+                float3 outside = math.max(q, 0f);
+                float signed = math.length(outside) + math.min(math.cmax(q), 0f) - radius;
+                if (signed > 0.15f) continue;
+                byte coating = mossTop && y >= half.y - 1 ? Coatings.Moss : Coatings.None;
+                writer.SetStyled(centre.x + x, centre.y + y, centre.z + z,
+                    material, style, coating);
+            }
+        }
+
+        private static int PathCenterVoxel(int z)
+        {
+            float zm = z * 0.1f;
+            float x = 0.45f * Mathf.Sin(zm * 0.18f + 0.7f)
+                    + 1.05f * Mathf.Sin(zm * 0.075f - 0.9f) - 0.28f;
+            return Mathf.RoundToInt(x * 10f);
         }
 
         private static int HeightVoxel(int x, int z)
