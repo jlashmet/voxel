@@ -53,14 +53,13 @@ namespace VoxelEngine.Showcase
         {
             Shutdown();
             ConfigureEnvironment();
+            ApplyReferenceEnvironment();
 
             _table = new RegionTable(16, Allocator.Persistent);
             _pool = new BrickPool(180_000, Allocator.Persistent);
             _palette = default;
             const uint weather = (1u << Coatings.Moss) | (1u << Coatings.Wet);
 
-            // The lookdev deliberately reuses existing presentation rows. Grass is the base,
-            // occasional moss deepens the foreground, and sparse sand patches warm distant turf.
             _palette.Register(Mat.Grass, 24, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
             _palette.Register(Mat.Moss, 24, DestructionClass.Powder,
@@ -106,6 +105,21 @@ namespace VoxelEngine.Showcase
             _built = true;
         }
 
+        private void ApplyReferenceEnvironment()
+        {
+            Camera camera = SceneCamera;
+            camera.backgroundColor = new Color(0.74f, 0.75f, 0.44f, 1f);
+            camera.fieldOfView = 27f;
+            camera.farClipPlane = 160f;
+            camera.transform.position = new Vector3(-0.25f, 10.2f, -12.5f);
+            camera.transform.LookAt(new Vector3(0.15f, 5.3f, 25.0f));
+
+            VoxelRenderBridge.SurfaceDebugTint = Color.white;
+            VoxelRenderBridge.SunDirection = new Vector3(-0.43f, 0.87f, -0.24f).normalized;
+            VoxelRenderBridge.SkyHorizon = new Color(0.92f, 0.88f, 0.50f, 1f);
+            VoxelRenderBridge.SkyZenith = new Color(0.79f, 0.82f, 0.48f, 1f);
+        }
+
         private void AuthorTerrain(ref VoxelBrush writer)
         {
             BuildValley(ref writer);
@@ -128,8 +142,6 @@ namespace VoxelEngine.Showcase
 
         private static byte TurfMaterial(int x, int z)
         {
-            // The reference becomes progressively more sunlit and yellow-green with distance.
-            // Blend existing authored rows spatially rather than tinting the renderer itself.
             if (z < 15 && math.abs(x) > 78 && Hash01(x, z) < 0.42f)
                 return Mat.Moss;
 
@@ -176,8 +188,6 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed);
 
-            // Put the dominant limestone shelves on the two valley shoulders. This creates the
-            // repeated horizontal outcrop rhythm in the reference instead of uniform pebble noise.
             for (int shelf = 0; shelf < 72; shelf++)
             {
                 int z = rng.NextInt(-45, 545);
@@ -206,7 +216,6 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            // A smaller number of detached blocks fills the valley floor and breaks shelf edges.
             for (int i = 0; i < 150; i++)
             {
                 int z = rng.NextInt(-55, 535);
@@ -254,8 +263,6 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x7B19u);
 
-            // Keep the broad height-field readable. The reference has pillows, but they sit in
-            // coherent patches rather than covering every metre with equally sized bubbles.
             for (int i = 0; i < 390; i++)
             {
                 int z = rng.NextInt(-58, 545);
@@ -352,8 +359,6 @@ namespace VoxelEngine.Showcase
             float valleyCenter = ValleyCenterMetres(zm);
             float dx = xm - valleyCenter;
 
-            // Strong valley shoulders and a rising far basin are what make the reference read as
-            // a deep landscape rather than a camera looking down at a decorated flat plane.
             float sideRise = 0.036f * dx * dx;
             float farRise = Mathf.Max(0f, zm - 7f) * 0.31f;
             float channel = -0.62f * Mathf.Exp(-(dx * dx) / 22f);
