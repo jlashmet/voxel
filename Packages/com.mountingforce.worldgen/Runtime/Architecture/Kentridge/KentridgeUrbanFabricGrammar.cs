@@ -1,7 +1,70 @@
 using System;
+using MountingForce.WorldGen.Architecture;
 
 namespace MountingForce.WorldGen.Content.Kentridge
 {
+    // Transitional source-compatible names. Stable-role generation is delegated to the generic
+    // ArchitectureCompiler; these types contain no architectural generation decisions themselves.
+    public enum KentridgeBuildingMode : byte { Generated, Bespoke }
+    public enum KentridgeFootprintForm : byte { Rectangle, RearWing, SideWing, SteppedUpper }
+    public enum KentridgeRoofForm : byte { Gable, SteepGable, TwinGable, GableWithLeanTo }
+    public enum KentridgeFrontageRhythm : byte { TwoBay, ThreeBay, Asymmetric }
+    public enum KentridgeWindowStyle : byte { Glass, Warm, Open }
+
+    public readonly struct KentridgeBuildingForm
+    {
+        private readonly StructureForm _form;
+
+        internal KentridgeBuildingForm(StructureForm form) { _form = form; }
+
+        public int RoleId => _form.RoleId;
+        public StructureArchetype Archetype => _form.Archetype;
+        public DistrictKind District => _form.District;
+        public KentridgeBuildingMode Mode => (KentridgeBuildingMode)_form.Mode;
+        public KentridgeFootprintForm Footprint => (KentridgeFootprintForm)_form.Footprint;
+        public KentridgeRoofForm Roof => (KentridgeRoofForm)_form.Roof;
+        public KentridgeFrontageRhythm FrontageRhythm => (KentridgeFrontageRhythm)_form.FrontageRhythm;
+        public KentridgeWindowStyle WindowStyle => (KentridgeWindowStyle)_form.WindowTreatment;
+        public int WidthDm => _form.WidthDm;
+        public int DepthDm => _form.DepthDm;
+        public int Storeys => _form.Storeys;
+        public int DoorOffsetDm => _form.DoorOffsetDm;
+        public int UpperOverhangDm => _form.UpperOverhangDm;
+        public int RoofHeightDm => _form.RoofHeightDm;
+        public int WingWidthDm => _form.WingWidthDm;
+        public int WingDepthDm => _form.WingDepthDm;
+        public bool WingOnRight => _form.WingOnRight;
+        public bool ChimneyOnRight => _form.ChimneyOnRight;
+        public bool IsGenerated => _form.IsGenerated;
+        public bool IsShop => _form.IsShop;
+        public bool IsHospitality => _form.IsHospitality;
+
+        internal StructureForm Inner => _form;
+    }
+
+    public static class KentridgeBuildingGrammar
+    {
+        public static KentridgeBuildingForm Resolve(BuildingPlot plot, uint seed)
+        {
+            StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
+            StructureForm form = ArchitectureCompiler.Resolve(intent, KentridgeDefinition.Theme, seed);
+            return new KentridgeBuildingForm(form);
+        }
+
+        public static void ValidateGenerated(KentridgeBuildingForm form)
+        {
+            var intent = new StructureIntent(
+                form.RoleId,
+                KentridgeDefinition.Id,
+                form.Archetype,
+                form.District,
+                new Int2(0, 0),
+                FrontageDirection.South,
+                KentridgeDefinition.FootprintDm(form.Archetype));
+            ArchitectureCompiler.ValidateGenerated(intent, KentridgeDefinition.Theme, form.Inner);
+        }
+    }
+
     /// <summary>
     /// Architectural detail for one anonymous piece of block frontage. The Kentridge content layer
     /// supplies the frontage run and its city-scale constraints; this lower layer generates local form.
@@ -49,8 +112,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
     /// <summary>
     /// Lower-level grammar for anonymous urban fabric. The block plan supplies density, storey limits,
-    /// frontage, court gaps, district and elevation. This architecture assembly supplies roof, facade,
-    /// window, awning, chimney and exact local dimensions without changing city-scale decisions.
+    /// frontage, court gaps, district and elevation; this layer supplies local architectural rhythm.
     /// </summary>
     public static class KentridgeUrbanFabricGrammar
     {
