@@ -64,7 +64,13 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(VoxelAccess.GetVoxel(
                     ref targetTable,
                     in targetPool,
-                    new int3(3 * 8 + 1, 4 * 8 + 2, 5 * 8)), Is.EqualTo((byte)2));
+                    new int3(3 * 8 + 1, 4 * 8 + 2, 5 * 8)), Is.EqualTo((byte)7),
+                    "The deliberately modified mixed voxel must survive semantic snapshot repair.");
+                Assert.That(VoxelAccess.GetVoxel(
+                    ref targetTable,
+                    in targetPool,
+                    new int3(3 * 8, 4 * 8, 5 * 8)), Is.EqualTo((byte)2),
+                    "Unmodified voxels in the same mixed brick must retain the fill material.");
             }
             finally
             {
