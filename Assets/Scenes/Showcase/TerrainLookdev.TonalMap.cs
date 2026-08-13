@@ -75,19 +75,21 @@ namespace VoxelEngine.Showcase
 
         private static int ReferenceReliefVoxels(int x, int z)
         {
-            if (z < 185 && math.abs(x - PathCenterVoxel(z)) < 34)
-                return 0;
-
             float relief = 0f;
-            relief += 13f * SoftHill(x, z, -112, 24, 70, 66);
-            relief += 12f * SoftHill(x, z, 108, 30, 72, 68);
-            relief += 12f * SoftHill(x, z, -108, 105, 92, 78);
-            relief += 14f * SoftHill(x, z, 104, 118, 94, 82);
-            relief += 11f * SoftHill(x, z, -98, 205, 108, 92);
-            relief += 12f * SoftHill(x, z, 96, 218, 108, 94);
-            relief += 9f * SoftHill(x, z, -86, 315, 115, 104);
-            relief += 10f * SoftHill(x, z, 82, 332, 118, 108);
-            return Mathf.RoundToInt(math.min(relief, 22f));
+            relief += 10f * SoftHill(x, z, -112, 24, 78, 72);
+            relief += 10f * SoftHill(x, z, 108, 30, 80, 74);
+            relief += 10f * SoftHill(x, z, -108, 105, 102, 88);
+            relief += 11f * SoftHill(x, z, 104, 118, 104, 90);
+            relief += 9f * SoftHill(x, z, -98, 205, 118, 104);
+            relief += 10f * SoftHill(x, z, 96, 218, 118, 106);
+            relief += 8f * SoftHill(x, z, -86, 315, 128, 116);
+            relief += 8f * SoftHill(x, z, 82, 332, 130, 120);
+
+            float fromValley = math.abs(x - PathCenterVoxel(z));
+            float valleyMask = math.smoothstep(0f, 1f, math.saturate((fromValley - 12f) / 72f));
+            float farRelease = math.saturate((z - 240f) / 130f);
+            valleyMask = math.lerp(valleyMask, 0.72f + 0.28f * valleyMask, farRelease);
+            return Mathf.RoundToInt(math.min(relief * valleyMask, 18f));
         }
 
         private static float SoftHill(int x, int z, int cx, int cz, int rx, int rz)
