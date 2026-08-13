@@ -42,6 +42,7 @@ jobs:
           chmod +x tools/unity-run.sh
           tools/unity-run.sh \
             -batchmode \
+            -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" \
             -executeMethod VoxelEngine.CI.WaterStudyCapture.Run \
             -logFile "$GITHUB_WORKSPACE/Artifacts/Water/unity.log" \
