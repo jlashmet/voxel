@@ -25,10 +25,16 @@ namespace VoxelEngine.Tests.PlayMode
             TerrainLookdev lookdev = root.AddComponent<TerrainLookdev>();
             Camera camera = lookdev.SceneCamera;
 
+            Assert.IsTrue(VoxelRenderBridge.TryGetWorld(out _),
+                "Terrain lookdev did not register a valid voxel world.");
+            VoxelRenderBridge.ResetSurfacePassDiagnostics("terrain-capture-start");
+
             int stableFrames = 0;
             for (int frame = 0; frame < 360 && stableFrames < 3; frame++)
             {
+                camera.Render();
                 yield return null;
+
                 VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
                 bool converged = metrics.SolidKnownChunks > 0
                     && metrics.SolidDirtyChunks == 0
@@ -37,9 +43,16 @@ namespace VoxelEngine.Tests.PlayMode
             }
 
             VoxelSurfaceMetrics finalMetrics = VoxelRenderBridge.SurfaceMetrics;
+            Assert.Greater(VoxelRenderBridge.RenderFeatureEnqueueCount, 0,
+                "VoxelRenderFeature never enqueued for the terrain camera.");
+            Assert.Greater(VoxelRenderBridge.SurfacePassRecordCount, 0,
+                "Voxel surface pass never recorded for the terrain camera.");
             Assert.GreaterOrEqual(stableFrames, 3,
                 $"Terrain surface did not converge: known={finalMetrics.SolidKnownChunks}, " +
-                $"resident={finalMetrics.SolidResidentChunks}, dirty={finalMetrics.SolidDirtyChunks}");
+                $"resident={finalMetrics.SolidResidentChunks}, dirty={finalMetrics.SolidDirtyChunks}, " +
+                $"featureEnqueues={VoxelRenderBridge.RenderFeatureEnqueueCount}, " +
+                $"surfaceRecords={VoxelRenderBridge.SurfacePassRecordCount}, " +
+                $"state={VoxelRenderBridge.LastSurfacePassState}");
 
             MethodInfo capture = typeof(CastleScreenshotTests).GetMethod(
                 "Capture", BindingFlags.NonPublic | BindingFlags.Static);
@@ -53,7 +66,10 @@ namespace VoxelEngine.Tests.PlayMode
             File.WriteAllText(Path.Combine(outputDirectory, "terrain.txt"),
                 $"knownChunks={finalMetrics.SolidKnownChunks}\n" +
                 $"residentChunks={finalMetrics.SolidResidentChunks}\n" +
-                $"dirtyChunks={finalMetrics.SolidDirtyChunks}\n");
+                $"dirtyChunks={finalMetrics.SolidDirtyChunks}\n" +
+                $"featureEnqueues={VoxelRenderBridge.RenderFeatureEnqueueCount}\n" +
+                $"surfaceRecords={VoxelRenderBridge.SurfacePassRecordCount}\n" +
+                $"surfaceState={VoxelRenderBridge.LastSurfacePassState}\n");
 
             lookdev.Shutdown();
             Object.Destroy(root);
