@@ -23,10 +23,16 @@ jobs:
     timeout-minutes: 12
 
     steps:
-      - name: Checkout
+      - name: Checkout without deleting Unity import cache
         uses: actions/checkout@v4
         with:
-          clean: true
+          clean: false
+
+      - name: Reset tracked files but preserve Library cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
 
       - name: Render water study through guarded Unity launcher
         shell: bash
