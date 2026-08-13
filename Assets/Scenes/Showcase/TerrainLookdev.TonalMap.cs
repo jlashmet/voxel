@@ -25,28 +25,22 @@ namespace VoxelEngine.Showcase
         private void ConfigureTurfPresentation()
         {
             const uint weather = (1u << Coatings.Moss) | (1u << Coatings.Wet);
-            _palette.Register(TerrainTurfNear, 24, DestructionClass.Powder, SurfaceStyles.Smooth, weather);
-            _palette.Register(TerrainTurfMid, 24, DestructionClass.Powder, SurfaceStyles.Smooth, weather);
-            _palette.Register(TerrainTurfFar, 24, DestructionClass.Powder, SurfaceStyles.Smooth, weather);
-
-            Vector4 sourceSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
-            Vector4 sourceSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
-            SetTurfPresentation(TerrainTurfNear, new Color(0.23f, 0.27f, 0.12f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfMid, new Color(0.42f, 0.43f, 0.20f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfFar, new Color(0.56f, 0.55f, 0.28f), sourceSampling, sourceSurface);
+            _palette.Register(TerrainTurfNear, 24, default, SurfaceStyles.Smooth, weather);
+            _palette.Register(TerrainTurfMid, 24, default, SurfaceStyles.Smooth, weather);
+            _palette.Register(TerrainTurfFar, 24, default, SurfaceStyles.Smooth, weather);
+            Vector4 sampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
+            Vector4 surface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
+            SetTurfPresentation(TerrainTurfNear, new Color(0.18f, 0.25f, 0.095f), sampling, surface);
+            SetTurfPresentation(TerrainTurfMid, new Color(0.38f, 0.43f, 0.17f), sampling, surface);
+            SetTurfPresentation(TerrainTurfFar, new Color(0.62f, 0.59f, 0.27f), sampling, surface);
         }
 
-        private static void SetTurfPresentation(byte material, Color colour,
-            Vector4 sourceSampling, Vector4 sourceSurface)
+        private static void SetTurfPresentation(byte material, Color colour, Vector4 sampling, Vector4 surface)
         {
-            VoxelPresentationCatalogue.MaterialAlbedo[material] =
-                new Vector4(colour.r, colour.g, colour.b, 1f);
-            VoxelPresentationCatalogue.MaterialSampling[material] =
-                new Vector4(sourceSampling.x, sourceSampling.y, sourceSampling.z, 0.04f);
-            VoxelPresentationCatalogue.MaterialSurface[material] =
-                new Vector4(sourceSurface.x, 0.02f, 0.84f, 0f);
-            VoxelPresentationCatalogue.MaterialVariation[material] =
-                new Vector4(0.68f, 0.004f, 0f, 0.003f);
+            VoxelPresentationCatalogue.MaterialAlbedo[material] = new Vector4(colour.r, colour.g, colour.b, 1f);
+            VoxelPresentationCatalogue.MaterialSampling[material] = new Vector4(sampling.x, sampling.y, sampling.z, 0.04f);
+            VoxelPresentationCatalogue.MaterialSurface[material] = new Vector4(surface.x, 0.02f, 0.84f, 0f);
+            VoxelPresentationCatalogue.MaterialVariation[material] = new Vector4(0.68f, 0.004f, 0f, 0.003f);
         }
 
         private void ApplyTonalOverlay()
@@ -59,13 +53,10 @@ namespace VoxelEngine.Showcase
                 int baseTop = HeightVoxel(x, z);
                 int relief = ReferenceReliefVoxels(x, z);
                 int top = baseTop + relief;
-                if (relief > 0)
-                    writer.FillColumnBulk(x, baseTop + 1, top, z, Mat.TerrainEarth);
-                writer.SetStyled(x, top, z, GroundToneMaterial(x, z), SurfaceStyles.Smooth,
-                    GroundToneCoating(x, z));
+                if (relief > 0) writer.FillColumnBulk(x, baseTop + 1, top, z, Mat.TerrainEarth);
+                writer.SetStyled(x, top, z, GroundToneMaterial(x, z), SurfaceStyles.Smooth, GroundToneCoating(x, z));
             }
-            if (writer.BudgetExceeded)
-                throw new System.InvalidOperationException("Terrain tonal overlay exceeded voxel authoring budget.");
+            if (writer.BudgetExceeded) throw new System.InvalidOperationException("Terrain tonal overlay exceeded voxel authoring budget.");
             _table = writer.Table;
             _pool = writer.Pool;
             using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
@@ -79,12 +70,10 @@ namespace VoxelEngine.Showcase
             float centre = math.saturate(1f - fromPath / 82f);
             float distanceFade = 1f - 0.35f * math.saturate((z - 250f) / 230f);
             float relief = 3.8f * centre * centre * distanceFade;
-
             relief += 2.2f * SoftHill(x, z, -78, 62, 150, 158);
             relief += 1.6f * SoftHill(x, z, 104, 155, 170, 190);
             relief += 1.8f * SoftHill(x, z, -72, 302, 180, 205);
             relief += 1.2f * SoftHill(x, z, 118, 390, 188, 220);
-
             return Mathf.RoundToInt(math.min(relief, 7f));
         }
 
@@ -104,35 +93,20 @@ namespace VoxelEngine.Showcase
             float macro = math.sin(x * 0.018f + z * 0.010f)
                         + 0.65f * math.sin(x * 0.010f - z * 0.016f + 1.7f)
                         + 0.35f * math.sin((x + z) * 0.007f - 0.8f);
-            float detail = 0.55f * math.sin(x * 0.082f + z * 0.057f + 0.4f)
-                         + 0.42f * math.sin(x * 0.061f - z * 0.093f + 2.2f)
-                         + 0.28f * math.sin((x + z) * 0.125f - 1.1f);
-            float tone = macro * 0.45f + detail * 0.85f;
-
-            if (depth < 0.28f)
-            {
-                if (tone < -0.32f) return TerrainTurfNear;
-                if (tone > 0.92f) return TerrainTurfFar;
-                return TerrainTurfMid;
-            }
-
+            if (depth < 0.28f) return macro < 0.18f ? TerrainTurfNear : TerrainTurfMid;
             if (depth < 0.60f)
             {
-                if (tone < -0.62f) return TerrainTurfNear;
-                if (tone > 0.48f) return TerrainTurfFar;
+                if (macro < -0.72f) return TerrainTurfNear;
+                if (macro > 0.58f) return TerrainTurfFar;
                 return TerrainTurfMid;
             }
-
-            if (tone < -0.92f) return TerrainTurfNear;
-            if (tone < 0.24f) return TerrainTurfMid;
-            return TerrainTurfFar;
+            return macro < -0.78f ? TerrainTurfMid : TerrainTurfFar;
         }
 
         private static byte GroundToneCoating(int x, int z)
         {
             int fromPath = math.abs(x - PathCenterVoxel(z));
-            if (z < 10 && fromPath > 22) return Coatings.Moss;
-            return Coatings.None;
+            return z < 10 && fromPath > 22 ? Coatings.Moss : Coatings.None;
         }
     }
 }
