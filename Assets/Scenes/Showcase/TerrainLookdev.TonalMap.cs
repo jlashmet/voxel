@@ -30,9 +30,9 @@ namespace VoxelEngine.Showcase
             _palette.Register(TerrainTurfFar, 24, default, SurfaceStyles.Smooth, weather);
             Vector4 sampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 surface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
-            SetTurfPresentation(TerrainTurfNear, new Color(0.18f, 0.25f, 0.095f), sampling, surface);
-            SetTurfPresentation(TerrainTurfMid, new Color(0.38f, 0.43f, 0.17f), sampling, surface);
-            SetTurfPresentation(TerrainTurfFar, new Color(0.62f, 0.59f, 0.27f), sampling, surface);
+            SetTurfPresentation(TerrainTurfNear, new Color(0.232f, 0.295f, 0.155f), sampling, surface);
+            SetTurfPresentation(TerrainTurfMid, new Color(0.412f, 0.457f, 0.223f), sampling, surface);
+            SetTurfPresentation(TerrainTurfFar, new Color(0.628f, 0.601f, 0.313f), sampling, surface);
         }
 
         private static void SetTurfPresentation(byte material, Color colour, Vector4 sampling, Vector4 surface)
