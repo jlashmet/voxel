@@ -18,7 +18,7 @@ namespace VoxelEngine.Showcase
         private void Start()
         {
             ConfigureTurfPresentation();
-            VoxelRenderBridge.SunDirection = new Vector3(0.08f, 0.95f, -0.25f).normalized;
+            VoxelRenderBridge.SunDirection = new Vector3(-0.08f, 0.96f, -0.26f).normalized;
             ApplyTonalOverlay();
         }
 
@@ -31,9 +31,9 @@ namespace VoxelEngine.Showcase
 
             Vector4 sourceSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 sourceSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
-            SetTurfPresentation(TerrainTurfNear, new Color(0.27f, 0.34f, 0.15f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfMid, new Color(0.40f, 0.43f, 0.20f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfFar, new Color(0.53f, 0.51f, 0.25f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfNear, new Color(0.18f, 0.25f, 0.095f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfMid, new Color(0.38f, 0.43f, 0.17f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfFar, new Color(0.62f, 0.59f, 0.27f), sourceSampling, sourceSurface);
         }
 
         private static void SetTurfPresentation(byte material, Color colour,
@@ -42,11 +42,11 @@ namespace VoxelEngine.Showcase
             VoxelPresentationCatalogue.MaterialAlbedo[material] =
                 new Vector4(colour.r, colour.g, colour.b, 1f);
             VoxelPresentationCatalogue.MaterialSampling[material] =
-                new Vector4(sourceSampling.x, sourceSampling.y, sourceSampling.z, 0.05f);
+                new Vector4(sourceSampling.x, sourceSampling.y, sourceSampling.z, 0.04f);
             VoxelPresentationCatalogue.MaterialSurface[material] =
-                new Vector4(sourceSurface.x, 0.025f, 0.82f, 0f);
+                new Vector4(sourceSurface.x, 0.02f, 0.84f, 0f);
             VoxelPresentationCatalogue.MaterialVariation[material] =
-                new Vector4(0.68f, 0.006f, 0f, 0.004f);
+                new Vector4(0.68f, 0.004f, 0f, 0.003f);
         }
 
         private void ApplyTonalOverlay()
@@ -75,21 +75,21 @@ namespace VoxelEngine.Showcase
 
         private static int ReferenceReliefVoxels(int x, int z)
         {
-            float relief = 0f;
-            relief += 10f * SoftHill(x, z, -112, 24, 78, 72);
-            relief += 10f * SoftHill(x, z, 108, 30, 80, 74);
-            relief += 10f * SoftHill(x, z, -108, 105, 102, 88);
-            relief += 11f * SoftHill(x, z, 104, 118, 104, 90);
-            relief += 9f * SoftHill(x, z, -98, 205, 118, 104);
-            relief += 10f * SoftHill(x, z, 96, 218, 118, 106);
-            relief += 8f * SoftHill(x, z, -86, 315, 128, 116);
-            relief += 8f * SoftHill(x, z, 82, 332, 130, 120);
+            // The base height field already forms the valley. The reference is much less canyon-like,
+            // so lift the central floor instead of stacking more symmetric hills on both shoulders.
+            float fromPath = math.abs(x - PathCenterVoxel(z));
+            float centre = math.saturate(1f - fromPath / 82f);
+            float distanceFade = 1f - 0.35f * math.saturate((z - 250f) / 230f);
+            float relief = 3.8f * centre * centre * distanceFade;
 
-            float fromValley = math.abs(x - PathCenterVoxel(z));
-            float valleyMask = math.smoothstep(0f, 1f, math.saturate((fromValley - 12f) / 72f));
-            float farRelease = math.saturate((z - 240f) / 130f);
-            valleyMask = math.lerp(valleyMask, 0.72f + 0.28f * valleyMask, farRelease);
-            return Mathf.RoundToInt(math.min(relief * valleyMask, 18f));
+            // A few broad, overlapping masses make the surface asymmetric without the repeated
+            // contour bands produced by narrow shelves or per-cell noise.
+            relief += 2.2f * SoftHill(x, z, -78, 62, 150, 158);
+            relief += 1.6f * SoftHill(x, z, 104, 155, 170, 190);
+            relief += 1.8f * SoftHill(x, z, -72, 302, 180, 205);
+            relief += 1.2f * SoftHill(x, z, 118, 390, 188, 220);
+
+            return Mathf.RoundToInt(math.min(relief, 7f));
         }
 
         private static float SoftHill(int x, int z, int cx, int cz, int rx, int rz)
@@ -104,20 +104,31 @@ namespace VoxelEngine.Showcase
 
         private static byte GroundToneMaterial(int x, int z)
         {
-            if (z < 20) return TerrainTurfNear;
-            if (z < 165) return TerrainTurfMid;
-            if (z < 225)
+            float depth = math.saturate((z + 70f) / 630f);
+            float macro = math.sin(x * 0.018f + z * 0.010f)
+                        + 0.65f * math.sin(x * 0.010f - z * 0.016f + 1.7f)
+                        + 0.35f * math.sin((x + z) * 0.007f - 0.8f);
+
+            // The reference gets darker and more contrasty toward the camera, while its far field
+            // is a broad, bright yellow-green mass. Keep transitions spatially broad so the result
+            // reads as vegetation patches rather than voxel confetti.
+            if (depth < 0.28f)
+                return macro < 0.18f ? TerrainTurfNear : TerrainTurfMid;
+
+            if (depth < 0.60f)
             {
-                float farBlend = math.saturate((z - 165f) / 60f);
-                return Hash01(x, z) < farBlend ? TerrainTurfFar : TerrainTurfMid;
+                if (macro < -0.72f) return TerrainTurfNear;
+                if (macro > 0.58f) return TerrainTurfFar;
+                return TerrainTurfMid;
             }
-            return TerrainTurfFar;
+
+            return macro < -0.78f ? TerrainTurfMid : TerrainTurfFar;
         }
 
         private static byte GroundToneCoating(int x, int z)
         {
             int fromPath = math.abs(x - PathCenterVoxel(z));
-            if (z < 0 && fromPath > 14) return Coatings.Moss;
+            if (z < 10 && fromPath > 22) return Coatings.Moss;
             return Coatings.None;
         }
     }
