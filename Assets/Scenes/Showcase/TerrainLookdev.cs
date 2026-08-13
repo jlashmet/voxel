@@ -49,7 +49,6 @@ namespace VoxelEngine.Showcase
         {
             Shutdown();
             ConfigureEnvironment();
-            ConfigureMaterialPresentation();
 
             _table = new RegionTable(16, Allocator.Persistent);
             _pool = new BrickPool(96_000, Allocator.Persistent);
@@ -75,13 +74,7 @@ namespace VoxelEngine.Showcase
             _surfaces = SurfaceCatalogue.CreateBuiltIns();
             _coatings = CoatingCatalogue.CreateBuiltIns();
             _profiles = new ProfileBlockStore();
-
-            var brush = new VoxelBrush(_table, _pool, in _palette, 4_000_000);
-            AuthorTerrain(ref brush);
-            if (brush.BudgetExceeded)
-                throw new System.InvalidOperationException("Terrain lookdev exceeded voxel authoring budget.");
-            _table = brush.Table;
-            _pool = brush.Pool;
+            AuthorTerrain();
 
             _changes = new VoxelChangeJournal();
             using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
