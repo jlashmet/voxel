@@ -48,4 +48,35 @@ namespace MountingForce.WorldGen
         {
         }
     }
+
+    /// <summary>
+    /// High-level contract for one anonymous piece of street frontage. Urban planning owns the
+    /// district hierarchy and allowable massing; architectural generation owns the local building
+    /// shape and facade details inside that envelope.
+    /// </summary>
+    public readonly struct UrbanFabricIntent
+    {
+        public readonly string StyleId;
+        public readonly DistrictKind District;
+        public readonly int MinStoreys;
+        public readonly int MaxStoreys;
+        public readonly int EnvelopeDm;
+        public readonly int VariationContext;
+
+        public UrbanFabricIntent(
+            string styleId,
+            DistrictKind district,
+            int minStoreys,
+            int maxStoreys,
+            int envelopeDm,
+            int variationContext)
+        {
+            StyleId = styleId;
+            District = district;
+            MinStoreys = minStoreys;
+            MaxStoreys = maxStoreys;
+            EnvelopeDm = envelopeDm;
+            VariationContext = variationContext;
+        }
+    }
 }
