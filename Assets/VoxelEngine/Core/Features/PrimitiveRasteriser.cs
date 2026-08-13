@@ -12,11 +12,8 @@ namespace VoxelEngine.Core.Features
         public int PrimitivesRasterised;
 
         /// <summary>
-        /// True when the batch exceeded <see cref="FeatureBudget.MaxPrimitivesPerRegion"/>.
-        ///
-        /// Reported rather than truncated (FR-036). Silently dropping primitives produces a
-        /// half-built castle that looks like a design choice, and the region that dropped them
-        /// would differ from the region next door that did not.
+        /// True when a batch exceeded <see cref="FeatureBudget.MaxPrimitivesPerRegion"/>.
+        /// Generation reports the overflow rather than silently truncating geometry.
         /// </summary>
         public bool BudgetExceeded;
     }
@@ -24,34 +21,32 @@ namespace VoxelEngine.Core.Features
     /// <summary>
     /// Turns primitives into voxels inside a sub-volume.
     ///
-    /// The guarantee this type exists to provide: **rasterising a set of primitives into disjoint
-    /// sub-volumes that tile a region produces exactly the same voxels as rasterising them into
-    /// the region at once.** A castle spanning four regions is generated four times, once per
-    /// region, and the seams have to line up without the regions communicating.
-    ///
-    /// That guarantee is structural rather than tested-in. Membership — "is this voxel inside this
-    /// primitive?" — is a pure function of the world voxel coordinate and the primitive, with no
-    /// reference to the volume being filled. Clipping therefore cannot change the answer for any
-    /// voxel, only which voxels get asked.
-    ///
-    /// Writes go through <see cref="VoxelAccess.SetVoxel"/>, the same path edits and terrain use,
-    /// so brick allocation, collapse-to-uniform, and dirty tracking behave identically for a
-    /// generated castle and for a player's wall.
+    /// Fill/carve membership is a pure function of world coordinate and primitive. Material-only
+    /// paint modes additionally inspect existing occupancy, which is why they are intended for
+    /// explicit ordered generation stages after their source terrain already exists.
     /// </summary>
     public static class PrimitiveRasteriser
     {
+        // Four painted voxels align with the smooth renderer's four-voxel source step. Rendering
+        // comparisons showed no useful gain from painting deeper, so keep the themed cap shallow
+        // and leave mineral support immediately beneath it.
+        private const int SurfacePaintDepth = 4;
+
         /// <summary>
         /// Rasterises primitives clipped to the half-open volume [subVolumeMin, subVolumeMax).
         ///
-        /// Primitives are applied in the order given; later ones win where they overlap, which is
-        /// how a window carves the wall that was filled a moment earlier.
+        /// Primitives are applied in order; later ones win where they overlap. PaintSolid changes
+        /// material on existing solids only. PaintSurface finds the real highest solid in each
+        /// horizontal column and repaints at most four contiguous solid voxels downward, preserving
+        /// occupancy and leaving mineral support directly beneath biome ground cover.
         /// </summary>
         public static RasterResult Rasterise(
             NativeArray<Primitive> primitives,
             int3 subVolumeMin,
             int3 subVolumeMax,
             ref RegionTable table,
-            ref BrickPool pool)
+            ref BrickPool pool,
+            bool markHardSurface = false)
         {
             var result = new RasterResult();
 
@@ -68,11 +63,24 @@ namespace VoxelEngine.Core.Features
 
                 primitive.Bounds(out var min, out var max);
 
-                // Clip to the sub-volume. The half-open upper bound matches how regions tile, so
-                // a voxel on a shared face belongs to exactly one side.
                 int x0 = math.max(min.x, subVolumeMin.x), x1 = math.min(max.x, subVolumeMax.x - 1);
                 int y0 = math.max(min.y, subVolumeMin.y), y1 = math.min(max.y, subVolumeMax.y - 1);
                 int z0 = math.max(min.z, subVolumeMin.z), z1 = math.min(max.z, subVolumeMax.z - 1);
+
+                if (primitive.Mode == PrimitiveMode.PaintSurface)
+                {
+                    RasteriseSurfacePaint(in primitive,
+                        x0, x1, z0, z1,
+                        min.y, max.y,
+                        subVolumeMin.y, subVolumeMax.y,
+                        ref table, ref pool, ref result);
+                    result.PrimitivesRasterised++;
+                    continue;
+                }
+
+                bool hardWrite = markHardSurface
+                              && primitive.Mode != PrimitiveMode.Carve
+                              && primitive.Mode != PrimitiveMode.PaintSolid;
 
                 for (int z = z0; z <= z1; z++)
                 for (int y = y0; y <= y1; y++)
@@ -81,15 +89,19 @@ namespace VoxelEngine.Core.Features
                     var voxel = new int3(x, y, z);
                     if (!Contains(in primitive, voxel)) continue;
 
-                    if (primitive.Mode == PrimitiveMode.FillIfEmpty &&
-                        VoxelAccess.IsSolid(ref table, in pool, voxel))
+                    if (primitive.Mode == PrimitiveMode.FillIfEmpty
+                        && VoxelAccess.IsSolid(ref table, in pool, voxel))
+                        continue;
+
+                    if (primitive.Mode == PrimitiveMode.PaintSolid
+                        && !VoxelAccess.IsSolid(ref table, in pool, voxel))
                         continue;
 
                     byte material = primitive.Mode == PrimitiveMode.Carve
                         ? VoxelDimensions.MaterialEmpty
                         : primitive.Material;
 
-                    if (VoxelAccess.SetVoxel(ref table, ref pool, voxel, material))
+                    if (VoxelAccess.SetVoxel(ref table, ref pool, voxel, material, hardWrite))
                         result.VoxelsWritten++;
                 }
 
@@ -99,13 +111,48 @@ namespace VoxelEngine.Core.Features
             return result;
         }
 
-        /// <summary>
-        /// Membership test, dispatched by shape.
-        ///
-        /// A pure function of the primitive and the world coordinate — deliberately taking no
-        /// sub-volume, so it is impossible to write a shape whose answer depends on which region
-        /// is asking.
-        /// </summary>
+        private static void RasteriseSurfacePaint(
+            in Primitive primitive,
+            int x0, int x1, int z0, int z1,
+            int primitiveMinY, int primitiveMaxY,
+            int subVolumeMinY, int subVolumeMaxY,
+            ref RegionTable table, ref BrickPool pool,
+            ref RasterResult result)
+        {
+            for (int z = z0; z <= z1; z++)
+            for (int x = x0; x <= x1; x++)
+            {
+                // Search the primitive's full Y extent rather than the clipped sub-volume extent.
+                // If vertical sub-volumes are ever used, every slice therefore agrees on which
+                // voxel is the column surface; a lower slice cannot mistake an internal solid for
+                // the surface merely because the real top lives in the slice above it.
+                for (int y = primitiveMaxY; y >= primitiveMinY; y--)
+                {
+                    var top = new int3(x, y, z);
+                    if (!Contains(in primitive, top)) continue;
+                    if (!VoxelAccess.IsSolid(ref table, in pool, top)) continue;
+
+                    for (int depth = 0; depth < SurfacePaintDepth; depth++)
+                    {
+                        int paintY = y - depth;
+                        if (paintY < primitiveMinY) break;
+
+                        var voxel = new int3(x, paintY, z);
+                        if (!Contains(in primitive, voxel)) break;
+                        if (!VoxelAccess.IsSolid(ref table, in pool, voxel)) break;
+
+                        if (paintY < subVolumeMinY || paintY >= subVolumeMaxY) continue;
+                        if (VoxelAccess.SetVoxel(ref table, ref pool, voxel,
+                                                 primitive.Material, false))
+                            result.VoxelsWritten++;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        /// <summary>Membership test, dispatched by shape.</summary>
         public static bool Contains(in Primitive primitive, int3 voxel)
         {
             switch (primitive.Shape)
@@ -120,10 +167,8 @@ namespace VoxelEngine.Core.Features
         }
 
         /// <summary>
-        /// Voxels a batch would write inside a volume, without writing them.
-        ///
-        /// Used by validation and by the authoring preview, where the question is "how much does
-        /// this cost" rather than "put it in the world".
+        /// Counts geometric membership only. Material-dependent paint modes cannot know their
+        /// actual write count without storage, so this remains the authoring geometry-cost query.
         /// </summary>
         public static int CountVoxels(NativeArray<Primitive> primitives, int3 min, int3 max)
         {

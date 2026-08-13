@@ -12,7 +12,7 @@ namespace VoxelEngine.Core.Features
         public int PrimitivesEmitted;
         public int VoxelsWritten;
 
-        /// <summary>Set when a budget was hit. The caller reports; generation never truncates quietly.</summary>
+        /// <summary>Set when a batch exceeded <see cref="FeatureBudget.MaxPrimitivesPerRegion"/>.</summary>
         public bool BudgetExceeded;
 
         public EvaluationResult LastEvaluationResult;
@@ -21,23 +21,17 @@ namespace VoxelEngine.Core.Features
     /// <summary>
     /// Generates the feature content of one region.
     ///
-    /// This is where the design's central claim lives: everything below is a function of
-    /// <c>(seed, catalogue, region coordinate)</c>. No neighbour is consulted, nothing is cached
-    /// between regions, and no state accumulates. Two machines generating the same region in
-    /// different orders necessarily agree, because there is nothing for them to disagree about.
-    ///
-    /// At this stage only explicit placements are handled. Rule-based scattering is US2 (T041
-    /// onward); the shape of this function does not change when it arrives — the candidate list
-    /// simply gets longer.
+    /// Everything below is a function of <c>(seed, catalogue, region coordinate)</c>. An instance is
+    /// evaluated in full and clipped to the requested region, so generation order cannot change the
+    /// authored result.
     /// </summary>
     public static class FeatureGeneration
     {
         /// <summary>
-        /// Rasterises every feature overlapping <paramref name="regionCoord"/> into the region.
+        /// Rasterises every explicit feature overlapping <paramref name="regionCoord"/>.
         ///
-        /// The instance is evaluated in full and then clipped, rather than evaluated for the
-        /// region's slice. That is the point of primitives: evaluation is cheap and analytic,
-        /// clipping is exact, and the result cannot depend on which slice asked.
+        /// Structures and Infrastructure carry hard-surface semantics into storage. Landforms remain
+        /// untagged so terrain, roads, grading, and soil shoulders stay on the smooth renderer path.
         /// </summary>
         public static FeatureGenerationReport GenerateRegion(
             in FeatureCatalogue catalogue,
@@ -64,6 +58,8 @@ namespace VoxelEngine.Core.Features
                 if ((uint)rule.DefinitionId >= (uint)catalogue.DefinitionCount) continue;
 
                 var definition = catalogue.Definitions[rule.DefinitionId];
+                bool markHardSurface = definition.Kind == FeatureKind.Structure
+                                    || definition.Kind == FeatureKind.Infrastructure;
 
                 for (var e = 0; e < rule.ExplicitCount; e++)
                 {
@@ -100,7 +96,8 @@ namespace VoxelEngine.Core.Features
                     report.PrimitivesEmitted += primitives.Length;
 
                     var raster = PrimitiveRasteriser.Rasterise(
-                        primitives.AsArray(), regionMin, regionMax, ref table, ref pool);
+                        primitives.AsArray(), regionMin, regionMax,
+                        ref table, ref pool, markHardSurface);
 
                     report.VoxelsWritten += raster.VoxelsWritten;
                     report.BudgetExceeded |= raster.BudgetExceeded;
@@ -119,8 +116,8 @@ namespace VoxelEngine.Core.Features
         /// Parameter values for an instance: authored overrides where present, seeded draws
         /// otherwise.
         ///
-        /// An override of -1 means "draw this one", so an author can pin the dimensions that
-        /// matter to a landmark and let the rest vary.
+        /// An override of -1 means "draw this one", so an author can pin the dimensions that matter
+        /// to a landmark and let the rest vary.
         /// </summary>
         public static ParameterSet ResolveParameters(
             in FeatureCatalogue catalogue,
@@ -158,10 +155,7 @@ namespace VoxelEngine.Core.Features
         }
 
         /// <summary>
-        /// The seed for one instance's draws.
-        ///
-        /// Derived from position rather than from an allocation counter, so it is stable across
-        /// eviction and identical on every client without anything being stored or sent.
+        /// The seed for one instance's draws. Derived from position rather than allocation order.
         /// </summary>
         public static ulong InstanceSeed(uint seed, int definitionId, int3 position) =>
             FeatureHash.Cell(seed, definitionId, position);

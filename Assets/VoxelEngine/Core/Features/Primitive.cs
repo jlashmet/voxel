@@ -13,6 +13,20 @@ namespace VoxelEngine.Core.Features
 
         /// <summary>Writes only where the voxel is currently empty. Used to avoid overwriting detail.</summary>
         FillIfEmpty = 2,
+
+        /// <summary>
+        /// Repaints every existing solid voxel inside the primitive without changing occupancy.
+        /// Useful for material-only edits to an already-bounded solid volume.
+        /// </summary>
+        PaintSolid = 3,
+
+        /// <summary>
+        /// For each horizontal column covered by the primitive, finds the highest solid voxel and
+        /// repaints the top four contiguous solid voxels without changing occupancy. This is the
+        /// terrain/biome operation: the material follows the actual density surface instead of a
+        /// guessed height band, while shallow repainting preserves mineral support underneath.
+        /// </summary>
+        PaintSurface = 4,
     }
 
     public enum PrimitiveShape : byte

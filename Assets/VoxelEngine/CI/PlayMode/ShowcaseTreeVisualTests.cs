@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
@@ -13,10 +14,9 @@ using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Loads the real Showcase and captures one semantic tree with production voxel rendering and
-    /// the semantic vegetation presentation active together. The assertions prove that worldgen
-    /// publishes one clean tree identity and presentation per root with no startup damage/fall,
-    /// and that the production vegetation renderer contributes real pixels to the camera frame.
+    /// Loads the real Showcase and proves semantic vegetation is upright, healthy, data-first and
+    /// visibly rendered. Uprightness is checked from the generated trunk geometry rather than from
+    /// GameObject rotation, because healthy batched trees intentionally have no per-tree GameObject.
     /// </summary>
     public sealed class ShowcaseTreeVisualTests
     {
@@ -41,21 +41,18 @@ namespace VoxelEngine.CI
             while (!load.isDone) yield return null;
 
             float deadline = Time.realtimeSinceStartup + StartupTimeoutSeconds;
-            while (TreeWorldState.Instances.Count == 0
+            while ((!ShowcaseTreePopulation.Completed || TreeWorldState.Instances.Count == 0)
                    && Time.realtimeSinceStartup < deadline)
                 yield return null;
 
+            Assert.That(ShowcaseTreePopulation.Completed, Is.True,
+                        "Semantic Showcase tree population did not complete.");
             Assert.That(TreeWorldState.Instances.Count, Is.GreaterThan(0),
                         "Showcase never published semantic tree instances.");
 
-            while (!ShowcaseTreePopulation.Completed
-                   && Time.realtimeSinceStartup < deadline)
-                yield return null;
-            bool populationComplete = ShowcaseTreePopulation.Completed;
-
             List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
-            while (renderers.Count == 1
-                   && renderers[0].PresentationCount < TreeWorldState.Instances.Count
+            while ((renderers.Count != 1
+                    || renderers[0].PresentationCount < TreeWorldState.Instances.Count)
                    && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
@@ -65,202 +62,143 @@ namespace VoxelEngine.CI
             Assert.That(renderers.Count, Is.EqualTo(1),
                         "Showcase must have exactly one ProceduralTreeRenderer singleton.");
             ProceduralTreeRenderer treeRenderer = renderers[0];
-
-            for (int i = 0; i < 60; i++) yield return null;
+            for (int i = 0; i < 30; i++) yield return null;
 
             int instanceCount = TreeWorldState.Instances.Count;
             int damageCount = TreeWorldState.Damage.Count;
-            int presentationRoots = treeRenderer.PresentationCount;
-            int rendererChildren = treeRenderer.transform.childCount;
             int severedCount = 0;
             int foliageDamagedCount = 0;
-            int rotatedRootCount = 0;
-            int activeRootCount = 0;
-            int selectedTreeIndex = -1;
-            int renderChangedPixels = 0;
+            int sidewaysSkeletonCount = 0;
+            int rotatedDynamicRootCount = 0;
+            int selectedTreeIndex = instanceCount > 0 ? 0 : -1;
 
-            int inspectCount = Mathf.Min(instanceCount, Mathf.Min(damageCount, presentationRoots));
-            for (int i = 0; i < inspectCount; i++)
+            for (int i = 0; i < instanceCount; i++)
             {
-                TreeWorldState.TreeDamageState damage = TreeWorldState.Damage[i];
-                if (damage.Severed) severedCount++;
-                if (damage.FoliageHealth < 0.999f) foliageDamagedCount++;
-
-                // Semantic tree roots are intentionally created first and remain index-stable.
-                // Spatial batch roots are additional renderer children appended after them.
-                Transform root = treeRenderer.transform.GetChild(i);
-                if (Quaternion.Angle(root.localRotation, Quaternion.identity) > 1f)
-                    rotatedRootCount++;
-                if (root.gameObject.activeSelf)
+                if (i < damageCount)
                 {
-                    activeRootCount++;
-                    if (selectedTreeIndex < 0) selectedTreeIndex = i;
+                    TreeWorldState.TreeDamageState damage = TreeWorldState.Damage[i];
+                    if (damage.Severed) severedCount++;
+                    if (damage.FoliageHealth < 0.999f) foliageDamagedCount++;
                 }
+
+                TreeInstance instance = TreeWorldState.Instances[i];
+                ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                if (!HasUprightTrunk(skeleton)) sidewaysSkeletonCount++;
+
+                if (treeRenderer.TryGetDynamicPresentationRoot(i, out Transform root)
+                    && Quaternion.Angle(root.localRotation, Quaternion.identity) > 1f)
+                    rotatedDynamicRootCount++;
             }
 
-            if (selectedTreeIndex < 0 && presentationRoots > 0) selectedTreeIndex = 0;
+            Assert.That(treeRenderer.TryGetTreeBounds(selectedTreeIndex, out Bounds selectedBounds), Is.True,
+                        "Selected semantic Showcase tree had no computable bounds.");
+            Assert.That(selectedBounds.size.sqrMagnitude, Is.GreaterThan(0.01f));
 
-            Transform selectedRoot = selectedTreeIndex >= 0
-                ? treeRenderer.transform.GetChild(selectedTreeIndex)
-                : null;
-            Bounds selectedBounds = default;
-            bool hasBounds = false;
-            if (selectedRoot != null)
+            cameraObject = new GameObject("CI Showcase Tree Camera");
+            Camera camera = cameraObject.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.52f, 0.60f, 0.70f, 1f);
+            camera.fieldOfView = 38f;
+            camera.nearClipPlane = 0.05f;
+            camera.farClipPlane = 500f;
+            camera.allowHDR = false;
+            camera.allowMSAA = true;
+
+            Vector3 focus = selectedBounds.center;
+            float radius = Mathf.Max(selectedBounds.extents.magnitude, 2f);
+            Vector3 viewDirection = new Vector3(0.85f, 0.18f, -1f).normalized;
+            cameraObject.transform.position = focus + viewDirection * (radius * 2.65f);
+            cameraObject.transform.LookAt(focus + Vector3.up * (selectedBounds.extents.y * 0.04f));
+            yield return null;
+            yield return null;
+
+            target = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32)
             {
-                MeshRenderer[] meshRenderers = selectedRoot.GetComponentsInChildren<MeshRenderer>(true);
-                for (int i = 0; i < meshRenderers.Length; i++)
+                name = "CI Showcase Tree Capture",
+                antiAliasing = 4,
+            };
+            target.Create();
+            camera.targetTexture = target;
+
+            MeshRenderer[] vegetationRenderers =
+                treeRenderer.GetComponentsInChildren<MeshRenderer>(true);
+            Assert.That(vegetationRenderers.Length, Is.GreaterThan(0));
+            bool[] enabled = new bool[vegetationRenderers.Length];
+            int renderChangedPixels;
+            RenderTexture previous = RenderTexture.active;
+            try
+            {
+                camera.Render();
+                RenderTexture.active = target;
+                capture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
+                capture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
+                capture.Apply(false, false);
+                File.WriteAllBytes(Path.Combine(outputDirectory, "showcase-tree.png"), capture.EncodeToPNG());
+
+                for (int i = 0; i < vegetationRenderers.Length; i++)
                 {
-                    if (!hasBounds)
-                    {
-                        selectedBounds = meshRenderers[i].bounds;
-                        hasBounds = true;
-                    }
-                    else
-                    {
-                        selectedBounds.Encapsulate(meshRenderers[i].bounds);
-                    }
+                    enabled[i] = vegetationRenderers[i].enabled;
+                    vegetationRenderers[i].enabled = false;
                 }
+
+                camera.Render();
+                RenderTexture.active = target;
+                noVegetationCapture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
+                noVegetationCapture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
+                noVegetationCapture.Apply(false, false);
+                renderChangedPixels = CountChangedPixels(capture, noVegetationCapture, 8);
+            }
+            finally
+            {
+                for (int i = 0; i < vegetationRenderers.Length; i++)
+                    if (vegetationRenderers[i] != null)
+                        vegetationRenderers[i].enabled = enabled[i];
+                RenderTexture.active = previous;
+                camera.targetTexture = null;
             }
 
-            if (selectedRoot != null && hasBounds)
-            {
-                cameraObject = new GameObject("CI Showcase Tree Camera");
-                Camera camera = cameraObject.AddComponent<Camera>();
-                camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = new Color(0.52f, 0.60f, 0.70f, 1f);
-                camera.fieldOfView = 38f;
-                camera.nearClipPlane = 0.05f;
-                camera.farClipPlane = 500f;
-                camera.allowHDR = false;
-                camera.allowMSAA = true;
-
-                Vector3 focus = selectedBounds.center;
-                float radius = Mathf.Max(selectedBounds.extents.magnitude, 2f);
-                Vector3 viewDirection = new Vector3(0.85f, 0.18f, -1f).normalized;
-                cameraObject.transform.position = focus + viewDirection * (radius * 2.65f);
-                cameraObject.transform.LookAt(focus + Vector3.up * (selectedBounds.extents.y * 0.04f));
-
-                yield return null;
-                yield return null;
-
-                target = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32)
-                {
-                    name = "CI Showcase Tree Capture",
-                    antiAliasing = 4,
-                };
-                target.Create();
-                camera.targetTexture = target;
-
-                MeshRenderer[] vegetationRenderers =
-                    treeRenderer.GetComponentsInChildren<MeshRenderer>(true);
-                bool[] enabled = new bool[vegetationRenderers.Length];
-                RenderTexture previous = RenderTexture.active;
-                try
-                {
-                    camera.Render();
-                    RenderTexture.active = target;
-                    capture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
-                    capture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
-                    capture.Apply(false, false);
-                    byte[] png = capture.EncodeToPNG();
-                    Assert.That(png, Is.Not.Null);
-                    Assert.That(png.Length, Is.GreaterThan(0));
-                    File.WriteAllBytes(Path.Combine(outputDirectory, "showcase-tree.png"), png);
-
-                    for (int i = 0; i < vegetationRenderers.Length; i++)
-                    {
-                        enabled[i] = vegetationRenderers[i].enabled;
-                        vegetationRenderers[i].enabled = false;
-                    }
-
-                    camera.Render();
-                    RenderTexture.active = target;
-                    noVegetationCapture = new Texture2D(
-                        Width, Height, TextureFormat.RGBA32, false, false);
-                    noVegetationCapture.ReadPixels(
-                        new Rect(0, 0, Width, Height), 0, 0, false);
-                    noVegetationCapture.Apply(false, false);
-                    renderChangedPixels = CountChangedPixels(capture, noVegetationCapture, 8);
-                }
-                finally
-                {
-                    for (int i = 0; i < vegetationRenderers.Length; i++)
-                        if (vegetationRenderers[i] != null)
-                            vegetationRenderers[i].enabled = enabled[i];
-                    RenderTexture.active = previous;
-                    camera.targetTexture = null;
-                }
-            }
-
-            string selectedSpecies = "none";
-            Vector3 selectedPosition = Vector3.zero;
-            Vector3 selectedRotation = Vector3.zero;
-            bool selectedActive = false;
-            bool selectedSevered = false;
-            float selectedFoliageHealth = 1f;
-            if (selectedTreeIndex >= 0 && selectedTreeIndex < instanceCount)
-            {
-                TreeInstance instance = TreeWorldState.Instances[selectedTreeIndex];
-                selectedSpecies = instance.Species.ToString();
-                selectedPosition = (Vector3)instance.PositionMetres;
-                if (selectedRoot != null)
-                {
-                    selectedRotation = selectedRoot.localEulerAngles;
-                    selectedActive = selectedRoot.gameObject.activeSelf;
-                }
-                if (selectedTreeIndex < damageCount)
-                {
-                    selectedSevered = TreeWorldState.Damage[selectedTreeIndex].Severed;
-                    selectedFoliageHealth = TreeWorldState.Damage[selectedTreeIndex].FoliageHealth;
-                }
-            }
-
+            TreeInstance selected = TreeWorldState.Instances[selectedTreeIndex];
+            int expectedDynamic = instanceCount - treeRenderer.BatchedTreeCount;
             string metadata =
-                $"populationComplete={populationComplete}\n" +
+                $"populationComplete={ShowcaseTreePopulation.Completed}\n" +
                 $"registryInstances={instanceCount}\n" +
                 $"damageStates={damageCount}\n" +
                 $"rendererInstances={renderers.Count}\n" +
-                $"presentationRoots={presentationRoots}\n" +
-                $"rendererChildren={rendererChildren}\n" +
+                $"semanticPresentations={treeRenderer.PresentationCount}\n" +
+                $"rendererChildren={treeRenderer.transform.childCount}\n" +
                 $"treeBatches={treeRenderer.BatchCount}\n" +
                 $"batchedTrees={treeRenderer.BatchedTreeCount}\n" +
+                $"dynamicPresentations={treeRenderer.DynamicPresentationCount}\n" +
+                $"dynamicMeshes={treeRenderer.DynamicMeshCount}\n" +
+                $"residentRenderObjects={treeRenderer.ResidentRenderObjectCount}\n" +
                 $"estimatedVisibleTreeDraws={treeRenderer.EstimatedVisibleDrawCount}\n" +
-                $"activeRoots={activeRootCount}\n" +
                 $"severedAtStartup={severedCount}\n" +
                 $"foliageDamagedAtStartup={foliageDamagedCount}\n" +
-                $"rotatedRootsAtStartup={rotatedRootCount}\n" +
+                $"sidewaysSkeletonsAtStartup={sidewaysSkeletonCount}\n" +
+                $"rotatedDynamicRootsAtStartup={rotatedDynamicRootCount}\n" +
                 $"selectedTreeIndex={selectedTreeIndex}\n" +
-                $"selectedSpecies={selectedSpecies}\n" +
-                $"selectedPosition={selectedPosition:F3}\n" +
-                $"selectedRotation={selectedRotation:F3}\n" +
-                $"selectedActive={selectedActive}\n" +
-                $"selectedSevered={selectedSevered}\n" +
-                $"selectedFoliageHealth={selectedFoliageHealth:F3}\n" +
-                $"selectedBoundsCenter={(hasBounds ? selectedBounds.center : Vector3.zero):F3}\n" +
-                $"selectedBoundsSize={(hasBounds ? selectedBounds.size : Vector3.zero):F3}\n" +
+                $"selectedSpecies={selected.Species}\n" +
+                $"selectedPosition={(Vector3)selected.PositionMetres:F3}\n" +
+                $"selectedBoundsCenter={selectedBounds.center:F3}\n" +
+                $"selectedBoundsSize={selectedBounds.size:F3}\n" +
                 $"renderChangedPixels={renderChangedPixels}\n";
             File.WriteAllText(Path.Combine(outputDirectory, "showcase-tree.txt"), metadata);
             Debug.Log($"CI showcase-tree capture written to {outputDirectory}\n{metadata}");
 
-            Assert.That(populationComplete, Is.True,
-                        "Semantic Showcase tree population did not complete before the visual checkpoint.");
-            Assert.That(damageCount, Is.EqualTo(instanceCount),
-                        "Every semantic tree must have exactly one damage state.");
-            Assert.That(presentationRoots, Is.EqualTo(instanceCount),
-                        "Every semantic tree must have exactly one presentation root.");
-            Assert.That(severedCount, Is.EqualTo(0),
-                        "No Showcase tree may begin play already severed/falling.");
-            Assert.That(foliageDamagedCount, Is.EqualTo(0),
-                        "No Showcase tree may begin play with foliage damage.");
-            Assert.That(rotatedRootCount, Is.EqualTo(0),
-                        "No Showcase tree presentation may begin rotated/fallen.");
-            Assert.That(selectedRoot, Is.Not.Null, "No semantic Showcase tree was available to capture.");
-            Assert.That(hasBounds, Is.True, "Selected semantic Showcase tree had no render bounds.");
+            Assert.That(damageCount, Is.EqualTo(instanceCount));
+            Assert.That(treeRenderer.PresentationCount, Is.EqualTo(instanceCount));
+            Assert.That(treeRenderer.DynamicPresentationCount, Is.EqualTo(expectedDynamic),
+                        "Only trees that cannot join a healthy spatial batch may own dynamic GameObjects.");
+            Assert.That(treeRenderer.GeneratedMeshCount,
+                        Is.EqualTo(treeRenderer.BatchMeshCount + treeRenderer.DynamicMeshCount));
+            Assert.That(severedCount, Is.EqualTo(0));
+            Assert.That(foliageDamagedCount, Is.EqualTo(0));
+            Assert.That(sidewaysSkeletonCount, Is.EqualTo(0),
+                        "At least one generated Showcase trunk is not actually Y-up; root-rotation checks alone cannot catch this.");
+            Assert.That(rotatedDynamicRootCount, Is.EqualTo(0));
             Assert.That(renderChangedPixels, Is.GreaterThan(512),
-                        "Disabling all production vegetation renderers did not materially change the " +
-                        "Showcase camera frame; semantic trees are not demonstrably visible.");
-            Assert.That(File.Exists(Path.Combine(outputDirectory, "showcase-tree.png")), Is.True,
-                        "Showcase tree PNG was not produced.");
+                        "Disabling production vegetation renderers did not materially change the Showcase frame.");
+            Assert.That(File.Exists(Path.Combine(outputDirectory, "showcase-tree.png")), Is.True);
 
             if (capture != null) Object.Destroy(capture);
             if (noVegetationCapture != null) Object.Destroy(noVegetationCapture);
@@ -270,6 +208,29 @@ namespace VoxelEngine.CI
                 Object.Destroy(target);
             }
             if (cameraObject != null) Object.Destroy(cameraObject);
+        }
+
+        private static bool HasUprightTrunk(ProceduralTreeSkeleton skeleton)
+        {
+            float highestY = 0f;
+            float maxHorizontal = 0f;
+            int trunkSegments = 0;
+            for (int i = 0; i < skeleton.Branches.Count; i++)
+            {
+                TreeBranchSegment branch = skeleton.Branches[i];
+                if (branch.Level != 0) continue;
+                trunkSegments++;
+                float3 delta = branch.End - branch.Start;
+                float3 direction = math.normalizesafe(delta, new float3(0f, 1f, 0f));
+                if (direction.y < 0.72f) return false;
+                highestY = math.max(highestY, math.max(branch.Start.y, branch.End.y));
+                maxHorizontal = math.max(maxHorizontal,
+                    math.length(new float2(branch.End.x, branch.End.z)));
+            }
+
+            if (trunkSegments == 0) return false;
+            if (highestY < skeleton.Height * 0.80f) return false;
+            return maxHorizontal < math.max(0.75f, highestY * 0.22f);
         }
 
         private static int CountChangedPixels(Texture2D withVegetation,
