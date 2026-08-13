@@ -109,15 +109,15 @@ namespace VoxelEngine.Showcase
         {
             Camera camera = SceneCamera;
             camera.backgroundColor = new Color(0.74f, 0.75f, 0.44f, 1f);
-            camera.fieldOfView = 27f;
+            camera.fieldOfView = 26f;
             camera.farClipPlane = 160f;
-            camera.transform.position = new Vector3(-0.25f, 10.2f, -12.5f);
-            camera.transform.LookAt(new Vector3(0.15f, 5.3f, 25.0f));
+            camera.transform.position = new Vector3(-0.30f, 16.0f, -17.0f);
+            camera.transform.LookAt(new Vector3(0.15f, 4.2f, 25.0f));
 
             VoxelRenderBridge.SurfaceDebugTint = Color.white;
             VoxelRenderBridge.SunDirection = new Vector3(-0.43f, 0.87f, -0.24f).normalized;
-            VoxelRenderBridge.SkyHorizon = new Color(0.92f, 0.88f, 0.50f, 1f);
-            VoxelRenderBridge.SkyZenith = new Color(0.79f, 0.82f, 0.48f, 1f);
+            VoxelRenderBridge.SkyHorizon = new Color(0.94f, 0.87f, 0.49f, 1f);
+            VoxelRenderBridge.SkyZenith = new Color(0.82f, 0.80f, 0.46f, 1f);
         }
 
         private void AuthorTerrain(ref VoxelBrush writer)
@@ -142,12 +142,12 @@ namespace VoxelEngine.Showcase
 
         private static byte TurfMaterial(int x, int z)
         {
-            if (z < 15 && math.abs(x) > 78 && Hash01(x, z) < 0.42f)
+            if (z < 10 && math.abs(x) > 92 && Hash01(x, z) < 0.20f)
                 return Mat.Moss;
 
-            float depth = math.saturate((z - 70f) / 430f);
-            float warmChance = math.lerp(0.015f, 0.30f, depth);
-            return Hash01(x / 4, z / 4) < warmChance ? Mat.Sand : Mat.Grass;
+            float depth = math.saturate((z + 45f) / 570f);
+            float warmChance = math.lerp(0.07f, 0.22f, depth);
+            return Hash01(x, z) < warmChance ? Mat.Sand : Mat.Grass;
         }
 
         private static float Hash01(int x, int z)
@@ -162,19 +162,19 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x2231u);
             int z = -58;
-            while (z < 285)
+            while (z < 220)
             {
-                float progress = math.saturate((z + 58f) / 343f);
+                float progress = math.saturate((z + 58f) / 278f);
                 int centreX = PathCenterVoxel(z);
-                int halfWidth = math.max(4, (int)math.round(math.lerp(12f, 5f, progress)));
+                int halfWidth = math.max(4, (int)math.round(math.lerp(13f, 5f, progress)));
 
                 for (int lateral = -halfWidth; lateral <= halfWidth; lateral += 4)
                 {
-                    if (rng.NextFloat() < math.lerp(0.05f, 0.36f, progress)) continue;
+                    if (rng.NextFloat() < math.lerp(0.04f, 0.32f, progress)) continue;
                     int px = centreX + lateral + rng.NextInt(-2, 3);
                     int pz = z + rng.NextInt(-2, 3);
-                    int hx = rng.NextInt(2, progress < 0.32f ? 5 : 4);
-                    int hz = rng.NextInt(2, progress < 0.32f ? 5 : 4);
+                    int hx = rng.NextInt(2, progress < 0.35f ? 5 : 4);
+                    int hz = rng.NextInt(2, progress < 0.35f ? 5 : 4);
                     int py = HeightVoxel(px, pz) + 1;
                     StampRoundedBox(ref writer, new int3(px, py, pz),
                         new int3(hx, 1, hz), 1, Mat.TerrainPathStone,
@@ -188,7 +188,7 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed);
 
-            for (int shelf = 0; shelf < 72; shelf++)
+            for (int shelf = 0; shelf < 76; shelf++)
             {
                 int z = rng.NextInt(-45, 545);
                 float zm = z * 0.1f;
@@ -212,16 +212,16 @@ namespace VoxelEngine.Showcase
                     int y = HeightVoxel(x, zz) + hy - 1;
                     StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         math.min(2, math.min(hx, hz)), Mat.TerrainLimestone,
-                        SurfaceStyles.Rounded, rng.NextFloat() < 0.22f);
+                        SurfaceStyles.Rounded, rng.NextFloat() < 0.16f);
                 }
             }
 
-            for (int i = 0; i < 150; i++)
+            for (int i = 0; i < 160; i++)
             {
                 int z = rng.NextInt(-55, 535);
                 int x = rng.NextInt(TerrainXMin + 7, TerrainXMax - 7);
                 int path = PathCenterVoxel(z);
-                if (z < 285 && math.abs(x - path) < 13)
+                if (z < 230 && math.abs(x - path) < 13)
                     x += x < path ? -16 : 16;
 
                 int hx = rng.NextInt(2, 5);
@@ -230,13 +230,13 @@ namespace VoxelEngine.Showcase
                 int y = HeightVoxel(x, z) + hy - 1;
                 StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
                     math.min(2, math.min(hx, hz)), Mat.TerrainLimestone,
-                    SurfaceStyles.Rounded, rng.NextFloat() < 0.14f);
+                    SurfaceStyles.Rounded, rng.NextFloat() < 0.10f);
             }
 
-            BuildForegroundOutcrop(ref writer, new int3(-108, 0, -46), 13, ref rng);
-            BuildForegroundOutcrop(ref writer, new int3(106, 0, -38), 12, ref rng);
-            BuildForegroundOutcrop(ref writer, new int3(-132, 0, 34), 10, ref rng);
-            BuildForegroundOutcrop(ref writer, new int3(127, 0, 68), 9, ref rng);
+            BuildForegroundOutcrop(ref writer, new int3(-108, 0, -46), 15, ref rng);
+            BuildForegroundOutcrop(ref writer, new int3(106, 0, -38), 14, ref rng);
+            BuildForegroundOutcrop(ref writer, new int3(-132, 0, 34), 11, ref rng);
+            BuildForegroundOutcrop(ref writer, new int3(127, 0, 68), 10, ref rng);
         }
 
         private static void BuildForegroundOutcrop(ref VoxelBrush writer, int3 centre, int scale,
@@ -254,7 +254,7 @@ namespace VoxelEngine.Showcase
                     int hz = rng.NextInt(3, scale / 2 + 2);
                     int y = HeightVoxel(x, z) + layer * 3 + hy - 2;
                     StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
-                        2, Mat.TerrainLimestone, SurfaceStyles.Rounded, rng.NextFloat() < 0.28f);
+                        2, Mat.TerrainLimestone, SurfaceStyles.Rounded, rng.NextFloat() < 0.20f);
                 }
             }
         }
@@ -263,7 +263,7 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x7B19u);
 
-            for (int i = 0; i < 390; i++)
+            for (int i = 0; i < 420; i++)
             {
                 int z = rng.NextInt(-58, 545);
                 int x = rng.NextInt(TerrainXMin + 4, TerrainXMax - 4);
@@ -274,7 +274,7 @@ namespace VoxelEngine.Showcase
                     new int3(rx, ry, rz), TurfMaterial(x, z), SurfaceStyles.Smooth);
             }
 
-            for (int i = 0; i < 95; i++)
+            for (int i = 0; i < 100; i++)
             {
                 int z = rng.NextInt(-48, 530);
                 int x = rng.NextInt(TerrainXMin + 8, TerrainXMax - 8);
@@ -289,11 +289,11 @@ namespace VoxelEngine.Showcase
         private static void BuildFlowers(ref VoxelBrush writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xD451u);
-            for (int i = 0; i < 980; i++)
+            for (int i = 0; i < 1200; i++)
             {
                 int z = rng.NextInt(-55, 525);
                 float distance = math.saturate((z + 55f) / 580f);
-                if (rng.NextFloat() < distance * 0.18f) continue;
+                if (rng.NextFloat() < distance * 0.16f) continue;
                 int x = rng.NextInt(TerrainXMin + 5, TerrainXMax - 5);
                 int y = HeightVoxel(x, z) + 2;
                 byte flower = Mat.FlowerWhite;
