@@ -4,8 +4,11 @@
   "references": [
     "VoxelEngine.Core",
     "VoxelEngine.Rendering",
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Voxel",
     "VoxelEngine.Structures",
     "VoxelEngine.Showcase",
+    "Unity.Collections",
     "Unity.Mathematics"
   ],
   "includePlatforms": ["Editor"],
