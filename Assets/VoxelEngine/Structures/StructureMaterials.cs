@@ -29,5 +29,8 @@ namespace VoxelEngine.Structures
         public const byte LitWindow = 15;   // dark leaded exterior glazing with warm interior
         public const byte Cascade = 16;     // bright aerated vertical waterfall surface
         public const byte Crystal = 17;     // cool emissive cave crystal
+        public const byte MasonrySmall = 18;
+        public const byte MasonryMedium = 19; // warm 40 cm dressed limestone
+        public const byte MasonryLarge = 20;
     }
 }

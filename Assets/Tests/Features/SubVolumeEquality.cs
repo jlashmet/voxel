@@ -34,17 +34,23 @@ namespace VoxelEngine.Tests.Features
             };
         }
 
-        /// <summary>Reads every voxel in a volume into a flat array for comparison.</summary>
+        /// <summary>Reads material, style, coating, and flags into a flat array for comparison.</summary>
         public static byte[] Snapshot(ref RegionTable table, in BrickPool pool, int3 min, int3 max)
         {
             int3 size = max - min;
-            var result = new byte[size.x * size.y * size.z];
+            var result = new byte[size.x * size.y * size.z * 3];
 
             int i = 0;
             for (int z = min.z; z < max.z; z++)
             for (int y = min.y; y < max.y; y++)
             for (int x = min.x; x < max.x; x++)
-                result[i++] = VoxelAccess.GetVoxel(ref table, in pool, new int3(x, y, z));
+            {
+                VoxelCell cell = VoxelAccess.GetCell(ref table, in pool, new int3(x, y, z));
+                ushort surface = cell.Surface.PackedStorage;
+                result[i++] = cell.BaseMaterialId;
+                result[i++] = (byte)surface;
+                result[i++] = (byte)(surface >> 8);
+            }
 
             return result;
         }

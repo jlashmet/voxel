@@ -114,8 +114,6 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(0, _pool.AllocatedCount);
             Assert.Less(_pool.AllocatedCount, PoolCapacity,
                 "Repeated build/destroy on one voxel must not consume the pool.");
-            Assert.LessOrEqual(_pool.DirtyBricks.Length, 1,
-                "Reusing one pending slot must not append duplicate dirty-queue entries.");
         }
 
         [Test]

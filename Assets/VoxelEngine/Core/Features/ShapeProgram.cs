@@ -136,6 +136,12 @@ namespace VoxelEngine.Core.Features
                 int o6 = Resolve(program, registers, operandBase, mask, 6, operandCount);
                 int o7 = Resolve(program, registers, operandBase, mask, 7, operandCount);
                 int o8 = Resolve(program, registers, operandBase, mask, 8, operandCount);
+                int o9 = Resolve(program, registers, operandBase, mask, 9, operandCount);
+                int o10 = Resolve(program, registers, operandBase, mask, 10, operandCount);
+                int o11 = Resolve(program, registers, operandBase, mask, 11, operandCount);
+                int o12 = Resolve(program, registers, operandBase, mask, 12, operandCount);
+                int o13 = Resolve(program, registers, operandBase, mask, 13, operandCount);
+                int o14 = Resolve(program, registers, operandBase, mask, 14, operandCount);
 
                 int advance = ShapeOps.InstructionLength(op);
 
@@ -146,17 +152,26 @@ namespace VoxelEngine.Core.Features
                     case ShapeOp.EmitPrism:
                     case ShapeOp.EmitCapsule:
                     case ShapeOp.EmitRamp:
+                    case ShapeOp.EmitRoundedBox:
+                    case ShapeOp.EmitEllipsoid:
+                    case ShapeOp.EmitFrustum:
+                    case ShapeOp.EmitAnnulus:
+                    case ShapeOp.EmitArcWedge:
                     {
                         if (emitted >= definition.MaxPrimitives ||
                             emitted >= FeatureBudget.MaxPrimitivesPerInstance)
                             return EvaluationResult.PrimitiveLimitExceeded;
 
                         var primitive = BuildPrimitive(op, o0, o1, o2, o3, o4, o5, o6, o7, o8,
+                                                       o9, o10,
+                                                       o11, o12, o13, o14,
                                                        stack[stackDepth].Offset, emitted);
 
                         primitive = Orient(primitive, definition.Footprint, orientation);
                         primitive.A += origin;
                         primitive.B += origin;
+                        if (primitive.Shape >= PrimitiveShape.Ellipsoid)
+                            primitive.C += origin;
 
                         primitives.Add(primitive);
                         emitted++;
@@ -373,6 +388,8 @@ namespace VoxelEngine.Core.Features
         private static Primitive BuildPrimitive(ShapeOp op,
                                                 int o0, int o1, int o2, int o3, int o4,
                                                 int o5, int o6, int o7, int o8,
+                                                int o9, int o10,
+                                                int o11, int o12, int o13, int o14,
                                                 int3 offset, int order)
         {
             switch (op)
@@ -381,33 +398,62 @@ namespace VoxelEngine.Core.Features
                     return BoxEmitter.Box(
                         new int3(o0, o1, o2) + offset,
                         new int3(o3, o4, o5),
-                        (byte)o6, (PrimitiveMode)o7, order);
+                        (byte)o6, (PrimitiveMode)o9, order, (ushort)o7, (byte)o8);
 
                 case ShapeOp.EmitCylinder:
                     return CylinderEmitter.Cylinder(
                         new int3(o0, o1, o2) + offset,
                         o3, o4, (byte)o5,
-                        (byte)o6, (PrimitiveMode)o7, order);
+                        (byte)o6, (PrimitiveMode)o9, order, (ushort)o7, (byte)o8);
 
                 case ShapeOp.EmitPrism:
                     return PrismEmitter.Prism(
                         new int3(o0, o1, o2) + offset,
                         new int3(o3, o4, o5),
                         (PrismProfile)o6, (byte)o7,
-                        (PrimitiveMode)o8, order);
+                        (PrimitiveMode)o10, order, (ushort)o8, (byte)o9);
 
                 case ShapeOp.EmitCapsule:
                     return CapsuleChainEmitter.Capsule(
                         new int3(o0, o1, o2) + offset,
                         new int3(o3, o4, o5) + offset,
-                        o6, (byte)o7, (PrimitiveMode)o8, order);
+                        o6, (byte)o7, (PrimitiveMode)o10, order, (ushort)o8, (byte)o9);
 
-                default:
+                case ShapeOp.EmitRoundedBox:
+                    return CurvedPrimitiveEmitter.RoundedBox(
+                        new int3(o0, o1, o2) + offset, new int3(o3, o4, o5), o6,
+                        (byte)o7, (ushort)o8, (PrimitiveMode)o10, order, (byte)o9);
+
+                case ShapeOp.EmitEllipsoid:
+                    return CurvedPrimitiveEmitter.Ellipsoid(
+                        new int3(o0, o1, o2) + offset, new int3(o3, o4, o5),
+                        (byte)o6, (ushort)o7, (PrimitiveMode)o9, order, (byte)o8);
+
+                case ShapeOp.EmitFrustum:
+                    return CurvedPrimitiveEmitter.Frustum(
+                        new int3(o0, o1, o2) + offset, o3, o4, o5, (byte)o6,
+                        (byte)o7, (ushort)o8, (PrimitiveMode)o10, order, (byte)o9);
+
+                case ShapeOp.EmitAnnulus:
+                    return CurvedPrimitiveEmitter.Annulus(
+                        new int3(o0, o1, o2) + offset, o3, o4, o5, (byte)o6, o7 != 0,
+                        (byte)o8, (ushort)o9, (PrimitiveMode)o11, order, (byte)o10);
+
+                case ShapeOp.EmitArcWedge:
+                    return CurvedPrimitiveEmitter.ArcWedge(
+                        new int3(o0, o1, o2) + offset, o3, o4, o5, (byte)o6,
+                        new int2(o7, o8), new int2(o9, o10), (byte)o11, (ushort)o12,
+                        (PrimitiveMode)o14, order, (byte)o13);
+
+                case ShapeOp.EmitRamp:
                     return BoxEmitter.Ramp(
                         new int3(o0, o1, o2) + offset,
                         new int3(o3, o4, o5),
                         (byte)o6, (byte)o7,
-                        (PrimitiveMode)o8, order);
+                        (PrimitiveMode)o10, order, (ushort)o8, (byte)o9);
+
+                default:
+                    return default;
             }
         }
 
@@ -424,21 +470,106 @@ namespace VoxelEngine.Core.Features
         {
             if ((orientation & 3) == 0) return p;
 
+            byte originalAxis = p.Axis;
+
             int3 a = RotatePoint(p.A, footprint, orientation);
             int3 b = RotatePoint(p.B, footprint, orientation);
 
             p.A = math.min(a, b);
             p.B = math.max(a, b);
 
+            if (p.Shape >= PrimitiveShape.Ellipsoid)
+                p.C = RotatePoint(p.C, footprint, orientation);
+
             // A quarter-turn swaps the x and z axes; a half-turn leaves them alone.
             if ((orientation & 1) != 0)
             {
                 if (p.Axis == 0) p.Axis = 2;
                 else if (p.Axis == 2) p.Axis = 0;
+
+                if (p.Shape == PrimitiveShape.Ellipsoid)
+                {
+                    int radius = p.D.x;
+                    p.D.x = p.D.z;
+                    p.D.z = radius;
+                }
+            }
+
+            if (p.Shape == PrimitiveShape.Ramp || p.Shape == PrimitiveShape.Frustum)
+            {
+                int initialDirection = p.Direction < 0 ? -1 : 1;
+                p.Direction = (sbyte)(initialDirection
+                    * RotateAxisSign(originalAxis, p.Axis, orientation));
+            }
+            else if (p.Shape == PrimitiveShape.Prism)
+            {
+                int3 profileVector = RotateVector(new int3(1, 0, 0), orientation);
+                int profileAxis = p.Axis == 0 ? 2 : 0;
+                p.Direction = (sbyte)(profileVector[profileAxis] < 0 ? -1 : 1);
+            }
+
+
+            if (p.Shape == PrimitiveShape.ArcWedge)
+            {
+                int2 start = RotateRadialDirection(p.StartDirection, originalAxis,
+                                                   p.Axis, orientation, out int axisSign);
+                int2 end = RotateRadialDirection(p.EndDirection, originalAxis,
+                                                 p.Axis, orientation, out _);
+                // Rotating an extrusion axis onto its negative cardinal direction reverses the
+                // radial basis used by ArcWedgeContains. Swap the boundaries to retain the same
+                // counter-clockwise interior after canonicalising the unsigned axis field.
+                if (axisSign < 0)
+                {
+                    p.StartDirection = end;
+                    p.EndDirection = start;
+                }
+                else
+                {
+                    p.StartDirection = start;
+                    p.EndDirection = end;
+                }
             }
 
             return p;
         }
+
+        private static int2 RotateRadialDirection(int2 direction, byte originalAxis,
+                                                  byte rotatedAxis, byte orientation,
+                                                  out int axisSign)
+        {
+            int originalA = (originalAxis + 1) % 3;
+            int originalB = (originalAxis + 2) % 3;
+            int3 vector = default;
+            vector[originalA] = direction.x;
+            vector[originalB] = direction.y;
+
+            int3 axisVector = default;
+            axisVector[originalAxis] = 1;
+            vector = RotateVector(vector, orientation);
+            axisVector = RotateVector(axisVector, orientation);
+            axisSign = axisVector[rotatedAxis] < 0 ? -1 : 1;
+
+            int rotatedA = (rotatedAxis + 1) % 3;
+            int rotatedB = (rotatedAxis + 2) % 3;
+            return new int2(vector[rotatedA], vector[rotatedB]);
+        }
+
+        private static int RotateAxisSign(byte originalAxis, byte rotatedAxis, byte orientation)
+        {
+            int3 axisVector = default;
+            axisVector[originalAxis] = 1;
+            axisVector = RotateVector(axisVector, orientation);
+            return axisVector[rotatedAxis] < 0 ? -1 : 1;
+        }
+
+        private static int3 RotateVector(int3 vector, byte orientation) =>
+            (orientation & 3) switch
+            {
+                1 => new int3(-vector.z, vector.y, vector.x),
+                2 => new int3(-vector.x, vector.y, -vector.z),
+                3 => new int3(vector.z, vector.y, -vector.x),
+                _ => vector,
+            };
 
         private static int3 RotatePoint(int3 p, int3 footprint, byte orientation)
         {

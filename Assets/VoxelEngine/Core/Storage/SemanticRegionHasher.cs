@@ -5,8 +5,8 @@ namespace VoxelEngine.Core.Storage
 {
     /// <summary>
     /// Cross-peer semantic fingerprint of region state.
-    /// Allocator-local BrickPool indices never enter the hash. Material bytes and the authored
-    /// hard-surface semantic bit do, because both affect authoritative derived geometry.
+    /// Allocator-local BrickPool indices never enter the hash. Material, authored surface,
+    /// authored boundary, and the legacy network hard-surface bit are authoritative semantics.
     /// </summary>
     public static class SemanticRegionHasher
     {
@@ -28,11 +28,20 @@ namespace VoxelEngine.Core.Storage
                 if (brick.IsMixed)
                 {
                     hash = MixByte(hash, 2);
+                    int offset = pool.VoxelOffset(brick.PoolIndex);
                     for (int voxel = 0; voxel < VoxelDimensions.VoxelsPerBrick; voxel++)
-                        hash = MixByte(hash, pool.GetVoxel(brick.PoolIndex, voxel));
+                    {
+                        int cell = offset + voxel;
+                        hash = MixByte(hash, pool.Voxels[cell]);
+                        ushort surface = pool.SurfaceSemantics[cell];
+                        hash = MixByte(hash, (byte)surface);
+                        hash = MixByte(hash, (byte)(surface >> 8));
+                        hash = MixByte(hash, pool.BoundarySamples[cell]);
+                    }
                 }
                 else
                 {
+                    // Uniform BrickRef is valid only when there are no per-voxel overrides.
                     hash = MixByte(hash, 1);
                     hash = MixByte(hash, brick.UniformMaterial);
                 }

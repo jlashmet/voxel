@@ -578,7 +578,7 @@ namespace MountingForce.WorldGen.Voxel
 
             public void Box(int x, int y, int z, int sx, int sy, int sz, byte material,
                             PrimitiveMode mode = PrimitiveMode.Fill) =>
-                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, (int)mode);
+                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
                 Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
@@ -586,12 +586,12 @@ namespace MountingForce.WorldGen.Voxel
             public void Prism(int x, int y, int z, int sx, int sy, int sz,
                               PrismProfile profile, byte material) =>
                 Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
-                   (int)profile, material, (int)PrimitiveMode.Fill);
+                   (int)profile, material, 0, 0, (int)PrimitiveMode.Fill);
 
             public void Cylinder(int cx, int y, int cz, int radius, int height,
                                  byte axis, byte material,
                                  PrimitiveMode mode = PrimitiveMode.Fill) =>
-                Op(ShapeOp.EmitCylinder, cx, y, cz, radius, height, axis, material, (int)mode);
+                Op(ShapeOp.EmitCylinder, cx, y, cz, radius, height, axis, material, 0, 0, (int)mode);
 
             public void Anchor(int index, int3 p, Facing facing) =>
                 Op(ShapeOp.SetAnchor, index, p.x, p.y, p.z, (int)facing);

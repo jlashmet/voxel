@@ -26,16 +26,22 @@ namespace VoxelEngine.Tests.Features.Fixtures
         }
 
         public ProgramBuilder Box(int x, int y, int z, int sx, int sy, int sz,
-                                  byte material, PrimitiveMode mode, int mask = 0)
-            => Emit(ShapeOp.EmitBox, mask, x, y, z, sx, sy, sz, material, (int)mode);
+                                  byte material, PrimitiveMode mode, int mask = 0,
+                                  ushort style = 0, byte coating = 0)
+            => Emit(ShapeOp.EmitBox, mask, x, y, z, sx, sy, sz, material,
+                    style, coating, (int)mode);
 
         public ProgramBuilder Prism(int x, int y, int z, int sx, int sy, int sz,
-                                    PrismProfile profile, byte material, PrimitiveMode mode, int mask = 0)
-            => Emit(ShapeOp.EmitPrism, mask, x, y, z, sx, sy, sz, (int)profile, material, (int)mode);
+                                    PrismProfile profile, byte material, PrimitiveMode mode, int mask = 0,
+                                    ushort style = 0, byte coating = 0)
+            => Emit(ShapeOp.EmitPrism, mask, x, y, z, sx, sy, sz, (int)profile,
+                    material, style, coating, (int)mode);
 
         public ProgramBuilder Cylinder(int x, int y, int z, int radius, int height, byte axis,
-                                       byte material, PrimitiveMode mode, int mask = 0)
-            => Emit(ShapeOp.EmitCylinder, mask, x, y, z, radius, height, axis, material, (int)mode);
+                                       byte material, PrimitiveMode mode, int mask = 0,
+                                       ushort style = 0, byte coating = 0)
+            => Emit(ShapeOp.EmitCylinder, mask, x, y, z, radius, height, axis,
+                    material, style, coating, (int)mode);
 
         public ProgramBuilder Anchor(int index, int x, int y, int z, Facing facing, int mask = 0)
             => Emit(ShapeOp.SetAnchor, mask, index, x, y, z, (int)facing);

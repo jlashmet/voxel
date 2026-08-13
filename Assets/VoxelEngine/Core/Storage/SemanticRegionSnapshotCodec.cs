@@ -8,18 +8,21 @@ namespace VoxelEngine.Core.Storage
     /// Compact semantic snapshot of one resident region for convergence repair/current-state sync.
     /// Records cover BrickRefs sequentially from index 0:
     ///   uniform run: tag=0, runLength ushort, material byte, flags byte (5 B)
-    ///   mixed brick: tag=1, flags byte, 512 material bytes (514 B)
-    /// flags bit 0 is the authored hard-surface semantic bit.
+    ///   mixed brick: tag=1, flags byte, then 512 logical cells
+    ///                (material byte, surface ushort little-endian, boundary byte).
+    /// flags bit 0 preserves the legacy network hard-surface semantic bit.
+    /// Pool indices and allocator history are never serialized.
     /// </summary>
     public static class SemanticRegionSnapshotCodec
     {
-        public const int DefaultMaxSnapshotBytes = 256 * 1024;
+        public const int DefaultMaxSnapshotBytes = 16 * 1024 * 1024;
 
         private const byte TagUniformRun = 0;
         private const byte TagMixedBrick = 1;
         private const byte FlagHardSurface = 1;
         private const int UniformRecordBytes = 5;
-        private const int MixedRecordBytes = 2 + VoxelDimensions.VoxelsPerBrick;
+        private const int CellBytes = 4;
+        private const int MixedRecordBytes = 2 + VoxelDimensions.VoxelsPerBrick * CellBytes;
 
         public static bool TryEncode(
             in Region region,
@@ -71,8 +74,16 @@ namespace VoxelEngine.Core.Storage
 
                 bytes.Add(TagMixedBrick);
                 bytes.Add(hard ? FlagHardSurface : (byte)0);
+                int cellOffset = pool.VoxelOffset(brick.PoolIndex);
                 for (int voxel = 0; voxel < VoxelDimensions.VoxelsPerBrick; voxel++)
-                    bytes.Add(pool.GetVoxel(brick.PoolIndex, voxel));
+                {
+                    int cell = cellOffset + voxel;
+                    bytes.Add(pool.Voxels[cell]);
+                    ushort surface = pool.SurfaceSemantics[cell];
+                    bytes.Add((byte)surface);
+                    bytes.Add((byte)(surface >> 8));
+                    bytes.Add(pool.BoundarySamples[cell]);
+                }
                 index++;
             }
 
@@ -118,8 +129,12 @@ namespace VoxelEngine.Core.Storage
                 hash = SemanticRegionHasher.MixByte(hash, mixedHard);
                 hash = SemanticRegionHasher.MixByte(hash, 2);
                 for (int voxel = 0; voxel < VoxelDimensions.VoxelsPerBrick; voxel++)
-                    hash = SemanticRegionHasher.MixByte(hash, snapshot[offset + voxel]);
-                offset += VoxelDimensions.VoxelsPerBrick;
+                {
+                    hash = SemanticRegionHasher.MixByte(hash, snapshot[offset++]);
+                    hash = SemanticRegionHasher.MixByte(hash, snapshot[offset++]);
+                    hash = SemanticRegionHasher.MixByte(hash, snapshot[offset++]);
+                    hash = SemanticRegionHasher.MixByte(hash, snapshot[offset++]);
+                }
             }
 
             semanticHash = hash;
@@ -173,8 +188,19 @@ namespace VoxelEngine.Core.Storage
                 bool mixedHard = (snapshot[offset++] & FlagHardSurface) != 0;
                 int poolIndex = pool.Allocate();
                 for (int voxel = 0; voxel < VoxelDimensions.VoxelsPerBrick; voxel++)
-                    pool.SetVoxel(poolIndex, voxel, snapshot[offset + voxel]);
-                offset += VoxelDimensions.VoxelsPerBrick;
+                {
+                    byte material = snapshot[offset++];
+                    ushort packedSurface = (ushort)(snapshot[offset] | (snapshot[offset + 1] << 8));
+                    offset += 2;
+                    byte boundary = snapshot[offset++];
+                    var cell = new VoxelCell
+                    {
+                        BaseMaterialId = material,
+                        Surface = VoxelSurfaceSemantics.FromStorage(packedSurface),
+                        Boundary = new VoxelBoundarySample { Packed = boundary }
+                    };
+                    pool.SetCell(poolIndex, voxel, in cell);
+                }
 
                 region.BrickRefs[brickIndex] = BrickRef.FromPoolIndex(poolIndex);
                 if (mixedHard) SetHardSurface(ref region, brickIndex);
@@ -207,10 +233,10 @@ namespace VoxelEngine.Core.Storage
                     continue;
                 }
 
-                if (tag != TagMixedBrick || offset + 1 + VoxelDimensions.VoxelsPerBrick > snapshot.Length)
+                if (tag != TagMixedBrick || offset + 1 + VoxelDimensions.VoxelsPerBrick * CellBytes > snapshot.Length)
                     return false;
 
-                offset += 1 + VoxelDimensions.VoxelsPerBrick;
+                offset += 1 + VoxelDimensions.VoxelsPerBrick * CellBytes;
                 mixedCount++;
                 covered++;
                 if (covered > expectedBricks)

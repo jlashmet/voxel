@@ -2,12 +2,13 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
 {
     internal struct TransvoxelDensityBrick
     {
-        // 0 = empty / hard-owned, 1 = uniform, 2 = mixed payload in MixedVoxels.
+        // 0 = empty, 1 = uniform, 2 = mixed payload in MixedVoxels.
         public byte Kind;
         public byte UniformMaterial;
         public int MixedOffset;
@@ -26,9 +27,16 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
     {
         [ReadOnly] public NativeArray<TransvoxelDensityBrick> Bricks;
         [ReadOnly] public NativeArray<byte> MixedVoxels;
+        [ReadOnly] public NativeArray<ushort> MixedSurfaceSemantics;
+        [ReadOnly] public NativeArray<byte> MixedBoundarySamples;
+        public MaterialPalette Palette;
+        public SurfaceCatalogue Catalogue;
+        public CoatingCatalogue Coatings;
 
         [WriteOnly] public NativeArray<float> Density;
         [WriteOnly] public NativeArray<byte> Materials;
+        [WriteOnly] public NativeArray<uint> SurfaceSemantics;
+        [WriteOnly] public NativeArray<byte> BoundarySamples;
 
         public int3 ChunkOriginVoxel;
         public int3 BrickCacheOrigin;
@@ -47,65 +55,128 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
             int3 p = ChunkOriginVoxel
                    + (new int3(gx, gy, gz) - Padding) * SourceStep;
 
-            Density[index] = SampleField(p, out byte material);
+            Density[index] = SampleField(
+                p, out byte material, out uint surface, out byte boundary);
             Materials[index] = material;
+            SurfaceSemantics[index] = surface;
+            BoundarySamples[index] = boundary;
         }
 
-        private float SampleField(int3 p, out byte dominantMaterial)
+        private float SampleField(int3 p, out byte dominantMaterial, out uint dominantSurface,
+                                  out byte dominantBoundary)
         {
-            byte centre = ReadMaterial(p);
-            bool centreSmooth = IsSmoothSample(p, centre);
-            float mass = centreSmooth ? 0.40f : 0f;
-            dominantMaterial = centreSmooth ? centre : (byte)0;
-
-            mass += Add(p + new int3( 1,0,0), 0.06f, ref dominantMaterial);
-            mass += Add(p + new int3(-1,0,0), 0.06f, ref dominantMaterial);
-            mass += Add(p + new int3(0, 1,0), 0.06f, ref dominantMaterial);
-            mass += Add(p + new int3(0,-1,0), 0.06f, ref dominantMaterial);
-            mass += Add(p + new int3(0,0, 1), 0.06f, ref dominantMaterial);
-            mass += Add(p + new int3(0,0,-1), 0.06f, ref dominantMaterial);
-
-            mass += Add(p + new int3( 2,0,0), 0.04f, ref dominantMaterial);
-            mass += Add(p + new int3(-2,0,0), 0.04f, ref dominantMaterial);
-            mass += Add(p + new int3(0, 2,0), 0.04f, ref dominantMaterial);
-            mass += Add(p + new int3(0,-2,0), 0.04f, ref dominantMaterial);
-            mass += Add(p + new int3(0,0, 2), 0.04f, ref dominantMaterial);
-            mass += Add(p + new int3(0,0,-2), 0.04f, ref dominantMaterial);
-
-            return mass - 0.5f;
-        }
-
-        private float Add(int3 p, float weight, ref byte dominantMaterial)
-        {
-            byte material = ReadMaterial(p);
-            if (!IsSmoothSample(p, material)) return 0f;
-            if (dominantMaterial == 0) dominantMaterial = material;
-            return weight;
-        }
-
-        private bool IsSmoothSample(int3 p, byte material)
-        {
-            if (!IsSmoothFieldMaterial(material)) return false;
-
-            // Grass/moss are overloaded in the legacy showcase: they describe both terrain caps
-            // and old voxel tree crowns. A terrain surface has mineral/dirt support immediately
-            // below it; a crown is an unsupported foliage volume metres above the ground. Keep
-            // this migration rule local to the smooth field so procedural tree rendering can
-            // replace those crowns without turning all grass terrain into holes.
-            if (material == 10 || material == 14)
+            byte centre = ReadMaterial(p, out uint centreSurface, out byte packedBoundary);
+            dominantBoundary = packedBoundary;
+            bool centreSolid = IsSolidSample(centre);
+            centreSurface = ResolveSurface(centre, centreSurface);
+            if (packedBoundary != 0 && HasOppositeOccupancyNeighbour(p, centreSolid))
             {
-                for (int d = 1; d <= 6; d++)
-                {
-                    byte below = ReadMaterial(p - new int3(0, d, 0));
-                    if (IsTerrainSupportMaterial(below)) return true;
-                }
-                return false;
+                dominantMaterial = centreSolid ? centre : (byte)0;
+                dominantSurface = centreSolid ? centreSurface : 0u;
+                return new VoxelBoundarySample { Packed = packedBoundary }.SignedVoxels
+                     + CoatingDisplacement(centreSurface);
+            }
+            ushort style = (ushort)centreSurface;
+            SurfaceStyleDefinition centreDefinition = Catalogue.Get(style);
+            if (centreSolid && (centreDefinition.Reconstruction == SurfaceReconstruction.Planar
+                                || centreDefinition.Reconstruction == SurfaceReconstruction.Sharp
+                                || centreDefinition.Reconstruction == SurfaceReconstruction.Cubic))
+            {
+                dominantMaterial = centre;
+                dominantSurface = centreSurface;
+                return 0.5f + CoatingDisplacement(centreSurface);
             }
 
-            return true;
+            float curvature = CurvatureFactor(centreDefinition);
+            float centreWeight = math.lerp(0.55f, 0.40f, curvature);
+            float mass = centreSolid ? centreWeight : 0f;
+            dominantMaterial = centreSolid ? centre : (byte)0;
+            dominantSurface = centreSolid ? centreSurface : 0u;
+
+            mass += Add(p + new int3( 1,0,0), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(-1,0,0), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0, 1,0), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,-1,0), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,0, 1), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,0,-1), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+
+            mass += Add(p + new int3( 2,0,0), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(-2,0,0), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0, 2,0), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,-2,0), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,0, 2), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,0,-2), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+
+            return mass - 0.5f + (centreSolid ? CoatingDisplacement(centreSurface) : 0f);
         }
 
-        private byte ReadMaterial(int3 p)
+        private float CoatingDisplacement(uint surface)
+        {
+            byte coating = (byte)(surface >> 16);
+            return Coatings.Get(coating).Displacement * (1f / 64f);
+        }
+
+        private bool HasOppositeOccupancyNeighbour(int3 p, bool centreSolid)
+        {
+            return IsSolidSample(ReadMaterial(p + new int3(1, 0, 0), out _, out _)) != centreSolid
+                || IsSolidSample(ReadMaterial(p + new int3(-1, 0, 0), out _, out _)) != centreSolid
+                || IsSolidSample(ReadMaterial(p + new int3(0, 1, 0), out _, out _)) != centreSolid
+                || IsSolidSample(ReadMaterial(p + new int3(0, -1, 0), out _, out _)) != centreSolid
+                || IsSolidSample(ReadMaterial(p + new int3(0, 0, 1), out _, out _)) != centreSolid
+                || IsSolidSample(ReadMaterial(p + new int3(0, 0, -1), out _, out _)) != centreSolid;
+        }
+
+        private float Add(int3 p, float weight, bool centreSolid,
+                          in SurfaceStyleDefinition centreDefinition, ref byte dominantMaterial,
+                          ref uint dominantSurface)
+        {
+            byte material = ReadMaterial(p, out uint surface, out _);
+            if (!IsSolidSample(material)) return 0f;
+            surface = ResolveSurface(material, surface);
+            if (dominantMaterial == 0)
+            {
+                dominantMaterial = material;
+                dominantSurface = surface;
+            }
+            if (!centreSolid) return weight;
+
+            SurfaceStyleDefinition neighbourDefinition = Catalogue.Get((ushort)surface);
+            SurfaceJoinRule join = Catalogue.GetJoin(centreDefinition.JoinGroup,
+                                                     neighbourDefinition.JoinGroup);
+            if (join.Compatibility != SurfaceCompatibility.Join
+                || join.Continuity == SurfaceContinuity.Discontinuous)
+                return weight;
+
+            // Smooth-compatible neighbours share their reconstruction influence. This is the
+            // pairwise rule that lets curvature propagate without allowing a style to decide
+            // unilaterally how a neighbour is rebuilt.
+            float neighbourCurvature = CurvatureFactor(neighbourDefinition);
+            return weight * math.lerp(1f, neighbourCurvature,
+                math.saturate(join.BlendWidth * 0.5f));
+        }
+
+        private static bool IsSolidSample(byte material) =>
+            material != 0 && material != 11 && material != 16;
+
+        private static float CurvatureFactor(in SurfaceStyleDefinition definition)
+        {
+            if (definition.Reconstruction == SurfaceReconstruction.Planar
+                || definition.Reconstruction == SurfaceReconstruction.Sharp
+                || definition.Reconstruction == SurfaceReconstruction.Cubic) return 0f;
+            return definition.Curvature / 255f;
+        }
+
+        private uint ResolveSurface(byte material, uint surface)
+        {
+            ushort style = (ushort)surface;
+            if (style == SurfaceStyles.MaterialDefault)
+                style = Palette.GetDefaultSurfaceStyle(material);
+            if (style == SurfaceStyles.MaterialDefault)
+                style = SurfaceStyles.Smooth;
+            return (surface & 0xFFFF0000u) | style;
+        }
+
+        private byte ReadMaterial(int3 p, out uint surface, out byte boundary)
         {
             // Arithmetic right shift gives floor division for negative world coordinates.
             int3 worldBrick = new int3(p.x >> 3, p.y >> 3, p.z >> 3);
@@ -113,26 +184,37 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
             if ((uint)localBrick.x >= (uint)BrickCacheEdge
                 || (uint)localBrick.y >= (uint)BrickCacheEdge
                 || (uint)localBrick.z >= (uint)BrickCacheEdge)
+            {
+                surface = 0;
+                boundary = 0;
                 return 0;
+            }
 
             int brickIndex = localBrick.x
                            + BrickCacheEdge * (localBrick.y + BrickCacheEdge * localBrick.z);
             TransvoxelDensityBrick brick = Bricks[brickIndex];
-            if (brick.Kind == 0) return 0;
-            if (brick.Kind == 1) return brick.UniformMaterial;
+            if (brick.Kind == 0)
+            {
+                surface = 0;
+                boundary = 0;
+                return 0;
+            }
+            if (brick.Kind == 1)
+            {
+                surface = 0;
+                boundary = 0;
+                return brick.UniformMaterial;
+            }
 
             int vx = p.x & 7;
             int vy = p.y & 7;
             int vz = p.z & 7;
             int voxelIndex = vx | (vy << 3) | (vz << 6);
+            surface = VoxelSurfaceSemantics.FromStorage(
+                MixedSurfaceSemantics[brick.MixedOffset + voxelIndex]).Packed;
+            boundary = MixedBoundarySamples[brick.MixedOffset + voxelIndex];
             return MixedVoxels[brick.MixedOffset + voxelIndex];
         }
 
-        private static bool IsTerrainSupportMaterial(byte material) =>
-            material == 1 || material == 3 || material == 5 || material == 6 || material == 13;
-
-        private static bool IsSmoothFieldMaterial(byte material) =>
-            material == 1 || material == 3 || material == 5 || material == 6
-            || material == 10 || material == 13 || material == 14;
     }
 }

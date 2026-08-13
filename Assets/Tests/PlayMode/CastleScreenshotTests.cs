@@ -38,8 +38,7 @@ namespace VoxelEngine.Tests.PlayMode
                 "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
 
             // The castle is built when the origin region completes, which happens during spawn.
-            // Construction dirties far more bricks than the renderer uploads in one frame, so a
-            // fixed delay can capture a half-uploaded castle on a fast unthrottled test runner.
+            // Extraction then progresses under the shared frame budget as views are rendered.
             yield return null;
 
             var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
@@ -52,27 +51,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.AreEqual(world.CastlePresentationLights.Length,
                             world.CastlePresentationLightColours.Length,
                 "every GPU light position needs a colour/intensity record");
-
-            float uploadDeadline = Time.realtimeSinceStartup + 30f;
-            var uploadTarget = new RenderTexture(Screen.width, Screen.height, 0,
-                                                 RenderTextureFormat.ARGB32);
-            cam.targetTexture = uploadTarget;
-            while ((world.Pool.DirtyBricks.Length > 0 || world.RegionsNeedingUpload.Count > 0)
-                   && Time.realtimeSinceStartup < uploadDeadline)
-            {
-                // Batchmode does not draw a game view while a coroutine merely yields. Rendering
-                // explicitly is what executes the render feature and drains its bounded uploads.
-                cam.Render();
-                yield return null;
-            }
-            cam.targetTexture = null;
-            uploadTarget.Release();
-            Object.DestroyImmediate(uploadTarget);
-
-            Assert.Zero(world.Pool.DirtyBricks.Length,
-                "Timed out waiting for the castle's mixed bricks to reach the GPU mirror.");
-            Assert.Zero(world.RegionsNeedingUpload.Count,
-                "Timed out waiting for the castle's region pointers to reach the GPU mirror.");
 
             Debug.Log($"### CASTLE voxels={world.CastleVoxels:N0} bricks={world.Pool.AllocatedCount:N0}" +
                       $" of {world.Pool.Capacity:N0}");
@@ -112,6 +90,9 @@ namespace VoxelEngine.Tests.PlayMode
             int waterfallZ = CastleBuilder.WaterfallLipZ(in plan);
             int waterfallY = baseY - 48;
             var waterfallPool = new Vector3(waterfallX, waterfallY, waterfallZ) * 0.1f;
+            Vector3 archMin = (Vector3)((float3)world.ReferenceArchMin * ShowcaseWorld.VoxelSize);
+            Vector3 archMax = (Vector3)((float3)world.ReferenceArchMax * ShowcaseWorld.VoxelSize);
+            Vector3 archCentre = (archMin + archMax) * 0.5f;
 
             var views = new (string name, Vector3 position, Vector3 lookAt)[]
             {
@@ -207,6 +188,11 @@ namespace VoxelEngine.Tests.PlayMode
                                                 baseY + plan.FloorHeight * 2 + 14,
                                                 bellTower.z - 7) * 0.1f),
 
+                // Primary acceptance fixture for curved reconstruction, radial voussoir seams,
+                // pier transitions, and moss-as-coating.
+                ("26_reference_arch", archCentre + new Vector3(0f, 1.5f, -14f),
+                                      archCentre + new Vector3(0f, 0.5f, 0f)),
+
                 // The actual first-person reveal is part of the authored presentation. Keep it
                 // under visual regression alongside the diagnostic orbit views.
                 ("22_player_reveal", playerRevealPosition, playerRevealLook),
@@ -237,9 +223,11 @@ namespace VoxelEngine.Tests.PlayMode
                 cam.transform.position = view.position;
                 cam.transform.LookAt(view.lookAt);
 
-                // Two frames: one to let streaming and upload catch up, one to render.
-                yield return null;
-                yield return null;
+                // The arch spans several extraction chunks; give its acceptance view enough
+                // budgeted frames to converge before capture. Ordinary views retain the fast
+                // two-frame cadence.
+                int settleFrames = view.name == "26_reference_arch" ? 24 : 2;
+                for (int frame = 0; frame < settleFrames; frame++) yield return null;
 
                 int allocatedBeforeCapture = world.Pool.AllocatedCount;
                 Capture(cam, Path.Combine(OutputDirectory, view.name + ".png"));

@@ -6,14 +6,14 @@ using VoxelEngine.Core.Storage;
 namespace VoxelEngine.Collision
 {
     /// <summary>
-    /// Shared Digital Differential Analysis (DDA) traversal used by both raycast and render
-    /// raymarch. Iterates through bricks along a line or segment in voxel space using integer-
+    /// Shared Digital Differential Analysis (DDA) traversal used by authoritative ray queries.
+    /// Iterates through bricks along a line or segment in voxel space using integer-
     /// only stepping, respecting region boundaries so that non-resident regions are read as
     /// empty (never throw).
     ///
     /// This is the single point of truth for all linear traversal across brick coordinates.
-    /// Both <see cref="VoxelRaycast"/> and the rendering raymarch use this same algorithm,
-    /// guaranteeing visual/collision parity (Constitution Principle II: Single source of truth).
+    /// Rendering derives presentation geometry from the same authoritative cells but does not
+    /// feed gameplay queries (Constitution Principle II: Single source of truth).
     ///
     /// The algorithm is a 3D DDA (Amanatides &amp; Woo, "Fast Ray Tracing Using Hyper-Rectangular
     /// Grids", 1988) adapted for discrete brick coordinates with region boundary awareness.
@@ -58,7 +58,7 @@ namespace VoxelEngine.Collision
         /// <summary>
         /// Allocation-free cursor over the same integer walk the callback overloads use.
         ///
-        /// This is the form both <see cref="VoxelRaycast"/> and the render raymarch drive.
+        /// This is the form hot-path gameplay ray queries drive.
         /// The callback overloads are convenient but take a delegate, which allocates and
         /// cannot be Bursted; a struct cursor keeps the *one* traversal (Constitution
         /// Principle II) usable from the hot paths that actually matter.
@@ -190,9 +190,8 @@ namespace VoxelEngine.Collision
         /// Exact integer 3D line walk from <paramref name="start"/> to <paramref name="end"/>,
         /// inclusive of both endpoints.
         ///
-        /// Integer Bresenham rather than a float DDA. This is the single traversal both the
-        /// collision raycast and the render raymarch derive from (Constitution Principle II),
-        /// so any float in here would let two machines — or the CPU and the GPU — disagree
+        /// Integer Bresenham rather than a float DDA. This is the authoritative collision
+        /// traversal (Constitution Principle II), so any float in here would let two machines disagree
         /// about which voxel a ray hit. The error accumulators below are exact: identical
         /// inputs visit an identical sequence of bricks on every target.
         ///
