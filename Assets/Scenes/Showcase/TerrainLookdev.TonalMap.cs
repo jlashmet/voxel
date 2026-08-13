@@ -52,11 +52,15 @@ namespace VoxelEngine.Showcase
         private void ApplyTonalOverlay()
         {
             if (!_built || _tonalOverlayApplied) return;
-            var writer = new VoxelBrush(_table, _pool, in _palette, 1_500_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 2_200_000);
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
             {
-                int top = HeightVoxel(x, z);
+                int baseTop = HeightVoxel(x, z);
+                int relief = ReferenceReliefVoxels(x, z);
+                int top = baseTop + relief;
+                if (relief > 0)
+                    writer.FillColumnBulk(x, baseTop + 1, top, z, Mat.TerrainEarth);
                 writer.SetStyled(x, top, z, GroundToneMaterial(x, z), SurfaceStyles.Smooth,
                     GroundToneCoating(x, z));
             }
@@ -67,6 +71,33 @@ namespace VoxelEngine.Showcase
             using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
                 for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
             _tonalOverlayApplied = true;
+        }
+
+        private static int ReferenceReliefVoxels(int x, int z)
+        {
+            if (z < 185 && math.abs(x - PathCenterVoxel(z)) < 34)
+                return 0;
+
+            float relief = 0f;
+            relief += 13f * SoftHill(x, z, -112, 24, 70, 66);
+            relief += 12f * SoftHill(x, z, 108, 30, 72, 68);
+            relief += 12f * SoftHill(x, z, -108, 105, 92, 78);
+            relief += 14f * SoftHill(x, z, 104, 118, 94, 82);
+            relief += 11f * SoftHill(x, z, -98, 205, 108, 92);
+            relief += 12f * SoftHill(x, z, 96, 218, 108, 94);
+            relief += 9f * SoftHill(x, z, -86, 315, 115, 104);
+            relief += 10f * SoftHill(x, z, 82, 332, 118, 108);
+            return Mathf.RoundToInt(math.min(relief, 22f));
+        }
+
+        private static float SoftHill(int x, int z, int cx, int cz, int rx, int rz)
+        {
+            float dx = (x - cx) / (float)rx;
+            float dz = (z - cz) / (float)rz;
+            float q = dx * dx + dz * dz;
+            if (q >= 1f) return 0f;
+            float t = 1f - q;
+            return t * t * (3f - 2f * t);
         }
 
         private static byte GroundToneMaterial(int x, int z)
