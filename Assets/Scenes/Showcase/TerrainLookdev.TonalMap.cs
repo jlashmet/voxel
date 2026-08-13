@@ -104,18 +104,28 @@ namespace VoxelEngine.Showcase
             float macro = math.sin(x * 0.018f + z * 0.010f)
                         + 0.65f * math.sin(x * 0.010f - z * 0.016f + 1.7f)
                         + 0.35f * math.sin((x + z) * 0.007f - 0.8f);
+            float detail = 0.55f * math.sin(x * 0.082f + z * 0.057f + 0.4f)
+                         + 0.42f * math.sin(x * 0.061f - z * 0.093f + 2.2f)
+                         + 0.28f * math.sin((x + z) * 0.125f - 1.1f);
+            float tone = macro * 0.45f + detail * 0.85f;
 
             if (depth < 0.28f)
-                return macro < 0.18f ? TerrainTurfNear : TerrainTurfMid;
-
-            if (depth < 0.60f)
             {
-                if (macro < -0.72f) return TerrainTurfNear;
-                if (macro > 0.58f) return TerrainTurfFar;
+                if (tone < -0.32f) return TerrainTurfNear;
+                if (tone > 0.92f) return TerrainTurfFar;
                 return TerrainTurfMid;
             }
 
-            return macro < -0.78f ? TerrainTurfMid : TerrainTurfFar;
+            if (depth < 0.60f)
+            {
+                if (tone < -0.62f) return TerrainTurfNear;
+                if (tone > 0.48f) return TerrainTurfFar;
+                return TerrainTurfMid;
+            }
+
+            if (tone < -0.92f) return TerrainTurfNear;
+            if (tone < 0.24f) return TerrainTurfMid;
+            return TerrainTurfFar;
         }
 
         private static byte GroundToneCoating(int x, int z)
