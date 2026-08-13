@@ -29,6 +29,14 @@ namespace VoxelEngine.Tests.PlayMode
                 "Terrain lookdev did not register a valid voxel world.");
             VoxelRenderBridge.ResetSurfacePassDiagnostics("terrain-capture-start");
 
+            // Camera.Render() against the editor backbuffer can make URP's final UI-overlay pass
+            // pair a game-view color target with the tiny test-runner depth target. Render into a
+            // fixed offscreen target while the production voxel renderer converges instead.
+            var convergenceTarget = new RenderTexture(640, 480, 24, RenderTextureFormat.ARGB32);
+            convergenceTarget.Create();
+            RenderTexture previousTarget = camera.targetTexture;
+            camera.targetTexture = convergenceTarget;
+
             int stableFrames = 0;
             for (int frame = 0; frame < 360 && stableFrames < 3; frame++)
             {
@@ -41,6 +49,10 @@ namespace VoxelEngine.Tests.PlayMode
                     && metrics.SolidResidentChunks >= metrics.SolidKnownChunks;
                 stableFrames = converged ? stableFrames + 1 : 0;
             }
+
+            camera.targetTexture = previousTarget;
+            convergenceTarget.Release();
+            Object.DestroyImmediate(convergenceTarget);
 
             VoxelSurfaceMetrics finalMetrics = VoxelRenderBridge.SurfaceMetrics;
             Assert.Greater(VoxelRenderBridge.RenderFeatureEnqueueCount, 0,
