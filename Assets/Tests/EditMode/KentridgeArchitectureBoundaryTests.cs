@@ -22,21 +22,27 @@ namespace VoxelEngine.Tests.EditMode
                 "MountingForce.WorldGen.Core",
                 typeof(StructureIntent).Assembly.GetName().Name,
                 "The settlement-to-architecture handoff contract belongs to Core.");
+            Assert.AreEqual(
+                "MountingForce.WorldGen.Core",
+                typeof(UrbanFabricIntent).Assembly.GetName().Name,
+                "Anonymous frontage intent belongs to the high-level Core assembly.");
 
             Assert.AreEqual(
                 "MountingForce.WorldGen.Architecture",
                 typeof(ArchitectureCompiler).Assembly.GetName().Name,
-                "Roof/window/facade generation must live in the lower architecture assembly.");
-
+                "Named-building roof/window/facade generation must live in Architecture.");
             Assert.AreEqual(
                 "MountingForce.WorldGen.Architecture",
                 typeof(StructureForm).Assembly.GetName().Name,
-                "Detailed architectural forms must live below settlement planning.");
-
+                "Detailed named-building forms must live below settlement planning.");
             Assert.AreEqual(
                 "MountingForce.WorldGen.Architecture",
-                typeof(KentridgeUrbanFabricGrammar).Assembly.GetName().Name,
-                "Anonymous frontage detail generation must live in the lower architecture assembly.");
+                typeof(UrbanFabricCompiler).Assembly.GetName().Name,
+                "Anonymous frontage detail generation must live in Architecture.");
+            Assert.AreEqual(
+                "MountingForce.WorldGen.Architecture",
+                typeof(UrbanFabricForm).Assembly.GetName().Name,
+                "Anonymous detailed forms must live below settlement planning.");
 
             string[] coreReferences = typeof(KentridgeDefinition).Assembly
                 .GetReferencedAssemblies()
@@ -70,6 +76,32 @@ namespace VoxelEngine.Tests.EditMode
             CollectionAssert.DoesNotContain(fields, "WindowStyle");
             CollectionAssert.DoesNotContain(fields, "Storeys");
             CollectionAssert.DoesNotContain(fields, "ChimneyOnRight");
+        }
+
+        [Test]
+        public void UrbanFabricIntentContainsMassingConstraintsAndNoLocalDetail()
+        {
+            string[] fields = typeof(UrbanFabricIntent)
+                .GetFields()
+                .Select(field => field.Name)
+                .ToArray();
+
+            CollectionAssert.AreEquivalent(
+                new[]
+                {
+                    "StyleId", "District", "MinStoreys", "MaxStoreys",
+                    "EnvelopeDm", "VariationContext"
+                },
+                fields,
+                "UrbanFabricIntent should carry urban hierarchy/massing, not architectural realization.");
+
+            CollectionAssert.DoesNotContain(fields, "Roof");
+            CollectionAssert.DoesNotContain(fields, "WindowTreatment");
+            CollectionAssert.DoesNotContain(fields, "HasAwning");
+            CollectionAssert.DoesNotContain(fields, "ChimneyOnRight");
+            CollectionAssert.DoesNotContain(fields, "AnnexOnRight");
+            CollectionAssert.DoesNotContain(fields, "WidthDm");
+            CollectionAssert.DoesNotContain(fields, "DepthDm");
         }
 
         [Test]
@@ -107,14 +139,45 @@ namespace VoxelEngine.Tests.EditMode
                     Assert.Greater(form.DepthDm, 0);
                     Assert.Greater(form.Storeys, 0);
                 }
-                else
-                {
-                    bespoke++;
-                }
+                else bespoke++;
             }
 
             Assert.AreEqual(13, generated);
             Assert.AreEqual(4, bespoke);
+        }
+
+        [Test]
+        public void UrbanFabricCompilerOwnsAnonymousLocalFormInsideRunMassing()
+        {
+            KentridgeUrbanMassingPlan plan = KentridgeUrbanOrganizer.Build(Seed);
+            int samples = 0;
+
+            for (int runIndex = 0; runIndex < plan.FrontageRuns.Count; runIndex++)
+            {
+                KentridgeFrontageRun run = plan.FrontageRuns[runIndex];
+                UrbanFabricIntent intent = KentridgeDefinition.UrbanFabricIntent(run);
+
+                Assert.AreEqual(KentridgeDefinition.Id, intent.StyleId);
+                Assert.AreEqual(run.District, intent.District);
+                Assert.AreEqual(run.MinStoreys, intent.MinStoreys);
+                Assert.AreEqual(run.MaxStoreys, intent.MaxStoreys);
+                Assert.AreEqual(KentridgeDefinition.AnonymousFabricEnvelopeDm, intent.EnvelopeDm);
+                Assert.AreEqual((int)run.Band, intent.VariationContext);
+
+                for (int siteIndex = 0; siteIndex < 3; siteIndex++)
+                {
+                    UrbanFabricForm form = UrbanFabricCompiler.Resolve(
+                        intent, Seed, runIndex, siteIndex);
+                    UrbanFabricCompiler.Validate(intent, form);
+                    Assert.That(form.Storeys, Is.InRange(intent.MinStoreys, intent.MaxStoreys));
+                    Assert.Greater(form.WidthDm, 0);
+                    Assert.Greater(form.DepthDm, 0);
+                    Assert.Greater(form.RoofHeightDm, 0);
+                    samples++;
+                }
+            }
+
+            Assert.Greater(samples, 0);
         }
     }
 }
