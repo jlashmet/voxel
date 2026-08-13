@@ -11,8 +11,9 @@ namespace VoxelEngine.Showcase
     public sealed partial class TerrainLookdev
     {
         private const byte TerrainTurfNear = 22;
-        private const byte TerrainTurfMid = 23;
+        private const byte TerrainTurfUpper = 23;
         private const byte TerrainTurfFar = 24;
+        private const byte TerrainTurfMid = 25;
         private bool _tonalOverlayApplied;
 
         private void Start()
@@ -26,14 +27,16 @@ namespace VoxelEngine.Showcase
         {
             const uint weather = (1u << Coatings.Moss) | (1u << Coatings.Wet);
             _palette.Register(TerrainTurfNear, 24, DestructionClass.Powder, SurfaceStyles.Smooth, weather);
-            _palette.Register(TerrainTurfMid, 24, DestructionClass.Powder, SurfaceStyles.Smooth, weather);
+            _palette.Register(TerrainTurfUpper, 24, DestructionClass.Powder, SurfaceStyles.Smooth, weather);
             _palette.Register(TerrainTurfFar, 24, DestructionClass.Powder, SurfaceStyles.Smooth, weather);
+            _palette.Register(TerrainTurfMid, 24, DestructionClass.Powder, SurfaceStyles.Smooth, weather);
 
             Vector4 sourceSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 sourceSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
-            SetTurfPresentation(TerrainTurfNear, new Color(0.27f, 0.34f, 0.15f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfMid, new Color(0.40f, 0.43f, 0.20f), sourceSampling, sourceSurface);
-            SetTurfPresentation(TerrainTurfFar, new Color(0.53f, 0.51f, 0.25f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfNear, new Color(0.25f, 0.32f, 0.14f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfMid, new Color(0.37f, 0.40f, 0.18f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfUpper, new Color(0.46f, 0.47f, 0.22f), sourceSampling, sourceSurface);
+            SetTurfPresentation(TerrainTurfFar, new Color(0.60f, 0.57f, 0.29f), sourceSampling, sourceSurface);
         }
 
         private static void SetTurfPresentation(byte material, Color colour,
@@ -104,12 +107,22 @@ namespace VoxelEngine.Showcase
 
         private static byte GroundToneMaterial(int x, int z)
         {
+            float noise = Hash01(x, z);
             if (z < 20) return TerrainTurfNear;
-            if (z < 165) return TerrainTurfMid;
-            if (z < 225)
+            if (z < 95)
             {
-                float farBlend = math.saturate((z - 165f) / 60f);
-                return Hash01(x, z) < farBlend ? TerrainTurfFar : TerrainTurfMid;
+                float blend = math.saturate((z - 20f) / 75f);
+                return noise < blend ? TerrainTurfMid : TerrainTurfNear;
+            }
+            if (z < 175)
+            {
+                float blend = math.saturate((z - 95f) / 80f);
+                return noise < blend ? TerrainTurfUpper : TerrainTurfMid;
+            }
+            if (z < 235)
+            {
+                float blend = math.saturate((z - 175f) / 60f);
+                return noise < blend ? TerrainTurfFar : TerrainTurfUpper;
             }
             return TerrainTurfFar;
         }
