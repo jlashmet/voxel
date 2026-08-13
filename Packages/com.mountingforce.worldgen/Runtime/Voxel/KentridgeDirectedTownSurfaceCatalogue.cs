@@ -50,11 +50,9 @@ namespace MountingForce.WorldGen.Voxel
                         throw new InvalidOperationException(
                             "Kentridge public roads only support direct or reversed half-turn ramps.");
 
-                    bool foundRamp = ReverseRamps(ref catalogue, in definition);
-                    if (!foundRamp)
-                        throw new InvalidOperationException(
-                            "A reversed Kentridge public-space placement contained no ramp: "
-                            + definition.Name);
+                    // Level road pieces contain only full-footprint boxes. Those are symmetric
+                    // under a half-turn, so there is no directional primitive to rewrite.
+                    ReverseRamps(ref catalogue, in definition);
 
                     placement.Orientation = 0;
                     catalogue.ExplicitPlacements[placementIndex] = placement;

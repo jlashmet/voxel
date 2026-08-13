@@ -335,17 +335,17 @@ namespace MountingForce.WorldGen.Voxel
 
             public void Box(int x, int y, int z, int sx, int sy, int sz, byte material) =>
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                   material, (int)PrimitiveMode.Fill);
+                   material, 0, 0, (int)PrimitiveMode.Fill);
 
             public void Prism(int x, int y, int z, int sx, int sy, int sz,
                               PrismProfile profile, byte material) =>
                 Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
-                   (int)profile, material, (int)PrimitiveMode.Fill);
+                   (int)profile, material, 0, 0, (int)PrimitiveMode.Fill);
 
             public void Cylinder(int cx, int y, int cz, int radius, int height,
                                  byte axis, byte material) =>
                 Op(ShapeOp.EmitCylinder, cx, y, cz, radius, height, axis,
-                   material, (int)PrimitiveMode.Fill);
+                   material, 0, 0, (int)PrimitiveMode.Fill);
 
             public int[] Finish()
             {

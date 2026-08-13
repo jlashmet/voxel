@@ -127,9 +127,8 @@ namespace VoxelEngine.Showcase
 
             // Hand the world to the render feature. URP owns the feature and constructs it, so
             // the world registers itself rather than being injected.
-            VoxelRenderBridge.SolidBackend =
-                VoxelRenderBridge.SolidSurfaceBackend.GpuSurfaceNets;
             VoxelRenderBridge.ResetSurfacePassDiagnostics("showcase-enabled");
+            VoxelRenderBridge.SurfaceBuildEnabled = false;
             VoxelRenderBridge.Changes = _world.Changes;
             VoxelRenderBridge.TerrainSeed = _world.Seed;
             VoxelRenderBridge.FarBaseHeight = ShowcaseWorld.BaseHeightVoxels;
@@ -156,6 +155,7 @@ namespace VoxelEngine.Showcase
             VoxelRenderBridge.LocalLightColours = System.Array.Empty<Vector4>();
             VoxelRenderBridge.FlashlightEnabled = false;
             VoxelRenderBridge.Source = null;
+            VoxelRenderBridge.SurfaceBuildEnabled = true;
             VoxelRenderBridge.Changes = null;
             VoxelRenderBridge.FarFieldEnabled = false;
 
@@ -229,7 +229,12 @@ namespace VoxelEngine.Showcase
                 StepTornadoes(Time.deltaTime);
                 _gpuDebris?.Step(_world, Time.deltaTime);
 
-                _world.StepStreaming(transform.position, m_GenerateBudgetMs);
+                // Startup may spend a loading budget until the atomic landmark is committed.
+                // Afterwards streaming returns to the interactive 3 ms slice.
+                double streamingBudget = _world.CastleVoxels == 0
+                    ? Mathf.Max(m_GenerateBudgetMs, 12f) : m_GenerateBudgetMs;
+                _world.StepStreaming(transform.position, streamingBudget);
+                if (_world.CastleVoxels > 0) VoxelRenderBridge.SurfaceBuildEnabled = true;
             }
 
         }

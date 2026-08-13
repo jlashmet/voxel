@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Features;
@@ -22,7 +23,19 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
     /// </summary>
     public sealed class CpuTransvoxelChunkCache : IDisposable
     {
-        public const int CellsPerAxis = 32;
+        private static readonly ProfilerMarker s_PrepareMarker =
+            new("Voxel.Surface.WorkerPrepare");
+        private static readonly ProfilerMarker s_SnapshotMarker =
+            new("Voxel.Surface.Snapshot");
+        private static readonly ProfilerMarker s_CompactMarker =
+            new("Voxel.Surface.TopologyCompact");
+        private static readonly ProfilerMarker s_FacetedMergeMarker =
+            new("Voxel.Surface.FacetedMerge");
+        private static readonly ProfilerMarker s_ProfileMarker =
+            new("Voxel.Surface.ProfileEmit");
+        private static readonly ProfilerMarker s_UploadMarker =
+            new("Voxel.Surface.Upload");
+        public const int CellsPerAxis = 64;
         public const int SourceStep = 1;
         public const int VoxelsPerAxis = CellsPerAxis * SourceStep;
         public const int BricksPerAxis = VoxelsPerAxis / VoxelDimensions.BrickEdge;
@@ -50,6 +63,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             public int IndexCount;
             public int LastUsedFrame;
             public long GpuBytes { get; private set; }
+            public int VertexCapacity { get; private set; }
+            public int IndexCapacity { get; private set; }
             public ulong SourceVersion { get; internal set; }
             public uint MaterialPaletteVersion { get; internal set; }
             public uint SurfaceCatalogueVersion { get; internal set; }
@@ -61,16 +76,30 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
             internal void Upload(List<SmoothSurfaceVertex> vertices, List<uint> indices)
             {
+                int requiredVertices = math.max(1, vertices.Count);
+                int requiredIndices = math.max(1, indices.Count);
+                if (Vertices != null && Indices != null && Args != null
+                    && VertexCapacity >= requiredVertices && IndexCapacity >= requiredIndices)
+                {
+                    if (vertices.Count > 0) Vertices.SetData(vertices, 0, 0, vertices.Count);
+                    if (indices.Count > 0) Indices.SetData(indices, 0, 0, indices.Count);
+                    Args.SetData(new uint[] { (uint)indices.Count, 1u, 0u, 0u });
+                    IndexCount = indices.Count;
+                    Ready = true;
+                    return;
+                }
                 ComputeBuffer nextVertices = null;
                 ComputeBuffer nextIndices = null;
                 ComputeBuffer nextArgs = null;
 
                 try
                 {
-                    nextVertices = new ComputeBuffer(math.max(1, vertices.Count),
+                    int nextVertexCapacity = math.ceilpow2(requiredVertices);
+                    int nextIndexCapacity = math.ceilpow2(requiredIndices);
+                    nextVertices = new ComputeBuffer(nextVertexCapacity,
                                                      SmoothSurfaceVertex.Stride,
                                                      ComputeBufferType.Structured);
-                    nextIndices = new ComputeBuffer(math.max(1, indices.Count), sizeof(uint),
+                    nextIndices = new ComputeBuffer(nextIndexCapacity, sizeof(uint),
                                                     ComputeBufferType.Structured);
                     nextArgs = new ComputeBuffer(4, sizeof(uint),
                                                  ComputeBufferType.IndirectArguments);
@@ -93,8 +122,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 Indices = nextIndices;
                 Args = nextArgs;
                 IndexCount = indices.Count;
-                GpuBytes = (long)vertices.Count * SmoothSurfaceVertex.Stride
-                         + (long)indices.Count * sizeof(uint) + 4L * sizeof(uint);
+                VertexCapacity = nextVertices.count;
+                IndexCapacity = nextIndices.count;
+                GpuBytes = (long)VertexCapacity * SmoothSurfaceVertex.Stride
+                         + (long)IndexCapacity * sizeof(uint) + 4L * sizeof(uint);
                 Ready = true;
             }
 
@@ -130,6 +161,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 Ready = false;
                 IndexCount = 0;
                 GpuBytes = 0;
+                VertexCapacity = 0;
+                IndexCapacity = 0;
             }
         }
 
@@ -146,12 +179,18 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             public uint CoatingCatalogueVersion;
             public ulong CoatingCatalogueHash;
             public bool SnapshotTaken;
+            public bool RequiresContinuousTopology;
+            public double BuildStartSeconds;
+            public double DensityScheduledSeconds;
+            public double TopologyScheduledSeconds;
+            public double FacetedScheduledSeconds;
         }
 
         private readonly Dictionary<int3, Entry> _entries = new();
         private readonly HashSet<int3> _known = new();
         private readonly HashSet<int3> _dirty = new();
         private readonly Dictionary<int3, ulong> _desiredVersions = new();
+        private readonly Dictionary<int3, double> _queuedAtSeconds = new();
         private ulong _versionCounter;
         private readonly List<Entry> _visible = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
@@ -166,6 +205,25 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private NativeList<byte> _densityMixedBoundarySamples;
         private JobHandle _densityJobHandle;
         private bool _densityJobScheduled;
+        private JobHandle _topologyJobHandle;
+        private bool _topologyJobScheduled;
+        private JobHandle _topologyCompactJobHandle;
+        private bool _topologyCompactJobScheduled;
+        private JobHandle _facetedMaskJobHandle;
+        private bool _facetedMaskJobScheduled;
+        private JobHandle _facetedMergeJobHandle;
+        private bool _facetedMergeJobScheduled;
+        private NativeArray<byte> _topologyCellClass;
+        private NativeArray<byte> _topologyGeometryCounts;
+        private NativeArray<byte> _topologyCellVertexIndices;
+        private NativeArray<ushort> _topologyEdgeCodes;
+        private NativeStream _topologyOutput;
+        private NativeList<SmoothSurfaceVertex> _compactedTopologyVertices;
+        private NativeList<uint> _compactedTopologyIndices;
+        private NativeArray<int> _topologyOverflowCell;
+        private NativeArray<uint> _facetedMasks;
+        private NativeList<SmoothSurfaceVertex> _facetedVertices;
+        private NativeList<uint> _facetedIndices;
 
         private readonly float[] _cellDensity = new float[8];
         private readonly byte[] _cellMaterial = new byte[8];
@@ -183,8 +241,24 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private MaterialPalette _buildPalette;
         private uint _materialPaletteVersion;
         private ProfileBlock[] _profileBlocks = Array.Empty<ProfileBlock>();
+        private ProfileBlock[] _buildProfileBlocks = Array.Empty<ProfileBlock>();
+        private readonly Dictionary<int3, ProfileBlock[]> _profileBlocksByChunk = new();
         private ProfileBlockStore _profileBlockStore;
         private uint _profileBlockVersion;
+        private readonly VoxelTimingWindow _snapshotTiming = new();
+        private readonly VoxelTimingWindow _densityTurnaroundTiming = new();
+        private readonly VoxelTimingWindow _topologyTurnaroundTiming = new();
+        private readonly VoxelTimingWindow _topologyCompactTiming = new();
+        private readonly VoxelTimingWindow _facetedTurnaroundTiming = new();
+        private readonly VoxelTimingWindow _facetedMergeTiming = new();
+        private readonly VoxelTimingWindow _profileEmitTiming = new();
+        private readonly VoxelTimingWindow _uploadTiming = new();
+        private readonly VoxelTimingWindow _queueLatencyTiming = new();
+        private readonly VoxelTimingWindow _buildLatencyTiming = new();
+        private readonly VoxelTimingWindow _ruleSyncTiming = new();
+        private readonly VoxelTimingWindow _residencyPruneTiming = new();
+        private readonly VoxelTimingWindow _capacityTiming = new();
+        private readonly VoxelTimingWindow _buildSelectionTiming = new();
 
         public CpuTransvoxelChunkCache()
         {
@@ -203,9 +277,53 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _densityMixedVoxels = new NativeList<byte>(64 * 1024, Allocator.Persistent);
             _densityMixedSurfaceSemantics = new NativeList<ushort>(64 * 1024, Allocator.Persistent);
             _densityMixedBoundarySamples = new NativeList<byte>(64 * 1024, Allocator.Persistent);
+            _compactedTopologyVertices = new NativeList<SmoothSurfaceVertex>(16_384,
+                                                                              Allocator.Persistent);
+            _compactedTopologyIndices = new NativeList<uint>(24_576, Allocator.Persistent);
+            _topologyOverflowCell = new NativeArray<int>(1, Allocator.Persistent);
+            int cellCount = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+            _topologyCellClass = new NativeArray<byte>(256, Allocator.Persistent);
+            _topologyGeometryCounts = new NativeArray<byte>(
+                TransvoxelRegularTables.CellData.Length, Allocator.Persistent);
+            _topologyCellVertexIndices = new NativeArray<byte>(
+                TransvoxelRegularTables.CellData.Length *
+                TransvoxelTopologyJob.MaxIndicesPerCell, Allocator.Persistent);
+            _topologyEdgeCodes = new NativeArray<ushort>(256 * 12, Allocator.Persistent);
+            _facetedMasks = new NativeArray<uint>(
+                6 * CellsPerAxis * CellsPerAxis * CellsPerAxis, Allocator.Persistent);
+            _facetedVertices = new NativeList<SmoothSurfaceVertex>(16_384, Allocator.Persistent);
+            _facetedIndices = new NativeList<uint>(24_576, Allocator.Persistent);
+            InitialiseTopologyTables();
+        }
+
+        private void InitialiseTopologyTables()
+        {
+            _topologyCellClass.CopyFrom(TransvoxelRegularTables.CellClass);
+            for (int cellClass = 0; cellClass < TransvoxelRegularTables.CellData.Length;
+                 cellClass++)
+            {
+                RegularCellData data = TransvoxelRegularTables.CellData[cellClass];
+                _topologyGeometryCounts[cellClass] = data.GeometryCounts;
+                int length = math.min(data.VertexIndices.Length,
+                                      TransvoxelTopologyJob.MaxIndicesPerCell);
+                for (int i = 0; i < length; i++)
+                    _topologyCellVertexIndices[
+                        cellClass * TransvoxelTopologyJob.MaxIndicesPerCell + i] =
+                        data.VertexIndices[i];
+            }
+            for (int cell = 0; cell < TransvoxelRegularTables.VertexData.Length; cell++)
+            {
+                ushort[] edges = TransvoxelRegularTables.VertexData[cell];
+                int length = math.min(edges.Length, 12);
+                for (int i = 0; i < length; i++)
+                    _topologyEdgeCodes[cell * 12 + i] = edges[i];
+            }
         }
 
         public int MaxResidentChunks { get; set; } = 4096;
+        public float MaxViewDistanceMetres { get; set; } = 80f;
+        public int ShardIndex { get; set; }
+        public int ShardCount { get; set; } = 1;
         public int ResidentCount => _entries.Count;
         public int KnownCount => _known.Count;
         public int DirtyCount => _dirty.Count + (_build.Active ? 1 : 0);
@@ -214,6 +332,28 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public ulong StaleBuildCount { get; private set; }
         public ulong UploadedGeometryBytes { get; private set; }
         public ulong CompletedDecorationClumps { get; private set; }
+        public int MissingVisibleCount { get; private set; }
+        public ulong CapacityPressureCount { get; private set; }
+        public int RunningJobCount => _densityJobScheduled || _topologyJobScheduled
+                                   || _facetedMaskJobScheduled ? 1 : 0;
+        public int PendingUploadCount => _build.Active && _build.Phase >= 2 ? 1 : 0;
+        public double LastSnapshotMs { get; private set; }
+        public double LastTopologyCompactMs { get; private set; }
+        public double LastUploadMs { get; private set; }
+        public VoxelTimingSummary SnapshotTiming => _snapshotTiming.Snapshot();
+        public VoxelTimingSummary DensityTurnaroundTiming => _densityTurnaroundTiming.Snapshot();
+        public VoxelTimingSummary TopologyTurnaroundTiming => _topologyTurnaroundTiming.Snapshot();
+        public VoxelTimingSummary TopologyCompactTiming => _topologyCompactTiming.Snapshot();
+        public VoxelTimingSummary FacetedTurnaroundTiming => _facetedTurnaroundTiming.Snapshot();
+        public VoxelTimingSummary FacetedMergeTiming => _facetedMergeTiming.Snapshot();
+        public VoxelTimingSummary ProfileEmitTiming => _profileEmitTiming.Snapshot();
+        public VoxelTimingSummary UploadTiming => _uploadTiming.Snapshot();
+        public VoxelTimingSummary QueueLatencyTiming => _queueLatencyTiming.Snapshot();
+        public VoxelTimingSummary BuildLatencyTiming => _buildLatencyTiming.Snapshot();
+        public VoxelTimingSummary RuleSyncTiming => _ruleSyncTiming.Snapshot();
+        public VoxelTimingSummary ResidencyPruneTiming => _residencyPruneTiming.Snapshot();
+        public VoxelTimingSummary CapacityTiming => _capacityTiming.Snapshot();
+        public VoxelTimingSummary BuildSelectionTiming => _buildSelectionTiming.Snapshot();
         public long ResidentGpuBytes
         {
             get
@@ -227,6 +367,19 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         public bool OwnsRenderedChunk(int3 coordinate) =>
             _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
+
+        public int IndexedProfileBlockCount(int3 coordinate) =>
+            _profileBlocksByChunk.TryGetValue(coordinate, out ProfileBlock[] blocks)
+                ? blocks.Length : 0;
+
+        public static bool ChunkOverlapsRegion(int3 chunk, int3 region)
+        {
+            int3 chunkMin = chunk * VoxelsPerAxis - Padding * SourceStep;
+            int3 chunkMax = (chunk + 1) * VoxelsPerAxis + Padding * SourceStep;
+            int3 regionMin = region * VoxelDimensions.RegionVoxelEdge;
+            int3 regionMax = regionMin + VoxelDimensions.RegionVoxelEdge;
+            return !math.any(chunkMax <= regionMin) && !math.any(chunkMin >= regionMax);
+        }
 
         /// <summary>
         /// Discovers/invalidates chunks from the scheduler's authoritative surface-brick stream.
@@ -259,6 +412,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 for (int x = minX; x <= maxX; x++)
                 {
                     int3 chunk = baseChunk + new int3(x, y, z);
+                    if (!OwnsShard(chunk)) continue;
                     _known.Add(chunk);
                     Invalidate(chunk);
                 }
@@ -277,11 +431,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             List<int3> affected = null;
             foreach (int3 chunk in _known)
             {
-                int3 ownerRegion = ChunkRegion(chunk);
                 foreach (int3 dirtyRegion in dirtyRegions)
                 {
-                    int3 delta = math.abs(ownerRegion - dirtyRegion);
-                    if (math.max(delta.x, math.max(delta.y, delta.z)) > 1) continue;
+                    if (!ChunkOverlapsRegion(chunk, dirtyRegion)) continue;
                     (affected ??= new List<int3>()).Add(chunk);
                     break;
                 }
@@ -298,12 +450,19 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                             Camera camera,
                             float voxelSize, int frame, double budgetMs = 0.20)
         {
+            using var prepareScope = s_PrepareMarker.Auto();
+            double sectionStart = Time.realtimeSinceStartupAsDouble;
             SetSurfaceCatalogue(in surfaceCatalogue);
             SetCoatingCatalogue(in coatingCatalogue);
             SetMaterialPaletteVersion(palette.Version);
             SetProfileBlocks(profileBlocks);
+            _ruleSyncTiming.Add(ElapsedMs(sectionStart));
+            sectionStart = Time.realtimeSinceStartupAsDouble;
             DropNoLongerResident(ref table);
+            _residencyPruneTiming.Add(ElapsedMs(sectionStart));
+            sectionStart = Time.realtimeSinceStartupAsDouble;
             EnforceCapacity(camera, voxelSize);
+            _capacityTiming.Add(ElapsedMs(sectionStart));
 
             if (camera == null || _dirty.Count == 0 && !_build.Active) return;
 
@@ -317,83 +476,285 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                             + math.max(0.0, budgetMs) * 0.001;
             do
             {
-                if (!_build.Active && !BeginNearestBuild(camera.transform.position, voxelSize)) break;
+                if (!_build.Active)
+                {
+                    double selectionStart = Time.realtimeSinceStartupAsDouble;
+                    bool selected = BeginNearestBuild(camera, voxelSize);
+                    _buildSelectionTiming.Add(ElapsedMs(selectionStart));
+                    if (!selected) break;
+                }
 
                 if (_build.Phase == 0)
                 {
                     if (!_densityJobScheduled)
-                        ScheduleDensityJob(ref table, in pool, in palette);
+                        ScheduleDensityJob(ref table, in pool, in palette, voxelSize);
 
-                    // Never wait for worker threads on the render thread. A later frame will see
-                    // completion and continue directly into polygonization.
-                    if (!_densityJobHandle.IsCompleted) break;
+                    if (!_build.RequiresContinuousTopology)
+                    {
+                        ScheduleSnapshotFacetedMaskJob();
+                        _build.Phase = 2;
+                        continue;
+                    }
 
-                    _densityJobHandle.Complete();
-                    _densityJobScheduled = false;
                     _build.Phase = 1;
-                    _build.Cursor = 0;
                     continue;
                 }
 
                 if (_build.Phase == 1)
                 {
-                    if (StepCells(voxelSize))
-                    {
-                        _build.Phase = 2;
-                        _build.Cursor = 0;
-                    }
+                    if (!_topologyCompactJobHandle.IsCompleted
+                        || !_facetedMergeJobHandle.IsCompleted) break;
+                    _topologyCompactJobHandle.Complete();
+                    _facetedMergeJobHandle.Complete();
+                    _densityTurnaroundTiming.Add(ElapsedMs(_build.DensityScheduledSeconds));
+                    _topologyTurnaroundTiming.Add(ElapsedMs(_build.TopologyScheduledSeconds));
+                    _facetedTurnaroundTiming.Add(ElapsedMs(_build.FacetedScheduledSeconds));
+                    _densityJobScheduled = false;
+                    _topologyJobScheduled = false;
+                    _topologyCompactJobScheduled = false;
+                    _facetedMaskJobScheduled = false;
+                    _facetedMergeJobScheduled = false;
+                    CompactTopology(voxelSize);
+                    AppendFacetedTopology();
+                    _build.Phase = 3;
+                    _build.Cursor = 0;
                     continue;
                 }
 
                 if (_build.Phase == 2)
                 {
-                    if (StepFacetedPlanes(voxelSize))
-                    {
-                        _build.Phase = 3;
-                        _build.Cursor = 0;
-                    }
+                    if (!_facetedMaskJobScheduled) ScheduleFacetedMaskJob();
+                    if (!_facetedMergeJobScheduled) ScheduleFacetedMergeJob(voxelSize);
+                    if (!_facetedMergeJobHandle.IsCompleted) break;
+                    _facetedMergeJobHandle.Complete();
+                    _facetedTurnaroundTiming.Add(ElapsedMs(_build.FacetedScheduledSeconds));
+                    _facetedMaskJobScheduled = false;
+                    _facetedMergeJobScheduled = false;
+                    AppendFacetedTopology();
+                    _build.Phase = 3;
+                    _build.Cursor = 0;
                     continue;
                 }
 
-                if (StepProfileBlocks(voxelSize)) FinishBuild(frame);
+                double profileStart = Time.realtimeSinceStartupAsDouble;
+                bool profilesDone;
+                using (s_ProfileMarker.Auto()) profilesDone = StepProfileBlocks(voxelSize);
+                _profileEmitTiming.Add(ElapsedMs(profileStart));
+                if (profilesDone) FinishBuild(frame);
             }
             while (Time.realtimeSinceStartupAsDouble < deadline);
+        }
+
+        private void ScheduleTopologyJob(float voxelSize, JobHandle dependency = default)
+        {
+            int cellCount = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+            if (_topologyOutput.IsCreated) _topologyOutput.Dispose();
+            _topologyOutput = new NativeStream(cellCount, Allocator.Persistent);
+            var job = new TransvoxelTopologyJob
+            {
+                Density = _density,
+                Materials = _materials,
+                SurfaceSemantics = _surfaceSemantics,
+                BoundarySamples = _boundarySamples,
+                CellClass = _topologyCellClass,
+                GeometryCounts = _topologyGeometryCounts,
+                CellVertexIndices = _topologyCellVertexIndices,
+                EdgeCodes = _topologyEdgeCodes,
+                Catalogue = _buildSurfaceCatalogue,
+                Coatings = _buildCoatingCatalogue,
+                ChunkOriginVoxel = _build.Coordinate * VoxelsPerAxis,
+                CellsPerAxis = CellsPerAxis,
+                GridSize = GridSize,
+                Padding = Padding,
+                SourceStep = SourceStep,
+                VoxelSize = voxelSize,
+                Output = _topologyOutput.AsWriter(),
+            };
+            _build.TopologyScheduledSeconds = Time.realtimeSinceStartupAsDouble;
+            _topologyJobHandle = job.Schedule(cellCount, 64, dependency);
+            _topologyJobScheduled = true;
+            ScheduleTopologyCompactJob();
+        }
+
+        private void ScheduleTopologyCompactJob()
+        {
+            var job = new TransvoxelCompactJob
+            {
+                Input = _topologyOutput.AsReader(),
+                Vertices = _compactedTopologyVertices,
+                Indices = _compactedTopologyIndices,
+                OverflowCell = _topologyOverflowCell,
+            };
+            _topologyCompactJobHandle = job.Schedule(_topologyJobHandle);
+            _topologyCompactJobScheduled = true;
+        }
+
+        private void CompactTopology(float voxelSize)
+        {
+            double compactStart = Time.realtimeSinceStartupAsDouble;
+            using var compactScope = s_CompactMarker.Auto();
+            int overflowCell = _topologyOverflowCell[0];
+            if (overflowCell >= 0)
+                throw new InvalidOperationException(
+                    $"Continuous topology output overflow in chunk {_build.Coordinate}, " +
+                    $"cell {overflowCell}; refusing to publish partial geometry.");
+            NativeArray<SmoothSurfaceVertex> vertices = _compactedTopologyVertices.AsArray();
+            for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
+            NativeArray<uint> indices = _compactedTopologyIndices.AsArray();
+            for (int i = 0; i < indices.Length; i++) _indices.Add(indices[i]);
+            _topologyOutput.Dispose();
+            _topologyOutput = default;
+            // Decorative coating clumps are intentionally not part of base-surface admission.
+            // Blocking complete castle/terrain geometry on optional moss relief produced visible
+            // holes and multi-millisecond compaction stalls. Coating colour remains present in
+            // every base vertex; relief is a separately schedulable decoration domain.
+            LastTopologyCompactMs =
+                (Time.realtimeSinceStartupAsDouble - compactStart) * 1000.0;
+            _topologyCompactTiming.Add(LastTopologyCompactMs);
+        }
+
+        private void ScheduleFacetedMaskJob(JobHandle dependency = default)
+        {
+            var job = new FacetedMaskJob
+            {
+                Materials = _materials,
+                SurfaceSemantics = _surfaceSemantics,
+                BoundarySamples = _boundarySamples,
+                Catalogue = _buildSurfaceCatalogue,
+                Coatings = _buildCoatingCatalogue,
+                CellsPerAxis = CellsPerAxis,
+                GridSize = GridSize,
+                Padding = Padding,
+                FaceMasks = _facetedMasks,
+            };
+            _build.FacetedScheduledSeconds = Time.realtimeSinceStartupAsDouble;
+            _facetedMaskJobHandle = job.Schedule(_facetedMasks.Length, 128, dependency);
+            _facetedMaskJobScheduled = true;
+        }
+
+        private void ScheduleSnapshotFacetedMaskJob()
+        {
+            int3 chunkOrigin = _build.Coordinate * VoxelsPerAxis;
+            int3 chunkBrickOrigin = chunkOrigin >> VoxelDimensions.BrickEdgeLog2;
+            var job = new SnapshotFacetedMaskJob
+            {
+                Bricks = _densityBricks,
+                MixedVoxels = _densityMixedVoxels.AsArray(),
+                MixedSurfaceSemantics = _densityMixedSurfaceSemantics.AsArray(),
+                MixedBoundarySamples = _densityMixedBoundarySamples.AsArray(),
+                Palette = _buildPalette,
+                Catalogue = _buildSurfaceCatalogue,
+                Coatings = _buildCoatingCatalogue,
+                ChunkOriginVoxel = chunkOrigin,
+                BrickCacheOrigin = chunkBrickOrigin - BrickCachePadding,
+                BrickCacheEdge = BrickCacheEdge,
+                CellsPerAxis = CellsPerAxis,
+                FaceMasks = _facetedMasks,
+            };
+            _build.FacetedScheduledSeconds = Time.realtimeSinceStartupAsDouble;
+            _facetedMaskJobHandle = job.Schedule(_facetedMasks.Length, 128);
+            _facetedMaskJobScheduled = true;
+        }
+
+        private void ScheduleFacetedMergeJob(float voxelSize)
+        {
+            var job = new FacetedMergeJob
+            {
+                FaceMasks = _facetedMasks,
+                Vertices = _facetedVertices,
+                Indices = _facetedIndices,
+                ChunkOrigin = _build.Coordinate * VoxelsPerAxis,
+                CellsPerAxis = CellsPerAxis,
+                VoxelSize = voxelSize,
+            };
+            _facetedMergeJobHandle = job.Schedule(_facetedMaskJobHandle);
+            _facetedMergeJobScheduled = true;
+        }
+
+        private void AppendFacetedTopology()
+        {
+            double start = Time.realtimeSinceStartupAsDouble;
+            using var scope = s_FacetedMergeMarker.Auto();
+            uint vertexBase = (uint)_vertices.Count;
+            NativeArray<SmoothSurfaceVertex> vertices = _facetedVertices.AsArray();
+            for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
+            NativeArray<uint> indices = _facetedIndices.AsArray();
+            for (int i = 0; i < indices.Length; i++) _indices.Add(vertexBase + indices[i]);
+            _facetedMergeTiming.Add(ElapsedMs(start));
+        }
+
+        private void MergeAllFacetedMasks(float voxelSize)
+        {
+            int3 chunkOrigin = _build.Coordinate * VoxelsPerAxis;
+            int cellsPerPlane = CellsPerAxis * CellsPerAxis;
+            int planeCount = 6 * CellsPerAxis;
+            for (int planeIndex = 0; planeIndex < planeCount; planeIndex++)
+            {
+                int offset = planeIndex * cellsPerPlane;
+                for (int i = 0; i < cellsPerPlane; i++) _faceMask[i] = _facetedMasks[offset + i];
+                int layer = planeIndex % CellsPerAxis;
+                int face = planeIndex / CellsPerAxis;
+                int axis = face >> 1;
+                int sign = (face & 1) == 0 ? -1 : 1;
+                MergeFacetedMask(chunkOrigin, axis, sign, layer, voxelSize);
+            }
         }
 
         public IReadOnlyList<Entry> CollectVisible(Camera camera, float voxelSize, int frame)
         {
             _visible.Clear();
+            MissingVisibleCount = 0;
             if (camera == null) return _visible;
 
             GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-            foreach (Entry entry in _entries.Values)
+            Vector3 cameraPosition = camera.transform.position;
+            foreach (int3 coordinate in _known)
             {
-                if (!entry.Ready || entry.IndexCount == 0) continue;
-                if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, entry.WorldBounds(voxelSize)))
+                Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
+                if (bounds.SqrDistance(cameraPosition)
+                    > MaxViewDistanceMetres * MaxViewDistanceMetres) continue;
+                if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
                     continue;
+                if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
+                {
+                    MissingVisibleCount++;
+                    continue;
+                }
+                // A ready zero-index entry is a complete, intentionally empty result.
+                if (entry.IndexCount == 0) continue;
                 entry.LastUsedFrame = frame;
                 _visible.Add(entry);
             }
             return _visible;
         }
 
-        private bool BeginNearestBuild(Vector3 cameraWorldPosition, float voxelSize)
+        private bool BeginNearestBuild(Camera camera, float voxelSize)
         {
             if (_dirty.Count == 0) return false;
 
             int3 best = default;
-            float bestDistance = float.PositiveInfinity;
+            float bestScore = float.PositiveInfinity;
             float chunkMetres = VoxelsPerAxis * voxelSize;
+            Vector3 cameraWorldPosition = camera.transform.position;
+            GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
             foreach (int3 candidate in _dirty)
             {
+                Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
+                float boundsDistance = bounds.SqrDistance(cameraWorldPosition);
+                if (boundsDistance > MaxViewDistanceMetres * MaxViewDistanceMetres) continue;
                 Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
                                 + Vector3.one * 0.5f) * chunkMetres;
                 float distance = (centre - cameraWorldPosition).sqrMagnitude;
-                if (distance >= bestDistance) continue;
-                bestDistance = distance;
+                // Every visible candidate ranks ahead of every off-screen candidate. Distance
+                // then fills the centre of the view before its edges.
+                float score = GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds)
+                    ? distance : distance + 1_000_000_000f;
+                if (score >= bestScore) continue;
+                bestScore = score;
                 best = candidate;
             }
 
+            if (float.IsPositiveInfinity(bestScore)) return false;
             _dirty.Remove(best);
             _vertices.Clear();
             _indices.Clear();
@@ -404,15 +765,27 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 SurfaceCatalogueVersion = _surfaceCatalogue.Version,
                 SurfaceCatalogueHash = _surfaceCatalogue.CatalogueHash,
                 CoatingCatalogueVersion = _coatingCatalogue.Version,
-                CoatingCatalogueHash = _coatingCatalogue.CatalogueHash
+                CoatingCatalogueHash = _coatingCatalogue.CatalogueHash,
+                BuildStartSeconds = Time.realtimeSinceStartupAsDouble
             };
+            if (_queuedAtSeconds.TryGetValue(best, out double queuedAt))
+                _queueLatencyTiming.Add(ElapsedMs(queuedAt));
             return true;
         }
 
         private void Invalidate(int3 chunk)
         {
             _desiredVersions[chunk] = ++_versionCounter;
+            if (!_dirty.Contains(chunk) && (!_build.Active || !_build.Coordinate.Equals(chunk)))
+                _queuedAtSeconds[chunk] = Time.realtimeSinceStartupAsDouble;
             _dirty.Add(chunk);
+        }
+
+        private bool OwnsShard(int3 chunk)
+        {
+            int count = math.max(1, ShardCount);
+            uint hash = math.hash(chunk);
+            return (int)(hash % (uint)count) == math.clamp(ShardIndex, 0, count - 1);
         }
 
         private void SetSurfaceCatalogue(in SurfaceCatalogue catalogue)
@@ -459,7 +832,35 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _profileBlockStore = store;
             _profileBlockVersion = version;
             _profileBlocks = store?.Snapshot() ?? Array.Empty<ProfileBlock>();
+            RebuildProfileBlockIndex();
             foreach (int3 chunk in _known) Invalidate(chunk);
+        }
+
+        private void RebuildProfileBlockIndex()
+        {
+            _profileBlocksByChunk.Clear();
+            var staging = new Dictionary<int3, List<ProfileBlock>>();
+            for (int i = 0; i < _profileBlocks.Length; i++)
+            {
+                ProfileBlock block = _profileBlocks[i];
+                block.Bounds(out int3 min, out int3 max);
+                int3 first = new(FloorDiv(min.x, VoxelsPerAxis),
+                                 FloorDiv(min.y, VoxelsPerAxis),
+                                 FloorDiv(min.z, VoxelsPerAxis));
+                int3 last = new(FloorDiv(max.x, VoxelsPerAxis),
+                                FloorDiv(max.y, VoxelsPerAxis),
+                                FloorDiv(max.z, VoxelsPerAxis));
+                for (int z = first.z; z <= last.z; z++)
+                for (int y = first.y; y <= last.y; y++)
+                for (int x = first.x; x <= last.x; x++)
+                {
+                    int3 chunk = new(x, y, z);
+                    if (!staging.TryGetValue(chunk, out List<ProfileBlock> blocks))
+                        staging.Add(chunk, blocks = new List<ProfileBlock>());
+                    blocks.Add(block);
+                }
+            }
+            foreach (var pair in staging) _profileBlocksByChunk.Add(pair.Key, pair.Value.ToArray());
         }
 
         /// <summary>
@@ -468,8 +869,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// gameplay may continue editing/evicting authoritative storage without racing the job.
         /// </summary>
         private void ScheduleDensityJob(ref RegionTable table, in BrickPool pool,
-                                        in MaterialPalette palette)
+                                        in MaterialPalette palette, float voxelSize)
         {
+            double snapshotStart = Time.realtimeSinceStartupAsDouble;
+            using var snapshotScope = s_SnapshotMarker.Auto();
             _densityMixedVoxels.Clear();
             _densityMixedSurfaceSemantics.Clear();
             _densityMixedBoundarySamples.Clear();
@@ -515,9 +918,51 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _build.MaterialPaletteVersion = palette.Version;
             _build.SnapshotTaken = true;
             _buildPalette = palette;
+            _buildProfileBlocks = _profileBlocksByChunk.TryGetValue(
+                _build.Coordinate, out ProfileBlock[] blocks)
+                ? blocks : Array.Empty<ProfileBlock>();
 
-            _densityJobHandle = job.Schedule(GridSampleCount, 64);
-            _densityJobScheduled = true;
+            _build.RequiresContinuousTopology = _buildProfileBlocks.Length > 0;
+            for (int i = 0; i < _densityBricks.Length
+                            && !_build.RequiresContinuousTopology; i++)
+            {
+                TransvoxelDensityBrick brick = _densityBricks[i];
+                if (brick.Kind != 1 || !IsSolidSurfaceMaterial(brick.UniformMaterial)) continue;
+                SurfaceStyleDefinition style = _buildSurfaceCatalogue.Get(
+                    palette.GetDefaultSurfaceStyle(brick.UniformMaterial));
+                _build.RequiresContinuousTopology =
+                    style.Reconstruction == SurfaceReconstruction.Smooth
+                    || style.Reconstruction == SurfaceReconstruction.Rounded;
+            }
+            for (int i = 0; i < _densityMixedVoxels.Length
+                            && !_build.RequiresContinuousTopology; i++)
+            {
+                byte material = _densityMixedVoxels[i];
+                if (!IsSolidSurfaceMaterial(material)) continue;
+                uint surface = VoxelSurfaceSemantics.FromStorage(
+                    _densityMixedSurfaceSemantics[i]).Packed;
+                ushort styleId = (ushort)surface;
+                if (styleId == SurfaceStyles.MaterialDefault)
+                    styleId = palette.GetDefaultSurfaceStyle(material);
+                SurfaceStyleDefinition style = _buildSurfaceCatalogue.Get(styleId);
+                byte coating = (byte)(surface >> 16);
+                _build.RequiresContinuousTopology = _densityMixedBoundarySamples[i] != 0
+                    || _buildCoatingCatalogue.Get(coating).Displacement != 0
+                    || style.Reconstruction == SurfaceReconstruction.Smooth
+                    || style.Reconstruction == SurfaceReconstruction.Rounded;
+            }
+
+            if (_build.RequiresContinuousTopology)
+            {
+                _build.DensityScheduledSeconds = Time.realtimeSinceStartupAsDouble;
+                _densityJobHandle = job.Schedule(GridSampleCount, 64);
+                _densityJobScheduled = true;
+                ScheduleTopologyJob(voxelSize, _densityJobHandle);
+                ScheduleFacetedMaskJob(_densityJobHandle);
+                ScheduleFacetedMergeJob(voxelSize);
+            }
+            LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
+            _snapshotTiming.Add(LastSnapshotMs);
         }
 
         private TransvoxelDensityBrick SnapshotBrick(ref RegionTable table, in BrickPool pool,
@@ -554,12 +999,12 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             NativeArray<ushort> packedSurfaces = _densityMixedSurfaceSemantics.AsArray();
             NativeArray<byte> packedBoundaries = _densityMixedBoundarySamples.AsArray();
             int sourceOffset = pool.VoxelOffset(brick.PoolIndex);
-            for (int i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
-            {
-                packed[mixedOffset + i] = pool.Voxels[sourceOffset + i];
-                packedSurfaces[mixedOffset + i] = pool.SurfaceSemantics[sourceOffset + i];
-                packedBoundaries[mixedOffset + i] = pool.BoundarySamples[sourceOffset + i];
-            }
+            NativeArray<byte>.Copy(pool.Voxels, sourceOffset, packed, mixedOffset,
+                                   VoxelDimensions.VoxelsPerBrick);
+            NativeArray<ushort>.Copy(pool.SurfaceSemantics, sourceOffset, packedSurfaces,
+                                     mixedOffset, VoxelDimensions.VoxelsPerBrick);
+            NativeArray<byte>.Copy(pool.BoundarySamples, sourceOffset, packedBoundaries,
+                                   mixedOffset, VoxelDimensions.VoxelsPerBrick);
 
             return new TransvoxelDensityBrick
             {
@@ -759,11 +1204,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private bool StepProfileBlocks(float voxelSize)
         {
             const int blocksPerStep = 8;
-            int end = math.min(_profileBlocks.Length, _build.Cursor + blocksPerStep);
+            int end = math.min(_buildProfileBlocks.Length, _build.Cursor + blocksPerStep);
             for (int i = _build.Cursor; i < end; i++)
-                EmitProfileBlock(in _profileBlocks[i], voxelSize);
+                EmitProfileBlock(in _buildProfileBlocks[i], voxelSize);
             _build.Cursor = end;
-            return end >= _profileBlocks.Length;
+            return end >= _buildProfileBlocks.Length;
         }
 
         private void EmitProfileBlock(in ProfileBlock block, float voxelSize)
@@ -1352,7 +1797,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 _entries.Add(_build.Coordinate, entry);
             }
 
-            entry.Upload(_vertices, _indices);
+            double uploadStart = Time.realtimeSinceStartupAsDouble;
+            using (s_UploadMarker.Auto()) entry.Upload(_vertices, _indices);
+            LastUploadMs = (Time.realtimeSinceStartupAsDouble - uploadStart) * 1000.0;
+            _uploadTiming.Add(LastUploadMs);
+            _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
             CompletedBuildCount++;
             UploadedGeometryBytes += (ulong)entry.GpuBytes;
             entry.LastUsedFrame = frame;
@@ -1363,6 +1812,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             entry.CoatingCatalogueVersion = _build.CoatingCatalogueVersion;
             entry.CoatingCatalogueHash = _build.CoatingCatalogueHash;
             _desiredVersions.Remove(_build.Coordinate);
+            _queuedAtSeconds.Remove(_build.Coordinate);
             _build = default;
             _vertices.Clear();
             _indices.Clear();
@@ -1390,9 +1840,14 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 float farthest = -1f;
                 Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
                 float chunkMetres = VoxelsPerAxis * voxelSize;
+                if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
 
                 foreach (var pair in _entries)
                 {
+                    // A capacity limit may delay new work, but may never create a visible hole.
+                    if (camera != null && GeometryUtility.TestPlanesAABB(
+                            _frustumPlanes, ChunkWorldBounds(pair.Key, voxelSize)))
+                        continue;
                     Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
                                     + Vector3.one * 0.5f) * chunkMetres;
                     float distance = (centre - cameraPosition).sqrMagnitude;
@@ -1401,11 +1856,25 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                     victim = pair.Key;
                 }
 
-                if (farthest < 0f) break;
+                if (farthest < 0f)
+                {
+                    CapacityPressureCount++;
+                    break;
+                }
                 if (_entries.TryGetValue(victim, out Entry entry)) entry.Dispose();
                 _entries.Remove(victim);
-                // Keep it known. If it becomes relevant again, discovery or an edit will dirty it.
+                // Keep it known and queued. If the camera returns, nearest-first admission can
+                // rebuild it; an evicted chunk must never become a permanent silent hole.
+                _dirty.Add(victim);
             }
+        }
+
+        private static Bounds ChunkWorldBounds(int3 coordinate, float voxelSize)
+        {
+            float size = VoxelsPerAxis * voxelSize;
+            Vector3 min = new Vector3(coordinate.x, coordinate.y, coordinate.z) * size;
+            return new Bounds(min + Vector3.one * (size * 0.5f),
+                              Vector3.one * (size + SourceStep * voxelSize * 2f));
         }
 
         private void RemoveChunk(int3 chunk)
@@ -1413,6 +1882,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _known.Remove(chunk);
             _dirty.Remove(chunk);
             _desiredVersions.Remove(chunk);
+            _queuedAtSeconds.Remove(chunk);
             if (_entries.TryGetValue(chunk, out Entry entry))
             {
                 entry.Dispose();
@@ -1420,18 +1890,34 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
             if (_build.Active && _build.Coordinate.Equals(chunk))
             {
-                CompleteDensityJob();
+                CompleteJobs();
                 _build = default;
                 _vertices.Clear();
                 _indices.Clear();
             }
         }
 
-        private void CompleteDensityJob()
+        private void CompleteJobs()
         {
-            if (!_densityJobScheduled) return;
-            _densityJobHandle.Complete();
-            _densityJobScheduled = false;
+            if (_densityJobScheduled)
+            {
+                _densityJobHandle.Complete();
+                _densityJobScheduled = false;
+            }
+            if (_topologyJobScheduled)
+            {
+                if (_topologyCompactJobScheduled) _topologyCompactJobHandle.Complete();
+                else _topologyJobHandle.Complete();
+                _topologyJobScheduled = false;
+                _topologyCompactJobScheduled = false;
+            }
+            if (_facetedMaskJobScheduled)
+            {
+                if (_facetedMergeJobScheduled) _facetedMergeJobHandle.Complete();
+                else _facetedMaskJobHandle.Complete();
+                _facetedMaskJobScheduled = false;
+                _facetedMergeJobScheduled = false;
+            }
         }
 
         private static int3 ChunkRegion(int3 chunk)
@@ -1460,12 +1946,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         public void Dispose()
         {
-            CompleteDensityJob();
+            CompleteJobs();
             foreach (Entry entry in _entries.Values) entry.Dispose();
             _entries.Clear();
             _known.Clear();
             _dirty.Clear();
             _desiredVersions.Clear();
+            _queuedAtSeconds.Clear();
             _visible.Clear();
             _vertices.Clear();
             _indices.Clear();
@@ -1477,7 +1964,21 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             if (_densityMixedVoxels.IsCreated) _densityMixedVoxels.Dispose();
             if (_densityMixedSurfaceSemantics.IsCreated) _densityMixedSurfaceSemantics.Dispose();
             if (_densityMixedBoundarySamples.IsCreated) _densityMixedBoundarySamples.Dispose();
+            if (_topologyCellClass.IsCreated) _topologyCellClass.Dispose();
+            if (_topologyGeometryCounts.IsCreated) _topologyGeometryCounts.Dispose();
+            if (_topologyCellVertexIndices.IsCreated) _topologyCellVertexIndices.Dispose();
+            if (_topologyEdgeCodes.IsCreated) _topologyEdgeCodes.Dispose();
+            if (_topologyOutput.IsCreated) _topologyOutput.Dispose();
+            if (_compactedTopologyVertices.IsCreated) _compactedTopologyVertices.Dispose();
+            if (_compactedTopologyIndices.IsCreated) _compactedTopologyIndices.Dispose();
+            if (_topologyOverflowCell.IsCreated) _topologyOverflowCell.Dispose();
+            if (_facetedMasks.IsCreated) _facetedMasks.Dispose();
+            if (_facetedVertices.IsCreated) _facetedVertices.Dispose();
+            if (_facetedIndices.IsCreated) _facetedIndices.Dispose();
             _build = default;
         }
+
+        private static double ElapsedMs(double startSeconds) => startSeconds <= 0.0
+            ? 0.0 : (Time.realtimeSinceStartupAsDouble - startSeconds) * 1000.0;
     }
 }

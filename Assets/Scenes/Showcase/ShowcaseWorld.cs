@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
+using Unity.Jobs;
+using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Features;
@@ -30,6 +32,20 @@ namespace VoxelEngine.Showcase
     /// </summary>
     public sealed class ShowcaseWorld : IDisposable
     {
+        private static readonly ProfilerMarker s_StreamingMarker =
+            new("Voxel.Streaming.ShowcaseStep");
+        private static readonly ProfilerMarker s_RefreshPendingMarker =
+            new("Voxel.Streaming.RefreshWantedSet");
+        private static readonly ProfilerMarker s_TerrainSliceMarker =
+            new("Voxel.Streaming.TerrainSlice");
+        private static readonly ProfilerMarker s_FinishRegionMarker =
+            new("Voxel.Streaming.RegionCommit");
+        private static readonly ProfilerMarker s_FeatureMarker =
+            new("Voxel.Streaming.FeatureGeneration");
+        private static readonly ProfilerMarker s_CastleMarker =
+            new("Voxel.Streaming.CastleStage");
+        private static readonly ProfilerMarker s_EvictionMarker =
+            new("Voxel.Streaming.Eviction");
         public const float VoxelSize = 0.1f;
         // -- material indices ----------------------------------------------------
 
@@ -81,6 +97,11 @@ namespace VoxelEngine.Showcase
         private bool _hasCastlePlan;
         private bool _castleTrapdoorOpen;
         private bool _castleFrontGateOpen;
+        private CastlePlan _pendingCastlePlan;
+        private CastleBuilder.IncrementalBuild _castleBuild;
+        private readonly List<int3> _castleRegions = new();
+        private readonly Queue<int3> _deferredFeatureRegions = new();
+        private bool _castleTerrainQueued;
 
         private readonly HashSet<int3> _generated = new();
         private readonly Queue<DetachedVoxelChunk> _detachedChunks = new();
@@ -143,6 +164,18 @@ namespace VoxelEngine.Showcase
 
         /// <summary>Regions in the wanted set that have not been generated yet.</summary>
         public int PendingRegionLoads => _pendingLoads.Count;
+        public int RequiredCastleRegions => _castleRegions.Count;
+        public int ReadyCastleRegions
+        {
+            get
+            {
+                int ready = 0;
+                for (int i = 0; i < _castleRegions.Count; i++)
+                    if (_generated.Contains(_castleRegions[i])) ready++;
+                return ready;
+            }
+        }
+        public int CastleBuildStage => _castleBuild.IsCreated ? _castleBuild.StageNumber : 0;
 
         public int PendingDetachedChunks => _detachedChunks.Count;
 
@@ -235,30 +268,63 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public void StepStreaming(float3 cameraMetres, double budgetMs)
         {
+            using var streamingScope = s_StreamingMarker.Auto();
             var centre = ResidencyManager.PositionToRegion(cameraMetres);
-            RefreshPending(centre);
+            using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);
 
             var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
             var start = Time.realtimeSinceStartupAsDouble;
             bool didWork = false;
+            bool landmarkStepped = false;
+
+            // IncrementalBuild holds handle-like RegionTable/BrickPool snapshots whose scalar
+            // allocator bookkeeping is published after each stage. No other world writer may
+            // allocate between those stages. Give the castle exclusive mutation ownership until
+            // its atomic commit, one semantic stage per frame.
+            if (_castleBuild.IsCreated && !_castleBuild.IsComplete)
+            {
+                using (s_CastleMarker.Auto()) StepLandmarks();
+                LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
+                return;
+            }
 
             while (Time.realtimeSinceStartupAsDouble < deadline)
             {
                 if (!_gen.Active)
                 {
-                    if (_pendingLoads.Count == 0) break;
+                    if (_pendingLoads.Count == 0)
+                    {
+                        if (StepLandmarks()) didWork = landmarkStepped = true;
+                        break;
+                    }
 
                     BeginRegion(_pendingLoads[0]);
                     _pendingLoads.RemoveAt(0);
                 }
 
                 didWork = true;
-                if (StepRegion()) FinishRegion();
+                bool regionComplete;
+                using (s_TerrainSliceMarker.Auto()) regionComplete = StepRegion();
+                if (regionComplete)
+                {
+                    using (s_FinishRegionMarker.Auto()) FinishRegion();
+                    if (StepLandmarks())
+                    {
+                        didWork = landmarkStepped = true;
+                        break;
+                    }
+                }
             }
+
+            // Landmark construction is admitted only after terrain streaming has yielded its
+            // budget. One semantic castle stage may still be substantial, but this removes the
+            // former unbounded all-regions + all-stages scene-load operation.
+            if (!landmarkStepped && !_gen.Active && _pendingLoads.Count == 0
+                && StepLandmarks()) didWork = true;
 
             if (didWork) LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
 
-            EvictDistantRegions(centre);
+            using (s_EvictionMarker.Auto()) EvictDistantRegions(centre);
         }
 
         /// <summary>
@@ -300,11 +366,35 @@ namespace VoxelEngine.Showcase
                 _pendingLoads.Add(rc);
             }
 
-            // Nearest first, so the hole in front of you fills before the one behind.
+            // The castle is atomic: its builder cannot start until every terrain region it
+            // touches exists. Keep those dependencies in the same bounded queue even if a
+            // future castle plan grows beyond the ordinary camera residency radius.
+            if (_castleTerrainQueued && !_hasCastlePlan)
+            {
+                for (int i = 0; i < _castleRegions.Count; i++)
+                {
+                    int3 required = _castleRegions[i];
+                    if (_generated.Contains(required)
+                        || _gen.Active && _gen.Coord.Equals(required)
+                        || _pendingLoads.Contains(required)) continue;
+                    _pendingLoads.Add(required);
+                }
+            }
+
+            // Landmark dependencies first, then nearest camera residency. Appending castle
+            // regions after sorting made a complete landmark wait behind the entire radius and
+            // could never meet the startup contract.
             _pendingLoads.Sort((a, b) =>
             {
-                long da = (long)(a.x - centre.x) * (a.x - centre.x) + (long)(a.z - centre.z) * (a.z - centre.z);
-                long db = (long)(b.x - centre.x) * (b.x - centre.x) + (long)(b.z - centre.z) * (b.z - centre.z);
+                bool aCastle = _castleTerrainQueued && !_hasCastlePlan
+                            && _castleRegions.Contains(a);
+                bool bCastle = _castleTerrainQueued && !_hasCastlePlan
+                            && _castleRegions.Contains(b);
+                if (aCastle != bCastle) return aCastle ? -1 : 1;
+                long da = (long)(a.x - centre.x) * (a.x - centre.x)
+                        + (long)(a.z - centre.z) * (a.z - centre.z);
+                long db = (long)(b.x - centre.x) * (b.x - centre.x)
+                        + (long)(b.z - centre.z) * (b.z - centre.z);
                 return da.CompareTo(db);
             });
         }
@@ -320,6 +410,8 @@ namespace VoxelEngine.Showcase
                 // The in-flight generator owns this Region value until FinishRegion commits it.
                 // Evicting it here disposes BrickRefs out from under the next StepRegion call.
                 if (_gen.Active && rc.Equals(_gen.Coord)) continue;
+                if (_castleTerrainQueued && !_hasCastlePlan && _castleRegions.Contains(rc))
+                    continue;
 
                 int dx = rc.x - centre.x;
                 int dz = rc.z - centre.z;
@@ -352,6 +444,8 @@ namespace VoxelEngine.Showcase
             public int3 Coord;
             public Region Region;
             public NativeArray<int> Heights;
+            public JobHandle HeightJob;
+            public bool HeightJobScheduled;
             public int Phase;      // 0 = heights, 1 = bricks
             public int Cursor;     // rows done, then brick columns done
         }
@@ -378,6 +472,15 @@ namespace VoxelEngine.Showcase
             _gen.Heights = new NativeArray<int>(RegionVoxelEdge * RegionVoxelEdge, Allocator.Persistent);
             _gen.Phase = 0;
             _gen.Cursor = 0;
+            int3 originVoxel = regionCoord * RegionVoxelEdge;
+            _gen.HeightJob = new ShowcaseHeightJob
+            {
+                Heights = _gen.Heights,
+                Origin = new int2(originVoxel.x, originVoxel.z),
+                Edge = RegionVoxelEdge,
+                Seed = Seed,
+            }.Schedule(_gen.Heights.Length, 256);
+            _gen.HeightJobScheduled = true;
         }
 
         /// <summary>Advances the in-flight region by one slice. Returns true when it is complete.</summary>
@@ -387,15 +490,9 @@ namespace VoxelEngine.Showcase
 
             if (_gen.Phase == 0)
             {
-                int endRow = math.min(_gen.Cursor + HeightRowsPerSlice, RegionVoxelEdge);
-
-                for (int lz = _gen.Cursor; lz < endRow; lz++)
-                for (int lx = 0; lx < RegionVoxelEdge; lx++)
-                    _gen.Heights[lx + lz * RegionVoxelEdge] = SurfaceHeight(originVoxel.x + lx, originVoxel.z + lz);
-
-                _gen.Cursor = endRow;
-                if (_gen.Cursor < RegionVoxelEdge) return false;
-
+                if (!_gen.HeightJob.IsCompleted) return false;
+                _gen.HeightJob.Complete();
+                _gen.HeightJobScheduled = false;
                 _gen.Phase = 1;
                 _gen.Cursor = 0;
                 return false;
@@ -497,12 +594,20 @@ namespace VoxelEngine.Showcase
             // Features are generated after terrain, so they carve and build against finished
             // ground. Everything here is a function of (seed, catalogue, region coordinate) —
             // no neighbour is consulted, which is why regions may arrive in any order.
-            if (_catalogue.IsCreated)
+            bool deferFeatures = _castleTerrainQueued && !_hasCastlePlan
+                              && _castleRegions.Contains(coord);
+            if (deferFeatures)
+            {
+                _deferredFeatureRegions.Enqueue(coord);
+            }
+            else if (_catalogue.IsCreated)
             {
                 var featureStart = Time.realtimeSinceStartupAsDouble;
 
-                var report = FeatureGeneration.GenerateRegion(
-                    in _catalogue, Seed, coord, ref _table, ref _pool);
+                FeatureGenerationReport report;
+                using (s_FeatureMarker.Auto())
+                    report = FeatureGeneration.GenerateRegion(
+                        in _catalogue, Seed, coord, ref _table, ref _pool);
 
                 FeatureVoxelsBuilt += report.VoxelsWritten;
                 FeatureInstancesBuilt += report.InstancesRasterised;
@@ -524,12 +629,13 @@ namespace VoxelEngine.Showcase
 
             FinishRegionForced();
 
-            if (coord.Equals(int3.zero)) BuildLandmarks();
+            if (coord.Equals(int3.zero)) QueueLandmarks();
         }
 
         /// <summary>Releases the in-flight generation state without publishing it.</summary>
         private void FinishRegionForced()
         {
+            if (_gen.HeightJobScheduled) _gen.HeightJob.Complete();
             if (_gen.Heights.IsCreated) _gen.Heights.Dispose();
             _gen = default;
         }
@@ -568,8 +674,9 @@ namespace VoxelEngine.Showcase
         /// Built once when the origin region completes. It sculpts its own outcrop, so it must run
         /// after terrain rather than alongside it.
         /// </summary>
-        private void BuildLandmarks()
+        private void QueueLandmarks()
         {
+            if (_castleTerrainQueued || _hasCastlePlan) return;
             int cx = RegionVoxelEdge / 2;
             int cz = RegionVoxelEdge / 2 + 120;
             int ground = SurfaceHeight(cx, cz);
@@ -591,16 +698,33 @@ namespace VoxelEngine.Showcase
             int minRz = (cz - reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
             int maxRz = (cz + reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
 
+            _pendingCastlePlan = plan;
+            _castleRegions.Clear();
             for (int rz = minRz; rz <= maxRz; rz++)
             for (int rx = minRx; rx <= maxRx; rx++)
+                _castleRegions.Add(new int3(rx, 0, rz));
+            _castleTerrainQueued = true;
+        }
+
+        private bool StepLandmarks()
+        {
+            if (!_castleTerrainQueued || _hasCastlePlan) return false;
+            for (int i = 0; i < _castleRegions.Count; i++)
+                if (!_generated.Contains(_castleRegions[i])) return false;
+
+            if (!_castleBuild.IsCreated)
             {
-                var neighbour = new int3(rx, 0, rz);
-                if (neighbour.Equals(int3.zero)) continue;
-
-                GenerateRegionBlocking(neighbour);
+                _castleBuild = CastleBuilder.BeginBuild(
+                    _table, _pool, in _pendingCastlePlan, Seed, in _palette);
             }
+            bool castleComplete;
+            using (s_CastleMarker.Auto())
+                castleComplete = CastleBuilder.StepBuild(ref _castleBuild, ref _table, ref _pool);
+            if (!castleComplete) return true;
 
-            var brush = CastleBuilder.Build(ref _table, ref _pool, in plan, Seed, in _palette);
+            CastlePlan plan = _pendingCastlePlan;
+            int cx = plan.Centre.x;
+            int cz = plan.Centre.z;
             int referenceArchVoxels = BuildReferenceArch(new int3(cx - 120, 0, cz - 210));
             _castlePlan = plan;
             _hasCastlePlan = true;
@@ -608,15 +732,16 @@ namespace VoxelEngine.Showcase
             _castleFrontGateOpen = false;
             BuildCastlePresentationLights(in plan);
 
-            CastleVoxels = brush.TotalVoxelsWritten + referenceArchVoxels;
+            CastleVoxels = _castleBuild.TotalVoxelsWritten + referenceArchVoxels;
+            // These regions were intentionally kept free of generic features while the castle
+            // authored its atomic footprint. Do not replay them over the completed landmark;
+            // castle-owned dressing and semantic vegetation are generated by the castle plan.
+            _deferredFeatureRegions.Clear();
 
             // Everything the castle touched has to be re-meshed and re-uploaded.
-            for (int rz = minRz; rz <= maxRz; rz++)
-            for (int rx = minRx; rx <= maxRx; rx++)
-            {
-                var rc = new int3(rx, 0, rz);
-                _changes.PublishRegion(rc, VoxelChangeKind.All);
-            }
+            for (int i = 0; i < _castleRegions.Count; i++)
+                _changes.PublishRegion(_castleRegions[i], VoxelChangeKind.All);
+            return true;
         }
 
         private int BuildReferenceArch(int3 horizontalOrigin)

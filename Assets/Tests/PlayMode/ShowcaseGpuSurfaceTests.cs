@@ -9,18 +9,16 @@ using VoxelEngine.Rendering.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.PlayMode
 {
-    public sealed class ShowcaseGpuSurfaceTests
+    public sealed class ShowcaseSurfaceTests
     {
         [UnityTest, Timeout(120000)]
-        public IEnumerator ShowcaseBuildsSolidGeometryOnGpu()
+        public IEnumerator ShowcaseBuildsFeatureAwareSolidGeometry()
         {
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 "Assets/Scenes/VoxelShowcase.unity",
                 new LoadSceneParameters(LoadSceneMode.Single));
             yield return null;
 
-            Assert.AreEqual(VoxelRenderBridge.SolidSurfaceBackend.GpuSurfaceNets,
-                            VoxelRenderBridge.SolidBackend);
             Assert.IsTrue(VoxelRenderBridge.TryGetWorld(out VoxelWorldView world),
                 "Showcase did not register a valid render-world view.");
             Debug.Log($"GPU test world: regions={world.Table.ResidentCount}, "
@@ -58,15 +56,17 @@ namespace VoxelEngine.Tests.PlayMode
                                 + $"known={metrics.SolidKnownChunks}, "
                                 + $"resident={metrics.SolidResidentChunks}, "
                                 + $"visible={metrics.VisibleSolidChunks}, "
+                                + $"missing={metrics.MissingVisibleSolidChunks}, "
+                                + $"jobs={metrics.RunningSolidJobs}, "
+                                + $"snapshot={metrics.LastSolidSnapshotMs:0.00}ms, "
+                                + $"compact={metrics.LastSolidTopologyCompactMs:0.00}ms, "
+                                + $"upload={metrics.LastSolidUploadMs:0.00}ms, "
                                 + $"enqueues={VoxelRenderBridge.RenderFeatureEnqueueCount}, "
                                 + $"records={VoxelRenderBridge.SurfacePassRecordCount}, "
                                 + $"state={VoxelRenderBridge.LastSurfacePassState}");
-                    Assert.AreEqual(0ul, metrics.UploadedGeometryBytes,
-                        "GPU extraction must not upload CPU-authored vertex/index geometry.");
                     if (metrics.SolidKnownChunks > 0 && metrics.SolidResidentChunks > 0
                         && metrics.VisibleSolidChunks > 0)
                     {
-                        Assert.AreEqual(0ul, metrics.RejectedStaleSolidBuilds);
                         converged = true;
                         // Keep several later renders so the bounded extractor can fill more than
                         // the first visible chunk before the image is judged.
@@ -75,11 +75,22 @@ namespace VoxelEngine.Tests.PlayMode
                 }
                 VoxelSurfaceMetrics finalMetrics = VoxelRenderBridge.SurfaceMetrics;
                 Assert.IsTrue(converged,
-                    $"GPU surface did not become visible: changes={finalMetrics.ChangeRecords}, "
+                    $"Feature-aware surface did not become visible: changes={finalMetrics.ChangeRecords}, "
                   + $"surfaceBricks={finalMetrics.DiscoveredSurfaceBricks}, "
                   + $"known={finalMetrics.SolidKnownChunks}, "
                   + $"resident={finalMetrics.SolidResidentChunks}, "
                   + $"visible={finalMetrics.VisibleSolidChunks}.");
+                Assert.Greater(finalMetrics.UploadedGeometryBytes, 0ul,
+                    "The authoritative extractor did not publish any complete geometry.");
+                Assert.LessOrEqual(finalMetrics.RejectedStaleSolidBuilds,
+                                   finalMetrics.CompletedSolidBuilds
+                                 + (ulong)finalMetrics.RunningSolidJobs + 64ul,
+                    "Streaming invalidation is repeatedly starving completed surface work.");
+                Assert.GreaterOrEqual(finalMetrics.SolidResidentChunks, 24,
+                    "Feature-aware geometry throughput regressed below four workers completing "
+                  + "one chunk per render cadence during startup.");
+                Assert.Less(finalMetrics.LastSolidUploadMs, 25.0,
+                    "A single mesh publication caused a visible frame-length upload stall.");
 
                 camera.Render();
                 RenderTexture previousActive = RenderTexture.active;

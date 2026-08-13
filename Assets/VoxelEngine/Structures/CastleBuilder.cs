@@ -42,6 +42,19 @@ namespace VoxelEngine.Structures
     /// </summary>
     public static class CastleBuilder
     {
+        public struct IncrementalBuild
+        {
+            internal VoxelBrush Brush;
+            internal CastlePlan Plan;
+            internal uint TerrainSeed;
+            internal int Stage;
+
+            public bool IsCreated => Stage > 0;
+            public bool IsComplete => Stage > 8;
+            public int StageNumber => Stage;
+            public long TotalVoxelsWritten => Brush.TotalVoxelsWritten;
+        }
+
         public const int TrapdoorHalfSize = 8;
         public const int ChapelBellTowerSize = 56;
         public const int ChapelBellTowerStairRadius = 16;
@@ -218,42 +231,71 @@ namespace VoxelEngine.Structures
                                        in CastlePlan plan, uint terrainSeed,
                                        in MaterialPalette palette)
         {
+            IncrementalBuild build = BeginBuild(table, pool, in plan, terrainSeed, in palette);
+            while (!build.IsComplete) StepBuild(ref build, ref table, ref pool);
+            return build.Brush;
+        }
+
+        /// <summary>
+        /// Starts the same all-or-nothing castle build as <see cref="Build"/>, split at semantic
+        /// stage boundaries so a runtime caller does not execute the entire landmark in one
+        /// scene-load callback.
+        /// </summary>
+        public static IncrementalBuild BeginBuild(RegionTable table, BrickPool pool,
+                                                  in CastlePlan plan, uint terrainSeed,
+                                                  in MaterialPalette palette)
+        {
             var brush = new VoxelBrush(table, pool, in palette);
 
             long estimate = EstimateWrites(in plan);
             if (estimate > brush.WriteBudget)
             {
-                UnityEngine.Debug.LogError(
+                throw new System.InvalidOperationException(
                     $"CastleBuilder: refusing to build. Plan implies ~{estimate:N0} expensive-write equivalents, " +
                     $"budget is {brush.WriteBudget:N0}. Reduce PlateauRadius ({plan.PlateauRadius}) " +
                     $"or the primary structure dimensions before retrying.");
-                return brush;
             }
 
-            Site(ref brush, in plan, terrainSeed);
-            RequireBudget(in brush, "site");
-            CurtainWalls(ref brush, in plan);
-            RequireBudget(in brush, "curtain walls");
-            CornerTowers(ref brush, in plan);
-            RequireBudget(in brush, "corner towers");
-            Gatehouse(ref brush, in plan);
-            RequireBudget(in brush, "gatehouse");
-            Courtyard(ref brush, in plan);
-            RequireBudget(in brush, "courtyard");
-            Keep(ref brush, in plan);
-            RequireBudget(in brush, "keep");
-            Dungeon(ref brush, in plan);
-            RequireBudget(in brush, "dungeon");
-            LandscapeDetails(ref brush, in plan, terrainSeed);
-            RequireBudget(in brush, "landscape details");
+            return new IncrementalBuild
+            {
+                Brush = brush,
+                Plan = plan,
+                TerrainSeed = terrainSeed,
+                Stage = 1,
+            };
+        }
+
+        /// <summary>Executes one bounded semantic stage and publishes allocator bookkeeping.</summary>
+        public static bool StepBuild(ref IncrementalBuild build,
+                                     ref RegionTable table, ref BrickPool pool)
+        {
+            if (!build.IsCreated || build.IsComplete) return true;
+
+            string stage;
+            switch (build.Stage)
+            {
+                case 1: Site(ref build.Brush, in build.Plan, build.TerrainSeed); stage = "site"; break;
+                case 2: CurtainWalls(ref build.Brush, in build.Plan); stage = "curtain walls"; break;
+                case 3: CornerTowers(ref build.Brush, in build.Plan); stage = "corner towers"; break;
+                case 4: Gatehouse(ref build.Brush, in build.Plan); stage = "gatehouse"; break;
+                case 5: Courtyard(ref build.Brush, in build.Plan); stage = "courtyard"; break;
+                case 6: Keep(ref build.Brush, in build.Plan); stage = "keep"; break;
+                case 7: Dungeon(ref build.Brush, in build.Plan); stage = "dungeon"; break;
+                case 8:
+                    LandscapeDetails(ref build.Brush, in build.Plan, build.TerrainSeed);
+                    stage = "landscape details";
+                    break;
+                default: return true;
+            }
+            RequireBudget(in build.Brush, stage);
 
             // RegionTable and BrickPool are handle-like structs, but their scalar bookkeeping
             // (notably BrickPool's high-water mark) is copied by value. Publish the updated
             // handles back to the owner or later allocations can reuse slots the castle owns.
-            table = brush.Table;
-            pool = brush.Pool;
-
-            return brush;
+            table = build.Brush.Table;
+            pool = build.Brush.Pool;
+            build.Stage++;
+            return build.IsComplete;
         }
 
         private static void RequireBudget(in VoxelBrush brush, string stage)

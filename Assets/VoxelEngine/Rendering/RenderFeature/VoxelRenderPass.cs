@@ -57,48 +57,11 @@ namespace VoxelEngine.Rendering
         private static readonly int s_CameraPosition = Shader.PropertyToID("_CameraPosition");
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
 
-        private const int GpuDetailBricksPerAxis = 16;
-        private const int GpuDetailSourceStep = 4;
-        private const int GpuDetailArenaSlots = 16;
-        private const int GpuDetailMaxIndicesPerChunk = 131072;
-
-        private const int GpuCoverageBricksPerAxis = 32;
-        private const int GpuCoverageSourceStep = 8;
-        private const int GpuCoverageArenaSlots = 208;
-        private const int GpuCoverageMaxIndicesPerChunk = 48000;
-        private const long MaxGpuResidentBytes = 512L * 1024L * 1024L;
-
         private readonly VoxelSurfaceScheduler _scheduler = new();
-        private readonly VoxelGpuBuffers _gpuBuffers = new();
-        private readonly GpuSurfaceChunkCache _gpuCoverageSolids =
-            new(GpuCoverageBricksPerAxis, GpuCoverageSourceStep)
-            {
-                MaxBuildsPerFrame = 8,
-                MaxResidentChunks = GpuCoverageArenaSlots,
-                MaxIndicesPerChunk = GpuCoverageMaxIndicesPerChunk,
-            };
-        private readonly GpuSurfaceChunkCache _gpuDetailSolids =
-            new(GpuDetailBricksPerAxis, GpuDetailSourceStep)
-            {
-                MaxBuildsPerFrame = 4,
-                MaxResidentChunks = GpuDetailArenaSlots,
-                MaxIndicesPerChunk = GpuDetailMaxIndicesPerChunk,
-            };
-        private readonly System.Collections.Generic.List<VoxelChangeRecord> _gpuChanges = new(256);
-        private readonly System.Collections.Generic.HashSet<int3> _gpuChangedRegions = new();
-        private ulong _gpuChangeCursor;
-        private VoxelChangeJournal _gpuJournal;
-        private GpuSurfaceArena _gpuCoverageArena;
-        private GpuSurfaceArena _gpuDetailArena;
-        private ComputeShader _surfaceExtraction;
         private CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
             Array.Empty<CpuTransvoxelChunkCache.Entry>();
         private CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
             Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
-        private GpuSurfaceChunkCache.Entry[] _gpuCoverageDrawEntries =
-            Array.Empty<GpuSurfaceChunkCache.Entry>();
-        private GpuSurfaceChunkCache.Entry[] _gpuDetailDrawEntries =
-            Array.Empty<GpuSurfaceChunkCache.Entry>();
 
         private Material _surfaceMaterial;
         private Material _waterMaterial;
@@ -113,12 +76,6 @@ namespace VoxelEngine.Rendering
         public bool Enabled { get; set; } = true;
         public VoxelSurfaceMetrics Metrics => _scheduler.Metrics;
 
-        public VoxelRenderPass()
-        {
-            _gpuCoverageSolids.Finer = _gpuDetailSolids;
-            _gpuDetailSolids.Coarser = _gpuCoverageSolids;
-        }
-
         public void Setup(ComputeShader surfaceExtraction = null,
                           Shader surfaceShader = null,
                           Shader waterShader = null,
@@ -132,7 +89,6 @@ namespace VoxelEngine.Rendering
                           Texture2D dirtNormal = null, Texture2D darkStoneTexture = null,
                           Texture2D darkStoneNormal = null, Texture2D skyTexture = null)
         {
-            _surfaceExtraction = surfaceExtraction;
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);
@@ -196,15 +152,6 @@ namespace VoxelEngine.Rendering
             public int TransvoxelEntryCount;
             public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
-            public bool UseGpu;
-            public ComputeShader SurfaceExtraction;
-            public VoxelGpuBuffers GpuBuffers;
-            public GpuSurfaceChunkCache GpuCoverageSolids;
-            public GpuSurfaceChunkCache.Entry[] GpuCoverageEntries;
-            public int GpuCoverageEntryCount;
-            public GpuSurfaceChunkCache GpuDetailSolids;
-            public GpuSurfaceChunkCache.Entry[] GpuDetailEntries;
-            public int GpuDetailEntryCount;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -235,37 +182,42 @@ namespace VoxelEngine.Rendering
                 VoxelRenderBridge.LastSurfacePassState = "missing-material";
                 return;
             }
+            if (!VoxelRenderBridge.SurfaceBuildEnabled)
+            {
+                VoxelRenderBridge.LastSurfacePassState = "waiting-for-atomic-world";
+                return;
+            }
             VoxelRenderBridge.LastSurfacePassState = $"preparing-{camera.cameraType}";
-            bool useGpu = VoxelRenderBridge.SolidBackend
-                       == VoxelRenderBridge.SolidSurfaceBackend.GpuSurfaceNets
-                       && _surfaceExtraction != null;
             IReadOnlyList<CpuTransvoxelChunkCache.Entry> transvoxelVisible =
                 Array.Empty<CpuTransvoxelChunkCache.Entry>();
             IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> waterVisible =
                 Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
-            IReadOnlyList<GpuSurfaceChunkCache.Entry> gpuCoverageVisible =
-                Array.Empty<GpuSurfaceChunkCache.Entry>();
-            IReadOnlyList<GpuSurfaceChunkCache.Entry> gpuDetailVisible =
-                Array.Empty<GpuSurfaceChunkCache.Entry>();
-
-            if (useGpu)
-            {
-                PrepareGpu(ref world, camera);
-                gpuCoverageVisible = _gpuCoverageSolids.Visible;
-                gpuDetailVisible = _gpuDetailSolids.Visible;
-            }
-            else
-            {
-                _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
-                _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
-                _scheduler.Prepare(ref world.Table, ref world.Pool, in world.Palette,
-                                   in world.SurfaceCatalogue, in world.CoatingCatalogue,
-                                   world.ProfileBlocks, VoxelRenderBridge.Changes,
-                                   camera, VoxelSize, Time.frameCount);
-                VoxelRenderBridge.SurfaceMetrics = _scheduler.Metrics;
-                transvoxelVisible = _scheduler.VisibleSolids;
-                waterVisible = _scheduler.VisibleWater;
-            }
+            _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
+            _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
+            _scheduler.Prepare(ref world.Table, ref world.Pool, in world.Palette,
+                               in world.SurfaceCatalogue, in world.CoatingCatalogue,
+                               world.ProfileBlocks, VoxelRenderBridge.Changes,
+                               camera, VoxelSize, Time.frameCount);
+            VoxelRenderBridge.SurfaceMetrics = _scheduler.Metrics;
+            transvoxelVisible = _scheduler.VisibleSolids;
+            waterVisible = _scheduler.VisibleWater;
+            VoxelRenderBridge.LastSurfacePassState =
+                $"feature-aware resident={VoxelRenderBridge.SurfaceMetrics.SolidResidentChunks}/"
+              + $"{VoxelRenderBridge.SurfaceMetrics.SolidKnownChunks} "
+              + $"dirty={VoxelRenderBridge.SurfaceMetrics.SolidDirtyChunks} "
+              + $"visible={VoxelRenderBridge.SurfaceMetrics.VisibleSolidChunks} "
+              + $"missingVisible={VoxelRenderBridge.SurfaceMetrics.MissingVisibleSolidChunks} "
+              + $"jobs={VoxelRenderBridge.SurfaceMetrics.RunningSolidJobs} "
+              + $"prepare.p95={VoxelRenderBridge.SurfaceMetrics.SchedulerPrepareTiming.P95Ms:0.00}ms "
+              + $"discover.p95={VoxelRenderBridge.SurfaceMetrics.SurfaceDiscoveryTiming.P95Ms:0.00}ms "
+              + $"select.p95={VoxelRenderBridge.SurfaceMetrics.BuildSelectionTiming.P95Ms:0.00}ms "
+              + $"visibility.p95={VoxelRenderBridge.SurfaceMetrics.VisibilityTiming.P95Ms:0.00}ms "
+              + $"queue.p95={VoxelRenderBridge.SurfaceMetrics.QueueLatencyTiming.P95Ms:0.0}ms "
+              + $"build.p95={VoxelRenderBridge.SurfaceMetrics.BuildLatencyTiming.P95Ms:0.0}ms "
+              + $"snapshot.p95={VoxelRenderBridge.SurfaceMetrics.SnapshotTiming.P95Ms:0.00}ms "
+              + $"compact.p95={VoxelRenderBridge.SurfaceMetrics.TopologyCompactTiming.P95Ms:0.00}ms "
+              + $"merge.p95={VoxelRenderBridge.SurfaceMetrics.FacetedMergeTiming.P95Ms:0.00}ms "
+              + $"upload.p95={VoxelRenderBridge.SurfaceMetrics.UploadTiming.P95Ms:0.00}ms";
 
             EnsureCapacity(ref _transvoxelDrawEntries, transvoxelVisible.Count);
             for (int i = 0; i < transvoxelVisible.Count; i++)
@@ -274,12 +226,6 @@ namespace VoxelEngine.Rendering
             EnsureCapacity(ref _waterDrawEntries, waterVisible.Count);
             for (int i = 0; i < waterVisible.Count; i++)
                 _waterDrawEntries[i] = waterVisible[i];
-            EnsureCapacity(ref _gpuCoverageDrawEntries, gpuCoverageVisible.Count);
-            for (int i = 0; i < gpuCoverageVisible.Count; i++)
-                _gpuCoverageDrawEntries[i] = gpuCoverageVisible[i];
-            EnsureCapacity(ref _gpuDetailDrawEntries, gpuDetailVisible.Count);
-            for (int i = 0; i < gpuDetailVisible.Count; i++)
-                _gpuDetailDrawEntries[i] = gpuDetailVisible[i];
 
             using var builder = renderGraph.AddUnsafePass(k_PassName, out SurfaceFrameData data);
 
@@ -322,15 +268,6 @@ namespace VoxelEngine.Rendering
             data.TransvoxelEntryCount = transvoxelVisible.Count;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
-            data.UseGpu = useGpu;
-            data.SurfaceExtraction = _surfaceExtraction;
-            data.GpuBuffers = _gpuBuffers;
-            data.GpuCoverageSolids = _gpuCoverageSolids;
-            data.GpuCoverageEntries = _gpuCoverageDrawEntries;
-            data.GpuCoverageEntryCount = gpuCoverageVisible.Count;
-            data.GpuDetailSolids = _gpuDetailSolids;
-            data.GpuDetailEntries = _gpuDetailDrawEntries;
-            data.GpuDetailEntryCount = gpuDetailVisible.Count;
 
             builder.UseTexture(data.CameraColor, AccessFlags.ReadWrite);
             builder.UseTexture(data.CameraDepth, AccessFlags.ReadWrite);
@@ -339,14 +276,6 @@ namespace VoxelEngine.Rendering
             builder.SetRenderFunc<SurfaceFrameData>(static (passData, ctx) =>
             {
                 var cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
-
-                if (passData.UseGpu)
-                {
-                    passData.GpuCoverageSolids.RecordScheduled(
-                        cmd, passData.SurfaceExtraction, passData.GpuBuffers, passData.VoxelSize);
-                    passData.GpuDetailSolids.RecordScheduled(
-                        cmd, passData.SurfaceExtraction, passData.GpuBuffers, passData.VoxelSize);
-                }
 
                 passData.Properties.SetVectorArray(s_MaterialAlbedo,
                     VoxelPresentationCatalogue.MaterialAlbedo);
@@ -398,21 +327,9 @@ namespace VoxelEngine.Rendering
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
-                if (passData.UseGpu)
-                {
-                    for (int i = 0; i < passData.GpuCoverageEntryCount; i++)
-                        passData.GpuCoverageEntries[i].Extractor.Draw(
-                            cmd, passData.Material, passData.Properties);
-                    for (int i = 0; i < passData.GpuDetailEntryCount; i++)
-                        passData.GpuDetailEntries[i].Extractor.Draw(
-                            cmd, passData.Material, passData.Properties);
-                }
-                else
-                {
-                    for (int i = 0; i < passData.TransvoxelEntryCount; i++)
-                        passData.TransvoxelEntries[i].Draw(cmd, passData.Material,
-                                                           passData.Properties);
-                }
+                for (int i = 0; i < passData.TransvoxelEntryCount; i++)
+                    passData.TransvoxelEntries[i].Draw(cmd, passData.Material,
+                                                       passData.Properties);
 
                 if (passData.WaterMaterial != null && passData.WaterEntryCount > 0)
                 {
@@ -429,134 +346,9 @@ namespace VoxelEngine.Rendering
             });
         }
 
-        private void PrepareGpu(ref VoxelWorldView world, Camera camera)
-        {
-            _gpuChangedRegions.Clear();
-            VoxelChangeJournal journal = VoxelRenderBridge.Changes;
-            if (!ReferenceEquals(journal, _gpuJournal))
-            {
-                _gpuJournal = journal;
-                _gpuChangeCursor = 0;
-            }
-            if (journal != null)
-            {
-                bool complete = journal.ReadSince(ref _gpuChangeCursor, _gpuChanges);
-                if (!complete)
-                {
-                    using NativeArray<int3> resident =
-                        world.Table.GetResidentCoords(Allocator.Temp);
-                    for (int i = 0; i < resident.Length; i++)
-                        _gpuChangedRegions.Add(resident[i]);
-                }
-                else
-                {
-                    for (int i = 0; i < _gpuChanges.Count; i++)
-                        _gpuChangedRegions.Add(_gpuChanges[i].Region);
-                }
-            }
-
-            int3 cameraVoxel = new(
-                Mathf.FloorToInt(camera.transform.position.x / VoxelSize),
-                Mathf.FloorToInt(camera.transform.position.y / VoxelSize),
-                Mathf.FloorToInt(camera.transform.position.z / VoxelSize));
-            int3 cameraRegion = new(
-                FloorDiv(cameraVoxel.x, VoxelDimensions.RegionVoxelEdge),
-                FloorDiv(cameraVoxel.y, VoxelDimensions.RegionVoxelEdge),
-                FloorDiv(cameraVoxel.z, VoxelDimensions.RegionVoxelEdge));
-            _gpuBuffers.Sync(ref world.Table, ref world.Pool, cameraRegion, _gpuChangedRegions);
-            EnsureGpuArenas();
-            _gpuCoverageSolids.InvalidateSurfaceBricks(_gpuBuffers.LastSurfaceWorldBricks);
-            _gpuCoverageSolids.InvalidateDensityBricks(_gpuBuffers.LastDensityWorldBricks);
-            _gpuDetailSolids.InvalidateSurfaceBricks(_gpuBuffers.LastSurfaceWorldBricks);
-            _gpuDetailSolids.InvalidateDensityBricks(_gpuBuffers.LastDensityWorldBricks);
-
-            _gpuCoverageSolids.Prepare(camera, VoxelSize, Time.frameCount);
-            _gpuDetailSolids.Prepare(camera, VoxelSize, Time.frameCount);
-            // Coverage decides which parents have a complete fine replacement. Collect it first
-            // so the detail tier can use that handoff decision in the same frame.
-            _gpuCoverageSolids.CollectVisible(camera, VoxelSize, Time.frameCount);
-            _gpuDetailSolids.CollectVisible(camera, VoxelSize, Time.frameCount);
-            VoxelRenderBridge.SurfaceMetrics = new VoxelSurfaceMetrics(
-                _gpuCoverageSolids, _gpuDetailSolids, _gpuChanges.Count,
-                _gpuBuffers.LastSurfaceWorldBricks.Count);
-            VoxelRenderBridge.LastSurfacePassState =
-                $"gpu coverage={_gpuCoverageSolids.ResidentCount}/"
-              + $"{_gpuCoverageSolids.KnownCount} dirty={_gpuCoverageSolids.DirtyCount} "
-              + $"visible={_gpuCoverageSolids.Visible.Count} "
-              + $"missingVisible={_gpuCoverageSolids.MissingVisibleCount}; "
-              + $"detail={_gpuDetailSolids.ResidentCount}/"
-              + $"{_gpuDetailSolids.KnownCount} dirty={_gpuDetailSolids.DirtyCount} "
-              + $"visible={_gpuDetailSolids.Visible.Count}";
-        }
-
-        private void EnsureGpuArenas()
-        {
-            if (_gpuCoverageArena is { IsCreated: true }
-                && _gpuDetailArena is { IsCreated: true }) return;
-
-            _gpuCoverageArena?.Dispose();
-            _gpuDetailArena?.Dispose();
-            int coverageCells = _gpuCoverageSolids.GridSamplesPerAxis - 1;
-            int coverageCellsPerChunk = checked(coverageCells * coverageCells * coverageCells);
-            int detailCells = _gpuDetailSolids.GridSamplesPerAxis - 1;
-            int detailCellsPerChunk = checked(detailCells * detailCells * detailCells);
-            long totalBytes = EstimateGpuResidentBytes(_gpuBuffers.ByteSize,
-                coverageCellsPerChunk, detailCellsPerChunk);
-            if (totalBytes > MaxGpuResidentBytes)
-                throw new InvalidOperationException(
-                    $"GPU voxel renderer requests {totalBytes / (1024 * 1024)} MiB; " +
-                    $"the aggregate hard limit is {MaxGpuResidentBytes / (1024 * 1024)} MiB.");
-            _gpuCoverageArena = new GpuSurfaceArena(
-                GpuCoverageArenaSlots, coverageCellsPerChunk, GpuCoverageMaxIndicesPerChunk);
-            try
-            {
-                _gpuDetailArena = new GpuSurfaceArena(
-                    GpuDetailArenaSlots, detailCellsPerChunk, GpuDetailMaxIndicesPerChunk);
-            }
-            catch
-            {
-                _gpuCoverageArena.Dispose();
-                _gpuCoverageArena = null;
-                throw;
-            }
-            _gpuCoverageSolids.Arena = _gpuCoverageArena;
-            _gpuDetailSolids.Arena = _gpuDetailArena;
-        }
-
-        public static long ConfiguredGpuResidentBytesForPool(int poolCapacity)
-        {
-            int coverageSamples = checked(
-                GpuCoverageBricksPerAxis * 8 / GpuCoverageSourceStep + 2);
-            int coverageCells = coverageSamples - 1;
-            int detailSamples = checked(GpuDetailBricksPerAxis * 8 / GpuDetailSourceStep + 2);
-            int detailCells = detailSamples - 1;
-            return EstimateGpuResidentBytes(VoxelGpuBuffers.ComputeByteSize(poolCapacity),
-                checked(coverageCells * coverageCells * coverageCells),
-                checked(detailCells * detailCells * detailCells));
-        }
-
-        private static long EstimateGpuResidentBytes(long mirrorBytes,
-                                                     int coverageCellsPerChunk,
-                                                     int detailCellsPerChunk)
-            => checked(mirrorBytes
-              + GpuSurfaceArena.ComputeByteSize(GpuCoverageArenaSlots,
-                    coverageCellsPerChunk, GpuCoverageMaxIndicesPerChunk / 6 * 6)
-              + GpuSurfaceArena.ComputeByteSize(GpuDetailArenaSlots,
-                    detailCellsPerChunk, GpuDetailMaxIndicesPerChunk / 6 * 6));
-
-        private static int FloorDiv(int value, int divisor) =>
-            value >= 0 ? value / divisor : (value - divisor + 1) / divisor;
-
         public void Dispose()
         {
             _scheduler.Dispose();
-            _gpuCoverageSolids.Dispose();
-            _gpuDetailSolids.Dispose();
-            _gpuCoverageArena?.Dispose();
-            _gpuDetailArena?.Dispose();
-            _gpuCoverageArena = null;
-            _gpuDetailArena = null;
-            _gpuBuffers.Dispose();
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);

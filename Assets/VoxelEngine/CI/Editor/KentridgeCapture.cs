@@ -116,13 +116,12 @@ namespace VoxelEngine.CI
                     throw new InvalidOperationException("Kentridge produced no isolated voxel geometry.");
 
                 // This is deliberately a runtime-semantics assertion, not a capture workaround.
-                // Kentridge structures must mark their own bricks hard during feature generation.
-                // If this becomes zero, the town would fall back to legacy material classification
-                // in-game and the diagnostic images would no longer match what the player sees.
-                int hardBricks = CountHardBricks(ref table);
-                if (hardBricks == 0)
+                // Kentridge structures must author surface semantics during feature generation so
+                // the diagnostic image exercises the same unified reconstruction path as gameplay.
+                int surfaceBricks = CountAuthoredSurfaceBricks(ref table, in pool);
+                if (surfaceBricks == 0)
                     throw new InvalidOperationException(
-                        "Kentridge generated no semantic hard-surface bricks.");
+                        "Kentridge generated no authored surface-semantics bricks.");
 
                 cameraObject = new GameObject("CI Kentridge Camera");
                 Camera camera = cameraObject.AddComponent<Camera>();
@@ -222,9 +221,9 @@ namespace VoxelEngine.CI
                     $"streets={plan.Streets.Count}\n" +
                     $"featureInstances={featureInstances}\n" +
                     $"featureVoxels={featureVoxels}\n" +
-                    $"hardBricks={hardBricks}\n" +
-                    $"hardChunks={visible.Count}\n" +
-                    $"hardTriangles={hardTriangles}\n" +
+                    $"surfaceBricks={surfaceBricks}\n" +
+                    $"surfaceChunks={visible.Count}\n" +
+                    $"surfaceTriangles={hardTriangles}\n" +
                     $"boundsDm={minX},{minZ}..{maxX},{maxZ}\n" +
                     $"captures={Views.Length}\n" +
                     string.Join("\n", viewMetadata) + "\n";
@@ -339,7 +338,7 @@ namespace VoxelEngine.CI
             return new VoxelWorldGenSettings(1, materials);
         }
 
-        private static int CountHardBricks(ref RegionTable table)
+        private static int CountAuthoredSurfaceBricks(ref RegionTable table, in BrickPool pool)
         {
             int count = 0;
             NativeArray<int3> resident = table.GetResidentCoords(Allocator.Temp);
@@ -348,13 +347,18 @@ namespace VoxelEngine.CI
                 for (int r = 0; r < resident.Length; r++)
                 {
                     if (!table.TryGetRegion(resident[r], out Region region)) continue;
-                    for (int i = 0; i < region.HardSurfaceWords.Length; i++)
+                    for (int i = 0; i < region.BrickRefs.Length; i++)
                     {
-                        ulong word = region.HardSurfaceWords[i];
-                        while (word != 0UL)
+                        BrickRef brick = region.BrickRefs[i];
+                        if (!brick.IsMixed) continue;
+                        int offset = brick.PoolIndex * VoxelDimensions.VoxelsPerBrick;
+                        for (int voxel = 0; voxel < VoxelDimensions.VoxelsPerBrick; voxel++)
                         {
+                            if (pool.SurfaceSemantics[offset + voxel] == 0
+                                && pool.BoundarySamples[offset + voxel] == 0)
+                                continue;
                             count++;
-                            word &= word - 1UL;
+                            break;
                         }
                     }
                 }

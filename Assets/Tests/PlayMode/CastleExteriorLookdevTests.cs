@@ -215,7 +215,10 @@ namespace VoxelEngine.Tests.PlayMode
                 // A teleported lookdev camera has none of the approach time a player supplies.
                 // Optional tiny-target warmup renders let the incremental GPU surface cache
                 // converge around that viewpoint before the expensive full-resolution capture.
-                var warmupTarget = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGB32);
+                // Keep the capture aspect ratio. A square warmup hides chunks at the horizontal
+                // edges, then the first 16:9 capture exposes them before the bounded cache has
+                // had enough frames to build their geometry.
+                var warmupTarget = new RenderTexture(64, 36, 24, RenderTextureFormat.ARGB32);
                 camera.targetTexture = warmupTarget;
                 for (int warmup = 0; warmup < warmupFrames; warmup++)
                 {
@@ -232,13 +235,9 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
                     $"{views[i].name} has known coarse chunks inside the camera frustum "
                   + "without ready geometry; this produces rectangular holes in the castle.");
-                if (views[i].name == "approach" || views[i].name == "reference_hero"
-                    || views[i].name == "wall")
-                {
-                    Assert.Greater(metrics.VisibleDetailSolidChunks, 0,
-                        $"{views[i].name} lost its fine surface tier and would silently "
-                      + "fall back to coarse coverage geometry.");
-                }
+                Assert.Greater(metrics.UploadedGeometryBytes, 0ul,
+                    $"{views[i].name} did not render through the authoritative "
+                  + "feature-aware surface extractor.");
             }
 
             timer.Stop();

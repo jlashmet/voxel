@@ -36,19 +36,6 @@ namespace VoxelEngine.Rendering
     /// </summary>
     public static class VoxelRenderBridge
     {
-        public enum SolidSurfaceBackend : byte
-        {
-            GpuSurfaceNets = 0,
-            FeatureAwareCpu = 1,
-        }
-
-        /// <summary>
-        /// GPU extraction is the runtime default. Feature-aware CPU extraction remains an
-        /// explicit temporary compatibility backend for retained profile blocks until their
-        /// sub-voxel payload is consumed by the compute extractor.
-        /// </summary>
-        public static SolidSurfaceBackend SolidBackend = SolidSurfaceBackend.GpuSurfaceNets;
-
         /// <summary>Supplies the current world. Null when nothing is driving the engine.</summary>
         public static System.Func<VoxelWorldView> Source;
 
@@ -78,8 +65,12 @@ namespace VoxelEngine.Rendering
         /// loading screens, offline captures and photo modes may temporarily spend more to reach
         /// convergence without changing geometry semantics or introducing another extractor.
         /// </summary>
-        public static double SolidBuildBudgetMs = 0.20;
+        // Four asynchronous worker shards each receive this bounded admission/publication slice.
+        // 0.50 ms keeps worst-case render-thread orchestration near 2 ms while Burst topology
+        // proceeds off-thread; 0.20 ms fell below useful post-job granularity on Apple silicon.
+        public static double SolidBuildBudgetMs = 0.50;
         public static double WaterBuildBudgetMs = 0.15;
+        public static bool SurfaceBuildEnabled = true;
 
         /// <summary>
         /// Diagnostic tint for continuous extracted geometry. White is production; fixed-view

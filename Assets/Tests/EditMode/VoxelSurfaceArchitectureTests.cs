@@ -157,7 +157,8 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Greater(builtInMoss.DecorationRadiusQ4, 0);
             Assert.Greater(builtInMoss.DecorationHeightQ4, 0);
             Assert.Greater(builtInMoss.DecorationDropQ4, 0);
-            Assert.Greater(builtInMoss.DecorationSeparation, 0);
+            Assert.GreaterOrEqual(builtInMoss.DecorationSeparation, 0,
+                "zero is the intentional dense-mat spacing; negative spacing is invalid");
             Assert.AreNotEqual(0, builtInMoss.DecorationFaceMask & (1 << 3));
         }
 
@@ -747,11 +748,126 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(1, cache.KnownCount);
             Assert.AreEqual(1, cache.DirtyCount);
 
-            // Brick four begins the next 32-voxel extraction chunk. Because it lies on all three
+            // Brick eight begins the next 64-voxel extraction chunk. Because it lies on all three
             // local zero faces, the one-brick sampling halo also invalidates seven neighbours.
-            cache.InvalidateSurfaceBricks(new[] { new int3(4, 4, 4) });
+            cache.InvalidateSurfaceBricks(new[] { new int3(8, 8, 8) });
             Assert.AreEqual(8, cache.KnownCount);
             Assert.AreEqual(8, cache.DirtyCount);
+        }
+
+        [Test]
+        public void SolidWorkersPartitionEveryChunkExactlyOnce()
+        {
+            var owners = new int[5, 5, 5];
+            var workers = new CpuTransvoxelChunkCache[VoxelSurfaceScheduler.SolidWorkerCount];
+            try
+            {
+                for (int worker = 0; worker < workers.Length; worker++)
+                    workers[worker] = new CpuTransvoxelChunkCache
+                    {
+                        ShardIndex = worker, ShardCount = workers.Length
+                    };
+                var bricks = new[]
+                {
+                    new int3(-8, -8, -8), new int3(0, 0, 0), new int3(4, 4, 4),
+                    new int3(9, 3, -5), new int3(16, 16, 16),
+                };
+                for (int b = 0; b < bricks.Length; b++)
+                    for (int worker = 0; worker < workers.Length; worker++)
+                        workers[worker].InvalidateSurfaceBricks(new[] { bricks[b] });
+
+                int total = 0;
+                for (int worker = 0; worker < workers.Length; worker++)
+                    total += workers[worker].KnownCount;
+                using var reference = new CpuTransvoxelChunkCache();
+                for (int b = 0; b < bricks.Length; b++)
+                    reference.InvalidateSurfaceBricks(new[] { bricks[b] });
+                Assert.AreEqual(reference.KnownCount, total,
+                    "sharding must neither duplicate nor lose extraction chunks");
+            }
+            finally
+            {
+                for (int i = 0; i < workers.Length; i++) workers[i]?.Dispose();
+            }
+        }
+
+        [Test]
+        public void TimingWindowReportsOrderedRollingPercentilesWithoutGrowing()
+        {
+            var timing = new VoxelTimingWindow();
+            for (int i = 1; i <= 256; i++) timing.Add(i);
+
+            VoxelTimingSummary summary = timing.Snapshot();
+            Assert.AreEqual(256ul, summary.SampleCount);
+            Assert.AreEqual(256.0, summary.LastMs);
+            Assert.AreEqual(192.0, summary.P50Ms,
+                "the fixed 128-sample window should have discarded samples 1 through 128");
+            Assert.AreEqual(250.0, summary.P95Ms);
+            Assert.AreEqual(256.0, summary.MaxMs);
+        }
+
+        [Test]
+        public void TimingWindowClampsInvalidNegativeDurationsAndIgnoresNonFiniteValues()
+        {
+            var timing = new VoxelTimingWindow();
+            timing.Add(-4.0);
+            timing.Add(double.NaN);
+            timing.Add(double.PositiveInfinity);
+
+            VoxelTimingSummary summary = timing.Snapshot();
+            Assert.AreEqual(1ul, summary.SampleCount);
+            Assert.AreEqual(0.0, summary.LastMs);
+            Assert.AreEqual(0.0, summary.P95Ms);
+        }
+
+        [Test]
+        public void RegionInvalidationOnlyTouchesOwnerAndSamplingHalo()
+        {
+            Assert.True(CpuTransvoxelChunkCache.ChunkOverlapsRegion(
+                new int3(0, 0, 0), int3.zero));
+            Assert.True(CpuTransvoxelChunkCache.ChunkOverlapsRegion(
+                new int3(7, 0, 0), new int3(1, 0, 0)),
+                "the last chunk before a region boundary samples its neighbour");
+            Assert.False(CpuTransvoxelChunkCache.ChunkOverlapsRegion(
+                new int3(0, 0, 0), new int3(0, 0, 1)),
+                "an entire neighbouring region must not be invalidated for one-sample padding");
+            Assert.False(CpuTransvoxelChunkCache.ChunkOverlapsRegion(
+                new int3(32, 0, 0), int3.zero));
+        }
+
+        [Test]
+        public void ProfileBlocksAreIndexedOnlyIntoIntersectingChunks()
+        {
+            using var cache = new CpuTransvoxelChunkCache();
+            var table = new RegionTable(1, Allocator.Temp);
+            var pool = new BrickPool(1, Allocator.Temp);
+            var cameraObject = new UnityEngine.GameObject("profile-index-test-camera");
+            var store = new ProfileBlockStore();
+            try
+            {
+                store.Add(new ProfileBlock
+                {
+                    Centre = new int3(16, 16, 16), InnerRadiusQ4 = 32,
+                    OuterRadiusQ4 = 64, FrontQ4 = 0, BackQ4 = 64,
+                    StartDirection = new int2(1, 0), EndDirection = new int2(0, 1),
+                    Axis = 2, Material = 6, SurfaceStyle = SurfaceStyles.MasonryJoint,
+                });
+                MaterialPalette palette = default;
+                palette.Register(6, 200, DestructionClass.Crumble,
+                                 SurfaceStyles.MasonryJoint, uint.MaxValue);
+                SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
+                CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
+                cache.Prepare(ref table, in pool, in palette, in surfaces, in coatings, store,
+                              cameraObject.AddComponent<UnityEngine.Camera>(), 0.1f, 0, 0.0);
+                Assert.AreEqual(1, cache.IndexedProfileBlockCount(int3.zero));
+                Assert.AreEqual(0, cache.IndexedProfileBlockCount(new int3(8, 0, 0)));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(cameraObject);
+                table.Dispose();
+                pool.Dispose();
+            }
         }
 
         [Test]

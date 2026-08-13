@@ -87,8 +87,6 @@ namespace VoxelEngine.Showcase
             _camera.allowHDR = false;
             _originalStoneAlbedo = VoxelPresentationCatalogue.MaterialAlbedo[StoneMaterial];
             _originalMossTint = VoxelPresentationCatalogue.CoatingTint[Coatings.Moss];
-            VoxelRenderBridge.SolidBackend =
-                VoxelRenderBridge.SolidSurfaceBackend.FeatureAwareCpu;
             VoxelRenderBridge.SolidBuildBudgetMs = _buildBudgetMs;
             VoxelRenderBridge.WaterBuildBudgetMs = 0;
             VoxelRenderBridge.SkyZenith = new Color(0.341f, 0.600f, 0.847f, 1f);
@@ -105,8 +103,6 @@ namespace VoxelEngine.Showcase
             VoxelRenderBridge.Changes = null;
             VoxelPresentationCatalogue.MaterialAlbedo[StoneMaterial] = _originalStoneAlbedo;
             VoxelPresentationCatalogue.CoatingTint[Coatings.Moss] = _originalMossTint;
-            VoxelRenderBridge.SolidBackend =
-                VoxelRenderBridge.SolidSurfaceBackend.GpuSurfaceNets;
             if (_targetImage != null) Destroy(_targetImage);
             DisposeWorld();
         }
