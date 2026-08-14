@@ -22,5 +22,12 @@ namespace VoxelEngine.Storage.Api
         /// boundary represented by <see cref="Version"/>.
         /// </summary>
         bool TryAcquireRegion(int3 regionCoord, out RegionReadView view);
+
+        /// <summary>
+        /// Acquires the resident region containing a world-space logical read block. This keeps
+        /// region/block partitioning inside Storage rather than duplicating layout math in every
+        /// collision or rendering consumer.
+        /// </summary>
+        bool TryAcquireRegionContainingBlock(int3 worldBlockCoord, out RegionReadView view);
     }
 }
