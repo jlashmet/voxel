@@ -52,6 +52,21 @@ jobs:
           fi
           echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
 
+      - name: Wait for Unity editor to become available
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              echo 'Timed out waiting for another Unity editor to exit.' >&2
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            echo 'Another Unity editor is active; waiting 5 seconds...'
+            sleep 5
+          done
+
       - name: Run EditMode tests
         shell: bash
         run: |
