@@ -15,7 +15,7 @@ namespace MountingForce.WorldGen.Architecture
 
     /// <summary>
     /// Optional reusable detail requested for an opening. ArchBay deliberately describes a socket
-    /// rather than arch geometry so the existing arch generator can remain the single author of
+    /// rather than arch geometry so a reusable arch generator can remain the single author of
     /// voussoirs, piers, imposts and masonry joints.
     /// </summary>
     public enum BuildingDetailSocketKind : byte
