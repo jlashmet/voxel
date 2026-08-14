@@ -2,6 +2,9 @@ name: Tree Performance Benchmark
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - tree-gpu-lod
 
 concurrency:
   group: tree-performance-${{ github.ref }}
