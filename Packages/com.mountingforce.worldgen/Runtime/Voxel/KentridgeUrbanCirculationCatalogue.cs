@@ -10,8 +10,9 @@ using VoxelEngine.Core.Terrain;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Coarse voxel adapter for the secondary urban-circulation plan. Like the massing adapter,
-    /// this is intentionally a visual/terrain realiser rather than the final architectural grammar.
+    /// Coarse voxel adapter for secondary urban circulation. Contour lanes remain smooth Landform;
+    /// semantic stair streets compile to crisp Infrastructure so alternate vertical routes are
+    /// visually/navigation-legible rather than disappearing into the hillside surface.
     /// </summary>
     public static class KentridgeUrbanCirculationCatalogue
     {
@@ -19,14 +20,15 @@ namespace MountingForce.WorldGen.Voxel
         private const int SurfaceThicknessDm = 3;
         private const int BuriedFootingDm = 5;
         private const int ClearAboveDm = 24;
+        private const int StairRiseDm = 2;
 
         private readonly struct ConnectorBuild
         {
             public readonly KentridgeUrbanConnector Connector;
             public readonly int3 Footprint;
             public readonly ExplicitPlacement Placement;
-            public readonly int Length;
-            public readonly int Width;
+            public readonly int ExtentX;
+            public readonly int ExtentZ;
             public readonly int HeightDelta;
             public readonly int SupportDepth;
             public readonly int ClearHeight;
@@ -36,8 +38,8 @@ namespace MountingForce.WorldGen.Voxel
                 KentridgeUrbanConnector connector,
                 int3 footprint,
                 ExplicitPlacement placement,
-                int length,
-                int width,
+                int extentX,
+                int extentZ,
                 int heightDelta,
                 int supportDepth,
                 int clearHeight,
@@ -46,8 +48,8 @@ namespace MountingForce.WorldGen.Voxel
                 Connector = connector;
                 Footprint = footprint;
                 Placement = placement;
-                Length = length;
-                Width = width;
+                ExtentX = extentX;
+                ExtentZ = extentZ;
                 HeightDelta = heightDelta;
                 SupportDepth = supportDepth;
                 ClearHeight = clearHeight;
@@ -93,16 +95,19 @@ namespace MountingForce.WorldGen.Voxel
                 for (int p = 0; p < program.Length; p++)
                     catalogue.Program[programOffset + p] = program[p];
 
+                bool stairStreet = build.Connector.Kind == KentridgeUrbanConnectorKind.StairStreet;
                 catalogue.Definitions[i] = new FeatureDefinition
                 {
                     Name = new FixedString64Bytes(
                         "kentridge-urban-connector-" + build.Connector.Id),
-                    Kind = FeatureKind.Landform,
+                    Kind = stairStreet ? FeatureKind.Infrastructure : FeatureKind.Landform,
                     BasePlane = BasePlaneRule.FixedAltitude,
                     FixedAltitude = 0,
                     Footprint = build.Footprint,
                     MaxSlope = 32,
-                    Precedence = 23,
+                    // Contours belong with roads; stair streets must sit above smooth terrain and
+                    // anonymous fabric but remain below the more specialised access/gallery layers.
+                    Precedence = stairStreet ? (byte)89 : (byte)23,
                     ParameterOffset = 0,
                     ParameterCount = 0,
                     AnchorOffset = 0,
@@ -113,7 +118,7 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = 4,
+                    MaxPrimitives = stairStreet ? 64 : 4,
                 };
 
                 catalogue.ExplicitPlacements[i] = build.Placement;
@@ -153,61 +158,90 @@ namespace MountingForce.WorldGen.Voxel
             uint seed,
             int scale)
         {
-            if (!connector.IsHorizontal)
+            if (connector.LengthDm <= 0 || connector.WidthDm <= 0
+                || (!connector.IsHorizontal && !connector.IsVertical))
                 throw new InvalidOperationException(
-                    "The first Kentridge urban connector adapter expects a horizontal contour.");
+                    "Kentridge urban connector must be a non-zero orthogonal segment: " + connector.Id);
 
-            int startX = Math.Min(connector.StartDm.X, connector.EndDm.X);
-            int endX = Math.Max(connector.StartDm.X, connector.EndDm.X);
-            int zDm = connector.StartDm.Y;
-            int width = connector.WidthDm * scale;
-            int length = (endX - startX) * scale + 1;
+            bool horizontal = connector.IsHorizontal;
+            Int2 minPoint;
+            Int2 maxPoint;
+            int extentX;
+            int extentZ;
+            int originXDm;
+            int originZDm;
+            byte axis;
 
-            int targetStart = KentridgeVerticalProfile.SurfaceYAtDm(
-                connector.StartDm.X, connector.StartDm.Y, seed, scale);
-            int targetEnd = KentridgeVerticalProfile.SurfaceYAtDm(
-                connector.EndDm.X, connector.EndDm.Y, seed, scale);
-            int lowTarget = Math.Min(targetStart, targetEnd);
-            int highTarget = Math.Max(targetStart, targetEnd);
-            int delta = highTarget - lowTarget;
+            if (horizontal)
+            {
+                minPoint = connector.StartDm.X <= connector.EndDm.X
+                    ? connector.StartDm : connector.EndDm;
+                maxPoint = connector.StartDm.X <= connector.EndDm.X
+                    ? connector.EndDm : connector.StartDm;
+                extentX = connector.LengthDm * scale + 1;
+                extentZ = connector.WidthDm * scale;
+                originXDm = minPoint.X;
+                originZDm = minPoint.Y - connector.WidthDm / 2;
+                axis = 0;
+            }
+            else
+            {
+                minPoint = connector.StartDm.Y <= connector.EndDm.Y
+                    ? connector.StartDm : connector.EndDm;
+                maxPoint = connector.StartDm.Y <= connector.EndDm.Y
+                    ? connector.EndDm : connector.StartDm;
+                extentX = connector.WidthDm * scale;
+                extentZ = connector.LengthDm * scale + 1;
+                originXDm = minPoint.X - connector.WidthDm / 2;
+                originZDm = minPoint.Y;
+                axis = 2;
+            }
 
-            int midXDm = (connector.StartDm.X + connector.EndDm.X) / 2;
-            int naturalStart = TerrainSampler.HeightAt(
-                connector.StartDm.X * scale, zDm * scale, seed);
+            int targetMin = KentridgeVerticalProfile.SurfaceYAtDm(
+                minPoint.X, minPoint.Y, seed, scale);
+            int targetMax = KentridgeVerticalProfile.SurfaceYAtDm(
+                maxPoint.X, maxPoint.Y, seed, scale);
+            int lowTarget = Math.Min(targetMin, targetMax);
+            int delta = Math.Abs(targetMax - targetMin);
+            if (targetMin > targetMax)
+                axis = (byte)(axis | BoxEmitter.ReverseRampBit);
+
+            Int2 middle = new Int2(
+                (minPoint.X + maxPoint.X) / 2,
+                (minPoint.Y + maxPoint.Y) / 2);
+            int naturalMinEnd = TerrainSampler.HeightAt(
+                minPoint.X * scale, minPoint.Y * scale, seed);
             int naturalMid = TerrainSampler.HeightAt(
-                midXDm * scale, zDm * scale, seed);
-            int naturalEnd = TerrainSampler.HeightAt(
-                connector.EndDm.X * scale, zDm * scale, seed);
-            int minNatural = Math.Min(naturalStart, Math.Min(naturalMid, naturalEnd));
-            int maxNatural = Math.Max(naturalStart, Math.Max(naturalMid, naturalEnd));
+                middle.X * scale, middle.Y * scale, seed);
+            int naturalMaxEnd = TerrainSampler.HeightAt(
+                maxPoint.X * scale, maxPoint.Y * scale, seed);
+            int minNatural = Math.Min(naturalMinEnd, Math.Min(naturalMid, naturalMaxEnd));
+            int maxNatural = Math.Max(naturalMinEnd, Math.Max(naturalMid, naturalMaxEnd));
 
             int fillHeight = (FillDepthDm + SurfaceThicknessDm) * scale;
             int buried = BuriedFootingDm * scale;
             int supportDepth = Math.Max(0, lowTarget - minNatural) + buried;
             int clearHeight =
                 ClearAboveDm * scale + delta + Math.Max(0, maxNatural - lowTarget);
-            byte axis = 0;
-            if (targetStart > targetEnd)
-                axis = (byte)(axis | BoxEmitter.ReverseRampBit);
 
             return new ConnectorBuild(
                 connector,
                 new int3(
-                    length,
+                    extentX,
                     supportDepth + fillHeight + clearHeight,
-                    width),
+                    extentZ),
                 new ExplicitPlacement
                 {
                     Position = new int3(
-                        startX * scale,
+                        originXDm * scale,
                         lowTarget - fillHeight - supportDepth,
-                        zDm * scale - width / 2),
+                        originZDm * scale),
                     Orientation = 0,
                     OverrideOffset = 0,
                     OverrideCount = 0,
                 },
-                length,
-                width,
+                extentX,
+                extentZ,
                 delta,
                 supportDepth,
                 clearHeight,
@@ -218,29 +252,25 @@ namespace MountingForce.WorldGen.Voxel
             ConnectorBuild build,
             VoxelWorldGenSettings settings)
         {
+            return build.Connector.Kind == KentridgeUrbanConnectorKind.StairStreet
+                ? StairProgram(build, settings)
+                : SmoothProgram(build, settings);
+        }
+
+        private static int[] SmoothProgram(
+            ConnectorBuild build,
+            VoxelWorldGenSettings settings)
+        {
             int scale = settings.VoxelsPerDecimetre;
             int fillHeight = (FillDepthDm + SurfaceThicknessDm) * scale;
             byte surface = settings.Materials.Resolve(MaterialRole.RoadSurface);
             byte support = settings.Materials.Resolve(MaterialRole.FoundationStone);
             var b = new ProgramBuilder();
 
-            b.Carve(
-                0,
-                build.SupportDepth + fillHeight,
-                0,
-                build.Length,
-                build.ClearHeight,
-                build.Width);
-
-            if (build.SupportDepth > 0)
-                b.Box(
-                    0, 0, 0,
-                    build.Length, build.SupportDepth, build.Width,
-                    support);
-
+            CarveAndSupport(b, build, fillHeight, support);
             b.Box(
                 0, build.SupportDepth, 0,
-                build.Length, fillHeight, build.Width,
+                build.ExtentX, fillHeight, build.ExtentZ,
                 surface);
 
             if (build.HeightDelta > 0)
@@ -248,13 +278,80 @@ namespace MountingForce.WorldGen.Voxel
                     0,
                     build.SupportDepth + fillHeight,
                     0,
-                    build.Length,
+                    build.ExtentX,
                     build.HeightDelta,
-                    build.Width,
+                    build.ExtentZ,
                     build.RampAxis,
                     surface);
 
             return b.Finish();
+        }
+
+        private static int[] StairProgram(
+            ConnectorBuild build,
+            VoxelWorldGenSettings settings)
+        {
+            if (!build.Connector.IsVertical)
+                throw new InvalidOperationException(
+                    "Kentridge stair-street realization currently expects a vertical city segment.");
+
+            int scale = settings.VoxelsPerDecimetre;
+            int fillHeight = (FillDepthDm + SurfaceThicknessDm) * scale;
+            byte stone = settings.Materials.Resolve(MaterialRole.FoundationStone);
+            var b = new ProgramBuilder();
+
+            CarveAndSupport(b, build, fillHeight, stone);
+
+            int nominalRise = Math.Max(1, StairRiseDm * scale);
+            int stepCount = Math.Max(2, (build.HeightDelta + nominalRise - 1) / nominalRise);
+            stepCount = Math.Min(stepCount, 48);
+            bool highAtMin = (build.RampAxis & BoxEmitter.ReverseRampBit) != 0;
+
+            for (int step = 0; step < stepCount; step++)
+            {
+                int start = build.ExtentZ * step / stepCount;
+                int end = build.ExtentZ * (step + 1) / stepCount;
+                int slice = Math.Max(1, end - start);
+                int level;
+                if (stepCount <= 1)
+                    level = 0;
+                else if (highAtMin)
+                    level = build.HeightDelta * (stepCount - 1 - step) / (stepCount - 1);
+                else
+                    level = build.HeightDelta * step / (stepCount - 1);
+
+                b.Box(
+                    0,
+                    build.SupportDepth,
+                    start,
+                    build.ExtentX,
+                    fillHeight + level,
+                    slice,
+                    stone);
+            }
+
+            return b.Finish();
+        }
+
+        private static void CarveAndSupport(
+            ProgramBuilder b,
+            ConnectorBuild build,
+            int fillHeight,
+            byte support)
+        {
+            b.Carve(
+                0,
+                build.SupportDepth + fillHeight,
+                0,
+                build.ExtentX,
+                build.ClearHeight,
+                build.ExtentZ);
+
+            if (build.SupportDepth > 0)
+                b.Box(
+                    0, 0, 0,
+                    build.ExtentX, build.SupportDepth, build.ExtentZ,
+                    support);
         }
 
         private sealed class ProgramBuilder

@@ -11,9 +11,9 @@ namespace MountingForce.WorldGen.Voxel
     /// Temporary coarse renderer for KentridgeUrbanMassingPlan.
     ///
     /// This layer intentionally knows almost nothing about building grammar. It converts each semantic
-    /// frontage run into simple 2/3-storey roof masses so CI can validate city-scale density, skyline,
-    /// and axial voids. A richer building-grammar backend can replace this class without changing the
-    /// urban organisation contract.
+    /// block frontage into simple 2/3-storey roof masses so CI can validate city-scale density,
+    /// skyline, corner turns, axial voids, and court entrances. A richer building-grammar backend can
+    /// replace this class without changing the urban organisation contract.
     /// </summary>
     public static class KentridgeUrbanMassingCatalogue
     {
@@ -21,10 +21,14 @@ namespace MountingForce.WorldGen.Voxel
         private const int TwoStoreyDefinition = 0;
         private const int ThreeStoreyDefinition = 1;
 
+        // Keep the whole coarse-module envelope square. ShapeProgram rotates finished primitives
+        // inside the declared footprint, so a square envelope makes quarter-turn block frontage
+        // orientation-independent and keeps region-overlap tests exact.
         private const int ModuleWidthDm = 58;
-        private const int ModuleDepthDm = 52;
+        private const int ModuleDepthDm = 58;
         private const int ModulePitchDm = 80;
         private const int SideMarginDm = 3;
+        private const int ModuleEnvelopeDm = ModuleWidthDm + SideMarginDm * 2;
         private const int FoundationDm = 6;
         private const int FloorDm = 34;
         private const int RoofDm = 24;
@@ -50,6 +54,20 @@ namespace MountingForce.WorldGen.Voxel
                 EmbedBelowShelfDm = embedBelowShelfDm;
                 Frontage = frontage;
             }
+        }
+
+        private readonly struct RunSegment
+        {
+            public readonly int StartDm;
+            public readonly int EndDm;
+
+            public RunSegment(int startDm, int endDm)
+            {
+                StartDm = startDm;
+                EndDm = endDm;
+            }
+
+            public int LengthDm => EndDm - StartDm;
         }
 
         public static FeatureCatalogue Build(
@@ -125,34 +143,82 @@ namespace MountingForce.WorldGen.Voxel
             List<MassSite> twoStorey,
             List<MassSite> threeStorey)
         {
-            if (!run.IsHorizontal)
+            if (!run.IsHorizontal && !run.IsVertical)
                 throw new InvalidOperationException(
-                    "The first Kentridge massing visual adapter currently expects horizontal runs: "
-                    + run.Id);
+                    "Kentridge urban massing expects orthogonal frontage: " + run.Id);
 
-            int targetOccupiedDm = run.LengthDm * run.CoveragePercent / 100;
-            int count = Math.Max(1, (targetOccupiedDm + ModulePitchDm - 1) / ModulePitchDm);
-            int startX = Math.Min(run.StartDm.X, run.EndDm.X);
-            int endX = Math.Max(run.StartDm.X, run.EndDm.X);
-            int z = run.StartDm.Y;
-
-            for (int i = 0; i < count; i++)
+            RunSegment[] segments = Segments(run);
+            int siteIndex = 0;
+            for (int segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
             {
-                int centreX = startX + (endX - startX) * (2 * i + 1) / (2 * count);
-                int x = centreX - ModuleWidthDm / 2;
-                int storeys = SelectStoreys(run, seed, runIndex, i);
-                int definitionId = storeys >= 3 ? ThreeStoreyDefinition : TwoStoreyDefinition;
+                RunSegment segment = segments[segmentIndex];
+                if (segment.LengthDm <= 0) continue;
 
-                var site = new MassSite(
-                    definitionId,
-                    new Int2(x, z),
-                    run.ElevationSampleDm,
-                    run.EmbedBelowShelfDm,
-                    run.Frontage);
+                int targetOccupiedDm = segment.LengthDm * run.CoveragePercent / 100;
+                int count = Math.Max(1, (targetOccupiedDm + ModulePitchDm - 1) / ModulePitchDm);
 
-                if (definitionId == ThreeStoreyDefinition) threeStorey.Add(site);
-                else twoStorey.Add(site);
+                for (int i = 0; i < count; i++)
+                {
+                    int centreAlong = segment.StartDm
+                        + segment.LengthDm * (2 * i + 1) / (2 * count);
+                    int storeys = SelectStoreys(run, seed, runIndex, siteIndex++);
+                    int definitionId = storeys >= 3 ? ThreeStoreyDefinition : TwoStoreyDefinition;
+
+                    var site = new MassSite(
+                        definitionId,
+                        SiteOrigin(run, centreAlong),
+                        run.ElevationSampleDm,
+                        run.EmbedBelowShelfDm,
+                        run.Frontage);
+
+                    if (definitionId == ThreeStoreyDefinition) threeStorey.Add(site);
+                    else twoStorey.Add(site);
+                }
             }
+        }
+
+        private static RunSegment[] Segments(KentridgeFrontageRun run)
+        {
+            int start = run.IsHorizontal
+                ? Math.Min(run.StartDm.X, run.EndDm.X)
+                : Math.Min(run.StartDm.Y, run.EndDm.Y);
+            int end = run.IsHorizontal
+                ? Math.Max(run.StartDm.X, run.EndDm.X)
+                : Math.Max(run.StartDm.Y, run.EndDm.Y);
+
+            if (!run.HasGap)
+                return new[] { new RunSegment(start, end) };
+
+            int gapStart = Math.Max(start, run.GapCentreDm - run.GapWidthDm / 2);
+            int gapEnd = Math.Min(end, gapStart + run.GapWidthDm);
+
+            // The semantic gap is a real opening into the block court. Rendering the two sides as
+            // independent frontage segments prevents the coarse proxy from accidentally bridging it.
+            return new[]
+            {
+                new RunSegment(start, gapStart),
+                new RunSegment(gapEnd, end),
+            };
+        }
+
+        private static Int2 SiteOrigin(KentridgeFrontageRun run, int centreAlongDm)
+        {
+            int half = ModuleEnvelopeDm / 2;
+
+            if (run.IsHorizontal)
+            {
+                int z = run.StartDm.Y;
+                if (run.Frontage == FrontageDirection.North)
+                    z -= ModuleEnvelopeDm;
+
+                return new Int2(centreAlongDm - half, z);
+            }
+
+            int x = run.StartDm.X;
+            if (run.Frontage == FrontageDirection.East)
+                x -= ModuleEnvelopeDm;
+
+            return new Int2(x, centreAlongDm - half);
         }
 
         private static int SelectStoreys(
@@ -190,9 +256,9 @@ namespace MountingForce.WorldGen.Voxel
                 BasePlane = BasePlaneRule.FixedAltitude,
                 FixedAltitude = 0,
                 Footprint = new int3(
-                    (ModuleWidthDm + SideMarginDm * 2) * scale,
+                    ModuleEnvelopeDm * scale,
                     heightDm * scale,
-                    (ModuleDepthDm + SideMarginDm * 2) * scale),
+                    ModuleEnvelopeDm * scale),
                 MaxSlope = 32,
                 // Macro mass sits above terrain/circulation and below detailed hillside fabric
                 // (90+) and stable gameplay buildings (100+).
@@ -313,7 +379,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                   material, 0, 0, (int)PrimitiveMode.Fill);
+                   material, (int)PrimitiveMode.Fill);
             }
 
             public void Prism(
@@ -324,7 +390,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
-                   (int)profile, material, 0, 0, (int)PrimitiveMode.Fill);
+                   (int)profile, material, (int)PrimitiveMode.Fill);
             }
 
             public int[] Finish()

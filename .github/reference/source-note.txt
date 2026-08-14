@@ -1,0 +1,1 @@
+Source supplied in this project conversation on 2026-08-13 at 1024x1536. CI should derive working-resolution references from the checked-in master image, not embedded miniature references.
