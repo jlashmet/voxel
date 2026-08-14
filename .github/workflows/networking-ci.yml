@@ -59,15 +59,17 @@ jobs:
           ROOT="$GITHUB_WORKSPACE/Artifacts/NetworkingCI"
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
 
-          "${{ steps.unity.outputs.path }}" \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode \
             -nographics \
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform EditMode \
             -testResults "$ROOT/results.xml" \
-            -logFile "$ROOT/unity.log"
+            -logFile "$ROOT/unity.log" \
+            -quit
           status=$?
 
           if [[ $status -ne 0 ]]; then
