@@ -34,7 +34,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(GeneratedBuildingVoxelRealizer.EmitLocal(
                 composition,
                 new int3(10, 20, 30),
-                decimetresPerVoxel: 1,
+                voxelsPerDecimetre: 1,
                 wallDepthVoxels: 6,
                 style,
                 seed: 0x51504F50u,
@@ -64,6 +64,41 @@ namespace VoxelEngine.Tests.EditMode
                 "Generated building realization must use the Core arch emitter, not a box approximation.");
             Assert.GreaterOrEqual(carveCount, composition.Openings.Length,
                 "Every semantic facade opening should create a concrete wall carve.");
+        }
+
+        [Test]
+        public void WorldgenVoxelScaleExpandsBuildingAndArchTogether()
+        {
+            BuildingCompositionForm composition = BuildingCompositionCompiler.Resolve(
+                Form(17, StructureArchetype.Shop, 112, 2),
+                0x51504F50u);
+            BuildingOpening door = FindDoor(composition);
+            var archStyle = new ArchFeatureStyle(7, 2, 3, 0);
+            var style = new GeneratedBuildingVoxelStyle(
+                4, 5, 6, 1, 0, 6, archStyle);
+
+            using var output = new NativeList<Primitive>(Allocator.Temp);
+            Assert.IsTrue(GeneratedBuildingVoxelRealizer.EmitLocal(
+                composition, int3.zero,
+                voxelsPerDecimetre: 2,
+                wallDepthVoxels: 12,
+                style,
+                seed: 0x51504F50u,
+                output));
+
+            Primitive frontWall = output[1];
+            Assert.AreEqual(composition.Massing.WidthDm * 2, frontWall.B.x - frontWall.A.x + 1);
+            Assert.AreEqual(composition.StoreyHeightDm * composition.Massing.Storeys * 2,
+                frontWall.B.y - frontWall.A.y + 1);
+
+            BuildingDetailRequest request = BuildingDetailLowering.Collect(composition)[0];
+            BuildingArchPlacement placement = BuildingArchIntegration.Compile(
+                request, 2, 12, archStyle,
+                0x51504F50u ^ DetailSeed(door.Storey, door.Bay));
+            Assert.AreEqual(request.CenterOffsetDm * 2, placement.CenterOffsetVoxels);
+            Assert.AreEqual(request.BaseHeightDm * 2, placement.BaseHeightVoxels);
+            Assert.AreEqual(request.WidthDm * 2, placement.Definition.Arch.ClearSpan);
+            Assert.AreEqual(12, placement.Definition.Arch.Depth);
         }
 
         [Test]
