@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core;
+using VoxelEngine.Foundation;
 using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Core.Edits
@@ -134,7 +134,7 @@ namespace VoxelEngine.Core.Edits
         /// Line brush: single-file voxel line from origin using Bresenham's algorithm along the direction vector.
         /// This produces a 1-voxel-wide path — suitable for building fences, beams, or edges.
         /// </summary>
-        /// <param name="start">Starting voxel coordinate of the line.</param>
+        /// <param name="start">Starting voxel coordinate of the line in voxel coordinates.</param>
         /// <param name="direction">Direction as an integer vector. Only its direction matters;
         ///   magnitude is ignored and the line is walked <paramref name="length"/> voxels.
         ///   Integer rather than float3 by design: this determines which voxels are written,
