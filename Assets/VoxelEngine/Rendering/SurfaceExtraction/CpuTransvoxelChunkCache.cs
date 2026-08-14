@@ -9,6 +9,7 @@ using UnityEngine.Rendering;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction
