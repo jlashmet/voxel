@@ -19,7 +19,21 @@ namespace MountingForce.WorldGen.Voxel
         public const int SidewalkWidthDm = 10;
         public const int RoadOverlapDm = 2;
         public const byte SidewalkPrecedence = 59;
-        private const int VerticalSearchVoxels = TerrainSampler.MaxHeight + 32;
+        /// <summary>
+        /// Vertical extent of a sidewalk's placement footprint, in voxels.
+        ///
+        /// Deliberately a fixed window rather than <c>TerrainSampler.MaxHeight + 32</c>, which is
+        /// what it used to be. That coupling read as "search the whole world height", and it was
+        /// harmless only while the world ceiling was 488 voxels. Raising the ceiling to 60000 for
+        /// kilometre-scale mountains took this to 60032 and every sidewalk definition failed
+        /// <c>FeatureDefinition.FootprintWithinBudget</c> (cap 1280), so the catalogue threw
+        /// FootprintExceedsBudget and the showcase could not construct a world at all.
+        ///
+        /// A sidewalk is town furniture on the valley floor; it has no business declaring a
+        /// footprint that spans six kilometres of altitude. 520 preserves the search window this
+        /// catalogue actually had when it was written and authored against.
+        /// </summary>
+        private const int VerticalSearchVoxels = 520;
         private const int ProgramLengthPerStrip = 12;
 
         private readonly struct Strip
