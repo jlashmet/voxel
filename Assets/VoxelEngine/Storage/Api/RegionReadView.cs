@@ -43,8 +43,6 @@ namespace VoxelEngine.Storage.Api
     /// </summary>
     public readonly struct RegionReadView
     {
-        // These constants describe the current read granule only inside the API implementation.
-        // They are intentionally not public world-layout vocabulary and do not expose pool slots.
         private const int BlockEdgeLog2 = 3;
         private const int BlockEdge = 1 << BlockEdgeLog2;
         private const int BlockEdgeMask = BlockEdge - 1;
@@ -68,6 +66,9 @@ namespace VoxelEngine.Storage.Api
         public bool IsCreated => _encodedBlockRefs.IsCreated;
         public bool HasMips => _occupancyMips.IsCreated && _mipLevelCount > 0;
         public int MipLevelCount => _mipLevelCount;
+
+        /// <summary>Number of logical read blocks along one region edge.</summary>
+        public int BlockEdgeCount => RegionBlockEdge;
 
         internal RegionReadView(
             int3 regionCoord,
@@ -93,6 +94,34 @@ namespace VoxelEngine.Storage.Api
             _mixedSurfaceSemantics = mixedSurfaceSemantics;
             _mixedBoundarySamples = mixedBoundarySamples;
             _mixedOccupancy = mixedOccupancy;
+        }
+
+        /// <summary>True when this view owns the world-space logical read block.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool ContainsWorldBlock(int3 worldBlockCoord) =>
+            math.all((worldBlockCoord >> RegionBlockEdgeLog2) == RegionCoord);
+
+        /// <summary>Describes a world-space logical read block owned by this view.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryGetWorldBlock(int3 worldBlockCoord, out VoxelReadBlock block)
+        {
+            if (!ContainsWorldBlock(worldBlockCoord))
+            {
+                block = default;
+                return false;
+            }
+
+            int3 localBlock = worldBlockCoord - (RegionCoord << RegionBlockEdgeLog2);
+            return TryGetBlock(localBlock, out block);
+        }
+
+        /// <summary>True when any voxel in a world-space logical read block is occupied.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool IsWorldBlockOccupied(int3 worldBlockCoord)
+        {
+            if (!ContainsWorldBlock(worldBlockCoord)) return false;
+            int3 localBlock = worldBlockCoord - (RegionCoord << RegionBlockEdgeLog2);
+            return IsBlockOccupied(localBlock);
         }
 
         /// <summary>Describes a local read block without revealing a Storage pool slot.</summary>
@@ -170,10 +199,6 @@ namespace VoxelEngine.Storage.Api
             return true;
         }
 
-        /// <summary>
-        /// Copies one mixed block into caller-owned immutable snapshot buffers. Uniform and empty
-        /// blocks return false because their complete value is already in <see cref="VoxelReadBlock"/>.
-        /// </summary>
         public bool TryCopyMixedBlock(
             int3 localBlock,
             NativeArray<byte> materials,
@@ -201,7 +226,6 @@ namespace VoxelEngine.Storage.Api
             return true;
         }
 
-        /// <summary>True when any voxel in the local block is occupied.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsBlockOccupied(int3 localBlock)
         {
@@ -217,11 +241,6 @@ namespace VoxelEngine.Storage.Api
             return aggregate != 0UL;
         }
 
-        /// <summary>
-        /// Samples the local region at a requested mip level. Negative levels read the exact
-        /// voxel, level zero aggregates one read block, and stored levels read the region mip
-        /// pyramid. Returns false only when the coordinate or requested mip is unavailable.
-        /// </summary>
         public bool TrySample(int3 localVoxel, int level, out bool occupied, out byte material)
         {
             occupied = false;
@@ -267,7 +286,6 @@ namespace VoxelEngine.Storage.Api
             return true;
         }
 
-        /// <summary>Whether this local read block was authored as hard structure geometry.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsHardSurfaceBlock(int3 localBlock)
         {
