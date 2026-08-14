@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.Tests.PlayMode",
   "references": [
     "VoxelEngine.Core",
+    "VoxelEngine.Storage.Api",
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
     "VoxelEngine.Streaming",
