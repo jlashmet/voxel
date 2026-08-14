@@ -434,6 +434,9 @@ namespace VoxelEngine.Rendering.Vegetation
             EnsureSkeleton(tree);
             if (tree.Skeleton == null || IsFullyRemoved(tree)) return;
 
+            if (_countSnapshotTriangles)
+                TotalTriangleCountAllLods += EstimateTriangleCountAllLods(tree.Skeleton) + 8;
+
             tree.LodMeshes = new Mesh[3];
             tree.BaseBarkIndices = new int[3][];
             tree.BaseLeafIndices = new int[3][];
@@ -441,6 +444,8 @@ namespace VoxelEngine.Rendering.Vegetation
             tree.LeafIndexOwners = new int[3][];
 
             BuildStandaloneTreeLod(tree, 0);
+            if (tree.ResolvedRemovedBranches.Count > 0)
+                ApplyRemovedGeometryLod(tree, 0);
             _pendingDynamicLods.Enqueue(new PendingDynamicLod(tree, 1));
             _pendingDynamicLods.Enqueue(new PendingDynamicLod(tree, 2));
             RebuildStandaloneImpostor(tree);
@@ -751,7 +756,7 @@ namespace VoxelEngine.Rendering.Vegetation
                                          MaterialPropertyBlock properties)
         {
             if (mesh == null) return;
-            Graphics.DrawMesh(mesh, matrix, ProceduralTreeMaterials.Leaves, 0, null, 0,
+            Graphics.DrawMesh(mesh, matrix, ProceduralTreeMaterials.Impostor, 0, null, 0,
                               properties, ShadowCastingMode.Off, true);
         }
 
