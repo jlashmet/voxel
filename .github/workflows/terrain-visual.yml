@@ -59,7 +59,11 @@ jobs:
           git add Assets/Scenes/TerrainLookdev.unity Assets/Scenes/TerrainLookdev.unity.meta 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "Generate wired terrain lookdev scene [skip ci]"
-            git push
+            # A previous cancelled terrain run can finish its scene push after this run has checked
+            # out, making this convenience commit non-fast-forward. The locally generated scene is
+            # already the one used by the render below, so a persistence race must not suppress the
+            # visual test. A later run will persist the newest generated scene.
+            git push || echo "WARNING: generated-scene push raced another terrain update; continuing with local generated scene"
           fi
 
       - name: Render production-path terrain screenshot
