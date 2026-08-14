@@ -25,6 +25,7 @@ namespace VoxelEngine.Showcase
 
             ApplyTonalOverlay();
             ApplyVegetatedCap();
+            ApplyForegroundContrastAccents();
             ApplyVisibleDetails();
         }
 
@@ -38,15 +39,15 @@ namespace VoxelEngine.Showcase
             Vector4 grassSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 grassSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
 
+            // Region diagnostics show the upper third about 0.08 luma too dark and the middle
+            // about 0.04 too dark, while the foreground mean is already close. Keep the near turf
+            // fixed and brighten only the depth-ramped mid/far materials.
             SetTurfPresentation(TerrainTurfNear, new Color(0.225f, 0.315f, 0.130f), grassSampling, grassSurface);
-            SetTurfPresentation(TerrainTurfMid,  new Color(0.390f, 0.460f, 0.185f), grassSampling, grassSurface);
-            SetTurfPresentation(TerrainTurfFar,  new Color(0.620f, 0.610f, 0.275f), grassSampling, grassSurface);
-            SetTurfPresentation(Mat.Grass,       new Color(0.360f, 0.440f, 0.175f), grassSampling, grassSurface);
+            SetTurfPresentation(TerrainTurfMid,  new Color(0.430f, 0.500f, 0.225f), grassSampling, grassSurface);
+            SetTurfPresentation(TerrainTurfFar,  new Color(0.700f, 0.690f, 0.340f), grassSampling, grassSurface);
+            SetTurfPresentation(Mat.Grass,       new Color(0.370f, 0.450f, 0.180f), grassSampling, grassSurface);
             SetTurfPresentation(Mat.Moss,        new Color(0.175f, 0.260f, 0.095f), grassSampling, grassSurface);
 
-            // Use the renderer's existing triplanar masonry/ground textures and normal arrays
-            // for the authored rocks and turf. These weights produced the best measured match so
-            // far and keep the production voxel surface path intact.
             SetMaterialPresentation(Mat.TerrainLimestone,
                 new Color(0.720f, 0.650f, 0.465f), 0.22f, 0.12f, 0.80f, 0.020f);
             SetMaterialPresentation(Mat.TerrainPathStone,
@@ -54,10 +55,6 @@ namespace VoxelEngine.Showcase
             SetMaterialPresentation(Mat.Sand,
                 new Color(0.545f, 0.505f, 0.285f), 0.10f, 0.05f, 0.92f, 0.010f);
 
-            // The large parallel bands in the failed capture are exposed TerrainEarth on stepped
-            // valley faces, not the grass texture. Keep those faces in the production material
-            // system but remove the stock earth texture and tint them toward shadowed moss so the
-            // terrain reads as continuous turf instead of striped soil shelves.
             SetMaterialPresentation(Mat.TerrainEarth,
                 new Color(0.315f, 0.365f, 0.155f), 0.00f, 0.025f, 0.92f, 0.012f);
 
