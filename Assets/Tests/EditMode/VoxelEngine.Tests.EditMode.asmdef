@@ -9,6 +9,7 @@
     "VoxelEngine.Streaming",
     "VoxelEngine.Tiering",
     "VoxelEngine.Structures",
+    "VoxelEngine.Vegetation",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Architecture",
     "MountingForce.WorldGen.Voxel",
