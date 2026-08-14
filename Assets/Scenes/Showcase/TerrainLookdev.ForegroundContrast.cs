@@ -11,15 +11,16 @@ namespace VoxelEngine.Showcase
         private bool _foregroundContrastApplied;
 
         /// <summary>
-        /// The reference foreground has roughly twice the luma variance of the current render:
-        /// dark mossy banks sit directly beside pale limestone and the bright path. Add a small
-        /// number of coherent foreground masses instead of uniformly sprinkling more detail.
+        /// The reference uses dark moss banks beside discrete pale blocks. The base lookdev's
+        /// partially buried limestone shelves read as broad horizontal geological strata, so the
+        /// base limestone presentation is subdued elsewhere and this pass restores pale stone as
+        /// smaller, clearly separated blocks across the depth of the valley.
         /// </summary>
         private void ApplyForegroundContrastAccents()
         {
             if (!_built || _foregroundContrastApplied) return;
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 650_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 1_050_000);
             var rng = new Unity.Mathematics.Random(Seed ^ 0xF09Eu);
 
             for (int cluster = 0; cluster < 42; cluster++)
@@ -44,11 +45,39 @@ namespace VoxelEngine.Showcase
                     int zz = z + rng.NextInt(-rz, rz + 1);
                     int hx = rng.NextInt(2, 6);
                     int hz = rng.NextInt(2, 6);
-                    int hy = rng.NextInt(1, 4);
-                    int y = HeightVoxel(xx, zz) + hy - 1;
+                    int hy = rng.NextInt(2, 5);
+                    int y = HeightVoxel(xx, zz) + hy;
                     StampRoundedBox(ref writer, new int3(xx, y, zz), new int3(hx, hy, hz),
-                        1, Mat.TerrainLimestone, SurfaceStyles.Planar,
+                        1, TerrainLimestoneAccent, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.58f);
+                }
+            }
+
+            // Carry distinct stone marks into the middle and far valley. Keep them smaller with
+            // distance and place their centres above the local surface so they read as cuboids,
+            // not contour slices cut through the hill.
+            for (int cluster = 0; cluster < 120; cluster++)
+            {
+                int z = rng.NextInt(90, 535);
+                int side = rng.NextBool() ? -1 : 1;
+                int x = (int)math.round(ValleyCenterMetres(z * 0.1f) * 10f)
+                      + side * rng.NextInt(36, 150);
+                if (x <= TerrainXMin + 7 || x >= TerrainXMax - 7) continue;
+                if (z < 280 && math.abs(x - PathCenterVoxel(z)) < 16) continue;
+
+                int pieces = rng.NextInt(1, 4);
+                for (int p = 0; p < pieces; p++)
+                {
+                    int xx = x + rng.NextInt(-6, 7);
+                    int zz = z + rng.NextInt(-5, 6);
+                    int maxHalf = z > 360 ? 4 : 5;
+                    int hx = rng.NextInt(2, maxHalf + 1);
+                    int hz = rng.NextInt(2, maxHalf + 1);
+                    int hy = rng.NextInt(1, 3);
+                    int y = HeightVoxel(xx, zz) + hy;
+                    StampRoundedBox(ref writer, new int3(xx, y, zz), new int3(hx, hy, hz),
+                        1, TerrainLimestoneAccent, SurfaceStyles.Planar,
+                        rng.NextFloat() < 0.38f);
                 }
             }
 
