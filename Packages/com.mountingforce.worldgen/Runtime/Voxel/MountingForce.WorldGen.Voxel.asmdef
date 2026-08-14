@@ -4,6 +4,7 @@
   "references": [
     "MountingForce.WorldGen.Core",
     "VoxelEngine.Core",
+    "VoxelEngine.Vegetation",
     "VoxelEngine.Structures",
     "Unity.Collections",
     "Unity.Mathematics"
