@@ -32,10 +32,17 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout
+      - name: Checkout without deleting Unity import cache
         uses: actions/checkout@v4
         with:
-          clean: true
+          clean: false
+
+      - name: Reset tracked and non-cache files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
 
       - name: Locate Unity editor
         id: unity
@@ -76,9 +83,12 @@ jobs:
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
 
-          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+          UNITY_MAX_RSS_MB=8192 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh \
             -batchmode \
             -nographics \
+            -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform EditMode \
