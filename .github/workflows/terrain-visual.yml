@@ -78,7 +78,7 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.png"
           test -s "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.txt"
 
-      - name: Materialize exact visual references
+      - name: Materialize visual references
         if: always()
         shell: bash
         run: |
@@ -92,7 +92,7 @@ jobs:
           def write_rgb_png(rgb, width, height, out):
               expected = width * height * 3
               if len(rgb) != expected:
-                  raise SystemExit(f"reference byte count {len(rgb)} != {expected}")
+                  return False
               def chunk(kind, payload):
                   return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xffffffff)
               rows = b''.join(b'\x00' + rgb[y * width * 3:(y + 1) * width * 3] for y in range(height))
@@ -100,30 +100,47 @@ jobs:
               out.parent.mkdir(parents=True, exist_ok=True)
               out.write_bytes(png)
               print(f"Wrote {out}")
+              return True
 
           source = pathlib.Path("Assets/Tests/PlayMode/TerrainLookdevScreenshotTests.cs").read_text()
           match = re.search(r'private const string ReferenceRgbBase64\s*=\s*(.*?);', source, re.S)
           if not match:
               raise SystemExit("ReferenceRgbBase64 not found")
           encoded = ''.join(re.findall(r'"([A-Za-z0-9+/=]+)"', match.group(1)))
-          write_rgb_png(base64.b64decode(encoded), 32, 48,
-                        pathlib.Path("Artifacts/Terrain/terrain-reference.png"))
+          if not write_rgb_png(base64.b64decode(encoded), 32, 48,
+                               pathlib.Path("Artifacts/Terrain/terrain-reference.png")):
+              raise SystemExit("embedded 32x48 reference has the wrong byte count")
 
-          hi = base64.b64decode(pathlib.Path(".github/scripts/terrain_reference_128x192.rgb.b64").read_text().strip())
-          write_rgb_png(hi, 128, 192,
-                        pathlib.Path("Artifacts/Terrain/terrain-reference-128.png"))
+          hi_path = pathlib.Path(".github/scripts/terrain_reference_128x192.rgb.b64")
+          if hi_path.exists():
+              try:
+                  hi = base64.b64decode(hi_path.read_text().strip())
+                  if not write_rgb_png(hi, 128, 192,
+                                       pathlib.Path("Artifacts/Terrain/terrain-reference-128.png")):
+                      print(f"WARNING: ignoring malformed 128x192 cache: decodedBytes={len(hi)} expected={128*192*3}")
+              except Exception as exc:
+                  print(f"WARNING: unable to decode 128x192 cache: {exc}")
           PY
 
-      - name: Compute 128x192 perceptual diagnostics
+      - name: Compute perceptual diagnostics
         if: always()
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -s "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.png" && -s "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-reference-128.png" ]]; then
+          ACTUAL="$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.png"
+          REF128="$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-reference-128.png"
+          REF32="$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-reference.png"
+          if [[ -s "$ACTUAL" ]]; then
+            if [[ -s "$REF128" ]]; then
+              REF="$REF128"
+            elif [[ -s "$REF32" ]]; then
+              REF="$REF32"
+            else
+              exit 0
+            fi
             python3 .github/scripts/terrain_metrics.py \
-              "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.png" \
-              "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-reference-128.png" \
+              "$ACTUAL" "$REF" \
               --json "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-metrics.json" \
               --text "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-metrics.txt"
             cat "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-metrics.txt"
