@@ -19,8 +19,6 @@ namespace VoxelEngine.Showcase
         {
             ConfigureTurfPresentation();
 
-            // Directional sun creates readable hill/rock modelling while a warm, bright sky fill
-            // keeps the sunlit reference from collapsing into muddy olive shadows.
             VoxelRenderBridge.SunDirection = new Vector3(-0.50f, 0.81f, -0.31f).normalized;
             VoxelRenderBridge.SkyHorizon = new Color(1.00f, 0.93f, 0.62f, 1f);
             VoxelRenderBridge.SkyZenith = new Color(0.88f, 0.87f, 0.58f, 1f);
@@ -39,24 +37,23 @@ namespace VoxelEngine.Showcase
             Vector4 grassSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 grassSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
 
-            // Broad clean value families: dark mossy foreground, warm green middle distance,
-            // yellow-green sunlit far valley. Fine variation remains subtle and continuous.
             SetTurfPresentation(TerrainTurfNear, new Color(0.225f, 0.315f, 0.130f), grassSampling, grassSurface);
             SetTurfPresentation(TerrainTurfMid,  new Color(0.390f, 0.460f, 0.185f), grassSampling, grassSurface);
             SetTurfPresentation(TerrainTurfFar,  new Color(0.620f, 0.610f, 0.275f), grassSampling, grassSurface);
             SetTurfPresentation(Mat.Grass,       new Color(0.360f, 0.440f, 0.175f), grassSampling, grassSurface);
             SetTurfPresentation(Mat.Moss,        new Color(0.175f, 0.260f, 0.095f), grassSampling, grassSurface);
 
+            // Use the renderer's existing triplanar masonry/ground textures and normal arrays
+            // instead of flattening them almost completely. Geometry still supplies the macro
+            // silhouette; these weights add the stone mottling and grassy micro-detail visible
+            // in the target without introducing UV seams.
             SetMaterialPresentation(Mat.TerrainLimestone,
-                new Color(0.720f, 0.650f, 0.465f), 0.08f, 0.08f, 0.80f, 0.010f);
+                new Color(0.720f, 0.650f, 0.465f), 0.22f, 0.12f, 0.80f, 0.020f);
             SetMaterialPresentation(Mat.TerrainPathStone,
-                new Color(0.615f, 0.550f, 0.345f), 0.06f, 0.04f, 0.90f, 0.008f);
+                new Color(0.615f, 0.550f, 0.345f), 0.16f, 0.08f, 0.90f, 0.014f);
             SetMaterialPresentation(Mat.Sand,
-                new Color(0.545f, 0.505f, 0.285f), 0.05f, 0.03f, 0.92f, 0.006f);
+                new Color(0.545f, 0.505f, 0.285f), 0.10f, 0.05f, 0.92f, 0.010f);
 
-            // The semantic aliases for pink/blue/yellow came from unrelated structure materials;
-            // give them terrain-specific presentation here so flowers read as soft wildflowers
-            // rather than red cloth pixels, gold metal, or waterfall cyan.
             SetMaterialPresentation(Mat.FlowerWhite,
                 new Color(0.965f, 0.940f, 0.790f), 0f, 0f, 0.88f, 0f);
             SetMaterialPresentation(Mat.FlowerYellow,
@@ -71,11 +68,11 @@ namespace VoxelEngine.Showcase
         {
             VoxelPresentationCatalogue.MaterialAlbedo[material] = new Vector4(colour.r, colour.g, colour.b, 1f);
             VoxelPresentationCatalogue.MaterialSampling[material] =
-                new Vector4(sampling.x, sampling.y, sampling.z, 0.045f);
+                new Vector4(sampling.x, sampling.y, sampling.z, 0.10f);
             VoxelPresentationCatalogue.MaterialSurface[material] =
-                new Vector4(surface.x, 0.045f, 0.90f, 0f);
+                new Vector4(surface.x, 0.06f, 0.90f, 0f);
             VoxelPresentationCatalogue.MaterialVariation[material] =
-                new Vector4(0.68f, 0.008f, 0.004f, 0.008f);
+                new Vector4(0.68f, 0.014f, 0.007f, 0.010f);
         }
 
         private static void SetMaterialPresentation(byte material, Color colour,
@@ -97,7 +94,6 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _tonalOverlayApplied) return;
 
-            // Presentation-only: do not raise ground after path/rocks have already been authored.
             var writer = new VoxelBrush(_table, _pool, in _palette, 900_000);
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
@@ -143,11 +139,11 @@ namespace VoxelEngine.Showcase
         private static byte GroundToneCoating(int x, int z)
         {
             int fromPath = math.abs(x - PathCenterVoxel(z));
-            if (z < 60 && fromPath > 26)
+            if (z < 95 && fromPath > 24)
             {
                 float mossField = math.sin(x * 0.055f + z * 0.031f)
                                 + 0.55f * math.sin(x * 0.024f - z * 0.047f + 1.2f);
-                if (mossField > 0.72f) return Coatings.Moss;
+                if (mossField > 0.58f) return Coatings.Moss;
             }
             return Coatings.None;
         }
