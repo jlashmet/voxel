@@ -1,35 +1,57 @@
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Features;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
 {
-    [BurstCompile]
-    public struct TransvoxelDensityJob : IJobParallelFor
+    internal struct TransvoxelDensityBrick
     {
-        [ReadOnly] public RegionTable Table;
-        [ReadOnly] public BrickPool Pool;
-        [ReadOnly] public SurfaceCatalogue Catalogue;
-        public int3 ChunkOriginVoxel;
-        public int ChunkEdge;
-        public int SourceStep;
-        public int Padding;
+        // 0 = empty, 1 = uniform, 2 = mixed payload in MixedVoxels.
+        public byte Kind;
+        public byte UniformMaterial;
+        public int MixedOffset;
+    }
+
+    /// <summary>
+    /// Evaluates the 35^3 smooth-field lattice for one 12.8 m Transvoxel chunk.
+    ///
+    /// The main thread snapshots only the bricks surrounding the chunk and packs mixed-brick voxel
+    /// payloads into a compact array. The job therefore performs no RegionTable hashing, no region
+    /// lifetime access, and no BrickPool reads while gameplay can edit/evict the authoritative
+    /// world. It is a pure read-only calculation over immutable snapshot data.
+    /// </summary>
+    [BurstCompile]
+    internal struct TransvoxelDensityJob : IJobParallelFor
+    {
+        [ReadOnly] public NativeArray<TransvoxelDensityBrick> Bricks;
+        [ReadOnly] public NativeArray<byte> MixedVoxels;
+        [ReadOnly] public NativeArray<ushort> MixedSurfaceSemantics;
+        [ReadOnly] public NativeArray<byte> MixedBoundarySamples;
+        public MaterialPalette Palette;
+        public SurfaceCatalogue Catalogue;
+        public CoatingCatalogue Coatings;
 
         [WriteOnly] public NativeArray<float> Density;
         [WriteOnly] public NativeArray<byte> Materials;
         [WriteOnly] public NativeArray<uint> SurfaceSemantics;
         [WriteOnly] public NativeArray<byte> BoundarySamples;
 
+        public int3 ChunkOriginVoxel;
+        public int3 BrickCacheOrigin;
+        public int BrickCacheEdge;
+        public int GridSize;
+        public int Padding;
+        public int SourceStep;
+
         public void Execute(int index)
         {
-            int paddedEdge = ChunkEdge + Padding * 2;
-            int plane = paddedEdge * paddedEdge;
-            int gz = index / plane;
-            int remainder = index - gz * plane;
-            int gy = remainder / paddedEdge;
-            int gx = remainder - gy * paddedEdge;
+            int gx = index % GridSize;
+            int yz = index / GridSize;
+            int gy = yz % GridSize;
+            int gz = yz / GridSize;
+
             int3 p = ChunkOriginVoxel
                    + (new int3(gx, gy, gz) - Padding) * SourceStep;
 
@@ -66,52 +88,32 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
             }
 
             float curvature = CurvatureFactor(centreDefinition);
-            float centreValue = centreSolid ? 0.5f : -0.5f;
-            float sum = centreValue * 4f;
-            float weight = 4f;
-            byte bestMaterial = centre;
-            uint bestSurface = centreSurface;
-            float bestContribution = centreSolid ? 4f : -4f;
+            float centreWeight = math.lerp(0.55f, 0.40f, curvature);
+            float mass = centreSolid ? centreWeight : 0f;
+            dominantMaterial = centreSolid ? centre : (byte)0;
+            dominantSurface = centreSolid ? centreSurface : 0u;
 
-            SampleNeighbour(p + new int3(1, 0, 0), 1f, ref sum, ref weight,
-                            ref bestContribution, ref bestMaterial, ref bestSurface);
-            SampleNeighbour(p + new int3(-1, 0, 0), 1f, ref sum, ref weight,
-                            ref bestContribution, ref bestMaterial, ref bestSurface);
-            SampleNeighbour(p + new int3(0, 1, 0), 1f, ref sum, ref weight,
-                            ref bestContribution, ref bestMaterial, ref bestSurface);
-            SampleNeighbour(p + new int3(0, -1, 0), 1f, ref sum, ref weight,
-                            ref bestContribution, ref bestMaterial, ref bestSurface);
-            SampleNeighbour(p + new int3(0, 0, 1), 1f, ref sum, ref weight,
-                            ref bestContribution, ref bestMaterial, ref bestSurface);
-            SampleNeighbour(p + new int3(0, 0, -1), 1f, ref sum, ref weight,
-                            ref bestContribution, ref bestMaterial, ref bestSurface);
+            mass += Add(p + new int3( 1,0,0), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(-1,0,0), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0, 1,0), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,-1,0), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,0, 1), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,0,-1), 0.06f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
 
-            dominantMaterial = bestContribution > 0f ? bestMaterial : (byte)0;
-            dominantSurface = bestContribution > 0f ? bestSurface : 0u;
-            return math.lerp(centreValue, sum / weight, curvature)
-                 + CoatingDisplacement(centreSurface);
+            mass += Add(p + new int3( 2,0,0), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(-2,0,0), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0, 2,0), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,-2,0), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,0, 2), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+            mass += Add(p + new int3(0,0,-2), 0.04f * curvature, centreSolid, in centreDefinition, ref dominantMaterial, ref dominantSurface);
+
+            return mass - 0.5f + (centreSolid ? CoatingDisplacement(centreSurface) : 0f);
         }
 
-        private void SampleNeighbour(
-            int3 p,
-            float neighbourWeight,
-            ref float sum,
-            ref float weight,
-            ref float bestContribution,
-            ref byte bestMaterial,
-            ref uint bestSurface)
+        private float CoatingDisplacement(uint surface)
         {
-            byte material = ReadMaterial(p, out uint surface, out _);
-            bool solid = IsSolidSample(material);
-            surface = ResolveSurface(material, surface);
-            float signed = solid ? 0.5f : -0.5f;
-            sum += signed * neighbourWeight;
-            weight += neighbourWeight;
-            float contribution = signed * neighbourWeight;
-            if (contribution <= bestContribution) return;
-            bestContribution = contribution;
-            bestMaterial = material;
-            bestSurface = surface;
+            byte coating = (byte)(surface >> 16);
+            return Coatings.Get(coating).Displacement * (1f / 64f);
         }
 
         private bool HasOppositeOccupancyNeighbour(int3 p, bool centreSolid)
@@ -124,63 +126,95 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
                 || IsSolidSample(ReadMaterial(p + new int3(0, 0, -1), out _, out _)) != centreSolid;
         }
 
-        private byte ReadMaterial(int3 worldVoxel, out uint surface, out byte boundary)
+        private float Add(int3 p, float weight, bool centreSolid,
+                          in SurfaceStyleDefinition centreDefinition, ref byte dominantMaterial,
+                          ref uint dominantSurface)
         {
-            int3 regionCoord = worldVoxel >> VoxelDimensions.RegionVoxelEdgeLog2;
-            if (!Table.TryGetRegion(regionCoord, out Region region))
+            byte material = ReadMaterial(p, out uint surface, out _);
+            if (!IsSolidSample(material)) return 0f;
+            surface = ResolveSurface(material, surface);
+            if (dominantMaterial == 0)
+            {
+                dominantMaterial = material;
+                dominantSurface = surface;
+            }
+            if (!centreSolid) return weight;
+
+            SurfaceStyleDefinition neighbourDefinition = Catalogue.Get((ushort)surface);
+            SurfaceJoinRule join = Catalogue.GetJoin(centreDefinition.JoinGroup,
+                                                     neighbourDefinition.JoinGroup);
+            if (join.Compatibility != SurfaceCompatibility.Join
+                || join.Continuity == SurfaceContinuity.Discontinuous)
+                return weight;
+
+            // Smooth-compatible neighbours share their reconstruction influence. This is the
+            // pairwise rule that lets curvature propagate without allowing a style to decide
+            // unilaterally how a neighbour is rebuilt.
+            float neighbourCurvature = CurvatureFactor(neighbourDefinition);
+            return weight * math.lerp(1f, neighbourCurvature,
+                math.saturate(join.BlendWidth * 0.5f));
+        }
+
+        private static bool IsSolidSample(byte material) =>
+            material != 0 && material != 11 && material != 16;
+
+        private static float CurvatureFactor(in SurfaceStyleDefinition definition)
+        {
+            if (definition.Reconstruction == SurfaceReconstruction.Planar
+                || definition.Reconstruction == SurfaceReconstruction.Sharp
+                || definition.Reconstruction == SurfaceReconstruction.Cubic) return 0f;
+            return definition.Curvature / 255f;
+        }
+
+        private uint ResolveSurface(byte material, uint surface)
+        {
+            ushort style = (ushort)surface;
+            if (style == SurfaceStyles.MaterialDefault)
+                style = Palette.GetDefaultSurfaceStyle(material);
+            if (style == SurfaceStyles.MaterialDefault)
+                style = SurfaceStyles.Smooth;
+            return (surface & 0xFFFF0000u) | style;
+        }
+
+        private byte ReadMaterial(int3 p, out uint surface, out byte boundary)
+        {
+            // Arithmetic right shift gives floor division for negative world coordinates.
+            int3 worldBrick = new int3(p.x >> 3, p.y >> 3, p.z >> 3);
+            int3 localBrick = worldBrick - BrickCacheOrigin;
+            if ((uint)localBrick.x >= (uint)BrickCacheEdge
+                || (uint)localBrick.y >= (uint)BrickCacheEdge
+                || (uint)localBrick.z >= (uint)BrickCacheEdge)
             {
                 surface = 0;
                 boundary = 0;
-                return VoxelDimensions.MaterialEmpty;
+                return 0;
             }
 
-            int3 localVoxel = worldVoxel & VoxelDimensions.RegionVoxelEdgeMask;
-            int3 brickCoord = localVoxel >> VoxelDimensions.BrickEdgeLog2;
-            int brickIndex = Region.BrickIndex(brickCoord.x, brickCoord.y, brickCoord.z);
-            BrickRef brick = region.BrickRefs[brickIndex];
-            if (brick.IsUniform)
+            int brickIndex = localBrick.x
+                           + BrickCacheEdge * (localBrick.y + BrickCacheEdge * localBrick.z);
+            TransvoxelDensityBrick brick = Bricks[brickIndex];
+            if (brick.Kind == 0)
+            {
+                surface = 0;
+                boundary = 0;
+                return 0;
+            }
+            if (brick.Kind == 1)
             {
                 surface = 0;
                 boundary = 0;
                 return brick.UniformMaterial;
             }
 
-            int3 voxelInBrick = localVoxel & VoxelDimensions.BrickEdgeMask;
-            int voxelIndex = VoxelDimensions.VoxelIndex(
-                voxelInBrick.x, voxelInBrick.y, voxelInBrick.z);
-            surface = Pool.GetSurfaceSemantics(brick.PoolIndex, voxelIndex).Storage;
-            boundary = Pool.GetBoundarySample(brick.PoolIndex, voxelIndex).Packed;
-            return Pool.GetVoxel(brick.PoolIndex, voxelIndex);
+            int vx = p.x & 7;
+            int vy = p.y & 7;
+            int vz = p.z & 7;
+            int voxelIndex = vx | (vy << 3) | (vz << 6);
+            surface = VoxelSurfaceSemantics.FromStorage(
+                MixedSurfaceSemantics[brick.MixedOffset + voxelIndex]).Packed;
+            boundary = MixedBoundarySamples[brick.MixedOffset + voxelIndex];
+            return MixedVoxels[brick.MixedOffset + voxelIndex];
         }
 
-        private uint ResolveSurface(byte material, uint stored)
-        {
-            if (stored != 0) return stored;
-            if (material == VoxelDimensions.MaterialEmpty) return 0;
-            return Catalogue.DefaultForMaterial(material).Storage;
-        }
-
-        private static bool IsSolidSample(byte material) =>
-            material != VoxelDimensions.MaterialEmpty;
-
-        private float CurvatureFactor(SurfaceStyleDefinition definition)
-        {
-            switch (definition.Reconstruction)
-            {
-                case SurfaceReconstruction.Smooth:
-                    return 0.82f;
-                case SurfaceReconstruction.Organic:
-                    return 0.94f;
-                default:
-                    return 0f;
-            }
-        }
-
-        private float CoatingDisplacement(uint surface)
-        {
-            if (surface == 0) return 0f;
-            VoxelSurfaceSemantics semantics = VoxelSurfaceSemantics.FromStorage((ushort)surface);
-            return semantics.Coating != 0 ? 0.025f : 0f;
-        }
     }
 }
