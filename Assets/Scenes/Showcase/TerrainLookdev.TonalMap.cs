@@ -47,11 +47,13 @@ namespace VoxelEngine.Showcase
             SetTurfPresentation(Mat.Grass,       new Color(0.360f, 0.440f, 0.175f), grassSampling, grassSurface);
             SetTurfPresentation(Mat.Moss,        new Color(0.175f, 0.260f, 0.095f), grassSampling, grassSurface);
 
-            // Rock placement now keeps limestone boxes above the local terrain instead of cutting
-            // wide shallow boxes through hillsides. With the structural source of the contour
-            // bands removed, use the pale warm limestone from the reference again.
+            // The base rock field still contains broad overlapping shelf mass that reads as long
+            // pale contour bands at this camera angle. Treat that material as mossy substrate and
+            // reserve the dedicated accent material for the clearly separated pale cuboids added
+            // after the vegetated cap. This preserves production geometry while removing the most
+            // obvious non-reference visual artifact.
             SetMaterialPresentation(Mat.TerrainLimestone,
-                new Color(0.720f, 0.650f, 0.465f), 0.22f, 0.12f, 0.80f, 0.020f);
+                new Color(0.410f, 0.435f, 0.205f), 0.05f, 0.04f, 0.90f, 0.010f);
             SetMaterialPresentation(TerrainLimestoneAccent,
                 new Color(0.720f, 0.650f, 0.465f), 0.22f, 0.12f, 0.80f, 0.020f);
             SetMaterialPresentation(Mat.TerrainPathStone,
