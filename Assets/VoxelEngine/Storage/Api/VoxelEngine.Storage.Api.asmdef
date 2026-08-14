@@ -1,0 +1,14 @@
+{
+  "name": "VoxelEngine.Storage.Api",
+  "rootNamespace": "VoxelEngine.Storage.Api",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
