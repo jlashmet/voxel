@@ -2,6 +2,7 @@
   "name": "VoxelEngine.Core",
   "rootNamespace": "VoxelEngine.Core",
   "references": [
+    "VoxelEngine.Foundation",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics"
