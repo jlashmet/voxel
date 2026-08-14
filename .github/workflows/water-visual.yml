@@ -12,6 +12,8 @@ on:
       - 'Assets/VoxelEngine/CI/Editor/StylizedWaterLookdev.shader.meta'
       - 'Assets/VoxelEngine/CI/Editor/AuthoredWaterPaintBootstrap.cs'
       - 'Assets/VoxelEngine/CI/Editor/AuthoredWaterPaintBootstrap.cs.meta'
+      - 'Assets/VoxelEngine/CI/Editor/WaterStudyAlphaPostprocess.cs'
+      - 'Assets/VoxelEngine/CI/Editor/WaterStudyAlphaPostprocess.cs.meta'
       - '.github/workflows/water-visual.yml'
 
 concurrency:
