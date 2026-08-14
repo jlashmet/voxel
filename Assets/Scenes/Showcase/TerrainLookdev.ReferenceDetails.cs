@@ -10,18 +10,12 @@ namespace VoxelEngine.Showcase
     {
         private bool _referenceDetailsApplied;
 
-        /// <summary>
-        /// A deliberately sparse final detail pass. The previous lookdev layered hundreds of turf
-        /// shelf banks and several independent rock passes over an already detailed base world;
-        /// viewed through planar surface extraction that became a field of horizontal stripes.
-        /// This pass instead adds only small organic turf cushions, readable flower clusters, and
-        /// a restrained set of pale limestone accents.
-        /// </summary>
         private void ApplyReferenceDetails()
         {
             if (!_built || _referenceDetailsApplied) return;
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 1_100_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 2_200_000);
+            RestyleBaseStoneRounded(ref writer);
             BuildReferenceTufts(ref writer);
             BuildReferenceFlowers(ref writer);
             BuildReferenceRockAccents(ref writer);
@@ -128,7 +122,7 @@ namespace VoxelEngine.Showcase
                     int hy = depth < 0.34f ? rng.NextInt(1, 4) : rng.NextInt(1, 3);
                     int y = FinalTerrainTopVoxel(x, zz) + hy;
                     StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
-                        1, TerrainLimestoneAccent, SurfaceStyles.Planar,
+                        1, TerrainLimestoneAccent, SurfaceStyles.Rounded,
                         rng.NextFloat() < math.lerp(0.56f, 0.20f, depth));
                 }
             }
