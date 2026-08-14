@@ -65,8 +65,6 @@ namespace MountingForce.WorldGen.Voxel
             uint seed,
             int scale)
         {
-            // Small deterministic planting pockets around private/working plots. Keeping these near
-            // plot edges gives flowers/ferns/bushes a composed garden feel instead of noise scatter.
             if (plot.District == DistrictKind.Civic || plot.District == DistrictKind.Market)
                 return;
 
@@ -102,24 +100,21 @@ namespace MountingForce.WorldGen.Voxel
             uint seed,
             int scale)
         {
-            // Weathered vines/moss belong primarily on back and side walls so entrances remain clear.
-            // Two wall anchors per plot give the generic profile system enough candidates to create
-            // occasional growth while staying visually intentional.
             WallFrame(plot, footprint,
-                      out int frontX, out int frontZ, out float3 frontNormal,
+                      out int backX, out int backZ, out float3 backNormal,
                       out int sideX, out int sideZ, out float3 sideNormal);
 
-            float baseY = SurfaceMetres(frontX, frontZ, seed, scale);
+            float baseY = SurfaceMetres(backX, backZ, seed, scale);
             int hash = StableHash(seed ^ 0x51A7u, plot.RoleId);
             float wet = plot.District == DistrictKind.Working ? 0.82f : 0.58f;
             float shade = 0.48f + Positive01(hash) * 0.45f;
 
             samples.Add(new VegetationSurfaceSample
             {
-                PositionMetres = new float3(frontX * DecimetreMetres,
+                PositionMetres = new float3(backX * DecimetreMetres,
                                             baseY + 1.2f,
-                                            frontZ * DecimetreMetres),
-                Normal = -frontNormal,
+                                            backZ * DecimetreMetres),
+                Normal = backNormal,
                 Surface = WallSurface(plot),
                 Moisture = wet,
                 Shade = shade,
