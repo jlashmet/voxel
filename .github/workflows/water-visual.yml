@@ -10,6 +10,8 @@ on:
       - 'Assets/VoxelEngine/CI/Editor/WaterStudyCapture.cs.meta'
       - 'Assets/VoxelEngine/CI/Editor/StylizedWaterLookdev.shader'
       - 'Assets/VoxelEngine/CI/Editor/StylizedWaterLookdev.shader.meta'
+      - 'Assets/VoxelEngine/CI/Editor/AuthoredWaterPaintBootstrap.cs'
+      - 'Assets/VoxelEngine/CI/Editor/AuthoredWaterPaintBootstrap.cs.meta'
       - '.github/workflows/water-visual.yml'
 
 concurrency:
