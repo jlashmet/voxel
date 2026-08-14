@@ -179,6 +179,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             public uint CoatingCatalogueVersion;
             public ulong CoatingCatalogueHash;
             public bool SnapshotTaken;
+            public bool HasOwnedSolid;
             public bool RequiresContinuousTopology;
             public double BuildStartSeconds;
             public double DensityScheduledSeconds;
@@ -489,6 +490,17 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                     if (!_densityJobScheduled)
                         ScheduleDensityJob(ref table, in pool, in palette, voxelSize);
 
+                    // Border invalidation intentionally discovers halo chunks. If the immutable
+                    // snapshot proves this chunk owns no solid cells, publish a complete empty
+                    // result without scanning/merging all 64^3 cells. Profile blocks still run
+                    // because their authored geometry may overlap an otherwise empty core.
+                    if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
+                    {
+                        _build.Phase = 3;
+                        _build.Cursor = 0;
+                        continue;
+                    }
+
                     if (!_build.RequiresContinuousTopology)
                     {
                         ScheduleSnapshotFacetedMaskJob();
@@ -628,7 +640,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 FaceMasks = _facetedMasks,
             };
             _build.FacetedScheduledSeconds = Time.realtimeSinceStartupAsDouble;
-            _facetedMaskJobHandle = job.Schedule(_facetedMasks.Length, 128, dependency);
+            _facetedMaskJobHandle = job.Schedule(
+                CellsPerAxis * CellsPerAxis * CellsPerAxis, 128, dependency);
             _facetedMaskJobScheduled = true;
         }
 
@@ -652,7 +665,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 FaceMasks = _facetedMasks,
             };
             _build.FacetedScheduledSeconds = Time.realtimeSinceStartupAsDouble;
-            _facetedMaskJobHandle = job.Schedule(_facetedMasks.Length, 128);
+            _facetedMaskJobHandle = job.Schedule(
+                CellsPerAxis * CellsPerAxis * CellsPerAxis, 128);
             _facetedMaskJobScheduled = true;
         }
 
@@ -921,6 +935,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _buildProfileBlocks = _profileBlocksByChunk.TryGetValue(
                 _build.Coordinate, out ProfileBlock[] blocks)
                 ? blocks : Array.Empty<ProfileBlock>();
+            _build.HasOwnedSolid = SnapshotCoreHasSolid();
+            if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
+            {
+                LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
+                _snapshotTiming.Add(LastSnapshotMs);
+                return;
+            }
 
             _build.RequiresContinuousTopology = _buildProfileBlocks.Length > 0;
             for (int i = 0; i < _densityBricks.Length
@@ -963,6 +984,30 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
             LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
             _snapshotTiming.Add(LastSnapshotMs);
+        }
+
+        private bool SnapshotCoreHasSolid()
+        {
+            int first = BrickCachePadding;
+            int end = first + BricksPerAxis;
+            for (int z = first; z < end; z++)
+            for (int y = first; y < end; y++)
+            for (int x = first; x < end; x++)
+            {
+                int index = x + BrickCacheEdge * (y + BrickCacheEdge * z);
+                TransvoxelDensityBrick brick = _densityBricks[index];
+                if (brick.Kind == 0) continue;
+                if (brick.Kind == 1)
+                {
+                    if (IsSolidSurfaceMaterial(brick.UniformMaterial)) return true;
+                    continue;
+                }
+
+                int endVoxel = brick.MixedOffset + VoxelDimensions.VoxelsPerBrick;
+                for (int voxel = brick.MixedOffset; voxel < endVoxel; voxel++)
+                    if (IsSolidSurfaceMaterial(_densityMixedVoxels[voxel])) return true;
+            }
+            return false;
         }
 
         private TransvoxelDensityBrick SnapshotBrick(ref RegionTable table, in BrickPool pool,

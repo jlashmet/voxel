@@ -176,6 +176,10 @@ namespace VoxelEngine.Showcase
             }
         }
         public int CastleBuildStage => _castleBuild.IsCreated ? _castleBuild.StageNumber : 0;
+        public int LastCastleStage { get; private set; }
+        public double LastCastleStageMs { get; private set; }
+        public int MaxCastleStage { get; private set; }
+        public double MaxCastleStageMs { get; private set; }
 
         public int PendingDetachedChunks => _detachedChunks.Count;
 
@@ -712,6 +716,9 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < _castleRegions.Count; i++)
                 if (!_generated.Contains(_castleRegions[i])) return false;
 
+            double stageStart = Time.realtimeSinceStartupAsDouble;
+            int stage = _castleBuild.IsCreated ? _castleBuild.StageNumber : 1;
+
             if (!_castleBuild.IsCreated)
             {
                 _castleBuild = CastleBuilder.BeginBuild(
@@ -720,7 +727,11 @@ namespace VoxelEngine.Showcase
             bool castleComplete;
             using (s_CastleMarker.Auto())
                 castleComplete = CastleBuilder.StepBuild(ref _castleBuild, ref _table, ref _pool);
-            if (!castleComplete) return true;
+            if (!castleComplete)
+            {
+                RecordCastleStage(stage, stageStart);
+                return true;
+            }
 
             CastlePlan plan = _pendingCastlePlan;
             int cx = plan.Centre.x;
@@ -741,7 +752,19 @@ namespace VoxelEngine.Showcase
             // Everything the castle touched has to be re-meshed and re-uploaded.
             for (int i = 0; i < _castleRegions.Count; i++)
                 _changes.PublishRegion(_castleRegions[i], VoxelChangeKind.All);
+            RecordCastleStage(stage, stageStart);
             return true;
+        }
+
+        private void RecordCastleStage(int stage, double startSeconds)
+        {
+            LastCastleStage = stage;
+            LastCastleStageMs = (Time.realtimeSinceStartupAsDouble - startSeconds) * 1000.0;
+            if (LastCastleStageMs > MaxCastleStageMs)
+            {
+                MaxCastleStage = stage;
+                MaxCastleStageMs = LastCastleStageMs;
+            }
         }
 
         private int BuildReferenceArch(int3 horizontalOrigin)

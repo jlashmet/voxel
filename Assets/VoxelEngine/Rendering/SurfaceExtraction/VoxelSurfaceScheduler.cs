@@ -295,7 +295,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             new("Voxel.Surface.WorkerAdmission");
         private static readonly ProfilerMarker s_VisibilityMarker =
             new("Voxel.Surface.Visibility");
-        public const int SolidWorkerCount = 4;
+        // Each lane owns fixed scratch storage and at most one in-flight chunk. Eight overlaps
+        // Burst extraction without saturating the 16-core target as the 12-lane experiment did;
+        // memory remains bounded by this constant rather than dirty or resident chunk count.
+        public const int SolidWorkerCount = 8;
         private readonly CpuTransvoxelChunkCache[] _solidWorkers =
             new CpuTransvoxelChunkCache[SolidWorkerCount];
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
