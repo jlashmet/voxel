@@ -11,17 +11,19 @@ namespace VoxelEngine.Showcase
         private bool _vegetatedCapApplied;
 
         /// <summary>
-        /// The heightfield is authored as nine-voxel-deep earth columns. A shallow four-voxel cap
-        /// still leaves earth visible wherever neighbouring columns differ sharply, producing the
-        /// long parallel contour risers that dominate the current capture. The reference is an
-        /// almost completely vegetated valley, so cover the full authored shell with turf. Rocks,
-        /// path stones and flowers are authored separately and remain on the production voxel path.
+        /// Normalize the base authored terrain into one continuous vegetated shell before the
+        /// dedicated presentation/detail passes run. Earlier base rock/turf fields were authored
+        /// before the reference-directed passes and still left hundreds of low planar boxes above
+        /// the heightfield. In the portrait camera those boxes read as dark horizontal contour
+        /// stripes even when recoloured green. Cover a shallow volume above the heightfield too,
+        /// then rebuild the path and flowers. The later foreground/detail passes add the intended
+        /// discrete limestone accents back on top using the normal production voxel path.
         /// </summary>
         private void ApplyVegetatedCap()
         {
             if (!_built || _vegetatedCapApplied) return;
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 2_250_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 4_000_000);
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
             {
@@ -29,9 +31,17 @@ namespace VoxelEngine.Showcase
                 byte material = GroundToneMaterial(x, z);
                 byte coating = GroundToneCoating(x, z);
 
-                for (int y = top - 8; y <= top; y++)
+                // Erase the legacy base-detail layer as well as the shell itself. Six voxels is
+                // enough to remove the shallow planar shelf boxes responsible for the striping,
+                // while leaving room for the later intentional rock/outcrop passes.
+                for (int y = top - 8; y <= top + 6; y++)
                     writer.SetStyled(x, y, z, material, SurfaceStyles.Smooth, coating);
             }
+
+            // The normalization pass intentionally covers the original early path/flowers too.
+            // Re-author those semantic features after the clean cap so they remain readable.
+            BuildPath(ref writer);
+            BuildFlowers(ref writer);
 
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain vegetated cap exceeded voxel authoring budget.");
