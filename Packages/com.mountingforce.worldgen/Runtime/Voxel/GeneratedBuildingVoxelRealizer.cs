@@ -54,7 +54,7 @@ namespace MountingForce.WorldGen.Voxel
         public static bool EmitLocal(
             in BuildingCompositionForm composition,
             int3 origin,
-            int decimetresPerVoxel,
+            int voxelsPerDecimetre,
             int wallDepthVoxels,
             in GeneratedBuildingVoxelStyle style,
             uint seed,
@@ -63,8 +63,8 @@ namespace MountingForce.WorldGen.Voxel
         {
             if (!composition.Massing.IsGenerated)
                 return false;
-            if (decimetresPerVoxel <= 0)
-                throw new ArgumentOutOfRangeException(nameof(decimetresPerVoxel));
+            if (voxelsPerDecimetre <= 0)
+                throw new ArgumentOutOfRangeException(nameof(voxelsPerDecimetre));
             if (wallDepthVoxels <= 0)
                 throw new ArgumentOutOfRangeException(nameof(wallDepthVoxels));
             if (style.WallMaterial == 0)
@@ -74,13 +74,13 @@ namespace MountingForce.WorldGen.Voxel
 
             BuildingCompositionCompiler.Validate(composition);
 
-            int width = composition.Massing.WidthDm / decimetresPerVoxel;
-            int depth = composition.Massing.DepthDm / decimetresPerVoxel;
-            int storeyHeight = composition.StoreyHeightDm / decimetresPerVoxel;
+            int width = checked(composition.Massing.WidthDm * voxelsPerDecimetre);
+            int depth = checked(composition.Massing.DepthDm * voxelsPerDecimetre);
+            int storeyHeight = checked(composition.StoreyHeightDm * voxelsPerDecimetre);
             if (width <= wallDepthVoxels * 2 || depth <= wallDepthVoxels * 2 || storeyHeight <= 0)
-                throw new ArgumentException("Voxel scale is too coarse for the generated building shell.", nameof(decimetresPerVoxel));
+                throw new ArgumentException("Voxel scale is too coarse for the generated building shell.", nameof(voxelsPerDecimetre));
 
-            int wallHeight = storeyHeight * composition.Massing.Storeys;
+            int wallHeight = checked(storeyHeight * composition.Massing.Storeys);
             int foundationHeight = style.FoundationHeightVoxels;
             int wallY = origin.y + foundationHeight;
             int order = output.Length;
@@ -124,16 +124,16 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < openings.Length; i++)
             {
                 BuildingOpening opening = openings[i];
-                int center = DivideRounded(opening.CenterOffsetDm, decimetresPerVoxel);
-                int openingWidth = opening.WidthDm / decimetresPerVoxel;
-                int openingHeight = opening.HeightDm / decimetresPerVoxel;
+                int center = checked(opening.CenterOffsetDm * voxelsPerDecimetre);
+                int openingWidth = checked(opening.WidthDm * voxelsPerDecimetre);
+                int openingHeight = checked(opening.HeightDm * voxelsPerDecimetre);
                 if (openingWidth <= 0 || openingHeight <= 0)
-                    throw new ArgumentException("Voxel scale collapsed a building opening.", nameof(decimetresPerVoxel));
+                    throw new ArgumentException("Voxel scale collapsed a building opening.", nameof(voxelsPerDecimetre));
 
                 int openingX = origin.x + width / 2 + center - openingWidth / 2;
                 int openingY = wallY
                              + opening.Storey * storeyHeight
-                             + opening.SillHeightDm / decimetresPerVoxel;
+                             + checked(opening.SillHeightDm * voxelsPerDecimetre);
                 output.Add(BoxEmitter.Box(
                     new int3(openingX, openingY, origin.z),
                     new int3(openingWidth, openingHeight, wallDepthVoxels + 1),
@@ -151,7 +151,7 @@ namespace MountingForce.WorldGen.Voxel
                         opening.HeightDm);
                     BuildingArchPlacement placement = BuildingArchIntegration.Compile(
                         request,
-                        decimetresPerVoxel,
+                        voxelsPerDecimetre,
                         wallDepthVoxels,
                         style.ArchStyle,
                         seed ^ DetailSeed(opening.Storey, opening.Bay));
@@ -184,13 +184,6 @@ namespace MountingForce.WorldGen.Voxel
             }
 
             return true;
-        }
-
-        private static int DivideRounded(int value, int divisor)
-        {
-            if (value >= 0)
-                return (value + divisor / 2) / divisor;
-            return (value - divisor / 2) / divisor;
         }
 
         private static uint DetailSeed(int storey, int bay)
