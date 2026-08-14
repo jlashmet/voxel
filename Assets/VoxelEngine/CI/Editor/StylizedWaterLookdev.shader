@@ -72,28 +72,37 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 half3 color=lerp(_ShallowColor.rgb,_MidColor.rgb,smoothstep(0.22,0.59,depth));
                 color=lerp(color,_DeepColor.rgb,smoothstep(0.68,0.92,depth));
 
+                float foregroundLift=smoothstep(0.54,0.86,uv.x)*smoothstep(0.56,0.92,1.0-uv.y)*pool;
+                color=lerp(color,_ShallowColor.rgb,foregroundLift*0.44);
+
                 half4 authored=SAMPLE_TEXTURE2D(_AuthoredWaterTex,sampler_AuthoredWaterTex,uv);
                 float authoredValid=smoothstep(0.04,0.28,authored.a)*pool;
                 float authoredLum=dot(authored.rgb,float3(0.299,0.587,0.114));
                 float authoredWhite=smoothstep(0.50,0.71,authoredLum)*authoredValid;
-                float authoredDark=(1.0-smoothstep(0.34,0.53,authoredLum))*authoredValid;
+                float darkSuppress=1.0-foregroundLift*0.82;
+                float authoredDark=(1.0-smoothstep(0.34,0.53,authoredLum))*authoredValid*darkSuppress;
                 float authoredLightMid=smoothstep(0.44,0.60,authoredLum)*(1.0-smoothstep(0.68,0.82,authoredLum))*authoredValid;
-                float authoredDarkMid=smoothstep(0.28,0.42,authoredLum)*(1.0-smoothstep(0.50,0.62,authoredLum))*authoredValid;
-                color=lerp(color,_ShallowColor.rgb,authoredLightMid*0.48);
-                color=lerp(color,_DeepColor.rgb,authoredDarkMid*0.46);
-                color=lerp(color,_FoamColor.rgb,authoredWhite*0.92);
-                color=lerp(color,_DeepColor.rgb,authoredDark*0.72);
+                float authoredDarkMid=smoothstep(0.28,0.42,authoredLum)*(1.0-smoothstep(0.50,0.62,authoredLum))*authoredValid*darkSuppress;
+                color=lerp(color,_ShallowColor.rgb,authoredLightMid*0.50);
+                color=lerp(color,_DeepColor.rgb,authoredDarkMid*0.42);
+                color=lerp(color,_FoamColor.rgb,authoredWhite*0.94);
+                color=lerp(color,_DeepColor.rgb,authoredDark*0.62);
 
                 float tonalFlow=(broadA-0.5)*0.15+(broadB-0.5)*0.08;
                 color=lerp(color,_ShallowColor.rgb,saturate(tonalFlow)*0.10*pool);
-                color=lerp(color,_DeepColor.rgb,saturate(-tonalFlow)*0.11*pool);
+                color=lerp(color,_DeepColor.rgb,saturate(-tonalFlow)*0.09*pool*darkSuppress);
 
-                float cluster=smoothstep(0.48,0.66,fbm(poolUvA*float2(8.0,10.0)+2.1));
-                float marksA=brushMark(poolUvA,21.0,56.0,1.4,0.79,0.050,0.14);
-                float marksB=brushMark(poolUvB+float2(0.04,0.02),32.0,84.0,7.8,0.85,0.036,0.105);
-                float flecks=brushMark(poolUvB+float2(0.09,-0.04),52.0,116.0,29.3,0.91,0.022,0.062);
-                float poolWhite=saturate((marksA*0.82+marksB*0.66+flecks*0.55)*cluster)*pool;
-                color=lerp(color,_FoamColor.rgb,poolWhite*0.82);
+                float cluster=smoothstep(0.45,0.64,fbm(poolUvA*float2(8.0,10.0)+2.1));
+                float cluster2=smoothstep(0.50,0.67,fbm(poolUvB*float2(12.0,9.0)+6.7));
+                float marksA=brushMark(poolUvA,20.0,54.0,1.4,0.72,0.050,0.15);
+                float marksB=brushMark(poolUvB+float2(0.04,0.02),31.0,82.0,7.8,0.80,0.036,0.11);
+                float flecks=brushMark(poolUvB+float2(0.09,-0.04),50.0,112.0,29.3,0.88,0.022,0.066);
+                float poolWhite=saturate((marksA*0.84+marksB*0.69+flecks*0.58)*cluster)*pool;
+                color=lerp(color,_FoamColor.rgb,poolWhite*0.88);
+                float sparkleA=smoothstep(0.70,0.86,fbm(poolUvA*float2(39.0,31.0)+float2(time*0.45,4.3)))*cluster;
+                float sparkleB=smoothstep(0.75,0.89,fbm(poolUvB*float2(53.0,37.0)+12.1))*cluster2;
+                float sparkles=saturate(sparkleA*0.72+sparkleB*0.48)*pool;
+                color=lerp(color,_FoamColor.rgb,sparkles*0.52);
 
                 float fallNoise=fbm(float2(fallUv.x*31.0+broadA*2.0,fallUv.y*8.0));
                 float ribs=pow(saturate(sin(uv.x*88.0+fallNoise*17.0)*0.5+0.5),4.5);
