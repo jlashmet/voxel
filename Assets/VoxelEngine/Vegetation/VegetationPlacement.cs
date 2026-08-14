@@ -70,30 +70,36 @@ namespace VoxelEngine.Core.Vegetation
             in VegetationPlacementSettings settings,
             out float suitability)
         {
-            float bestScore = 0f;
-            VegetationKind bestKind = VegetationKind.Grass;
+            float total = 0f;
+            float strongest = 0f;
+            for (int i = 0; i < Kinds.Length; i++)
+            {
+                float score = Score(sample, normal, VegetationProfiles.Get(Kinds[i]), settings);
+                total += score;
+                strongest = math.max(strongest, score);
+            }
 
+            if (total <= 0f)
+            {
+                suitability = 0f;
+                return VegetationKind.Grass;
+            }
+
+            float target = Random01(seed ^ 0x9E3779B9u) * total;
+            float cumulative = 0f;
             for (int i = 0; i < Kinds.Length; i++)
             {
                 VegetationProfile profile = VegetationProfiles.Get(Kinds[i]);
-                float score = Score(sample, normal, profile, settings);
-                if (score <= 0f)
+                cumulative += Score(sample, normal, profile, settings);
+                if (target <= cumulative)
                 {
-                    continue;
-                }
-
-                // Stable per-kind variation prevents a single profile from monopolising a biome.
-                uint kindSeed = Hash(seed, (uint)profile.Kind + 1u, 0x9E3779B9u);
-                score *= math.lerp(0.70f, 1.30f, Random01(kindSeed));
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    bestKind = profile.Kind;
+                    suitability = strongest;
+                    return profile.Kind;
                 }
             }
 
-            suitability = bestScore;
-            return bestKind;
+            suitability = strongest;
+            return Kinds[Kinds.Length - 1];
         }
 
         private static float Score(
