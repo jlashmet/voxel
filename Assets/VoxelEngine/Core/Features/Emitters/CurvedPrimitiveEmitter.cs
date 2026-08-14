@@ -1,5 +1,6 @@
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Core.Features.Emitters
 {
@@ -150,7 +151,6 @@ namespace VoxelEngine.Core.Features.Emitters
             int depth = math.min(voxel[p.Axis] - p.A[p.Axis],
                                  p.B[p.Axis] - voxel[p.Axis]) * 16 + 8;
             int distanceQ4 = math.min(outer, math.min(inner, depth));
-
 
             if (p.Shape == PrimitiveShape.Annulus && p.Profile == PrismProfile.Arch)
             {

@@ -1,4 +1,5 @@
 using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Core.Features
 {
@@ -81,7 +82,7 @@ namespace VoxelEngine.Core.Features
         /// <summary>Independent reconstruction style and optional visual coating.</summary>
         public ushort SurfaceStyle;
         public byte Coating;
-        public VoxelEngine.Core.Storage.VoxelSurfaceFlags SurfaceFlags;
+        public VoxelSurfaceFlags SurfaceFlags;
         public byte SurfaceDetail;
 
         /// <summary>Axis for cylinders and ramps: 0 = x, 1 = y, 2 = z.</summary>

@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using VoxelEngine.Core.Occupancy;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Core.Storage
 {
