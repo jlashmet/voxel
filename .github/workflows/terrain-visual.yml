@@ -25,6 +25,40 @@ jobs:
         with:
           clean: true
 
+      - name: Materialize canonical full-resolution reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import pathlib
+          import struct
+
+          payload = pathlib.Path('.github/reference/terrain-reference-full-q95.jpg.b64')
+          target = pathlib.Path('.github/reference/terrain-reference-full.jpg')
+          data = base64.b64decode(payload.read_text().strip(), validate=True)
+          if not data.startswith(b'\xff\xd8') or not data.endswith(b'\xff\xd9'):
+              raise SystemExit('canonical reference payload did not decode to JPEG')
+          target.write_bytes(data)
+          print(f'Wrote {target} bytes={len(data)} sha256={hashlib.sha256(data).hexdigest()}')
+          PY
+          WIDTH="$(sips -g pixelWidth .github/reference/terrain-reference-full.jpg | awk '/pixelWidth:/ {print $2}')"
+          HEIGHT="$(sips -g pixelHeight .github/reference/terrain-reference-full.jpg | awk '/pixelHeight:/ {print $2}')"
+          test "$WIDTH" = "1024"
+          test "$HEIGHT" = "1536"
+
+          # The binary image itself belongs in the repository. The base64 payload only exists as a
+          # transport bridge because the GitHub connector accepts UTF-8 writes but not binary file
+          # uploads. Once this job materializes it, persist the normal image file for humans and CI.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/reference/terrain-reference-full.jpg
+          if ! git diff --cached --quiet; then
+            git commit -m "Check in full-resolution terrain reference [skip ci]"
+            git push || echo "WARNING: full-reference push raced another terrain update; continuing with local canonical reference"
+          fi
+
       - name: Locate Unity editor
         id: unity
         shell: bash
@@ -59,10 +93,6 @@ jobs:
           git add Assets/Scenes/TerrainLookdev.unity Assets/Scenes/TerrainLookdev.unity.meta 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "Generate wired terrain lookdev scene [skip ci]"
-            # A previous cancelled terrain run can finish its scene push after this run has checked
-            # out, making this convenience commit non-fast-forward. The locally generated scene is
-            # already the one used by the render below, so a persistence race must not suppress the
-            # visual test. A later run will persist the newest generated scene.
             git push || echo "WARNING: generated-scene push raced another terrain update; continuing with local generated scene"
           fi
 
@@ -82,49 +112,21 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.png"
           test -s "$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.txt"
 
-      - name: Materialize visual references
+      - name: Materialize visual references from canonical image
         if: always()
         shell: bash
         run: |
-          python3 - <<'PY'
-          import base64
-          import pathlib
-          import re
-          import struct
-          import zlib
-
-          def write_rgb_png(rgb, width, height, out):
-              expected = width * height * 3
-              if len(rgb) != expected:
-                  return False
-              def chunk(kind, payload):
-                  return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xffffffff)
-              rows = b''.join(b'\x00' + rgb[y * width * 3:(y + 1) * width * 3] for y in range(height))
-              png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(rows, 9)) + chunk(b'IEND', b'')
-              out.parent.mkdir(parents=True, exist_ok=True)
-              out.write_bytes(png)
-              print(f"Wrote {out}")
-              return True
-
-          source = pathlib.Path("Assets/Tests/PlayMode/TerrainLookdevScreenshotTests.cs").read_text()
-          match = re.search(r'private const string ReferenceRgbBase64\s*=\s*(.*?);', source, re.S)
-          if not match:
-              raise SystemExit("ReferenceRgbBase64 not found")
-          encoded = ''.join(re.findall(r'"([A-Za-z0-9+/=]+)"', match.group(1)))
-          if not write_rgb_png(base64.b64decode(encoded), 32, 48,
-                               pathlib.Path("Artifacts/Terrain/terrain-reference.png")):
-              raise SystemExit("embedded 32x48 reference has the wrong byte count")
-
-          hi_path = pathlib.Path(".github/scripts/terrain_reference_128x192.rgb.b64")
-          if hi_path.exists():
-              try:
-                  hi = base64.b64decode(hi_path.read_text().strip())
-                  if not write_rgb_png(hi, 128, 192,
-                                       pathlib.Path("Artifacts/Terrain/terrain-reference-128.png")):
-                      print(f"WARNING: ignoring malformed 128x192 cache: decodedBytes={len(hi)} expected={128*192*3}")
-              except Exception as exc:
-                  print(f"WARNING: unable to decode 128x192 cache: {exc}")
-          PY
+          set -euo pipefail
+          REF="$GITHUB_WORKSPACE/.github/reference/terrain-reference-full.jpg"
+          OUT="$GITHUB_WORKSPACE/Artifacts/Terrain"
+          test -s "$REF"
+          cp "$REF" "$OUT/terrain-reference-full.jpg"
+          sips -s format png -z 768 512 "$REF" --out "$OUT/terrain-reference-512.png" >/dev/null
+          sips -s format png -z 192 128 "$REF" --out "$OUT/terrain-reference-128.png" >/dev/null
+          sips -s format png -z 48 32 "$REF" --out "$OUT/terrain-reference.png" >/dev/null
+          test -s "$OUT/terrain-reference-512.png"
+          test -s "$OUT/terrain-reference-128.png"
+          test -s "$OUT/terrain-reference.png"
 
       - name: Compute perceptual diagnostics
         if: always()
@@ -133,10 +135,13 @@ jobs:
         run: |
           set -euo pipefail
           ACTUAL="$GITHUB_WORKSPACE/Artifacts/Terrain/terrain.png"
+          REF512="$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-reference-512.png"
           REF128="$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-reference-128.png"
           REF32="$GITHUB_WORKSPACE/Artifacts/Terrain/terrain-reference.png"
           if [[ -s "$ACTUAL" ]]; then
-            if [[ -s "$REF128" ]]; then
+            if [[ -s "$REF512" ]]; then
+              REF="$REF512"
+            elif [[ -s "$REF128" ]]; then
               REF="$REF128"
             elif [[ -s "$REF32" ]]; then
               REF="$REF32"
