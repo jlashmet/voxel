@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - tree-rendering
+      - tree-gpu-lod
 
 concurrency:
   group: tree-rendering-visual-${{ github.ref }}
@@ -63,7 +64,7 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform PlayMode \
-            -testFilter "VoxelEngine.CI.RegistryTreeVisualTests.RegistryRenderer_RendersExactlyOneUprightTree" \
+            -testFilter "VoxelEngine.CI.RegistryTreeVisualTests.RegistryRenderer_RendersExactlyOneUprightTreeWithoutTreeGameObjects" \
             -testResults "$GITHUB_WORKSPACE/Artifacts/RegistryTree/results.xml" \
             -logFile "$GITHUB_WORKSPACE/Artifacts/RegistryTree/unity.log"
           test -s "$GITHUB_WORKSPACE/Artifacts/RegistryTree/results.xml"
@@ -79,7 +80,7 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform PlayMode \
-            -testFilter "VoxelEngine.CI.TreeBatchRenderingTests.HealthyForest_BatchesVisibly_AndDamageReleasesOneTree" \
+            -testFilter "VoxelEngine.CI.TreeBatchRenderingTests.HealthyForest_UsesNoStandingTreeGameObjects_AndDamageReleasesOneTree" \
             -testResults "$GITHUB_WORKSPACE/Artifacts/RegistryTree/batch-results.xml" \
             -logFile "$GITHUB_WORKSPACE/Artifacts/RegistryTree/batch-unity.log"
           test -s "$GITHUB_WORKSPACE/Artifacts/RegistryTree/batch-results.xml"
@@ -95,7 +96,7 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform PlayMode \
-            -testFilter "VoxelEngine.CI.TreeDestructionVisualTests.SemanticTree_BranchDetachesAndTrunkLeavesFallingCrown" \
+            -testFilter "VoxelEngine.CI.TreeDestructionVisualTests.SemanticTree_DamageStaysGameObjectFreeUntilGeometryDetaches" \
             -testResults "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/results.xml" \
             -logFile "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/unity.log"
           test -s "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/results.xml"
@@ -134,7 +135,7 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform PlayMode \
-            -testFilter "VoxelEngine.CI.ShowcaseTreeVisualTests.ShowcaseStartup_HasOneUprightUndamagedSemanticTreePresentation" \
+            -testFilter "VoxelEngine.CI.ShowcaseTreeVisualTests.ShowcaseStartup_HasUprightUndamagedGameObjectFreeTrees" \
             -testResults "$GITHUB_WORKSPACE/Artifacts/ShowcaseTree/results.xml" \
             -logFile "$GITHUB_WORKSPACE/Artifacts/ShowcaseTree/unity.log"
           test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTree/results.xml"
@@ -152,7 +153,7 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform PlayMode \
-            -testFilter "VoxelEngine.CI.ShowcaseTreeDestructionVisualTests.ShowcaseTornado_BreaksBranchAndSeversTreeVisibly" \
+            -testFilter "VoxelEngine.CI.ShowcaseTreeDestructionVisualTests.ShowcaseTornado_DetachesOnlyPhysicalPiecesAsGameObjects" \
             -testResults "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/results.xml" \
             -logFile "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/unity.log"
           test -s "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/results.xml"
@@ -178,47 +179,15 @@ jobs:
           echo "--- Real Showcase tornado destruction ---"
           test ! -f "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/showcase-tree-destruction.txt" || cat "$GITHUB_WORKSPACE/Artifacts/ShowcaseTreeDestruction/showcase-tree-destruction.txt"
 
-      - name: Upload direct-tree artifact
+      - name: Upload visual proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: direct-tree-${{ github.sha }}
-          path: Artifacts/SingleTree/
+          name: tree-rendering-visual-${{ github.run_id }}
+          path: |
+            Artifacts/SingleTree/**
+            Artifacts/RegistryTree/**
+            Artifacts/TreeDestruction/**
+            Artifacts/ShowcaseTree/**
+            Artifacts/ShowcaseTreeDestruction/**
           if-no-files-found: warn
-          retention-days: 14
-
-      - name: Upload registry-renderer artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: registry-tree-${{ github.sha }}
-          path: Artifacts/RegistryTree/
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Upload tree-destruction artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: tree-destruction-${{ github.sha }}
-          path: Artifacts/TreeDestruction/
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Upload Showcase startup artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: showcase-tree-${{ github.sha }}
-          path: Artifacts/ShowcaseTree/
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Upload Showcase tornado destruction artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: showcase-tree-destruction-${{ github.sha }}
-          path: Artifacts/ShowcaseTreeDestruction/
-          if-no-files-found: warn
-          retention-days: 14
