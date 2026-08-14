@@ -9,6 +9,7 @@ using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Core.Terrain;
 using VoxelEngine.Streaming;
 using VoxelEngine.Structures;
@@ -897,7 +898,6 @@ namespace VoxelEngine.Showcase
             int ground = SurfaceHeight(cx, cz);
 
             var plan = CastleBuilder.Plan(new int3(cx, ground, cz), Seed);
-
             // Every region the castle reaches into must exist *before* it is built. A castle is
             // wider than a region, and terrain generation writes a region's brick pointers
             // wholesale — so a neighbour generated afterwards silently erases the half of the
@@ -1197,7 +1197,6 @@ namespace VoxelEngine.Showcase
                                          VoxelDimensions.MaterialEmpty))
                     MarkDirty(voxel);
             }
-
             _castleTrapdoorOpen = true;
             return true;
         }
