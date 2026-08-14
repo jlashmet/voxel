@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace VoxelEngine.Core
+namespace VoxelEngine.Foundation
 {
     /// <summary>
     /// Integer-only math primitives for code that determines world state.
@@ -19,11 +19,8 @@ namespace VoxelEngine.Core
     {
         /// <summary>
         /// Exact integer square root: the largest <c>r</c> with <c>r*r &lt;= value</c>.
-        ///
-        /// Uses the classic restoring bit-by-bit method, which touches only shifts,
-        /// comparisons, and subtraction. Runs in a fixed 16 iterations for a 32-bit input.
+        /// Uses the classic restoring bit-by-bit method.
         /// </summary>
-        /// <param name="value">Non-negative radicand. Negative input returns 0.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Isqrt(int value)
         {
@@ -31,8 +28,6 @@ namespace VoxelEngine.Core
 
             uint n = (uint)value;
             uint result = 0;
-
-            // Highest power of four <= 2^30, the largest that fits a positive int.
             uint bit = 1u << 30;
             while (bit > n) bit >>= 2;
 
@@ -54,25 +49,11 @@ namespace VoxelEngine.Core
             return (int)result;
         }
 
-        /// <summary>
-        /// Floor division for a power-of-two divisor, correct for negative dividends.
-        ///
-        /// Plain <c>/</c> truncates toward zero, which puts negative world coordinates in
-        /// the wrong region. An arithmetic shift floors, which is what spatial decomposition
-        /// requires.
-        /// </summary>
-        /// <param name="value">Dividend, may be negative.</param>
-        /// <param name="log2Divisor">Base-2 logarithm of the divisor.</param>
+        /// <summary>Floor division for a power-of-two divisor, correct for negative dividends.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int FloorDivPow2(int value, int log2Divisor) => value >> log2Divisor;
 
-        /// <summary>
-        /// Scales <paramref name="value"/> by the rational <paramref name="numerator"/> /
-        /// <paramref name="denominator"/> without leaving integer arithmetic.
-        ///
-        /// This is the integer replacement for multiplying by a float ratio (density caps,
-        /// budget fractions). Uses a 64-bit intermediate so the product cannot overflow.
-        /// </summary>
+        /// <summary>Scale an integer by a rational without leaving integer arithmetic.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int MulDiv(int value, int numerator, int denominator)
         {
