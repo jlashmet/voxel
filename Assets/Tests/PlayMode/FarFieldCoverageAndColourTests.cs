@@ -237,7 +237,17 @@ namespace VoxelEngine.Tests.PlayMode
         private static bool ColumnIsCovered(ShowcaseWorld world, VoxelFarTerrain far,
                                             Vector3 cameraPosition, Vector3 probe)
         {
-            if (world.IsGenerated(ShowcaseWorld.RegionAt(probe))) return true;
+            // Probe the region the *ground* is in, not the one the camera happens to occupy.
+            // ShowcaseWorld.ResidentGroundRadiusMetres sizes the hole from surface layers, so
+            // asking about the camera's layer compares two different things: standing on the
+            // castle outcrop puts the eye a layer above the terrain and every column reads as
+            // absent even though the ground under it is resident.
+            int voxelX = Mathf.FloorToInt(probe.x / ShowcaseWorld.VoxelSize);
+            int voxelZ = Mathf.FloorToInt(probe.z / ShowcaseWorld.VoxelSize);
+            var groundProbe = new Vector3(
+                probe.x, world.SurfaceHeight(voxelX, voxelZ) * ShowcaseWorld.VoxelSize, probe.z);
+            if (world.IsGenerated(ShowcaseWorld.RegionAt(groundProbe))) return true;
+
             // Euclidean, matching both the voxel residency disc and ring 0's hole.
             float dx = probe.x - cameraPosition.x;
             float dz = probe.z - cameraPosition.z;

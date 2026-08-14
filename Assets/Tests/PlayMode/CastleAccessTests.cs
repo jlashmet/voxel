@@ -20,12 +20,41 @@ namespace VoxelEngine.Tests.PlayMode
     /// </summary>
     public sealed class CastleAccessTests
     {
-        [UnityTest]
-        public IEnumerator SecretTrapdoorOnlyOpensForANearbyPlayer()
+        /// <summary>
+        /// Loads the showcase and waits for the castle to finish building.
+        ///
+        /// These tests used to load the scene, yield a single frame, and read castle voxels
+        /// straight out of the world. That worked while the castle was built in one blocking
+        /// pass. It is now staged across frames so the build does not stall the showcase, which
+        /// takes on the order of 180 frames, and every assertion here was reading empty terrain
+        /// and reporting a missing gate, a missing keep floor, or a missing river.
+        ///
+        /// Waiting on CastleVoxels rather than a fixed frame count keeps the test honest if the
+        /// build gets faster or slower; the cap only exists so a genuine hang fails as a test
+        /// rather than hanging the run.
+        /// </summary>
+        private static IEnumerator LoadShowcaseWithCastle()
         {
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
             yield return null;
+
+            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            var world = (ShowcaseWorld)typeof(VoxelShowcase)
+                .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(showcase);
+
+            for (int frame = 0; frame < 900 && world.CastleVoxels == 0; frame++)
+                yield return null;
+
+            Assert.Greater(world.CastleVoxels, 0,
+                "The castle did not finish building within 900 frames, so nothing below is "
+              + "testing the castle.");
+        }
+
+        [UnityTest]
+        public IEnumerator SecretTrapdoorOnlyOpensForANearbyPlayer()
+        {
+            yield return LoadShowcaseWithCastle();
 
             var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             var world = (ShowcaseWorld)typeof(VoxelShowcase)
@@ -56,9 +85,7 @@ namespace VoxelEngine.Tests.PlayMode
         [UnityTest]
         public IEnumerator FrontGateOpensForANearbyPlayerAndClearsThePassage()
         {
-            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
-                "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
-            yield return null;
+            yield return LoadShowcaseWithCastle();
 
             var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             var world = (ShowcaseWorld)typeof(VoxelShowcase)
@@ -100,9 +127,7 @@ namespace VoxelEngine.Tests.PlayMode
         [UnityTest]
         public IEnumerator CastleLandscapeContainsConnectedWaterLevelsAndSupportedBridge()
         {
-            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
-                "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
-            yield return null;
+            yield return LoadShowcaseWithCastle();
 
             var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             var world = (ShowcaseWorld)typeof(VoxelShowcase)
@@ -193,9 +218,7 @@ namespace VoxelEngine.Tests.PlayMode
         [UnityTest]
         public IEnumerator PlayerEInteractionUsesMotorProximityAndClearsItsPrompt()
         {
-            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
-                "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
-            yield return null;
+            yield return LoadShowcaseWithCastle();
 
             var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             var world = (ShowcaseWorld)typeof(VoxelShowcase)
@@ -222,9 +245,7 @@ namespace VoxelEngine.Tests.PlayMode
         [UnityTest]
         public IEnumerator EveryKeepRoomAndHallWingConnectsToTheMainStair()
         {
-            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
-                "Assets/Scenes/VoxelShowcase.unity", new LoadSceneParameters(LoadSceneMode.Single));
-            yield return null;
+            yield return LoadShowcaseWithCastle();
 
             var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             var world = (ShowcaseWorld)typeof(VoxelShowcase)
