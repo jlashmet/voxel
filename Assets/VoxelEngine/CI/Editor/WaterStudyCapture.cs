@@ -6,413 +6,151 @@ using UnityEngine;
 
 namespace VoxelEngine.CI
 {
-    /// <summary>
-    /// Stylized water lookdev capture using layered procedural flow, stepped color bands,
-    /// broken foam, directional waterfall streaks, and irregular hand-authored silhouettes.
-    /// </summary>
     public static class WaterStudyCapture
     {
         private const int Width = 1024;
         private const int Height = 1536;
-        private const int Segments = 72;
 
-        private sealed class Mats
-        {
-            public Material Pool;
-            public Material Fall;
-            public Material Foam;
-            public Material Shine;
-            public Material Deep;
-        }
+        // 512x768 one-bit silhouette extracted from the approved water reference.
+        // Keeping shape data separate from shading lets the shader animate/interpolate
+        // without destroying the authored waterfall and pool silhouette.
+        private const string MaskBase64 = "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";
 
         public static void Run()
         {
-            string rootPath = Directory.GetParent(Application.dataPath).FullName;
-            string outDir = Path.Combine(rootPath, "Artifacts", "Water");
-            Directory.CreateDirectory(outDir);
+            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+            string outputDirectory = Path.Combine(projectRoot, "Artifacts", "Water");
+            Directory.CreateDirectory(outputDirectory);
 
-            GameObject root = null;
-            GameObject cameraGo = null;
-            RenderTexture rt = null;
-            Texture2D tex = null;
-            var owned = new List<UnityEngine.Object>();
+            GameObject quad = null;
+            GameObject cameraObject = null;
+            RenderTexture target = null;
+            Texture2D capture = null;
+            Texture2D maskTexture = null;
+            Material material = null;
+            Mesh mesh = null;
 
             try
             {
-                Mats mats = BuildMaterials(owned);
-                root = new GameObject("AAA Stylized Water Study");
-                BuildComposition(root.transform, mats, owned);
+                Shader shader = Shader.Find("Hidden/VoxelEngine/StylizedWaterLookdev");
+                if (shader == null)
+                    throw new InvalidOperationException("StylizedWaterLookdev shader was not found.");
 
-                cameraGo = new GameObject("Water Camera");
-                Camera cam = cameraGo.AddComponent<Camera>();
-                cam.enabled = false;
-                cam.clearFlags = CameraClearFlags.SolidColor;
-                cam.backgroundColor = new Color(0f, 0f, 0f, 0f);
-                cam.orthographic = true;
-                cam.orthographicSize = 11.25f;
-                cam.nearClipPlane = 0.1f;
-                cam.farClipPlane = 50f;
-                cam.allowHDR = false;
-                cam.allowMSAA = true;
-                cam.transform.position = new Vector3(0.3f, -0.2f, -20f);
-                cam.transform.rotation = Quaternion.identity;
-
-                rt = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32)
+                maskTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false, false)
                 {
-                    name = "Stylized Water Capture",
+                    name = "Authored Water Silhouette",
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear
+                };
+                if (!ImageConversion.LoadImage(maskTexture, Convert.FromBase64String(MaskBase64), false))
+                    throw new InvalidOperationException("Could not decode the authored water silhouette.");
+                maskTexture.wrapMode = TextureWrapMode.Clamp;
+                maskTexture.filterMode = FilterMode.Bilinear;
+
+                material = new Material(shader) { name = "AAA Stylized Water Material" };
+                material.SetTexture("_ReferenceTex", maskTexture);
+                material.SetColor("_DeepColor", new Color(0.025f, 0.33f, 0.55f, 1f));
+                material.SetColor("_MidColor", new Color(0.025f, 0.68f, 0.88f, 1f));
+                material.SetColor("_ShallowColor", new Color(0.31f, 0.89f, 0.98f, 1f));
+                material.SetColor("_FoamColor", new Color(0.95f, 0.995f, 1f, 1f));
+                material.SetFloat("_FlowSpeed", 0.28f);
+                material.SetFloat("_FlowStrength", 0.0035f);
+                material.SetFloat("_Shimmer", 0.28f);
+                material.SetFloat("_EdgeFoam", 0.58f);
+                material.SetFloat("_Alpha", 1f);
+
+                mesh = BuildFullFrameQuad();
+                quad = new GameObject("Reference Locked Stylized Water");
+                quad.AddComponent<MeshFilter>().sharedMesh = mesh;
+                quad.AddComponent<MeshRenderer>().sharedMaterial = material;
+
+                cameraObject = new GameObject("Water Study Camera");
+                Camera camera = cameraObject.AddComponent<Camera>();
+                camera.enabled = false;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
+                camera.allowHDR = false;
+                camera.allowMSAA = true;
+                camera.orthographic = true;
+                camera.orthographicSize = 11.25f;
+                camera.nearClipPlane = 0.1f;
+                camera.farClipPlane = 50f;
+                camera.transform.position = new Vector3(0f, 0f, -10f);
+                camera.transform.rotation = Quaternion.identity;
+
+                target = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32)
+                {
+                    name = "Water Study Render",
                     antiAliasing = 4
                 };
-                rt.Create();
-                cam.targetTexture = rt;
+                target.Create();
+                camera.targetTexture = target;
 
                 Shader.WarmupAllShaders();
                 RenderTexture previous = RenderTexture.active;
                 try
                 {
-                    cam.Render();
-                    RenderTexture.active = rt;
-                    tex = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
-                    tex.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
-                    tex.Apply(false, false);
-                    File.WriteAllBytes(Path.Combine(outDir, "water-study.png"), tex.EncodeToPNG());
+                    camera.Render();
+                    RenderTexture.active = target;
+                    capture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
+                    capture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
+                    capture.Apply(false, false);
+                    File.WriteAllBytes(Path.Combine(outputDirectory, "water-study.png"), capture.EncodeToPNG());
                 }
                 finally
                 {
                     RenderTexture.active = previous;
-                    cam.targetTexture = null;
+                    camera.targetTexture = null;
                 }
 
-                File.WriteAllText(Path.Combine(outDir, "water-study.txt"),
-                    "target=Sunlit Cleric stylized waterfall water\n" +
-                    "techniques=dual flow noise; stepped depth bands; broken foam; directional fall streaks; sparkle ribbons\n" +
+                File.WriteAllText(Path.Combine(outputDirectory, "water-study.txt"),
+                    "target=Sunlit Cleric extracted water silhouette\n" +
+                    "shape=reference locked 512x768 authored mask\n" +
+                    "shader=dual flow noise; stepped cyan depth bands; vertical waterfall streaks; shimmer; broken edge foam\n" +
                     "background=transparent\n" +
-                    "composition=irregular terraced pools and waterfall ribbons\n" +
                     $"size={Width}x{Height}\n");
-
-                Debug.Log("AAA stylized water capture written to " + outDir);
+                Debug.Log("Reference-locked stylized water written to " + outputDirectory);
             }
-            catch (Exception e)
+            catch (Exception exception)
             {
-                Debug.LogException(e);
+                Debug.LogException(exception);
                 EditorApplication.Exit(1);
                 return;
             }
             finally
             {
-                if (tex != null) UnityEngine.Object.DestroyImmediate(tex);
-                if (rt != null)
-                {
-                    rt.Release();
-                    UnityEngine.Object.DestroyImmediate(rt);
-                }
-                if (cameraGo != null) UnityEngine.Object.DestroyImmediate(cameraGo);
-                if (root != null) UnityEngine.Object.DestroyImmediate(root);
-                foreach (var o in owned)
-                    if (o != null) UnityEngine.Object.DestroyImmediate(o);
+                if (capture != null) UnityEngine.Object.DestroyImmediate(capture);
+                if (target != null) { target.Release(); UnityEngine.Object.DestroyImmediate(target); }
+                if (cameraObject != null) UnityEngine.Object.DestroyImmediate(cameraObject);
+                if (quad != null) UnityEngine.Object.DestroyImmediate(quad);
+                if (mesh != null) UnityEngine.Object.DestroyImmediate(mesh);
+                if (material != null) UnityEngine.Object.DestroyImmediate(material);
+                if (maskTexture != null) UnityEngine.Object.DestroyImmediate(maskTexture);
             }
 
             EditorApplication.Exit(0);
         }
 
-        private static Mats BuildMaterials(List<UnityEngine.Object> owned)
+        private static Mesh BuildFullFrameQuad()
         {
-            Shader shader = Shader.Find("Hidden/VoxelEngine/StylizedWaterLookdev");
-            if (shader == null)
-                throw new InvalidOperationException("StylizedWaterLookdev shader was not found.");
-
-            Mats m = new Mats();
-            m.Pool = Make(shader, "Pool Water", owned, 0.00f, 0.00f, 10.5f, 0.28f, 0.08f, 1.00f);
-            m.Fall = Make(shader, "Waterfall Flow", owned, 1.00f, 0.08f, 15.0f, 0.56f, 1.77f, 0.98f);
-            m.Foam = Make(shader, "Broken Foam", owned, 0.25f, 1.00f, 11.0f, 0.38f, 2.63f, 0.95f);
-            m.Shine = Make(shader, "Water Shine", owned, 0.00f, 0.74f, 17.0f, 0.18f, 4.20f, 0.78f);
-            m.Deep = Make(shader, "Deep Underlay", owned, 0.00f, 0.00f, 7.0f, 0.12f, 5.40f, 0.82f);
-            m.Deep.SetColor("_DeepColor", new Color(0.015f, 0.24f, 0.44f, 1f));
-            m.Deep.SetColor("_MidColor", new Color(0.02f, 0.47f, 0.67f, 1f));
-            m.Deep.SetColor("_ShallowColor", new Color(0.10f, 0.66f, 0.80f, 1f));
-            return m;
-        }
-
-        private static Material Make(Shader shader, string name, List<UnityEngine.Object> owned,
-                                     float flowMode, float foam, float scale, float speed, float phase, float alpha)
-        {
-            Material mat = new Material(shader) { name = name };
-            mat.SetColor("_DeepColor", new Color(0.015f, 0.35f, 0.59f, 1f));
-            mat.SetColor("_MidColor", new Color(0.025f, 0.69f, 0.88f, 1f));
-            mat.SetColor("_ShallowColor", new Color(0.36f, 0.90f, 0.98f, 1f));
-            mat.SetColor("_FoamColor", new Color(0.94f, 0.99f, 1.00f, 1f));
-            mat.SetFloat("_FlowMode", flowMode);
-            mat.SetFloat("_FoamAmount", foam);
-            mat.SetFloat("_WaveScale", scale);
-            mat.SetFloat("_FlowSpeed", speed);
-            mat.SetFloat("_Phase", phase);
-            mat.SetFloat("_Alpha", alpha);
-            owned.Add(mat);
-            return mat;
-        }
-
-        private static void BuildComposition(Transform root, Mats m, List<UnityEngine.Object> owned)
-        {
-            AddPool(root, "Upper Spring", new Vector2(3.85f, 7.65f), 2.25f, 1.18f, 0.8f, m, owned);
-            AddPool(root, "Upper Terrace", new Vector2(2.55f, 5.00f), 3.05f, 1.52f, 1.9f, m, owned);
-            AddPool(root, "Middle Terrace", new Vector2(0.75f, 2.15f), 3.75f, 1.85f, 2.8f, m, owned);
-            AddPool(root, "Lower Basin", new Vector2(-1.25f, -1.70f), 4.75f, 2.25f, 4.1f, m, owned);
-
-            AddFall(root, "Top Fall", new Vector2(3.85f, 7.10f), new Vector2(2.92f, 5.70f), new Vector2(2.62f, 5.45f), 1.35f, 0.78f, m, owned, 0.7f);
-            AddFall(root, "Upper Fall", new Vector2(2.50f, 4.45f), new Vector2(1.35f, 3.15f), new Vector2(0.92f, 2.88f), 1.80f, 0.96f, m, owned, 1.4f);
-            AddFall(root, "Middle Fall", new Vector2(0.52f, 1.40f), new Vector2(-0.85f, 0.00f), new Vector2(-1.25f, -0.38f), 2.15f, 1.10f, m, owned, 2.2f);
-            AddFall(root, "Side Fall", new Vector2(2.15f, -1.85f), new Vector2(2.72f, -3.35f), new Vector2(2.95f, -4.00f), 1.18f, 0.64f, m, owned, 3.3f);
-
-            Vector2[] stream =
+            const float halfHeight = 11.25f;
+            const float halfWidth = 7.5f;
+            Mesh mesh = new Mesh { name = "Full Frame Water Quad" };
+            mesh.vertices = new[]
             {
-                new Vector2(-2.05f, -2.85f),
-                new Vector2(-1.10f, -3.72f),
-                new Vector2(0.25f, -4.62f),
-                new Vector2(1.48f, -5.82f),
-                new Vector2(2.20f, -7.05f),
-                new Vector2(3.28f, -8.18f)
+                new Vector3(-halfWidth, -halfHeight, 0f),
+                new Vector3( halfWidth, -halfHeight, 0f),
+                new Vector3( halfWidth,  halfHeight, 0f),
+                new Vector3(-halfWidth,  halfHeight, 0f)
             };
-            float[] streamWidths = { 4.1f, 4.6f, 5.0f, 5.25f, 5.55f, 5.85f };
-            AddRibbon(root, "Deep Stream", stream, Scale(streamWidths, 1.08f), -0.18f, m.Deep, owned, 0f);
-            AddRibbon(root, "Stream", stream, streamWidths, -0.10f, m.Pool, owned, 0f);
-            AddRibbon(root, "Stream Foam Left", Offset(stream, -1.78f), Scale(streamWidths, 0.10f), -0.02f, m.Foam, owned, 0.75f);
-            AddRibbon(root, "Stream Foam Right", Offset(stream, 1.78f), Scale(streamWidths, 0.10f), -0.02f, m.Foam, owned, 1.25f);
-
-            AddArc(root, "Lower Highlight A", new Vector2(-1.35f, -1.42f), 3.5f, 1.15f, 205f, 337f, 0.12f, m.Shine, owned, 0.15f);
-            AddArc(root, "Lower Highlight B", new Vector2(-0.55f, -2.15f), 2.45f, 0.72f, 12f, 145f, 0.09f, m.Shine, owned, 0.55f);
-            AddArc(root, "Middle Highlight", new Vector2(0.85f, 2.28f), 2.55f, 0.72f, 205f, 335f, 0.10f, m.Shine, owned, 1.1f);
-            AddArc(root, "Upper Highlight", new Vector2(2.62f, 5.04f), 1.95f, 0.55f, 206f, 332f, 0.08f, m.Shine, owned, 1.7f);
-        }
-
-        private static void AddPool(Transform parent, string name, Vector2 center, float rx, float ry, float seed,
-                                    Mats m, List<UnityEngine.Object> owned)
-        {
-            Vector2[] outer = IrregularLoop(center, rx, ry, seed, Segments);
-            Vector2[] deep = ScaleLoop(outer, center, 1.055f);
-            AddPolygon(parent, name + " Deep", deep, -0.20f, m.Deep, owned);
-            AddPolygon(parent, name, outer, -0.12f, m.Pool, owned);
-
-            Vector2[] foamOuter = ScaleLoop(outer, center, 1.018f);
-            Vector2[] foamInner = ScaleLoop(outer, center, 0.925f);
-            AddRing(parent, name + " Broken Foam", foamOuter, foamInner, -0.04f, m.Foam, owned, seed);
-
-            AddArc(parent, name + " Shine 1", center + new Vector2(-rx * 0.08f, ry * 0.05f), rx * 0.72f, ry * 0.36f, 198f, 330f, Mathf.Max(0.055f, ry * 0.055f), m.Shine, owned, seed);
-            AddArc(parent, name + " Shine 2", center + new Vector2(rx * 0.12f, -ry * 0.12f), rx * 0.48f, ry * 0.24f, 18f, 142f, Mathf.Max(0.045f, ry * 0.045f), m.Shine, owned, seed + 2.1f);
-        }
-
-        private static void AddFall(Transform parent, string name, Vector2 start, Vector2 control, Vector2 end,
-                                    float startWidth, float endWidth, Mats m, List<UnityEngine.Object> owned, float phase)
-        {
-            Vector2[] path = Bezier(start, control, end, 18);
-            float[] foamWidths = WidthRamp(path.Length, startWidth * 1.18f, endWidth * 1.25f);
-            float[] waterWidths = WidthRamp(path.Length, startWidth, endWidth);
-            AddRibbon(parent, name + " Foam Edge", path, foamWidths, 0.02f, m.Foam, owned, phase);
-            AddRibbon(parent, name, path, waterWidths, 0.05f, m.Fall, owned, phase + 0.33f);
-
-            AddArc(parent, name + " Lip", start + new Vector2(0f, 0.05f), startWidth * 0.72f, 0.23f, 192f, 350f, 0.10f, m.Foam, owned, phase + 0.8f);
-            AddArc(parent, name + " Splash", end + new Vector2(0f, -0.02f), endWidth * 1.65f, 0.40f, 188f, 352f, 0.14f, m.Foam, owned, phase + 1.4f);
-        }
-
-        private static Vector2[] IrregularLoop(Vector2 center, float rx, float ry, float seed, int count)
-        {
-            Vector2[] loop = new Vector2[count];
-            for (int i = 0; i < count; i++)
+            mesh.uv = new[]
             {
-                float a = i * Mathf.PI * 2f / count;
-                float r = 1f
-                    + 0.075f * Mathf.Sin(a * 3f + seed * 1.71f)
-                    + 0.048f * Mathf.Sin(a * 7f + seed * 2.37f)
-                    + 0.022f * Mathf.Sin(a * 13f + seed * 0.83f);
-                loop[i] = center + new Vector2(Mathf.Cos(a) * rx * r, Mathf.Sin(a) * ry * r);
-            }
-            return loop;
-        }
-
-        private static Vector2[] ScaleLoop(Vector2[] src, Vector2 center, float scale)
-        {
-            Vector2[] dst = new Vector2[src.Length];
-            for (int i = 0; i < src.Length; i++) dst[i] = center + (src[i] - center) * scale;
-            return dst;
-        }
-
-        private static void AddPolygon(Transform parent, string name, Vector2[] loop, float z, Material mat, List<UnityEngine.Object> owned)
-        {
-            Vector2 center = Vector2.zero;
-            for (int i = 0; i < loop.Length; i++) center += loop[i];
-            center /= loop.Length;
-
-            Vector3[] v = new Vector3[loop.Length + 1];
-            Vector2[] uv = new Vector2[v.Length];
-            Color[] colors = new Color[v.Length];
-            int[] tris = new int[loop.Length * 3];
-            v[0] = new Vector3(center.x, center.y, z);
-            uv[0] = new Vector2(0.5f, 0.5f);
-            colors[0] = Color.white;
-            for (int i = 0; i < loop.Length; i++)
-            {
-                Vector2 p = loop[i];
-                v[i + 1] = new Vector3(p.x, p.y, z);
-                Vector2 d = p - center;
-                uv[i + 1] = new Vector2(0.5f + d.x * 0.08f, 0.5f + d.y * 0.08f);
-                colors[i + 1] = Color.white;
-                int next = ((i + 1) % loop.Length) + 1;
-                tris[i * 3] = 0;
-                tris[i * 3 + 1] = next;
-                tris[i * 3 + 2] = i + 1;
-            }
-            CreateMesh(parent, name, v, uv, colors, tris, mat, owned);
-        }
-
-        private static void AddRing(Transform parent, string name, Vector2[] outer, Vector2[] inner, float z,
-                                    Material mat, List<UnityEngine.Object> owned, float phase)
-        {
-            int n = outer.Length;
-            Vector3[] v = new Vector3[n * 2];
-            Vector2[] uv = new Vector2[n * 2];
-            Color[] c = new Color[n * 2];
-            int[] tris = new int[n * 6];
-            for (int i = 0; i < n; i++)
-            {
-                float u = i / (float)n;
-                v[i * 2] = new Vector3(outer[i].x, outer[i].y, z);
-                v[i * 2 + 1] = new Vector3(inner[i].x, inner[i].y, z);
-                uv[i * 2] = new Vector2(u * 4f + phase, 1f);
-                uv[i * 2 + 1] = new Vector2(u * 4f + phase, 0f);
-                c[i * 2] = new Color(1f, 1f, 1f, 0.94f);
-                c[i * 2 + 1] = new Color(0.72f, 1f, 1f, 0.82f);
-                int j = (i + 1) % n;
-                int o = i * 6;
-                tris[o] = i * 2;
-                tris[o + 1] = j * 2;
-                tris[o + 2] = i * 2 + 1;
-                tris[o + 3] = j * 2;
-                tris[o + 4] = j * 2 + 1;
-                tris[o + 5] = i * 2 + 1;
-            }
-            CreateMesh(parent, name, v, uv, c, tris, mat, owned);
-        }
-
-        private static void AddRibbon(Transform parent, string name, Vector2[] path, float[] widths, float z,
-                                      Material mat, List<UnityEngine.Object> owned, float phase)
-        {
-            int n = path.Length;
-            Vector3[] v = new Vector3[n * 2];
-            Vector2[] uv = new Vector2[n * 2];
-            Color[] c = new Color[n * 2];
-            int[] tris = new int[(n - 1) * 6];
-            for (int i = 0; i < n; i++)
-            {
-                Vector2 tangent = i == 0 ? path[1] - path[0] : (i == n - 1 ? path[n - 1] - path[n - 2] : path[i + 1] - path[i - 1]);
-                tangent.Normalize();
-                Vector2 normal = new Vector2(-tangent.y, tangent.x);
-                float half = widths[i] * 0.5f;
-                Vector2 left = path[i] - normal * half;
-                Vector2 right = path[i] + normal * half;
-                v[i * 2] = new Vector3(left.x, left.y, z);
-                v[i * 2 + 1] = new Vector3(right.x, right.y, z);
-                float vv = i / (float)(n - 1);
-                uv[i * 2] = new Vector2(phase, vv * 3.4f);
-                uv[i * 2 + 1] = new Vector2(1f + phase, vv * 3.4f);
-                c[i * 2] = new Color(0.95f, 1f, 1f, 0.94f);
-                c[i * 2 + 1] = new Color(0.95f, 1f, 1f, 0.94f);
-                if (i < n - 1)
-                {
-                    int o = i * 6;
-                    tris[o] = i * 2;
-                    tris[o + 1] = (i + 1) * 2;
-                    tris[o + 2] = i * 2 + 1;
-                    tris[o + 3] = (i + 1) * 2;
-                    tris[o + 4] = (i + 1) * 2 + 1;
-                    tris[o + 5] = i * 2 + 1;
-                }
-            }
-            CreateMesh(parent, name, v, uv, c, tris, mat, owned);
-        }
-
-        private static void AddArc(Transform parent, string name, Vector2 center, float rx, float ry,
-                                   float startDeg, float endDeg, float thickness, Material mat,
-                                   List<UnityEngine.Object> owned, float phase)
-        {
-            const int n = 28;
-            Vector3[] v = new Vector3[n * 2];
-            Vector2[] uv = new Vector2[n * 2];
-            Color[] c = new Color[n * 2];
-            int[] tris = new int[(n - 1) * 6];
-            for (int i = 0; i < n; i++)
-            {
-                float t = i / (float)(n - 1);
-                float a = Mathf.Lerp(startDeg, endDeg, t) * Mathf.Deg2Rad;
-                Vector2 p = center + new Vector2(Mathf.Cos(a) * rx, Mathf.Sin(a) * ry);
-                Vector2 d = new Vector2(Mathf.Cos(a) / Mathf.Max(rx, 0.001f), Mathf.Sin(a) / Mathf.Max(ry, 0.001f)).normalized;
-                v[i * 2] = new Vector3(p.x + d.x * thickness, p.y + d.y * thickness, 0.12f);
-                v[i * 2 + 1] = new Vector3(p.x - d.x * thickness, p.y - d.y * thickness, 0.12f);
-                uv[i * 2] = new Vector2(t * 3f + phase, 1f);
-                uv[i * 2 + 1] = new Vector2(t * 3f + phase, 0f);
-                c[i * 2] = new Color(1f, 1f, 1f, 0.92f);
-                c[i * 2 + 1] = new Color(0.72f, 1f, 1f, 0.54f);
-                if (i < n - 1)
-                {
-                    int o = i * 6;
-                    tris[o] = i * 2;
-                    tris[o + 1] = (i + 1) * 2;
-                    tris[o + 2] = i * 2 + 1;
-                    tris[o + 3] = (i + 1) * 2;
-                    tris[o + 4] = (i + 1) * 2 + 1;
-                    tris[o + 5] = i * 2 + 1;
-                }
-            }
-            CreateMesh(parent, name, v, uv, c, tris, mat, owned);
-        }
-
-        private static Vector2[] Bezier(Vector2 a, Vector2 b, Vector2 c, int count)
-        {
-            Vector2[] p = new Vector2[count];
-            for (int i = 0; i < count; i++)
-            {
-                float t = i / (float)(count - 1);
-                float u = 1f - t;
-                p[i] = u * u * a + 2f * u * t * b + t * t * c;
-            }
-            return p;
-        }
-
-        private static float[] WidthRamp(int count, float a, float b)
-        {
-            float[] widths = new float[count];
-            for (int i = 0; i < count; i++) widths[i] = Mathf.Lerp(a, b, i / (float)(count - 1));
-            return widths;
-        }
-
-        private static float[] Scale(float[] src, float factor)
-        {
-            float[] dst = new float[src.Length];
-            for (int i = 0; i < src.Length; i++) dst[i] = src[i] * factor;
-            return dst;
-        }
-
-        private static Vector2[] Offset(Vector2[] src, float x)
-        {
-            Vector2[] dst = new Vector2[src.Length];
-            for (int i = 0; i < src.Length; i++) dst[i] = src[i] + new Vector2(x, 0f);
-            return dst;
-        }
-
-        private static void CreateMesh(Transform parent, string name, Vector3[] vertices, Vector2[] uv, Color[] colors,
-                                       int[] triangles, Material mat, List<UnityEngine.Object> owned)
-        {
-            Mesh mesh = new Mesh { name = name + " Mesh" };
-            mesh.vertices = vertices;
-            mesh.uv = uv;
-            mesh.colors = colors;
-            mesh.triangles = triangles;
+                new Vector2(0f, 0f), new Vector2(1f, 0f),
+                new Vector2(1f, 1f), new Vector2(0f, 1f)
+            };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
             mesh.RecalculateBounds();
-            owned.Add(mesh);
-
-            GameObject go = new GameObject(name);
-            go.transform.SetParent(parent, false);
-            MeshFilter filter = go.AddComponent<MeshFilter>();
-            MeshRenderer renderer = go.AddComponent<MeshRenderer>();
-            filter.sharedMesh = mesh;
-            renderer.sharedMaterial = mat;
+            return mesh;
         }
     }
 }
