@@ -19,16 +19,13 @@ namespace VoxelEngine.Showcase
         {
             ConfigureTurfPresentation();
 
-            // Warm, high sun with a slightly greener ambient fill. Keep the light directional so
-            // the valley and block faces read clearly without crushing the shaded turf to brown.
             VoxelRenderBridge.SunDirection = new Vector3(-0.50f, 0.81f, -0.31f).normalized;
             VoxelRenderBridge.SkyHorizon = new Color(0.96f, 0.91f, 0.61f, 1f);
             VoxelRenderBridge.SkyZenith = new Color(0.82f, 0.84f, 0.54f, 1f);
 
             ApplyTonalOverlay();
             ApplyVegetatedCap();
-            ApplyForegroundContrastAccents();
-            ApplyVisibleDetails();
+            ApplyReferenceDetails();
         }
 
         private void ConfigureTurfPresentation()
@@ -42,19 +39,12 @@ namespace VoxelEngine.Showcase
             Vector4 grassSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 grassSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
 
-            // Keep turf in one coherent yellow-green family. The previous near/mid/far colors were
-            // so different that material boundaries read as giant painted regions instead of light
-            // moving across continuous vegetation.
             SetTurfPresentation(TerrainTurfNear, new Color(0.34f, 0.43f, 0.16f), grassSampling, grassSurface);
             SetTurfPresentation(TerrainTurfMid,  new Color(0.39f, 0.48f, 0.18f), grassSampling, grassSurface);
             SetTurfPresentation(TerrainTurfFar,  new Color(0.44f, 0.51f, 0.20f), grassSampling, grassSurface);
             SetTurfPresentation(Mat.Grass,       new Color(0.39f, 0.48f, 0.18f), grassSampling, grassSurface);
             SetTurfPresentation(Mat.Moss,        new Color(0.24f, 0.34f, 0.12f), grassSampling, grassSurface);
 
-            // Limestone must remain visibly limestone. Retinting the production planar rock
-            // material green hid the rocks but turned every planar face into a dark striped turf
-            // shelf. A warm cream body with modest texture/normal variation matches the reference
-            // much more closely and keeps the block hierarchy readable.
             SetMaterialPresentation(Mat.TerrainLimestone,
                 new Color(0.69f, 0.64f, 0.47f), 0.24f, 0.11f, 0.82f, 0.018f);
             SetMaterialPresentation(TerrainLimestoneAccent,
@@ -104,10 +94,6 @@ namespace VoxelEngine.Showcase
 
         private void ApplyTonalOverlay()
         {
-            // Deliberately do not repaint every terrain top voxel into three depth buckets. The
-            // base authoring already provides continuous grass/moss placement, and presentation
-            // variation supplies small-scale breakup. The old overlay produced the large geometric
-            // color patches that were obvious in the full-size render.
             _tonalOverlayApplied = true;
         }
 
@@ -118,7 +104,6 @@ namespace VoxelEngine.Showcase
 
         private static byte GroundToneMaterial(int x, int z)
         {
-            // Keep helper-generated tufts in the same material family as the underlying terrain.
             return TurfMaterial(x, z);
         }
 
