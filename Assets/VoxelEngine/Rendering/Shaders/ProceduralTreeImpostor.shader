@@ -69,28 +69,51 @@ Shader "VoxelEngine/ProceduralTreeImpostor"
                 return output;
             }
 
-            float CrownMask(float2 uv)
+            float Ellipse(float2 p, float2 centre, float2 radius)
             {
-                float2 p = uv * 2.0 - 1.0;
+                float2 q = (p - centre) / radius;
+                return 1.0 - dot(q, q);
+            }
 
-                // A broad, irregular crown envelope rather than the per-leaf mask used by the
-                // near foliage shader. This is intentionally cheap: the final version can replace
-                // this analytic silhouette with a species/angle impostor atlas without changing
-                // the standing-tree submission architecture.
-                float y = p.y;
-                float width = 0.70 + 0.20 * (1.0 - y * y);
-                float crown = 1.0 - (p.x * p.x / (width * width) + y * y * 0.92);
-                float scallop = 0.08 * sin(p.x * 14.0 + p.y * 5.0)
-                              + 0.05 * sin(p.y * 17.0 - p.x * 4.0);
-                return crown + scallop;
+            float TreeMask(float2 uv)
+            {
+                // UV is the complete tree bounds. Keep the trunk visible low in the card and use
+                // several overlapping canopy lobes instead of filling the whole rectangle with a
+                // single opaque oval. Small deterministic gaps preserve the airy character of the
+                // geometry LOD at the 300 m handoff.
+                float2 p = uv;
+
+                float trunkWidth = lerp(0.040, 0.085, saturate((0.48 - p.y) / 0.48));
+                float trunk = min(p.y - 0.01, 0.53 - p.y);
+                trunk = min(trunk, trunkWidth - abs(p.x - 0.5));
+
+                float crown = Ellipse(p, float2(0.50, 0.72), float2(0.31, 0.29));
+                crown = max(crown, Ellipse(p, float2(0.31, 0.66), float2(0.20, 0.20)));
+                crown = max(crown, Ellipse(p, float2(0.69, 0.65), float2(0.19, 0.21)));
+                crown = max(crown, Ellipse(p, float2(0.43, 0.88), float2(0.19, 0.14)));
+                crown = max(crown, Ellipse(p, float2(0.61, 0.86), float2(0.18, 0.15)));
+
+                float edgeBreakup = 0.055 * sin(p.x * 39.0 + p.y * 17.0)
+                                  + 0.040 * sin(p.x * 13.0 - p.y * 43.0);
+                crown += edgeBreakup;
+
+                // Cut deterministic holes through the crown so the far card does not become a
+                // solid green disk. The holes are intentionally low frequency so they survive
+                // downsampling and MSAA at long range.
+                float gapField = sin(p.x * 31.0 + p.y * 7.0)
+                               * sin(p.y * 29.0 - p.x * 9.0);
+                if (p.y > 0.48 && gapField > 0.73)
+                    crown = -1.0;
+
+                return max(trunk, crown);
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 float damage = saturate(_Damage);
-                float mask = CrownMask(input.uv);
-                clip(mask - lerp(0.02, 0.28, damage));
+                float mask = TreeMask(input.uv);
+                clip(mask - lerp(0.0, 0.12, damage));
 
                 float3 n = normalize(input.normalWS);
                 float3 sun = normalize(_SunDirection.xyz);
@@ -98,6 +121,9 @@ Shader "VoxelEngine/ProceduralTreeImpostor"
                 float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb,
                                       saturate(abs(n.y) * 0.50 + 0.25));
                 float3 colour = input.color.rgb * lerp(1.0, 0.72, damage);
+                float trunkBlend = 1.0 - smoothstep(0.38, 0.55, input.uv.y);
+                float3 trunkColour = float3(0.23, 0.14, 0.075);
+                colour = lerp(colour, trunkColour, trunkBlend * 0.82);
                 float3 lit = colour * (ambient * 0.54 + (0.34 + ndl * 0.56));
                 return half4(lit, 1.0);
             }
