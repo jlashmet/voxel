@@ -10,7 +10,7 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
         _FlowSpeed ("Flow Speed", Float) = 0.20
         _FlowStrength ("Flow Strength", Range(0,0.02)) = 0.006
         _Shimmer ("Shimmer", Range(0,1)) = 0.34
-        _EdgeFoam ("Edge Foam", Range(0,1)) = 0.52
+        _EdgeFoam ("Edge Foam", Range(0,1)) = 0.68
         _Alpha ("Alpha", Range(0,1)) = 1
         _UsePreviewTime ("Use Preview Time", Float) = 0
         _PreviewTime ("Preview Time", Float) = 0
@@ -77,28 +77,21 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 color=lerp(color,_ShallowColor.rgb,palePatch*0.22*pool);
                 color=lerp(color,_DeepColor.rgb,deepPatch*0.22*pool);
                 float darkFleck=smoothstep(0.72,0.88,fbm(poolUvB*float2(31.0,24.0)+17.2))*pool;
-                color=lerp(color,_DeepColor.rgb,darkFleck*0.18);
-                float foamBlobA=smoothstep(0.72,0.88,fbm(poolUvA*float2(29.0,21.0)+float2(time*0.5,4.6)));
-                float foamBlobB=smoothstep(0.76,0.91,fbm(poolUvB*float2(43.0,28.0)+11.8));
-                float blobBreak=smoothstep(0.45,0.65,fbm(poolUvA*float2(12.0,17.0)+3.4));
-                float foamBlotches=saturate((foamBlobA*0.78+foamBlobB*0.45)*blobBreak*pool);
-                color=lerp(color,_FoamColor.rgb,foamBlotches*0.62);
-                float ribbonNoise=fbm(float2(poolUvA.x*8.5,poolUvA.y*48.0)+float2(0.0,detail*1.7));
-                float ribbonNoise2=fbm(float2(poolUvB.x*12.0,poolUvB.y*68.0)+5.4);
-                float breakA=smoothstep(0.47,0.64,fbm(float2(poolUvA.x*34.0,poolUvA.y*6.5)+3.2));
-                float breakB=smoothstep(0.50,0.67,fbm(float2(poolUvB.x*46.0,poolUvB.y*7.5)+8.6));
-                float ribbonA=smoothstep(0.70,0.85,ribbonNoise+0.16*sin(poolUvA.y*106.0+poolUvA.x*6.0))*breakA;
-                float ribbonB=smoothstep(0.74,0.89,ribbonNoise2+0.13*sin(poolUvB.y*151.0-poolUvB.x*9.0))*breakB;
-                float organicFoam=saturate((ribbonA*0.58+ribbonB*0.36)*pool);
-                color=lerp(color,_FoamColor.rgb,organicFoam*0.26);
-                float marksA=brushMark(poolUvA,17.0,47.0,1.4,0.82,0.07,0.20);
-                float marksB=brushMark(poolUvB+float2(0.04,0.02),27.0,74.0,7.8,0.87,0.05,0.15);
-                float marksC=brushMark(poolUvA+float2(-0.06,0.03),12.0,35.0,16.2,0.85,0.08,0.22);
-                float flecks=brushMark(poolUvB+float2(0.09,-0.04),42.0,98.0,29.3,0.91,0.035,0.10);
-                float poolWhite=saturate((marksA*0.82+marksB*0.64+marksC*0.54+flecks*0.50)*pool);
-                color=lerp(color,_FoamColor.rgb,poolWhite*0.80);
-                float cyanFleck=brushMark(poolUvA+float2(-0.02,0.05),34.0,86.0,41.7,0.88,0.035,0.12)*pool;
-                color=lerp(color,_ShallowColor.rgb,cyanFleck*0.38);
+                color=lerp(color,_DeepColor.rgb,darkFleck*0.20);
+                float cluster=smoothstep(0.48,0.66,fbm(poolUvA*float2(7.5,9.5)+2.1));
+                float cluster2=smoothstep(0.52,0.69,fbm(poolUvB*float2(11.0,8.0)+6.7));
+                float foamBlobA=smoothstep(0.70,0.86,fbm(poolUvA*float2(30.0,22.0)+float2(time*0.5,4.6)));
+                float foamBlobB=smoothstep(0.75,0.90,fbm(poolUvB*float2(44.0,29.0)+11.8));
+                float foamBlotches=saturate((foamBlobA*0.80*cluster+foamBlobB*0.50*cluster2)*pool);
+                color=lerp(color,_FoamColor.rgb,foamBlotches*0.68);
+                float marksA=brushMark(poolUvA,17.0,47.0,1.4,0.72,0.07,0.20);
+                float marksB=brushMark(poolUvB+float2(0.04,0.02),27.0,74.0,7.8,0.79,0.05,0.15);
+                float marksC=brushMark(poolUvA+float2(-0.06,0.03),12.0,35.0,16.2,0.76,0.08,0.22);
+                float flecks=brushMark(poolUvB+float2(0.09,-0.04),42.0,98.0,29.3,0.87,0.035,0.10);
+                float poolWhite=saturate((marksA*0.88+marksB*0.68+marksC*0.58)*cluster + flecks*0.54*cluster2);
+                color=lerp(color,_FoamColor.rgb,poolWhite*0.92*pool);
+                float cyanFleck=brushMark(poolUvA+float2(-0.02,0.05),34.0,86.0,41.7,0.84,0.035,0.12)*pool*cluster;
+                color=lerp(color,_ShallowColor.rgb,cyanFleck*0.42);
                 float fallNoise=fbm(float2(fallUv.x*30.0+broadA*2.0,fallUv.y*8.0));
                 float ribs=pow(saturate(sin(uv.x*91.0+fallNoise*16.0)*0.5+0.5),5.0);
                 float thin=pow(saturate(sin(uv.x*166.0+detail*12.0)*0.5+0.5),8.0);
@@ -109,8 +102,8 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 color=lerp(color,_DeepColor.rgb,fall*(1.0-fallWhite)*smoothstep(0.46,0.74,broadB)*0.29);
                 float lip=authoredLipMask(uv)*mask;
                 float lipNoise=fbm(float2(uv.x*46.0+time*0.55,uv.y*11.0));
-                float lipSegments=smoothstep(0.48,0.65,lipNoise+0.13*sin(uv.x*79.0+time));
-                color=lerp(color,_FoamColor.rgb,lip*lipSegments*0.56);
+                float lipSegments=smoothstep(0.46,0.63,lipNoise+0.14*sin(uv.x*79.0+time));
+                color=lerp(color,_FoamColor.rgb,lip*lipSegments*0.64);
                 float2 t=_ReferenceTex_TexelSize.xy*3.0;
                 half mUp=SAMPLE_TEXTURE2D(_ReferenceTex,sampler_ReferenceTex,uv+float2(0,t.y)).r;
                 half mDn=SAMPLE_TEXTURE2D(_ReferenceTex,sampler_ReferenceTex,uv-float2(0,t.y)).r;
@@ -118,9 +111,10 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 half mRt=SAMPLE_TEXTURE2D(_ReferenceTex,sampler_ReferenceTex,uv+float2(t.x,0)).r;
                 float topLip=saturate((rawMask-mUp)*7.0)*fall; float bottom=saturate((rawMask-mDn)*6.0)*fall;
                 float edgeAny=saturate((rawMask-min(min(mUp,mDn),min(mLf,mRt)))*4.1);
-                float foamNoise=smoothstep(0.31,0.60,fbm(fallUv*40.0));
-                color=lerp(color,_FoamColor.rgb,saturate((topLip*1.00+bottom*0.86)*foamNoise));
-                float chipped=edgeAny*smoothstep(0.36,0.64,fbm(poolUvB*45.0))*pool*_EdgeFoam*0.34;
+                float foamNoise=smoothstep(0.28,0.57,fbm(fallUv*40.0));
+                color=lerp(color,_FoamColor.rgb,saturate((topLip*1.10+bottom*0.96)*foamNoise));
+                float edgeBreak=smoothstep(0.33,0.60,fbm(poolUvB*float2(52.0,41.0)+4.2));
+                float chipped=edgeAny*edgeBreak*pool*_EdgeFoam*0.68;
                 color=lerp(color,_FoamColor.rgb,chipped);
                 return half4(saturate(color),saturate(mask*_Alpha));
             }
