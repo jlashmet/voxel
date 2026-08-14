@@ -23,14 +23,14 @@ namespace VoxelEngine.CI
                 return;
             }
 
-            float d = Mathf.Max(52f, span * 0.43f);
+            float d = Mathf.Max(64f, span * 0.54f);
             Vector3 offset = view.Direction * d;
             int x = centreX + Mathf.RoundToInt(offset.x / VoxelSize);
             int z = centreZ + Mathf.RoundToInt(offset.z / VoxelSize);
             camera.fieldOfView = 52f;
             camera.transform.position = new Vector3(
                 focus.x + offset.x,
-                SurfaceY(x, z) + 3.4f,
+                SurfaceY(x, z) + 4.2f,
                 focus.z + offset.z);
             camera.transform.LookAt(new Vector3(focus.x, centreY + 5.2f, focus.z));
             camera.farClipPlane = Mathf.Max(240f, span * 2.2f);
