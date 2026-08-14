@@ -33,29 +33,27 @@ namespace MountingForce.WorldGen.Voxel
 
     /// <summary>
     /// Adapter from Architecture's semantic ArchBay socket to VoxelEngine's reusable arch API.
-    /// Unit conversion and wall depth are explicit inputs so neither layer silently owns world scale.
+    /// Scale follows the rest of WorldGen.Voxel: semantic decimetres multiplied by
+    /// voxels-per-decimetre. Wall depth stays explicit because it is a realization/style choice.
     /// </summary>
     public static class BuildingArchIntegration
     {
         public static BuildingArchPlacement Compile(
             in BuildingDetailRequest request,
-            int decimetresPerVoxel,
+            int voxelsPerDecimetre,
             int wallDepthVoxels,
             in ArchFeatureStyle style,
             uint seed)
         {
             if (request.Kind != BuildingDetailSocketKind.ArchBay)
                 throw new ArgumentException("Building detail request is not an ArchBay socket.", nameof(request));
-            if (decimetresPerVoxel <= 0)
-                throw new ArgumentOutOfRangeException(nameof(decimetresPerVoxel));
+            if (voxelsPerDecimetre <= 0)
+                throw new ArgumentOutOfRangeException(nameof(voxelsPerDecimetre));
             if (wallDepthVoxels <= 0)
                 throw new ArgumentOutOfRangeException(nameof(wallDepthVoxels));
 
-            // Opening dimensions round inward so voxel realization can never exceed the semantic
-            // architectural clearance. If scale conversion makes the opening too small for the
-            // Core arch contract, reject it rather than silently enlarging the doorway.
-            int clearSpan = request.WidthDm / decimetresPerVoxel;
-            int clearHeight = request.HeightDm / decimetresPerVoxel;
+            int clearSpan = checked(request.WidthDm * voxelsPerDecimetre);
+            int clearHeight = checked(request.HeightDm * voxelsPerDecimetre);
             if (clearSpan < 4)
                 throw new InvalidOperationException(
                     "ArchBay opening is narrower than the reusable arch feature minimum at this voxel scale.");
@@ -63,8 +61,8 @@ namespace MountingForce.WorldGen.Voxel
                 throw new InvalidOperationException(
                     "ArchBay opening has no positive voxel height at this voxel scale.");
 
-            int center = DivideRounded(request.CenterOffsetDm, decimetresPerVoxel);
-            int baseHeight = DivideRounded(request.BaseHeightDm, decimetresPerVoxel);
+            int center = checked(request.CenterOffsetDm * voxelsPerDecimetre);
+            int baseHeight = checked(request.BaseHeightDm * voxelsPerDecimetre);
 
             var archRequest = new ArchBayRequest(
                 clearSpan: clearSpan,
@@ -79,13 +77,6 @@ namespace MountingForce.WorldGen.Voxel
                 center,
                 baseHeight,
                 definition);
-        }
-
-        private static int DivideRounded(int value, int divisor)
-        {
-            if (value >= 0)
-                return (value + divisor / 2) / divisor;
-            return (value - divisor / 2) / divisor;
         }
     }
 }
