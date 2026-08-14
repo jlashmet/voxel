@@ -12,6 +12,8 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
         _Shimmer ("Shimmer", Range(0,1)) = 0.30
         _EdgeFoam ("Edge Foam", Range(0,1)) = 0.52
         _Alpha ("Alpha", Range(0,1)) = 1
+        _UsePreviewTime ("Use Preview Time", Float) = 0
+        _PreviewTime ("Preview Time", Float) = 0
     }
 
     SubShader
@@ -47,6 +49,8 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 float _Shimmer;
                 float _EdgeFoam;
                 float _Alpha;
+                float _UsePreviewTime;
+                float _PreviewTime;
             CBUFFER_END
 
             float hash21(float2 p)
@@ -58,10 +62,10 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
 
             float noise(float2 p)
             {
-                float2 i=floor(p), f=frac(p);
+                float2 ii=floor(p), f=frac(p);
                 f=f*f*(3.0-2.0*f);
-                return lerp(lerp(hash21(i),hash21(i+float2(1,0)),f.x),
-                            lerp(hash21(i+float2(0,1)),hash21(i+float2(1,1)),f.x),f.y);
+                return lerp(lerp(hash21(ii),hash21(ii+float2(1,0)),f.x),
+                            lerp(hash21(ii+float2(0,1)),hash21(ii+float2(1,1)),f.x),f.y);
             }
 
             float fbm(float2 p)
@@ -103,48 +107,54 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 half mask=smoothstep(0.10h,0.46h,rawMask);
                 clip(mask-0.07h);
 
-                float time=_Time.y*_FlowSpeed;
+                float sourceTime=lerp(_Time.y,_PreviewTime,step(0.5,_UsePreviewTime));
+                float time=sourceTime*_FlowSpeed;
                 float fall=authoredFallMask(uv)*mask;
                 float pool=1.0-fall;
 
-                float broadA=fbm(uv*float2(6.3,7.8)+float2(time*0.10,-time*0.14));
-                float broadB=fbm(uv*float2(10.7,12.7)+float2(-time*0.08,time*0.11)+4.9);
-                float detail=fbm(uv*float2(29.0,31.0)+float2(time*0.22,-time*0.28)+11.4);
-                float micro=fbm(uv*float2(52.0,45.0)+float2(-time*0.20,time*0.16)+2.8);
+                // Horizontal water drifts laterally in two counter-moving layers.
+                float2 poolUvA=uv+float2(time*0.090 + sin(uv.y*11.0+time*1.7)*_FlowStrength, time*0.012);
+                float2 poolUvB=uv+float2(-time*0.052 + sin(uv.y*7.0-time*1.2)*_FlowStrength*0.7, -time*0.009);
+                // Falling water advects strongly downward (positive phase moves texture toward -Y on screen).
+                float2 fallUv=uv+float2(sin(uv.y*24.0+time*5.0)*_FlowStrength*0.8, time*0.62);
+
+                float broadA=fbm(poolUvA*float2(6.3,7.8));
+                float broadB=fbm(poolUvB*float2(10.7,12.7)+4.9);
+                float detail=fbm(poolUvA*float2(29.0,31.0)+11.4);
+                float micro=fbm(poolUvB*float2(52.0,45.0)+2.8);
 
                 float depth=saturate(0.15+(1.0-uv.y)*0.38+broadA*0.44-broadB*0.13);
                 half3 color=lerp(_ShallowColor.rgb,_MidColor.rgb,smoothstep(0.22,0.64,depth));
                 color=lerp(color,_DeepColor.rgb,smoothstep(0.61,0.93,depth));
 
-                // Broad brushy paint variation on horizontal water.
                 float palePatch=smoothstep(0.53,0.76,broadB+(detail-0.5)*0.28);
                 float deepPatch=smoothstep(0.57,0.80,broadA-(detail-0.5)*0.22);
                 color=lerp(color,_ShallowColor.rgb,palePatch*0.30*pool);
                 color=lerp(color,_DeepColor.rgb,deepPatch*0.22*pool);
 
-                // Two bands of broken horizontal foam strokes plus small flecks.
-                float lineA=pow(saturate(sin(uv.y*118.0+uv.x*7.0+broadA*14.0+time*1.2)*0.5+0.5),20.0);
-                float lineB=pow(saturate(sin(uv.y*61.0-uv.x*13.0+broadB*11.0-time*0.75)*0.5+0.5),24.0);
-                float lineC=pow(saturate(sin(uv.y*176.0+detail*16.0+time*1.7)*0.5+0.5),29.0);
+                // Foam bands advect sideways across pools instead of just flickering in place.
+                float lineA=pow(saturate(sin(poolUvA.y*118.0+poolUvA.x*7.0+broadA*14.0)*0.5+0.5),20.0);
+                float lineB=pow(saturate(sin(poolUvB.y*61.0-poolUvB.x*13.0+broadB*11.0)*0.5+0.5),24.0);
+                float lineC=pow(saturate(sin(poolUvA.y*176.0+detail*16.0)*0.5+0.5),29.0);
                 float breakup=smoothstep(0.49,0.70,detail)*smoothstep(0.42,0.65,micro+0.08);
                 float poolFoam=saturate((lineA*0.68+lineB*0.48+lineC*0.24)*breakup*pool);
                 color=lerp(color,_FoamColor.rgb,poolFoam*0.56);
 
-                // Tiny irregular white brush dabs across larger pools.
-                float dabCell=hash21(floor(uv*float2(61.0,79.0)));
+                float dabCell=hash21(floor(poolUvA*float2(61.0,79.0)));
                 float dabs=step(0.86,dabCell)*smoothstep(0.48,0.69,micro)*pool;
                 dabs*=smoothstep(0.18,0.55,mask);
                 color=lerp(color,_FoamColor.rgb,dabs*0.38);
 
-                // Waterfall sheets: bright vertical ribbons separated by blue troughs.
-                float fallNoise=fbm(float2(uv.x*30.0+broadA*2.0,uv.y*8.0-time*2.7));
-                float ribs=pow(saturate(sin(uv.x*91.0+fallNoise*16.0-time*8.2)*0.5+0.5),5.5);
-                float thin=pow(saturate(sin(uv.x*166.0+detail*12.0-time*10.7)*0.5+0.5),9.0);
-                float fallWhite=saturate(ribs*0.62+thin*0.34);
-                color=lerp(color,_FoamColor.rgb,fall*fallWhite*0.70);
+                // Falls retain vertical rib structure while brightness packets travel downward.
+                float fallNoise=fbm(float2(fallUv.x*30.0+broadA*2.0,fallUv.y*8.0));
+                float ribs=pow(saturate(sin(uv.x*91.0+fallNoise*16.0)*0.5+0.5),5.5);
+                float thin=pow(saturate(sin(uv.x*166.0+detail*12.0)*0.5+0.5),9.0);
+                float downPulseA=pow(saturate(sin((uv.y+time*0.76)*54.0+fallNoise*9.0)*0.5+0.5),4.2);
+                float downPulseB=pow(saturate(sin((uv.y+time*1.08)*92.0+detail*7.0)*0.5+0.5),7.0);
+                float fallWhite=saturate((ribs*0.62+thin*0.34)*(0.56+downPulseA*0.34)+downPulseB*0.22);
+                color=lerp(color,_FoamColor.rgb,fall*fallWhite*0.72);
                 color=lerp(color,_DeepColor.rgb,fall*(1.0-fallWhite)*smoothstep(0.50,0.76,broadB)*0.24);
 
-                // Turbulent lip and impact foam.
                 float2 t=_ReferenceTex_TexelSize.xy*3.0;
                 half mUp=SAMPLE_TEXTURE2D(_ReferenceTex,sampler_ReferenceTex,uv+float2(0,t.y)).r;
                 half mDn=SAMPLE_TEXTURE2D(_ReferenceTex,sampler_ReferenceTex,uv-float2(0,t.y)).r;
@@ -153,11 +163,10 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 float topLip=saturate((rawMask-mUp)*5.8)*fall;
                 float bottom=saturate((rawMask-mDn)*5.2)*fall;
                 float edgeAny=saturate((rawMask-min(min(mUp,mDn),min(mLf,mRt)))*4.0);
-                float foamNoise=smoothstep(0.36,0.64,fbm(uv*43.0+float2(time*0.4,-time*0.7)));
+                float foamNoise=smoothstep(0.36,0.64,fbm(fallUv*43.0));
                 color=lerp(color,_FoamColor.rgb,saturate((topLip+bottom*0.76)*foamNoise)*0.94);
 
-                // Chipped pool shoreline accent, modest rather than sticker-like.
-                float chipped=edgeAny*foamNoise*pool*_EdgeFoam*0.34;
+                float chipped=edgeAny*smoothstep(0.36,0.64,fbm(poolUvB*43.0))*pool*_EdgeFoam*0.34;
                 color=lerp(color,_FoamColor.rgb,chipped);
 
                 return half4(saturate(color),saturate(mask*_Alpha));
