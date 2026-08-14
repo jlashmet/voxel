@@ -12,7 +12,6 @@ on:
       - 'Assets/VoxelEngine/CI/Editor/StylizedWaterLookdev.shader.meta'
       - '.github/workflows/water-visual.yml'
 
-# Keep water captures serialized and wait for any prior Unity process to fully exit.
 concurrency:
   group: water-visual-${{ github.ref }}
   cancel-in-progress: true
@@ -35,18 +34,48 @@ jobs:
           set -euo pipefail
           git reset --hard HEAD
 
-      - name: Wait for Unity editor to become available
+      - name: Clear stale batch Unity and wait for interactive editor
         shell: bash
         run: |
           set -euo pipefail
+
+          # A previous CI launch can occasionally leave a batch Unity process alive after
+          # its workflow is cancelled. It is safe to terminate only processes that are
+          # both batchmode and scoped to this runner's voxel checkout. Never kill an
+          # interactive editor.
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            pid="${line%% *}"
+            cmd="${line#* }"
+            if [[ "$cmd" == *"/Unity.app/Contents/MacOS/Unity"* \
+               && "$cmd" == *"-batchmode"* \
+               && "$cmd" == *"/_work/voxel/voxel"* ]]; then
+              echo "Terminating stale voxel batch Unity pid $pid"
+              kill "$pid" 2>/dev/null || true
+            fi
+          done < <(pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true)
+
+          sleep 3
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            pid="${line%% *}"
+            cmd="${line#* }"
+            if [[ "$cmd" == *"/Unity.app/Contents/MacOS/Unity"* \
+               && "$cmd" == *"-batchmode"* \
+               && "$cmd" == *"/_work/voxel/voxel"* ]]; then
+              echo "Force terminating stale voxel batch Unity pid $pid"
+              kill -9 "$pid" 2>/dev/null || true
+            fi
+          done < <(pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true)
+
           deadline=$((SECONDS + 600))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
-              echo 'Timed out waiting for another Unity editor to exit.' >&2
+              echo 'Timed out waiting for an interactive Unity editor to exit.' >&2
               pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
               exit 1
             fi
-            echo 'Another Unity editor is active; waiting 5 seconds...'
+            echo 'Interactive Unity editor is active; waiting 5 seconds...'
             sleep 5
           done
 
