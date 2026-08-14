@@ -76,8 +76,7 @@ namespace VoxelEngine.Rendering
         public bool Enabled { get; set; } = true;
         public VoxelSurfaceMetrics Metrics => _scheduler.Metrics;
 
-        public void Setup(ComputeShader surfaceExtraction = null,
-                          Shader surfaceShader = null,
+        public void Setup(Shader surfaceShader = null,
                           Shader waterShader = null,
                           Texture2D stoneTexture = null,
                           Texture2D woodTexture = null, Texture2D sandTexture = null,

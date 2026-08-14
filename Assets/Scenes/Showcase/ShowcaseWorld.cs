@@ -176,6 +176,10 @@ namespace VoxelEngine.Showcase
             }
         }
         public int CastleBuildStage => _castleBuild.IsCreated ? _castleBuild.StageNumber : 0;
+        public int LastCastleStage { get; private set; }
+        public double LastCastleStageMs { get; private set; }
+        public int MaxCastleStage { get; private set; }
+        public double MaxCastleStageMs { get; private set; }
 
         public int PendingDetachedChunks => _detachedChunks.Count;
 
@@ -283,7 +287,29 @@ namespace VoxelEngine.Showcase
             // its atomic commit, one semantic stage per frame.
             if (_castleBuild.IsCreated && !_castleBuild.IsComplete)
             {
-                using (s_CastleMarker.Auto()) StepLandmarks();
+                // Spend the frame's budget, rather than taking a single step and returning.
+                //
+                // The site stage sub-steps a fixed four rows per call and the keep sub-steps one
+                // storey, so stepping once per frame pinned the whole build to a rate that has
+                // nothing to do with the budget: the site's two phases alone are 811 rows each,
+                // which is roughly 650 frames of sculpting before stage 2 begins. The showcase
+                // raises the budget to 12 ms precisely for this window and about 3 ms of it was
+                // being used, so the castle was still absent long after any caller stopped
+                // waiting — no gate, no keep floor, no recorded far-field silhouette.
+                //
+                // Looping here does not weaken the atomicity this branch exists to protect. The
+                // hazard is another world writer allocating between two castle stages, and the
+                // early return below still keeps terrain streaming out until the build commits;
+                // all this changes is how many of the castle's own stages fit in one frame.
+                using (s_CastleMarker.Auto())
+                {
+                    do
+                    {
+                        StepLandmarks();
+                    }
+                    while (_castleBuild.IsCreated && !_castleBuild.IsComplete
+                           && Time.realtimeSinceStartupAsDouble < deadline);
+                }
                 LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
                 return;
             }
@@ -343,27 +369,199 @@ namespace VoxelEngine.Showcase
 
         public bool IsGenerated(int3 regionCoord) => _generated.Contains(regionCoord);
 
+        /// <summary>
+        /// Radius, in metres, of the largest disc around a point in which every ground region is
+        /// generated. The far-field clipmap opens its hole to exactly this.
+        ///
+        /// The hole used to be a fixed radius fixed at startup, which is wrong in both
+        /// directions. Regions stream in over seconds on a few milliseconds per frame, so during
+        /// load the hole was empty of voxels *and* of far mesh — the player watched the ground
+        /// appear around them in squares. After a teleport it was worse, because eviction empties
+        /// the neighbourhood and the hole stayed open anyway.
+        ///
+        /// Measured by expanding square shells outward and stopping at the first shell with a
+        /// missing ground layer, so the answer is the largest radius that is completely filled
+        /// rather than the furthest region that happens to exist. Erring inward is deliberate:
+        /// the far mesh overlapping resident voxels is depth-tested away, whereas erring outward
+        /// is the hole this method exists to close.
+        /// </summary>
+        /// <summary>
+        /// Largest radius around <paramref name="cameraMetres"/> that lies wholly inside the
+        /// block of regions out to <paramref name="completeShells"/>.
+        ///
+        /// The shell count is a region-grid measurement and the hole is centred on the camera,
+        /// which stands at an arbitrary point inside its own region. Returning shell * 51.2 m
+        /// therefore over-reports by however far the camera sits from its region's centre — up
+        /// to half a region — and that sliver is a ring of columns with no voxels and no far
+        /// mesh. Measuring to the nearest edge of the resident block instead is exact.
+        /// </summary>
+        private static float GuaranteedRadius(float3 cameraMetres, int3 centre, int completeShells)
+        {
+            if (completeShells < 0) return 0f;
+
+            float minX = (centre.x - completeShells) * RegionMetres;
+            float maxX = (centre.x + completeShells + 1) * RegionMetres;
+            float minZ = (centre.z - completeShells) * RegionMetres;
+            float maxZ = (centre.z + completeShells + 1) * RegionMetres;
+
+            float toEdge = math.min(
+                math.min(cameraMetres.x - minX, maxX - cameraMetres.x),
+                math.min(cameraMetres.z - minZ, maxZ - cameraMetres.z));
+            return math.max(0f, toEdge);
+        }
+
+        public float ResidentGroundRadiusMetres(float3 cameraMetres)
+        {
+            var centre = ResidencyManager.PositionToRegion(cameraMetres);
+
+            for (int shell = 0; shell <= LoadRadiusRegions; shell++)
+            {
+                for (int dx = -shell; dx <= shell; dx++)
+                for (int dz = -shell; dz <= shell; dz++)
+                {
+                    // Perimeter of this shell only; the interior was cleared by earlier passes.
+                    if (math.max(math.abs(dx), math.abs(dz)) != shell) continue;
+                    // Residency is a disc, so corners outside it are never loaded and must not
+                    // be treated as a gap.
+                    if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;
+
+                    int rx = centre.x + dx;
+                    int rz = centre.z + dz;
+                    SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);
+                    if (maxLayer - minLayer > MaxSurfaceLayersPerColumn)
+                        maxLayer = minLayer + MaxSurfaceLayersPerColumn;
+
+                    for (int ry = minLayer; ry <= maxLayer; ry++)
+                        if (!_generated.Contains(new int3(rx, ry, rz)))
+                            return GuaranteedRadius(cameraMetres, centre, shell - 1);
+                }
+            }
+
+            return GuaranteedRadius(cameraMetres, centre, LoadRadiusRegions);
+        }
+
+        /// <summary>
+        /// Coarse record of built content for far-field rendering. Outlives region residency:
+        /// evicting a region discards its voxels but not its silhouette.
+        /// </summary>
+        public FarFieldStructureStore FarField { get; } = new();
+
         /// <summary>Region containing a world position in metres.</summary>
         public static int3 RegionAt(Vector3 metres) => new int3(
-            Mathf.FloorToInt(metres.x / RegionMetres), 0, Mathf.FloorToInt(metres.z / RegionMetres));
+            Mathf.FloorToInt(metres.x / RegionMetres),
+            Mathf.FloorToInt(metres.y / RegionMetres),
+            Mathf.FloorToInt(metres.z / RegionMetres));
+
+        /// <summary>
+        /// The span of region layers the terrain surface passes through over one horizontal
+        /// region column, as an inclusive [min, max] in region-y.
+        ///
+        /// This is what makes kilometre-scale mountains affordable. A 5 km peak spans about a
+        /// hundred region layers, and making that column resident would cost a hundred megabytes
+        /// of brick pointers for a single position on the map. But terrain is a surface, not a
+        /// volume: over any one column the ground occupies only the few layers it actually
+        /// crosses, however tall the mountain is. Residency follows that surface, so height
+        /// costs generation time rather than memory.
+        ///
+        /// Sampled on a coarse lattice rather than every column — the surface is smooth at
+        /// region scale, and a full 512x512 sample per region would dominate the frame.
+        /// </summary>
+        private void SurfaceLayerSpan(int regionX, int regionZ, out int minLayer, out int maxLayer)
+        {
+            // Cached per column. The height field is static, so a column's span is fixed for the
+            // life of the world, but residency refreshes every time the viewer crosses a region
+            // and each miss costs 81 height samples. Recomputing it was adding roughly 200 ms
+            // across showcase startup — enough to push the castle build past its budget.
+            var key = new int2(regionX, regionZ);
+            if (_surfaceSpanCache.TryGetValue(key, out int2 cached))
+            {
+                minLayer = cached.x;
+                maxLayer = cached.y;
+                return;
+            }
+
+            ComputeSurfaceLayerSpan(regionX, regionZ, out minLayer, out maxLayer);
+            _surfaceSpanCache[key] = new int2(minLayer, maxLayer);
+        }
+
+        private void ComputeSurfaceLayerSpan(int regionX, int regionZ,
+                                             out int minLayer, out int maxLayer)
+        {
+            int originX = regionX * RegionVoxelEdge;
+            int originZ = regionZ * RegionVoxelEdge;
+
+            int lowest = int.MaxValue;
+            int highest = int.MinValue;
+            const int step = RegionVoxelEdge / 8;
+            for (int z = 0; z <= RegionVoxelEdge; z += step)
+            for (int x = 0; x <= RegionVoxelEdge; x += step)
+            {
+                int h = TerrainSampler.HeightAt(originX + x, originZ + z, Seed);
+                if (h < lowest) lowest = h;
+                if (h > highest) highest = h;
+            }
+
+            // A margin of one brick covers the sample lattice missing a local extremum between
+            // its taps, which would otherwise leave a hole at a ridge line.
+            lowest -= VoxelDimensions.BrickEdge;
+            highest += VoxelDimensions.BrickEdge;
+
+            minLayer = lowest >> VoxelDimensions.RegionVoxelEdgeLog2;
+            maxLayer = highest >> VoxelDimensions.RegionVoxelEdgeLog2;
+            if (minLayer < 0) minLayer = 0;
+            if (maxLayer < minLayer) maxLayer = minLayer;
+        }
+
+        /// <summary>
+        /// Ceiling on region layers loaded for one column in a single refresh. Sized so an
+        /// ordinary slope loads in full and only genuine cliff faces are deferred.
+        /// </summary>
+        private const int MaxSurfaceLayersPerColumn = 3;
+
+        private readonly Dictionary<int2, int2> _surfaceSpanCache = new();
+
+        private void QueueRegion(int3 rc)
+        {
+            if (_generated.Contains(rc)) { ResidencyManager.TouchRegion(rc); return; }
+            if (_gen.Active && _gen.Coord.Equals(rc)) return;
+            if (_pendingLoads.Contains(rc)) return;
+            _pendingLoads.Add(rc);
+        }
 
         private void RefreshPending(int3 centre)
         {
             _pendingLoads.Clear();
 
-            // Terrain lives entirely inside the y = 0 region layer, and an empty region still
-            // costs 1 MB of brick pointers, so the demo keeps residency to that layer rather
-            // than paying for a sphere of pure sky.
+            // Residency follows the terrain surface through the vertical region stack rather
+            // than pinning a single layer. An empty region still costs 1 MB of brick pointers,
+            // so only the layers the ground actually crosses are loaded — plus the layer the
+            // camera occupies, so standing in mid-air over a valley still has a region to
+            // stand in and to collide against.
             for (int dx = -LoadRadiusRegions; dx <= LoadRadiusRegions; dx++)
             for (int dz = -LoadRadiusRegions; dz <= LoadRadiusRegions; dz++)
             {
                 if (dx * dx + dz * dz > LoadRadiusRegions * LoadRadiusRegions) continue;
 
-                var rc = new int3(centre.x + dx, 0, centre.z + dz);
-                if (_generated.Contains(rc)) { ResidencyManager.TouchRegion(rc); continue; }
-                if (_gen.Active && _gen.Coord.Equals(rc)) continue;
+                int rx = centre.x + dx;
+                int rz = centre.z + dz;
+                SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);
 
-                _pendingLoads.Add(rc);
+                // Bound the span. A near-vertical column on a mountain face can legitimately
+                // cross many layers, but loading an unbounded run of them stalls streaming for
+                // one cliff, so the surface is followed from its floor upward and the rest is
+                // left to be picked up as the viewer climbs.
+                if (maxLayer - minLayer > MaxSurfaceLayersPerColumn)
+                    maxLayer = minLayer + MaxSurfaceLayersPerColumn;
+
+                for (int ry = minLayer; ry <= maxLayer; ry++)
+                    QueueRegion(new int3(rx, ry, rz));
+
+                // The viewer's own layer, when the surface does not already cover it — one
+                // layer, not the fill between. Extending the span to reach the camera meant
+                // that standing a kilometre above the ground queued every layer in between:
+                // hundreds of regions per column, none of which contain anything.
+                if (centre.y < minLayer || centre.y > maxLayer)
+                    QueueRegion(new int3(rx, centre.y, rz));
             }
 
             // The castle is atomic: its builder cannot start until every terrain region it
@@ -588,6 +786,11 @@ namespace VoxelEngine.Showcase
             _generated.Add(coord);
             _changes.PublishRegion(coord, VoxelChangeKind.All);
 
+            // Record any built content in a form that survives eviction, so the castle and
+            // Kentridge stay visible at the distance terrain is drawn rather than popping in at
+            // the streaming radius. Regions that are plain terrain store nothing.
+            FarField.CaptureRegion(coord, ref _table, in _pool, Seed);
+
             // Neighbours must re-mesh too: faces along the shared border were meshed as the edge
             // of the loaded world and are now interior.
 
@@ -646,10 +849,22 @@ namespace VoxelEngine.Showcase
         private static byte MaterialAt(int y, int surface)
         {
             if (y > surface) return VoxelDimensions.MaterialEmpty;
-            if (y == surface) return surface < BaseHeight ? MatSand : Mat.Grass;
+            if (y == surface) return SurfaceMaterialAt(surface);
             if (y > surface - DeepDepth) return MatStone;
             return MatBedrock;
         }
+
+        /// <summary>
+        /// The material of the topmost voxel in a column, given that column's surface height.
+        ///
+        /// Split out of <see cref="MaterialAt"/> because the far-field clipmap needs the same
+        /// answer and has no voxels to read it from. Two implementations of this rule means the
+        /// ground changes colour as you cross the streaming radius, which is exactly the drift
+        /// the far field shipped with: it had no material channel at all and drew every distant
+        /// mountain in one flat grey.
+        /// </summary>
+        public static byte SurfaceMaterialAt(int surface) =>
+            surface < BaseHeight ? MatSand : Mat.Grass;
 
         /// <summary>
         /// Surface height in voxels, from the engine's canonical sampler.
@@ -712,6 +927,9 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < _castleRegions.Count; i++)
                 if (!_generated.Contains(_castleRegions[i])) return false;
 
+            double stageStart = Time.realtimeSinceStartupAsDouble;
+            int stage = _castleBuild.IsCreated ? _castleBuild.StageNumber : 1;
+
             if (!_castleBuild.IsCreated)
             {
                 _castleBuild = CastleBuilder.BeginBuild(
@@ -720,7 +938,11 @@ namespace VoxelEngine.Showcase
             bool castleComplete;
             using (s_CastleMarker.Auto())
                 castleComplete = CastleBuilder.StepBuild(ref _castleBuild, ref _table, ref _pool);
-            if (!castleComplete) return true;
+            if (!castleComplete)
+            {
+                RecordCastleStage(stage, stageStart);
+                return true;
+            }
 
             CastlePlan plan = _pendingCastlePlan;
             int cx = plan.Centre.x;
@@ -738,10 +960,32 @@ namespace VoxelEngine.Showcase
             // castle-owned dressing and semantic vegetation are generated by the castle plan.
             _deferredFeatureRegions.Clear();
 
-            // Everything the castle touched has to be re-meshed and re-uploaded.
+            // Everything the castle touched has to be re-meshed and re-uploaded, and re-captured
+            // for the far field.
+            //
+            // FinishRegion captures each region as it generates, which for a castle region is
+            // strictly too early: at that point the region is plain terrain, the store correctly
+            // decides there is no built content worth keeping, and the castle that arrives
+            // afterwards is never recorded. The silhouette then vanishes at the streaming radius
+            // — the exact failure the store was added to prevent.
             for (int i = 0; i < _castleRegions.Count; i++)
+            {
                 _changes.PublishRegion(_castleRegions[i], VoxelChangeKind.All);
+                FarField.CaptureRegion(_castleRegions[i], ref _table, in _pool, Seed);
+            }
+            RecordCastleStage(stage, stageStart);
             return true;
+        }
+
+        private void RecordCastleStage(int stage, double startSeconds)
+        {
+            LastCastleStage = stage;
+            LastCastleStageMs = (Time.realtimeSinceStartupAsDouble - startSeconds) * 1000.0;
+            if (LastCastleStageMs > MaxCastleStageMs)
+            {
+                MaxCastleStage = stage;
+                MaxCastleStageMs = LastCastleStageMs;
+            }
         }
 
         private int BuildReferenceArch(int3 horizontalOrigin)

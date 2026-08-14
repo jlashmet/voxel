@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="31" result="Passed" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:59Z" duration="0.705683">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:59Z" duration="0.705683" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1143" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:59Z" duration="0.701035" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="44986" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1144" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:59Z" duration="0.698143" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1145" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:59Z" duration="0.695733" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1146" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:59Z" duration="0.693137" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1111" name="VoxelSurfaceArchitectureTests" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" testcasecount="31" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:59Z" duration="0.688004" total="31" passed="31" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1131" name="ArchBayComposesBackingOpeningImpostsAndProudRing" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.ArchBayComposesBackingOpeningImpostsAndProudRing" methodname="ArchBayComposesBackingOpeningImpostsAndProudRing" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="623157693" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:58Z" duration="0.066326" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1130" name="ArchEmitsJointAwareCurvedStoneWithIndependentMoss" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.ArchEmitsJointAwareCurvedStoneWithIndependentMoss" methodname="ArchEmitsJointAwareCurvedStoneWithIndependentMoss" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="225879771" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:58Z" duration="0.001654" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1132" name="ArchRetainsIndividuallyJointedProfileBlocksForRendering" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.ArchRetainsIndividuallyJointedProfileBlocksForRendering" methodname="ArchRetainsIndividuallyJointedProfileBlocksForRendering" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1840045235" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:58Z" duration="0.000514" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1134" name="ArchValidationReportsStructuralAndCatalogueErrors" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.ArchValidationReportsStructuralAndCatalogueErrors" methodname="ArchValidationReportsStructuralAndCatalogueErrors" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1257687840" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:58Z" duration="0.000121" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1124" name="AuthoredCoatingsRespectBaseMaterialCompatibility" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.AuthoredCoatingsRespectBaseMaterialCompatibility" methodname="AuthoredCoatingsRespectBaseMaterialCompatibility" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="616317064" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:58Z" duration="0.000737" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1129" name="CardinalOrientationPreservesDirectionalPrimitiveMembership" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.CardinalOrientationPreservesDirectionalPrimitiveMembership" methodname="CardinalOrientationPreservesDirectionalPrimitiveMembership" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="2100585663" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:58Z" duration="0.536289" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1119" name="CoatingCatalogueIdentityIncludesGeometryDisplacement" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.CoatingCatalogueIdentityIncludesGeometryDisplacement" methodname="CoatingCatalogueIdentityIncludesGeometryDisplacement" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="90788440" result="Passed" start-time="2026-08-13 20:03:58Z" end-time="2026-08-13 20:03:59Z" duration="0.000472" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1117" name="CoatingDoesNotReplaceBaseMaterialOrDestructionBehavior" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.CoatingDoesNotReplaceBaseMaterialOrDestructionBehavior" methodname="CoatingDoesNotReplaceBaseMaterialOrDestructionBehavior" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="273180265" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000488" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1118" name="CompactSurfaceStorageRoundTripsEveryAuthoredChannel" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.CompactSurfaceStorageRoundTripsEveryAuthoredChannel" methodname="CompactSurfaceStorageRoundTripsEveryAuthoredChannel" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1897000997" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000101" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1128" name="CurvedPrimitiveRasterizationIsInvariantUnderSubvolumePartitioning" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.CurvedPrimitiveRasterizationIsInvariantUnderSubvolumePartitioning" methodname="CurvedPrimitiveRasterizationIsInvariantUnderSubvolumePartitioning" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1352659176" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.041923" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1121" name="CurvedPrimitiveRasterizationPreservesAuthoredBoundaryDistance" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.CurvedPrimitiveRasterizationPreservesAuthoredBoundaryDistance" methodname="CurvedPrimitiveRasterizationPreservesAuthoredBoundaryDistance" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="727681277" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.002535" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1135" name="JournalConsumersHaveIndependentCursorsAndDetectOverflow" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.JournalConsumersHaveIndependentCursorsAndDetectOverflow" methodname="JournalConsumersHaveIndependentCursorsAndDetectOverflow" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1443392979" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000477" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1113" name="MasonryReconstructionPreservesCutStoneInsteadOfBlurringOccupancy" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.MasonryReconstructionPreservesCutStoneInsteadOfBlurringOccupancy" methodname="MasonryReconstructionPreservesCutStoneInsteadOfBlurringOccupancy" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1531455587" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000123" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1125" name="MasonryWeatheringAddsMossWithoutReplacingStructuralStone" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.MasonryWeatheringAddsMossWithoutReplacingStructuralStone" methodname="MasonryWeatheringAddsMossWithoutReplacingStructuralStone" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="26796364" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.001457" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1115" name="MutatingSealedSurfaceRulesInvalidatesTheirCatalogueHash" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.MutatingSealedSurfaceRulesInvalidatesTheirCatalogueHash" methodname="MutatingSealedSurfaceRulesInvalidatesTheirCatalogueHash" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1581208435" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000136" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1127" name="PlanarAndCurvedCellsCoexistInsideOneBrick" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.PlanarAndCurvedCellsCoexistInsideOneBrick" methodname="PlanarAndCurvedCellsCoexistInsideOneBrick" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1636589024" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000544" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1142" name="ProductionSolidExtractorAcceptsWorldOwnedSurfaceRules" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.ProductionSolidExtractorAcceptsWorldOwnedSurfaceRules" methodname="ProductionSolidExtractorAcceptsWorldOwnedSurfaceRules" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1980328115" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.008244" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1141" name="ProfileBlocksAreIndexedOnlyIntoIntersectingChunks" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.ProfileBlocksAreIndexedOnlyIntoIntersectingChunks" methodname="ProfileBlocksAreIndexedOnlyIntoIntersectingChunks" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1852549107" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.001734" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1122" name="RegionHashIncludesAuthoredBoundaryGeometry" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.RegionHashIncludesAuthoredBoundaryGeometry" methodname="RegionHashIncludesAuthoredBoundaryGeometry" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1700907882" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.002593" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1123" name="RegionHashUsesLogicalCellsRatherThanPoolAllocationIndices" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.RegionHashUsesLogicalCellsRatherThanPoolAllocationIndices" methodname="RegionHashUsesLogicalCellsRatherThanPoolAllocationIndices" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1825369136" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.002787" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1140" name="RegionInvalidationOnlyTouchesOwnerAndSamplingHalo" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.RegionInvalidationOnlyTouchesOwnerAndSamplingHalo" methodname="RegionInvalidationOnlyTouchesOwnerAndSamplingHalo" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="924957332" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000238" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1116" name="SimulationMaterialAdjacencyIsSymmetricAndSeparateFromSurfaceJoins" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.SimulationMaterialAdjacencyIsSymmetricAndSeparateFromSurfaceJoins" methodname="SimulationMaterialAdjacencyIsSymmetricAndSeparateFromSurfaceJoins" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="84111457" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000092" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1136" name="SolidInvalidationIsBoundedToChangedChunkAndRequiredHalo" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.SolidInvalidationIsBoundedToChangedChunkAndRequiredHalo" methodname="SolidInvalidationIsBoundedToChangedChunkAndRequiredHalo" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="158501286" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.001594" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1137" name="SolidWorkersPartitionEveryChunkExactlyOnce" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.SolidWorkersPartitionEveryChunkExactlyOnce" methodname="SolidWorkersPartitionEveryChunkExactlyOnce" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1337843929" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.004256" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1114" name="SurfaceCatalogueIdentityDependsOnStableIdsNotRegistrationOrder" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.SurfaceCatalogueIdentityDependsOnStableIdsNotRegistrationOrder" methodname="SurfaceCatalogueIdentityDependsOnStableIdsNotRegistrationOrder" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1443316620" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000091" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1120" name="SurfaceDetailOperationPreservesStructureAndCoating" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.SurfaceDetailOperationPreservesStructureAndCoating" methodname="SurfaceDetailOperationPreservesStructureAndCoating" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1540232306" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000669" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1133" name="SurfaceFlagsNeverChangePrimitiveMembership" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.SurfaceFlagsNeverChangePrimitiveMembership" methodname="SurfaceFlagsNeverChangePrimitiveMembership" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1418554604" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000102" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1112" name="SurfaceJoinLookupIsSymmetricAndMissingPairsAreSharpSeams" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.SurfaceJoinLookupIsSymmetricAndMissingPairsAreSharpSeams" methodname="SurfaceJoinLookupIsSymmetricAndMissingPairsAreSharpSeams" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1025237746" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000163" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1139" name="TimingWindowClampsInvalidNegativeDurationsAndIgnoresNonFiniteValues" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.TimingWindowClampsInvalidNegativeDurationsAndIgnoresNonFiniteValues" methodname="TimingWindowClampsInvalidNegativeDurationsAndIgnoresNonFiniteValues" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="288846199" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000455" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1138" name="TimingWindowReportsOrderedRollingPercentilesWithoutGrowing" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.TimingWindowReportsOrderedRollingPercentilesWithoutGrowing" methodname="TimingWindowReportsOrderedRollingPercentilesWithoutGrowing" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="1706327836" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.000490" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1126" name="UnifiedSurfaceShaderDoesNotRecognizeMaterialOrCoatingIds" fullname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.UnifiedSurfaceShaderDoesNotRecognizeMaterialOrCoatingIds" methodname="UnifiedSurfaceShaderDoesNotRecognizeMaterialOrCoatingIds" classname="VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests" runstate="Runnable" seed="606978108" result="Passed" start-time="2026-08-13 20:03:59Z" end-time="2026-08-13 20:03:59Z" duration="0.001044" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

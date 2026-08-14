@@ -1,0 +1,1546 @@
+# Voxel Engine Architecture Implementation Plan
+
+**Status:** Execution plan / not started  
+**Companion:** `docs/ARCHITECTURE_MIGRATION_PLAN.md`  
+**Baseline:** `master` at `cd76b3579ae99bdd196303a96bc73b91baf61152`  
+**Baseline date:** 2026-08-14  
+**Planning branch:** `architecture-system-boundaries-plan`  
+**Implementation stance:** clean subsystem cutovers; no compatibility layer phase
+
+This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
+
+Where this document is more specific than speculative wording in `ARCHITECTURE_MIGRATION_PLAN.md`, this post-merge implementation plan wins.
+
+---
+
+## 1. Baseline and scope
+
+This plan was refreshed after the Kentridge/world-generation merge. It is pinned to master commit:
+
+```text
+cd76b3579ae99bdd196303a96bc73b91baf61152
+```
+
+If implementation starts from a different master SHA, the first task is to re-run the file/asmdef dependency inventory and update this document before moving files. Do not assume GitHub code search is complete for this private repository; use repository trees plus local/compiler reference errors or a local textual reference scan when implementing.
+
+### In scope
+
+- dissolve `Assets/VoxelEngine/Core`;
+- establish one deliberate `Api/` assembly for each exposed engine subsystem;
+- move implementations under their owning subsystem `Runtime/` folder;
+- prohibit foreign Runtime assembly references;
+- separate storage representation from storage capabilities;
+- make semantic world generation a client of engine APIs rather than engine internals;
+- remove the current Streaming -> Net dependency;
+- move structural simulation out of Net;
+- make Rendering consume read-only engine APIs;
+- update architecture/determinism guard tests so the rules are mechanically enforced.
+
+### Explicitly out of scope
+
+- LayerProcGen adoption or a new procedural-generation orchestration framework;
+- changing the terrain algorithm itself;
+- replacing the current surface extraction/rendering algorithm;
+- fire/water simulation implementation;
+- a full material-domain redesign unless a compile-time dependency forces it;
+- gameplay/combat redesign;
+- preserving old namespaces or APIs for compatibility.
+
+---
+
+## 2. Non-negotiable cutover policy
+
+Each subsystem cutover is decisive.
+
+For a cutover:
+
+1. Create the target Api/Runtime assemblies.
+2. Move the subsystem files.
+3. Change namespaces.
+4. Change every known consumer in the repository in the same cutover.
+5. Change asmdef references in the same cutover.
+6. Delete obsolete files, namespaces and assembly references immediately.
+7. Compile and run the cutover-specific checks before starting the next subsystem.
+
+Do **not** add:
+
+- namespace-forwarding wrappers;
+- deprecated aliases;
+- `Legacy*` adapters;
+- duplicate old/new APIs;
+- temporary foreign Runtime references;
+- a `Common`, `Shared`, `Utils`, or `Core2` assembly to break cycles;
+- public `BrickPool`, `RegionTable`, `Region`, or other representation types merely to get the compiler green.
+
+A working branch may have intermediate local commits that do not compile while a single subsystem is being moved. The branch state at each completed cutover must compile and satisfy its acceptance gates.
+
+---
+
+## 3. Target repository layout
+
+```text
+Assets/VoxelEngine/
+  Foundation/
+    VoxelEngine.Foundation.asmdef
+
+  Storage/
+    Api/
+      VoxelEngine.Storage.Api.asmdef
+    Runtime/
+      VoxelEngine.Storage.Runtime.asmdef
+
+  Terrain/
+    Api/
+      VoxelEngine.Terrain.Api.asmdef
+    Runtime/
+      VoxelEngine.Terrain.Runtime.asmdef
+
+  Edits/
+    Api/
+      VoxelEngine.Edits.Api.asmdef
+    Runtime/
+      VoxelEngine.Edits.Runtime.asmdef
+
+  Structures/
+    Api/
+      VoxelEngine.Structures.Api.asmdef
+    Runtime/
+      VoxelEngine.Structures.Runtime.asmdef
+
+  StructuralIntegrity/
+    Api/
+      VoxelEngine.StructuralIntegrity.Api.asmdef
+    Runtime/
+      VoxelEngine.StructuralIntegrity.Runtime.asmdef
+
+  Tiering/
+    Api/
+      VoxelEngine.Tiering.Api.asmdef
+
+  Streaming/
+    Api/
+      VoxelEngine.Streaming.Api.asmdef
+    Runtime/
+      VoxelEngine.Streaming.Runtime.asmdef
+
+  Collision/
+    Api/
+      VoxelEngine.Collision.Api.asmdef
+    Runtime/
+      VoxelEngine.Collision.Runtime.asmdef
+
+  Vegetation/
+    Api/
+      VoxelEngine.Vegetation.Api.asmdef
+    Runtime/
+      VoxelEngine.Vegetation.Runtime.asmdef
+
+  Net/
+    Api/
+      VoxelEngine.Net.Api.asmdef
+    Runtime/
+      VoxelEngine.Net.Runtime.asmdef
+
+  Rendering/
+    Api/
+      VoxelEngine.Rendering.Api.asmdef
+    Runtime/
+      VoxelEngine.Rendering.Runtime.asmdef
+
+  Composition/
+    VoxelEngine.Composition.asmdef
+```
+
+`Foundation` is intentionally a single assembly because everything in it is public/value-level infrastructure. `Tiering` initially has only an Api assembly because there is no meaningful runtime implementation today. Do not create empty Runtime assemblies to make the folder pattern look symmetrical.
+
+---
+
+## 4. Final assembly dependency allowlist
+
+The final allowed engine dependency graph is:
+
+| Assembly | Allowed engine references |
+|---|---|
+| `VoxelEngine.Foundation` | none |
+| `VoxelEngine.Storage.Api` | Foundation |
+| `VoxelEngine.Storage.Runtime` | Storage.Api, Foundation |
+| `VoxelEngine.Terrain.Api` | Foundation, Storage.Api only if its public contracts require voxel values |
+| `VoxelEngine.Terrain.Runtime` | Terrain.Api, Storage.Api, Foundation |
+| `VoxelEngine.Structures.Api` | Foundation, Storage.Api only where compiled feature format requires voxel/surface value types |
+| `VoxelEngine.Structures.Runtime` | Structures.Api, Storage.Api, Terrain.Api, Foundation |
+| `VoxelEngine.Edits.Api` | Foundation, Storage.Api only for canonical voxel value types |
+| `VoxelEngine.Edits.Runtime` | Edits.Api, Storage.Api, Foundation |
+| `VoxelEngine.StructuralIntegrity.Api` | Foundation |
+| `VoxelEngine.StructuralIntegrity.Runtime` | StructuralIntegrity.Api, Storage.Api, Edits.Api, Foundation |
+| `VoxelEngine.Tiering.Api` | Foundation only if needed |
+| `VoxelEngine.Streaming.Api` | Foundation |
+| `VoxelEngine.Streaming.Runtime` | Streaming.Api, Storage.Api, Terrain.Api, Structures.Api, Tiering.Api, Foundation |
+| `VoxelEngine.Collision.Api` | Foundation |
+| `VoxelEngine.Collision.Runtime` | Collision.Api, Storage.Api, Foundation |
+| `VoxelEngine.Vegetation.Api` | Foundation |
+| `VoxelEngine.Vegetation.Runtime` | Vegetation.Api, Storage.Api, Terrain.Api if needed, Foundation |
+| `VoxelEngine.Net.Api` | Foundation plus stable domain APIs only if required |
+| `VoxelEngine.Net.Runtime` | Net.Api, Streaming.Api, Edits.Api, Storage.Api, StructuralIntegrity.Api, Foundation |
+| `VoxelEngine.Rendering.Api` | Foundation only if needed |
+| `VoxelEngine.Rendering.Runtime` | Rendering.Api, Storage.Api, Tiering.Api, Vegetation.Api, Foundation |
+| `VoxelEngine.Composition` | any Runtime or Api assembly required to instantiate/wire the application |
+
+External package policy after the refactor:
+
+```text
+MountingForce.WorldGen.Core          -> no VoxelEngine references
+MountingForce.WorldGen.Architecture  -> no VoxelEngine references
+MountingForce.WorldGen.Voxel         -> VoxelEngine *Api assemblies only
+```
+
+No engine Api assembly may reference an engine Runtime assembly. No engine Runtime assembly may reference another subsystem's Runtime assembly. `Composition` is the sole production exception for runtime-to-runtime wiring.
+
+---
+
+# CUTOVER 0 — Architecture guardrails before moves
+
+## 5. Purpose
+
+Put mechanical checks in place before the large moves so accidental runtime coupling cannot creep in while the compiler is being repaired.
+
+## 5.1 Update `ConstitutionGuardTests`
+
+Current determinism checks scan the physical `Assets/VoxelEngine/Core` directory. That becomes invalid as soon as Core is dissolved.
+
+Replace the Core-directory assumption with an explicit deterministic-path/assembly allowlist. The exact allowlist evolves as files move but must include deterministic simulation code and exclude presentation-only code.
+
+Initial target categories:
+
+```text
+Foundation
+Storage/Api
+Storage/Runtime
+Terrain/Api
+Terrain/Runtime
+Edits/Api
+Edits/Runtime
+Structures/Api
+Structures/Runtime deterministic generation code
+StructuralIntegrity/Api
+StructuralIntegrity/Runtime
+Net deterministic protocol/application code
+```
+
+Do not blanket-apply deterministic/no-float rules to Rendering or all Vegetation code; some of those systems legitimately use floating-point presentation data.
+
+## 5.2 Add asmdef dependency test
+
+Add a new EditMode architecture test, preferably:
+
+```text
+Assets/Tests/EditMode/VoxelEngineAssemblyBoundaryTests.cs
+```
+
+It must parse `.asmdef` JSON and fail when any of these become true:
+
+- an assembly named `*.Api` references any `*.Runtime`;
+- an assembly named `*.Runtime` references another subsystem's `*.Runtime`;
+- a production assembly references `VoxelEngine.Core` after the final cutover;
+- `VoxelEngine.Streaming.Runtime` references Net;
+- a simulation/runtime assembly references `VoxelEngine.Rendering.Runtime`;
+- a non-Composition production assembly references multiple foreign Runtime assemblies;
+- `MountingForce.WorldGen.Core` references any `VoxelEngine.*` assembly;
+- `MountingForce.WorldGen.Architecture` references any `VoxelEngine.*` assembly;
+- `MountingForce.WorldGen.Voxel` references a `VoxelEngine.*.Runtime` assembly.
+
+Allowed exceptions must be declared in one explicit test allowlist, with a comment explaining why. Do not encode exceptions as broad string patterns.
+
+## 5.3 Keep the existing Kentridge boundary test
+
+Expand `KentridgeArchitectureBoundaryTests.cs` so it verifies both source namespace restrictions and asmdef restrictions.
+
+### Cutover 0 gate
+
+- [ ] EditMode architecture tests pass on current layout with temporary explicit current-layout exceptions.
+- [ ] Every temporary exception has the cutover number that removes it.
+- [ ] No permanent exception allows foreign Runtime references.
+
+---
+
+# CUTOVER 1 — Foundation
+
+## 6. Ownership
+
+Foundation contains only types that have no domain owner and are cheap/stable enough to be used everywhere.
+
+### Exact initial file move
+
+| Current | Target | Target namespace |
+|---|---|---|
+| `Assets/VoxelEngine/Core/IntMath.cs` | `Assets/VoxelEngine/Foundation/IntMath.cs` | `VoxelEngine.Foundation` |
+
+Create `VoxelEngine.Foundation.asmdef` with `autoReferenced: false` and only the Unity Mathematics reference if `IntMath` requires it.
+
+### Do not move into Foundation
+
+- `BrickRef`
+- `Region`
+- `VoxelCell`
+- material/surface catalogues
+- terrain settings
+- feature definitions
+- edit events
+- networking packet types
+
+If a later cutover discovers a genuinely universal coordinate/ID value, add it deliberately; do not move a type merely because multiple systems use it.
+
+### Consumer action
+
+Replace `VoxelEngine.Core.IntMath` references with `VoxelEngine.Foundation.IntMath` and add Foundation asmdef references only where needed.
+
+### Gate
+
+- [ ] No source references old `VoxelEngine.Core.IntMath`.
+- [ ] Foundation references no engine assembly.
+- [ ] Foundation contains no mutable state/service.
+
+---
+
+# CUTOVER 2 — Storage, Occupancy and authoritative voxel values
+
+## 7. Ownership
+
+Storage owns authoritative voxel memory and its physical representation. It exposes capabilities and stable voxel values, not its allocator/table implementation.
+
+This is the hinge cutover. Do not begin Terrain/Structures/Rendering rewiring until the Storage API is capable of serving generation, read-only hot paths, surface queries and semantic snapshot/hash use cases without exposing `BrickPool`/`RegionTable`.
+
+## 7.1 Exact current file disposition
+
+### Move to `Storage.Api`
+
+| Current | Target | Notes |
+|---|---|---|
+| `Core/Storage/VoxelCell.cs` | `Storage/Api/VoxelCell.cs` | canonical logical voxel/surface value types |
+| selected public world-grid constants from `Core/Storage/VoxelDimensions.cs` | `Storage/Api/VoxelGrid.cs` | region/world coordinate facts only |
+
+`VoxelCell.cs` currently contains `VoxelBoundarySample`, `SurfaceStyles`, `Coatings`, `VoxelSurfaceFlags`, `VoxelSurfaceSemantics`, and `VoxelCell`. Keep these together for the first cutover because they form the authoritative logical voxel value and compiled feature semantics.
+
+### Move to `Storage.Runtime`
+
+| Current | Target |
+|---|---|
+| `Core/Storage/BrickPool.cs` | `Storage/Runtime/BrickPool.cs` |
+| `Core/Storage/BrickRef.cs` | `Storage/Runtime/BrickRef.cs` |
+| `Core/Storage/Region.cs` | `Storage/Runtime/Region.cs` |
+| `Core/Storage/RegionTable.cs` | `Storage/Runtime/RegionTable.cs` |
+| `Core/Storage/VoxelAccess.cs` | `Storage/Runtime/VoxelAccess.cs` |
+| `Core/Storage/VoxelChangeJournal.cs` | `Storage/Runtime/VoxelChangeJournal.cs` |
+| `Core/Storage/MaterialPalette.cs` | `Storage/Runtime/MaterialPalette.cs` |
+| `Core/Storage/MaterialAdjacencyCatalogue.cs` | `Storage/Runtime/MaterialAdjacencyCatalogue.cs` |
+| `Core/Storage/SurfaceCatalogue.cs` | `Storage/Runtime/SurfaceCatalogue.cs` |
+| `Core/Storage/SemanticRegionHasher.cs` | `Storage/Runtime/SemanticRegionHasher.cs` |
+| `Core/Storage/SemanticRegionSnapshotCodec.cs` | `Storage/Runtime/SemanticRegionSnapshotCodec.cs` |
+| `Core/Occupancy/MipBuilder.cs` | `Storage/Runtime/Occupancy/MipBuilder.cs` |
+| `Core/Occupancy/OccupancyMask.cs` | `Storage/Runtime/Occupancy/OccupancyMask.cs` initially |
+
+Split `VoxelDimensions.cs` rather than moving it wholesale:
+
+```text
+Storage.Api/VoxelGrid.cs
+    RegionVoxelEdge
+    RegionVoxelEdgeLog2
+    MaterialEmpty (or keep with VoxelCell if that produces a cleaner contract)
+
+Storage.Runtime/StorageLayout.cs
+    BrickEdge
+    BrickEdgeLog2
+    BrickEdgeMask
+    VoxelsPerBrick
+    OccupancyWordsPerBrick
+    RegionEdge
+    RegionEdgeLog2
+    RegionEdgeMask
+    BricksPerRegion
+    BytesPerMixedBrick
+```
+
+The public API must not contain `BrickEdge`, `BrickRef`, pool slot concepts, mixed-brick byte sizes, or allocator indices.
+
+If `OccupancyMask` is required by Rendering/Collision for zero-copy performance, do **not** simply make the current runtime type public. Introduce a read-only Api value/view that exposes only the occupancy operations those consumers require; keep construction/mip maintenance in Runtime.
+
+## 7.2 New Storage API capabilities
+
+Create the following contracts. Names are fixed by this plan; field layout may be tuned during implementation to preserve Burst/native performance.
+
+```text
+Storage/Api/RegionCoord.cs
+Storage/Api/RegionVersion.cs
+Storage/Api/VoxelReadView.cs
+Storage/Api/RegionReadView.cs
+Storage/Api/RegionGenerationWriter.cs
+Storage/Api/VoxelMutationWriter.cs
+Storage/Api/VoxelSurfaceQuery.cs
+Storage/Api/RegionSnapshot.cs
+Storage/Api/IWorldStorage.cs
+```
+
+Responsibilities:
+
+### `RegionCoord`
+
+Stable region identity/coordinate. Must not contain pool indices or `BrickRef`.
+
+### `RegionVersion`
+
+Monotonic semantic content version used to invalidate cached render/collision/network reads after mutation or replacement.
+
+### `RegionReadView`
+
+A Burst/native-friendly read-only view used by Rendering and Collision. It must permit hot voxel/occupancy reads without virtual/interface dispatch in inner loops.
+
+It may contain `NativeArray`/native container views, but its public fields must describe logical voxel data rather than expose the `BrickPool` owner object. If zero-copy requires physical lookup metadata, define dedicated readonly descriptor structs in Storage.Api rather than publishing `BrickRef` or `Region`.
+
+Lifetime contract:
+
+- view is owned by Storage;
+- borrower never disposes backing storage;
+- view carries a version;
+- view is valid only until the documented mutation/unload/publish boundary unless explicitly pinned by Storage;
+- use-after-invalidation must be detectable in Development/Editor builds where practical.
+
+### `VoxelReadView`
+
+The inner-loop read primitive used by jobs. It returns canonical `VoxelCell`/occupancy information and may be embedded inside `RegionReadView`.
+
+### `RegionGenerationWriter`
+
+Bulk generation-only write capability. Terrain/structure generation can populate a not-yet-published region efficiently. It is not the gameplay edit API and must not emit network/gameplay edit events.
+
+### `VoxelMutationWriter`
+
+Mutation primitive owned/issued by Storage and consumed by Edits.Runtime. It must preserve current `VoxelAccess` behavior: uniform -> mixed materialization, allocation accounting, occupancy/mip updates, change journal/version changes, and mixed -> uniform collapse.
+
+Do not expose it to arbitrary gameplay systems.
+
+### `VoxelSurfaceQuery`
+
+Focused world-space query used by worldgen/vegetation and similar placement consumers. It must support at minimum:
+
+```text
+TryRead(worldVoxel, out VoxelCell)
+TryFindTopSolid(x, z, minY, maxY, out y, out VoxelCell)
+```
+
+The implementation may internally traverse RegionTable/BrickPool. The consumer must not.
+
+### `RegionSnapshot`
+
+Stable semantic snapshot/hash input for Net convergence/repair. Snapshot semantics are logical voxel state; network code must not serialize `Region`, `BrickRef`, or pool slots.
+
+### `IWorldStorage`
+
+This is a coarse orchestration capability, not the hot-path voxel interface. It owns operations such as:
+
+```text
+create unpublished region
+aquire generation writer
+publish region
+try acquire read view
+release/unload region
+query region version
+capture/apply semantic snapshot
+```
+
+Spelling/API naming can follow project conventions, but do not turn this into a per-voxel virtual `GetVoxel()` hot path.
+
+## 7.3 Storage Runtime responsibilities
+
+`VoxelAccess` remains implementation-only. Its current responsibilities are important and must not be accidentally split across callers:
+
+- materialize uniform bricks when first mixed write occurs;
+- allocate/release brick storage;
+- update voxel material/surface/boundary state;
+- update occupancy and all mip levels;
+- append change journal/version state;
+- collapse mixed bricks back to uniform when possible.
+
+`RegionTable` remains the internal owner of region map/index state.
+
+`SemanticRegionHasher` and `SemanticRegionSnapshotCodec` remain Storage implementations. Net receives only Api snapshots/hashes/capabilities.
+
+## 7.4 Consumers changed in this same cutover
+
+At minimum repair every direct storage consumer in:
+
+- `Assets/VoxelEngine/Streaming/*`
+- `Assets/VoxelEngine/Collision/*`
+- `Assets/VoxelEngine/Rendering/SurfaceExtraction/*`
+- `Assets/VoxelEngine/Core/Terrain/*` until Terrain moves in Cutover 3
+- `Assets/VoxelEngine/Core/Edits/*` until Edits moves
+- `Assets/VoxelEngine/Core/Features/*` until Structures moves
+- `Assets/VoxelEngine/Net/*`
+- `Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeVegetationPlanner.cs`
+- tests and showcase/bootstrap code.
+
+For consumers not yet moved to their final assembly, it is acceptable during this cutover for their existing assembly to reference `VoxelEngine.Storage.Api`. It is not acceptable for them to reference `VoxelEngine.Storage.Runtime` unless they are temporary Composition/bootstrap wiring that is removed by the final cutover.
+
+## 7.5 Kentridge vegetation requirement
+
+Replace the current `KentridgeVegetationPlanner` parameters/use of:
+
+```text
+RegionTable
+BrickPool
+VoxelAccess
+```
+
+with `VoxelSurfaceQuery` (or the equivalent concrete Api value created above). Its algorithm should ask for top solid/surface information; it must not know how voxels are physically stored.
+
+## 7.6 Storage acceptance gates
+
+- [ ] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are internal/runtime-only.
+- [ ] No source outside `Storage/Runtime` imports their namespaces.
+- [ ] Rendering and Collision use readonly native views, not virtual per-voxel services.
+- [ ] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`.
+- [ ] Net semantic hash/snapshot paths do not depend on physical brick layout.
+- [ ] Existing storage, snapshot/hash, feature parity and mutation tests pass.
+- [ ] Architecture guard has no Storage.Runtime foreign-reference exception.
+
+---
+
+# CUTOVER 3 — Terrain
+
+## 8. Exact file moves
+
+| Current | Target | Target namespace |
+|---|---|---|
+| `Core/Terrain/TerrainGenerator.cs` | `Terrain/Runtime/TerrainGenerator.cs` | `VoxelEngine.Terrain` |
+| `Core/Terrain/TerrainSampler.cs` | split/move as described below | Api + Runtime |
+
+Create:
+
+```text
+Terrain/Api/TerrainSeed.cs
+Terrain/Api/TerrainSample.cs
+Terrain/Api/TerrainQuery.cs
+Terrain/Api/TerrainGenerationRequest.cs
+Terrain/Runtime/TerrainGenerator.cs
+Terrain/Runtime/TerrainSampler.cs
+```
+
+## 8.1 Public contract
+
+Terrain.Api owns deterministic terrain-query vocabulary needed by Structures/worldgen without exposing the implementation class.
+
+Provide a Burst-friendly query value or static deterministic query contract for height sampling. Do not make foreign systems reference `Terrain.Runtime.TerrainSampler`.
+
+Required operations:
+
+```text
+sample terrain height at world X/Z for seed/settings
+sample terrain attributes needed for placement/slope decisions
+request bulk generation into a Storage.Api RegionGenerationWriter
+```
+
+`TerrainGenerator` must no longer allocate/manipulate `BrickPool`/`Region` directly. It generates through `RegionGenerationWriter`.
+
+## 8.2 Consumers
+
+Update:
+
+- `Streaming/RegionLoader.cs`
+- Structures shape/placement code that calls `TerrainSampler.HeightAt`
+- `MountingForce.WorldGen.Voxel` vertical/plot placement adapters
+- terrain tests.
+
+The Voxel worldgen package references `VoxelEngine.Terrain.Api`, never Terrain.Runtime.
+
+### Gate
+
+- [ ] no `VoxelEngine.Core.Terrain` references remain;
+- [ ] Terrain.Runtime references only Terrain.Api + Storage.Api + Foundation;
+- [ ] Structures/worldgen cannot call a Terrain.Runtime type;
+- [ ] deterministic terrain parity tests remain byte/value identical unless a deliberate behavior change is separately approved.
+
+---
+
+# CUTOVER 4 — Structures and compiled feature authoring
+
+## 9. Ownership
+
+Structures owns reusable structure/feature authoring format and its runtime realization. The merged Kentridge Voxel package is an important external author of compiled feature catalogues, so Structures.Api must expose the **authoring contract** it genuinely needs. It cannot be reduced to a single high-level `SpawnStructure()` interface.
+
+## 9.1 Exact Core/Features disposition
+
+### Structures.Api
+
+Move/split these as public authoring-format contracts:
+
+| Current | Target |
+|---|---|
+| `Core/Features/AnchorSpec.cs` | `Structures/Api/AnchorSpec.cs` |
+| `Core/Features/FeatureBudget.cs` | `Structures/Api/FeatureBudget.cs` |
+| `Core/Features/FeatureCatalogue.cs` | `Structures/Api/FeatureCatalogue.cs` |
+| `Core/Features/FeatureDefinition.cs` | `Structures/Api/FeatureDefinition.cs` |
+| `Core/Features/ParameterSpec.cs` | `Structures/Api/ParameterSpec.cs` |
+| `Core/Features/PlacementRule.cs` | `Structures/Api/PlacementRule.cs` |
+| `Core/Features/Primitive.cs` | `Structures/Api/Primitive.cs` if referenced by external catalogue authoring; otherwise Runtime |
+| `Core/Features/ShapeOps.cs` | `Structures/Api/ShapeOps.cs` |
+| `Core/Features/CatalogueLoader.cs` | `Structures/Api/FeatureCatalogueBuilder.cs` |
+| `Core/Features/FeatureHash.cs` | Api/internal helper if required by builder validation; otherwise Runtime |
+
+`FeatureCatalogueBuilder` is the clean name for the allocation/finalization functionality currently in `CatalogueLoader`. Do the rename during this cutover and update all consumers; do not leave `CatalogueLoader` as a deprecated forwarding type.
+
+### Structures.Runtime
+
+| Current | Target |
+|---|---|
+| `Core/Features/FeatureGeneration.cs` | `Structures/Runtime/FeatureGeneration.cs` |
+| `Core/Features/ShapeProgram.cs` | `Structures/Runtime/ShapeProgram.cs` |
+| `Core/Features/PrimitiveRasteriser.cs` | `Structures/Runtime/PrimitiveRasteriser.cs` |
+| `Core/Features/ProfileBlockStore.cs` | `Structures/Runtime/ProfileBlockStore.cs` |
+| `Core/Features/ArchFeature.cs` | `Structures/Runtime/Features/ArchFeature.cs` |
+| `Core/Features/BondedBlockVeneer.cs` | `Structures/Runtime/Features/BondedBlockVeneer.cs` |
+| `Core/Features/Emitters/BoxEmitter.cs` | `Structures/Runtime/Emitters/BoxEmitter.cs` |
+| `Core/Features/Emitters/CapsuleChainEmitter.cs` | `Structures/Runtime/Emitters/CapsuleChainEmitter.cs` |
+| `Core/Features/Emitters/CurvedPrimitiveEmitter.cs` | `Structures/Runtime/Emitters/CurvedPrimitiveEmitter.cs` |
+| `Core/Features/Emitters/CylinderEmitter.cs` | `Structures/Runtime/Emitters/CylinderEmitter.cs` |
+| `Core/Features/Emitters/PrismEmitter.cs` | `Structures/Runtime/Emitters/PrismEmitter.cs` |
+
+Move the existing top-level structure files into Runtime:
+
+| Current | Target |
+|---|---|
+| `Structures/CastleBuilder.cs` | `Structures/Runtime/CastleBuilder.cs` |
+| `Structures/MasonryWeathering.cs` | `Structures/Runtime/MasonryWeathering.cs` |
+| `Structures/StructureMaterials.cs` | `Structures/Runtime/StructureMaterials.cs` |
+| `Structures/VoxelBrush.cs` | `Structures/Runtime/VoxelBrush.cs` |
+
+Delete the old `VoxelEngine.Structures.asmdef` after Api/Runtime asmdefs replace it.
+
+## 9.2 Shape bytecode is an API contract; evaluator is not
+
+Kentridge compiles shape programs. Therefore the canonical opcode/encoding constants belong in Structures.Api (`ShapeOps` and any small encoding value types).
+
+The interpreter/evaluator belongs in Structures.Runtime (`ShapeProgram`).
+
+Delete:
+
+```text
+Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeShapeProgramCompatibility.cs
+```
+
+It is an explicit compatibility seam for old/mismatched encoding. In this pre-game clean cutover, update every Kentridge catalogue/program builder to emit the canonical Structures.Api encoding directly.
+
+Update `KentridgeShapeProgramEncodingTests.cs` to assert the canonical encoding, not compatibility translation.
+
+## 9.3 Runtime dependencies
+
+Structures.Runtime may use:
+
+- Structures.Api
+- Storage.Api generation writer/value contracts
+- Terrain.Api query contracts
+- Foundation
+
+It must not call `Terrain.Runtime.TerrainSampler` or manipulate Storage.Runtime.
+
+## 9.4 Kentridge changes in the same cutover
+
+Update all files under:
+
+```text
+Packages/com.mountingforce.worldgen/Runtime/Voxel/
+```
+
+that import `VoxelEngine.Core.Features` or the old broad `VoxelEngine.Structures` namespace.
+
+`MountingForce.WorldGen.Voxel.asmdef` changes from broad engine references to `VoxelEngine.Structures.Api` plus only other specific APIs it uses.
+
+Do **not** add any engine reference to `MountingForce.WorldGen.Core` or `MountingForce.WorldGen.Architecture`.
+
+### Gate
+
+- [ ] no `VoxelEngine.Core.Features` namespace remains;
+- [ ] Kentridge catalogue builders compile against Structures.Api only;
+- [ ] compatibility encoding file deleted;
+- [ ] feature parity/generation tests pass;
+- [ ] CastleBuilder is Runtime implementation, not public cross-system vocabulary;
+- [ ] no external package references Structures.Runtime.
+
+---
+
+# CUTOVER 5 — Edits
+
+## 10. Exact file disposition
+
+### Edits.Api
+
+Split the public/canonical event and request vocabulary out of `AlterationEvent.cs` into focused files while preserving serialized numeric meanings:
+
+```text
+Edits/Api/AlterationEvent.cs
+Edits/Api/CanonicalBrushType.cs
+Edits/Api/AlterationFlags.cs
+Edits/Api/ExpandedVoxelEdit.cs
+Edits/Api/EditResult.cs
+```
+
+Move any brush descriptors that are part of gameplay/network commands into Api. Preserve enum values and deterministic serialization semantics exactly.
+
+### Edits.Runtime
+
+| Current | Target |
+|---|---|
+| `Core/Edits/AllocationBudget.cs` | `Edits/Runtime/AllocationBudget.cs` |
+| `Core/Edits/BrushExpansion.cs` | `Edits/Runtime/BrushExpansion.cs` |
+| `Core/Edits/BrushShapeCodec.cs` | `Edits/Runtime/BrushShapeCodec.cs` unless wire contract requires a small Api codec/value |
+| `Core/Edits/BuildBrushes.cs` | `Edits/Runtime/BuildBrushes.cs` |
+| `Core/Edits/DensityCap.cs` | `Edits/Runtime/DensityCap.cs` |
+| `Core/Edits/DeterministicAlterationApplier.cs` | `Edits/Runtime/DeterministicAlterationApplier.cs` |
+| `Core/Edits/DeterministicRandom.cs` | `Edits/Runtime/DeterministicRandom.cs` |
+| `Core/Edits/ExplosionExpansion.cs` | `Edits/Runtime/ExplosionExpansion.cs` |
+| `Core/Edits/RawBatchExpansion.cs` | `Edits/Runtime/RawBatchExpansion.cs` |
+
+`DeterministicAlterationApplier` applies through Storage.Api `VoxelMutationWriter`; it must not manipulate BrickPool/RegionTable.
+
+## 10.1 Delete redundant Net wrapper
+
+Delete:
+
+```text
+Assets/VoxelEngine/Net/Server/ServerDeterministicAlterationApplier.cs
+```
+
+It currently delegates directly to the Core implementation and adds no domain value. Net/Composition should invoke the Edits capability directly.
+
+## 10.2 Network contract
+
+Net.Runtime serializes/deserializes Edits.Api events. It does not own the canonical edit domain model.
+
+### Gate
+
+- [ ] no `VoxelEngine.Core.Edits` namespace remains;
+- [ ] Net protocol depends on Edits.Api, not Edits.Runtime;
+- [ ] server wrapper deleted;
+- [ ] deterministic edit expansion/application parity tests pass;
+- [ ] Storage mutation implementation remains encapsulated behind Storage.Api.
+
+---
+
+# CUTOVER 6 — StructuralIntegrity
+
+## 11. Exact file moves
+
+| Current | Target |
+|---|---|
+| `Core/Structure/CollapseDetection.cs` | `StructuralIntegrity/Runtime/CollapseDetection.cs` |
+| `Core/Structure/Connectivity.cs` | `StructuralIntegrity/Runtime/Connectivity.cs` |
+| `Core/Structure/SupportField.cs` | `StructuralIntegrity/Runtime/SupportField.cs` |
+| `Net/Server/StructuralGraph.cs` | `StructuralIntegrity/Runtime/StructuralGraph.cs` |
+
+Create API types based on actual callers:
+
+```text
+StructuralIntegrity/Api/StructuralEvaluationRequest.cs
+StructuralIntegrity/Api/CollapseResult.cs
+StructuralIntegrity/Api/DetachedComponent.cs
+StructuralIntegrity/Api/StructuralChange.cs
+```
+
+The exact result fields should carry semantic component/voxel information needed by gameplay/networking, never networking packet types.
+
+## 11.1 Ownership flow
+
+Preferred flow:
+
+```text
+voxel edit applied
+    -> StructuralIntegrity evaluates affected support/connectivity
+    -> returns CollapseResult / structural changes
+    -> Edits applies resulting voxel removals/damage
+    -> Net serializes authoritative domain results/events
+```
+
+StructuralIntegrity does not depend on Net. Net does not own the structural graph.
+
+### Gate
+
+- [ ] `StructuralGraph` no longer lives in Net;
+- [ ] StructuralIntegrity.Runtime has no Net dependency;
+- [ ] collapse/connectivity/support tests pass;
+- [ ] network structural behavior consumes StructuralIntegrity.Api only.
+
+---
+
+# CUTOVER 7 — Tiering
+
+## 12. Exact move
+
+Move:
+
+```text
+Assets/VoxelEngine/Tiering/DeviceTierBudget.cs
+    -> Assets/VoxelEngine/Tiering/Api/DeviceTierBudget.cs
+```
+
+Namespace:
+
+```text
+VoxelEngine.Tiering.Api
+```
+
+Create `VoxelEngine.Tiering.Api.asmdef`. Delete the existing `VoxelEngine.Tiering.asmdef`.
+
+Do not create Tiering.Runtime until there is actual stateful/runtime policy implementation.
+
+Update Streaming and Rendering to reference Tiering.Api only.
+
+### Gate
+
+- [ ] only Tiering.Api exists;
+- [ ] no Tiering assembly references Core;
+- [ ] device-tier tests compile/pass.
+
+---
+
+# CUTOVER 8 — Streaming
+
+## 13. Current files
+
+```text
+Streaming/MipRefinement.cs
+Streaming/Prefetch.cs
+Streaming/RegionLoader.cs
+Streaming/ResidencyManager.cs
+```
+
+Move all four to `Streaming/Runtime/` and create a deliberately small `Streaming/Api/`.
+
+### Streaming.Api
+
+Create:
+
+```text
+Streaming/Api/RegionLoadRequest.cs
+Streaming/Api/RegionResidencyRequest.cs
+Streaming/Api/RegionResidencyState.cs
+Streaming/Api/RegionLoadPriority.cs
+Streaming/Api/IRegionStreaming.cs
+```
+
+`IRegionStreaming` is orchestration-level and is appropriate here; streaming operations are not inner-loop Burst voxel reads.
+
+## 13.1 `RegionLoader` rewrite
+
+Current RegionLoader reaches directly into Core Features, Occupancy, Storage and Terrain. Rewrite its responsibility to orchestration:
+
+```text
+receive RegionLoadRequest
+    -> ask Storage.Api for unpublished region/generation writer
+    -> run Terrain generation via Terrain.Api/implementation supplied by Composition
+    -> run structure/feature generation via Structures capability supplied by Composition
+    -> finalize/publish through Storage.Api
+    -> expose loaded/residency state through Streaming.Api
+```
+
+`RegionLoader` must not know:
+
+- `BrickPool`
+- `BrickRef`
+- `Region`
+- `RegionTable`
+- `MipBuilder`
+- `TerrainGenerator` concrete Runtime type
+- `FeatureGeneration` concrete Runtime type
+
+Runtime implementation instances are injected/wired by Composition through suitable Api-facing capabilities/delegates.
+
+## 13.2 Remove Streaming -> Net
+
+The current Streaming asmdef references Net, but direct inspection of the four Streaming source files found no legitimate networking ownership. Remove that reference completely.
+
+Correct direction:
+
+```text
+Net.Runtime -> Streaming.Api
+```
+
+Net may translate connection/interest state into streaming residency requests. Streaming must function offline/headless without networking.
+
+## 13.3 ResidencyManager
+
+It owns desired residency/prefetch/fade policy. It releases regions through Storage.Api; it does not dispose internal `Region` structures itself.
+
+### Gate
+
+- [ ] Streaming.Runtime has no Net reference;
+- [ ] RegionLoader has no Storage.Runtime/Terrain.Runtime/Structures.Runtime compile reference;
+- [ ] streaming can be instantiated without Net;
+- [ ] residency/prefetch/mip refinement tests pass.
+
+---
+
+# CUTOVER 9 — Collision
+
+## 14. File moves
+
+| Current | Target |
+|---|---|
+| `Collision/DdaTraversal.cs` | `Collision/Runtime/DdaTraversal.cs` |
+| `Collision/HullExport.cs` | `Collision/Runtime/HullExport.cs` |
+| `Collision/SweptAabb.cs` | `Collision/Runtime/SweptAabb.cs` |
+| `Collision/VoxelRaycast.cs` | `Collision/Runtime/VoxelRaycast.cs` |
+
+Create Api query/result values:
+
+```text
+Collision/Api/VoxelRaycastQuery.cs
+Collision/Api/VoxelRaycastHit.cs
+Collision/Api/VoxelSweepQuery.cs
+Collision/Api/VoxelSweepResult.cs
+Collision/Api/HullExportRequest.cs   (only if called outside Collision)
+Collision/Api/HullExportResult.cs    (only if called outside Collision)
+```
+
+Collision.Runtime performs DDA/sweep/hull work against Storage.Api readonly native views. The DDA and storage representation are implementation details.
+
+### Gate
+
+- [ ] no Collision source references BrickPool/RegionTable/Occupancy Runtime types;
+- [ ] hot jobs operate on readonly Burst-compatible Storage.Api data views;
+- [ ] raycast/sweep/hull parity tests pass.
+
+---
+
+# CUTOVER 10 — Vegetation
+
+## 15. Current files and namespace correction
+
+Current top-level Vegetation files:
+
+```text
+ProceduralTreeDamageService.cs
+ProceduralTreeSkeletonBuilder.cs
+ProceduralTreeTypes.cs
+TreeWorldState.cs
+```
+
+`ProceduralTreeTypes.cs` currently declares `VoxelEngine.Core.Vegetation` even though it physically lives in top-level Vegetation. Fix this now; no namespace-forwarding alias.
+
+## 15.1 Vegetation.Api
+
+Split public stable values from `ProceduralTreeTypes.cs` into focused Api files. Exact categories:
+
+```text
+Vegetation/Api/TreeId.cs
+Vegetation/Api/TreeSpeciesId.cs or existing equivalent stable type
+Vegetation/Api/TreePlacement.cs
+Vegetation/Api/TreeMorphology.cs
+Vegetation/Api/TreeRenderSnapshot.cs
+Vegetation/Api/VegetationSpawnRequest.cs
+Vegetation/Api/VegetationDamageRequest.cs
+Vegetation/Api/VegetationDamageResult.cs
+```
+
+Reuse current names instead of inventing parallel names when the existing public type already represents one of these concepts cleanly.
+
+The API needs to support:
+
+- worldgen requesting deterministic vegetation/tree placement;
+- gameplay requesting tree/vine damage later;
+- Rendering reading immutable presentation/skeleton state;
+- stable IDs for network/gameplay references.
+
+Do not expose `TreeWorldState` mutable collections.
+
+## 15.2 Vegetation.Runtime
+
+Move:
+
+```text
+ProceduralTreeDamageService.cs
+ProceduralTreeSkeletonBuilder.cs
+TreeWorldState.cs
+```
+
+and any implementation-only types from `ProceduralTreeTypes.cs` to Runtime.
+
+## 15.3 Kentridge integration
+
+`KentridgeVegetationPlanner` becomes a client of:
+
+```text
+Storage.Api      -- top-surface/read query
+Vegetation.Api   -- placement/spawn contract
+```
+
+It must not import `VoxelEngine.Core.Storage`, `VoxelEngine.Core.Vegetation`, or Vegetation.Runtime.
+
+## 15.4 Rendering integration
+
+Rendering currently references the whole Vegetation assembly. Change it to `VoxelEngine.Vegetation.Api` and consume immutable render/skeleton snapshots.
+
+### Gate
+
+- [ ] no `VoxelEngine.Core.Vegetation` namespace remains;
+- [ ] Kentridge vegetation references Api only;
+- [ ] Rendering references Vegetation.Api, not Runtime;
+- [ ] mutable `TreeWorldState` is internal Runtime state;
+- [ ] tree damage/skeleton/render tests pass.
+
+---
+
+# CUTOVER 11 — Net decomposition and ownership correction
+
+## 16. Scope
+
+Net is currently much broader than transport: it contains protocol DTOs, client prediction, server authoritative processing, world history/convergence, interest, region residency, a region store and structural graph logic. This cutover keeps networking/session/replication concerns in Net but removes world ownership that belongs elsewhere.
+
+Create `Net/Api` and move the rest under `Net/Runtime/{Client,Interest,Protocol,Server,Transport}`.
+
+## 16.1 Net.Api
+
+Only expose session-facing application contracts that non-network systems genuinely call. Candidate fixed categories:
+
+```text
+Net/Api/NetworkSessionState.cs
+Net/Api/ClientConnectionRequest.cs
+Net/Api/ServerSessionRequest.cs
+Net/Api/NetworkRole.cs
+```
+
+Do **not** move packet DTOs into Net.Api merely because they are public today. Wire protocol is a Net.Runtime implementation detail unless an external assembly truly serializes it.
+
+## 16.2 Keep in Net.Runtime
+
+### Client
+
+Keep under `Net/Runtime/Client/`:
+
+```text
+AdaptiveFidelity.cs
+AlterationBatchReceiver.cs
+ClientAuthoritativeEventQueue.cs
+ClientNetworkRuntime.cs
+ClientPlayerStateTimeline.cs
+ClientPredictionReconciler.cs
+ClientRegionRepairAssembler.cs
+ClientRegionStateAssembler.cs
+ClientTickLoop.cs
+DestructionInput.cs
+EventApplication.cs
+EventPacketReceiver.cs
+InputBuffer.cs
+PlacementCoalescer.cs
+Reconciliation.cs
+RejectionFeedback.cs
+SpeculativeOverlay.cs
+```
+
+### Interest
+
+Keep under `Net/Runtime/Interest/`:
+
+```text
+InterestFilter.cs
+RegionSubscriptionIndex.cs
+SimulationInterest.cs
+```
+
+These compute network/simulation interest. They may request world residency through Streaming.Api; they do not own Streaming.Runtime.
+
+### Protocol
+
+Keep all current packet/message codecs under `Net/Runtime/Protocol/`, including alteration, player state/input, region state/hash/repair/request/sync and envelope types.
+
+Where protocol code currently duplicates Edits domain values, encode/decode `Edits.Api` values instead of creating a second canonical edit model.
+
+### Server networking/replication
+
+Keep server session, validation, command inbox/processor, rate limiting, replication, convergence, late join, event logs/history, protected-zone policy and transport-facing code under `Net/Runtime/Server/` unless another owner is explicitly identified below.
+
+### Transport
+
+Keep UTP channel/client/server/packet IO/throttle implementation under `Net/Runtime/Transport/`.
+
+## 16.3 Move/delete ownership violations
+
+### Delete
+
+```text
+Net/Server/ServerDeterministicAlterationApplier.cs
+```
+
+Deleted in Edits cutover; do not recreate it.
+
+### Move
+
+```text
+Net/Server/StructuralGraph.cs
+    -> StructuralIntegrity/Runtime/StructuralGraph.cs
+```
+
+Already moved in StructuralIntegrity cutover.
+
+### Region residency
+
+`Net/Server/RegionResidency.cs` must not own physical world residency. Split its behavior:
+
+- network interest/subscription decisions remain Net;
+- actual load/residency requests go through Streaming.Api;
+- no RegionLoader/Storage Runtime dependency.
+
+Rename the networking half if needed so it is not confused with Streaming's authoritative residency owner.
+
+### Region store
+
+`Net/Server/Storage/RegionStore.cs` may remain in Net only if it stores **replication/history snapshots** rather than authoritative voxel memory. Rename to:
+
+```text
+Net/Runtime/Server/ReplicationRegionStore.cs
+```
+
+If inspection during implementation shows it is acting as authoritative voxel storage, delete/replace that responsibility with Storage.Api instead. Do not create a second world store.
+
+### Region hasher/snapshot/repair
+
+Network convergence uses Storage.Api semantic snapshots/hash values. `Net/Server/RegionHasher.cs` may hash network payload framing, but authoritative semantic region hashing belongs to Storage.Runtime behind Storage.Api.
+
+## 16.4 Net.Runtime target references
+
+```text
+Net.Api
+Foundation
+Edits.Api
+Storage.Api
+Streaming.Api
+StructuralIntegrity.Api
+Unity.Networking.Transport
+Unity.Collections / Mathematics as required
+```
+
+No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtime or Rendering reference.
+
+### Gate
+
+- [ ] Net.Runtime references only domain APIs;
+- [ ] structural graph is gone from Net;
+- [ ] no duplicate deterministic edit applier wrapper;
+- [ ] network residency calls Streaming.Api;
+- [ ] semantic repair/snapshot paths use Storage.Api logical data;
+- [ ] protocol/convergence/late-join/reconciliation tests pass.
+
+---
+
+# CUTOVER 12 — Rendering
+
+## 17. Ownership
+
+Rendering is a sink. It observes world/vegetation/tier state and produces presentation. Simulation systems do not reference Rendering.Runtime.
+
+Move all current rendering implementation under `Rendering/Runtime/`, preserving subfolders:
+
+```text
+Irradiance/
+RenderFeature/
+Shaders/
+SurfaceExtraction/
+Vegetation/
+```
+
+This includes the GPU/CPU surface caches/extractors, Transvoxel jobs/tables, water surface extraction, render pass/feature, sky pass, GPU buffers, timing, tree mesh/presenters/renderers and renderer-specific materials.
+
+## 17.1 Rendering.Api
+
+Keep this intentionally small. Move/create only types required by scene/application clients to register/configure/present the renderer, for example:
+
+```text
+Rendering/Api/VoxelPresentationSettings.cs
+Rendering/Api/IRenderWorldBridge.cs
+```
+
+Do not publish surface extraction caches/jobs/shader data just to avoid changing showcase/bootstrap code. Composition is allowed to instantiate Runtime implementations.
+
+## 17.2 Runtime inputs
+
+Rendering.Runtime consumes:
+
+```text
+Storage.Api       -- readonly versioned region/voxel/occupancy views
+Tiering.Api       -- device/tier policy values
+Vegetation.Api    -- immutable tree/vegetation render snapshots
+Foundation
+Unity render-pipeline packages
+```
+
+It must not consume Terrain, Structures, Edits, Net or Vegetation.Runtime.
+
+## 17.3 Surface scheduler
+
+Rewrite `SurfaceExtraction/VoxelSurfaceScheduler.cs` and related caches/jobs so their input is Storage.Api read views. They may retain zero-copy native performance, but may not take `BrickPool`, `RegionTable`, mutable `Region`, or Storage.Runtime occupancy builders.
+
+### Gate
+
+- [ ] Rendering.Runtime has no Storage.Runtime/Vegetation.Runtime ref;
+- [ ] surface extraction works from versioned readonly views;
+- [ ] renderer is not referenced by simulation Runtime assemblies;
+- [ ] targeted GPU/CPU surface and rendering parity tests pass;
+- [ ] artifact/lookdev tests remain explicit/manual unless separately changed.
+
+---
+
+# CUTOVER 13 — Composition, external clients and Core deletion
+
+## 18. Composition
+
+Create:
+
+```text
+Assets/VoxelEngine/Composition/VoxelEngine.Composition.asmdef
+Assets/VoxelEngine/Composition/VoxelEngineBootstrap.cs
+```
+
+Composition is allowed to reference concrete Runtime assemblies for construction/wiring. Keep it nearly logic-free.
+
+Responsibilities:
+
+- allocate/create Storage.Runtime owner;
+- create Terrain/Structures/Edits/StructuralIntegrity/Streaming/Collision/Vegetation/Net/Rendering implementations;
+- inject Api capabilities into consumers;
+- bind scene/showcase/application lifecycle;
+- own top-level disposal order.
+
+No domain algorithm belongs here.
+
+Scene/showcase code should either:
+
+1. call a narrow Composition/bootstrap entry point, or
+2. consume public Api types for application-level interactions.
+
+Do not keep direct Runtime references scattered through scene code merely because Composition is an exception.
+
+## 18.1 MountingForce WorldGen final asmdef state
+
+Preserve:
+
+```text
+MountingForce.WorldGen.Core
+    -> no VoxelEngine references
+
+MountingForce.WorldGen.Architecture
+    -> MountingForce.WorldGen.Core only (plus required Unity/math packages)
+```
+
+Target `MountingForce.WorldGen.Voxel.asmdef` engine references:
+
+```text
+VoxelEngine.Storage.Api       # surface/read placement queries if still needed
+VoxelEngine.Terrain.Api       # terrain adaptation/placement
+VoxelEngine.Structures.Api    # compiled feature catalogue authoring
+VoxelEngine.Vegetation.Api    # vegetation placement/spawn contracts
+```
+
+Only include an Api reference if current source uses it after refactor. No `VoxelEngine.*.Runtime` reference.
+
+## 18.2 Delete Core
+
+At this point `Assets/VoxelEngine/Core` must be empty except Unity `.meta` artifacts waiting for cleanup.
+
+Delete:
+
+```text
+Assets/VoxelEngine/Core/VoxelEngine.Core.asmdef
+Assets/VoxelEngine/Core/
+```
+
+Then repository-wide search must return zero source/asmdef references for:
+
+```text
+VoxelEngine.Core
+VoxelEngine.Core.Storage
+VoxelEngine.Core.Occupancy
+VoxelEngine.Core.Terrain
+VoxelEngine.Core.Edits
+VoxelEngine.Core.Features
+VoxelEngine.Core.Structure
+VoxelEngine.Core.Vegetation
+```
+
+Do not retain Core as a forwarding facade.
+
+### Gate
+
+- [ ] Core folder and asmdef deleted;
+- [ ] no source namespace begins `VoxelEngine.Core`;
+- [ ] all production asmdefs satisfy dependency guard;
+- [ ] semantic WorldGen assemblies still have no VoxelEngine refs;
+- [ ] Composition is the only runtime-wiring exception.
+
+---
+
+## 19. Kentridge/worldgen integration matrix
+
+The post-merge worldgen package is deliberately **not** folded into VoxelEngine. Its semantic layers already have the correct architectural direction.
+
+| Worldgen area | Engine dependency after refactor |
+|---|---|
+| semantic settlement/location definitions | none |
+| Kentridge town planning / urban skeleton / organization / circulation | none |
+| civic/processional/vertical/frontage/gallery/skybridge planning | none |
+| semantic vegetation layout | none |
+| architecture grammars that remain semantic | none |
+| Voxel catalogue compilation | Structures.Api |
+| terrain-aware vertical/plot realization | Terrain.Api |
+| top-surface lookup for vegetation placement | Storage.Api |
+| tree/vegetation spawn descriptors | Vegetation.Api |
+| rendering | none; renderer consumes engine/world state independently |
+
+The renderer must never know what Kentridge, an inn, a church, a quest role, or a civic axis is.
+
+Kentridge's stable semantic identities remain independent from generated coordinates. This refactor must not collapse semantic worldgen into the voxel engine merely because the Voxel adapter is being updated.
+
+LayerProcGen evaluation remains a later WorldGen concern and is not introduced by this architecture cutover.
+
+---
+
+## 20. Material ownership decision for this refactor
+
+Do **not** create a new Materials subsystem during the first boundary refactor unless compile-time evidence requires it.
+
+For the clean cutover:
+
+- canonical authoritative voxel material byte and surface semantics stay in Storage.Api;
+- mutable palette/catalogue/adjacency storage stays in Storage.Runtime;
+- renderer-specific material/presentation mapping stays in Rendering.Runtime;
+- semantic `MountingForce.WorldGen.MaterialRole` stays in WorldGen.Core;
+- the WorldGen Voxel adapter translates semantic roles to engine material IDs at the boundary.
+
+After Core is gone and dependency guards are active, reassess whether simulation properties shared by future Fire/Water/Collision justify `Materials.Api`. Do not preemptively make a `Materials` junk drawer now.
+
+---
+
+## 21. API design constraints during implementation
+
+### Api does not mean interfaces everywhere
+
+Use:
+
+- readonly/blittable structs;
+- IDs/handles without owner internals;
+- `NativeArray`-compatible views;
+- immutable descriptors;
+- request/result values;
+- commands/events;
+- orchestration interfaces only where virtual dispatch is not an inner-loop cost.
+
+Avoid generic abstractions such as `IVoxel`, `IBrick`, `IRegion` unless they model a real capability.
+
+### Read vs mutation must remain separate
+
+A caller that only renders/collides/places vegetation gets read capability. It must not receive a general storage object that also exposes writes.
+
+### Ownership/lifetime must be explicit
+
+For every Native view/handle, document:
+
+- who allocated backing memory;
+- who disposes it;
+- whether the caller may retain it;
+- what mutation/unload invalidates it;
+- how version changes are observed.
+
+### Public does not necessarily mean architectural API
+
+Unity serialization may require public classes in Runtime. The asmdef boundary is authoritative: foreign systems cannot reference Runtime even if a concrete type has to be `public` for Unity/editor reasons.
+
+---
+
+## 22. Validation strategy per cutover
+
+Every completed cutover runs:
+
+1. Unity compile/domain reload.
+2. `VoxelEngineAssemblyBoundaryTests`.
+3. `ConstitutionGuardTests` deterministic checks relevant to moved code.
+4. subsystem EditMode tests.
+5. cross-system parity tests affected by that cutover.
+6. targeted PlayMode tests for changed runtime paths.
+
+Do not use a full monolithic PlayMode run as the only per-cutover gate on this baseline. Current master documents a native-memory teardown problem: the full run reaches the process memory ceiling while repeatedly loading the showcase/large BrickPool. Fix that teardown separately; until then use targeted PlayMode filters and the deterministic/architecture suites as the cutover gates.
+
+Lookdev/artifact capture tests are explicit by design and should be run deliberately when a rendering/visual-generation cutover could change output.
+
+### High-value parity suites by cutover
+
+| Cutover | Required focus |
+|---|---|
+| Storage | voxel storage, snapshots/hashes, occupancy/mips, mutation semantics |
+| Terrain | deterministic terrain samples/generation |
+| Structures | feature VM/catalogue/shape encoding, castle/Kentridge catalogue parity |
+| Edits | brush expansion, deterministic alteration application, network event parity |
+| StructuralIntegrity | support/connectivity/collapse |
+| Streaming | region load/residency/prefetch/mip refinement |
+| Collision | DDA/raycast/sweep/hull |
+| Vegetation | tree skeleton/damage/state + Kentridge placement |
+| Net | protocol, convergence, late join, repair, reconciliation |
+| Rendering | surface extraction CPU/GPU parity, vegetation presentation, targeted showcase |
+
+---
+
+## 23. Final dependency review checklist
+
+At the end, generate an asmdef dependency report and verify:
+
+```text
+[ ] every exposed subsystem has one Api directory/assembly
+[ ] no Api references Runtime
+[ ] no Runtime references another subsystem Runtime
+[ ] Composition is the only production Runtime-wiring exception
+[ ] Streaming has no Net reference
+[ ] Net references Streaming.Api, not Streaming.Runtime
+[ ] Rendering references Storage.Api, Tiering.Api, Vegetation.Api only
+[ ] WorldGen.Core references no VoxelEngine assembly
+[ ] WorldGen.Architecture references no VoxelEngine assembly
+[ ] WorldGen.Voxel references only VoxelEngine Api assemblies
+[ ] no VoxelEngine.Core assembly remains
+[ ] no VoxelEngine.Core namespace remains
+[ ] no compatibility/legacy adapter was introduced to preserve the old architecture
+```
+
+---
+
+## 24. Execution checklist in order
+
+### 0. Guardrails
+
+- [ ] add `VoxelEngineAssemblyBoundaryTests`
+- [ ] convert Constitution determinism scan from Core path to explicit deterministic assembly/path policy
+- [ ] strengthen Kentridge boundary tests
+
+### 1. Foundation
+
+- [ ] create Foundation assembly
+- [ ] move `IntMath`
+- [ ] update references
+
+### 2. Storage
+
+- [ ] create Storage.Api/Runtime asmdefs
+- [ ] move `VoxelCell` logical value types to Api
+- [ ] split public grid constants from private brick layout
+- [ ] create region/read/generation/mutation/surface-query/snapshot contracts
+- [ ] move BrickPool/BrickRef/Region/RegionTable/VoxelAccess to Runtime
+- [ ] move Occupancy implementation to Storage.Runtime
+- [ ] move semantic hash/snapshot implementation to Runtime
+- [ ] update all existing consumers to Storage.Api
+- [ ] remove every foreign Storage.Runtime reference
+
+### 3. Terrain
+
+- [ ] create Terrain.Api/Runtime
+- [ ] move deterministic query contract to Api
+- [ ] move TerrainGenerator/Sampler implementation to Runtime
+- [ ] generate through Storage.Api writer
+- [ ] update Structures/Streaming/WorldGen callers
+
+### 4. Structures
+
+- [ ] create Structures.Api/Runtime
+- [ ] move compiled feature authoring format to Api
+- [ ] move feature VM/generation/rasterization to Runtime
+- [ ] move existing CastleBuilder/etc. under Runtime
+- [ ] rename `CatalogueLoader` to `FeatureCatalogueBuilder`
+- [ ] update Kentridge Voxel catalogue builders
+- [ ] delete `KentridgeShapeProgramCompatibility.cs`
+- [ ] verify canonical shape encoding tests
+
+### 5. Edits
+
+- [ ] create Edits.Api/Runtime
+- [ ] split canonical alteration domain values into Api
+- [ ] move expansion/apply implementation to Runtime
+- [ ] route mutations through Storage.Api
+- [ ] delete `ServerDeterministicAlterationApplier`
+- [ ] update Net protocol to Edits.Api
+
+### 6. StructuralIntegrity
+
+- [ ] create Api/Runtime
+- [ ] move collapse/connectivity/support algorithms
+- [ ] move StructuralGraph out of Net
+- [ ] expose structural result domain values
+- [ ] route resulting voxel changes through Edits
+
+### 7. Tiering
+
+- [ ] create Tiering.Api
+- [ ] move DeviceTierBudget
+- [ ] delete old Tiering asmdef
+
+### 8. Streaming
+
+- [ ] create Streaming.Api/Runtime
+- [ ] move four implementation files
+- [ ] rewrite RegionLoader as API-driven orchestration
+- [ ] remove Streaming -> Net
+- [ ] make Net interest call Streaming.Api
+
+### 9. Collision
+
+- [ ] create Collision.Api/Runtime
+- [ ] move DDA/raycast/sweep/hull implementation
+- [ ] consume Storage.Api readonly views
+
+### 10. Vegetation
+
+- [ ] create Vegetation.Api/Runtime
+- [ ] remove `VoxelEngine.Core.Vegetation` namespace
+- [ ] isolate tree state/build/damage implementation
+- [ ] expose stable placement/damage/render contracts
+- [ ] update Kentridge vegetation to Storage.Api + Vegetation.Api
+- [ ] update Rendering to Vegetation.Api
+
+### 11. Net
+
+- [ ] create Net.Api/Runtime
+- [ ] move client/interest/protocol/server/transport implementation
+- [ ] remove structural/storage/residency ownership violations
+- [ ] rename/verify `ReplicationRegionStore`
+- [ ] reference only domain APIs
+
+### 12. Rendering
+
+- [ ] create Rendering.Api/Runtime
+- [ ] move all extraction/render/tree presentation implementation to Runtime
+- [ ] consume Storage/Tiering/Vegetation Api only
+- [ ] keep Rendering.Api minimal
+
+### 13. Composition and final cleanup
+
+- [ ] create Composition assembly/bootstrap
+- [ ] centralize concrete runtime wiring/disposal
+- [ ] remove scattered scene Runtime coupling where practical
+- [ ] update WorldGen.Voxel asmdef to exact Api refs
+- [ ] delete Core asmdef/folder
+- [ ] remove all architecture-test temporary exceptions
+- [ ] repository-wide zero-match check for `VoxelEngine.Core`
+- [ ] final targeted/full-available validation
+
+---
+
+## 25. Definition of done
+
+The architecture refactor is done when a new subsystem cannot accidentally reach into another subsystem's implementation simply by adding a `using` statement.
+
+Concretely:
+
+- Storage representation is private.
+- Terrain is a producer/query subsystem, not a shared static utility namespace.
+- Structures exposes a deliberate compiled-authoring format while hiding its evaluator/runtime.
+- Edits owns deterministic mutation semantics.
+- Structural integrity is not networking code.
+- Streaming is independent of networking.
+- Collision reads through Storage Api views.
+- Vegetation owns tree state and exposes immutable/stable contracts to worldgen/rendering/gameplay.
+- Net translates/replicates domain state but does not own voxel, streaming or structural state.
+- Rendering is a sink.
+- semantic MountingForce worldgen remains engine-independent until the Voxel adapter boundary.
+- Composition is the single place allowed to know concrete runtime implementations.
+- `VoxelEngine.Core` is gone rather than renamed.
+- tests enforce the dependency graph so the old shape cannot silently grow back.

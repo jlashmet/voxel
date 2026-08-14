@@ -18,6 +18,13 @@ namespace VoxelEngine.Tests.PlayMode
     /// Fast visual iteration loop for exterior art direction. It deliberately omits interiors,
     /// cutaways, traversal, and gameplay checks; those remain in the full screenshot suite.
     /// </summary>
+    /// <remarks>
+    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: this captures images for a human to
+    /// look at rather than asserting behaviour, and it is one of the slowest things in the
+    /// suite. Run it by name when you want the artefacts:
+    /// <c>tools/unity-run.sh ... -testFilter CastleExteriorLookdevTests</c>
+    /// </remarks>
+    [NUnit.Framework.Explicit("Artefact capture for human review; run by name.")]
     public sealed class CastleExteriorLookdevTests
     {
         private const string OutputDirectory = "/tmp/castle_lookdev";

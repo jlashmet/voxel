@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-13 19:57:43Z" end-time="2026-08-13 19:57:53Z" duration="10.0346218">
+  <test-suite type="TestSuite" id="1175" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="121" result="Failed" site="Child" start-time="2026-08-13 19:57:43Z" end-time="2026-08-13 19:57:53Z" duration="10.034622" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1171" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 19:57:43Z" end-time="2026-08-13 19:57:53Z" duration="10.029844" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="38728" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1172" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 19:57:43Z" end-time="2026-08-13 19:57:53Z" duration="10.029040" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1173" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 19:57:43Z" end-time="2026-08-13 19:57:53Z" duration="10.028386" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1174" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 19:57:43Z" end-time="2026-08-13 19:57:53Z" duration="10.027727" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1153" name="ShowcasePerformanceTests" fullname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests" classname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-13 19:57:43Z" end-time="2026-08-13 19:57:53Z" duration="10.025959" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1154" name="FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls" fullname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests.FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls" methodname="FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls" classname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests" runstate="Runnable" seed="1609007259" result="Failed" start-time="2026-08-13 19:57:43Z" end-time="2026-08-13 19:57:53Z" duration="10.020668" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="120000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Full showcase did not converge within 10 seconds: elapsed=10.01s frames=80 castle=44,367,415 castleRegions=9/9 castleStage=9 lastCastleStage=8:250.75ms maxCastleStage=2403.38ms regionProgress=0.86 lastGenerate=3.13ms resident=231/2503 dirty=2272 visible=168 missing=574 jobs=8 sections.p95=prepare:11.14,journal:0.00,invalidate:0.00,discover:0.00,workers:10.92,rules:0.00,residency:0.03,capacity:0.00,select:0.10,visibility:0.53,snapshot:1.90,compact:1.92,merge:0.52,upload:0.24,queue:967.51,build:61.42ms state=feature-aware resident=231/2503 dirty=2272 visible=168 missingVisible=574 jobs=8 prepare.p95=11.14ms discover.p95=0.00ms select.p95=0.10ms visibility.p95=0.53ms queue.p95=967.5ms build.p95=61.4ms snapshot.p95=1.90ms compact.p95=1.92ms merge.p95=0.52ms upload.p95=0.24ms
+  Expected: True
+  But was:  False
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests+<FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls>d__0.MoveNext () [0x001af] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcasePerformanceTests.cs:58
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Procedural vegetation: worldgen published 30 semantic Showcase trees.
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

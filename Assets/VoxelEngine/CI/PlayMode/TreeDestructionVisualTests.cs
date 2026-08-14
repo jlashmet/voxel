@@ -16,6 +16,13 @@ namespace VoxelEngine.CI
     /// data-only batch entry; first branch damage must lazily materialize one dynamic tree, detach
     /// the branch, and a lower-trunk cut must leave an upright stump plus a falling crown.
     /// </summary>
+    /// <remarks>
+    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: this captures images for a human to
+    /// look at rather than asserting behaviour, and it is one of the slowest things in the
+    /// suite. Run it by name when you want the artefacts:
+    /// <c>tools/unity-run.sh ... -testFilter TreeDestructionVisualTests</c>
+    /// </remarks>
+    [NUnit.Framework.Explicit("Artefact capture for human review; run by name.")]
     public sealed class TreeDestructionVisualTests
     {
         private const int Width = 1024;

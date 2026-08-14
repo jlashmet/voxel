@@ -7,17 +7,33 @@ using VoxelEngine.Core.Storage;
 namespace VoxelEngine.Core.Occupancy
 {
     /// <summary>
-    /// Builds the occupancy mip hierarchy for a region by bitwise-OR-ing brick occupancy
-    /// words up the chain from level 0 (full bricks) to the top level.
+    /// Builds the voxel mip hierarchy for a region: an occupancy pyramid plus a parallel
+    /// material pyramid, aggregated up the chain from level 0 (one cell per brick) to the top.
     ///
     /// Each mip level halves the dimensions of the previous level. For a 64-brick region
-    /// edge this produces ten levels: level 0 is 64³ brick-sized cells, level 1 is 32³,
-    /// level 2 is 16³, down to level 9 which is a single word — the always-resident far-
+    /// edge this produces seven levels: level 0 is 64³ brick-sized cells, level 1 is 32³,
+    /// level 2 is 16³, down to level 6 which is a single cell — the always-resident far-
     /// field summary that never pages out (data-model.md: Region.occupancyMips invariant).
     ///
-    /// Rebuild is a bitwise OR up the chain rather than a recompute from raw voxels, which
+    /// Rebuild is an aggregate up the chain rather than a recompute from raw voxels, which
     /// keeps edit cost independent of world size and ensures every level derives from the
     /// same single source of truth — Constitution Principle II (Single Source of Truth).
+    ///
+    /// <para><b>Indexing.</b> Every level uses the same 3D linearization as
+    /// <see cref="Region.BrickIndex"/>: <c>x + e*(y + e*z)</c> for that level's edge
+    /// <c>e = RegionEdge >> level</c>. The eight children of parent <c>(px,py,pz)</c> are the
+    /// 2×2×2 block at <c>(2px+dx, 2py+dy, 2pz+dz)</c>, whose linear indices are *not*
+    /// contiguous. Aggregation must gather them by coordinate; treating a parent's children as
+    /// eight consecutive linear entries walks an 8×1×1 stripe along x and silently mixes
+    /// unrelated bricks. See <see cref="ChildIndices"/>, which is the single place that
+    /// mapping is expressed.</para>
+    ///
+    /// <para><b>Materials.</b> Occupancy alone cannot be shaded, so distant chunks need a
+    /// representative material per cell. Level 0 takes each brick's dominant material; a
+    /// parent inherits the material of whichever child carries the most set occupancy bits.
+    /// "Most solid child wins" is integer-only and order-independent, so it is deterministic
+    /// across clients (Constitution Principle I) and reads correctly at range, where a cell
+    /// covers metres and the majority constituent is the one the eye resolves.</para>
     ///
     /// Supports two entry points: <see cref="RebuildFull"/> for initial population or total
     /// rebuild, and <see cref="RebuildDirty"/> for per-frame incremental rebuild over a dirty-
@@ -25,57 +41,70 @@ namespace VoxelEngine.Core.Occupancy
     /// </summary>
     public static class MipBuilder
     {
-        // A 64-brick region edge produces floor(log2(64)) + 1 = 10 levels.
-        // Level N covers (RegionEdge / 2^N)^3 bricks per cell.
+        // A 64-brick region edge produces log2(64) + 1 = 7 levels: 64³, 32³, ... , 2³, 1³.
         public const int MaxLevels = VoxelDimensions.RegionEdgeLog2 + 1;
 
         /// <summary>
-        /// Build the complete mip hierarchy for a region from its brick occupancy arrays.
+        /// Build the complete mip hierarchy for a region from its brick occupancy and materials.
         ///
-        /// The caller must allocate outputArray[level] with size (RegionEdge >> level)^3 ulong
-        /// entries each. On return, outputArray[i][j] holds the OR-aggregate of all eight level-
-        /// (i+1) children that map to cell j at level i. Level 0 is always BrickEdge^3 = region
-        /// volume in bricks — effectively a copy of per-brick aggregates.
+        /// The caller must allocate <paramref name="occupancy"/>[level] and
+        /// <paramref name="materials"/>[level] with <see cref="TotalCellCount"/> entries each.
+        /// On return, level i holds the aggregate of the eight level-(i-1) children that map to
+        /// each cell. Level 0 is one cell per brick.
         ///
-        /// For RegionEdge = 64:
-        ///   level 0:  64³ × 8 B = 131 072 KB
-        ///   level 1:  32³ × 8 B =  26 214 KB
-        ///   ...
-        ///   level 9:   1  × 8 B =       8 B
-        /// Total ≈ 262 KB — negligible and fully bounded by region geometry, not content.
+        /// For RegionEdge = 64 the occupancy pyramid totals ~2.4 MB and the material pyramid
+        /// ~300 KB per region — bounded by region geometry, not content.
         /// </summary>
-        public static void RebuildFull(in BrickPool pool, in Region region, int levelCount, NativeArray<ulong>[] outputArray)
+        public static void RebuildFull(in BrickPool pool, in Region region, int levelCount,
+                                       NativeArray<ulong>[] occupancy,
+                                       NativeArray<byte>[] materials)
         {
             if (levelCount <= 0 || levelCount > MaxLevels)
                 throw new ArgumentOutOfRangeException(
                     nameof(levelCount), $"Must be in [1 .. MipBuilder.MaxLevels ({MaxLevels})].");
+            if (occupancy == null) throw new ArgumentNullException(nameof(occupancy));
+            if (materials == null) throw new ArgumentNullException(nameof(materials));
 
             var brickRefs = region.BrickRefs;
 
-            // Level 0: one cell per brick — aggregate each brick's occupancy.
+            // Level 0: one cell per brick.
             int level0Cells = VoxelDimensions.BricksPerRegion;
             for (int i = 0; i < level0Cells; i++)
             {
-                var ref_ = brickRefs[i];
-                if (ref_.IsMixed)
-                    outputArray[0][i] = AggregateBrick(pool, ref_.PoolIndex);
+                BrickRef brick = brickRefs[i];
+                if (brick.IsMixed)
+                {
+                    occupancy[0][i] = AggregateBrick(pool, brick.PoolIndex);
+                    materials[0][i] = DominantMixedMaterial(pool, brick.PoolIndex);
+                }
+                else if (brick.IsEmpty)
+                {
+                    occupancy[0][i] = 0UL;
+                    materials[0][i] = VoxelDimensions.MaterialEmpty;
+                }
                 else
-                    outputArray[0][i] = ref_.IsEmpty ? 0UL : ulong.MaxValue;
+                {
+                    occupancy[0][i] = ulong.MaxValue;
+                    materials[0][i] = brick.UniformMaterial;
+                }
             }
 
-            // Levels 1 .. N: OR each parent's eight children.
-            for (int l = 1; l < levelCount; l++)
+            // Levels 1..N: aggregate each parent's 2×2×2 block of children.
+            for (int level = 1; level < levelCount; level++)
             {
-                int childCount = RegionEdgeForLevel(l - 1) * RegionEdgeForLevel(l - 1) *
-                                 RegionEdgeForLevel(l - 1);
-                int parentCount = childCount >> 3; // / 8
+                int parentEdge = RegionEdgeForLevel(level);
+                NativeArray<ulong> childOcc = occupancy[level - 1];
+                NativeArray<byte> childMat = materials[level - 1];
 
-                for (int i = 0; i < parentCount; i++)
+                for (int pz = 0; pz < parentEdge; pz++)
+                for (int py = 0; py < parentEdge; py++)
+                for (int px = 0; px < parentEdge; px++)
                 {
-                    ulong acc = 0UL;
-                    for (int c = 0; c < 8; c++)
-                        acc |= outputArray[l - 1][i * 8 + c];
-                    outputArray[l][i] = acc;
+                    int parentIndex = CellIndex(px, py, pz, parentEdge);
+                    AggregateChildren(px, py, pz, level, childOcc, childMat,
+                                      out ulong acc, out byte material);
+                    occupancy[level][parentIndex] = acc;
+                    materials[level][parentIndex] = material;
                 }
             }
         }
@@ -83,83 +112,289 @@ namespace VoxelEngine.Core.Occupancy
         /// <summary>
         /// Incrementally rebuild only the mip cells whose brick children changed.
         ///
-        /// <paramref name="dirtyBricks"/> is a NativeHashSet of brick indices that were modified
-        /// since the last rebuild. The caller populates it during the edit phase and passes it
-        /// here before publishing.
+        /// <paramref name="dirtyBricks"/> is a set of level-0 brick indices modified since the
+        /// last rebuild. The caller populates it during the edit phase and passes it here
+        /// before publishing.
         ///
-        /// Returns a NativeList of cell indices at each level whose aggregate value actually
-        /// changed — these are cells that downstream consumers (rendering, replication) need to
-        /// re-process. Unchanged cells are skipped entirely.
+        /// Returns the level-0 cell indices whose aggregate actually changed. Propagation stops
+        /// early at any level where no parent's value changed, which is what keeps distant
+        /// destruction nearly free: an edit that does not alter a coarse cell's aggregate does
+        /// not invalidate anything above it.
         ///
-        /// The caller must still provide the full mip array (outputArray); this method only
-        /// recomputes entries within it rather than reallocating or scanning every cell.
+        /// The caller must still provide the full pyramid; this method recomputes entries
+        /// within it rather than reallocating or scanning every cell.
         /// </summary>
         public static NativeList<int> RebuildDirty(in BrickPool pool, in Region region,
             in NativeHashSet<int> dirtyBricks, int levelCount,
-            NativeArray<ulong>[] outputArray, Allocator allocator)
+            NativeArray<ulong>[] occupancy, NativeArray<byte>[] materials, Allocator allocator)
         {
-            if (dirtyBricks.Count == 0)
-                return new NativeList<int>(16, allocator);
+            var changedLevel0 = new NativeList<int>(16, allocator);
+            if (dirtyBricks.Count == 0) return changedLevel0;
+            if (levelCount <= 0 || levelCount > MaxLevels)
+                throw new ArgumentOutOfRangeException(
+                    nameof(levelCount), $"Must be in [1 .. MipBuilder.MaxLevels ({MaxLevels})].");
 
             var brickRefs = region.BrickRefs;
-            NativeList<int> dirtyCells = new NativeList<int>(256, allocator);
 
             // Recompute level-0 cells for dirty bricks in place.
-            foreach (var bi in dirtyBricks)
+            foreach (int brickIndex in dirtyBricks)
             {
-                ulong oldVal = outputArray[0][bi];
-                var ref_ = brickRefs[bi];
-                ulong newVal = ref_.IsMixed
-                    ? AggregateBrick(pool, ref_.PoolIndex)
-                    : (ref_.IsEmpty ? 0UL : ulong.MaxValue);
-                outputArray[0][bi] = newVal;
+                ulong oldOcc = occupancy[0][brickIndex];
+                byte oldMat = materials[0][brickIndex];
 
-                if (newVal != oldVal)
-                    dirtyCells.Add(bi);
-            }
-
-            // Propagate dirty cells upward level by level. At each level, only re-aggregate
-            // parents whose children appear in the current dirty set.
-            for (int l = 1; l < levelCount; l++)
-            {
-                int parentEdge = RegionEdgeForLevel(l);
-
-                if (dirtyCells.Length == 0)
-                    break; // no changes propagate further
-
-                var childToParentMap = new NativeArray<int>(dirtyCells.Length, Allocator.Temp);
-                var newDirty = new NativeList<int>(dirtyCells.Length >> 1, allocator);
-                int lastParent = -1;
-
-                // Sort parents implicitly by iterating in order and de-duplicating adjacent.
-                for (int i = 0; i < dirtyCells.Length; i++)
+                BrickRef brick = brickRefs[brickIndex];
+                ulong newOcc;
+                byte newMat;
+                if (brick.IsMixed)
                 {
-                    int cellIdx = dirtyCells[i];
-
-                    // Each mip level packs 8 children into one parent cell (2³).
-                    int parentId = cellIdx >> 3;
-                    childToParentMap[i] = parentId;
-
-                    if (i == 0 || parentId != lastParent)
-                    {
-                        lastParent = parentId;
-
-                        ulong oldVal = outputArray[l][parentId];
-                        ulong acc = AggregateParent(l, parentId, outputArray[l - 1]);
-
-                        outputArray[l][parentId] = acc;
-
-                        if (acc != oldVal)
-                            newDirty.Add(parentId);
-                    }
+                    newOcc = AggregateBrick(pool, brick.PoolIndex);
+                    newMat = DominantMixedMaterial(pool, brick.PoolIndex);
+                }
+                else if (brick.IsEmpty)
+                {
+                    newOcc = 0UL;
+                    newMat = VoxelDimensions.MaterialEmpty;
+                }
+                else
+                {
+                    newOcc = ulong.MaxValue;
+                    newMat = brick.UniformMaterial;
                 }
 
-                dirtyCells.Dispose();
-                childToParentMap.Dispose();
-                dirtyCells = newDirty;
+                occupancy[0][brickIndex] = newOcc;
+                materials[0][brickIndex] = newMat;
+                if (newOcc != oldOcc || newMat != oldMat) changedLevel0.Add(brickIndex);
             }
 
-            return dirtyCells;
+            // Propagate upward. Each level maps its changed children to the distinct parents
+            // that contain them, re-aggregates those parents in full, and carries forward only
+            // the parents whose value actually moved.
+            var frontier = new NativeHashSet<int>(math.max(16, changedLevel0.Length),
+                                                  Allocator.Temp);
+            for (int i = 0; i < changedLevel0.Length; i++) frontier.Add(changedLevel0[i]);
+
+            for (int level = 1; level < levelCount && frontier.Count > 0; level++)
+            {
+                int childEdge = RegionEdgeForLevel(level - 1);
+                int parentEdge = RegionEdgeForLevel(level);
+                NativeArray<ulong> childOcc = occupancy[level - 1];
+                NativeArray<byte> childMat = materials[level - 1];
+
+                var parents = new NativeHashSet<int>(frontier.Count, Allocator.Temp);
+                foreach (int childIndex in frontier)
+                {
+                    CellCoordinate(childIndex, childEdge, out int cx, out int cy, out int cz);
+                    parents.Add(CellIndex(cx >> 1, cy >> 1, cz >> 1, parentEdge));
+                }
+
+                var nextFrontier = new NativeHashSet<int>(parents.Count, Allocator.Temp);
+                foreach (int parentIndex in parents)
+                {
+                    CellCoordinate(parentIndex, parentEdge, out int px, out int py, out int pz);
+                    AggregateChildren(px, py, pz, level, childOcc, childMat,
+                                      out ulong acc, out byte material);
+                    if (occupancy[level][parentIndex] == acc
+                        && materials[level][parentIndex] == material) continue;
+                    occupancy[level][parentIndex] = acc;
+                    materials[level][parentIndex] = material;
+                    nextFrontier.Add(parentIndex);
+                }
+
+                parents.Dispose();
+                frontier.Dispose();
+                frontier = nextFrontier;
+            }
+
+            frontier.Dispose();
+            return changedLevel0;
+        }
+
+        /// <summary>
+        /// Reads a level-0 cell — one brick — directly from the region's brick references and
+        /// the pool. Level 0 is derived rather than stored so the pyramid never duplicates the
+        /// authoritative voxel data (Constitution Principle II); see <see cref="RegionMipLayout"/>.
+        /// </summary>
+        public static void ReadLevel0(in BrickPool pool, in Region region, int brickIndex,
+                                      out ulong occupancy, out byte material)
+        {
+            BrickRef brick = region.BrickRefs[brickIndex];
+            if (brick.IsMixed)
+            {
+                occupancy = AggregateBrick(pool, brick.PoolIndex);
+                material = DominantMixedMaterial(pool, brick.PoolIndex);
+            }
+            else if (brick.IsEmpty)
+            {
+                occupancy = 0UL;
+                material = VoxelDimensions.MaterialEmpty;
+            }
+            else
+            {
+                occupancy = ulong.MaxValue;
+                material = brick.UniformMaterial;
+            }
+        }
+
+        /// <summary>
+        /// Builds the region's own flattened pyramid (levels 1..N) from its bricks, deriving
+        /// level 0 into temporary scratch. This is the entry point the streaming and edit paths
+        /// use; the array-based <see cref="RebuildFull"/> overload remains for tests and tools
+        /// that want to inspect every level including level 0.
+        /// </summary>
+        public static void RebuildRegion(in BrickPool pool, ref Region region,
+                                         Allocator scratchAllocator = Allocator.Temp)
+        {
+            if (!region.HasMips)
+                throw new InvalidOperationException(
+                    "Region has no mip storage; call Region.AllocateMips first.");
+
+            int levelCount = region.MipLevelCount;
+            int level0Cells = VoxelDimensions.BricksPerRegion;
+
+            var level0Occupancy = new NativeArray<ulong>(level0Cells, scratchAllocator,
+                                                         NativeArrayOptions.UninitializedMemory);
+            var level0Materials = new NativeArray<byte>(level0Cells, scratchAllocator,
+                                                        NativeArrayOptions.UninitializedMemory);
+            for (int i = 0; i < level0Cells; i++)
+            {
+                ReadLevel0(in pool, in region, i, out ulong occupancy, out byte material);
+                level0Occupancy[i] = occupancy;
+                level0Materials[i] = material;
+            }
+
+            NativeArray<ulong> storedOccupancy = region.OccupancyMips;
+            NativeArray<byte> storedMaterials = region.MaterialMips;
+
+            for (int level = RegionMipLayout.FirstStoredLevel; level < levelCount; level++)
+            {
+                int parentEdge = RegionEdgeForLevel(level);
+                int levelOffset = RegionMipLayout.LevelOffset(level);
+                bool childIsLevel0 = level == RegionMipLayout.FirstStoredLevel;
+                int childOffset = childIsLevel0 ? 0 : RegionMipLayout.LevelOffset(level - 1);
+                NativeArray<ulong> childOccupancy =
+                    childIsLevel0 ? level0Occupancy : storedOccupancy;
+                NativeArray<byte> childMaterials =
+                    childIsLevel0 ? level0Materials : storedMaterials;
+
+                for (int pz = 0; pz < parentEdge; pz++)
+                for (int py = 0; py < parentEdge; py++)
+                for (int px = 0; px < parentEdge; px++)
+                {
+                    AggregateChildrenAt(px, py, pz, level, childOccupancy, childMaterials,
+                                        childOffset, out ulong acc, out byte material);
+                    int index = levelOffset + CellIndex(px, py, pz, parentEdge);
+                    storedOccupancy[index] = acc;
+                    storedMaterials[index] = material;
+                }
+            }
+
+            level0Occupancy.Dispose();
+            level0Materials.Dispose();
+        }
+
+        /// <summary>
+        /// Aggregate the 2×2×2 block of level-(<paramref name="level"/>-1) children under parent
+        /// cell (<paramref name="px"/>, <paramref name="py"/>, <paramref name="pz"/>).
+        /// Occupancy is a bitwise OR; the material is taken from the child with the most set
+        /// occupancy bits, with ties broken by child order so the result is deterministic.
+        /// </summary>
+        private static void AggregateChildren(int px, int py, int pz, int level,
+                                              NativeArray<ulong> childOccupancy,
+                                              NativeArray<byte> childMaterials,
+                                              out ulong occupancy, out byte material) =>
+            AggregateChildrenAt(px, py, pz, level, childOccupancy, childMaterials, 0,
+                                out occupancy, out material);
+
+        /// <summary>
+        /// As <see cref="AggregateChildren"/>, but with the child level's cells starting at
+        /// <paramref name="childOffset"/> within a flattened multi-level array.
+        /// </summary>
+        private static void AggregateChildrenAt(int px, int py, int pz, int level,
+                                                NativeArray<ulong> childOccupancy,
+                                                NativeArray<byte> childMaterials,
+                                                int childOffset,
+                                                out ulong occupancy, out byte material)
+        {
+            int childEdge = RegionEdgeForLevel(level - 1);
+            occupancy = 0UL;
+            material = VoxelDimensions.MaterialEmpty;
+            int bestPopCount = 0;
+
+            for (int dz = 0; dz < 2; dz++)
+            for (int dy = 0; dy < 2; dy++)
+            for (int dx = 0; dx < 2; dx++)
+            {
+                int childIndex = childOffset
+                               + CellIndex((px << 1) + dx, (py << 1) + dy, (pz << 1) + dz,
+                                           childEdge);
+                ulong childBits = childOccupancy[childIndex];
+                occupancy |= childBits;
+
+                byte childMaterial = childMaterials[childIndex];
+                if (childMaterial == VoxelDimensions.MaterialEmpty) continue;
+                int popCount = math.countbits(childBits);
+                if (popCount <= bestPopCount) continue;
+                bestPopCount = popCount;
+                material = childMaterial;
+            }
+        }
+
+        /// <summary>
+        /// The linear indices at level <paramref name="level"/>-1 of the eight children under
+        /// parent cell <paramref name="parentIndex"/>. Exposed so tests and tools share the one
+        /// authoritative parent/child mapping rather than restating the arithmetic.
+        /// </summary>
+        public static void ChildIndices(int parentIndex, int level, Span<int> destination)
+        {
+            if (destination.Length < 8)
+                throw new ArgumentException("Destination must hold eight children.",
+                                            nameof(destination));
+            int parentEdge = RegionEdgeForLevel(level);
+            int childEdge = RegionEdgeForLevel(level - 1);
+            CellCoordinate(parentIndex, parentEdge, out int px, out int py, out int pz);
+            int n = 0;
+            for (int dz = 0; dz < 2; dz++)
+            for (int dy = 0; dy < 2; dy++)
+            for (int dx = 0; dx < 2; dx++)
+                destination[n++] = CellIndex((px << 1) + dx, (py << 1) + dy, (pz << 1) + dz,
+                                             childEdge);
+        }
+
+        /// <summary>Dominant material of a mixed brick: the occupied material with the most
+        /// voxels. Ties resolve to the lowest material id so the result is order-independent.
+        /// </summary>
+        private static byte DominantMixedMaterial(in BrickPool pool, int brickIndex)
+        {
+            int voxelOffset = pool.VoxelOffset(brickIndex);
+            // 256 counters covers the material id space and avoids a second pass over voxels.
+            Span<int> counts = stackalloc int[256];
+            counts.Clear();
+            for (int i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
+                counts[pool.Voxels[voxelOffset + i]]++;
+
+            byte best = VoxelDimensions.MaterialEmpty;
+            int bestCount = 0;
+            // Start at 1: material 0 is empty space and never represents a cell.
+            for (int m = 1; m < 256; m++)
+            {
+                if (counts[m] <= bestCount) continue;
+                bestCount = counts[m];
+                best = (byte)m;
+            }
+            return best;
+        }
+
+        /// <summary>Linear index of a cell within a level of the given edge length.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int CellIndex(int x, int y, int z, int edge) => x + edge * (y + edge * z);
+
+        /// <summary>Inverse of <see cref="CellIndex"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CellCoordinate(int index, int edge, out int x, out int y, out int z)
+        {
+            x = index % edge;
+            y = index / edge % edge;
+            z = index / (edge * edge);
         }
 
         /// <summary>Brick-edge length at a given mip level.</summary>
@@ -194,57 +429,16 @@ namespace VoxelEngine.Core.Occupancy
         }
 
         /// <summary>
-        /// Recompute level-0 output for one mixed brick and write back into the mip array.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void RecomputeBrickCell(in BrickPool pool, NativeArray<ulong> level0Output, int brickIndex)
-        {
-            level0Output[brickIndex] = AggregateBrick(pool, brickIndex);
-        }
-
-        /// <summary>
         /// Compute the mip cell (3D coordinate) that contains a given brick at a specific level.
-        /// Returns (x, y, z) cell index within that level's grid.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int3 BrickToCell(int brickX, int brickY, int brickZ, int level)
-        {
-            int s = VoxelDimensions.RegionEdgeLog2 - level;
-            return new int3(
-                brickX >> s,
-                brickY >> s,
-                brickZ >> s
-            );
-        }
+        public static int3 BrickToCell(int brickX, int brickY, int brickZ, int level) =>
+            new int3(brickX >> level, brickY >> level, brickZ >> level);
 
         /// <summary>
-        /// Convert a linear cell index at level L to its brick-edge coordinate along one axis.
-        /// Useful for debugging and visualization.
+        /// Convert a cell coordinate at level L back to the brick coordinate of its origin.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int CellToBrickAxis(int cellAxis, int level) => cellAxis << (VoxelDimensions.RegionEdgeLog2 - level);
-
-        /// <summary>
-        /// OR the eight children of a parent cell at the given mip level.
-        /// Reads from outputArray[level] — the caller must have populated it first.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong AggregateParent(int level, int parentIdx, NativeArray<ulong> array)
-        {
-            // This helper is internal to MipBuilder and called during incremental rebuild
-            // when we need to re-aggregate a parent without scanning all 262k cells.
-            var acc = 0UL;
-            for (int c = 0; c < 8; c++)
-                acc |= array[parentIdx * 8 + c];
-            return acc;
-        }
-
-        /// <summary>
-        /// OR all eight words of one brick's occupancy into a single ulong.
-        /// The caller must supply the brick's occupancy offset within its container.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong AggregateBrick(in NativeArray<ulong> occupancy, int occOffset) =>
-            OccupancyMask.Aggregate(occupancy, occOffset);
+        public static int CellToBrickAxis(int cellAxis, int level) => cellAxis << level;
     }
 }

@@ -15,6 +15,13 @@ namespace VoxelEngine.CI
     /// Exercises the real runtime registry -> ProceduralTreeRenderer path in Play Mode.
     /// A healthy singleton must remain batch-only: no per-tree GameObject or dormant meshes.
     /// </summary>
+    /// <remarks>
+    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: this captures images for a human to
+    /// look at rather than asserting behaviour, and it is one of the slowest things in the
+    /// suite. Run it by name when you want the artefacts:
+    /// <c>tools/unity-run.sh ... -testFilter RegistryTreeVisualTests</c>
+    /// </remarks>
+    [NUnit.Framework.Explicit("Artefact capture for human review; run by name.")]
     public sealed class RegistryTreeVisualTests
     {
         private const int Width = 1024;

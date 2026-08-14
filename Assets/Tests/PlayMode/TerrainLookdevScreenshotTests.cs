@@ -10,6 +10,13 @@ using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
 {
+    /// <remarks>
+    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: this captures images for a human to
+    /// look at rather than asserting behaviour, and it is one of the slowest things in the
+    /// suite. Run it by name when you want the artefacts:
+    /// <c>tools/unity-run.sh ... -testFilter TerrainLookdevScreenshotTests</c>
+    /// </remarks>
+    [NUnit.Framework.Explicit("Artefact capture for human review; run by name.")]
     public sealed class TerrainLookdevScreenshotTests
     {
         private const int CaptureWidth = 512;

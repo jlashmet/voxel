@@ -17,9 +17,7 @@ namespace VoxelEngine.Rendering
         [Tooltip("Off by default: continuous voxel surface rendering.")]
         [SerializeField] private bool m_Enabled;
 
-        [Header("Continuous GPU surface")]
-        [Tooltip("SmoothSurface.compute")]
-        [SerializeField] private ComputeShader m_SurfaceExtraction;
+        [Header("Continuous surface")]
         [Tooltip("Hidden/VoxelEngine/SmoothSurface")]
         [SerializeField] private Shader m_SurfaceShader;
         [Tooltip("Hidden/VoxelEngine/WaterSurface")]
@@ -74,7 +72,7 @@ namespace VoxelEngine.Rendering
             m_SkyPass.Setup(m_SkyShader, m_SkyTexture);
 
             m_Pass = new VoxelRenderPass();
-            m_Pass.Setup(m_SurfaceExtraction, m_SurfaceShader, m_WaterShader,
+            m_Pass.Setup(m_SurfaceShader, m_WaterShader,
                          m_StoneTexture, m_WoodTexture, m_SandTexture,
                          m_RockTexture, m_SlateTexture, m_GrassTexture, m_DirtTexture,
                          m_StoneNormal, m_WoodNormal, m_SandNormal, m_RockNormal,

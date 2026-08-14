@@ -23,6 +23,9 @@ namespace VoxelEngine.Rendering
         private static readonly int s_SunDirection = Shader.PropertyToID("_SunDirection");
         private static readonly int s_SkyHorizon = Shader.PropertyToID("_SkyHorizon");
         private static readonly int s_SkyZenith = Shader.PropertyToID("_SkyZenith");
+        private static readonly int s_CloudParams = Shader.PropertyToID("_CloudParams");
+        private static readonly int s_CloudColour = Shader.PropertyToID("_CloudColour");
+        private static readonly int s_CloudShadow = Shader.PropertyToID("_CloudShadow");
 
         private Material _material;
         private readonly MaterialPropertyBlock _properties = new();
@@ -48,6 +51,9 @@ namespace VoxelEngine.Rendering
             public Vector4 SunDirection;
             public Vector4 SkyHorizon;
             public Vector4 SkyZenith;
+            public Vector4 CloudParams;
+            public Vector4 CloudColour;
+            public Vector4 CloudShadow;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -73,6 +79,14 @@ namespace VoxelEngine.Rendering
             data.SunDirection = VoxelRenderBridge.SunDirection;
             data.SkyHorizon = VoxelRenderBridge.SkyHorizon;
             data.SkyZenith = VoxelRenderBridge.SkyZenith;
+            data.CloudParams = new Vector4(VoxelRenderBridge.CloudScale,
+                                           VoxelRenderBridge.CloudCoverage,
+                                           VoxelRenderBridge.CloudDriftSpeed,
+                                           VoxelRenderBridge.CloudOpacity);
+            Color cloudLit = VoxelRenderBridge.CloudColour.linear;
+            data.CloudColour = new Vector4(cloudLit.r, cloudLit.g, cloudLit.b, 1f);
+            Color cloudDark = VoxelRenderBridge.CloudShadowColour.linear;
+            data.CloudShadow = new Vector4(cloudDark.r, cloudDark.g, cloudDark.b, 1f);
 
             builder.UseTexture(data.CameraColor, AccessFlags.Write);
             // Unsafe SetRenderTarget binds the depth attachment just like the proven world pass.
@@ -89,6 +103,9 @@ namespace VoxelEngine.Rendering
                 passData.Properties.SetVector(s_SunDirection, passData.SunDirection);
                 passData.Properties.SetVector(s_SkyHorizon, passData.SkyHorizon);
                 passData.Properties.SetVector(s_SkyZenith, passData.SkyZenith);
+                passData.Properties.SetVector(s_CloudParams, passData.CloudParams);
+                passData.Properties.SetVector(s_CloudColour, passData.CloudColour);
+                passData.Properties.SetVector(s_CloudShadow, passData.CloudShadow);
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
                 cmd.DrawProcedural(Matrix4x4.identity, passData.Material, 0,

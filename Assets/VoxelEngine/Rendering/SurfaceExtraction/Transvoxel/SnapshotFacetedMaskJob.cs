@@ -7,7 +7,9 @@ using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
 {
-    /// <summary>Exact planar face masks read directly from a compact immutable brick snapshot.</summary>
+    /// <summary>
+    /// Builds all six exact planar face masks in one pass over a compact immutable brick snapshot.
+    /// </summary>
     [BurstCompile]
     internal struct SnapshotFacetedMaskJob : IJobParallelFor
     {
@@ -27,37 +29,47 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         public void Execute(int index)
         {
             int cellsPerPlane = CellsPerAxis * CellsPerAxis;
-            int plane = index / cellsPerPlane;
-            int inPlane = index - plane * cellsPerPlane;
-            int a = inPlane % CellsPerAxis;
-            int b = inPlane / CellsPerAxis;
-            int layer = plane % CellsPerAxis;
-            int face = plane / CellsPerAxis;
-            int axis = face >> 1;
-            int sign = (face & 1) == 0 ? -1 : 1;
-            int axisA = (axis + 1) % 3;
-            int axisB = (axis + 2) % 3;
-            int3 local = int3.zero;
-            local[axis] = layer;
-            local[axisA] = a;
-            local[axisB] = b;
+            int3 local = new(index % CellsPerAxis,
+                             index / CellsPerAxis % CellsPerAxis,
+                             index / cellsPerPlane);
             int3 voxel = ChunkOriginVoxel + local;
             byte material = Read(voxel, out uint surface, out byte boundary);
             SurfaceStyleDefinition style = Catalogue.Get((ushort)surface);
             bool displaced = Coatings.Get((byte)(surface >> 16)).Displacement != 0;
-            bool faceted = IsSolid(material)
-                && (style.Reconstruction == SurfaceReconstruction.Sharp
-                    || style.Reconstruction == SurfaceReconstruction.Cubic
-                    || style.Reconstruction == SurfaceReconstruction.Planar
-                       && !new VoxelBoundarySample { Packed = boundary }.AppliesAlong(axis)
-                       && !displaced);
-            if (!faceted) { FaceMasks[index] = 0; return; }
-            int3 neighbour = voxel;
-            neighbour[axis] += sign;
-            byte adjacent = Read(neighbour, out _, out byte neighbourBoundary);
-            FaceMasks[index] = IsSolid(adjacent)
-                || new VoxelBoundarySample { Packed = neighbourBoundary }.AppliesAlong(axis)
-                ? 0u : Pack(material, surface) + 1u;
+            bool solid = IsSolid(material);
+            uint encoded = Pack(material, surface) + 1u;
+            var boundarySample = new VoxelBoundarySample { Packed = boundary };
+            for (int axis = 0; axis < 3; axis++)
+            {
+                int axisA = (axis + 1) % 3;
+                int axisB = (axis + 2) % 3;
+                int a = local[axisA];
+                int b = local[axisB];
+                int layer = local[axis];
+                bool faceted = solid
+                    && (style.Reconstruction == SurfaceReconstruction.Sharp
+                        || style.Reconstruction == SurfaceReconstruction.Cubic
+                        || style.Reconstruction == SurfaceReconstruction.Planar
+                           && !boundarySample.AppliesAlong(axis) && !displaced);
+                for (int side = 0; side < 2; side++)
+                {
+                    int face = axis * 2 + side;
+                    int output = (face * CellsPerAxis + layer) * cellsPerPlane
+                               + a + b * CellsPerAxis;
+                    if (!faceted)
+                    {
+                        FaceMasks[output] = 0;
+                        continue;
+                    }
+                    int3 neighbour = voxel;
+                    neighbour[axis] += side == 0 ? -1 : 1;
+                    byte adjacent = Read(neighbour, out _, out byte neighbourBoundary);
+                    FaceMasks[output] = IsSolid(adjacent)
+                        || new VoxelBoundarySample { Packed = neighbourBoundary }
+                            .AppliesAlong(axis)
+                        ? 0u : encoded;
+                }
+            }
         }
 
         private byte Read(int3 voxel, out uint surface, out byte boundary)

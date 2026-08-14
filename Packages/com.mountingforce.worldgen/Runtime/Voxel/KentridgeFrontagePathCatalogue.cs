@@ -23,7 +23,18 @@ namespace MountingForce.WorldGen.Voxel
     {
         private const int RoadOverlapDm = 3;
         private const int BuildingOverlapDm = 10;
-        private const int VerticalSearchVoxels = TerrainSampler.MaxHeight + 32;
+        /// <summary>
+        /// How far above and below the plot a path looks for the graded surface it paints onto.
+        ///
+        /// This used to be the entire world height. That was harmless while terrain topped out
+        /// around 49 m, but it is a feature *footprint*, not a search cursor, and footprints are
+        /// budgeted (FeatureBudget.MaxFootprintVoxels). Once terrain reached mountain scale the
+        /// same expression asked for a feature kilometres tall and the catalogue stopped
+        /// loading. A frontage path only ever sits on ground that road and plot grading has
+        /// already levelled, so the window it needs is local to the plot and independent of how
+        /// tall the world happens to be.
+        /// </summary>
+        private const int VerticalSearchVoxels = 256;
         private const int ProgramLengthPerPath = 12;
 
         private readonly struct PathRect

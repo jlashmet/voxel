@@ -18,6 +18,13 @@ namespace VoxelEngine.CI
     /// visibly rendered. Uprightness is checked from the generated trunk geometry rather than from
     /// GameObject rotation, because healthy batched trees intentionally have no per-tree GameObject.
     /// </summary>
+    /// <remarks>
+    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: this captures images for a human to
+    /// look at rather than asserting behaviour, and it is one of the slowest things in the
+    /// suite. Run it by name when you want the artefacts:
+    /// <c>tools/unity-run.sh ... -testFilter ShowcaseTreeVisualTests</c>
+    /// </remarks>
+    [NUnit.Framework.Explicit("Artefact capture for human review; run by name.")]
     public sealed class ShowcaseTreeVisualTests
     {
         private const int Width = 1024;
