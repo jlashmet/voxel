@@ -51,10 +51,18 @@ namespace MountingForce.WorldGen.Voxel
             if (wallDepthVoxels <= 0)
                 throw new ArgumentOutOfRangeException(nameof(wallDepthVoxels));
 
-            // Opening dimensions round inward so voxel realization cannot exceed the architectural
-            // opening. Anchors round to nearest voxel because they describe position, not clearance.
-            int clearSpan = Math.Max(4, request.WidthDm / decimetresPerVoxel);
-            int clearHeight = Math.Max(1, request.HeightDm / decimetresPerVoxel);
+            // Opening dimensions round inward so voxel realization can never exceed the semantic
+            // architectural clearance. If scale conversion makes the opening too small for the
+            // Core arch contract, reject it rather than silently enlarging the doorway.
+            int clearSpan = request.WidthDm / decimetresPerVoxel;
+            int clearHeight = request.HeightDm / decimetresPerVoxel;
+            if (clearSpan < 4)
+                throw new InvalidOperationException(
+                    "ArchBay opening is narrower than the reusable arch feature minimum at this voxel scale.");
+            if (clearHeight <= 0)
+                throw new InvalidOperationException(
+                    "ArchBay opening has no positive voxel height at this voxel scale.");
+
             int center = DivideRounded(request.CenterOffsetDm, decimetresPerVoxel);
             int baseHeight = DivideRounded(request.BaseHeightDm, decimetresPerVoxel);
 
