@@ -12,8 +12,8 @@ using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Exercises the real runtime registry -> ProceduralTreeRenderer path in Play Mode.
-    /// A healthy singleton must remain batch-only: no per-tree GameObject or dormant meshes.
+    /// Exercises the real runtime registry -> ProceduralTreeRenderer path in Play Mode. A healthy
+    /// singleton must remain GameObject-free while still producing visible GPU-submitted geometry.
     /// </summary>
     public sealed class RegistryTreeVisualTests
     {
@@ -21,7 +21,7 @@ namespace VoxelEngine.CI
         private const int Height = 1024;
 
         [UnityTest]
-        public IEnumerator RegistryRenderer_RendersExactlyOneUprightTree()
+        public IEnumerator RegistryRenderer_RendersExactlyOneUprightTreeWithoutTreeGameObjects()
         {
             string projectRoot = Directory.GetParent(Application.dataPath)!.FullName;
             string outputDirectory = Path.Combine(projectRoot, "Artifacts", "RegistryTree");
@@ -45,8 +45,7 @@ namespace VoxelEngine.CI
                 }
 
                 Assert.That(bootstrapRenderers, Is.Not.Null);
-                Assert.That(bootstrapRenderers.Count, Is.EqualTo(1),
-                            "Production bootstrap must create exactly one ProceduralTreeRenderer.");
+                Assert.That(bootstrapRenderers.Count, Is.EqualTo(1));
                 ProceduralTreeRenderer renderer = bootstrapRenderers[0];
 
                 var instance = new TreeInstance
@@ -65,73 +64,24 @@ namespace VoxelEngine.CI
                      frame++)
                     yield return null;
                 yield return null;
-                yield return null;
 
-                List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
-                Assert.That(renderers.Count, Is.EqualTo(1),
-                            "Exactly one runtime ProceduralTreeRenderer must own vegetation.");
-                renderer = renderers[0];
                 Assert.That(renderer.PresentationCount, Is.EqualTo(1));
-                Assert.That(renderer.BatchCount, Is.EqualTo(1),
-                            "A healthy singleton must still use a spatial batch.");
+                Assert.That(renderer.BatchCount, Is.EqualTo(1));
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(1));
-                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0),
-                            "A healthy singleton must not retain a per-tree GameObject.");
+                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0));
                 Assert.That(renderer.DynamicMeshCount, Is.EqualTo(0));
-                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(3));
-                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(4));
+                Assert.That(renderer.BatchMeshCount, Is.EqualTo(4),
+                            "Singleton batch must own LOD0/1/2 plus the ultra-far impostor.");
+                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(4));
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(0));
                 Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(2));
                 Assert.That(renderer.TryGetDynamicPresentationRoot(0, out _), Is.False);
-                Assert.That(renderer.transform.childCount, Is.EqualTo(1));
+                Assert.That(renderer.transform.childCount, Is.EqualTo(0),
+                            "Standing tree renderer must not create batch/tree child GameObjects.");
 
-                Transform batchRoot = renderer.transform.GetChild(0);
-                Assert.That(batchRoot.name, Does.StartWith("Tree Batch "));
-                Assert.That(batchRoot.gameObject.activeSelf, Is.True);
-                Assert.That(Quaternion.Angle(batchRoot.localRotation, Quaternion.identity), Is.LessThan(0.01f));
-
-                var lodGroup = batchRoot.GetComponent<LODGroup>();
-                Assert.That(lodGroup, Is.Not.Null, "Singleton batch root must own one LODGroup.");
-
-                MeshFilter[] filters = batchRoot.GetComponentsInChildren<MeshFilter>(true);
-                MeshRenderer[] treeRenderers = batchRoot.GetComponentsInChildren<MeshRenderer>(true);
-                Assert.That(filters.Length, Is.EqualTo(3), "Singleton batch should create exactly three LOD meshes.");
-                Assert.That(treeRenderers.Length, Is.EqualTo(3), "Singleton batch should create exactly three LOD renderers.");
-
-                int totalVertices = 0;
-                int barkTriangles = 0;
-                int leafTriangles = 0;
-                Bounds bounds = default;
-                bool hasBounds = false;
-                for (int i = 0; i < filters.Length; i++)
-                {
-                    Mesh mesh = filters[i].sharedMesh;
-                    Assert.That(mesh, Is.Not.Null, $"LOD{i} has no generated mesh.");
-                    Assert.That(mesh.subMeshCount, Is.EqualTo(2), $"LOD{i} must have bark and leaf submeshes.");
-                    totalVertices += mesh.vertexCount;
-                    barkTriangles += (int)mesh.GetIndexCount(0) / 3;
-                    leafTriangles += (int)mesh.GetIndexCount(1) / 3;
-                }
-                Assert.That(totalVertices, Is.GreaterThan(0));
-                Assert.That(barkTriangles, Is.GreaterThan(0));
-                Assert.That(leafTriangles, Is.GreaterThan(0));
-
-                foreach (MeshRenderer meshRenderer in treeRenderers)
-                {
-                    if (!hasBounds)
-                    {
-                        bounds = meshRenderer.bounds;
-                        hasBounds = true;
-                    }
-                    else
-                    {
-                        bounds.Encapsulate(meshRenderer.bounds);
-                    }
-                }
-                Assert.That(hasBounds, Is.True);
-                Assert.That(bounds.size.y, Is.GreaterThan(bounds.size.x * 0.8f),
-                            "A freshly generated tree should have a substantial vertical extent.");
-                Assert.That(bounds.min.y, Is.GreaterThan(-0.75f),
-                            "Fresh tree geometry should not extend sideways below its root like a fallen tree.");
+                Assert.That(renderer.TryGetTreeBounds(0, out Bounds bounds), Is.True);
+                Assert.That(bounds.size.y, Is.GreaterThan(bounds.size.x * 0.8f));
+                Assert.That(bounds.min.y, Is.GreaterThan(-0.75f));
 
                 groundObject = GameObject.CreatePrimitive(PrimitiveType.Plane);
                 groundObject.name = "CI Registry Ground Reference";
@@ -147,6 +97,7 @@ namespace VoxelEngine.CI
 
                 cameraObject = new GameObject("CI Registry Camera");
                 Camera camera = cameraObject.AddComponent<Camera>();
+                camera.tag = "MainCamera";
                 camera.clearFlags = CameraClearFlags.SolidColor;
                 camera.backgroundColor = new Color(0.52f, 0.60f, 0.70f, 1f);
                 camera.fieldOfView = 34f;
@@ -161,9 +112,6 @@ namespace VoxelEngine.CI
                 cameraObject.transform.position = focus + viewDirection * (radius * 3.05f);
                 cameraObject.transform.LookAt(focus + Vector3.up * (bounds.extents.y * 0.06f));
 
-                yield return null;
-                yield return null;
-
                 target = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32)
                 {
                     name = "CI Registry Tree Capture",
@@ -172,8 +120,12 @@ namespace VoxelEngine.CI
                 target.Create();
                 camera.targetTexture = target;
 
+                // Give the direct-submit renderer a frame with this camera as Camera.main before
+                // forcing the capture.
+                yield return null;
+                yield return null;
+
                 RenderTexture previous = RenderTexture.active;
-                bool[] rendererEnabled = new bool[treeRenderers.Length];
                 int changedPixels;
                 try
                 {
@@ -187,11 +139,10 @@ namespace VoxelEngine.CI
                     Assert.That(png.Length, Is.GreaterThan(0));
                     File.WriteAllBytes(Path.Combine(outputDirectory, "registry-tree.png"), png);
 
-                    for (int i = 0; i < treeRenderers.Length; i++)
-                    {
-                        rendererEnabled[i] = treeRenderers[i].enabled;
-                        treeRenderers[i].enabled = false;
-                    }
+                    // Remove the semantic tree rather than disabling MeshRenderers: standing trees
+                    // intentionally have none now.
+                    TreeWorldState.Replace(System.Array.Empty<TreeInstance>());
+                    for (int frame = 0; frame < 3; frame++) yield return null;
 
                     camera.Render();
                     RenderTexture.active = target;
@@ -202,32 +153,18 @@ namespace VoxelEngine.CI
                 }
                 finally
                 {
-                    for (int i = 0; i < treeRenderers.Length; i++)
-                        if (treeRenderers[i] != null) treeRenderers[i].enabled = rendererEnabled[i];
                     RenderTexture.active = previous;
                     camera.targetTexture = null;
                 }
 
                 Assert.That(changedPixels, Is.GreaterThan(512),
-                            "Disabling the singleton batch did not remove enough pixels; " +
-                            "the tree is not demonstrably visible in the captured frame.");
+                            "Removing the semantic singleton did not remove enough pixels; " +
+                            "the direct-submit tree is not demonstrably visible in the captured frame.");
 
                 string metadata =
-                    $"registryInstances={TreeWorldState.Instances.Count}\n" +
-                    $"rendererInstances={renderers.Count}\n" +
-                    $"semanticPresentations={renderer.PresentationCount}\n" +
-                    $"batchCount={renderer.BatchCount}\n" +
-                    $"batchedTrees={renderer.BatchedTreeCount}\n" +
-                    $"dynamicPresentations={renderer.DynamicPresentationCount}\n" +
-                    $"batchRootName={batchRoot.name}\n" +
-                    $"batchRootActive={batchRoot.gameObject.activeSelf}\n" +
-                    $"batchRootPosition={batchRoot.position:F3}\n" +
-                    $"batchRootLocalRotation={batchRoot.localEulerAngles:F3}\n" +
-                    $"lodGroups=1\n" +
-                    $"lodMeshes={filters.Length}\n" +
-                    $"totalVertices={totalVertices}\n" +
-                    $"barkTrianglesAllLods={barkTriangles}\n" +
-                    $"leafTrianglesAllLods={leafTriangles}\n" +
+                    $"rendererInstances={FindRuntimeRenderers().Count}\n" +
+                    $"standingRenderObjects=0\n" +
+                    $"lodMeshesPerBatch=4\n" +
                     $"boundsCenter={bounds.center:F3}\n" +
                     $"boundsSize={bounds.size:F3}\n" +
                     $"boundsMinY={bounds.min.y:F3}\n" +
