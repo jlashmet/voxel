@@ -35,16 +35,28 @@ namespace VoxelEngine.Showcase
             for (int dx = -radius; dx <= radius; dx++)
             {
                 var regionCoord = new int3(centre.x + dx, 0, centre.z + dz);
-                if (!world.IsGenerated(regionCoord) ||
-                    !world.Table.TryGetRegion(regionCoord, out Region region) ||
-                    !region.Dirty)
-                    continue;
-
-                world.Changes.PublishRegion(regionCoord, NetworkEditKinds);
-                published++;
+                if (PublishRegion(world, regionCoord))
+                    published++;
             }
 
             return published;
+        }
+
+        /// <summary>
+        /// Publishes one authoritative replacement (repair or full-state recovery). Those paths
+        /// can change Core storage without draining an alteration batch, so they notify this
+        /// adapter explicitly through ClientNetworkRuntime's replacement events.
+        /// </summary>
+        public static bool PublishRegion(ShowcaseWorld world, int3 regionCoord)
+        {
+            if (world == null ||
+                !world.IsGenerated(regionCoord) ||
+                !world.Table.TryGetRegion(regionCoord, out Region region) ||
+                !region.Dirty)
+                return false;
+
+            world.Changes.PublishRegion(regionCoord, NetworkEditKinds);
+            return true;
         }
     }
 }
