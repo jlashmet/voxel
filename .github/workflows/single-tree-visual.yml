@@ -85,6 +85,29 @@ jobs:
             -logFile "$GITHUB_WORKSPACE/Artifacts/RegistryTree/batch-unity.log"
           test -s "$GITHUB_WORKSPACE/Artifacts/RegistryTree/batch-results.xml"
 
+      - name: Run tree LOD distance visual proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$GITHUB_WORKSPACE/Artifacts/TreeLOD"
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts/TreeLOD"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.TreeLodDistanceVisualTests.StandingTree_RendersCorrectlyAcrossEveryLodDistanceAndTransition" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/TreeLOD/results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/TreeLOD/unity.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeLOD/results.xml"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeLOD/tree-lod-distance.txt"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeLOD/lod0-20m.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeLOD/lod1-80m.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeLOD/lod2-200m.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeLOD/lod3-500m.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeLOD/lod3-before-cull-1390m.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/TreeLOD/culled-1410m.png"
+
       - name: Run semantic destruction visual proof
         shell: bash
         run: |
@@ -172,6 +195,8 @@ jobs:
           test ! -f "$GITHUB_WORKSPACE/Artifacts/SingleTree/single-tree.txt" || cat "$GITHUB_WORKSPACE/Artifacts/SingleTree/single-tree.txt"
           echo "--- Registry -> runtime renderer ---"
           test ! -f "$GITHUB_WORKSPACE/Artifacts/RegistryTree/registry-tree.txt" || cat "$GITHUB_WORKSPACE/Artifacts/RegistryTree/registry-tree.txt"
+          echo "--- LOD distance proof ---"
+          test ! -f "$GITHUB_WORKSPACE/Artifacts/TreeLOD/tree-lod-distance.txt" || cat "$GITHUB_WORKSPACE/Artifacts/TreeLOD/tree-lod-distance.txt"
           echo "--- Semantic destruction ---"
           test ! -f "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/tree-destruction.txt" || cat "$GITHUB_WORKSPACE/Artifacts/TreeDestruction/tree-destruction.txt"
           echo "--- Real Showcase startup ---"
@@ -187,6 +212,7 @@ jobs:
           path: |
             Artifacts/SingleTree/**
             Artifacts/RegistryTree/**
+            Artifacts/TreeLOD/**
             Artifacts/TreeDestruction/**
             Artifacts/ShowcaseTree/**
             Artifacts/ShowcaseTreeDestruction/**
