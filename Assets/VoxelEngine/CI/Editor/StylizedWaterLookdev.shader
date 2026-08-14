@@ -3,9 +3,9 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
     Properties
     {
         _ReferenceTex ("Water Silhouette", 2D) = "black" {}
-        _DeepColor ("Deep Color", Color) = (0.028,0.27,0.52,1)
-        _MidColor ("Mid Color", Color) = (0.070,0.57,0.79,1)
-        _ShallowColor ("Shallow Color", Color) = (0.34,0.84,0.95,1)
+        _DeepColor ("Deep Color", Color) = (0.035,0.31,0.57,1)
+        _MidColor ("Mid Color", Color) = (0.075,0.60,0.81,1)
+        _ShallowColor ("Shallow Color", Color) = (0.35,0.85,0.95,1)
         _FoamColor ("Foam Color", Color) = (0.98,0.995,1,1)
         _FlowSpeed ("Flow Speed", Float) = 0.20
         _FlowStrength ("Flow Strength", Range(0,0.02)) = 0.006
@@ -59,18 +59,15 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
             float authoredFallMask(float2 uv){float f=0.0;f=max(f,boxMask(uv,float2(0.765,0.935),float2(0.075,0.060),0.014));f=max(f,boxMask(uv,float2(0.690,0.790),float2(0.075,0.075),0.016));f=max(f,boxMask(uv,float2(0.295,0.615),float2(0.070,0.075),0.016));f=max(f,boxMask(uv,float2(0.815,0.555),float2(0.030,0.040),0.012));return saturate(f);}
             Varyings vert(Attributes input){Varyings o;o.positionCS=TransformObjectToHClip(input.positionOS.xyz);o.uv=TRANSFORM_TEX(input.uv,_ReferenceTex);return o;}
 
-            float horizontalStroke(float2 p,float scaleX,float scaleY,float seed)
+            float brokenWave(float2 p,float freq,float seed)
             {
-                float2 g=p*float2(scaleX,scaleY);
-                float2 cell=floor(g);
-                float2 f=frac(g);
-                float rnd=hash21(cell+seed);
-                float yCenter=0.24+0.52*hash21(cell+seed+7.3);
-                float halfLen=0.22+0.25*hash21(cell+seed+13.1);
-                float thickness=0.055+0.055*hash21(cell+seed+21.7);
-                float xShape=1.0-smoothstep(halfLen,halfLen+0.10,abs(f.x-0.5));
-                float yShape=1.0-smoothstep(thickness,thickness+0.035,abs(f.y-yCenter));
-                return xShape*yShape*step(0.48,rnd);
+                float warp=(fbm(p*float2(7.0,19.0)+seed)-0.5)*0.035;
+                float phase=(p.y+warp)*freq + sin(p.x*8.0+seed)*0.55;
+                float band=pow(saturate(sin(phase)*0.5+0.5),18.0);
+                float breaker=fbm(p*float2(22.0,5.0)+seed*3.1);
+                float lengthMask=smoothstep(0.48,0.70,breaker);
+                float taper=smoothstep(0.35,0.58,fbm(p*float2(11.0,9.0)+seed*5.7));
+                return band*lengthMask*taper;
             }
 
             half4 frag(Varyings i):SV_Target
@@ -85,36 +82,35 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 float fall=authoredFallMask(uv)*mask;
                 float pool=1.0-fall;
 
-                float2 poolUvA=uv+float2(time*0.095+sin(uv.y*11.0+time*1.7)*_FlowStrength,time*0.014);
-                float2 poolUvB=uv+float2(-time*0.056+sin(uv.y*7.0-time*1.2)*_FlowStrength*0.7,-time*0.010);
+                float2 poolUvA=uv+float2(time*0.090+sin(uv.y*11.0+time*1.7)*_FlowStrength,time*0.012);
+                float2 poolUvB=uv+float2(-time*0.050+sin(uv.y*7.0-time*1.2)*_FlowStrength*0.7,-time*0.009);
                 float2 fallUv=uv+float2(sin(uv.y*24.0+time*5.0)*_FlowStrength*0.8,time*0.64);
 
                 float broadA=fbm(poolUvA*float2(6.0,7.4));
                 float broadB=fbm(poolUvB*float2(10.0,12.0)+4.9);
                 float detail=fbm(poolUvA*float2(27.0,29.0)+11.4);
 
-                float depth=saturate(0.14+(1.0-uv.y)*0.41+broadA*0.43-broadB*0.13);
-                half3 color=lerp(_ShallowColor.rgb,_MidColor.rgb,smoothstep(0.20,0.62,depth));
-                color=lerp(color,_DeepColor.rgb,smoothstep(0.59,0.92,depth));
+                float depth=saturate(0.13+(1.0-uv.y)*0.36+broadA*0.40-broadB*0.11);
+                half3 color=lerp(_ShallowColor.rgb,_MidColor.rgb,smoothstep(0.20,0.64,depth));
+                color=lerp(color,_DeepColor.rgb,smoothstep(0.65,0.96,depth));
 
                 float palePatch=smoothstep(0.54,0.77,broadB+(detail-0.5)*0.24);
-                float deepPatch=smoothstep(0.58,0.81,broadA-(detail-0.5)*0.20);
-                color=lerp(color,_ShallowColor.rgb,palePatch*0.24*pool);
-                color=lerp(color,_DeepColor.rgb,deepPatch*0.20*pool);
+                float deepPatch=smoothstep(0.60,0.83,broadA-(detail-0.5)*0.20);
+                color=lerp(color,_ShallowColor.rgb,palePatch*0.27*pool);
+                color=lerp(color,_DeepColor.rgb,deepPatch*0.16*pool);
 
-                // Animated anisotropic brush strokes: short, mostly-horizontal painted reflections.
-                float strokesA=horizontalStroke(poolUvA,18.0,72.0,1.2);
-                float strokesB=horizontalStroke(poolUvB+float2(0.03,0.01),27.0,108.0,9.7);
-                float strokesC=horizontalStroke(poolUvA+float2(0.08,-0.02),12.0,48.0,17.1);
-                float textureBreak=smoothstep(0.40,0.67,detail);
-                float poolWhite=saturate((strokesA*0.78+strokesB*0.58+strokesC*0.42)*textureBreak*pool);
-                color=lerp(color,_FoamColor.rgb,poolWhite*0.82);
+                // Curved broken reflection ribbons advect in two directions.
+                float waveA=brokenWave(poolUvA,90.0,1.3);
+                float waveB=brokenWave(poolUvB+float2(0.05,-0.01),142.0,6.8);
+                float waveC=brokenWave(poolUvA+float2(-0.03,0.04),58.0,12.4);
+                float poolWhite=saturate((waveA*0.86+waveB*0.60+waveC*0.42)*pool);
+                color=lerp(color,_FoamColor.rgb,poolWhite*0.78);
 
-                // Secondary cyan strokes keep the surface varied without producing cloud blobs.
-                float cyanStroke=horizontalStroke(poolUvB+float2(0.11,0.04),15.0,57.0,25.2)*pool;
-                color=lerp(color,_ShallowColor.rgb,cyanStroke*0.36);
+                // Turquoise secondary ribbons keep the body painterly between white strokes.
+                float cyanWave=brokenWave(poolUvB+float2(0.09,0.02),73.0,18.7)*pool;
+                color=lerp(color,_ShallowColor.rgb,cyanWave*0.34);
 
-                // Waterfall ribbons stay vertical while brightness packets move down the fall.
+                // Waterfall sheets: fixed vertical channels, moving brightness down the channels.
                 float fallNoise=fbm(float2(fallUv.x*30.0+broadA*2.0,fallUv.y*8.0));
                 float ribs=pow(saturate(sin(uv.x*91.0+fallNoise*16.0)*0.5+0.5),5.2);
                 float thin=pow(saturate(sin(uv.x*166.0+detail*12.0)*0.5+0.5),8.5);
@@ -122,7 +118,7 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 float downPulseB=pow(saturate(sin((uv.y+time*1.08)*92.0+detail*7.0)*0.5+0.5),6.5);
                 float fallWhite=saturate((ribs*0.65+thin*0.36)*(0.58+downPulseA*0.36)+downPulseB*0.24);
                 color=lerp(color,_FoamColor.rgb,fall*fallWhite*0.78);
-                color=lerp(color,_DeepColor.rgb,fall*(1.0-fallWhite)*smoothstep(0.48,0.74,broadB)*0.26);
+                color=lerp(color,_DeepColor.rgb,fall*(1.0-fallWhite)*smoothstep(0.48,0.74,broadB)*0.24);
 
                 float2 t=_ReferenceTex_TexelSize.xy*3.0;
                 half mUp=SAMPLE_TEXTURE2D(_ReferenceTex,sampler_ReferenceTex,uv+float2(0,t.y)).r;
@@ -135,7 +131,7 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 float foamNoise=smoothstep(0.34,0.62,fbm(fallUv*43.0));
                 color=lerp(color,_FoamColor.rgb,saturate((topLip+bottom*0.80)*foamNoise)*0.98);
 
-                float chipped=edgeAny*smoothstep(0.36,0.64,fbm(poolUvB*43.0))*pool*_EdgeFoam*0.34;
+                float chipped=edgeAny*smoothstep(0.38,0.66,fbm(poolUvB*43.0))*pool*_EdgeFoam*0.32;
                 color=lerp(color,_FoamColor.rgb,chipped);
 
                 return half4(saturate(color),saturate(mask*_Alpha));
