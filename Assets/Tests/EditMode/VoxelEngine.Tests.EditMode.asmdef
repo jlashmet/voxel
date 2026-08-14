@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.Tests.EditMode",
   "references": [
     "VoxelEngine.Core",
+    "VoxelEngine.Storage.Api",
     "VoxelEngine.Rendering",
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
