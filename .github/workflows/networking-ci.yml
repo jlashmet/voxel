@@ -13,6 +13,7 @@ on:
       - "Assets/VoxelEngine/**"
       - "Assets/Scenes/Showcase/**"
       - "Assets/Tests/EditMode/**"
+      - "Packages/com.mountingforce.worldgen/**"
       - "Packages/manifest.json"
       - "Packages/packages-lock.json"
       - "ProjectSettings/ProjectVersion.txt"
