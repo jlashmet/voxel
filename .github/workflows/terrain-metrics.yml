@@ -1,0 +1,50 @@
+name: Terrain Metrics
+
+on:
+  workflow_run:
+    workflows: ["Terrain Lookdev Visual"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  metrics:
+    if: github.event.workflow_run.head_branch == 'terrain'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout measured revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          clean: true
+
+      - name: Download terrain render artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: Artifacts/Terrain
+          merge-multiple: true
+
+      - name: Compute multimetric diagnostics
+        run: |
+          set -euo pipefail
+          test -s Artifacts/Terrain/terrain.png
+          test -s Artifacts/Terrain/terrain-reference.png
+          python3 .github/scripts/terrain_metrics.py \
+            Artifacts/Terrain/terrain.png \
+            Artifacts/Terrain/terrain-reference.png \
+            --json Artifacts/Terrain/terrain-metrics.json \
+            --text Artifacts/Terrain/terrain-metrics.txt
+
+      - name: Upload terrain metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-metrics-${{ github.event.workflow_run.head_sha }}
+          path: |
+            Artifacts/Terrain/terrain-metrics.json
+            Artifacts/Terrain/terrain-metrics.txt
+          if-no-files-found: error
+          retention-days: 14
