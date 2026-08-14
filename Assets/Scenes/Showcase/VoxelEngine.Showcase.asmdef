@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.Showcase",
   "references": [
     "VoxelEngine.Core",
+    "VoxelEngine.Vegetation",
     "VoxelEngine.Collision",
     "VoxelEngine.Rendering",
     "VoxelEngine.Structures",
