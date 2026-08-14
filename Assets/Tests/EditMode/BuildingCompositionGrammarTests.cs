@@ -168,7 +168,7 @@ namespace VoxelEngine.Tests.EditMode
 
             BuildingArchPlacement placement = BuildingArchIntegration.Compile(
                 request,
-                decimetresPerVoxel: 1,
+                voxelsPerDecimetre: 1,
                 wallDepthVoxels: 6,
                 style,
                 seed: 0xA11CEu);
