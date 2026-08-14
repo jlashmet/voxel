@@ -11,16 +11,17 @@ namespace VoxelEngine.Showcase
         private bool _vegetatedCapApplied;
 
         /// <summary>
-        /// The heightfield is authored as columns, so a single grass voxel on top leaves earth
-        /// exposed anywhere adjacent columns differ in height. In the reference those step faces
-        /// are overwhelmingly turf/moss, not bare horizontal soil bands. Give every column a
-        /// shallow vegetated cap while keeping the same production voxel/material/rendering path.
+        /// The heightfield is authored as nine-voxel-deep earth columns. A shallow four-voxel cap
+        /// still leaves earth visible wherever neighbouring columns differ sharply, producing the
+        /// long parallel contour risers that dominate the current capture. The reference is an
+        /// almost completely vegetated valley, so cover the full authored shell with turf. Rocks,
+        /// path stones and flowers are authored separately and remain on the production voxel path.
         /// </summary>
         private void ApplyVegetatedCap()
         {
             if (!_built || _vegetatedCapApplied) return;
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 1_100_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 2_250_000);
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
             {
@@ -28,10 +29,7 @@ namespace VoxelEngine.Showcase
                 byte material = GroundToneMaterial(x, z);
                 byte coating = GroundToneCoating(x, z);
 
-                // Four voxels covers the common height deltas in the rolling valley, turning the
-                // visible stair risers into grassy/mossy banks while deeper cuts can still expose
-                // occasional earth as they do in the target.
-                for (int y = top - 3; y <= top; y++)
+                for (int y = top - 8; y <= top; y++)
                     writer.SetStyled(x, y, z, material, SurfaceStyles.Smooth, coating);
             }
 
