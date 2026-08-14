@@ -1,7 +1,10 @@
 using System;
+using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
+using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
+using VoxelEngine.Core.Features;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -133,11 +136,10 @@ namespace VoxelEngine.Tests.EditMode
                 Form(29, StructureArchetype.Inn, FrontageRhythm.ThreeBay, 132, 3, 0),
                 0xA11CEu);
 
-            MountingForce.WorldGen.Voxel.BuildingDetailRequest[] requests =
-                MountingForce.WorldGen.Voxel.BuildingDetailLowering.Collect(composition);
+            BuildingDetailRequest[] requests = BuildingDetailLowering.Collect(composition);
 
             Assert.AreEqual(1, requests.Length);
-            MountingForce.WorldGen.Voxel.BuildingDetailRequest request = requests[0];
+            BuildingDetailRequest request = requests[0];
             Assert.AreEqual(BuildingDetailSocketKind.ArchBay, request.Kind);
 
             BuildingOpening door = FindDoor(composition);
@@ -152,6 +154,63 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ArchSocketCompilesThroughReusableCoreApi()
+        {
+            BuildingCompositionForm composition = BuildingCompositionCompiler.Resolve(
+                Form(29, StructureArchetype.Inn, FrontageRhythm.ThreeBay, 132, 3, 0),
+                0xA11CEu);
+            BuildingDetailRequest request = BuildingDetailLowering.Collect(composition)[0];
+            var style = new ArchFeatureStyle(
+                stoneMaterial: 1,
+                pierStyle: 1,
+                ringStyle: 1,
+                coating: 0);
+
+            BuildingArchPlacement placement = BuildingArchIntegration.Compile(
+                request,
+                decimetresPerVoxel: 1,
+                wallDepthVoxels: 6,
+                style,
+                seed: 0xA11CEu);
+
+            Assert.AreEqual(request.Storey, placement.Storey);
+            Assert.AreEqual(request.Bay, placement.Bay);
+            Assert.AreEqual(request.CenterOffsetDm, placement.CenterOffsetVoxels);
+            Assert.AreEqual(request.BaseHeightDm, placement.BaseHeightVoxels);
+            Assert.IsTrue(placement.Definition.Arch.IsValid);
+            Assert.LessOrEqual(placement.Definition.Arch.ClearSpan, request.WidthDm);
+            Assert.AreEqual(0, placement.Definition.Arch.ClearSpan & 1);
+            Assert.AreEqual(
+                request.HeightDm,
+                placement.Definition.Arch.PierHeight + placement.Definition.Arch.ClearSpan / 2);
+            Assert.AreEqual(6, placement.Definition.Arch.Depth);
+            Assert.AreEqual(0xA11CEu, placement.Definition.DamageSeed);
+        }
+
+        [Test]
+        public void ArchApiIsDeterministicForSameRequestAndStyle()
+        {
+            var request = new ArchBayRequest(
+                clearSpan: 17,
+                clearHeight: 24,
+                depth: 6,
+                seed: 0x12345678u);
+            var style = new ArchFeatureStyle(1, 2, 3, 0);
+
+            ArchBayFeatureDefinition a = ArchFeatureApi.CompileBay(request, style);
+            ArchBayFeatureDefinition b = ArchFeatureApi.CompileBay(request, style);
+
+            Assert.AreEqual(16, a.Arch.ClearSpan);
+            Assert.AreEqual(a.Arch.ClearSpan, b.Arch.ClearSpan);
+            Assert.AreEqual(a.Arch.PierHeight, b.Arch.PierHeight);
+            Assert.AreEqual(a.Arch.RingThickness, b.Arch.RingThickness);
+            Assert.AreEqual(a.Arch.VoussoirCount, b.Arch.VoussoirCount);
+            Assert.AreEqual(a.Width, b.Width);
+            Assert.AreEqual(a.Height, b.Height);
+            Assert.AreEqual(a.DamageSeed, b.DamageSeed);
+        }
+
+        [Test]
         public void BespokeMassingProducesNoGeneratedFacadeOrDetailRequests()
         {
             StructureForm massing = new StructureForm(
@@ -163,7 +222,7 @@ namespace VoxelEngine.Tests.EditMode
             BuildingCompositionForm composition = BuildingCompositionCompiler.Resolve(massing, 1u);
             Assert.AreEqual(0, composition.BayCount);
             Assert.AreEqual(0, composition.Openings.Length);
-            Assert.AreEqual(0, MountingForce.WorldGen.Voxel.BuildingDetailLowering.Collect(composition).Length);
+            Assert.AreEqual(0, BuildingDetailLowering.Collect(composition).Length);
         }
 
         private static StructureForm Form(
