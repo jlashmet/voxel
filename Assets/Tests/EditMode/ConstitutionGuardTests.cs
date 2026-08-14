@@ -10,21 +10,26 @@ namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>
     /// Executable form of the project constitution (.specify/memory/constitution.md).
-    ///
-    /// These are source-level guards rather than unit tests. They exist because the
-    /// invariants they protect fail *silently* — a float in Core does not throw, it
-    /// causes two players on different hardware to slowly disagree about the world,
-    /// which surfaces as an unreproducible bug report weeks later.
-    ///
-    /// Run in CI on every commit. A failure here is a design violation, not a bug.
+    /// Source-level guards protect deterministic simulation code from silent cross-platform drift.
     /// </summary>
     public sealed class ConstitutionGuardTests
     {
+        private static readonly string[] DeterministicSourceRoots =
+        {
+            // Legacy root remains protected until the final Core deletion cutover.
+            "Core",
+            // Target architecture roots. Non-existent roots are ignored during migration.
+            "Foundation",
+            "Storage",
+            "Terrain",
+            "Edits",
+            "StructuralIntegrity"
+        };
+
         private static string RepoRoot
         {
             get
             {
-                // Tests run with cwd = project root (the folder containing Assets/).
                 var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
                 while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Assets")))
                     dir = dir.Parent;
@@ -33,17 +38,20 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private static string CoreDir => Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Core");
+        private static string VoxelEngineDir => Path.Combine(RepoRoot, "Assets", "VoxelEngine");
 
-        private static IEnumerable<string> CoreSourceFiles =>
-            Directory.Exists(CoreDir)
-                ? Directory.EnumerateFiles(CoreDir, "*.cs", SearchOption.AllDirectories)
-                : Enumerable.Empty<string>();
+        private static IEnumerable<string> DeterministicSourceFiles =>
+            DeterministicSourceRoots
+                .Select(root => Path.Combine(VoxelEngineDir, root))
+                .Where(Directory.Exists)
+                .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories));
 
-        /// <summary>
-        /// Strips line comments, block comments, and string literals so that the word
-        /// "float" in a comment or a message does not trip the guard.
-        /// </summary>
+        private static IEnumerable<string> DeterministicAsmdefs =>
+            DeterministicSourceRoots
+                .Select(root => Path.Combine(VoxelEngineDir, root))
+                .Where(Directory.Exists)
+                .SelectMany(root => Directory.EnumerateFiles(root, "*.asmdef", SearchOption.AllDirectories));
+
         private static string StripCommentsAndStrings(string source)
         {
             source = Regex.Replace(source, @"/\*.*?\*/", " ", RegexOptions.Singleline);
@@ -58,94 +66,82 @@ namespace VoxelEngine.Tests.EditMode
         // -------------------------------------------------------------------
 
         [Test]
-        public void Principle1_CoreContainsNoFloatingPointTypes()
+        public void Principle1_DeterministicSimulationContainsNoFloatingPointTypes()
         {
-            // Matches declarations and casts of float/double/decimal and the
-            // Unity.Mathematics float vector/matrix family.
             var forbidden = new Regex(
                 @"\b(float|double|decimal|float2|float3|float4|float2x2|float3x3|float4x4|quaternion)\b",
                 RegexOptions.Compiled);
 
             var violations = new List<string>();
-
-            foreach (var file in CoreSourceFiles)
+            foreach (var file in DeterministicSourceFiles)
             {
                 var text = StripCommentsAndStrings(File.ReadAllText(file));
                 foreach (Match m in forbidden.Matches(text))
                 {
                     var line = text.Take(m.Index).Count(c => c == '\n') + 1;
-                    violations.Add($"{Path.GetFileName(file)}:{line} uses '{m.Value}'");
+                    violations.Add(Relative(file) + ":" + line + " uses '" + m.Value + "'");
                 }
             }
 
             Assert.IsEmpty(violations,
-                "Constitution Principle I: Core must be integer-only.\n" +
-                "Floating-point arithmetic is not reproducible across platforms, and the\n" +
-                "client population spans PC, console, and mobile GPUs. A float here causes\n" +
-                "silent cross-hardware divergence.\n\n" +
+                "Constitution Principle I: deterministic simulation must be integer-only.\n" +
+                "Floating-point arithmetic can produce cross-hardware divergence.\n\n" +
                 string.Join("\n", violations));
         }
 
         [Test]
-        public void Principle1_CoreDoesNotReferenceUnityEngine()
+        public void Principle1_DeterministicSimulationDoesNotReferenceUnityEngine()
         {
-            var violations = CoreSourceFiles
+            var violations = DeterministicSourceFiles
                 .Where(f => Regex.IsMatch(StripCommentsAndStrings(File.ReadAllText(f)),
-                                          @"\busing\s+UnityEngine\b|\bUnityEngine\."))
-                .Select(Path.GetFileName)
+                    @"\busing\s+UnityEngine\b|\bUnityEngine\."))
+                .Select(Relative)
                 .ToList();
 
             Assert.IsEmpty(violations,
-                "Constitution Principle I: Core must have no UnityEngine dependency.\n" +
-                "Core isolation is what makes the headless cross-hardware parity harness\n" +
-                "possible at all. Losing it costs the project SC-003.\n\n" +
+                "Constitution Principle I: deterministic simulation must have no UnityEngine dependency.\n" +
+                "Isolation is required by the headless cross-hardware parity harness.\n\n" +
                 string.Join("\n", violations));
         }
 
         [Test]
-        public void Principle1_CoreAsmdefIsNotAutoReferencedAndDeclaresOnlyDataPackages()
+        public void Principle1_DeterministicAssembliesAreExplicitAndUseOnlyDataPackages()
         {
-            var asmdef = Path.Combine(CoreDir, "VoxelEngine.Core.asmdef");
-            Assert.IsTrue(File.Exists(asmdef), $"Missing {asmdef}");
-
-            var json = File.ReadAllText(asmdef);
-
-            // noEngineReferences=true would be the ideal compiler-level enforcement, but
-            // it is not achievable: Unity.Collections and Unity.Mathematics both forward
-            // their types through UnityEngine modules, so excluding engine references
-            // makes NativeArray and int3 unresolvable. (Verified by compilation, not
-            // assumed.) Isolation is therefore enforced by the source-level guard in
-            // Principle1_CoreDoesNotReferenceUnityEngine plus the narrow reference list
-            // asserted here.
-            StringAssert.Contains("\"autoReferenced\": false", json,
-                "Core must not be auto-referenced, so dependencies on it are explicit.");
-
-            foreach (var forbidden in new[]
-                     {
-                         "UnityEngine", "Unity.RenderPipelines", "Unity.Networking",
-                         "Unity.Entities", "Unity.Physics", "Unity.Netcode"
-                     })
+            var violations = new List<string>();
+            foreach (var asmdef in DeterministicAsmdefs)
             {
-                StringAssert.DoesNotContain(forbidden, json,
-                    $"Constitution Principle I: Core must not reference {forbidden}. " +
-                    "Core isolation is what makes the headless cross-hardware parity " +
-                    "harness possible; losing it costs the project SC-003.");
+                var json = File.ReadAllText(asmdef);
+                if (!json.Contains("\"autoReferenced\": false"))
+                    violations.Add(Relative(asmdef) + " must set autoReferenced=false");
+
+                foreach (var forbidden in new[]
+                         {
+                             "UnityEngine", "Unity.RenderPipelines", "Unity.Networking",
+                             "Unity.Entities", "Unity.Physics", "Unity.Netcode"
+                         })
+                {
+                    if (json.Contains(forbidden))
+                        violations.Add(Relative(asmdef) + " references forbidden package " + forbidden);
+                }
             }
+
+            Assert.IsEmpty(violations,
+                "Constitution Principle I: deterministic assemblies must remain explicit, headless data assemblies.\n\n" +
+                string.Join("\n", violations));
         }
 
         [Test]
-        public void Principle1_CoreUsesNoNonDeterministicRandom()
+        public void Principle1_DeterministicSimulationUsesNoNonDeterministicRandom()
         {
-            var violations = CoreSourceFiles
+            var violations = DeterministicSourceFiles
                 .Where(f => Regex.IsMatch(StripCommentsAndStrings(File.ReadAllText(f)),
-                                          @"\bnew\s+System\.Random\b|\bnew\s+Random\s*\(\s*\)|UnityEngine\.Random"))
-                .Select(Path.GetFileName)
+                    @"\bnew\s+System\.Random\b|\bnew\s+Random\s*\(\s*\)|UnityEngine\.Random"))
+                .Select(Relative)
                 .ToList();
 
             Assert.IsEmpty(violations,
-                "Constitution Principle I: Core randomness must be explicitly seeded.\n" +
-                "Replication transmits causes, not effects — every client re-derives the\n" +
-                "same result from the same seed. An unseeded RNG breaks that contract.\n\n" +
+                "Constitution Principle I: simulation randomness must be explicitly seeded.\n" +
+                "Replication transmits causes, not effects; every client must re-derive the same result.\n\n" +
                 string.Join("\n", violations));
         }
 
@@ -163,9 +159,6 @@ namespace VoxelEngine.Tests.EditMode
             if (budgetType == null)
                 Assert.Ignore("DeviceTierBudget not yet implemented (T077). Guard activates with it.");
 
-            // Substrings that indicate a simulation parameter has leaked into the
-            // presentation budget. interestRadius is the specific documented trap:
-            // tying update range to draw range silently disadvantages mobile players.
             var forbidden = new[]
             {
                 "interest", "tick", "collision", "hit", "reconcil",
@@ -186,8 +179,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.IsEmpty(violations,
                 "Constitution Principle IV: device class may affect presentation only.\n" +
-                "DeviceTierBudget must structurally omit every simulation parameter, so the\n" +
-                "type system prevents the coupling rather than code review.\n\n" +
+                "DeviceTierBudget must structurally omit every simulation parameter.\n\n" +
                 string.Join("\n", violations));
         }
 
@@ -200,15 +192,20 @@ namespace VoxelEngine.Tests.EditMode
         {
             var matrix = Path.Combine(RepoRoot, "specs", "001-destructible-voxel-engine", "device-matrix.md");
             Assert.IsTrue(File.Exists(matrix),
-                "Constitution Principle VI: device-matrix.md is the authoritative source " +
-                "for every numeric budget. Without it, performance criteria are unfalsifiable.");
+                "Constitution Principle VI: device-matrix.md is the authoritative source for every numeric budget.");
 
             var text = File.ReadAllText(matrix);
             foreach (var required in new[] { "Frame budget", "Brick pool", "Sustained downstream", "tick rate" })
-            {
-                StringAssert.Contains(required, text,
-                    $"device-matrix.md must define '{required}'.");
-            }
+                StringAssert.Contains(required, text, "device-matrix.md must define '" + required + "'.");
+        }
+
+        private static string Relative(string path)
+        {
+            string normalized = path.Replace('\\', '/');
+            string root = RepoRoot.Replace('\\', '/');
+            return normalized.StartsWith(root + "/", StringComparison.Ordinal)
+                ? normalized.Substring(root.Length + 1)
+                : normalized;
         }
 
         private static IEnumerable<Type> SafeGetTypes(Assembly asm)
