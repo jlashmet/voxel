@@ -24,6 +24,7 @@ namespace VoxelEngine.Showcase
             VoxelRenderBridge.SkyZenith = new Color(0.88f, 0.87f, 0.58f, 1f);
 
             ApplyTonalOverlay();
+            ApplyVegetatedCap();
             ApplyVisibleDetails();
         }
 
