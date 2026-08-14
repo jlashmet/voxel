@@ -7,11 +7,24 @@ using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 
 namespace VoxelEngine.Rendering.Vegetation
 {
-    /// <summary>Small presentation-only splinter cap emitted when semantic tree state is severed.</summary>
+    /// <summary>
+    /// Small presentation-only splinter caps emitted when semantic tree state is severed. Caps are
+    /// transient meshes submitted directly through Graphics.DrawMesh; they never materialize a
+    /// per-break GameObject. Only detached pieces that require physics use GameObjects.
+    /// </summary>
     public sealed class ProceduralTreeBreakPresenter : MonoBehaviour
     {
         private const float LifetimeSeconds = 9f;
+
+        private sealed class ActiveBreak
+        {
+            public Mesh Mesh;
+            public Matrix4x4 Matrix;
+            public float ExpiresAt;
+        }
+
         private static ProceduralTreeBreakPresenter s_Instance;
+        private readonly List<ActiveBreak> _breaks = new();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatic() => s_Instance = null;
@@ -37,6 +50,26 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private void OnEnable() => TreeWorldState.TreeSevered += OnTreeSevered;
         private void OnDisable() => TreeWorldState.TreeSevered -= OnTreeSevered;
+
+        private void Update()
+        {
+            if (!ProceduralTreeMaterials.Ensure()) return;
+
+            float now = Time.time;
+            for (int i = _breaks.Count - 1; i >= 0; i--)
+            {
+                ActiveBreak active = _breaks[i];
+                if (now >= active.ExpiresAt)
+                {
+                    if (active.Mesh != null) Destroy(active.Mesh);
+                    _breaks.RemoveAt(i);
+                    continue;
+                }
+
+                Graphics.DrawMesh(active.Mesh, active.Matrix, ProceduralTreeMaterials.Bark,
+                                  0, null, 0, null, ShadowCastingMode.On, true);
+            }
+        }
 
         private void OnTreeSevered(TreeSeveredEvent severed)
         {
@@ -66,22 +99,12 @@ namespace VoxelEngine.Rendering.Vegetation
                 break;
             }
 
-            Mesh mesh = BuildSplinterCap(radius, instance.Seed ^ (uint)severed.TreeIndex);
-            var go = new GameObject($"Tree break {severed.TreeIndex}")
+            _breaks.Add(new ActiveBreak
             {
-                hideFlags = HideFlags.DontSave,
-            };
-            go.transform.position = (Vector3)breakPoint;
-            var filter = go.AddComponent<MeshFilter>();
-            filter.sharedMesh = mesh;
-            var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = ProceduralTreeMaterials.Bark;
-            renderer.shadowCastingMode = ShadowCastingMode.On;
-            renderer.receiveShadows = true;
-
-            var cleanup = go.AddComponent<BreakMeshCleanup>();
-            cleanup.Mesh = mesh;
-            Destroy(go, LifetimeSeconds);
+                Mesh = BuildSplinterCap(radius, instance.Seed ^ (uint)severed.TreeIndex),
+                Matrix = Matrix4x4.TRS((Vector3)breakPoint, Quaternion.identity, Vector3.one),
+                ExpiresAt = Time.time + LifetimeSeconds,
+            });
         }
 
         private static Mesh BuildSplinterCap(float radius, uint seed)
@@ -123,13 +146,12 @@ namespace VoxelEngine.Rendering.Vegetation
             return mesh;
         }
 
-        private sealed class BreakMeshCleanup : MonoBehaviour
+        private void OnDestroy()
         {
-            public Mesh Mesh;
-            private void OnDestroy()
-            {
-                if (Mesh != null) Destroy(Mesh);
-            }
+            for (int i = 0; i < _breaks.Count; i++)
+                if (_breaks[i].Mesh != null) Destroy(_breaks[i].Mesh);
+            _breaks.Clear();
+            if (s_Instance == this) s_Instance = null;
         }
     }
 }
