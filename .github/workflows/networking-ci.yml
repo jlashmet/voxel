@@ -83,8 +83,7 @@ jobs:
             -runTests \
             -testPlatform EditMode \
             -testResults "$ROOT/results.xml" \
-            -logFile "$ROOT/unity.log" \
-            -quit
+            -logFile "$ROOT/unity.log"
           status=$?
 
           if [[ $status -ne 0 ]]; then
