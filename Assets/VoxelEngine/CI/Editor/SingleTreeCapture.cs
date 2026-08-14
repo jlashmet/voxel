@@ -4,7 +4,9 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Rendering;
 using VoxelEngine.Rendering.Vegetation;
+using VoxelEngine.Showcase;
 using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 
 namespace VoxelEngine.CI
@@ -182,6 +184,11 @@ namespace VoxelEngine.CI
                 if (leafMaterial != null) UnityEngine.Object.DestroyImmediate(leafMaterial);
                 if (groundMaterial != null) UnityEngine.Object.DestroyImmediate(groundMaterial);
             }
+        }
+
+        public static void RunTerrain()
+        {
+            Debug.Log("Terrain capture entry point ready.");
         }
     }
 }
