@@ -1,7 +1,7 @@
 {
   "name": "VoxelEngine.Collision",
   "rootNamespace": "VoxelEngine.Collision",
-  "references": ["VoxelEngine.Core", "Unity.Burst", "Unity.Collections", "Unity.Mathematics"],
+  "references": ["VoxelEngine.Storage.Api", "Unity.Collections", "Unity.Mathematics"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": true,
