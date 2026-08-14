@@ -23,6 +23,13 @@ namespace VoxelEngine.Tests.PlayMode
     /// The viewpoints are fixed rather than orbiting so successive runs are comparable: the point
     /// is to see whether a change improved the silhouette, not to take pretty pictures.
     /// </summary>
+    /// <remarks>
+    /// <see cref="NUnit.Framework.ExplicitAttribute"/>: this captures images for a human to
+    /// look at rather than asserting behaviour, and it is one of the slowest things in the
+    /// suite. Run it by name when you want the artefacts:
+    /// <c>tools/unity-run.sh ... -testFilter CastleScreenshotTests</c>
+    /// </remarks>
+    [NUnit.Framework.Explicit("Artefact capture for human review; run by name.")]
     public sealed class CastleScreenshotTests
     {
         private const string OutputDirectory = "/tmp/castle_shots";
