@@ -243,6 +243,8 @@ namespace VoxelEngine.Showcase
             _client.PacketRejected += OnClientPacketRejected;
             _client.SendError += OnClientSendError;
             _client.PlayerStateReceived += OnPlayerStateReceived;
+            _client.RegionRepairApplied += OnRegionStateReplaced;
+            _client.FullRegionStateApplied += OnRegionStateReplaced;
             _client.ConfigureLocalPrediction(localPlayerId, this);
         }
 
@@ -289,7 +291,7 @@ namespace VoxelEngine.Showcase
                 _viewDirection,
                 actions,
                 toolMaterial: 0,
-                flags);
+                flags: flags);
 
             if (!_client.TrySendPlayerInput(in input))
                 return;
@@ -481,6 +483,11 @@ namespace VoxelEngine.Showcase
                 : "Connected; prediction synchronized";
         }
 
+        private void OnRegionStateReplaced(int3 regionCoord, uint _)
+        {
+            ShowcaseNetworkWorldBridge.PublishRegion(_world, regionCoord);
+        }
+
         private void OnClientConnected()
         {
             Status = _mode == SessionMode.Host
@@ -559,6 +566,8 @@ namespace VoxelEngine.Showcase
                 _client.PacketRejected -= OnClientPacketRejected;
                 _client.SendError -= OnClientSendError;
                 _client.PlayerStateReceived -= OnPlayerStateReceived;
+                _client.RegionRepairApplied -= OnRegionStateReplaced;
+                _client.FullRegionStateApplied -= OnRegionStateReplaced;
                 if (_client.IsConnected) _client.Disconnect();
                 _client.Dispose();
                 _client = null;
