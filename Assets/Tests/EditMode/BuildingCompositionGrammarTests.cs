@@ -43,7 +43,7 @@ namespace VoxelEngine.Tests.EditMode
             for (int f = 0; f < forms.Length; f++)
             {
                 BuildingCompositionForm composition = BuildingCompositionCompiler.Resolve(
-                    forms[f], (uint)(0xCAFE0000u + f));
+                    forms[f], 0xCAFE0000u + (uint)f);
                 BuildingCompositionCompiler.Validate(composition);
 
                 Assert.AreEqual(composition.BayCount * forms[f].Storeys, composition.Openings.Length);
