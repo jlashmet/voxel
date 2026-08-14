@@ -153,6 +153,8 @@ namespace VoxelEngine.CI
                 smoothPalette = BuildSmoothPalette(previewShader);
 
                 smoothCache = new CpuTransvoxelChunkCache();
+                smoothCache.MaxViewDistanceMetres = camera.farClipPlane;
+                smoothCache.MaxResidentChunks = 8192;
                 List<int3> smoothSeeds = SmoothChunkSeeds(minX, maxX, minZ, maxZ);
                 smoothCache.InvalidateSurfaceBricks(smoothSeeds);
                 MaterialPalette materialPalette = BuildMaterialPalette();
@@ -161,7 +163,7 @@ namespace VoxelEngine.CI
 
                 int previousDirty = int.MaxValue;
                 int stalled = 0;
-                for (int iteration = 0; iteration < 8192 && smoothCache.DirtyCount > 0; iteration++)
+                for (int iteration = 0; iteration < 65536 && smoothCache.DirtyCount > 0; iteration++)
                 {
                     smoothCache.Prepare(ref table, in pool, in materialPalette,
                         in surfaces, in coatings, null, camera, VoxelSize,

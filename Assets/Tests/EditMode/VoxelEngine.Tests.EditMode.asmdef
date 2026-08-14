@@ -10,6 +10,7 @@
     "VoxelEngine.Tiering",
     "VoxelEngine.Structures",
     "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Architecture",
     "MountingForce.WorldGen.Voxel",
     "Unity.Burst",
     "Unity.Collections",
