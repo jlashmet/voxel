@@ -73,8 +73,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
             {
                 dominantMaterial = centreSolid ? centre : (byte)0;
                 dominantSurface = centreSolid ? centreSurface : 0u;
-                return new VoxelBoundarySample { Packed = packedBoundary }.SignedVoxels
-                     + CoatingDisplacement(centreSurface);
+                var boundary = new VoxelBoundarySample { Packed = packedBoundary };
+                return boundary.SignedQ3 * 0.125f + CoatingDisplacement(centreSurface);
             }
             ushort style = (ushort)centreSurface;
             SurfaceStyleDefinition centreDefinition = Catalogue.Get(style);

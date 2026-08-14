@@ -3,7 +3,9 @@
   "rootNamespace": "VoxelEngine.Showcase",
   "references": [
     "VoxelEngine.Core",
+    "VoxelEngine.Vegetation",
     "VoxelEngine.Collision",
+    "VoxelEngine.Net",
     "VoxelEngine.Rendering",
     "VoxelEngine.Structures",
     "VoxelEngine.Streaming",
@@ -11,7 +13,8 @@
     "MountingForce.WorldGen.Voxel",
     "Unity.Burst",
     "Unity.Collections",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "Unity.Networking.Transport"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

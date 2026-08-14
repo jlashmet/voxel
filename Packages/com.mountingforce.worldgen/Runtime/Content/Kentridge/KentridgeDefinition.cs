@@ -26,13 +26,14 @@ namespace MountingForce.WorldGen.Content.Kentridge
     }
 
     /// <summary>
-    /// Authored identity and architectural constraints for Kentridge. Spatial planning lives in
-    /// <see cref="KentridgeTownPlanner"/> so the definition describes the place rather than a pile
-    /// of backend coordinates.
+    /// Authored identity and high-level structural constraints for Kentridge. Spatial planning lives
+    /// in <see cref="KentridgeTownPlanner"/>; local architectural detail is compiled by the lower
+    /// MountingForce.WorldGen.Architecture assembly.
     /// </summary>
     public static class KentridgeDefinition
     {
         public const string Id = "kentridge";
+        public const int AnonymousFabricEnvelopeDm = 72;
         public static readonly Int2 TownCentreDm = new Int2(1170, 520);
 
         public static ArchitectureTheme Theme => new ArchitectureTheme(
@@ -57,7 +58,31 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
         public static SettlementPlan Build(uint seed) => KentridgeTownPlanner.Build(seed);
 
-        /// <summary>Maximum authored envelope for an archetype, in decimetres.</summary>
+        /// <summary>
+        /// Complete handoff from Kentridge's settlement layer to the lower architecture layer.
+        /// No roof/window/facade decisions cross this boundary.
+        /// </summary>
+        public static StructureIntent StructureIntent(BuildingPlot plot)
+        {
+            return new StructureIntent(plot, Id, FootprintDm(plot.Archetype));
+        }
+
+        /// <summary>
+        /// Anonymous frontage handoff. The band is carried only as a deterministic variation context;
+        /// it does not prescribe any roof, window, facade, awning, annex, or chimney choice.
+        /// </summary>
+        public static UrbanFabricIntent UrbanFabricIntent(KentridgeFrontageRun run)
+        {
+            return new UrbanFabricIntent(
+                Id,
+                run.District,
+                run.MinStoreys,
+                run.MaxStoreys,
+                AnonymousFabricEnvelopeDm,
+                (int)run.Band);
+        }
+
+        /// <summary>Maximum authored structure envelope for an archetype, in decimetres.</summary>
         public static Int3 FootprintDm(StructureArchetype archetype)
         {
             switch (archetype)

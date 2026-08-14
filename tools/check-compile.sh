@@ -45,6 +45,7 @@ FILTER="${1:-}"
 # excluded from the reference set so a stale DLL can never shadow the sources under test.
 ASSEMBLIES=(
     "VoxelEngine.Core:Assets/VoxelEngine/Core"
+    "VoxelEngine.Vegetation:Assets/VoxelEngine/Vegetation"
     "VoxelEngine.Tiering:Assets/VoxelEngine/Tiering"
     "VoxelEngine.Collision:Assets/VoxelEngine/Collision"
     "VoxelEngine.Structures:Assets/VoxelEngine/Structures"
