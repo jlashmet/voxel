@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
