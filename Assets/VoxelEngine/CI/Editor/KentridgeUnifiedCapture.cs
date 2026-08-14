@@ -408,7 +408,7 @@ namespace VoxelEngine.CI
         private static List<int3> SurfaceChunkSeeds(
             int minX, int maxX, int minZ, int maxZ)
         {
-            int edge = CpuTransvoxelChunkCache.VoxelsPerAxis;
+            int edge = CpuTransvoxelChunkCache.BaseVoxelsPerAxis;
             int minChunkX = FloorDiv(minX, edge) - 1;
             int maxChunkX = FloorDiv(maxX, edge) + 1;
             int minChunkZ = FloorDiv(minZ, edge) - 1;
@@ -421,9 +421,9 @@ namespace VoxelEngine.CI
             for (int cx = minChunkX; cx <= maxChunkX; cx++)
             {
                 result.Add(new int3(
-                    cx * CpuTransvoxelChunkCache.BricksPerAxis,
-                    cy * CpuTransvoxelChunkCache.BricksPerAxis,
-                    cz * CpuTransvoxelChunkCache.BricksPerAxis));
+                    cx * CpuTransvoxelChunkCache.BaseBricksPerAxis,
+                    cy * CpuTransvoxelChunkCache.BaseBricksPerAxis,
+                    cz * CpuTransvoxelChunkCache.BaseBricksPerAxis));
             }
             return result;
         }
