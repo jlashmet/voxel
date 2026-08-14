@@ -29,28 +29,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import base64
-          import hashlib
-          import pathlib
-          import struct
-
-          payload = pathlib.Path('.github/reference/terrain-reference-full-q95.jpg.b64')
-          target = pathlib.Path('.github/reference/terrain-reference-full.jpg')
-          data = base64.b64decode(payload.read_text().strip(), validate=True)
-          if not data.startswith(b'\xff\xd8') or not data.endswith(b'\xff\xd9'):
-              raise SystemExit('canonical reference payload did not decode to JPEG')
-          target.write_bytes(data)
-          print(f'Wrote {target} bytes={len(data)} sha256={hashlib.sha256(data).hexdigest()}')
-          PY
-          WIDTH="$(sips -g pixelWidth .github/reference/terrain-reference-full.jpg | awk '/pixelWidth:/ {print $2}')"
-          HEIGHT="$(sips -g pixelHeight .github/reference/terrain-reference-full.jpg | awk '/pixelHeight:/ {print $2}')"
+          PAYLOAD_DIR="$GITHUB_WORKSPACE/.github/reference/terrain-reference-full.jpg.b64"
+          REF="$GITHUB_WORKSPACE/.github/reference/terrain-reference-full.jpg"
+          test -d "$PAYLOAD_DIR"
+          cat "$PAYLOAD_DIR"/*.txt | tr -d '\n\r ' | base64 --decode > "$REF"
+          test -s "$REF"
+          WIDTH="$(sips -g pixelWidth "$REF" | awk '/pixelWidth:/ {print $2}')"
+          HEIGHT="$(sips -g pixelHeight "$REF" | awk '/pixelHeight:/ {print $2}')"
+          echo "Canonical reference: ${WIDTH}x${HEIGHT}, $(wc -c < "$REF") bytes"
           test "$WIDTH" = "1024"
           test "$HEIGHT" = "1536"
 
-          # The binary image itself belongs in the repository. The base64 payload only exists as a
-          # transport bridge because the GitHub connector accepts UTF-8 writes but not binary file
-          # uploads. Once this job materializes it, persist the normal image file for humans and CI.
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/reference/terrain-reference-full.jpg
