@@ -14,9 +14,11 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _visibleDetailsApplied) return;
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 1_200_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 1_800_000);
+            BuildTurfTufts(ref writer);
             BuildReadableFlowerClumps(ref writer);
             BuildVisibleRockAccents(ref writer);
+            BuildFarRockShelves(ref writer);
 
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain visible detail pass exceeded voxel authoring budget.");
@@ -28,17 +30,40 @@ namespace VoxelEngine.Showcase
             _visibleDetailsApplied = true;
         }
 
+        private static void BuildTurfTufts(ref VoxelBrush writer)
+        {
+            var rng = new Unity.Mathematics.Random(Seed ^ 0xA77Du);
+
+            // The reference is a carpet of overlapping small vegetation masses. Small ellipsoidal
+            // tufts break long voxel-height contour bands with real geometry instead of texture
+            // noise and give the foreground/middle distance the clustered Quaternius-like rhythm.
+            for (int i = 0; i < 980; i++)
+            {
+                int z = rng.NextInt(-48, 525);
+                int x = rng.NextInt(TerrainXMin + 5, TerrainXMax - 5);
+                if (z < 235 && math.abs(x - PathCenterVoxel(z)) < 9) continue;
+
+                float depth = math.saturate((z + 48f) / 573f);
+                int maxRadius = depth < 0.35f ? 5 : 4;
+                int rx = rng.NextInt(1, maxRadius + 1);
+                int rz = rng.NextInt(2, maxRadius + 2);
+                int ry = rng.NextFloat() < math.lerp(0.42f, 0.16f, depth) ? 2 : 1;
+                int top = FinalTerrainTopVoxel(x, z);
+
+                StampEllipsoid(ref writer, new int3(x, top + ry, z),
+                    new int3(rx, ry, rz), GroundToneMaterial(x, z), SurfaceStyles.Smooth);
+            }
+        }
+
         private static void BuildReadableFlowerClumps(ref VoxelBrush writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xE47Du);
 
-            // Stylized nature reads through clumps and silhouette. A thousand isolated one-voxel
-            // dots looked like rendering noise; a few hundred small colonies read as actual plants.
-            for (int clump = 0; clump < 430; clump++)
+            for (int clump = 0; clump < 470; clump++)
             {
-                int z = rng.NextInt(-50, 390);
-                float depth = math.saturate((z + 50f) / 440f);
-                if (rng.NextFloat() < depth * 0.38f) continue;
+                int z = rng.NextInt(-50, 430);
+                float depth = math.saturate((z + 50f) / 480f);
+                if (rng.NextFloat() < depth * 0.30f) continue;
 
                 int centreX = rng.NextInt(TerrainXMin + 9, TerrainXMax - 9);
                 int path = PathCenterVoxel(z);
@@ -47,7 +72,7 @@ namespace VoxelEngine.Showcase
 
                 byte flower = PickFlower(ref rng);
                 int stems = z < 95 ? rng.NextInt(4, 8)
-                          : z < 225 ? rng.NextInt(3, 6)
+                          : z < 245 ? rng.NextInt(3, 6)
                                     : rng.NextInt(1, 4);
 
                 for (int stem = 0; stem < stems; stem++)
@@ -55,10 +80,10 @@ namespace VoxelEngine.Showcase
                     int x = centreX + rng.NextInt(-4, 5);
                     int zz = z + rng.NextInt(-3, 4);
                     if (x <= TerrainXMin + 4 || x >= TerrainXMax - 4) continue;
-                    if (zz < 220 && math.abs(x - PathCenterVoxel(zz)) < 9) continue;
+                    if (zz < 220 && math.abs(x - PathCenterVoxel(zz)) < 8) continue;
 
                     int top = FinalTerrainTopVoxel(x, zz);
-                    if (zz < 245)
+                    if (zz < 260)
                     {
                         writer.SetStyled(x, top + 1, zz, Mat.Moss, SurfaceStyles.Smooth);
                         if (rng.NextFloat() < 0.42f)
@@ -68,11 +93,9 @@ namespace VoxelEngine.Showcase
                         }
                     }
 
-                    int headY = top + (zz < 245 ? 2 : 1);
+                    int headY = top + (zz < 260 ? 2 : 1);
                     writer.SetStyled(x, headY, zz, flower, SurfaceStyles.Rounded);
 
-                    // Foreground flowers get a tiny stylized cross-shaped head so they survive
-                    // projection and read like the large simple blossoms in the reference/kit.
                     if (zz < 100)
                     {
                         if (rng.NextFloat() < 0.72f)
@@ -87,9 +110,9 @@ namespace VoxelEngine.Showcase
         private static byte PickFlower(ref Unity.Mathematics.Random rng)
         {
             float colour = rng.NextFloat();
-            if (colour < 0.70f) return Mat.FlowerWhite;
-            if (colour < 0.89f) return Mat.FlowerYellow;
-            if (colour < 0.97f) return Mat.FlowerPink;
+            if (colour < 0.72f) return Mat.FlowerWhite;
+            if (colour < 0.90f) return Mat.FlowerYellow;
+            if (colour < 0.975f) return Mat.FlowerPink;
             return Mat.FlowerBlue;
         }
 
@@ -97,12 +120,9 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x9A31u);
 
-            // The target has broad limestone coverage on both valley shoulders. These accents are
-            // placed after the ground presentation pass so they can never be buried by a later
-            // terrain rewrite, while still using the normal voxel material + rounded surface path.
-            for (int cluster = 0; cluster < 88; cluster++)
+            for (int cluster = 0; cluster < 92; cluster++)
             {
-                int z = rng.NextInt(-38, 385);
+                int z = rng.NextInt(-38, 340);
                 float zm = z * 0.1f;
                 int valley = (int)math.round(ValleyCenterMetres(zm) * 10f);
                 int side = rng.NextBool() ? -1 : 1;
@@ -127,6 +147,38 @@ namespace VoxelEngine.Showcase
                     StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         math.min(2, math.min(hx, hz)), Mat.TerrainLimestone,
                         SurfaceStyles.Rounded, moss);
+                }
+            }
+        }
+
+        private static void BuildFarRockShelves(ref VoxelBrush writer)
+        {
+            var rng = new Unity.Mathematics.Random(Seed ^ 0xC511u);
+
+            // Dense small shelves carry the rock rhythm into the far valley. Their world size falls
+            // with distance so the top third reads as many small limestone marks rather than a few
+            // oversized boulders.
+            for (int cluster = 0; cluster < 125; cluster++)
+            {
+                int z = rng.NextInt(125, 540);
+                float zm = z * 0.1f;
+                int valley = (int)math.round(ValleyCenterMetres(zm) * 10f);
+                int side = rng.NextBool() ? -1 : 1;
+                int centreX = valley + side * rng.NextInt(48, 150);
+                if (centreX < TerrainXMin + 7 || centreX > TerrainXMax - 7) continue;
+
+                int pieces = rng.NextInt(2, 5);
+                for (int piece = 0; piece < pieces; piece++)
+                {
+                    int x = centreX + rng.NextInt(-6, 7);
+                    int zz = z + rng.NextInt(-5, 6);
+                    int hx = rng.NextInt(1, z > 360 ? 4 : 5);
+                    int hz = rng.NextInt(1, z > 360 ? 4 : 5);
+                    int hy = rng.NextInt(1, 3);
+                    int y = FinalTerrainTopVoxel(x, zz) + hy - 1;
+                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                        1, Mat.TerrainLimestone, SurfaceStyles.Rounded,
+                        rng.NextFloat() < 0.12f);
                 }
             }
         }
