@@ -20,6 +20,7 @@ namespace VoxelEngine.Showcase
             ConfigureTurfPresentation();
             VoxelRenderBridge.SunDirection = new Vector3(-0.08f, 0.96f, -0.26f).normalized;
             ApplyTonalOverlay();
+            ApplyVisibleDetails();
         }
 
         private void ConfigureTurfPresentation()
