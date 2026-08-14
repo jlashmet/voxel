@@ -1,0 +1,26 @@
+using Unity.Mathematics;
+
+namespace VoxelEngine.Storage.Api
+{
+    /// <summary>
+    /// Region-granularity acquisition boundary for authoritative voxel reads.
+    ///
+    /// Implementations perform the sparse world lookup once. Hot inner loops then operate on
+    /// the returned <see cref="RegionReadView"/> directly, with no per-voxel virtual dispatch.
+    /// Views borrow Storage-owned native memory and must never dispose it.
+    /// </summary>
+    public interface IRegionReadSource
+    {
+        /// <summary>Current world-content version. A view should be reacquired when this changes.</summary>
+        ulong Version { get; }
+
+        bool IsRegionResident(int3 regionCoord);
+
+        /// <summary>
+        /// Acquires a borrowed read view for a currently resident region. The returned view is
+        /// valid only while that region remains resident and until the next mutation/publish
+        /// boundary represented by <see cref="Version"/>.
+        /// </summary>
+        bool TryAcquireRegion(int3 regionCoord, out RegionReadView view);
+    }
+}
