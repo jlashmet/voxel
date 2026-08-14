@@ -29,6 +29,12 @@ namespace VoxelEngine.Core.Storage
 
         public bool IsRegionResident(int3 regionCoord) => _table.IsResident(regionCoord);
 
+        public bool TryAcquireRegionContainingBlock(int3 worldBlockCoord, out RegionReadView view)
+        {
+            int3 regionCoord = worldBlockCoord >> VoxelDimensions.RegionEdgeLog2;
+            return TryAcquireRegion(regionCoord, out view);
+        }
+
         public bool TryAcquireRegion(int3 regionCoord, out RegionReadView view)
         {
             if (!_table.TryGetRegion(regionCoord, out Region region))
