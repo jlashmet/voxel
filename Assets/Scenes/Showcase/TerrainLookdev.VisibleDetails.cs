@@ -14,8 +14,9 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _visibleDetailsApplied) return;
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 1_800_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 2_400_000);
             BuildTurfTufts(ref writer);
+            BuildTurfShelfBanks(ref writer);
             BuildReadableFlowerClumps(ref writer);
             BuildVisibleRockAccents(ref writer);
             BuildFarRockShelves(ref writer);
@@ -33,21 +34,17 @@ namespace VoxelEngine.Showcase
         private static void BuildTurfTufts(ref VoxelBrush writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xA77Du);
-
-            // The reference is a carpet of overlapping small vegetation masses. Small ellipsoidal
-            // tufts break long voxel-height contour bands with real geometry instead of texture
-            // noise and give the foreground/middle distance the clustered Quaternius-like rhythm.
-            for (int i = 0; i < 980; i++)
+            for (int i = 0; i < 1220; i++)
             {
-                int z = rng.NextInt(-48, 525);
+                int z = rng.NextInt(-48, 535);
                 int x = rng.NextInt(TerrainXMin + 5, TerrainXMax - 5);
-                if (z < 235 && math.abs(x - PathCenterVoxel(z)) < 9) continue;
+                if (z < 250 && math.abs(x - PathCenterVoxel(z)) < 8) continue;
 
-                float depth = math.saturate((z + 48f) / 573f);
+                float depth = math.saturate((z + 48f) / 583f);
                 int maxRadius = depth < 0.35f ? 5 : 4;
                 int rx = rng.NextInt(1, maxRadius + 1);
                 int rz = rng.NextInt(2, maxRadius + 2);
-                int ry = rng.NextFloat() < math.lerp(0.42f, 0.16f, depth) ? 2 : 1;
+                int ry = rng.NextFloat() < math.lerp(0.38f, 0.12f, depth) ? 2 : 1;
                 int top = FinalTerrainTopVoxel(x, z);
 
                 StampEllipsoid(ref writer, new int3(x, top + ry, z),
@@ -55,24 +52,75 @@ namespace VoxelEngine.Showcase
             }
         }
 
+        private static void BuildTurfShelfBanks(ref VoxelBrush writer)
+        {
+            var rng = new Unity.Mathematics.Random(Seed ^ 0x17B5u);
+
+            // The reference is full of short moss-covered ledges rather than uninterrupted hills.
+            // Each bank is a coherent turf lip with a few exposed limestone blocks underneath.
+            for (int bank = 0; bank < 190; bank++)
+            {
+                int z = rng.NextInt(-28, 480);
+                float zm = z * 0.1f;
+                int valley = (int)math.round(ValleyCenterMetres(zm) * 10f);
+                int side = rng.NextBool() ? -1 : 1;
+                int centreX = valley + side * rng.NextInt(28, 138);
+                if (centreX < TerrainXMin + 12 || centreX > TerrainXMax - 12) continue;
+
+                int run = rng.NextInt(10, z < 180 ? 27 : 20);
+                int depth = rng.NextInt(4, 9);
+                int lipHeight = rng.NextFloat() < 0.24f ? 2 : 1;
+                int top = FinalTerrainTopVoxel(centreX, z);
+
+                // Overlapping pads avoid a mathematically straight shelf while preserving a clear
+                // lateral ledge silhouette.
+                int segments = math.max(2, run / 6);
+                for (int segment = 0; segment < segments; segment++)
+                {
+                    float t = segments == 1 ? 0f : segment / (float)(segments - 1);
+                    int x = centreX + (int)math.round(math.lerp(-run / 2f, run / 2f, t))
+                          + rng.NextInt(-2, 3);
+                    int zz = z + rng.NextInt(-2, 3);
+                    int localTop = FinalTerrainTopVoxel(x, zz);
+                    StampEllipsoid(ref writer, new int3(x, localTop + lipHeight, zz),
+                        new int3(rng.NextInt(4, 8), lipHeight, depth),
+                        GroundToneMaterial(x, zz), SurfaceStyles.Smooth);
+                }
+
+                int exposed = rng.NextInt(2, 6);
+                for (int piece = 0; piece < exposed; piece++)
+                {
+                    int x = centreX + rng.NextInt(-run / 2, run / 2 + 1);
+                    int zz = z + side * rng.NextInt(0, depth + 2);
+                    int hx = rng.NextInt(2, 5);
+                    int hz = rng.NextInt(2, 5);
+                    int hy = rng.NextInt(1, 3);
+                    int y = FinalTerrainTopVoxel(x, zz) + hy - 1;
+                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                        1, Mat.TerrainLimestone, SurfaceStyles.Planar,
+                        rng.NextFloat() < 0.62f);
+                }
+            }
+        }
+
         private static void BuildReadableFlowerClumps(ref VoxelBrush writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xE47Du);
 
-            for (int clump = 0; clump < 470; clump++)
+            for (int clump = 0; clump < 720; clump++)
             {
-                int z = rng.NextInt(-50, 430);
-                float depth = math.saturate((z + 50f) / 480f);
-                if (rng.NextFloat() < depth * 0.30f) continue;
+                int z = rng.NextInt(-50, 465);
+                float depth = math.saturate((z + 50f) / 515f);
+                if (rng.NextFloat() < depth * 0.25f) continue;
 
                 int centreX = rng.NextInt(TerrainXMin + 9, TerrainXMax - 9);
                 int path = PathCenterVoxel(z);
-                if (z < 235 && math.abs(centreX - path) < 14)
-                    centreX += centreX < path ? -18 : 18;
+                if (z < 250 && math.abs(centreX - path) < 13)
+                    centreX += centreX < path ? -17 : 17;
 
                 byte flower = PickFlower(ref rng);
-                int stems = z < 95 ? rng.NextInt(4, 8)
-                          : z < 245 ? rng.NextInt(3, 6)
+                int stems = z < 105 ? rng.NextInt(4, 9)
+                          : z < 270 ? rng.NextInt(3, 7)
                                     : rng.NextInt(1, 4);
 
                 for (int stem = 0; stem < stems; stem++)
@@ -80,27 +128,32 @@ namespace VoxelEngine.Showcase
                     int x = centreX + rng.NextInt(-4, 5);
                     int zz = z + rng.NextInt(-3, 4);
                     if (x <= TerrainXMin + 4 || x >= TerrainXMax - 4) continue;
-                    if (zz < 220 && math.abs(x - PathCenterVoxel(zz)) < 8) continue;
+                    if (zz < 235 && math.abs(x - PathCenterVoxel(zz)) < 7) continue;
 
                     int top = FinalTerrainTopVoxel(x, zz);
-                    if (zz < 260)
+                    if (zz < 290)
                     {
                         writer.SetStyled(x, top + 1, zz, Mat.Moss, SurfaceStyles.Smooth);
-                        if (rng.NextFloat() < 0.42f)
+                        if (rng.NextFloat() < 0.52f)
                         {
                             int leafX = x + (rng.NextBool() ? 1 : -1);
                             writer.SetStyled(leafX, top + 1, zz, Mat.Grass, SurfaceStyles.Smooth);
                         }
+                        if (zz < 140 && rng.NextFloat() < 0.24f)
+                        {
+                            int leafZ = zz + (rng.NextBool() ? 1 : -1);
+                            writer.SetStyled(x, top + 1, leafZ, Mat.Moss, SurfaceStyles.Smooth);
+                        }
                     }
 
-                    int headY = top + (zz < 260 ? 2 : 1);
+                    int headY = top + (zz < 290 ? 2 : 1);
                     writer.SetStyled(x, headY, zz, flower, SurfaceStyles.Rounded);
 
-                    if (zz < 100)
+                    if (zz < 110)
                     {
-                        if (rng.NextFloat() < 0.72f)
+                        if (rng.NextFloat() < 0.78f)
                             writer.SetStyled(x + 1, headY, zz, flower, SurfaceStyles.Rounded);
-                        if (rng.NextFloat() < 0.55f)
+                        if (rng.NextFloat() < 0.62f)
                             writer.SetStyled(x, headY, zz + 1, flower, SurfaceStyles.Rounded);
                     }
                 }
@@ -110,9 +163,9 @@ namespace VoxelEngine.Showcase
         private static byte PickFlower(ref Unity.Mathematics.Random rng)
         {
             float colour = rng.NextFloat();
-            if (colour < 0.72f) return Mat.FlowerWhite;
-            if (colour < 0.90f) return Mat.FlowerYellow;
-            if (colour < 0.975f) return Mat.FlowerPink;
+            if (colour < 0.80f) return Mat.FlowerWhite;
+            if (colour < 0.93f) return Mat.FlowerYellow;
+            if (colour < 0.985f) return Mat.FlowerPink;
             return Mat.FlowerBlue;
         }
 
@@ -120,33 +173,32 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x9A31u);
 
-            for (int cluster = 0; cluster < 92; cluster++)
+            for (int cluster = 0; cluster < 112; cluster++)
             {
-                int z = rng.NextInt(-38, 340);
+                int z = rng.NextInt(-38, 360);
                 float zm = z * 0.1f;
                 int valley = (int)math.round(ValleyCenterMetres(zm) * 10f);
                 int side = rng.NextBool() ? -1 : 1;
-                int distance = rng.NextInt(42, z < 130 ? 142 : 126);
+                int distance = rng.NextInt(38, z < 130 ? 145 : 128);
                 int centreX = valley + side * distance;
                 if (centreX < TerrainXMin + 10 || centreX > TerrainXMax - 10) continue;
 
-                int pieces = z < 120 ? rng.NextInt(3, 7) : rng.NextInt(2, 5);
+                int pieces = z < 120 ? rng.NextInt(3, 8) : rng.NextInt(2, 6);
                 for (int piece = 0; piece < pieces; piece++)
                 {
-                    int x = centreX + rng.NextInt(-8, 9);
+                    int x = centreX + rng.NextInt(-9, 10);
                     int zz = z + rng.NextInt(-6, 7);
                     if (x < TerrainXMin + 6 || x > TerrainXMax - 6) continue;
 
                     int maxHalf = z < 100 ? 7 : (z < 240 ? 6 : 5);
                     int hx = rng.NextInt(2, maxHalf + 1);
                     int hz = rng.NextInt(2, maxHalf + 1);
-                    int hy = rng.NextInt(2, z < 130 ? 5 : 4);
+                    int hy = rng.NextInt(1, z < 130 ? 4 : 3);
                     int y = FinalTerrainTopVoxel(x, zz) + hy - 1;
-                    bool moss = rng.NextFloat() < (z < 160 ? 0.30f : 0.16f);
+                    bool moss = rng.NextFloat() < (z < 180 ? 0.56f : 0.32f);
 
                     StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
-                        math.min(2, math.min(hx, hz)), Mat.TerrainLimestone,
-                        SurfaceStyles.Rounded, moss);
+                        1, Mat.TerrainLimestone, SurfaceStyles.Planar, moss);
                 }
             }
         }
@@ -155,30 +207,28 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xC511u);
 
-            // Dense small shelves carry the rock rhythm into the far valley. Their world size falls
-            // with distance so the top third reads as many small limestone marks rather than a few
-            // oversized boulders.
-            for (int cluster = 0; cluster < 125; cluster++)
+            for (int cluster = 0; cluster < 190; cluster++)
             {
-                int z = rng.NextInt(125, 540);
+                int z = rng.NextInt(125, 548);
                 float zm = z * 0.1f;
                 int valley = (int)math.round(ValleyCenterMetres(zm) * 10f);
                 int side = rng.NextBool() ? -1 : 1;
-                int centreX = valley + side * rng.NextInt(48, 150);
+                int centreX = valley + side * rng.NextInt(42, 152);
                 if (centreX < TerrainXMin + 7 || centreX > TerrainXMax - 7) continue;
 
-                int pieces = rng.NextInt(2, 5);
+                int pieces = rng.NextInt(2, 6);
                 for (int piece = 0; piece < pieces; piece++)
                 {
-                    int x = centreX + rng.NextInt(-6, 7);
+                    int x = centreX + rng.NextInt(-7, 8);
                     int zz = z + rng.NextInt(-5, 6);
-                    int hx = rng.NextInt(1, z > 360 ? 4 : 5);
-                    int hz = rng.NextInt(1, z > 360 ? 4 : 5);
+                    int maxHalf = z > 380 ? 4 : 5;
+                    int hx = rng.NextInt(1, maxHalf + 1);
+                    int hz = rng.NextInt(1, maxHalf + 1);
                     int hy = rng.NextInt(1, 3);
                     int y = FinalTerrainTopVoxel(x, zz) + hy - 1;
                     StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
-                        1, Mat.TerrainLimestone, SurfaceStyles.Rounded,
-                        rng.NextFloat() < 0.12f);
+                        1, Mat.TerrainLimestone, SurfaceStyles.Planar,
+                        rng.NextFloat() < 0.25f);
                 }
             }
         }
