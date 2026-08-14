@@ -461,11 +461,20 @@ namespace VoxelEngine.Showcase
 
         private void OnPlayerStateReceived(S_PlayerState state)
         {
-            if (state.playerId != _localPlayerId || _clientTickAnchored)
+            if (state.playerId != _localPlayerId)
                 return;
 
-            _clientTick = unchecked(state.tick + 1);
-            if (_clientTick == 0) _clientTick = 1;
+            uint nextAuthoritativeTick = unchecked(state.tick + 1);
+            if (nextAuthoritativeTick == 0) nextAuthoritativeTick = 1;
+
+            if (_clientTickAnchored)
+            {
+                if (IsTickNewer(nextAuthoritativeTick, _clientTick))
+                    _clientTick = nextAuthoritativeTick;
+                return;
+            }
+
+            _clientTick = nextAuthoritativeTick;
             _clientTickAnchored = true;
             Status = _mode == SessionMode.Host
                 ? "Hosting; local prediction synchronized"
@@ -527,7 +536,11 @@ namespace VoxelEngine.Showcase
                 _localMotor.Height * 0.5f,
                 _localMotor.Radius * 2f);
             Collider collider = _remoteAvatar.GetComponent<Collider>();
-            if (collider != null) UnityEngine.Object.Destroy(collider);
+            if (collider != null)
+            {
+                collider.enabled = false;
+                UnityEngine.Object.Destroy(collider);
+            }
         }
 
         private void DestroyRemoteAvatar()
@@ -567,6 +580,12 @@ namespace VoxelEngine.Showcase
             _serverMotors.Clear();
             _connectionByPlayer.Clear();
             DestroyRemoteAvatar();
+        }
+
+        private static bool IsTickNewer(uint candidate, uint reference)
+        {
+            uint delta = unchecked(candidate - reference);
+            return delta != 0 && delta < 0x80000000u;
         }
 
         private static bool TryPort(int port, out ushort networkPort)
