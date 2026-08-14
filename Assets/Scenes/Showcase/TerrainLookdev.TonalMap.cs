@@ -64,6 +64,11 @@ namespace VoxelEngine.Showcase
             _tonalOverlayApplied = true;
         }
 
+        private static int FinalTerrainTopVoxel(int x, int z)
+        {
+            return HeightVoxel(x, z) + ReferenceReliefVoxels(x, z);
+        }
+
         private static int ReferenceReliefVoxels(int x, int z)
         {
             float fromPath = math.abs(x - PathCenterVoxel(z));
@@ -90,19 +95,17 @@ namespace VoxelEngine.Showcase
         private static byte GroundToneMaterial(int x, int z)
         {
             float depth = math.saturate((z + 70f) / 630f);
-
-            // Keep the near-to-far value progression from the reference, but break it into
-            // smaller overlapping fields. The previous very-low-frequency waves produced
-            // continent-sized material islands that read as artificial rectangular colour slabs.
-            float mottle = 0.60f * math.sin(x * 0.061f + z * 0.043f + 0.35f)
-                         + 0.45f * math.sin(x * 0.037f - z * 0.071f + 1.70f)
-                         + 0.28f * math.sin((2f * x + z) * 0.052f - 0.90f)
-                         + 0.18f * math.sin((x - 2f * z) * 0.029f + 2.40f);
-            float tone = mottle + math.lerp(-0.16f, 0.34f, depth);
-
-            if (tone < -0.55f) return TerrainTurfNear;
-            if (tone > 0.58f) return TerrainTurfFar;
-            return TerrainTurfMid;
+            float macro = math.sin(x * 0.018f + z * 0.010f)
+                        + 0.65f * math.sin(x * 0.010f - z * 0.016f + 1.7f)
+                        + 0.35f * math.sin((x + z) * 0.007f - 0.8f);
+            if (depth < 0.28f) return macro < 0.18f ? TerrainTurfNear : TerrainTurfMid;
+            if (depth < 0.60f)
+            {
+                if (macro < -0.72f) return TerrainTurfNear;
+                if (macro > 0.58f) return TerrainTurfFar;
+                return TerrainTurfMid;
+            }
+            return macro < -0.78f ? TerrainTurfMid : TerrainTurfFar;
         }
 
         private static byte GroundToneCoating(int x, int z)
