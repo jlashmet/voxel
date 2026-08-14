@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Mathematics;
 
 namespace VoxelEngine.Storage.Api
@@ -15,6 +16,9 @@ namespace VoxelEngine.Storage.Api
         ulong Version { get; }
 
         bool IsRegionResident(int3 regionCoord);
+
+        /// <summary>Caller owns and disposes the returned coordinate array.</summary>
+        NativeArray<int3> GetResidentRegionCoords(Allocator allocator);
 
         /// <summary>
         /// Acquires a borrowed read view for a currently resident region. The returned view is
