@@ -93,7 +93,7 @@ namespace VoxelEngine.CI
 
                 File.WriteAllText(Path.Combine(outputDirectory, "water-study.txt"),
                     "target=Sunlit Cleric waterfall water\n" +
-                    "mask=hard chunky asymmetric pools with chipped edges + multiple waterfalls\n" +
+                    "mask=normalized hard chunky asymmetric pools + multiple waterfalls\n" +
                     "shader=opaque saturated cyan with bright foam ribs and pool ripples\n" +
                     $"size={Width}x{Height}\n");
 
@@ -178,7 +178,7 @@ namespace VoxelEngine.CI
                     float coarse = Mathf.PerlinNoise(u * 29f + 4.2f, v * 33f + 8.1f);
                     float fine = Mathf.PerlinNoise(u * 71f + 11.7f, v * 57f + 2.9f);
                     float edgeJitter = (coarse - 0.5f) * 0.16f + (fine - 0.5f) * 0.06f;
-                    mask = mask + edgeJitter;
+                    mask += edgeJitter;
 
                     float hard = mask > 0.24f ? 1f : 0f;
                     if (hard > 0f && coarse < 0.10f && fine < 0.18f)
@@ -208,6 +208,13 @@ namespace VoxelEngine.CI
             return Mathf.Clamp01(sheet + (n - 0.5f) * 0.10f);
         }
 
+        private static float SmoothInside(float d, float inner, float outer)
+        {
+            float t = Mathf.Clamp01((d - inner) / Mathf.Max(0.0001f, outer - inner));
+            t = t * t * (3f - 2f * t);
+            return 1f - t;
+        }
+
         private static float Ellipse(float u, float v, float cx, float cy, float rx, float ry, float rot)
         {
             float c = Mathf.Cos(rot);
@@ -217,7 +224,7 @@ namespace VoxelEngine.CI
             float x = (dx * c - dy * s) / rx;
             float y = (dx * s + dy * c) / ry;
             float d = Mathf.Sqrt(x * x + y * y);
-            return 1f - Mathf.SmoothStep(0.82f, 1.02f, d);
+            return SmoothInside(d, 0.82f, 1.02f);
         }
 
         private static float Capsule(float u, float v, float ax, float ay, float bx, float by, float radius)
@@ -228,7 +235,7 @@ namespace VoxelEngine.CI
             Vector2 ab = b - a;
             float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(0.0001f, Vector2.Dot(ab, ab)));
             float d = Vector2.Distance(p, a + ab * t) / radius;
-            return 1f - Mathf.SmoothStep(0.76f, 1.03f, d);
+            return SmoothInside(d, 0.76f, 1.03f);
         }
 
         private static Mesh BuildQuadMesh()
