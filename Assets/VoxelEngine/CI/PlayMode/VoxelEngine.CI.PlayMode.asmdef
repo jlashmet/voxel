@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.CI",
   "references": [
     "VoxelEngine.Core",
+    "VoxelEngine.Vegetation",
     "VoxelEngine.Rendering",
     "VoxelEngine.Showcase",
     "Unity.Mathematics"
