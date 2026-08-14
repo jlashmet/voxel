@@ -41,20 +41,17 @@ namespace VoxelEngine.Showcase
             Vector4 grassSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 grassSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
 
-            // Return to the depth palette that produced the strongest regional SSIM. The previous
-            // brightness-only experiment reduced MAE but made structural similarity worse.
             SetTurfPresentation(TerrainTurfNear, new Color(0.225f, 0.315f, 0.130f), grassSampling, grassSurface);
             SetTurfPresentation(TerrainTurfMid,  new Color(0.390f, 0.460f, 0.185f), grassSampling, grassSurface);
             SetTurfPresentation(TerrainTurfFar,  new Color(0.620f, 0.610f, 0.275f), grassSampling, grassSurface);
             SetTurfPresentation(Mat.Grass,       new Color(0.360f, 0.440f, 0.175f), grassSampling, grassSurface);
             SetTurfPresentation(Mat.Moss,        new Color(0.175f, 0.260f, 0.095f), grassSampling, grassSurface);
 
-            // Most of the broad tan contour bands come from the original partially buried
-            // limestone shelf field. Make that mass read like moss-covered shelf substrate; the
-            // dedicated accent material below is reserved for discrete pale blocks authored above
-            // the surface in the contrast pass.
+            // Rock placement now keeps limestone boxes above the local terrain instead of cutting
+            // wide shallow boxes through hillsides. With the structural source of the contour
+            // bands removed, use the pale warm limestone from the reference again.
             SetMaterialPresentation(Mat.TerrainLimestone,
-                new Color(0.410f, 0.435f, 0.205f), 0.05f, 0.04f, 0.90f, 0.010f);
+                new Color(0.720f, 0.650f, 0.465f), 0.22f, 0.12f, 0.80f, 0.020f);
             SetMaterialPresentation(TerrainLimestoneAccent,
                 new Color(0.720f, 0.650f, 0.465f), 0.22f, 0.12f, 0.80f, 0.020f);
             SetMaterialPresentation(Mat.TerrainPathStone,
