@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.Core",
   "references": [
     "VoxelEngine.Foundation",
+    "VoxelEngine.Storage.Api",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics"
