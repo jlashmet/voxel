@@ -14,8 +14,7 @@
     "Unity.Mathematics",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
-    "VoxelEngine.Showcase",
-    "MountingForce.CombatPrototype"
+    "VoxelEngine.Showcase"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
