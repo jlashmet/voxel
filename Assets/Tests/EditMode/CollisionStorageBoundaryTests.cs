@@ -109,8 +109,11 @@ namespace VoxelEngine.Tests.EditMode
                     new float3(0.9f, 0.9f, 0.9f),
                     new float3(0.1f, 0f, 0f));
 
-                Assert.AreEqual(3, blocked.BlockedCount,
-                    "Architecture cutover must preserve the existing sweep's all-axis block result.");
+                Assert.AreEqual(1, blocked.BlockedCount,
+                    "Architecture cutover must preserve the existing axis-by-axis sweep result.");
+                Assert.IsTrue(blocked.BlockedX);
+                Assert.IsFalse(blocked.BlockedY);
+                Assert.IsFalse(blocked.BlockedZ);
                 Assert.AreEqual(new float3(-1f, 0f, 0f), blocked.NormalX);
             }
             finally
