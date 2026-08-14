@@ -20,8 +20,8 @@ namespace VoxelEngine.Showcase
             ConfigureTurfPresentation();
 
             VoxelRenderBridge.SunDirection = new Vector3(-0.50f, 0.81f, -0.31f).normalized;
-            VoxelRenderBridge.SkyHorizon = new Color(1.00f, 0.94f, 0.66f, 1f);
-            VoxelRenderBridge.SkyZenith = new Color(0.90f, 0.89f, 0.62f, 1f);
+            VoxelRenderBridge.SkyHorizon = new Color(1.00f, 0.93f, 0.62f, 1f);
+            VoxelRenderBridge.SkyZenith = new Color(0.88f, 0.87f, 0.58f, 1f);
 
             ApplyTonalOverlay();
             ApplyVisibleDetails();
@@ -37,47 +37,48 @@ namespace VoxelEngine.Showcase
             Vector4 grassSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 grassSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
 
-            // Match the reference's warm yellow-green depth ramp without using the existing
-            // ground texture as a high-frequency colour source. That atlas creates visible
-            // parallel bands at this camera angle, so terrain microstructure comes from the
-            // production material variation and authored voxel geometry until a purpose-built
-            // turf texture is introduced.
-            SetTurfPresentation(TerrainTurfNear, new Color(0.290f, 0.360f, 0.140f), grassSampling, grassSurface);
-            SetTurfPresentation(TerrainTurfMid,  new Color(0.460f, 0.510f, 0.210f), grassSampling, grassSurface);
-            SetTurfPresentation(TerrainTurfFar,  new Color(0.640f, 0.640f, 0.300f), grassSampling, grassSurface);
-            SetTurfPresentation(Mat.Grass,       new Color(0.420f, 0.470f, 0.190f), grassSampling, grassSurface);
-            SetTurfPresentation(Mat.Moss,        new Color(0.205f, 0.290f, 0.105f), grassSampling, grassSurface);
+            SetTurfPresentation(TerrainTurfNear, new Color(0.225f, 0.315f, 0.130f), grassSampling, grassSurface);
+            SetTurfPresentation(TerrainTurfMid,  new Color(0.390f, 0.460f, 0.185f), grassSampling, grassSurface);
+            SetTurfPresentation(TerrainTurfFar,  new Color(0.620f, 0.610f, 0.275f), grassSampling, grassSurface);
+            SetTurfPresentation(Mat.Grass,       new Color(0.360f, 0.440f, 0.175f), grassSampling, grassSurface);
+            SetTurfPresentation(Mat.Moss,        new Color(0.175f, 0.260f, 0.095f), grassSampling, grassSurface);
 
-            // The stock masonry texture reads as horizontal strata when projected over broad
-            // planar voxel clusters. Keep the production shader/material path but suppress that
-            // unsuitable source texture for this terrain lookdev. The limestone silhouette,
-            // lighting, coatings and procedural material variation still come from production.
+            // Use the renderer's existing triplanar masonry/ground textures and normal arrays
+            // for the authored rocks and turf. These weights produced the best measured match so
+            // far and keep the production voxel surface path intact.
             SetMaterialPresentation(Mat.TerrainLimestone,
-                new Color(0.750f, 0.680f, 0.500f), 0.00f, 0.025f, 0.80f, 0.020f);
+                new Color(0.720f, 0.650f, 0.465f), 0.22f, 0.12f, 0.80f, 0.020f);
             SetMaterialPresentation(Mat.TerrainPathStone,
-                new Color(0.655f, 0.585f, 0.385f), 0.00f, 0.020f, 0.90f, 0.016f);
+                new Color(0.615f, 0.550f, 0.345f), 0.16f, 0.08f, 0.90f, 0.014f);
             SetMaterialPresentation(Mat.Sand,
-                new Color(0.585f, 0.535f, 0.315f), 0.00f, 0.015f, 0.92f, 0.012f);
+                new Color(0.545f, 0.505f, 0.285f), 0.10f, 0.05f, 0.92f, 0.010f);
+
+            // The large parallel bands in the failed capture are exposed TerrainEarth on stepped
+            // valley faces, not the grass texture. Keep those faces in the production material
+            // system but remove the stock earth texture and tint them toward shadowed moss so the
+            // terrain reads as continuous turf instead of striped soil shelves.
+            SetMaterialPresentation(Mat.TerrainEarth,
+                new Color(0.315f, 0.365f, 0.155f), 0.00f, 0.025f, 0.92f, 0.012f);
 
             SetMaterialPresentation(Mat.FlowerWhite,
-                new Color(0.975f, 0.955f, 0.820f), 0f, 0f, 0.88f, 0f);
+                new Color(0.965f, 0.940f, 0.790f), 0f, 0f, 0.88f, 0f);
             SetMaterialPresentation(Mat.FlowerYellow,
-                new Color(0.955f, 0.800f, 0.175f), 0f, 0f, 0.88f, 0f);
+                new Color(0.950f, 0.790f, 0.180f), 0f, 0f, 0.88f, 0f);
             SetMaterialPresentation(Mat.FlowerPink,
-                new Color(0.955f, 0.590f, 0.650f), 0f, 0f, 0.88f, 0f);
+                new Color(0.950f, 0.580f, 0.640f), 0f, 0f, 0.88f, 0f);
             SetMaterialPresentation(Mat.FlowerBlue,
-                new Color(0.570f, 0.770f, 0.830f), 0f, 0f, 0.88f, 0f);
+                new Color(0.560f, 0.760f, 0.820f), 0f, 0f, 0.88f, 0f);
         }
 
         private static void SetTurfPresentation(byte material, Color colour, Vector4 sampling, Vector4 surface)
         {
             VoxelPresentationCatalogue.MaterialAlbedo[material] = new Vector4(colour.r, colour.g, colour.b, 1f);
             VoxelPresentationCatalogue.MaterialSampling[material] =
-                new Vector4(sampling.x, sampling.y, sampling.z, 0.0f);
+                new Vector4(sampling.x, sampling.y, sampling.z, 0.10f);
             VoxelPresentationCatalogue.MaterialSurface[material] =
-                new Vector4(surface.x, 0.015f, 0.92f, 0f);
+                new Vector4(surface.x, 0.06f, 0.90f, 0f);
             VoxelPresentationCatalogue.MaterialVariation[material] =
-                new Vector4(0.68f, 0.022f, 0.010f, 0.014f);
+                new Vector4(0.68f, 0.014f, 0.007f, 0.010f);
         }
 
         private static void SetMaterialPresentation(byte material, Color colour,
@@ -135,11 +136,9 @@ namespace VoxelEngine.Showcase
                         + 0.27f * math.sin((x - warpZ) * 0.027f - (z + warpX) * 0.019f + 1.8f)
                         + 0.15f * math.sin((x + z) * 0.041f - 0.2f);
 
-            // Keep colour variation broad and subordinate to depth. Large semantic patches were
-            // visually reading as painted rectangles instead of grass variation.
-            float tone = depth + field * 0.075f;
-            if (tone < 0.30f) return TerrainTurfNear;
-            if (tone > 0.67f) return TerrainTurfFar;
+            float tone = depth + field * 0.17f;
+            if (tone < 0.31f) return TerrainTurfNear;
+            if (tone > 0.64f) return TerrainTurfFar;
             return TerrainTurfMid;
         }
 
@@ -150,7 +149,7 @@ namespace VoxelEngine.Showcase
             {
                 float mossField = math.sin(x * 0.055f + z * 0.031f)
                                 + 0.55f * math.sin(x * 0.024f - z * 0.047f + 1.2f);
-                if (mossField > 0.68f) return Coatings.Moss;
+                if (mossField > 0.58f) return Coatings.Moss;
             }
             return Coatings.None;
         }
