@@ -28,7 +28,8 @@ namespace VoxelEngine.Tests.EditMode
                 wallSurfaceStyle: 1,
                 wallCoating: 0,
                 foundationHeightVoxels: 3,
-                archStyle: archStyle);
+                archStyle: archStyle,
+                roofMaterial: 8);
 
             using var output = new NativeList<Primitive>(Allocator.Temp);
             Assert.IsTrue(GeneratedBuildingVoxelRealizer.EmitLocal(
@@ -75,7 +76,7 @@ namespace VoxelEngine.Tests.EditMode
             BuildingOpening door = FindDoor(composition);
             var archStyle = new ArchFeatureStyle(7, 2, 3, 0);
             var style = new GeneratedBuildingVoxelStyle(
-                4, 5, 6, 1, 0, 6, archStyle);
+                4, 5, 6, 1, 0, 6, archStyle, 8);
 
             using var output = new NativeList<Primitive>(Allocator.Temp);
             Assert.IsTrue(GeneratedBuildingVoxelRealizer.EmitLocal(
@@ -88,8 +89,11 @@ namespace VoxelEngine.Tests.EditMode
 
             Primitive frontWall = output[1];
             Assert.AreEqual(composition.Massing.WidthDm * 2, frontWall.B.x - frontWall.A.x + 1);
-            Assert.AreEqual(composition.StoreyHeightDm * composition.Massing.Storeys * 2,
-                frontWall.B.y - frontWall.A.y + 1);
+            Assert.AreEqual(composition.StoreyHeightDm * 2, frontWall.B.y - frontWall.A.y + 1);
+
+            Primitive upperFront = output[5];
+            Assert.AreEqual(composition.Massing.WidthDm * 2, upperFront.B.x - upperFront.A.x + 1);
+            Assert.AreEqual(composition.StoreyHeightDm * 2, upperFront.B.y - upperFront.A.y + 1);
 
             BuildingDetailRequest request = BuildingDetailLowering.Collect(composition)[0];
             BuildingArchPlacement placement = BuildingArchIntegration.Compile(
@@ -102,6 +106,102 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void UpperOverhangMovesUpperFacadeAndTwinGableRoof()
+        {
+            StructureForm massing = new StructureForm(
+                41, StructureArchetype.Townhouse, DistrictKind.Market,
+                StructureGenerationMode.Generated, FootprintForm.SteppedUpper, RoofForm.TwinGable,
+                FrontageRhythm.ThreeBay, WindowTreatment.Glass,
+                80, 72, 3, 0,
+                4, 24, 0, 0, false, false);
+            BuildingCompositionForm composition = BuildingCompositionCompiler.Resolve(massing, 0x5150u);
+            var style = new GeneratedBuildingVoxelStyle(
+                4, 5, 6, 1, 0, 3,
+                new ArchFeatureStyle(7, 2, 3, 0), 8);
+
+            using var output = new NativeList<Primitive>(Allocator.Temp);
+            GeneratedBuildingVoxelRealizer.EmitLocal(
+                composition, int3.zero, 1, 6, style, 0x5150u, output);
+
+            int upperY = 3 + composition.StoreyHeightDm;
+            Assert.IsTrue(ContainsBox(output,
+                new int3(-4, upperY, -4),
+                new int3(88, composition.StoreyHeightDm * 2, 6),
+                material: 5));
+
+            int roofY = 3 + composition.StoreyHeightDm * 3;
+            int twinGables = 0;
+            for (int i = 0; i < output.Length; i++)
+            {
+                Primitive p = output[i];
+                if (p.Shape != PrimitiveShape.Prism || p.Material != 8 || p.Profile != PrismProfile.Gable)
+                    continue;
+                if (p.A.y != roofY) continue;
+                twinGables++;
+                Assert.AreEqual(-4, p.A.z);
+            }
+            Assert.AreEqual(2, twinGables);
+
+            BuildingOpening upperOpening = FindOpening(composition, storey: 1, bay: 0);
+            int expectedOpeningZ = -4;
+            bool foundUpperCarve = false;
+            for (int i = 0; i < output.Length; i++)
+            {
+                Primitive p = output[i];
+                if (p.Mode == PrimitiveMode.Carve
+                    && p.A.y == 3 + composition.StoreyHeightDm + upperOpening.SillHeightDm
+                    && p.A.z == expectedOpeningZ)
+                {
+                    foundUpperCarve = true;
+                    break;
+                }
+            }
+            Assert.IsTrue(foundUpperCarve, "Upper openings must follow the projected upper frontage plane.");
+        }
+
+        [Test]
+        public void RearWingGetsAttachedShellAndLeanToRoof()
+        {
+            StructureForm massing = new StructureForm(
+                52, StructureArchetype.Townhouse, DistrictKind.Market,
+                StructureGenerationMode.Generated, FootprintForm.RearWing, RoofForm.GableWithLeanTo,
+                FrontageRhythm.ThreeBay, WindowTreatment.Glass,
+                84, 72, 2, 0,
+                0, 24, 24, 28, true, false);
+            BuildingCompositionForm composition = BuildingCompositionCompiler.Resolve(massing, 0xCAFEu);
+            var style = new GeneratedBuildingVoxelStyle(
+                4, 5, 6, 1, 0, 3,
+                new ArchFeatureStyle(7, 2, 3, 0), 8);
+
+            using var output = new NativeList<Primitive>(Allocator.Temp);
+            GeneratedBuildingVoxelRealizer.EmitLocal(
+                composition, int3.zero, 1, 6, style, 0xCAFEu, output);
+
+            int expectedWingX = 84 - 24 - 6;
+            int expectedWingZ = 72 - 6;
+            Assert.IsTrue(ContainsBox(output,
+                new int3(expectedWingX, 3, expectedWingZ),
+                new int3(24, composition.StoreyHeightDm, 6),
+                material: 5));
+
+            bool foundLeanTo = false;
+            for (int i = 0; i < output.Length; i++)
+            {
+                Primitive p = output[i];
+                if (p.Shape == PrimitiveShape.Prism
+                    && p.Profile == PrismProfile.Shed
+                    && p.Material == 8
+                    && p.A.x == expectedWingX
+                    && p.A.z == expectedWingZ)
+                {
+                    foundLeanTo = true;
+                    break;
+                }
+            }
+            Assert.IsTrue(foundLeanTo, "Rear wing should realize its lean-to roof from the massing form.");
+        }
+
+        [Test]
         public void SameBuildingRealizationProducesIdenticalPrimitiveStream()
         {
             BuildingCompositionForm composition = BuildingCompositionCompiler.Resolve(
@@ -109,7 +209,7 @@ namespace VoxelEngine.Tests.EditMode
                 0xA11CEu);
             var style = new GeneratedBuildingVoxelStyle(
                 4, 5, 6, 1, 0, 3,
-                new ArchFeatureStyle(7, 2, 3, 0));
+                new ArchFeatureStyle(7, 2, 3, 0), 8);
 
             using var a = new NativeList<Primitive>(Allocator.Temp);
             using var b = new NativeList<Primitive>(Allocator.Temp);
@@ -134,7 +234,7 @@ namespace VoxelEngine.Tests.EditMode
             BuildingCompositionForm composition = BuildingCompositionCompiler.Resolve(massing, 1u);
             var style = new GeneratedBuildingVoxelStyle(
                 4, 5, 6, 1, 0, 3,
-                new ArchFeatureStyle(7, 2, 3, 0));
+                new ArchFeatureStyle(7, 2, 3, 0), 8);
 
             using var output = new NativeList<Primitive>(Allocator.Temp);
             Assert.IsFalse(GeneratedBuildingVoxelRealizer.EmitLocal(
@@ -164,6 +264,36 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.Fail("Generated composition has no primary door.");
             return default;
+        }
+
+        private static BuildingOpening FindOpening(BuildingCompositionForm composition, int storey, int bay)
+        {
+            for (int i = 0; i < composition.Openings.Length; i++)
+                if (composition.Openings[i].Storey == storey && composition.Openings[i].Bay == bay)
+                    return composition.Openings[i];
+
+            Assert.Fail("Generated composition is missing the requested facade opening.");
+            return default;
+        }
+
+        private static bool ContainsBox(
+            NativeList<Primitive> output,
+            int3 min,
+            int3 size,
+            byte material)
+        {
+            int3 max = min + size - 1;
+            for (int i = 0; i < output.Length; i++)
+            {
+                Primitive p = output[i];
+                if (p.Shape == PrimitiveShape.Box
+                    && p.Mode == PrimitiveMode.Fill
+                    && p.Material == material
+                    && p.A.Equals(min)
+                    && p.B.Equals(max))
+                    return true;
+            }
+            return false;
         }
 
         private static uint DetailSeed(int storey, int bay)
