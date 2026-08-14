@@ -5,6 +5,7 @@
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Architecture",
     "VoxelEngine.Core",
+    "VoxelEngine.Vegetation",
     "VoxelEngine.Structures",
     "Unity.Collections",
     "Unity.Mathematics"

@@ -4,40 +4,23 @@ using System.Runtime.CompilerServices;
 namespace VoxelEngine.Net.Protocol
 {
     /// <summary>
-    /// S_RegionData — server-to-client full region state for late-join or re-download.
+    /// LEGACY SOURCE-COMPATIBILITY CODEC ONLY.
     ///
-    /// Contains the complete seed + compressed edit overlay so the client can reconstruct
-    /// the full region state from scratch. Uses a compact binary format: uniform bricks are
-    /// stored as (position, material) runs; mixed bricks use pool indices.
-    ///
-    /// Wire format (variable):
-    ///   Offset      Size         Field
-    ///   0           4            seed (uint)             — region deterministic seed
-    ///   4           2            compressedLength (ushort)— bytes in overlay payload
-    ///   6           2            brickCount (ushort)      — total bricks in region grid
-    ///   8           10           mipLevels (byte[10])     — per-level occupancy counts
-    ///   18          compressedLen overlayPayload         — uniform runs + mixed pool indices
+    /// The live protocol message kind S_RegionData (37) is encoded by RegionStateChunkPacket and
+    /// carries semantic snapshot bytes. This historical struct predates the semantic state contract;
+    /// in particular its old overlay design mentioned allocator-local pool indices and a ushort
+    /// brickCount that cannot represent all 262,144 bricks in a region. Neither representation is
+    /// valid for live networking. Keep this struct only until old protocol round-trip callers migrate.
     /// </summary>
     public struct S_RegionData : IEquatable<S_RegionData>
     {
-        /// <summary>Header size in bytes (no overlay payload).</summary>
         public const int HeaderSize = 18;
 
-        /// <summary>World seed for this region's deterministic generation.</summary>
         public uint seed;
-
-        /// <summary>Length of the compressed edit overlay payload.</summary>
         public ushort compressedLength;
-
-        /// <summary>Total number of bricks in the region grid (64³ = 262144).</summary>
         public ushort brickCount;
-
-        /// <summary>Occupancy count per mip level (levels 0..9). Used for progressive loading.</summary>
-        public byte mipLevelsCount; // actual valid entries in mipLevelsData (up to 10)
-
-        /// <summary>Mip level occupancy data — stored as a small array on the struct.
-        /// On the wire, these are 10 bytes: one count per mip level.</summary>
-        public uint mipLevelsHash; // compacted hash of all mip levels for fast comparison
+        public byte mipLevelsCount;
+        public uint mipLevelsHash;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public S_RegionData(uint seed)
@@ -49,50 +32,36 @@ namespace VoxelEngine.Net.Protocol
             this.mipLevelsHash = 0;
         }
 
-        /// <summary>Encodes the region data with mip level counts and overlay payload.</summary>
-        /// <param name="dst">Destination buffer (must be HeaderSize + compressedLength bytes).</param>
-        /// <param name="mipCounts">Array of mip occupancy counts (up to 10 entries).</param>
-        /// <param name="overlayPayload">Compressed brick overlay data.</param>
+        /// <summary>Legacy encoder retained only for source-compatible tests/callers.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Encode(Span<byte> dst, ReadOnlySpan<byte> mipCounts, ReadOnlySpan<byte> overlayPayload)
         {
             int totalSize = HeaderSize + overlayPayload.Length;
             ThrowIfTooSmall(dst, totalSize);
 
-            // seed (4 bytes)
             WriteUint32(dst, 0, seed);
-
-            // compressedLength (2 bytes)
             dst[4] = (byte)(overlayPayload.Length >> 0);
             dst[5] = (byte)(overlayPayload.Length >> 8);
-
-            // brickCount (2 bytes)
             dst[6] = (byte)(brickCount >> 0);
             dst[7] = (byte)(brickCount >> 8);
 
-            // mipLevels — store first byte as count, then raw level data
             mipLevelsCount = (byte)mipCounts.Length;
             dst[8] = mipLevelsCount;
 
-            // Copy up to 10 bytes of mip data
             int mipCopyLen = mipLevelsCount < 10 ? mipLevelsCount : 10;
             for (int i = 0; i < mipCopyLen && i < mipCounts.Length; i++)
                 dst[9 + i] = mipCounts[i];
 
-            // Pad mip area to aligned boundary if needed
             int mipEnd = 9 + mipCopyLen;
             while (mipEnd % 4 != 0 && mipEnd < HeaderSize)
                 dst[mipEnd++] = 0;
 
-            // overlay payload
             if (overlayPayload.Length > 0)
                 overlayPayload.CopyTo(dst.Slice(HeaderSize));
         }
 
-        /// <summary>Decodes region data from wire format.</summary>
+        /// <summary>Legacy decoder retained only for source-compatible tests/callers.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        // ReadOnlySpan is a ref struct and cannot be a tuple element, so both slices come
-        // back through out parameters rather than a tuple return.
         public static S_RegionData Decode(
             ReadOnlySpan<byte> src,
             out ReadOnlySpan<byte> mipCounts,
@@ -109,13 +78,9 @@ namespace VoxelEngine.Net.Protocol
             int totalSize = HeaderSize + msg.compressedLength;
             ThrowIfTooSmall(src, totalSize);
 
-            // Extract mip counts
             int mipCountLen = msg.mipLevelsCount < 10 ? msg.mipLevelsCount : 10;
             mipCounts = src.Slice(9, mipCountLen);
-
-            // Overlay payload starts after header
             overlayPayload = src.Slice(HeaderSize, msg.compressedLength);
-
             return msg;
         }
 
@@ -140,19 +105,19 @@ namespace VoxelEngine.Net.Protocol
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void ThrowIfTooSmall(Span<byte> dst, int required)
         {
-            if (dst.Length < required) UnityEngine.Debug.LogError($"S_RegionData: dst too small");
+            if (dst.Length < required) UnityEngine.Debug.LogError("S_RegionData: dst too small");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void ThrowIfTooSmall(ReadOnlySpan<byte> src, int required)
         {
-            if (src.Length < required) UnityEngine.Debug.LogError($"S_RegionData: src too small");
+            if (src.Length < required) UnityEngine.Debug.LogError("S_RegionData: src too small");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteUint32(Span<byte> dst, int offset, uint value)
         {
-            dst[offset]     = (byte)(value >> 0);
+            dst[offset] = (byte)(value >> 0);
             dst[offset + 1] = (byte)(value >> 8);
             dst[offset + 2] = (byte)(value >> 16);
             dst[offset + 3] = (byte)(value >> 24);

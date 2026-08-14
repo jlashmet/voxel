@@ -5,242 +5,272 @@ using Unity.Mathematics;
 namespace VoxelEngine.Net.Protocol
 {
     /// <summary>
-    /// S_PlayerState — server-to-client delta position update for a remote player.
+    /// Absolute server-authored player kinematic snapshot.
     ///
-    /// Sends compressed position/velocity deltas rather than absolute values to reduce bandwidth.
-    /// Only transmitted when the delta exceeds the configured threshold (threshold-based send).
+    /// Payload (40 bytes):
+    ///   0..1   playerId             ushort
+    ///   2..5   serverTick           uint
+    ///   6..7   stateSequence        ushort
+    ///   8..9   ackInputSequence     ushort
+    ///   10..11 flags                ushort
+    ///   12..23 position             int3, Q19.13 voxels
+    ///   24..35 velocity             int3, Q12.20 voxels/second
+    ///   36..37 viewYaw              ushort, full turn
+    ///   38..39 reserved             ushort (zero in v1)
     ///
-    /// Wire format (32 bytes):
-    ///   Offset  Size  Field
-    ///   0       2     playerId (ushort)         — target player ID
-    ///   2       4     tick (uint)                — server tick of this update
-    ///   6       2     sequence (ushort)          — update ordinal for interpolation
-    ///   8       12    positionDelta (float3)     — quantised delta position
-    ///   20      12    velocityDelta (float3)     — quantised delta velocity
+    /// Position and velocity are absolute, never deltas from another network packet. This makes
+    /// every snapshot independently useful after packet loss and gives the owning client an exact
+    /// rewind point for prediction reconciliation.
     /// </summary>
     public struct S_PlayerState : IEquatable<S_PlayerState>
     {
-        // -- quantisation constants -----------------------------------------------
+        private const int PositionFractionBits = 13;
+        private const int VelocityFractionBits = 20;
 
-        /// <summary>Position delta quantisation: Q16.16 fixed-point in metres.
-        /// Range ±32768 m at ~0.5 mm precision — sufficient for inter-player deltas.</summary>
-        private const int k_PosQuantBits = 16;
+        public const int WireSize = 40;
 
-        /// <summary>Velocity delta quantisation: Q12.20 fixed-point in m/s.
-        /// Range ±4096 m/s at ~0.001 m/s precision.</summary>
-        private const int k_VelQuantBits = 20;
+        // Retained only for old scaffold callers. Live scheduling is cadence based rather than
+        // threshold based because absolute snapshots are deliberately independent.
+        public const float k_PositionThreshold = 0.01f;
 
-        // -- constants ------------------------------------------------------------
+        [Flags]
+        public enum StateFlags : ushort
+        {
+            None = 0,
+            HasInputAck = 1 << 0,
+            Grounded = 1 << 1,
+            Teleport = 1 << 2,
+            Respawn = 1 << 3,
+        }
 
-        /// <summary>Minimum delta threshold in metres — below this, no message is sent.</summary>
-        public const float k_PositionThreshold = 0.01f; // 1 cm minimum delta
-
-        /// <summary>Wire size in bytes for S_PlayerState (always fixed).</summary>
-        public const int WireSize = 32;
-
-        // -- fields ---------------------------------------------------------------
-
-        /// <summary>ID of the player whose state is being updated.</summary>
         public ushort playerId;
-
-        /// <summary>Server tick when this update was authored.</summary>
         public uint tick;
-
-        /// <summary>Update ordinal for interpolation ordering on the client.</summary>
         public ushort sequence;
-
-        /// <summary>Delta position — Q16.16 fixed-point in metres.</summary>
-        public int3 positionDeltaInt;
-
-        /// <summary>Delta velocity — Q12.20 fixed-point in m/s.</summary>
-        public int3 velocityDeltaInt;
-
-        // -- construction ---------------------------------------------------------
+        public ushort ackInputSequence;
+        public ushort flags;
+        public int3 positionInt;
+        public int3 velocityInt;
+        public ushort viewYaw;
+        public ushort reserved;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public S_PlayerState(ushort playerId, uint tick)
         {
             this.playerId = playerId;
             this.tick = tick;
-            this.sequence = 0;
-            this.positionDeltaInt = int3.zero;
-            this.velocityDeltaInt = int3.zero;
+            sequence = 0;
+            ackInputSequence = 0;
+            flags = 0;
+            positionInt = int3.zero;
+            velocityInt = int3.zero;
+            viewYaw = 0;
+            reserved = 0;
+        }
+
+        public static S_PlayerState Create(
+            ushort playerId,
+            uint serverTick,
+            ushort stateSequence,
+            float3 positionVoxels,
+            float3 velocityVoxelsPerSecond,
+            ushort viewYaw,
+            StateFlags stateFlags,
+            bool hasInputAck,
+            ushort ackInputSequence)
+        {
+            if (playerId == 0 || serverTick == 0)
+                throw new ArgumentOutOfRangeException(playerId == 0 ? nameof(playerId) : nameof(serverTick));
+
+            return new S_PlayerState
+            {
+                playerId = playerId,
+                tick = serverTick,
+                sequence = stateSequence,
+                ackInputSequence = hasInputAck ? ackInputSequence : (ushort)0,
+                flags = (ushort)(hasInputAck ? stateFlags | StateFlags.HasInputAck : stateFlags & ~StateFlags.HasInputAck),
+                positionInt = QuantisePosition(positionVoxels),
+                velocityInt = QuantiseVelocity(velocityVoxelsPerSecond),
+                viewYaw = viewYaw,
+                reserved = 0,
+            };
+        }
+
+        public bool HasInputAck => ((StateFlags)flags & StateFlags.HasInputAck) != 0;
+        public StateFlags Flags => (StateFlags)flags;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public float3 PositionVoxels() => Dequantise(positionInt, PositionFractionBits);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public float3 VelocityVoxelsPerSecond() => Dequantise(velocityInt, VelocityFractionBits);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public float ViewYawRadians() => ((float)viewYaw / ushort.MaxValue) * (2f * math.PI) - math.PI;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Encode(Span<byte> dst)
+        {
+            ThrowIfTooSmall(dst, WireSize, "dst too small");
+            WriteUint16(dst, 0, playerId);
+            WriteUint32(dst, 2, tick);
+            WriteUint16(dst, 6, sequence);
+            WriteUint16(dst, 8, ackInputSequence);
+            WriteUint16(dst, 10, flags);
+            WriteInt32(dst, 12, positionInt.x);
+            WriteInt32(dst, 16, positionInt.y);
+            WriteInt32(dst, 20, positionInt.z);
+            WriteInt32(dst, 24, velocityInt.x);
+            WriteInt32(dst, 28, velocityInt.y);
+            WriteInt32(dst, 32, velocityInt.z);
+            WriteUint16(dst, 36, viewYaw);
+            WriteUint16(dst, 38, 0);
+        }
+
+        /// <summary>Compatibility overload. The arguments now represent absolute state, not deltas.</summary>
+        [Obsolete("Player state is now an absolute snapshot. Populate fields or use S_PlayerState.Create().")]
+        public void Encode(Span<byte> dst, float3 positionVoxels, float3 velocityVoxelsPerSecond)
+        {
+            positionInt = QuantisePosition(positionVoxels);
+            velocityInt = QuantiseVelocity(velocityVoxelsPerSecond);
+            Encode(dst);
+        }
+
+        public static bool TryDecode(ReadOnlySpan<byte> src, out S_PlayerState state)
+        {
+            state = default;
+            if (src.Length < WireSize)
+                return false;
+
+            state.playerId = ReadUint16(src, 0);
+            state.tick = ReadUint32(src, 2);
+            state.sequence = ReadUint16(src, 6);
+            state.ackInputSequence = ReadUint16(src, 8);
+            state.flags = ReadUint16(src, 10);
+            state.positionInt = new int3(ReadInt32(src, 12), ReadInt32(src, 16), ReadInt32(src, 20));
+            state.velocityInt = new int3(ReadInt32(src, 24), ReadInt32(src, 28), ReadInt32(src, 32));
+            state.viewYaw = ReadUint16(src, 36);
+            state.reserved = ReadUint16(src, 38);
+
+            return state.playerId != 0 &&
+                   state.tick != 0 &&
+                   state.reserved == 0 &&
+                   (((StateFlags)state.flags) & ~(StateFlags.HasInputAck | StateFlags.Grounded | StateFlags.Teleport | StateFlags.Respawn)) == 0;
         }
 
         /// <summary>
-        /// Checks whether a delta exceeds the send threshold. Returns true if this update
-        /// should be transmitted.
+        /// Compatibility decode surface for old in-process tests. Returned vectors are now absolute
+        /// position/velocity even though the tuple element names are retained by source callers.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool ShouldSend(float3 delta)
-        {
-            return math.length(delta) >= k_PositionThreshold;
-        }
-
-        // -- encoding ------------------------------------------------------------
-
-        /// <summary>Encodes the player state to wire format with the given deltas.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Encode(Span<byte> dst, float3 positionDelta, float3 velocityDelta)
-        {
-            ThrowIfTooSmall(dst, WireSize);
-
-            // playerId (2 bytes)
-            dst[0] = (byte)(playerId >> 0);
-            dst[1] = (byte)(playerId >> 8);
-
-            // tick (4 bytes)
-            WriteUint32(dst, 2, tick);
-
-            // sequence (2 bytes)
-            dst[6] = (byte)(sequence >> 0);
-            dst[7] = (byte)(sequence >> 8);
-
-            // positionDelta — Q16.16 fixed-point (12 bytes as int3)
-            int3 packedPos = QuantisePosition(positionDelta);
-            WriteInt32(dst, 8, packedPos.x);
-            WriteInt32(dst, 12, packedPos.y);
-            WriteInt32(dst, 16, packedPos.z);
-
-            // velocityDelta — Q12.20 fixed-point (12 bytes as int3)
-            int3 packedVel = QuantiseVelocity(velocityDelta);
-            WriteInt32(dst, 20, packedVel.x);
-            WriteInt32(dst, 24, packedVel.y);
-            WriteInt32(dst, 28, packedVel.z);
-
-            this.positionDeltaInt = packedPos;
-            this.velocityDeltaInt = packedVel;
-        }
-
-        /// <summary>Decodes the delta values from wire format.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [Obsolete("Use TryDecode and PositionVoxels()/VelocityVoxelsPerSecond().")]
         public static (S_PlayerState msg, float3 positionDelta, float3 velocityDelta) Decode(ReadOnlySpan<byte> src)
         {
-            ThrowIfTooSmall(src, WireSize);
-
-            S_PlayerState msg;
-            msg.playerId = (ushort)(src[0] | (src[1] << 8));
-            msg.tick = ReadUint32(src, 2);
-            msg.sequence = (ushort)(src[6] | (src[7] << 8));
-
-            int3 posDelta = new int3(
-                ReadInt32(src, 8),
-                ReadInt32(src, 12),
-                ReadInt32(src, 16));
-            int3 velDelta = new int3(
-                ReadInt32(src, 20),
-                ReadInt32(src, 24),
-                ReadInt32(src, 28));
-
-            msg.positionDeltaInt = posDelta;
-            msg.velocityDeltaInt = velDelta;
-
-            float3 positionDelta = DequantisePosition(posDelta);
-            float3 velocityDelta = DequantiseVelocity(velDelta);
-
-            return (msg, positionDelta, velocityDelta);
+            ThrowIfTooSmall(src, WireSize, "src too small");
+            if (!TryDecode(src, out S_PlayerState state))
+                throw new ArgumentException("Invalid S_PlayerState payload.", nameof(src));
+            return (state, state.PositionVoxels(), state.VelocityVoxelsPerSecond());
         }
 
-        // -- quantisation helpers ------------------------------------------------
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int3 QuantisePosition(float3 delta)
-        {
-            int scale = 1 << k_PosQuantBits;
-            return new int3(
-                math.clamp((int)(delta.x * scale), int.MinValue, int.MaxValue),
-                math.clamp((int)(delta.y * scale), int.MinValue, int.MaxValue),
-                math.clamp((int)(delta.z * scale), int.MinValue, int.MaxValue));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float3 DequantisePosition(int3 packed)
-        {
-            float inv = 1f / (1 << k_PosQuantBits);
-            return new float3(packed.x * inv, packed.y * inv, packed.z * inv);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int3 QuantiseVelocity(float3 delta)
-        {
-            int scale = 1 << k_VelQuantBits;
-            return new int3(
-                math.clamp((int)(delta.x * scale), int.MinValue, int.MaxValue),
-                math.clamp((int)(delta.y * scale), int.MinValue, int.MaxValue),
-                math.clamp((int)(delta.z * scale), int.MinValue, int.MaxValue));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float3 DequantiseVelocity(int3 packed)
-        {
-            float inv = 1f / (1 << k_VelQuantBits);
-            return new float3(packed.x * inv, packed.y * inv, packed.z * inv);
-        }
-
-        // -- equality ------------------------------------------------------------
+        [Obsolete("Live player-state replication is cadence based, not delta-threshold based.")]
+        public static bool ShouldSend(float3 delta) => math.length(delta) >= k_PositionThreshold;
 
         public bool Equals(S_PlayerState other) =>
             playerId == other.playerId && tick == other.tick && sequence == other.sequence &&
-            math.all(positionDeltaInt == other.positionDeltaInt) && math.all(velocityDeltaInt == other.velocityDeltaInt);
-        public override bool Equals(object obj) => obj is S_PlayerState o && Equals(o);
+            ackInputSequence == other.ackInputSequence && flags == other.flags &&
+            math.all(positionInt == other.positionInt) && math.all(velocityInt == other.velocityInt) &&
+            viewYaw == other.viewYaw && reserved == other.reserved;
+
+        public override bool Equals(object obj) => obj is S_PlayerState other && Equals(other);
+
         public override int GetHashCode()
         {
             unchecked
             {
-                var h = playerId.GetHashCode();
+                int h = playerId;
                 h = (h * 397) ^ tick.GetHashCode();
-                h = (h * 397) ^ sequence.GetHashCode();
-                h = (h * 397) ^ positionDeltaInt.GetHashCode();
-                h = (h * 397) ^ velocityDeltaInt.GetHashCode();
+                h = (h * 397) ^ sequence;
+                h = (h * 397) ^ ackInputSequence;
+                h = (h * 397) ^ flags;
+                h = (h * 397) ^ positionInt.GetHashCode();
+                h = (h * 397) ^ velocityInt.GetHashCode();
+                h = (h * 397) ^ viewYaw;
                 return h;
             }
         }
+
         public static bool operator ==(S_PlayerState a, S_PlayerState b) => a.Equals(b);
         public static bool operator !=(S_PlayerState a, S_PlayerState b) => !a.Equals(b);
 
-        // -- bounds checking ----------------------------------------------------
+        private static int3 QuantisePosition(float3 value) => Quantise(value, PositionFractionBits);
+        private static int3 QuantiseVelocity(float3 value) => Quantise(value, VelocityFractionBits);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void ThrowIfTooSmall(Span<byte> dst, int required)
+        private static int3 Quantise(float3 value, int fractionBits)
         {
-            if (dst.Length < required) UnityEngine.Debug.LogError($"S_PlayerState: dst too small");
+            double scale = 1L << fractionBits;
+            return new int3(
+                QuantiseComponent(value.x, scale),
+                QuantiseComponent(value.y, scale),
+                QuantiseComponent(value.z, scale));
+        }
+
+        private static int QuantiseComponent(float value, double scale)
+        {
+            double scaled = Math.Round((double)value * scale, MidpointRounding.AwayFromZero);
+            if (scaled > int.MaxValue) return int.MaxValue;
+            if (scaled < int.MinValue) return int.MinValue;
+            return (int)scaled;
+        }
+
+        private static float3 Dequantise(int3 value, int fractionBits)
+        {
+            float inv = 1f / (1 << fractionBits);
+            return new float3(value.x * inv, value.y * inv, value.z * inv);
+        }
+
+        private static void ThrowIfTooSmall(Span<byte> span, int required, string message)
+        {
+            if (span.Length >= required) return;
+            UnityEngine.Debug.LogError($"S_PlayerState: {message}");
+            throw new ArgumentException($"S_PlayerState requires {required} bytes.", nameof(span));
+        }
+
+        private static void ThrowIfTooSmall(ReadOnlySpan<byte> span, int required, string message)
+        {
+            if (span.Length >= required) return;
+            UnityEngine.Debug.LogError($"S_PlayerState: {message}");
+            throw new ArgumentException($"S_PlayerState requires {required} bytes.", nameof(span));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void ThrowIfTooSmall(ReadOnlySpan<byte> src, int required)
+        private static void WriteUint16(Span<byte> dst, int offset, ushort value)
         {
-            if (src.Length < required) UnityEngine.Debug.LogError($"S_PlayerState: src too small");
+            dst[offset] = (byte)value;
+            dst[offset + 1] = (byte)(value >> 8);
         }
-
-        // -- primitive readers/writers ------------------------------------------
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteUint32(Span<byte> dst, int offset, uint value)
         {
-            dst[offset]     = (byte)(value >> 0);
+            dst[offset] = (byte)value;
             dst[offset + 1] = (byte)(value >> 8);
             dst[offset + 2] = (byte)(value >> 16);
             dst[offset + 3] = (byte)(value >> 24);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteInt32(Span<byte> dst, int offset, int value) => WriteUint32(dst, offset, unchecked((uint)value));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ushort ReadUint16(ReadOnlySpan<byte> src, int offset) =>
+            (ushort)(src[offset] | (src[offset + 1] << 8));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static uint ReadUint32(ReadOnlySpan<byte> src, int offset) =>
-            (uint)src[offset] | ((uint)src[offset + 1] << 8) |
-            ((uint)src[offset + 2] << 16) | ((uint)src[offset + 3] << 24);
+            (uint)src[offset] |
+            ((uint)src[offset + 1] << 8) |
+            ((uint)src[offset + 2] << 16) |
+            ((uint)src[offset + 3] << 24);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteInt32(Span<byte> dst, int offset, int value)
-        {
-            uint u = (uint)value;
-            dst[offset]     = (byte)(u >> 0);
-            dst[offset + 1] = (byte)(u >> 8);
-            dst[offset + 2] = (byte)(u >> 16);
-            dst[offset + 3] = (byte)(u >> 24);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int ReadInt32(ReadOnlySpan<byte> src, int offset) =>
-            (int)(uint)(src[offset] | (src[offset + 1] << 8) |
-                         (src[offset + 2] << 16) | (src[offset + 3] << 24));
+        private static int ReadInt32(ReadOnlySpan<byte> src, int offset) => unchecked((int)ReadUint32(src, offset));
     }
 }

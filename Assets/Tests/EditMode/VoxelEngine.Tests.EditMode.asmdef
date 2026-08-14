@@ -15,6 +15,7 @@
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
+    "Unity.Networking.Transport",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "Unity.RenderPipelines.Universal.Runtime",

@@ -1,160 +1,159 @@
 using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
-using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
 
 namespace VoxelEngine.Net.Server
 {
     /// <summary>
-    /// Ring buffer of AlterationEvents with tick-indexed access for rollback and moderation.
+    /// Bounded per-region semantic event ring for rollback, moderation, and cheap repair suffixes.
     ///
-    /// Implements the data-model.md §RegionEventLog: a compact event log that serves four consumers:
-    ///   1. Moderation history (FR-023) — replay all events for auditing.
-    ///   2. Lag compensation — find state at a past tick for client predictions.
-    ///   3. Reconciliation rollback — replay events to recover from client divergence.
-    ///   4. Compaction input — old events are folded into baked snapshots.
-    ///
-    /// Size: 500 ms = 15 ticks at 30 Hz (device-matrix.md §Frame and tick budgets).
-    /// Events in the log never grow unbounded (data-model.md invariant).
+    /// The original scaffold used a bitmask against a 960-entry non-power-of-two capacity and a
+    /// tick->single-index map, corrupting wraparound and losing all but one event in a busy tick.
+    /// This implementation uses modulo indexing and stores the tick beside every event. The ring is
+    /// tiny (960 entries), so repair/history queries scan at most 960 records and remain predictable.
     /// </summary>
     public struct RegionEventLog
     {
-        // -- constants ------------------------------------------------------------
+        public const int MaxEventsPerLog = 960;
 
-        /// <summary>Ring buffer capacity in events. 15 ticks × max alterations per tick (64) = 960.</summary>
-        private const int k_MaxEventsPerLog = 960;
-
-        /// <summary>Mask for ring buffer index wrapping (capacity must be a power of two).</summary>
-        private const int k_IndexMask = k_MaxEventsPerLog - 1;
-
-        // -- internal state -------------------------------------------------------
-
-        /// <summary>Ring buffer storage for alteration events.</summary>
         private NativeArray<AlterationEvent> _events;
-
-        /// <summary>Tick-to-index lookup: maps server tick → ring buffer slot.
-        /// NativeHashMap&lt;uint, int&gt; for O(1) tick-queryable access (data-model.md requirement).</summary>
-        private NativeHashMap<uint, int> _tickIndex;
-
-        /// <summary>Total number of events ever pushed to this log (monotonically increasing).</summary>
+        private NativeArray<uint> _ticks;
         private uint _count;
-
-        /// <summary>
-        /// Events at or below this tick have been folded into the baked snapshot.
-        /// Query operations will return "not found" for ticks below this boundary.
-        /// </summary>
         private uint _compactedThrough;
 
-        // -- construction ---------------------------------------------------------
-
-        /// <summary>Initialises the event log with capacity from device-matrix.md budgets.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Initialize(Unity.Collections.Allocator allocator)
+        public void Initialize(Allocator allocator)
         {
-            _events = new NativeArray<AlterationEvent>(k_MaxEventsPerLog, allocator);
-            _tickIndex = new NativeHashMap<uint, int>(64, allocator);
+            _events = new NativeArray<AlterationEvent>(MaxEventsPerLog, allocator);
+            _ticks = new NativeArray<uint>(MaxEventsPerLog, allocator);
             _count = 0;
             _compactedThrough = 0;
         }
 
-        /// <summary>Appends an alteration event to the log and updates the tick index.
-        /// This is the primary write path — called when the server accepts an alteration.</summary>
-        /// <param name="tick">Server tick at which this event occurred.</param>
-        /// <param name="evt">The alteration event to record.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Push(uint tick, in AlterationEvent evt)
         {
-            int index = (int)(_count & k_IndexMask);
+            if (!_events.IsCreated || !_ticks.IsCreated)
+                throw new InvalidOperationException("RegionEventLog must be initialized before Push.");
+            if (tick < _compactedThrough)
+                throw new ArgumentOutOfRangeException(nameof(tick), "Cannot append behind compaction boundary.");
 
-            // Overwrite the oldest slot in the ring buffer — events past the rollback window
-            // are no longer needed (data-model.md compaction invariant).
+            int index = (int)(_count % MaxEventsPerLog);
             _events[index] = evt;
-
-            // Update or insert into the tick index for O(1) tick-based lookup.
-            if (_tickIndex.ContainsKey(tick))
-                _tickIndex[tick] = index;
-            else
-                _tickIndex[tick] = index;
-
+            _ticks[index] = tick;
             _count++;
         }
 
-        /// <summary>Queries the log for an event at a specific tick.
-        /// Returns false if the event has been compacted or was never recorded.</summary>
-        /// <param name="tick">The server tick to query.</param>
-        /// <param name="evt">Output alteration event, or default if not found.</param>
-        /// <returns>True if an event exists at the requested tick; false if compacted/missing.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Return the first retained event at exactly tick, preserving legacy API.</summary>
         public bool TryGetAtTick(uint tick, out AlterationEvent evt)
         {
-            // Reject if the tick is past the compaction boundary.
-            if (tick < _compactedThrough)
+            if (tick < _compactedThrough || !_events.IsCreated)
             {
                 evt = default;
                 return false;
             }
 
-            if (!_tickIndex.TryGetValue(tick, out int index))
+            int retained = RetainedSlotCount();
+            uint firstOrdinal = _count > MaxEventsPerLog ? _count - MaxEventsPerLog : 0;
+            for (int offset = 0; offset < retained; offset++)
             {
-                evt = default;
-                return false;
+                uint ordinal = firstOrdinal + (uint)offset;
+                int index = (int)(ordinal % MaxEventsPerLog);
+                if (_ticks[index] == tick)
+                {
+                    evt = _events[index];
+                    return true;
+                }
             }
 
-            evt = _events[index];
+            evt = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Append every retained event with fromExclusive &lt; tick &lt;= throughInclusive to the
+        /// caller-owned list, in original authority order. Returns false when the requested suffix
+        /// predates either compaction or the physical ring retention window.
+        /// </summary>
+        public bool TryCopyRange(
+            uint fromExclusive,
+            uint throughInclusive,
+            NativeList<AlterationEvent> destination)
+        {
+            if (!destination.IsCreated)
+                throw new ArgumentException("Destination must be created.", nameof(destination));
+            if (throughInclusive <= fromExclusive)
+                return true;
+            if (fromExclusive < _compactedThrough)
+                return false;
+
+            int retained = RetainedSlotCount();
+            if (retained == 0)
+                return true;
+
+            uint firstOrdinal = _count > MaxEventsPerLog ? _count - MaxEventsPerLog : 0;
+            uint oldestRetainedTick = uint.MaxValue;
+
+            for (int offset = 0; offset < retained; offset++)
+            {
+                uint ordinal = firstOrdinal + (uint)offset;
+                int index = (int)(ordinal % MaxEventsPerLog);
+                uint tick = _ticks[index];
+                if (tick < oldestRetainedTick)
+                    oldestRetainedTick = tick;
+            }
+
+            if (fromExclusive + 1u < oldestRetainedTick)
+                return false;
+
+            for (int offset = 0; offset < retained; offset++)
+            {
+                uint ordinal = firstOrdinal + (uint)offset;
+                int index = (int)(ordinal % MaxEventsPerLog);
+                uint tick = _ticks[index];
+                if (tick > fromExclusive && tick <= throughInclusive && tick >= _compactedThrough)
+                    destination.Add(_events[index]);
+            }
+
             return true;
         }
 
-        /// <summary>Compacts events up to (but not including) the given tick threshold.
-        /// Compacted events are folded into the baked snapshot and removed from the log.</summary>
-        /// <param name="throughTick">Compact all events at ticks below this value.</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void CompactUpTo(uint throughTick)
         {
-            if (throughTick <= _compactedThrough)
-                return; // nothing to compact.
-
-            _compactedThrough = throughTick;
-
-            // Remove compacted entries from the tick index.
-            var keysToRemove = new NativeList<uint>(64, Unity.Collections.Allocator.Temp);
-            foreach (var kvp in _tickIndex)
-            {
-                if (kvp.Key < throughTick)
-                    keysToRemove.Add(kvp.Key);
-            }
-
-            foreach (var key in keysToRemove)
-                _tickIndex.Remove(key);
+            if (throughTick > _compactedThrough)
+                _compactedThrough = throughTick;
         }
 
-        /// <summary>Disposes all native resources in the event log.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Dispose()
         {
             if (_events.IsCreated) _events.Dispose();
-            if (_tickIndex.IsCreated) _tickIndex.Dispose();
+            if (_ticks.IsCreated) _ticks.Dispose();
         }
 
-        // -- properties -----------------------------------------------------------
-
-        /// <summary>Total events ever pushed to this log (monotonically increasing).</summary>
         public uint Count => _count;
+        public uint CompactedThrough
+        {
+            get => _compactedThrough;
+            set => _compactedThrough = value;
+        }
 
-        /// <summary>
-        /// The highest tick that has been compacted into the baked snapshot.
-        /// Events at or below this tick are no longer in the active log.
-        /// </summary>
-        public uint CompactedThrough { get => _compactedThrough; set => _compactedThrough = value; }
-
-        /// <summary>Number of events currently stored in the ring buffer (may be less than Count
-        /// due to compaction and overwrite).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public uint ActiveCount()
         {
-            if (_count <= _compactedThrough)
+            if (!_ticks.IsCreated)
                 return 0;
-            return _count - _compactedThrough;
+
+            int retained = RetainedSlotCount();
+            uint active = 0;
+            uint firstOrdinal = _count > MaxEventsPerLog ? _count - MaxEventsPerLog : 0;
+            for (int offset = 0; offset < retained; offset++)
+            {
+                int index = (int)((firstOrdinal + (uint)offset) % MaxEventsPerLog);
+                if (_ticks[index] >= _compactedThrough)
+                    active++;
+            }
+            return active;
         }
+
+        private int RetainedSlotCount() => (int)Math.Min(_count, (uint)MaxEventsPerLog);
     }
 }

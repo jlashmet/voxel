@@ -25,7 +25,6 @@ namespace VoxelEngine.Core.Storage
                 return code == 0 ? 3 : code - 1;
             }
         }
-        public float SignedVoxels => SignedQ3 * (1f / 8f);
 
         public bool AppliesAlong(int edgeAxis) =>
             IsAuthored && (ExtrusionAxis == 3 || edgeAxis != ExtrusionAxis);
