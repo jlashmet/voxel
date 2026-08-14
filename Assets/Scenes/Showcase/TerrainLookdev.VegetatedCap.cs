@@ -11,19 +11,16 @@ namespace VoxelEngine.Showcase
         private bool _vegetatedCapApplied;
 
         /// <summary>
-        /// Normalize the base authored terrain into one continuous vegetated shell before the
-        /// dedicated presentation/detail passes run. Earlier base rock/turf fields were authored
-        /// before the reference-directed passes and still left hundreds of low planar boxes above
-        /// the heightfield. In the portrait camera those boxes read as dark horizontal contour
-        /// stripes even when recoloured green. Cover a shallow volume above the heightfield too,
-        /// then rebuild the path and flowers. The later foreground/detail passes add the intended
-        /// discrete limestone accents back on top using the normal production voxel path.
+        /// Normalize the visible heightfield shell into vegetation before the dedicated
+        /// presentation/detail passes run. This pass must never add height to the terrain: filling
+        /// above HeightVoxel turns every integer height step into a broad raised terrace in the
+        /// portrait camera. Later detail passes are responsible for adding visible relief.
         /// </summary>
         private void ApplyVegetatedCap()
         {
             if (!_built || _vegetatedCapApplied) return;
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 4_000_000);
+            var writer = new VoxelBrush(_table, _pool, in _palette, 3_000_000);
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
             {
@@ -31,15 +28,16 @@ namespace VoxelEngine.Showcase
                 byte material = GroundToneMaterial(x, z);
                 byte coating = GroundToneCoating(x, z);
 
-                // Erase the legacy base-detail layer as well as the shell itself. Six voxels is
-                // enough to remove the shallow planar shelf boxes responsible for the striping,
-                // while leaving room for the later intentional rock/outcrop passes.
-                for (int y = top - 8; y <= top + 6; y++)
+                // Re-skin only the existing terrain column. The previous version wrote solid turf
+                // through top + 6 in an attempt to hide legacy shelves. That accidentally raised
+                // the whole terrain by six voxels and made quantized height contours dominate the
+                // image. Keep the cap at the authored surface; discrete rocks/tufts are added later.
+                for (int y = top - 8; y <= top; y++)
                     writer.SetStyled(x, y, z, material, SurfaceStyles.Smooth, coating);
             }
 
-            // The normalization pass intentionally covers the original early path/flowers too.
-            // Re-author those semantic features after the clean cap so they remain readable.
+            // Re-author the semantic features after the shell recolour so the path and flower
+            // rhythm remain legible. These still use the normal production voxel authoring path.
             BuildPath(ref writer);
             BuildFlowers(ref writer);
 
