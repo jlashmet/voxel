@@ -8,17 +8,15 @@ using NUnit.Framework;
 namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>
-    /// Mechanical enforcement for the Api/Runtime subsystem boundaries introduced by
-    /// docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md. Legacy assemblies are allowed only through
-    /// the explicit, numbered migration exceptions below; newly-created Api/Runtime assemblies
-    /// are held to the final rules immediately.
+    /// Mechanical enforcement for docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md.
+    /// New Api/Runtime assemblies obey the final rules immediately. Existing broad
+    /// assemblies are allowed only through the exact, numbered migration exceptions below.
     /// </summary>
     public sealed class VoxelEngineAssemblyBoundaryTests
     {
         private sealed class AsmdefInfo
         {
             public string Name;
-            public string Path;
             public readonly List<string> References = new List<string>();
         }
 
@@ -36,21 +34,39 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        // These are the only pre-refactor production dependencies allowed to cross the target
-        // boundary. Every entry names the cutover that must remove it. Do not add wildcard rules.
+        // Exact dependencies present at the refactor baseline. Every entry must disappear
+        // in the named cutover. If a dependency disappears earlier, the test deliberately
+        // fails until this list is tightened. Never add an entry just to make CI green.
         private static readonly LegacyException[] LegacyExceptions =
         {
             new LegacyException("VoxelEngine.Collision", "VoxelEngine.Core", 9),
             new LegacyException("VoxelEngine.Net", "VoxelEngine.Core", 11),
             new LegacyException("VoxelEngine.Rendering", "VoxelEngine.Core", 12),
+            new LegacyException("VoxelEngine.Rendering", "VoxelEngine.Tiering", 7),
+            new LegacyException("VoxelEngine.Rendering", "VoxelEngine.Vegetation", 10),
             new LegacyException("VoxelEngine.Streaming", "VoxelEngine.Core", 8),
+            new LegacyException("VoxelEngine.Streaming", "VoxelEngine.Net", 8),
+            new LegacyException("VoxelEngine.Streaming", "VoxelEngine.Tiering", 7),
             new LegacyException("VoxelEngine.Structures", "VoxelEngine.Core", 4),
             new LegacyException("VoxelEngine.Tiering", "VoxelEngine.Core", 7),
-            new LegacyException("VoxelEngine.Vegetation", "VoxelEngine.Core", 10),
-            new LegacyException("MountingForce.WorldGen.Voxel", "VoxelEngine.Core", 10),
-            new LegacyException("VoxelEngine.Streaming", "VoxelEngine.Net", 8),
-            new LegacyException("VoxelEngine.Rendering", "VoxelEngine.Vegetation", 12)
+            new LegacyException("MountingForce.WorldGen.Voxel", "VoxelEngine.Core", 4),
+            new LegacyException("MountingForce.WorldGen.Voxel", "VoxelEngine.Structures", 4),
+            new LegacyException("MountingForce.WorldGen.Voxel", "VoxelEngine.Vegetation", 10)
         };
+
+        private static readonly HashSet<string> LegacyEngineAssemblies = new HashSet<string>(
+            new[]
+            {
+                "VoxelEngine.Core",
+                "VoxelEngine.Collision",
+                "VoxelEngine.Net",
+                "VoxelEngine.Rendering",
+                "VoxelEngine.Streaming",
+                "VoxelEngine.Structures",
+                "VoxelEngine.Tiering",
+                "VoxelEngine.Vegetation"
+            },
+            StringComparer.Ordinal);
 
         private static string RepoRoot
         {
@@ -67,15 +83,16 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void ApiAssembliesNeverReferenceRuntimeAssemblies()
         {
-            var violations = new List<string>();
-            foreach (var asmdef in LoadAsmdefs().Where(a => a.Name.EndsWith(".Api", StringComparison.Ordinal)))
-            {
-                foreach (var reference in asmdef.References.Where(IsRuntimeAssembly))
-                    violations.Add($"{asmdef.Name} -> {reference}");
-            }
+            var violations = LoadAsmdefs()
+                .Where(a => a.Name.EndsWith(".Api", StringComparison.Ordinal))
+                .SelectMany(a => a.References
+                    .Where(IsRuntimeAssembly)
+                    .Select(reference => $"{a.Name} -> {reference}"))
+                .ToList();
 
             Assert.IsEmpty(violations,
-                "Api assemblies must never reference Runtime assemblies.\n\n" + string.Join("\n", violations));
+                "Api assemblies must never reference Runtime assemblies.\n\n" +
+                string.Join("\n", violations));
         }
 
         [Test]
@@ -88,30 +105,27 @@ namespace VoxelEngine.Tests.EditMode
                     continue;
 
                 string owner = SubsystemPrefix(asmdef.Name);
-                foreach (var reference in asmdef.References.Where(IsRuntimeAssembly))
-                {
-                    if (SubsystemPrefix(reference) != owner)
-                        violations.Add($"{asmdef.Name} -> {reference}");
-                }
+                violations.AddRange(asmdef.References
+                    .Where(IsRuntimeAssembly)
+                    .Where(reference => SubsystemPrefix(reference) != owner)
+                    .Select(reference => $"{asmdef.Name} -> {reference}"));
             }
 
             Assert.IsEmpty(violations,
-                "Runtime assemblies may reference their own Runtime only through local implementation, " +
-                "and may never reference another subsystem Runtime. Composition is the sole production wiring exception.\n\n" +
+                "A Runtime assembly may not reference another subsystem's Runtime. " +
+                "Composition is the sole production wiring exception.\n\n" +
                 string.Join("\n", violations));
         }
 
         [Test]
-        public void LegacyProductionLeaksAreExplicitAndCannotGrow()
+        public void LegacyProductionLeaksAreExactAndCannotGrow()
         {
-            var asmdefs = LoadAsmdefs();
             var actual = new HashSet<string>(StringComparer.Ordinal);
-
-            foreach (var asmdef in asmdefs.Where(IsProductionAssembly))
+            foreach (var asmdef in LoadAsmdefs().Where(IsProductionAssembly))
             {
                 foreach (var reference in asmdef.References)
                 {
-                    if (reference == "VoxelEngine.Core" || IsKnownLegacyForeignLeak(asmdef.Name, reference))
+                    if (LegacyEngineAssemblies.Contains(reference) && reference != asmdef.Name)
                         actual.Add(Key(asmdef.Name, reference));
                 }
             }
@@ -120,31 +134,35 @@ namespace VoxelEngine.Tests.EditMode
                 LegacyExceptions.Select(e => Key(e.Assembly, e.Reference)),
                 StringComparer.Ordinal);
 
-            var unexpected = actual.Where(key => !allowed.Contains(key)).OrderBy(key => key).ToList();
+            var unexpected = actual.Except(allowed).OrderBy(key => key).ToList();
             Assert.IsEmpty(unexpected,
-                "A new legacy architecture leak appeared. New exceptions are not permitted merely to make the test green.\n\n" +
+                "A new legacy architecture dependency appeared. Do not add an exception merely " +
+                "to make this test green; route the dependency through the owning Api.\n\n" +
                 string.Join("\n", unexpected));
 
             var stale = LegacyExceptions
                 .Where(exception => !actual.Contains(Key(exception.Assembly, exception.Reference)))
                 .Select(exception =>
-                    $"{exception.Assembly} -> {exception.Reference} (remove exception; scheduled Cutover {exception.RemovedByCutover})")
+                    $"{exception.Assembly} -> {exception.Reference} " +
+                    $"(remove this stale exception; scheduled Cutover {exception.RemovedByCutover})")
                 .ToList();
 
             Assert.IsEmpty(stale,
-                "A migration dependency has already disappeared; delete its temporary exception now.\n\n" +
+                "A legacy dependency has already disappeared. Tighten the migration allowlist now.\n\n" +
                 string.Join("\n", stale));
         }
 
         [Test]
         public void StreamingRuntimeNeverReferencesNet()
         {
-            var streaming = LoadAsmdefs().FirstOrDefault(a => a.Name == "VoxelEngine.Streaming.Runtime");
+            var streaming = LoadAsmdefs()
+                .FirstOrDefault(a => a.Name == "VoxelEngine.Streaming.Runtime");
             if (streaming == null)
-                Assert.Ignore("VoxelEngine.Streaming.Runtime is created in Cutover 8; legacy Streaming is covered by the numbered exception list.");
+                Assert.Ignore("Streaming.Runtime is created in Cutover 8; legacy Streaming is tracked explicitly.");
 
             var violations = streaming.References
-                .Where(reference => reference == "VoxelEngine.Net" || reference.StartsWith("VoxelEngine.Net.", StringComparison.Ordinal))
+                .Where(reference => reference == "VoxelEngine.Net" ||
+                                    reference.StartsWith("VoxelEngine.Net.", StringComparison.Ordinal))
                 .ToList();
 
             Assert.IsEmpty(violations,
@@ -167,7 +185,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void NonCompositionProductionAssembliesNeverAccumulateForeignRuntimes()
+        public void NonCompositionProductionAssembliesNeverReferenceForeignRuntimes()
         {
             var violations = new List<string>();
             foreach (var asmdef in LoadAsmdefs().Where(IsProductionAssembly))
@@ -176,17 +194,14 @@ namespace VoxelEngine.Tests.EditMode
                     continue;
 
                 string owner = SubsystemPrefix(asmdef.Name);
-                var foreign = asmdef.References
+                violations.AddRange(asmdef.References
                     .Where(IsRuntimeAssembly)
                     .Where(reference => SubsystemPrefix(reference) != owner)
-                    .ToList();
-
-                if (foreign.Count > 0)
-                    violations.Add($"{asmdef.Name} -> {string.Join(", ", foreign)}");
+                    .Select(reference => $"{asmdef.Name} -> {reference}"));
             }
 
             Assert.IsEmpty(violations,
-                "Only Composition may wire foreign Runtime assemblies. Production code consumes foreign Api assemblies.\n\n" +
+                "Only Composition may wire foreign Runtime assemblies. Production consumers use Api assemblies.\n\n" +
                 string.Join("\n", violations));
         }
 
@@ -213,10 +228,10 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void WorldGenVoxelAdapterReferencesOnlyVoxelEngineApisAfterApiAssembliesExist()
+        public void WorldGenVoxelAdapterNeverReferencesVoxelEngineRuntime()
         {
-            var asmdefs = LoadAsmdefs();
-            var adapter = asmdefs.FirstOrDefault(a => a.Name == "MountingForce.WorldGen.Voxel");
+            var adapter = LoadAsmdefs()
+                .FirstOrDefault(a => a.Name == "MountingForce.WorldGen.Voxel");
             Assert.NotNull(adapter, "Missing MountingForce.WorldGen.Voxel adapter assembly.");
 
             var runtimeReferences = adapter.References
@@ -227,13 +242,6 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsEmpty(runtimeReferences,
                 "MountingForce.WorldGen.Voxel is an engine client and may depend only on VoxelEngine Api assemblies, never Runtime.\n\n" +
                 string.Join("\n", runtimeReferences));
-        }
-
-        private static bool IsKnownLegacyForeignLeak(string assembly, string reference)
-        {
-            return LegacyExceptions.Any(exception =>
-                exception.Reference != "VoxelEngine.Core" &&
-                exception.Assembly == assembly && exception.Reference == reference);
         }
 
         private static bool IsProductionAssembly(AsmdefInfo asmdef)
@@ -247,10 +255,8 @@ namespace VoxelEngine.Tests.EditMode
                    !name.StartsWith("VoxelEngine.Tools", StringComparison.Ordinal);
         }
 
-        private static bool IsRuntimeAssembly(string assemblyName)
-        {
-            return assemblyName.EndsWith(".Runtime", StringComparison.Ordinal);
-        }
+        private static bool IsRuntimeAssembly(string assemblyName) =>
+            assemblyName.EndsWith(".Runtime", StringComparison.Ordinal);
 
         private static string SubsystemPrefix(string assemblyName)
         {
@@ -258,10 +264,13 @@ namespace VoxelEngine.Tests.EditMode
                 return assemblyName;
 
             string[] parts = assemblyName.Split('.');
-            return parts.Length >= 2 ? string.Join(".", parts.Take(Math.Min(2, parts.Length))) : assemblyName;
+            return parts.Length >= 2
+                ? string.Join(".", parts.Take(2))
+                : assemblyName;
         }
 
-        private static string Key(string assembly, string reference) => assembly + " -> " + reference;
+        private static string Key(string assembly, string reference) =>
+            assembly + " -> " + reference;
 
         private static List<AsmdefInfo> LoadAsmdefs()
         {
@@ -295,7 +304,7 @@ namespace VoxelEngine.Tests.EditMode
                 if (string.IsNullOrEmpty(name))
                     continue;
 
-                var info = new AsmdefInfo { Name = name, Path = file };
+                var info = new AsmdefInfo { Name = name };
                 Match block = Regex.Match(json, @"""references""\s*:\s*\[(.*?)\]", RegexOptions.Singleline);
                 if (block.Success)
                 {
