@@ -399,7 +399,7 @@ namespace VoxelEngine.Showcase
                 (float3)motor.Position / ShowcaseWorld.VoxelSize,
                 float3.zero,
                 viewYaw: 0,
-                S_PlayerState.StateFlags.None);
+                stateFlags: S_PlayerState.StateFlags.None);
 
             Status = playerId == 1
                 ? "Host local player authenticated; waiting for player 2"
@@ -453,7 +453,10 @@ namespace VoxelEngine.Showcase
             }
 
             if (_mode == SessionMode.Host && removedPlayer == 2)
+            {
+                DestroyRemoteAvatar();
                 Status = "Player 2 disconnected; hosting";
+            }
         }
 
         private void OnPlayerStateReceived(S_PlayerState state)
@@ -557,6 +560,13 @@ namespace VoxelEngine.Showcase
                 _server.Dispose();
                 _server = null;
             }
+
+            _mode = SessionMode.Offline;
+            _localPlayerId = 0;
+            _clientTickAnchored = false;
+            _serverMotors.Clear();
+            _connectionByPlayer.Clear();
+            DestroyRemoteAvatar();
         }
 
         private static bool TryPort(int port, out ushort networkPort)
