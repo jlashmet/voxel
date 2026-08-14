@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.CI",
   "references": [
     "VoxelEngine.Core",
+    "VoxelEngine.Storage.Api",
     "VoxelEngine.Vegetation",
     "VoxelEngine.Rendering",
     "MountingForce.WorldGen.Core",
