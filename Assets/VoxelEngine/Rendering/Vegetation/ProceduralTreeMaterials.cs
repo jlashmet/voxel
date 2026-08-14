@@ -7,6 +7,7 @@ namespace VoxelEngine.Rendering.Vegetation
     {
         private static Material s_Bark;
         private static Material s_Leaves;
+        private static Material s_Impostor;
         private static Material[] s_Shared;
 
         public static Material Bark
@@ -19,6 +20,11 @@ namespace VoxelEngine.Rendering.Vegetation
             get { Ensure(); return s_Leaves; }
         }
 
+        public static Material Impostor
+        {
+            get { Ensure(); return s_Impostor; }
+        }
+
         public static Material[] Shared
         {
             get { Ensure(); return s_Shared; }
@@ -26,14 +32,16 @@ namespace VoxelEngine.Rendering.Vegetation
 
         public static bool Ensure()
         {
-            if (s_Bark != null && s_Leaves != null) return true;
+            if (s_Bark != null && s_Leaves != null && s_Impostor != null) return true;
 
             Shader bark = Shader.Find("VoxelEngine/ProceduralTreeBark");
             Shader leaves = Shader.Find("VoxelEngine/ProceduralTreeLeaves");
-            if (bark == null || leaves == null)
+            Shader impostor = Shader.Find("VoxelEngine/ProceduralTreeImpostor");
+            if (bark == null || leaves == null || impostor == null)
             {
                 if (bark == null) Debug.LogError("Procedural tree bark shader was not found.");
                 if (leaves == null) Debug.LogError("Procedural tree leaf shader was not found.");
+                if (impostor == null) Debug.LogError("Procedural tree impostor shader was not found.");
                 return false;
             }
 
@@ -49,6 +57,12 @@ namespace VoxelEngine.Rendering.Vegetation
                 enableInstancing = true,
                 hideFlags = HideFlags.DontSave,
             };
+            s_Impostor = new Material(impostor)
+            {
+                name = "Procedural Tree Impostor (Shared Runtime)",
+                enableInstancing = true,
+                hideFlags = HideFlags.DontSave,
+            };
             s_Shared = new[] { s_Bark, s_Leaves };
             return true;
         }
@@ -60,12 +74,17 @@ namespace VoxelEngine.Rendering.Vegetation
             Color horizon = VoxelRenderBridge.SkyHorizon;
             Color zenith = VoxelRenderBridge.SkyZenith;
 
-            s_Bark.SetVector("_SunDirection", new Vector4(sun.x, sun.y, sun.z, 0f));
-            s_Bark.SetColor("_SkyHorizon", horizon);
-            s_Bark.SetColor("_SkyZenith", zenith);
-            s_Leaves.SetVector("_SunDirection", new Vector4(sun.x, sun.y, sun.z, 0f));
-            s_Leaves.SetColor("_SkyHorizon", horizon);
-            s_Leaves.SetColor("_SkyZenith", zenith);
+            ApplyLighting(s_Bark, sun, horizon, zenith);
+            ApplyLighting(s_Leaves, sun, horizon, zenith);
+            ApplyLighting(s_Impostor, sun, horizon, zenith);
+        }
+
+        private static void ApplyLighting(Material material, Vector3 sun,
+                                          Color horizon, Color zenith)
+        {
+            material.SetVector("_SunDirection", new Vector4(sun.x, sun.y, sun.z, 0f));
+            material.SetColor("_SkyHorizon", horizon);
+            material.SetColor("_SkyZenith", zenith);
         }
     }
 }
