@@ -12,9 +12,8 @@ using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// End-to-end semantic destruction proof without Showcase. The healthy singleton begins as a
-    /// data-only batch entry; first branch damage must lazily materialize one dynamic tree, detach
-    /// the branch, and a lower-trunk cut must leave an upright stump plus a falling crown.
+    /// End-to-end semantic destruction proof. Standing tree rendering remains GameObject-free during
+    /// damage; only an actually detached limb/crown may materialize a temporary Rigidbody GameObject.
     /// </summary>
     public sealed class TreeDestructionVisualTests
     {
@@ -22,7 +21,7 @@ namespace VoxelEngine.CI
         private const int Height = 1024;
 
         [UnityTest]
-        public IEnumerator SemanticTree_BranchDetachesAndTrunkLeavesFallingCrown()
+        public IEnumerator SemanticTree_DamageStaysGameObjectFreeUntilGeometryDetaches()
         {
             string projectRoot = Directory.GetParent(Application.dataPath)!.FullName;
             string outputDirectory = Path.Combine(projectRoot, "Artifacts", "TreeDestruction");
@@ -33,7 +32,6 @@ namespace VoxelEngine.CI
             Material groundMaterial = null;
             RenderTexture target = null;
             Texture2D capture = null;
-            Mesh baselineMesh = null;
 
             try
             {
@@ -61,21 +59,15 @@ namespace VoxelEngine.CI
                                     || renderer.BatchedTreeCount != 1);
                      frame++)
                     yield return null;
-                Assert.That(renderer.PresentationCount, Is.EqualTo(1));
-                Assert.That(renderer.BatchCount, Is.EqualTo(1));
-                Assert.That(renderer.BatchedTreeCount, Is.EqualTo(1));
-                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0),
-                            "Healthy singleton should begin batch-only.");
+
+                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0));
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(0));
                 Assert.That(renderer.TryGetDynamicPresentationRoot(0, out _), Is.False);
+                Assert.That(renderer.transform.childCount, Is.EqualTo(0));
 
                 ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
-                baselineMesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 0);
-                int barkBefore = (int)baselineMesh.GetIndexCount(0) / 3;
-                int leavesBefore = (int)baselineMesh.GetIndexCount(1) / 3;
-                Assert.That(barkBefore, Is.GreaterThan(0));
-                Assert.That(leavesBefore, Is.GreaterThan(0));
-
                 Assert.That(renderer.TryGetTreeBounds(0, out Bounds bounds), Is.True);
+
                 groundObject = GameObject.CreatePrimitive(PrimitiveType.Plane);
                 groundObject.name = "CI Tree Destruction Ground";
                 groundObject.transform.position = new Vector3(0f, -0.025f, 0f);
@@ -120,41 +112,35 @@ namespace VoxelEngine.CI
                 float3 branchMid = (branch.Start + branch.End) * 0.5f;
                 float3 branchSweep = PerpendicularSweepDirection(branch.End - branch.Start);
                 float half = math.max(0.7f, math.max(branch.RadiusStart, branch.RadiusEnd) * 4f + 0.35f);
-                float3 branchFrom = branchMid - branchSweep * half;
-                float3 branchTo = branchMid + branchSweep * half;
 
                 int detachedBeforeBranch = CountDetachedBodies();
                 bool branchCollision = ProceduralTreeDamageService.TrySweepImpact(
-                    branchFrom, branchTo, 0.12f, out float3 branchHit, out int branchTreeIndex);
+                    branchMid - branchSweep * half,
+                    branchMid + branchSweep * half,
+                    0.12f, out float3 branchHit, out int branchTreeIndex);
                 Assert.That(branchCollision, Is.True);
                 Assert.That(branchTreeIndex, Is.EqualTo(0));
                 ProceduralTreeDamageService.ApplyBlast(branchHit, 0.20f, branchSweep);
 
                 float branchDeadline = Time.realtimeSinceStartup + 2f;
-                while ((!renderer.TryGetDynamicPresentationRoot(0, out _)
-                        || TreeWorldState.RemovedBranches(0).Count == 0)
+                while ((TreeWorldState.RemovedBranches(0).Count == 0
+                        || renderer.DynamicPresentationCount != 1)
                        && Time.realtimeSinceStartup < branchDeadline)
                     yield return null;
 
-                Assert.That(renderer.TryGetDynamicPresentationRoot(0, out Transform treeRoot), Is.True,
-                            "First damage did not lazily materialize the singleton tree.");
+                Assert.That(TreeWorldState.RemovedBranches(0).Count, Is.GreaterThan(0));
                 Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(1));
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(0));
-                Transform lod0 = treeRoot.Find("LOD0");
-                Assert.That(lod0, Is.Not.Null);
-                Mesh liveMesh = lod0.GetComponent<MeshFilter>().sharedMesh;
-                Assert.That(liveMesh, Is.Not.Null);
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(0));
+                Assert.That(renderer.TryGetDynamicPresentationRoot(0, out _), Is.False,
+                            "Damaged standing tree must not materialize a GameObject.");
+                Assert.That(renderer.transform.childCount, Is.EqualTo(0));
 
                 for (int frame = 0; frame < 8; frame++) yield return null;
-                int barkAfterBranch = (int)liveMesh.GetIndexCount(0) / 3;
-                int leavesAfterBranch = (int)liveMesh.GetIndexCount(1) / 3;
                 int detachedAfterBranch = CountDetachedBodies();
-                Assert.That(TreeWorldState.RemovedBranches(0).Count, Is.GreaterThan(0));
                 Assert.That(TreeWorldState.Damage[0].Severed, Is.False);
-                Assert.That(barkAfterBranch, Is.LessThan(barkBefore));
-                Assert.That(leavesAfterBranch, Is.LessThan(leavesBefore));
                 Assert.That(detachedAfterBranch, Is.GreaterThan(detachedBeforeBranch),
-                            "Branch cut changed the tree but spawned no detached limb presentation.");
+                            "A physically detached branch must materialize temporary debris.");
                 Capture(camera, target, ref capture,
                         Path.Combine(outputDirectory, "02-after-branch-hit.png"));
 
@@ -165,12 +151,12 @@ namespace VoxelEngine.CI
                 float3 trunkSweep = PerpendicularSweepDirection(trunk.End - trunk.Start);
                 float trunkHalf = math.max(0.9f,
                     math.max(trunk.RadiusStart, trunk.RadiusEnd) * 5f + 0.45f);
-                float3 trunkFrom = trunkMid - trunkSweep * trunkHalf;
-                float3 trunkTo = trunkMid + trunkSweep * trunkHalf;
 
                 int detachedBeforeTrunk = CountDetachedBodies();
                 bool trunkCollision = ProceduralTreeDamageService.TrySweepImpact(
-                    trunkFrom, trunkTo, 0.12f, out float3 trunkHit, out int trunkTreeIndex);
+                    trunkMid - trunkSweep * trunkHalf,
+                    trunkMid + trunkSweep * trunkHalf,
+                    0.12f, out float3 trunkHit, out int trunkTreeIndex);
                 Assert.That(trunkCollision, Is.True);
                 Assert.That(trunkTreeIndex, Is.EqualTo(0));
                 ProceduralTreeDamageService.ApplyBlast(trunkHit, 0.20f, trunkSweep);
@@ -182,21 +168,9 @@ namespace VoxelEngine.CI
                     yield return null;
 
                 Assert.That(TreeWorldState.Damage[0].Severed, Is.True);
-                Assert.That(CountDetachedBodies(), Is.GreaterThan(detachedBeforeTrunk),
-                            "Trunk sever spawned no detached crown presentation.");
-                Assert.That(Quaternion.Angle(treeRoot.localRotation, Quaternion.identity),
-                            Is.LessThan(0.1f), "Standing semantic root should remain the rooted stump.");
-
-                for (int frame = 0;
-                     frame < 8 && (int)liveMesh.GetIndexCount(0) / 3 >= barkAfterBranch;
-                     frame++)
-                    yield return null;
-
-                int barkAfterTrunk = (int)liveMesh.GetIndexCount(0) / 3;
-                Assert.That(barkAfterTrunk, Is.LessThan(barkAfterBranch),
-                            "Trunk sever did not remove the connected upper tree from the standing mesh.");
-                Assert.That(CountBreakCaps(), Is.GreaterThan(0),
-                            "Trunk sever emitted no visual splinter/break cap.");
+                Assert.That(CountDetachedBodies(), Is.GreaterThan(detachedBeforeTrunk));
+                Assert.That(renderer.TryGetDynamicPresentationRoot(0, out _), Is.False);
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(0));
 
                 Rigidbody crown = FindLargestDetachedBody();
                 Assert.That(crown, Is.Not.Null);
@@ -212,20 +186,14 @@ namespace VoxelEngine.CI
                 string metadata =
                     $"registryInstances={TreeWorldState.Instances.Count}\n" +
                     $"semanticPresentations={renderer.PresentationCount}\n" +
-                    $"beganBatched=True\n" +
+                    $"standingRenderObjects={renderer.ResidentRenderObjectCount}\n" +
                     $"dynamicAfterDamage={renderer.DynamicPresentationCount}\n" +
                     $"branchTarget={branchIndex}\n" +
                     $"branchCollision={branchCollision}\n" +
-                    $"barkTrianglesBefore={barkBefore}\n" +
-                    $"barkTrianglesAfterBranch={barkAfterBranch}\n" +
-                    $"leafTrianglesBefore={leavesBefore}\n" +
-                    $"leafTrianglesAfterBranch={leavesAfterBranch}\n" +
                     $"detachedAfterBranch={detachedAfterBranch}\n" +
                     $"trunkTarget={trunkIndex}\n" +
                     $"trunkCollision={trunkCollision}\n" +
                     $"severedAfterTrunk={TreeWorldState.Damage[0].Severed}\n" +
-                    $"barkTrianglesAfterTrunk={barkAfterTrunk}\n" +
-                    $"breakCaps={CountBreakCaps()}\n" +
                     $"detachedAfterTrunk={CountDetachedBodies()}\n" +
                     $"crownTravelMetres={crownTravel:F3}\n";
                 File.WriteAllText(Path.Combine(outputDirectory, "tree-destruction.txt"), metadata);
@@ -234,7 +202,6 @@ namespace VoxelEngine.CI
             finally
             {
                 TreeWorldState.Replace(System.Array.Empty<TreeInstance>());
-                if (baselineMesh != null) Object.Destroy(baselineMesh);
                 if (capture != null) Object.Destroy(capture);
                 if (target != null)
                 {
@@ -314,8 +281,8 @@ namespace VoxelEngine.CI
             float bestSize = -1f;
             foreach (Rigidbody body in FindDetachedBodies())
             {
-                Renderer renderer = body.GetComponent<Renderer>();
-                float size = renderer != null ? renderer.bounds.size.sqrMagnitude : 0f;
+                Renderer bodyRenderer = body.GetComponent<Renderer>();
+                float size = bodyRenderer != null ? bodyRenderer.bounds.size.sqrMagnitude : 0f;
                 if (size <= bestSize) continue;
                 bestSize = size;
                 best = body;
@@ -336,36 +303,18 @@ namespace VoxelEngine.CI
             return result;
         }
 
-        private static int CountBreakCaps()
-        {
-            int count = 0;
-            MeshRenderer[] all = Resources.FindObjectsOfTypeAll<MeshRenderer>();
-            foreach (MeshRenderer renderer in all)
-            {
-                if (renderer == null || !renderer.gameObject.scene.IsValid()) continue;
-                if (renderer.name.StartsWith("Tree break")) count++;
-            }
-            return count;
-        }
-
         private static void Capture(Camera camera, RenderTexture target,
                                     ref Texture2D capture, string path)
         {
+            camera.Render();
             RenderTexture previous = RenderTexture.active;
-            try
-            {
-                camera.Render();
-                RenderTexture.active = target;
-                if (capture == null)
-                    capture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
-                capture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
-                capture.Apply(false, false);
-                File.WriteAllBytes(path, capture.EncodeToPNG());
-            }
-            finally
-            {
-                RenderTexture.active = previous;
-            }
+            RenderTexture.active = target;
+            if (capture == null)
+                capture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, false);
+            capture.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
+            capture.Apply(false, false);
+            File.WriteAllBytes(path, capture.EncodeToPNG());
+            RenderTexture.active = previous;
         }
     }
 }
