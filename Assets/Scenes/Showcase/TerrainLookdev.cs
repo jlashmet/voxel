@@ -66,12 +66,15 @@ namespace VoxelEngine.Showcase
                               SurfaceStyles.Smooth, weather);
             _palette.Register(Mat.Sand, 28, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
+            // Limestone and pavers deliberately use the production faceted path. Planar styles
+            // are emitted as merged faces by CpuTransvoxelChunkCache instead of being melted by
+            // continuous rounded reconstruction, which gives the reference's squat cuboid rocks.
             _palette.Register(Mat.TerrainLimestone, 210, DestructionClass.Crumble,
-                              SurfaceStyles.Rounded, weather);
+                              SurfaceStyles.Planar, weather);
             _palette.Register(Mat.TerrainEarth, 32, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
             _palette.Register(Mat.TerrainPathStone, 180, DestructionClass.Crumble,
-                              SurfaceStyles.Rounded, weather);
+                              SurfaceStyles.Planar, weather);
             _palette.Register(Mat.FlowerWhite, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
             _palette.Register(Mat.FlowerYellow, 4, DestructionClass.Powder,
@@ -142,8 +145,6 @@ namespace VoxelEngine.Showcase
 
         private static byte TurfMaterial(int x, int z)
         {
-            // Base authoring stays coherent. Fine and macro colour variation is handled by the
-            // production presentation catalogue rather than by random sand pixels on every cell.
             float shoulder = math.abs(x - PathCenterVoxel(z));
             float field = math.sin(x * 0.032f + z * 0.019f)
                         + 0.55f * math.sin(x * 0.016f - z * 0.027f + 1.4f);
@@ -164,23 +165,25 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x2231u);
             int z = -60;
-            while (z < 270)
+            while (z < 285)
             {
-                float progress = math.saturate((z + 60f) / 330f);
+                float progress = math.saturate((z + 60f) / 345f);
                 int centreX = PathCenterVoxel(z);
                 int halfWidth = math.max(4, (int)math.round(math.lerp(15f, 5f, progress)));
 
                 for (int lateral = -halfWidth; lateral <= halfWidth; lateral += 3)
                 {
-                    if (rng.NextFloat() < math.lerp(0.08f, 0.36f, progress)) continue;
+                    if (rng.NextFloat() < math.lerp(0.07f, 0.32f, progress)) continue;
                     int px = centreX + lateral + rng.NextInt(-2, 3);
                     int pz = z + rng.NextInt(-2, 3);
                     int hx = rng.NextInt(1, progress < 0.30f ? 4 : 3);
                     int hz = rng.NextInt(1, progress < 0.30f ? 4 : 3);
-                    int py = HeightVoxel(px, pz) + 1;
-                    StampRoundedBox(ref writer, new int3(px, py, pz),
+                    int py = HeightVoxel(px, pz);
+                    // One-voxel-thick pavers overlap the terrain surface so they read as embedded
+                    // cobbles, not a heap of beige rubble sitting on top of the path.
+                    StampRoundedBox(ref writer, new int3(px, py + 1, pz),
                         new int3(hx, 1, hz), 1, Mat.TerrainPathStone,
-                        SurfaceStyles.Rounded, false);
+                        SurfaceStyles.Planar, false);
                 }
                 z += rng.NextInt(4, 8) + (int)math.round(progress * 3f);
             }
@@ -190,18 +193,17 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed);
 
-            // Shelf clusters: short runs of block-like limestone, often stacked by one layer.
-            for (int shelf = 0; shelf < 118; shelf++)
+            for (int shelf = 0; shelf < 132; shelf++)
             {
                 int z = rng.NextInt(-48, 548);
                 float zm = z * 0.1f;
                 int centre = Mathf.RoundToInt(ValleyCenterMetres(zm) * 10f);
                 int side = rng.NextBool() ? -1 : 1;
-                int distance = rng.NextInt(40, 148);
+                int distance = rng.NextInt(38, 150);
                 int centreX = centre + side * distance;
                 if (centreX < TerrainXMin + 10 || centreX > TerrainXMax - 10) continue;
 
-                int count = rng.NextInt(3, 8);
+                int count = rng.NextInt(3, 9);
                 int stride = rng.NextInt(4, 8);
                 for (int i = 0; i < count; i++)
                 {
@@ -209,29 +211,28 @@ namespace VoxelEngine.Showcase
                     int zz = z + rng.NextInt(-4, 5) + (i - count / 2) / 2;
                     if (x <= TerrainXMin + 4 || x >= TerrainXMax - 4) continue;
 
-                    int hx = rng.NextInt(2, 6);
-                    int hy = rng.NextInt(2, 5);
-                    int hz = rng.NextInt(2, 6);
+                    int hx = rng.NextInt(2, z < 180 ? 7 : 6);
+                    int hz = rng.NextInt(2, z < 180 ? 7 : 6);
+                    int hy = rng.NextInt(1, z < 160 ? 4 : 3);
                     int y = HeightVoxel(x, zz) + hy - 1;
                     StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
-                        1, Mat.TerrainLimestone, SurfaceStyles.Rounded,
-                        rng.NextFloat() < 0.22f);
+                        1, Mat.TerrainLimestone, SurfaceStyles.Planar,
+                        rng.NextFloat() < 0.46f);
 
-                    if (z < 260 && rng.NextFloat() < 0.20f)
+                    if (z < 250 && rng.NextFloat() < 0.24f)
                     {
                         int upperHx = math.max(2, hx - 1);
                         int upperHz = math.max(2, hz - 1);
                         StampRoundedBox(ref writer,
                             new int3(x + rng.NextInt(-2, 3), y + hy + 1, zz + rng.NextInt(-2, 3)),
-                            new int3(upperHx, 2, upperHz), 1,
-                            Mat.TerrainLimestone, SurfaceStyles.Rounded,
-                            rng.NextFloat() < 0.28f);
+                            new int3(upperHx, 1, upperHz), 1,
+                            Mat.TerrainLimestone, SurfaceStyles.Planar,
+                            rng.NextFloat() < 0.55f);
                     }
                 }
             }
 
-            // Individual blocks also occupy the valley floor, not only the shoulders.
-            for (int i = 0; i < 260; i++)
+            for (int i = 0; i < 310; i++)
             {
                 int z = rng.NextInt(-58, 545);
                 int x = rng.NextInt(TerrainXMin + 7, TerrainXMax - 7);
@@ -239,14 +240,14 @@ namespace VoxelEngine.Showcase
                 if (z < 255 && math.abs(x - path) < 11)
                     x += x < path ? -14 : 14;
 
-                int maxHalf = z > 350 ? 4 : 5;
+                int maxHalf = z > 350 ? 4 : 6;
                 int hx = rng.NextInt(2, maxHalf + 1);
-                int hy = rng.NextInt(2, z > 350 ? 4 : 5);
                 int hz = rng.NextInt(2, maxHalf + 1);
+                int hy = rng.NextInt(1, z > 300 ? 3 : 4);
                 int y = HeightVoxel(x, z) + hy - 1;
                 StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
-                    1, Mat.TerrainLimestone, SurfaceStyles.Rounded,
-                    rng.NextFloat() < 0.15f);
+                    1, Mat.TerrainLimestone, SurfaceStyles.Planar,
+                    rng.NextFloat() < 0.32f);
             }
 
             BuildForegroundOutcrop(ref writer, new int3(-106, 0, -46), 15, ref rng);
@@ -260,18 +261,18 @@ namespace VoxelEngine.Showcase
         {
             for (int layer = 0; layer < 3; layer++)
             {
-                int count = 6 - layer;
+                int count = 7 - layer;
                 for (int i = 0; i < count; i++)
                 {
                     int x = centre.x + (i - count / 2) * (scale - 4) + rng.NextInt(-2, 3);
                     int z = centre.z + layer * 5 + rng.NextInt(-2, 3);
                     int hx = rng.NextInt(3, math.max(5, scale / 2 + 1));
-                    int hy = rng.NextInt(3, 6);
+                    int hy = rng.NextInt(2, 5);
                     int hz = rng.NextInt(3, math.max(5, scale / 2 + 1));
-                    int y = HeightVoxel(x, z) + layer * 3 + hy - 2;
+                    int y = HeightVoxel(x, z) + layer * 2 + hy - 2;
                     StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
-                        1, Mat.TerrainLimestone, SurfaceStyles.Rounded,
-                        rng.NextFloat() < 0.28f);
+                        1, Mat.TerrainLimestone, SurfaceStyles.Planar,
+                        rng.NextFloat() < 0.60f);
                 }
             }
         }
@@ -280,21 +281,19 @@ namespace VoxelEngine.Showcase
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x7B19u);
 
-            // Many compact cushions create the target's dense moss/turf rhythm without the giant
-            // bean-shaped islands produced by the old 15-voxel-radius cushions.
-            for (int i = 0; i < 760; i++)
+            for (int i = 0; i < 820; i++)
             {
                 int z = rng.NextInt(-58, 545);
                 int x = rng.NextInt(TerrainXMin + 4, TerrainXMax - 4);
                 if (z < 245 && math.abs(x - PathCenterVoxel(z)) < 8) continue;
                 int rx = rng.NextInt(2, 6);
                 int rz = rng.NextInt(2, 7);
-                int ry = rng.NextFloat() < 0.34f ? 2 : 1;
+                int ry = rng.NextFloat() < 0.30f ? 2 : 1;
                 StampEllipsoid(ref writer, new int3(x, HeightVoxel(x, z) + ry, z),
                     new int3(rx, ry, rz), TurfMaterial(x, z), SurfaceStyles.Smooth);
             }
 
-            for (int i = 0; i < 150; i++)
+            for (int i = 0; i < 170; i++)
             {
                 int z = rng.NextInt(-50, 525);
                 int x = rng.NextInt(TerrainXMin + 8, TerrainXMax - 8);
@@ -310,19 +309,19 @@ namespace VoxelEngine.Showcase
         private static void BuildFlowers(ref VoxelBrush writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xD451u);
-            for (int i = 0; i < 1500; i++)
+            for (int i = 0; i < 1750; i++)
             {
                 int z = rng.NextInt(-55, 535);
                 float distance = math.saturate((z + 55f) / 590f);
-                if (rng.NextFloat() < distance * 0.10f) continue;
+                if (rng.NextFloat() < distance * 0.08f) continue;
                 int x = rng.NextInt(TerrainXMin + 5, TerrainXMax - 5);
                 if (z < 240 && math.abs(x - PathCenterVoxel(z)) < 7) continue;
                 int y = HeightVoxel(x, z) + 2;
                 byte flower = Mat.FlowerWhite;
                 float colour = rng.NextFloat();
-                if (colour > 0.78f && colour <= 0.92f) flower = Mat.FlowerYellow;
-                else if (colour > 0.92f && colour <= 0.98f) flower = Mat.FlowerPink;
-                else if (colour > 0.98f) flower = Mat.FlowerBlue;
+                if (colour > 0.82f && colour <= 0.94f) flower = Mat.FlowerYellow;
+                else if (colour > 0.94f && colour <= 0.985f) flower = Mat.FlowerPink;
+                else if (colour > 0.985f) flower = Mat.FlowerBlue;
                 writer.SetStyled(x, y, z, flower, SurfaceStyles.Rounded);
             }
         }
@@ -384,13 +383,10 @@ namespace VoxelEngine.Showcase
             float dx = xm - valleyCenter;
             float distance = math.abs(dx);
 
-            // Large-scale valley bowl. Keep it broad enough for the path while allowing the
-            // secondary fields below to form the rolling shelves seen throughout the reference.
             float sideRise = 0.020f * dx * dx;
             float farRise = Mathf.Max(0f, zm - 6f) * 0.19f;
             float channel = -0.42f * Mathf.Exp(-(dx * dx) / 18f);
 
-            // Domain-warped coordinates prevent any one sinusoid from reading as a repeated band.
             float wx = xm
                      + 0.95f * Mathf.Sin(zm * 0.31f)
                      + 0.34f * Mathf.Sin(zm * 0.83f + 1.4f);
@@ -406,8 +402,6 @@ namespace VoxelEngine.Showcase
             float shoulders = 0.30f * Mathf.Sin(distance * 0.63f + wz * 0.29f)
                             + 0.17f * Mathf.Cos(distance * 1.11f - wz * 0.21f);
 
-            // Metre-scale undulation is real geometry, not a colour/noise map. It breaks the
-            // long quantised contour rings and gives stones/flowers many small convex landforms.
             float tuftRelief = 0.20f * Mathf.Sin(wx * 1.10f + wz * 0.74f)
                                              * Mathf.Sin(wx * 0.43f - wz * 0.97f + 0.8f)
                               + 0.13f * Mathf.Sin(wx * 1.83f - wz * 1.37f + 2.1f)
