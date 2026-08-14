@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.Tests.Features",
   "references": [
     "VoxelEngine.Core",
+    "VoxelEngine.Storage.Api",
     "VoxelEngine.Net",
     "Unity.Burst",
     "Unity.Collections",
