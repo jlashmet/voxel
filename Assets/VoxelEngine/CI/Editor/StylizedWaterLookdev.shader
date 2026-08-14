@@ -59,15 +59,26 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
             float authoredFallMask(float2 uv){float f=0.0;f=max(f,boxMask(uv,float2(0.765,0.935),float2(0.075,0.060),0.014));f=max(f,boxMask(uv,float2(0.690,0.790),float2(0.075,0.075),0.016));f=max(f,boxMask(uv,float2(0.295,0.615),float2(0.070,0.075),0.016));f=max(f,boxMask(uv,float2(0.815,0.555),float2(0.030,0.040),0.012));return saturate(f);}
             Varyings vert(Attributes input){Varyings o;o.positionCS=TransformObjectToHClip(input.positionOS.xyz);o.uv=TRANSFORM_TEX(input.uv,_ReferenceTex);return o;}
 
-            float brokenWave(float2 p,float freq,float seed)
+            float brushMark(float2 p,float sx,float sy,float seed,float density)
             {
-                float warp=(fbm(p*float2(7.0,19.0)+seed)-0.5)*0.035;
-                float phase=(p.y+warp)*freq + sin(p.x*8.0+seed)*0.55;
-                float band=pow(saturate(sin(phase)*0.5+0.5),18.0);
-                float breaker=fbm(p*float2(22.0,5.0)+seed*3.1);
-                float lengthMask=smoothstep(0.48,0.70,breaker);
-                float taper=smoothstep(0.35,0.58,fbm(p*float2(11.0,9.0)+seed*5.7));
-                return band*lengthMask*taper;
+                float2 g=p*float2(sx,sy);
+                float2 cell=floor(g);
+                float2 f=frac(g);
+                float r0=hash21(cell+seed);
+                float r1=hash21(cell+seed+3.7);
+                float r2=hash21(cell+seed+9.3);
+                float r3=hash21(cell+seed+17.9);
+                float r4=hash21(cell+seed+27.1);
+                float cx=0.18+0.64*r1;
+                float cy=0.18+0.64*r2;
+                float halfLen=0.12+0.30*r3;
+                float thick=0.035+0.055*r4;
+                float slope=(hash21(cell+seed+37.2)-0.5)*0.42;
+                float dx=abs(f.x-cx);
+                float dy=abs((f.y-cy)+slope*(f.x-cx));
+                float xs=1.0-smoothstep(halfLen,halfLen+0.07,dx);
+                float ys=1.0-smoothstep(thick,thick+0.025,dy);
+                return xs*ys*step(density,r0);
             }
 
             half4 frag(Varyings i):SV_Target
@@ -99,18 +110,17 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 color=lerp(color,_ShallowColor.rgb,palePatch*0.27*pool);
                 color=lerp(color,_DeepColor.rgb,deepPatch*0.16*pool);
 
-                // Curved broken reflection ribbons advect in two directions.
-                float waveA=brokenWave(poolUvA,90.0,1.3);
-                float waveB=brokenWave(poolUvB+float2(0.05,-0.01),142.0,6.8);
-                float waveC=brokenWave(poolUvA+float2(-0.03,0.04),58.0,12.4);
-                float poolWhite=saturate((waveA*0.86+waveB*0.60+waveC*0.42)*pool);
-                color=lerp(color,_FoamColor.rgb,poolWhite*0.78);
+                // Independent moving reflection fragments with varied placement, length and tilt.
+                float marksA=brushMark(poolUvA,14.0,48.0,1.4,0.54);
+                float marksB=brushMark(poolUvB+float2(0.04,0.02),22.0,76.0,7.8,0.62);
+                float marksC=brushMark(poolUvA+float2(-0.06,0.03),9.0,34.0,16.2,0.58);
+                float poolWhite=saturate((marksA*0.82+marksB*0.68+marksC*0.48)*pool);
+                color=lerp(color,_FoamColor.rgb,poolWhite*0.80);
 
-                // Turquoise secondary ribbons keep the body painterly between white strokes.
-                float cyanWave=brokenWave(poolUvB+float2(0.09,0.02),73.0,18.7)*pool;
-                color=lerp(color,_ShallowColor.rgb,cyanWave*0.34);
+                // Secondary cyan fragments keep the water from becoming white-on-flat-blue.
+                float cyanMarks=brushMark(poolUvB+float2(0.08,-0.03),12.0,42.0,23.1,0.57)*pool;
+                color=lerp(color,_ShallowColor.rgb,cyanMarks*0.38);
 
-                // Waterfall sheets: fixed vertical channels, moving brightness down the channels.
                 float fallNoise=fbm(float2(fallUv.x*30.0+broadA*2.0,fallUv.y*8.0));
                 float ribs=pow(saturate(sin(uv.x*91.0+fallNoise*16.0)*0.5+0.5),5.2);
                 float thin=pow(saturate(sin(uv.x*166.0+detail*12.0)*0.5+0.5),8.5);
