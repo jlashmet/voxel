@@ -1,7 +1,7 @@
 {
   "name": "VoxelEngine.Net",
   "rootNamespace": "VoxelEngine.Net",
-  "references": ["VoxelEngine.Core", "Unity.Burst", "Unity.Collections", "Unity.Mathematics", "Unity.Networking.Transport"],
+  "references": ["VoxelEngine.Core", "VoxelEngine.Storage.Api", "Unity.Burst", "Unity.Collections", "Unity.Mathematics", "Unity.Networking.Transport"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": true,

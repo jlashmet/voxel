@@ -1,7 +1,7 @@
 {
   "name": "VoxelEngine.Rendering",
   "rootNamespace": "VoxelEngine.Rendering",
-  "references": ["VoxelEngine.Core", "VoxelEngine.Vegetation", "Unity.Burst", "Unity.Collections", "Unity.Mathematics", "VoxelEngine.Tiering", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Core.Runtime"],
+  "references": ["VoxelEngine.Core", "VoxelEngine.Storage.Api", "VoxelEngine.Vegetation", "Unity.Burst", "Unity.Collections", "Unity.Mathematics", "VoxelEngine.Tiering", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Core.Runtime"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": true,
