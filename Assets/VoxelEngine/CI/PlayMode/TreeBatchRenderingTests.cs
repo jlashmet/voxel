@@ -11,15 +11,14 @@ using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Performance/correctness contract for tree batching and damage. Healthy trees stay data-only.
-    /// First damage must punch only the affected tree out of its existing batch index buffers -- no
-    /// batch root or batch Mesh may be rebuilt. Severed trees must continue colliding with their
-    /// remaining stump until the root-most standing segment is removed.
+    /// Performance/correctness contract for GameObject-free standing-tree rendering. Healthy trees
+    /// stay data-only and spatially batched, damaged standing trees move to standalone GPU-submitted
+    /// meshes, and only detached physics debris may materialize GameObjects.
     /// </summary>
     public sealed class TreeBatchRenderingTests
     {
         [UnityTest]
-        public IEnumerator HealthyForest_BatchesVisibly_AndDamageReleasesOneTree()
+        public IEnumerator HealthyForest_UsesNoStandingTreeGameObjects_AndDamageReleasesOneTree()
         {
             try
             {
@@ -60,45 +59,27 @@ namespace VoxelEngine.CI
                 Assert.That(renderer.PresentationCount, Is.EqualTo(instances.Length));
                 Assert.That(renderer.BatchCount, Is.EqualTo(2));
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(instances.Length));
-                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0),
-                            "Healthy batched trees must not retain per-tree GameObjects.");
+                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0));
                 Assert.That(renderer.DynamicMeshCount, Is.EqualTo(0));
                 Assert.That(renderer.ResidentSkeletonCount, Is.EqualTo(0),
                             "Healthy batch construction must release streamed skeletons.");
                 Assert.That(renderer.PeakResidentSkeletonCountDuringLastRebuild,
                             Is.LessThanOrEqualTo(1));
-                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(6));
-                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(8));
+
+                // Each spatial batch owns LOD0/1/2 plus one ultra-far impostor mesh. None of those
+                // meshes require MeshRenderer, MeshFilter, LODGroup, or per-batch GameObjects.
+                Assert.That(renderer.BatchMeshCount, Is.EqualTo(8));
+                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(8));
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(0));
                 Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(4));
+                Assert.That(renderer.transform.childCount, Is.EqualTo(0),
+                            "Standing tree batches must not materialize child GameObjects.");
 
                 for (int i = 0; i < instances.Length; i++)
-                {
                     Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False);
-                    Assert.That(FindTreeRoot(renderer, i), Is.Null);
-                }
 
-                Transform touchedBatch = FindBatchRoot(renderer, new Vector2Int(0, 0));
-                Transform untouchedBatch = FindBatchRoot(renderer, new Vector2Int(1, 0));
-                Assert.That(touchedBatch, Is.Not.Null);
-                Assert.That(untouchedBatch, Is.Not.Null);
-
-                MeshFilter[] touchedFilters = touchedBatch.GetComponentsInChildren<MeshFilter>(true);
-                Assert.That(touchedFilters.Length, Is.EqualTo(3));
-                var touchedMeshes = new Mesh[3];
-                int touchedVertices = 0;
-                for (int i = 0; i < touchedFilters.Length; i++)
-                {
-                    touchedMeshes[i] = touchedFilters[i].sharedMesh;
-                    Assert.That(touchedMeshes[i], Is.Not.Null);
-                    Assert.That(touchedMeshes[i].subMeshCount, Is.EqualTo(2));
-                    touchedVertices += touchedMeshes[i].vertexCount;
-                }
-                Assert.That(touchedVertices, Is.GreaterThan(0),
-                            "Healthy batch exists but contains no real geometry.");
-
-                // Foliage damage alone is enough to release a tree from the static batch. This path
-                // used to synchronously rebuild all three meshes for every healthy neighbour in the
-                // same 32 m cell, producing visible frame hitches.
+                // Foliage damage releases exactly one tree from the static batch without rebuilding
+                // either batch. The damaged standing tree still remains GameObject-free.
                 TreeWorldState.SetDamage(0, 0.70f, false);
                 for (int frame = 0;
                      frame < 60 && (renderer.BatchedTreeCount != instances.Length - 1
@@ -108,36 +89,24 @@ namespace VoxelEngine.CI
                     yield return null;
 
                 Assert.That(renderer.BatchCount, Is.EqualTo(2));
+                Assert.That(renderer.BatchMeshCount, Is.EqualTo(8));
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(instances.Length - 1));
                 Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(1));
+                Assert.That(renderer.DynamicMeshCount, Is.EqualTo(4));
                 Assert.That(renderer.ResidentSkeletonCount, Is.EqualTo(1));
                 Assert.That(renderer.LastDamageBatchRebuildCount, Is.EqualTo(0),
                             "Runtime tree damage must never rebuild a spatial batch.");
                 Assert.That(renderer.LastDamageBatchReleaseCount, Is.EqualTo(1),
                             "Exactly the affected tree should be punched out of its batch.");
-
-                Transform preservedTouchedBatch = FindBatchRoot(renderer, new Vector2Int(0, 0));
-                Transform preservedUntouchedBatch = FindBatchRoot(renderer, new Vector2Int(1, 0));
-                Assert.That(object.ReferenceEquals(preservedTouchedBatch, touchedBatch), Is.True,
-                            "Damage replaced the touched batch root instead of updating its indices in place.");
-                Assert.That(object.ReferenceEquals(preservedUntouchedBatch, untouchedBatch), Is.True,
-                            "Damage touched an unrelated spatial batch.");
-
-                MeshFilter[] afterFilters = preservedTouchedBatch.GetComponentsInChildren<MeshFilter>(true);
-                Assert.That(afterFilters.Length, Is.EqualTo(3));
-                for (int i = 0; i < afterFilters.Length; i++)
-                    Assert.That(object.ReferenceEquals(afterFilters[i].sharedMesh, touchedMeshes[i]), Is.True,
-                                $"Damage rebuilt batch LOD{i} instead of retaining its Mesh buffer.");
-
-                Assert.That(renderer.TryGetDynamicPresentationRoot(0, out Transform damagedRoot), Is.True);
-                Assert.That(damagedRoot, Is.Not.Null);
-                Assert.That(damagedRoot.GetComponentsInChildren<MeshRenderer>(true).Length, Is.EqualTo(3));
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(0));
+                Assert.That(renderer.transform.childCount, Is.EqualTo(0),
+                            "Damaged standing trees must not materialize child GameObjects.");
+                Assert.That(renderer.TryGetDynamicPresentationRoot(0, out _), Is.False);
                 for (int i = 1; i < instances.Length; i++)
-                    Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False,
-                                $"Healthy neighbour {i} was unnecessarily materialized.");
+                    Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False);
 
-                // Gameplay broadphase and exact skeleton residency must remain bounded independently
-                // of renderer residency.
+                // Gameplay broadphase and skeleton residency stay bounded independently of renderer
+                // residency.
                 var sparseTrees = new TreeInstance[80];
                 for (int i = 0; i < sparseTrees.Length; i++)
                 {
@@ -177,7 +146,7 @@ namespace VoxelEngine.CI
 
                 // Regression for the immortal-stump bug. First sever the crown above the base, then
                 // prove the remaining lower trunk still participates in collision and can itself be
-                // destroyed. Once its root-most segment is cut, no semantic tree geometry may hit.
+                // destroyed. Fully removing the root must leave no standing GPU presentation.
                 var destructibleTree = new TreeInstance
                 {
                     PositionMetres = new float3(0f, 0f, 0f),
@@ -198,14 +167,12 @@ namespace VoxelEngine.CI
                 ProceduralTreeDamageService.ApplyBlast(
                     firstImpact, 0.10f, new float3(1f, 0f, 0f));
 
-                Assert.That(TreeWorldState.Damage[0].Severed, Is.True,
-                            "The first lower-trunk impact did not sever the crown.");
+                Assert.That(TreeWorldState.Damage[0].Severed, Is.True);
                 IReadOnlyCollection<int> firstCuts = TreeWorldState.RemovedBranches(0);
                 Assert.That(firstCuts.Count, Is.GreaterThan(0));
 
                 int stumpBranch = FindLowestStandingTrunkSegment(skeleton, firstCuts);
-                Assert.That(stumpBranch, Is.GreaterThanOrEqualTo(0),
-                            "Test sever unexpectedly removed the entire root; no stump remained to exercise.");
+                Assert.That(stumpBranch, Is.GreaterThanOrEqualTo(0));
                 TreeBranchSegment stump = skeleton.Branches[stumpBranch];
                 float3 stumpMid = destructibleTree.PositionMetres
                                 + (stump.Start + stump.End) * 0.5f;
@@ -213,8 +180,7 @@ namespace VoxelEngine.CI
                     stumpMid + new float3(-1.5f, 0f, 0f),
                     stumpMid + new float3(1.5f, 0f, 0f),
                     0.20f, out _, out int stumpTreeIndex);
-                Assert.That(stumpHit, Is.True,
-                            "A severed tree's visible stump became non-collidable.");
+                Assert.That(stumpHit, Is.True);
                 Assert.That(stumpTreeIndex, Is.EqualTo(0));
 
                 ProceduralTreeDamageService.ApplyBlast(
@@ -224,21 +190,18 @@ namespace VoxelEngine.CI
                 {
                     Assert.That(ProceduralTreeSkeletonBuilder.IsBranchRemoved(
                                     skeleton, finalCuts, branch), Is.True,
-                                $"Branch {branch} survived the root-most stump destruction.");
+                                $"Branch {branch} survived root-most stump destruction.");
                 }
 
                 bool ghostHit = ProceduralTreeDamageService.TrySweepImpact(
                     stumpMid + new float3(-1.5f, 0f, 0f),
                     stumpMid + new float3(1.5f, 0f, 0f),
                     0.20f, out _, out _);
-                Assert.That(ghostHit, Is.False,
-                            "Fully destroyed tree still has semantic collision after its root is gone.");
+                Assert.That(ghostHit, Is.False);
 
-                // Let presentation consume the final BranchCut. There should be no standing dynamic
-                // tree left; only temporary detached physics debris may remain.
                 for (int frame = 0; frame < 10; frame++) yield return null;
-                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0),
-                            "Fully destroyed root left a standing dynamic tree presentation.");
+                Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0));
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(0));
             }
             finally
             {
@@ -269,30 +232,6 @@ namespace VoxelEngine.CI
                 if (!ProceduralTreeSkeletonBuilder.IsBranchRemoved(skeleton, cuts, i)) return i;
             }
             return -1;
-        }
-
-        private static Transform FindBatchRoot(ProceduralTreeRenderer renderer, Vector2Int key)
-        {
-            string name = $"Tree Batch {key.x},{key.y}";
-            for (int i = 0; i < renderer.transform.childCount; i++)
-            {
-                Transform child = renderer.transform.GetChild(i);
-                if (!child.gameObject.activeInHierarchy) continue;
-                if (child.name == name) return child;
-            }
-            return null;
-        }
-
-        private static Transform FindTreeRoot(ProceduralTreeRenderer renderer, int index)
-        {
-            string prefix = $"Tree {index:000} ";
-            for (int i = 0; i < renderer.transform.childCount; i++)
-            {
-                Transform child = renderer.transform.GetChild(i);
-                if (!child.gameObject.activeInHierarchy) continue;
-                if (child.name.StartsWith(prefix)) return child;
-            }
-            return null;
         }
 
         private static ProceduralTreeRenderer FindRuntimeRenderer()
