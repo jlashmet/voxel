@@ -52,7 +52,6 @@ namespace VoxelEngine.Storage.Api
         private const int OccupancyWordsPerBlock = VoxelsPerBlock / 64;
         private const int RegionBlockEdgeLog2 = VoxelGrid.RegionVoxelEdgeLog2 - BlockEdgeLog2;
         private const int RegionBlockEdge = 1 << RegionBlockEdgeLog2;
-        private const int RegionBlockEdgeMask = RegionBlockEdge - 1;
 
         private readonly NativeArray<int> _encodedBlockRefs;
         private readonly NativeArray<ulong> _hardSurfaceWords;
@@ -231,9 +230,9 @@ namespace VoxelEngine.Storage.Api
 
             if (level < 0)
             {
-                if (!TryReadCell(localVoxel, out VoxelCell cell)) return false;
-                occupied = cell.IsSolid;
-                material = cell.BaseMaterialId;
+                if (!TryReadCell(localVoxel, out VoxelCell voxelCell)) return false;
+                occupied = voxelCell.IsSolid;
+                material = voxelCell.BaseMaterialId;
                 return true;
             }
 
@@ -259,10 +258,10 @@ namespace VoxelEngine.Storage.Api
             }
 
             if (!HasMips || level >= _mipLevelCount) return false;
-            int3 cell = localBlock >> level;
+            int3 mipCell = localBlock >> level;
             int edge = RegionBlockEdge >> level;
             int index = StoredMipLevelOffset(level)
-                      + cell.x + edge * (cell.y + edge * cell.z);
+                      + mipCell.x + edge * (mipCell.y + edge * mipCell.z);
             occupied = _occupancyMips[index] != 0UL;
             material = _materialMips[index];
             return true;
