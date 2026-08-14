@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-13 19:52:56Z" end-time="2026-08-13 19:53:06Z" duration="10.0397027">
+  <test-suite type="TestSuite" id="1175" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="121" result="Failed" site="Child" start-time="2026-08-13 19:52:56Z" end-time="2026-08-13 19:53:06Z" duration="10.039703" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1171" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 19:52:56Z" end-time="2026-08-13 19:53:06Z" duration="10.034834" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="34979" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1172" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 19:52:56Z" end-time="2026-08-13 19:53:06Z" duration="10.033912" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1173" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 19:52:56Z" end-time="2026-08-13 19:53:06Z" duration="10.033186" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1174" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 19:52:56Z" end-time="2026-08-13 19:53:06Z" duration="10.032463" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1153" name="ShowcasePerformanceTests" fullname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests" classname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-13 19:52:56Z" end-time="2026-08-13 19:53:06Z" duration="10.030595" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1154" name="FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls" fullname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests.FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls" methodname="FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls" classname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests" runstate="Runnable" seed="841101244" result="Failed" start-time="2026-08-13 19:52:56Z" end-time="2026-08-13 19:53:06Z" duration="10.025816" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="120000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Full showcase did not converge within 10 seconds: elapsed=10.01s frames=91 castle=44,367,415 castleRegions=9/9 castleStage=9 regionProgress=0.32 lastGenerate=4.90ms resident=289/2673 dirty=2384 visible=202 missing=516 jobs=8 sections.p95=prepare:8.65,journal:0.00,invalidate:0.00,discover:0.00,workers:8.45,rules:0.00,residency:0.03,capacity:0.00,select:0.10,visibility:0.55,snapshot:2.55,compact:1.70,merge:0.43,upload:0.30,queue:1065.81,build:75.38ms state=feature-aware resident=289/2673 dirty=2384 visible=202 missingVisible=516 jobs=8 prepare.p95=8.65ms discover.p95=0.00ms select.p95=0.10ms visibility.p95=0.55ms queue.p95=1065.8ms build.p95=75.4ms snapshot.p95=2.55ms compact.p95=1.70ms merge.p95=0.43ms upload.p95=0.30ms
+  Expected: True
+  But was:  False
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests+<FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls>d__0.MoveNext () [0x001af] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcasePerformanceTests.cs:58
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Procedural vegetation: worldgen published 30 semantic Showcase trees.
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

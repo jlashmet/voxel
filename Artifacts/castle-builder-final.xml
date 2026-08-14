@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="4" result="Passed" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.0542281">
+  <test-suite type="TestSuite" id="1000" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.054228" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1143" name="VoxelEngine.Tests.EditMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.EditMode.dll" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.050695" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="45186" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1144" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.050359" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1145" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.050053" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1146" name="EditMode" fullname="VoxelEngine.Tests.EditMode" runstate="Runnable" testcasecount="117" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.049634" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1010" name="CastleBuilderTests" fullname="VoxelEngine.Tests.EditMode.CastleBuilderTests" classname="VoxelEngine.Tests.EditMode.CastleBuilderTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.045513" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1014" name="BulkColumnPreservesNeighboursAndCollapsesUniformBricks" fullname="VoxelEngine.Tests.EditMode.CastleBuilderTests.BulkColumnPreservesNeighboursAndCollapsesUniformBricks" methodname="BulkColumnPreservesNeighboursAndCollapsesUniformBricks" classname="VoxelEngine.Tests.EditMode.CastleBuilderTests" runstate="Runnable" seed="1730033366" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.030614" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1011" name="PlanHeightMatchesItsFloorStack" fullname="VoxelEngine.Tests.EditMode.CastleBuilderTests.PlanHeightMatchesItsFloorStack" methodname="PlanHeightMatchesItsFloorStack" classname="VoxelEngine.Tests.EditMode.CastleBuilderTests" runstate="Runnable" seed="2054604036" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.000745" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1012" name="PlanIsApproximatelyDoubleTheFormerFootprintWithoutExceedingPreflightBudget" fullname="VoxelEngine.Tests.EditMode.CastleBuilderTests.PlanIsApproximatelyDoubleTheFormerFootprintWithoutExceedingPreflightBudget" methodname="PlanIsApproximatelyDoubleTheFormerFootprintWithoutExceedingPreflightBudget" classname="VoxelEngine.Tests.EditMode.CastleBuilderTests" runstate="Runnable" seed="2122344969" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.001815" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1013" name="SpiralStairUsesWalkableRisesAndMaintainsPlayerHeadroom" fullname="VoxelEngine.Tests.EditMode.CastleBuilderTests.SpiralStairUsesWalkableRisesAndMaintainsPlayerHeadroom" methodname="SpiralStairUsesWalkableRisesAndMaintainsPlayerHeadroom" classname="VoxelEngine.Tests.EditMode.CastleBuilderTests" runstate="Runnable" seed="368153609" result="Passed" start-time="2026-08-13 20:06:44Z" end-time="2026-08-13 20:06:44Z" duration="0.005833" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

@@ -217,64 +217,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                     BuildSelectionTiming, worker.BuildSelectionTiming);
             }
         }
-
-        internal VoxelSurfaceMetrics(GpuSurfaceChunkCache solids, int changeRecords,
-                                     int discoveredSurfaceBricks)
-            : this(solids, null, changeRecords, discoveredSurfaceBricks)
-        {
-        }
-
-        internal VoxelSurfaceMetrics(GpuSurfaceChunkCache coverage,
-                                     GpuSurfaceChunkCache detail,
-                                     int changeRecords, int discoveredSurfaceBricks)
-        {
-            ChangeRecords = changeRecords;
-            DiscoveredSurfaceBricks = discoveredSurfaceBricks;
-            SolidKnownChunks = coverage.KnownCount + (detail?.KnownCount ?? 0);
-            SolidResidentChunks = coverage.ResidentCount + (detail?.ResidentCount ?? 0);
-            SolidDirtyChunks = coverage.DirtyCount + (detail?.DirtyCount ?? 0);
-            WaterResidentChunks = 0;
-            WaterDirtyChunks = 0;
-            VisibleSolidChunks = coverage.Visible.Count + (detail?.Visible.Count ?? 0);
-            MissingVisibleSolidChunks = coverage.MissingVisibleCount;
-            VisibleDetailSolidChunks = detail?.Visible.Count ?? 0;
-            VisibleWaterChunks = 0;
-            CompletedSolidBuilds = (ulong)Math.Max(0,
-                coverage.ResidentCount + (detail?.ResidentCount ?? 0)
-              - coverage.DirtyCount - (detail?.DirtyCount ?? 0));
-            RejectedStaleSolidBuilds = 0;
-            CompletedWaterBuilds = 0;
-            RejectedStaleWaterBuilds = 0;
-            ResidentGeometryBytes = 0;
-            UploadedGeometryBytes = 0;
-            SolidDecorationClumps = 0;
-            SolidCapacityPressureEvents = 0;
-            RunningSolidJobs = 0;
-            SolidMeshesAwaitingUpload = 0;
-            LastSolidSnapshotMs = 0;
-            LastSolidTopologyCompactMs = 0;
-            LastSolidUploadMs = 0;
-            SchedulerPrepareTiming = default;
-            ChangeJournalTiming = default;
-            InvalidationTiming = default;
-            SurfaceDiscoveryTiming = default;
-            WorkerPrepareTiming = default;
-            VisibilityTiming = default;
-            SnapshotTiming = default;
-            DensityJobTurnaroundTiming = default;
-            TopologyJobTurnaroundTiming = default;
-            TopologyCompactTiming = default;
-            FacetedJobTurnaroundTiming = default;
-            FacetedMergeTiming = default;
-            ProfileEmitTiming = default;
-            UploadTiming = default;
-            QueueLatencyTiming = default;
-            BuildLatencyTiming = default;
-            RuleSyncTiming = default;
-            ResidencyPruneTiming = default;
-            CapacityTiming = default;
-            BuildSelectionTiming = default;
-        }
     }
 
     /// <summary>
@@ -299,8 +241,86 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         // Burst extraction without saturating the 16-core target as the 12-lane experiment did;
         // memory remains bounded by this constant rather than dirty or resident chunk count.
         public const int SolidWorkerCount = 8;
-        private readonly CpuTransvoxelChunkCache[] _solidWorkers =
-            new CpuTransvoxelChunkCache[SolidWorkerCount];
+
+        /// <summary>
+        /// One concentric LOD ring: a shard set that extracts at a fixed stride and serves a
+        /// radial band around the viewer.
+        ///
+        /// Ring N samples every <see cref="CpuTransvoxelChunkCache.SourceStep"/> voxels, so its
+        /// chunks span that many times more world while costing the same 64³ extraction. Chunk
+        /// coordinates are therefore ring-local: the same world position has a different chunk
+        /// coordinate in every ring, which is why each ring owns an independent cache rather
+        /// than sharing one keyed by coordinate.
+        /// </summary>
+        private sealed class SurfaceRing : IDisposable
+        {
+            public readonly int SourceStep;
+            public readonly float InnerRadiusMetres;
+            public readonly float OuterRadiusMetres;
+            public readonly CpuTransvoxelChunkCache[] Workers;
+
+            public SurfaceRing(int sourceStep, float innerRadiusMetres, float outerRadiusMetres,
+                               int maxResidentChunks)
+            {
+                SourceStep = sourceStep;
+                InnerRadiusMetres = innerRadiusMetres;
+                OuterRadiusMetres = outerRadiusMetres;
+                Workers = new CpuTransvoxelChunkCache[SolidWorkerCount];
+                for (int i = 0; i < Workers.Length; i++)
+                {
+                    Workers[i] = new CpuTransvoxelChunkCache(sourceStep)
+                    {
+                        ShardIndex = i,
+                        ShardCount = Workers.Length,
+                        MaxResidentChunks = maxResidentChunks / Workers.Length,
+                        // A ring only draws its own band. The inner cut is what prevents two
+                        // rings from both rendering the same terrain and z-fighting; the outer
+                        // cut is the ring's share of the total view distance.
+                        MinViewDistanceMetres = innerRadiusMetres,
+                        MaxViewDistanceMetres = outerRadiusMetres,
+                    };
+                }
+            }
+
+            public void Dispose()
+            {
+                for (int i = 0; i < Workers.Length; i++) Workers[i].Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Ring layout, in metres, for 10 cm voxels. Chunk edges are 6.4 m, 12.8 m, 25.6 m,
+        /// 51.2 m and 102.4 m respectively, so each ring covers roughly the same number of
+        /// chunks despite spanning far more world than the one inside it.
+        ///
+        /// The two innermost rings sample voxels directly and so require resident bricks. The
+        /// outer rings read the mip pyramid, which is what lets them cover ground the client
+        /// holds only as a coarse summary. See <see cref="VoxelMipSampler.LevelForStride"/>.
+        /// </summary>
+        private static readonly (int SourceStep, float Inner, float Outer)[] s_RingLayout =
+        {
+            (1, 0f, 96f),
+            (2, 96f, 192f),
+            (4, 192f, 288f),
+            (8, 288f, MaxVoxelRingRadiusMetres),
+        };
+
+        /// <summary>
+        /// Outer limit of voxel-meshed rings, in metres.
+        ///
+        /// A ring can only mesh chunks whose regions are resident, so this must not exceed the
+        /// streaming radius — roughly 410 m for the showcase's eight-region load radius. Rings
+        /// past it are pure waste: each one allocates eight shard caches with persistent scratch
+        /// and then finds nothing to build. Everything beyond this distance is drawn by the
+        /// analytic far-terrain clipmap, which needs no resident regions at all.
+        /// </summary>
+        public const float MaxVoxelRingRadiusMetres = 420f;
+        // Deliberately stops at 1600 m. A ring can only mesh regions that are resident, and a
+        // Region costs 1 MB of brick pointers whatever it contains, so covering 4 km with
+        // resident regions would run to gigabytes. Terrain beyond the streaming radius is drawn
+        // by VoxelFarTerrain from the same analytic height function instead — see its summary.
+
+        private readonly SurfaceRing[] _rings;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
         private readonly CpuWaterSurfaceChunkCache _water = new();
         private readonly List<VoxelChangeRecord> _changeScratch = new(256);
@@ -328,21 +348,29 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
         public VoxelSurfaceMetrics Metrics => new(
-            _solidWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
+            AllWorkers(), _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
             _visibleSolids.Count, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),
             _invalidationTiming.Snapshot(), _discoveryTiming.Snapshot(),
             _workerPrepareTiming.Snapshot(), _visibilityTiming.Snapshot());
 
+        /// <summary>Flattens every ring's shards for metric aggregation.</summary>
+        private CpuTransvoxelChunkCache[] AllWorkers()
+        {
+            var all = new CpuTransvoxelChunkCache[_rings.Length * SolidWorkerCount];
+            int n = 0;
+            for (int r = 0; r < _rings.Length; r++)
+                for (int i = 0; i < _rings[r].Workers.Length; i++)
+                    all[n++] = _rings[r].Workers[i];
+            return all;
+        }
+
         public VoxelSurfaceScheduler()
         {
-            for (int i = 0; i < _solidWorkers.Length; i++)
+            _rings = new SurfaceRing[s_RingLayout.Length];
+            for (int i = 0; i < s_RingLayout.Length; i++)
             {
-                _solidWorkers[i] = new CpuTransvoxelChunkCache
-                {
-                    ShardIndex = i,
-                    ShardCount = _solidWorkers.Length,
-                    MaxResidentChunks = 4096 / _solidWorkers.Length,
-                };
+                var layout = s_RingLayout[i];
+                _rings[i] = new SurfaceRing(layout.SourceStep, layout.Inner, layout.Outer, 4096);
             }
         }
 
@@ -429,11 +457,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             double invalidationStart = Time.realtimeSinceStartupAsDouble;
             using (s_InvalidationMarker.Auto())
             {
-                for (int i = 0; i < _solidWorkers.Length; i++)
-                    _solidWorkers[i].InvalidateDirtyRegions(_changedSolidRegions);
+                for (int r = 0; r < _rings.Length; r++)
+                for (int i = 0; i < _rings[r].Workers.Length; i++)
+                    _rings[r].Workers[i].InvalidateDirtyRegions(_changedSolidRegions);
                 _water.InvalidateDirtyRegions(_changedWaterRegions);
-                for (int i = 0; i < _solidWorkers.Length; i++)
-                    _solidWorkers[i].InvalidateSurfaceBricks(_changedBricks);
+                for (int r = 0; r < _rings.Length; r++)
+                for (int i = 0; i < _rings[r].Workers.Length; i++)
+                    _rings[r].Workers[i].InvalidateSurfaceBricks(_changedBricks);
                 _water.InvalidateSurfaceBricks(ref table, in pool, _changedWaterBricks);
             }
             _invalidationTiming.Add(ElapsedMs(invalidationStart));
@@ -451,19 +481,23 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             double workersStart = Time.realtimeSinceStartupAsDouble;
             double visibilityMs = 0.0;
             using var workersScope = s_WorkersMarker.Auto();
-            for (int i = 0; i < _solidWorkers.Length; i++)
+            for (int r = 0; r < _rings.Length; r++)
             {
-                CpuTransvoxelChunkCache worker = _solidWorkers[i];
-                worker.InvalidateSurfaceBricks(_discoveredSurfaceBricks);
-                worker.Prepare(ref table, in pool, in palette, in surfaceCatalogue,
-                               in coatingCatalogue, profileBlocks, camera, voxelSize, frame,
-                               workerBudget);
-                double visibilityStart = Time.realtimeSinceStartupAsDouble;
-                IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible;
-                using (s_VisibilityMarker.Auto())
-                    visible = worker.CollectVisible(camera, voxelSize, frame);
-                visibilityMs += ElapsedMs(visibilityStart);
-                for (int j = 0; j < visible.Count; j++) _visibleSolids.Add(visible[j]);
+                SurfaceRing ring = _rings[r];
+                for (int i = 0; i < ring.Workers.Length; i++)
+                {
+                    CpuTransvoxelChunkCache worker = ring.Workers[i];
+                    worker.InvalidateSurfaceBricks(_discoveredSurfaceBricks);
+                    worker.Prepare(ref table, in pool, in palette, in surfaceCatalogue,
+                                   in coatingCatalogue, profileBlocks, camera, voxelSize, frame,
+                                   workerBudget);
+                    double visibilityStart = Time.realtimeSinceStartupAsDouble;
+                    IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible;
+                    using (s_VisibilityMarker.Auto())
+                        visible = worker.CollectVisible(camera, voxelSize, frame);
+                    visibilityMs += ElapsedMs(visibilityStart);
+                    for (int j = 0; j < visible.Count; j++) _visibleSolids.Add(visible[j]);
+                }
             }
 
             _water.InvalidateSurfaceBricks(ref table, in pool, _discoveredSurfaceBricks);
@@ -510,7 +544,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public void Dispose()
         {
             _water.Dispose();
-            for (int i = 0; i < _solidWorkers.Length; i++) _solidWorkers[i].Dispose();
+            for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();
         }
 
         private static double ElapsedMs(double startSeconds) =>

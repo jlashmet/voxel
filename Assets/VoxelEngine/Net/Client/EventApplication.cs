@@ -86,23 +86,26 @@ namespace VoxelEngine.Net.Client
             ref RegionTable table,
             in BrickPool pool,
             in NativeArray<int3> affectedRegions,
-            int mipLevelCount,
-            NativeArray<ulong>[][] mipStorage)
+            int mipLevelCount)
         {
             // Batched mip rebuild over dirty regions (T026).
             //
-            // Region does not own its mip arrays — MipBuilder writes into caller-supplied
-            // storage, so mipStorage[i] holds the per-level arrays for affectedRegions[i].
+            // Each region owns its own flattened pyramid, so an edit refreshes storage that
+            // travels with the region and survives until the region itself is evicted. A
+            // region that has never had mips allocated gets them here on first touch.
             for (int i = 0; i < affectedRegions.Length; i++)
             {
                 var regionCoord = affectedRegions[i];
                 if (!table.TryGetRegion(regionCoord, out var region))
                     continue;
 
-                if (mipStorage == null || i >= mipStorage.Length || mipStorage[i] == null)
-                    continue;
+                if (!region.HasMips)
+                {
+                    region.AllocateMips(mipLevelCount, Allocator.Persistent);
+                    table.CommitRegion(in region);
+                }
 
-                MipBuilder.RebuildFull(in pool, region, mipLevelCount, mipStorage[i]);
+                MipBuilder.RebuildRegion(in pool, ref region);
             }
         }
 

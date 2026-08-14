@@ -29,7 +29,80 @@ namespace VoxelEngine.Core.Terrain
 
         /// <summary>Lowest and highest surface the sampler will return, in voxels.</summary>
         public const int MinHeight = 8;
-        public const int MaxHeight = 488;
+
+        /// <summary>
+        /// 6 km of relief at 10 cm voxels. The ceiling is not a region-layer limit: residency
+        /// follows the surface manifold rather than filling a vertical column, so height costs
+        /// generation work, not memory.
+        ///
+        /// Set deliberately above the tallest peak the octaves below can produce (~5 km). A
+        /// clamp that the terrain actually reaches would shear every summit into a flat mesa at
+        /// exactly one altitude, which reads as a bug from any distance.
+        /// </summary>
+        public const int MaxHeight = 60_000;
+
+        // -- mountains -------------------------------------------------------------
+        // Mountains are held away from the origin by a radial ramp. Without it the massif
+        // noise is stationary and spawn lands wherever it happens to fall, which is as likely
+        // to be a summit as a valley. The ramp guarantees a walkable basin at spawn and puts
+        // the range on the horizon where it can be seen.
+
+        /// <summary>Radius, in voxels, inside which no mountain relief is applied at all.</summary>
+        public const int ValleyRadius = 15_000;         // 1.5 km
+
+        /// <summary>Radius, in voxels, at which mountain relief reaches full amplitude.</summary>
+        public const int MountainFullRadius = 60_000;   // 6 km
+
+        /// <summary>
+        /// Fraction of full mountain amplitude at a column, in fixed point 0..1024.
+        /// Uses squared distance throughout so no square root — and therefore no float — is
+        /// needed (Constitution I).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int MountainMask(int worldX, int worldZ)
+        {
+            // Cheap axis rejection before any multiply. Every column the castle grades, and
+            // every column near spawn, lands here — HeightAt is called millions of times during
+            // a build, so the common case must not pay for the squared-distance test at all.
+            // Inside a half-radius box the farthest corner is 0.707r, safely within the valley.
+            const int half = ValleyRadius / 2;
+            if (worldX > -half && worldX < half && worldZ > -half && worldZ < half) return 0;
+
+            long dx = worldX;
+            long dz = worldZ;
+            long distanceSq = dx * dx + dz * dz;
+
+            const long innerSq = (long)ValleyRadius * ValleyRadius;
+            const long outerSq = (long)MountainFullRadius * MountainFullRadius;
+            if (distanceSq <= innerSq) return 0;
+            if (distanceSq >= outerSq) return 1024;
+
+            // Linear in distance, not in squared distance. Ramping on d² kept relief near
+            // zero for most of the approach — 2% at 1 km, 21% at 2 km — so the range only
+            // existed in a thin band at the very edge of view and read as no mountains at all.
+            // An integer square root keeps this exact and float-free.
+            long distance = IntegerSqrt(distanceSq);
+            long span = MountainFullRadius - ValleyRadius;
+            long t = ((distance - ValleyRadius) * 1024L) / span;
+            if (t < 0) t = 0;
+            if (t > 1024) t = 1024;
+            return (int)t;
+        }
+
+        /// <summary>Floor of the square root, by Newton iteration on integers.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static long IntegerSqrt(long value)
+        {
+            if (value <= 0) return 0;
+            long guess = value;
+            long next = (guess + 1) >> 1;
+            while (next < guess)
+            {
+                guess = next;
+                next = (guess + value / guess) >> 1;
+            }
+            return guess;
+        }
 
         /// <summary>
         /// Surface height in voxels at a world column.
@@ -41,6 +114,22 @@ namespace VoxelEngine.Core.Terrain
         public static int HeightAt(int worldX, int worldZ, uint seed)
         {
             int h = BaseHeight;
+
+            // Massif and ridge octaves, at kilometre wavelengths. These carry essentially all
+            // of the world's relief; the metre-scale octaves below only texture it.
+            int mask = MountainMask(worldX, worldZ);
+            if (mask > 0)
+            {
+                int massif = Octave(worldX, worldZ, 17, 85_000, seed ^ 0x4D4F554Eu);
+                int ridge = Octave(worldX, worldZ, 15, 28_000, seed ^ 0x52494447u);
+                int spur = Octave(worldX, worldZ, 13, 8_000, seed ^ 0x53505552u);
+                // Rectify the massif so basins between ranges stay flat instead of carving
+                // inverted valleys as deep as the peaks are tall.
+                if (massif < 0) massif = massif >> 3;
+                int relief = massif + ridge + spur;
+                h += (int)(((long)relief * mask) >> 10);
+            }
+
             h += Octave(worldX, worldZ, 9, 70, seed);
             h += Octave(worldX, worldZ, 7, 24, seed);
             h += Octave(worldX, worldZ, 5, 6, seed);

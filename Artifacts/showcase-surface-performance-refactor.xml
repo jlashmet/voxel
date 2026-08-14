@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-13 20:05:35Z" end-time="2026-08-13 20:05:37Z" duration="2.8475679">
+  <test-suite type="TestSuite" id="1175" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="121" result="Failed" site="Child" start-time="2026-08-13 20:05:35Z" end-time="2026-08-13 20:05:37Z" duration="2.847568" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1171" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 20:05:35Z" end-time="2026-08-13 20:05:37Z" duration="2.842925" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="45163" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1172" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 20:05:35Z" end-time="2026-08-13 20:05:37Z" duration="2.842213" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1173" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 20:05:35Z" end-time="2026-08-13 20:05:37Z" duration="2.841517" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1174" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 20:05:35Z" end-time="2026-08-13 20:05:37Z" duration="2.840917" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1151" name="ShowcaseSurfaceTests" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSurfaceTests" classname="VoxelEngine.Tests.PlayMode.ShowcaseSurfaceTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-13 20:05:35Z" end-time="2026-08-13 20:05:37Z" duration="2.839372" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1152" name="ShowcaseBuildsFeatureAwareSolidGeometry" fullname="VoxelEngine.Tests.PlayMode.ShowcaseSurfaceTests.ShowcaseBuildsFeatureAwareSolidGeometry" methodname="ShowcaseBuildsFeatureAwareSolidGeometry" classname="VoxelEngine.Tests.PlayMode.ShowcaseSurfaceTests" runstate="Runnable" seed="1852086894" result="Failed" start-time="2026-08-13 20:05:35Z" end-time="2026-08-13 20:05:37Z" duration="2.834935" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="120000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Feature-aware surface did not become visible: changes=0, surfaceBricks=0, known=0, resident=0, visible=0.
+  Expected: True
+  But was:  False
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcaseSurfaceTests+<ShowcaseBuildsFeatureAwareSolidGeometry>d__0.MoveNext () [0x00371] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcaseGpuSurfaceTests.cs:77
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Procedural vegetation: worldgen published 30 semantic Showcase trees.
+GPU test world: regions=3, pool=10688/262144, surfaceHash=10415817235113116559, coatingHash=11374064911005457386
+GPU surface frame 0: changes=0, surfaceBricks=0, known=0, resident=0, visible=0, missing=0, jobs=0, snapshot=0.00ms, compact=0.00ms, upload=0.00ms, enqueues=2, records=2, state=waiting-for-atomic-world
+GPU surface frame 30: changes=0, surfaceBricks=0, known=0, resident=0, visible=0, missing=0, jobs=0, snapshot=0.00ms, compact=0.00ms, upload=0.00ms, enqueues=37, records=37, state=waiting-for-atomic-world
+GPU surface frame 60: changes=0, surfaceBricks=0, known=0, resident=0, visible=0, missing=0, jobs=0, snapshot=0.00ms, compact=0.00ms, upload=0.00ms, enqueues=72, records=72, state=waiting-for-atomic-world
+GPU surface frame 90: changes=0, surfaceBricks=0, known=0, resident=0, visible=0, missing=0, jobs=0, snapshot=0.00ms, compact=0.00ms, upload=0.00ms, enqueues=107, records=107, state=waiting-for-atomic-world
+GPU surface frame 120: changes=0, surfaceBricks=0, known=0, resident=0, visible=0, missing=0, jobs=0, snapshot=0.00ms, compact=0.00ms, upload=0.00ms, enqueues=142, records=142, state=waiting-for-atomic-world
+GPU surface frame 150: changes=0, surfaceBricks=0, known=0, resident=0, visible=0, missing=0, jobs=0, snapshot=0.00ms, compact=0.00ms, upload=0.00ms, enqueues=177, records=177, state=waiting-for-atomic-world
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

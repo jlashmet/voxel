@@ -39,7 +39,27 @@ namespace VoxelEngine.Core.Storage
 
         public uint LastAccessTick;
 
+        /// <summary>
+        /// Occupancy pyramid for stored levels 1..<see cref="MipLevelCount"/>-1, flattened per
+        /// <see cref="Occupancy.RegionMipLayout"/>. Level 0 is derived from <see cref="BrickRefs"/>
+        /// rather than stored. Not created until <see cref="AllocateMips"/> runs, so a region
+        /// used purely for near-field collision costs nothing extra.
+        /// </summary>
+        public NativeArray<ulong> OccupancyMips;
+
+        /// <summary>
+        /// Representative material per mip cell, parallel to <see cref="OccupancyMips"/>.
+        /// Occupancy alone cannot be shaded; distant chunks read this to colour their surface.
+        /// </summary>
+        public NativeArray<byte> MaterialMips;
+
+        /// <summary>Number of pyramid levels, counting the derived level 0. Zero when absent.</summary>
+        public int MipLevelCount;
+
         public bool IsCreated => BrickRefs.IsCreated;
+
+        /// <summary>True once the mip pyramid has been allocated and built for this region.</summary>
+        public bool HasMips => OccupancyMips.IsCreated && MipLevelCount > 0;
 
         public Region(int3 coord, Allocator allocator)
         {
@@ -49,10 +69,45 @@ namespace VoxelEngine.Core.Storage
             Residency = RegionResidency.Cold;
             Dirty = false;
             LastAccessTick = 0;
+            OccupancyMips = default;
+            MaterialMips = default;
+            MipLevelCount = 0;
 
             var empty = BrickRef.Empty;
             for (var i = 0; i < VoxelDimensions.BricksPerRegion; i++)
                 BrickRefs[i] = empty;
+        }
+
+        /// <summary>
+        /// Allocates the flattened mip pyramid. Idempotent for a matching level count; a
+        /// differing count reallocates, because the layout offsets depend on it.
+        /// </summary>
+        public void AllocateMips(int levelCount, Allocator allocator)
+        {
+            if (levelCount < Occupancy.RegionMipLayout.FirstStoredLevel + 1
+                || levelCount > Occupancy.MipBuilder.MaxLevels)
+                throw new ArgumentOutOfRangeException(
+                    nameof(levelCount), levelCount,
+                    "Level count must leave at least one stored level and stay within "
+                  + $"MipBuilder.MaxLevels ({Occupancy.MipBuilder.MaxLevels}).");
+
+            if (HasMips && MipLevelCount == levelCount) return;
+            ReleaseMips();
+
+            int cells = Occupancy.RegionMipLayout.TotalStoredCells(levelCount);
+            OccupancyMips = new NativeArray<ulong>(cells, allocator);
+            MaterialMips = new NativeArray<byte>(cells, allocator);
+            MipLevelCount = levelCount;
+        }
+
+        /// <summary>Frees pyramid storage while leaving brick data intact.</summary>
+        public void ReleaseMips()
+        {
+            if (OccupancyMips.IsCreated) OccupancyMips.Dispose();
+            if (MaterialMips.IsCreated) MaterialMips.Dispose();
+            OccupancyMips = default;
+            MaterialMips = default;
+            MipLevelCount = 0;
         }
 
         /// <summary>Linear index of a brick from its coordinate within the region.</summary>
@@ -88,6 +143,7 @@ namespace VoxelEngine.Core.Storage
         public void Dispose()
         {
             if (BrickRefs.IsCreated) BrickRefs.Dispose();
+            ReleaseMips();
         }
     }
 }

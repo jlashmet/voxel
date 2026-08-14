@@ -101,8 +101,26 @@ namespace VoxelEngine.Rendering
         public static Vector3 SunDirection = new Vector3(-0.48f, 0.76f, -0.44f).normalized;
 
         // Bright open daylight: a pale, slightly hazy horizon under a saturated zenith.
-        public static Color SkyHorizon = new(0.66f, 0.75f, 0.85f);
-        public static Color SkyZenith = new(0.24f, 0.45f, 0.76f);
+        public static Color SkyHorizon = new(0.55f, 0.70f, 0.92f);
+        // A deeper, more saturated zenith. The previous value sat close enough to the
+        // horizon colour that the dome read as flat haze rather than sky.
+        public static Color SkyZenith = new(0.16f, 0.40f, 0.82f);
+
+        // -- clouds ---------------------------------------------------------------
+        /// <summary>Size of the cloud deck's cells. Larger values make smaller clouds.</summary>
+        public static float CloudScale = 0.55f;
+        /// <summary>Density threshold a cell must exceed to be cloud. Lower means more sky
+        /// covered; 0.5 is a broken fair-weather deck.</summary>
+        public static float CloudCoverage = 0.50f;
+        /// <summary>Drift rate across the deck, in arbitrary units per second.</summary>
+        public static float CloudDriftSpeed = 0.006f;
+        /// <summary>How strongly cloud replaces sky where it is present.</summary>
+        public static float CloudOpacity = 0.92f;
+        /// <summary>Sunlit cloud face.</summary>
+        public static Color CloudColour = new(1.00f, 0.99f, 0.97f);
+        /// <summary>Shaded underside. Kept blue-grey rather than neutral so cloud bases pick
+        /// up skylight instead of reading as dirty smudges.</summary>
+        public static Color CloudShadowColour = new(0.58f, 0.63f, 0.72f);
 
         /// <summary>
         /// Presentation lights consumed directly by the voxel surface shader. xyz is world metres

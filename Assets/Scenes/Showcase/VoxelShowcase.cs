@@ -52,11 +52,11 @@ namespace VoxelEngine.Showcase
 
         [Header("Streaming")]
         [Tooltip("Regions kept resident around the player. One region is 51.2 m across.")]
-        [SerializeField] private int m_LoadRadiusRegions = 3;
+        [SerializeField] private int m_LoadRadiusRegions = 8;
 
         [Tooltip("Regions evicted past this radius. The gap above the load radius is the " +
                  "hysteresis that stops a region thrashing on a boundary.")]
-        [SerializeField] private int m_UnloadRadiusRegions = 5;
+        [SerializeField] private int m_UnloadRadiusRegions = 11;
 
         [Tooltip("Milliseconds per frame spent generating terrain. Work resumes mid-region.")]
         [SerializeField] private float m_GenerateBudgetMs = 3f;
@@ -98,6 +98,7 @@ namespace VoxelEngine.Showcase
 
         private readonly List<TornadoShot> _tornadoes = new();
         private Material _tornadoMaterial;
+        private VoxelFarTerrain _farTerrain;
 
         private const float TornadoSpeed = 28f;
         private const float TornadoLifetime = 3f;
@@ -133,6 +134,15 @@ namespace VoxelEngine.Showcase
             VoxelRenderBridge.TerrainSeed = _world.Seed;
             VoxelRenderBridge.FarBaseHeight = ShowcaseWorld.BaseHeightVoxels;
             VoxelRenderBridge.FarFieldEnabled = true;
+
+            // Terrain past the streaming radius. The voxel world only makes a few hundred
+            // metres resident, so without this the mountains simply are not in the scene to be
+            // seen. Inner radius sits just inside the loaded region ring so the two overlap
+            // rather than leaving a gap at the handover.
+            float streamedMetres = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
+            _farTerrain = VoxelFarTerrain.Create(transform, m_Seed,
+                                                 streamedMetres * 0.85f, 12000f);
+            _farTerrain.Structures = _world.FarField;
             VoxelRenderBridge.Source = () => new VoxelWorldView
             {
                 Table = _world.Table,
@@ -235,6 +245,13 @@ namespace VoxelEngine.Showcase
                     ? Mathf.Max(m_GenerateBudgetMs, 12f) : m_GenerateBudgetMs;
                 _world.StepStreaming(transform.position, streamingBudget);
                 if (_world.CastleVoxels > 0) VoxelRenderBridge.SurfaceBuildEnabled = true;
+
+                // The far field's hole has to follow what streaming has actually finished, not
+                // the radius it was configured with. Set after StepStreaming so a region that
+                // completed this frame closes the gap on this frame rather than the next.
+                if (_farTerrain != null)
+                    _farTerrain.HoleRadiusMetres =
+                        _world.ResidentGroundRadiusMetres(transform.position);
             }
 
         }
