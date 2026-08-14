@@ -7,9 +7,13 @@ namespace VoxelEngine.Showcase
         private void LateUpdate()
         {
             Camera camera = SceneCamera;
-            camera.fieldOfView = 21.7f;
-            camera.transform.position = new Vector3(-0.59f, 23.10f, -20.0f);
-            camera.transform.LookAt(new Vector3(-0.52f, 2.30f, 12.15f));
+
+            // The old 21.7 degree telephoto framing compressed the valley into a top-down map.
+            // A moderately wider lens, lower camera and farther look target restore the strong
+            // foreground-to-distant-valley perspective visible in the reference.
+            camera.fieldOfView = 29.0f;
+            camera.transform.position = new Vector3(-0.7f, 18.8f, -18.5f);
+            camera.transform.LookAt(new Vector3(-0.1f, 2.4f, 18.5f));
         }
     }
 }
