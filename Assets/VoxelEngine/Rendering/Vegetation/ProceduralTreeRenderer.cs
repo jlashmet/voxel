@@ -120,8 +120,6 @@ namespace VoxelEngine.Rendering.Vegetation
         public int GeneratedMeshCount => DynamicMeshCount + BatchMeshCount;
         public long TotalTriangleCountAllLods { get; private set; }
 
-        // Standing tree render state has no persistent Unity render GameObjects. The single
-        // bootstrap MonoBehaviour is a system host, not a tree presentation object.
         public int ResidentRenderObjectCount => 0;
         public int EstimatedVisibleDrawCount => (DynamicPresentationCount + BatchCount) * 2;
         public int PeakResidentSkeletonCountDuringLastRebuild { get; private set; }
@@ -208,10 +206,6 @@ namespace VoxelEngine.Rendering.Vegetation
             DrawStandingTrees();
         }
 
-        /// <summary>
-        /// Kept only as a compatibility surface for older callers. Standing trees deliberately no
-        /// longer have presentation roots; detached limb presenters own the temporary physics GOs.
-        /// </summary>
         public bool TryGetDynamicPresentationRoot(int treeIndex, out Transform root)
         {
             root = null;
@@ -767,7 +761,9 @@ namespace VoxelEngine.Rendering.Vegetation
         {
             if (!TryCalculateLocalTreeBounds(skeleton, removedBranches, out Bounds bounds)) return;
 
-            float width = Mathf.Max(0.35f, Mathf.Max(bounds.size.x, bounds.size.z) * 1.12f);
+            // Keep the far card inside the semantic tree footprint. The prior 1.12x expansion
+            // exaggerated the crown at the LOD2->LOD3 handoff and caused a visible coverage pop.
+            float width = Mathf.Max(0.35f, Mathf.Max(bounds.size.x, bounds.size.z) * 0.96f);
             float height = Mathf.Max(0.6f, bounds.size.y);
             Vector3 centre = bounds.center + offset;
             float halfW = width * 0.5f;
@@ -979,7 +975,6 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private void DestroyBatchMeshes(BatchPresentation batch)
         {
-            if (batch == null) return;
             if (batch.LodMeshes != null)
             {
                 for (int lod = 0; lod < batch.LodMeshes.Length; lod++)
@@ -994,26 +989,25 @@ namespace VoxelEngine.Rendering.Vegetation
                 DestroyBatchMeshes(_batches[i]);
             _batches.Clear();
             _batchByKey.Clear();
-            for (int i = 0; i < _trees.Count; i++)
-                _trees[i].IsBatched = false;
             BatchedTreeCount = 0;
-            LastDamageBatchRebuildCount = 0;
-            LastDamageBatchReleaseCount = 0;
         }
 
         private void ClearGenerated()
         {
-            _pendingDynamicLods.Clear();
-            _dirtyTreeIndices.Clear();
-            ClearBatches();
             for (int i = 0; i < _trees.Count; i++)
                 DestroyStandalonePresentation(_trees[i]);
             _trees.Clear();
+            _pendingDynamicLods.Clear();
+            ClearBatches();
             DynamicPresentationCount = 0;
+            TotalTriangleCountAllLods = 0;
         }
 
         private void OnDestroy()
         {
+            TreeWorldState.SnapshotChanged -= OnSnapshotChanged;
+            TreeWorldState.BranchCut -= OnBranchCut;
+            TreeWorldState.DamageChanged -= OnDamageChanged;
             ClearGenerated();
             if (s_Instance == this) s_Instance = null;
         }
