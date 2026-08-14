@@ -163,6 +163,8 @@ namespace MountingForce.WorldGen.Voxel
                     x, y, z,
                     sx, sy, sz,
                     material,
+                    0,
+                    0,
                     (int)PrimitiveMode.Fill);
             }
 
