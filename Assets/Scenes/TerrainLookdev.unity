@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &593943469
+--- !u!1 &1789358213
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,9 +127,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 593943472}
-  - component: {fileID: 593943471}
-  - component: {fileID: 593943470}
+  - component: {fileID: 1789358216}
+  - component: {fileID: 1789358215}
+  - component: {fileID: 1789358214}
   m_Layer: 0
   m_Name: Terrain Lookdev Camera
   m_TagString: MainCamera
@@ -137,25 +137,25 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &593943470
+--- !u!114 &1789358214
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 593943469}
+  m_GameObject: {fileID: 1789358213}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9f3af2aa7d0f4fb6b4019f84a115bb21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VoxelEngine.Showcase::VoxelEngine.Showcase.TerrainLookdev
---- !u!20 &593943471
+--- !u!20 &1789358215
 Camera:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 593943469}
+  m_GameObject: {fileID: 1789358213}
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
@@ -200,13 +200,13 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
---- !u!4 &593943472
+--- !u!4 &1789358216
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 593943469}
+  m_GameObject: {fileID: 1789358213}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -219,4 +219,4 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 593943472}
+  - {fileID: 1789358216}
