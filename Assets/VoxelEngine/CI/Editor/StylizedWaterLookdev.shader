@@ -42,24 +42,24 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
             float fbm(float2 p){float v=0.0,a=0.5;[unroll]for(int k=0;k<5;k++){v+=noise(p)*a;p=p*2.03+float2(13.7,8.9);a*=0.5;}return v;}
             float boxMask(float2 uv,float2 c,float2 h,float f){float2 d=abs(uv-c)-h;return 1.0-smoothstep(-f,f,max(d.x,d.y));}
             float authoredFallMask(float2 uv){float f=0.0;f=max(f,boxMask(uv,float2(0.765,0.935),float2(0.075,0.060),0.014));f=max(f,boxMask(uv,float2(0.690,0.790),float2(0.075,0.075),0.016));f=max(f,boxMask(uv,float2(0.295,0.615),float2(0.070,0.075),0.016));f=max(f,boxMask(uv,float2(0.815,0.555),float2(0.030,0.040),0.012));return saturate(f);}
+            float authoredLipMask(float2 uv){float f=0.0;f=max(f,boxMask(uv,float2(0.765,0.978),float2(0.080,0.010),0.008));f=max(f,boxMask(uv,float2(0.690,0.845),float2(0.080,0.010),0.008));f=max(f,boxMask(uv,float2(0.295,0.667),float2(0.076,0.010),0.008));f=max(f,boxMask(uv,float2(0.815,0.586),float2(0.036,0.008),0.007));return saturate(f);}
             Varyings vert(Attributes input){Varyings o;o.positionCS=TransformObjectToHClip(input.positionOS.xyz);o.uv=TRANSFORM_TEX(input.uv,_ReferenceTex);return o;}
             float brushMark(float2 p,float sx,float sy,float seed,float density)
             {
                 float2 g=p*float2(sx,sy); float2 cell=floor(g); float2 f=frac(g);
                 float r0=hash21(cell+seed),r1=hash21(cell+seed+3.7),r2=hash21(cell+seed+9.3),r3=hash21(cell+seed+17.9),r4=hash21(cell+seed+27.1);
                 float cx=0.16+0.68*r1,cy=0.16+0.68*r2;
-                float halfLen=0.20+0.34*r3; float thick=0.050+0.055*r4;
-                float slope=(hash21(cell+seed+37.2)-0.5)*0.30;
+                float halfLen=0.14+0.31*r3; float thick=0.045+0.060*r4;
+                float slope=(hash21(cell+seed+37.2)-0.5)*0.34;
                 float dx=abs(f.x-cx); float dy=abs((f.y-cy)+slope*(f.x-cx));
-                float xs=1.0-smoothstep(halfLen,halfLen+0.08,dx); float ys=1.0-smoothstep(thick,thick+0.03,dy);
+                float xs=1.0-smoothstep(halfLen,halfLen+0.07,dx); float ys=1.0-smoothstep(thick,thick+0.03,dy);
                 return xs*ys*step(density,r0);
             }
-            float blockPatch(float2 p,float scale,float seed)
+            float mosaicTone(float2 p,float scale,float seed)
             {
-                float2 q=p*scale; float2 c=floor(q); float2 f=frac(q);
-                float h=hash21(c+seed); float inset=0.06+0.12*hash21(c+seed+5.7);
-                float core=(1.0-smoothstep(inset,inset+0.10,min(min(f.x,1.0-f.x),min(f.y,1.0-f.y))));
-                return step(0.50,h)*(1.0-core);
+                float2 q=float2(p.x+p.y*0.31,p.y-p.x*0.17)*scale;
+                float2 c=floor(q);
+                return hash21(c+seed);
             }
             half4 frag(Varyings i):SV_Target
             {
@@ -71,23 +71,23 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 float2 poolUvB=uv+float2(-time*0.050+sin(uv.y*7.0-time*1.2)*_FlowStrength*0.7,-time*0.009);
                 float2 fallUv=uv+float2(sin(uv.y*24.0+time*5.0)*_FlowStrength*0.8,time*0.64);
                 float broadA=fbm(poolUvA*float2(5.3,6.6)); float broadB=fbm(poolUvB*float2(8.4,10.2)+4.9); float detail=fbm(poolUvA*float2(23.0,25.0)+11.4);
-                float depth=saturate(0.12+(1.0-uv.y)*0.34+broadA*0.39-broadB*0.10);
-                half3 color=lerp(_ShallowColor.rgb,_MidColor.rgb,smoothstep(0.20,0.63,depth));
+                float depth=saturate(0.11+(1.0-uv.y)*0.33+broadA*0.38-broadB*0.10);
+                half3 color=lerp(_ShallowColor.rgb,_MidColor.rgb,smoothstep(0.19,0.62,depth));
                 color=lerp(color,_DeepColor.rgb,smoothstep(0.66,0.96,depth));
                 float palePatch=smoothstep(0.53,0.76,broadB+(detail-0.5)*0.22);
                 float deepPatch=smoothstep(0.58,0.82,broadA-(detail-0.5)*0.18);
                 color=lerp(color,_ShallowColor.rgb,palePatch*0.31*pool);
-                color=lerp(color,_DeepColor.rgb,deepPatch*0.22*pool);
-                float mosaicA=blockPatch(poolUvA,18.0,2.3)*pool; float mosaicB=blockPatch(poolUvB+0.07,26.0,12.1)*pool;
-                color=lerp(color,_ShallowColor.rgb,mosaicA*0.13);
-                color=lerp(color,_DeepColor.rgb,mosaicB*0.10);
-                float marksA=brushMark(poolUvA,10.0,33.0,1.4,0.70);
-                float marksB=brushMark(poolUvB+float2(0.04,0.02),15.0,46.0,7.8,0.77);
-                float marksC=brushMark(poolUvA+float2(-0.06,0.03),7.0,25.0,16.2,0.75);
-                float poolWhite=saturate((marksA*0.88+marksB*0.70+marksC*0.54)*pool);
-                color=lerp(color,_FoamColor.rgb,poolWhite*0.88);
-                float cyanMarks=brushMark(poolUvB+float2(0.08,-0.03),9.0,31.0,23.1,0.73)*pool;
-                color=lerp(color,_ShallowColor.rgb,cyanMarks*0.25);
+                color=lerp(color,_DeepColor.rgb,deepPatch*0.21*pool);
+                float mtA=mosaicTone(poolUvA,18.0,2.3); float mtB=mosaicTone(poolUvB+0.07,28.0,12.1);
+                color=lerp(color,_ShallowColor.rgb,step(0.68,mtA)*0.12*pool);
+                color=lerp(color,_DeepColor.rgb,step(0.78,mtB)*0.10*pool);
+                float marksA=brushMark(poolUvA,11.0,31.0,1.4,0.78);
+                float marksB=brushMark(poolUvB+float2(0.04,0.02),17.0,48.0,7.8,0.84);
+                float marksC=brushMark(poolUvA+float2(-0.06,0.03),8.0,23.0,16.2,0.82);
+                float poolWhite=saturate((marksA*0.92+marksB*0.72+marksC*0.58)*pool);
+                color=lerp(color,_FoamColor.rgb,poolWhite*0.90);
+                float fleck=brushMark(poolUvB+float2(0.08,-0.03),27.0,72.0,23.1,0.90)*pool;
+                color=lerp(color,_FoamColor.rgb,fleck*0.60);
                 float fallNoise=fbm(float2(fallUv.x*30.0+broadA*2.0,fallUv.y*8.0));
                 float ribs=pow(saturate(sin(uv.x*91.0+fallNoise*16.0)*0.5+0.5),5.0);
                 float thin=pow(saturate(sin(uv.x*166.0+detail*12.0)*0.5+0.5),8.0);
@@ -96,6 +96,9 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
                 float fallWhite=saturate((ribs*0.68+thin*0.38)*(0.60+downPulseA*0.38)+downPulseB*0.26);
                 color=lerp(color,_FoamColor.rgb,fall*fallWhite*0.84);
                 color=lerp(color,_DeepColor.rgb,fall*(1.0-fallWhite)*smoothstep(0.46,0.74,broadB)*0.29);
+                float lip=authoredLipMask(uv)*mask;
+                float lipBreak=0.68+0.32*smoothstep(0.35,0.65,fbm(float2(uv.x*38.0+time*0.8,uv.y*9.0)));
+                color=lerp(color,_FoamColor.rgb,lip*lipBreak*0.96);
                 float2 t=_ReferenceTex_TexelSize.xy*3.0;
                 half mUp=SAMPLE_TEXTURE2D(_ReferenceTex,sampler_ReferenceTex,uv+float2(0,t.y)).r;
                 half mDn=SAMPLE_TEXTURE2D(_ReferenceTex,sampler_ReferenceTex,uv-float2(0,t.y)).r;
