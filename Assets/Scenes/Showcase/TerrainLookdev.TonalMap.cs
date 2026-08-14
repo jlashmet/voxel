@@ -19,10 +19,11 @@ namespace VoxelEngine.Showcase
         {
             ConfigureTurfPresentation();
 
-            // The reference is lit from the side enough for every turf mound and limestone block
-            // to cast a readable value change. The previous almost-overhead sun flattened the
-            // scene and forced colour noise to do work that lighting should be doing.
-            VoxelRenderBridge.SunDirection = new Vector3(-0.54f, 0.76f, -0.34f).normalized;
+            // Directional sun creates readable hill/rock modelling while a warm, bright sky fill
+            // keeps the sunlit reference from collapsing into muddy olive shadows.
+            VoxelRenderBridge.SunDirection = new Vector3(-0.50f, 0.81f, -0.31f).normalized;
+            VoxelRenderBridge.SkyHorizon = new Color(1.00f, 0.93f, 0.62f, 1f);
+            VoxelRenderBridge.SkyZenith = new Color(0.88f, 0.87f, 0.58f, 1f);
 
             ApplyTonalOverlay();
             ApplyVisibleDetails();
@@ -38,24 +39,32 @@ namespace VoxelEngine.Showcase
             Vector4 grassSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 grassSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
 
-            // Quaternius-style nature scenes get their readability from clean clustered shapes,
-            // not per-pixel colour confetti. Keep three broad turf families, with enough value
-            // separation for depth but close enough that their boundaries still read as turf.
-            SetTurfPresentation(TerrainTurfNear, new Color(0.205f, 0.285f, 0.125f), grassSampling, grassSurface);
-            SetTurfPresentation(TerrainTurfMid,  new Color(0.335f, 0.405f, 0.175f), grassSampling, grassSurface);
-            SetTurfPresentation(TerrainTurfFar,  new Color(0.555f, 0.555f, 0.255f), grassSampling, grassSurface);
-            SetTurfPresentation(Mat.Grass,       new Color(0.315f, 0.390f, 0.165f), grassSampling, grassSurface);
-            SetTurfPresentation(Mat.Moss,        new Color(0.165f, 0.245f, 0.095f), grassSampling, grassSurface);
+            // Broad clean value families: dark mossy foreground, warm green middle distance,
+            // yellow-green sunlit far valley. Fine variation remains subtle and continuous.
+            SetTurfPresentation(TerrainTurfNear, new Color(0.225f, 0.315f, 0.130f), grassSampling, grassSurface);
+            SetTurfPresentation(TerrainTurfMid,  new Color(0.390f, 0.460f, 0.185f), grassSampling, grassSurface);
+            SetTurfPresentation(TerrainTurfFar,  new Color(0.620f, 0.610f, 0.275f), grassSampling, grassSurface);
+            SetTurfPresentation(Mat.Grass,       new Color(0.360f, 0.440f, 0.175f), grassSampling, grassSurface);
+            SetTurfPresentation(Mat.Moss,        new Color(0.175f, 0.260f, 0.095f), grassSampling, grassSurface);
 
-            // Warm pale limestone and muted path stone are major compositional masses in the
-            // reference. Keep production triplanar/normal sampling, but make the presentation
-            // clean enough that the rounded voxel geometry remains the dominant signal.
             SetMaterialPresentation(Mat.TerrainLimestone,
-                new Color(0.685f, 0.615f, 0.430f), 0.08f, 0.08f, 0.80f, 0.010f);
+                new Color(0.720f, 0.650f, 0.465f), 0.08f, 0.08f, 0.80f, 0.010f);
             SetMaterialPresentation(Mat.TerrainPathStone,
-                new Color(0.565f, 0.500f, 0.310f), 0.06f, 0.04f, 0.90f, 0.008f);
+                new Color(0.615f, 0.550f, 0.345f), 0.06f, 0.04f, 0.90f, 0.008f);
             SetMaterialPresentation(Mat.Sand,
-                new Color(0.515f, 0.475f, 0.265f), 0.05f, 0.03f, 0.92f, 0.006f);
+                new Color(0.545f, 0.505f, 0.285f), 0.05f, 0.03f, 0.92f, 0.006f);
+
+            // The semantic aliases for pink/blue/yellow came from unrelated structure materials;
+            // give them terrain-specific presentation here so flowers read as soft wildflowers
+            // rather than red cloth pixels, gold metal, or waterfall cyan.
+            SetMaterialPresentation(Mat.FlowerWhite,
+                new Color(0.965f, 0.940f, 0.790f), 0f, 0f, 0.88f, 0f);
+            SetMaterialPresentation(Mat.FlowerYellow,
+                new Color(0.950f, 0.790f, 0.180f), 0f, 0f, 0.88f, 0f);
+            SetMaterialPresentation(Mat.FlowerPink,
+                new Color(0.950f, 0.580f, 0.640f), 0f, 0f, 0.88f, 0f);
+            SetMaterialPresentation(Mat.FlowerBlue,
+                new Color(0.560f, 0.760f, 0.820f), 0f, 0f, 0.88f, 0f);
         }
 
         private static void SetTurfPresentation(byte material, Color colour, Vector4 sampling, Vector4 surface)
@@ -88,10 +97,7 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _tonalOverlayApplied) return;
 
-            // This pass is deliberately presentation-only now. The old version raised the final
-            // ground by up to seven voxels AFTER rocks, path stones and flowers were authored,
-            // burying much of the actual detail we wanted to see. Macro geometry belongs in the
-            // base height field, before props are placed.
+            // Presentation-only: do not raise ground after path/rocks have already been authored.
             var writer = new VoxelBrush(_table, _pool, in _palette, 900_000);
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
@@ -120,9 +126,6 @@ namespace VoxelEngine.Showcase
         {
             float depth = math.saturate((z + 70f) / 630f);
 
-            // Coherent domain-warped bands create broad ecological fields. Crucially, material
-            // choice is NOT independently hashed per voxel; that was the source of the noisy
-            // carpet in run 63.
             float warpX = math.sin(z * 0.025f + 0.7f) * 11.0f
                         + math.sin(z * 0.011f - 1.3f) * 7.0f;
             float warpZ = math.sin(x * 0.022f - 1.1f) * 12.0f
