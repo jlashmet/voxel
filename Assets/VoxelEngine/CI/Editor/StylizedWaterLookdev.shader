@@ -2,15 +2,12 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
 {
     Properties
     {
-        _DeepColor ("Deep Color", Color) = (0.02,0.34,0.58,1)
-        _MidColor ("Mid Color", Color) = (0.03,0.68,0.88,1)
-        _ShallowColor ("Shallow Color", Color) = (0.36,0.90,0.98,1)
+        _ReferenceTex ("Reference Water", 2D) = "white" {}
         _FoamColor ("Foam Color", Color) = (0.94,0.99,1,1)
-        _FlowSpeed ("Flow Speed", Float) = 0.35
-        _WaveScale ("Wave Scale", Float) = 10
-        _FoamAmount ("Foam Amount", Range(0,1)) = 0
-        _FlowMode ("Flow Mode", Range(0,1)) = 0
-        _Phase ("Phase", Float) = 0
+        _FlowSpeed ("Flow Speed", Float) = 0.25
+        _FlowStrength ("Flow Strength", Range(0,0.02)) = 0.002
+        _Shimmer ("Shimmer", Range(0,1)) = 0.28
+        _EdgeFoam ("Edge Foam", Range(0,1)) = 0.38
         _Alpha ("Alpha", Range(0,1)) = 1
     }
 
@@ -23,7 +20,7 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
 
         Pass
         {
-            Name "StylizedWater"
+            Name "StylizedReferenceWater"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
@@ -33,27 +30,25 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
             {
                 float4 positionOS : POSITION;
                 float2 uv : TEXCOORD0;
-                float4 color : COLOR;
             };
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
-                float4 color : COLOR;
-                float2 worldXY : TEXCOORD1;
             };
 
+            TEXTURE2D(_ReferenceTex);
+            SAMPLER(sampler_ReferenceTex);
+
             CBUFFER_START(UnityPerMaterial)
-                float4 _DeepColor;
-                float4 _MidColor;
-                float4 _ShallowColor;
+                float4 _ReferenceTex_ST;
+                float4 _ReferenceTex_TexelSize;
                 float4 _FoamColor;
                 float _FlowSpeed;
-                float _WaveScale;
-                float _FoamAmount;
-                float _FlowMode;
-                float _Phase;
+                float _FlowStrength;
+                float _Shimmer;
+                float _EdgeFoam;
                 float _Alpha;
             CBUFFER_END
 
@@ -78,59 +73,62 @@ Shader "Hidden/VoxelEngine/StylizedWaterLookdev"
 
             float fbm(float2 p)
             {
-                float v = 0;
-                float a = 0.5;
-                [unroll] for (int i = 0; i < 4; i++)
+                float value = 0.0;
+                float amp = 0.5;
+                [unroll] for (int k = 0; k < 4; k++)
                 {
-                    v += valueNoise(p) * a;
+                    value += valueNoise(p) * amp;
                     p = p * 2.03 + float2(17.1, 9.2);
-                    a *= 0.5;
+                    amp *= 0.5;
                 }
-                return v;
+                return value;
             }
 
             Varyings vert(Attributes input)
             {
                 Varyings o;
-                VertexPositionInputs pos = GetVertexPositionInputs(input.positionOS.xyz);
-                o.positionCS = pos.positionCS;
-                o.uv = input.uv;
-                o.color = input.color;
-                o.worldXY = pos.positionWS.xy;
+                o.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                o.uv = TRANSFORM_TEX(input.uv, _ReferenceTex);
                 return o;
             }
 
             half4 frag(Varyings i) : SV_Target
             {
-                float t = _Time.y * _FlowSpeed + _Phase;
                 float2 uv = i.uv;
+                float time = _Time.y * _FlowSpeed;
 
-                float2 dirA = lerp(float2(0.7, 0.25), float2(0.08, -1.35), _FlowMode);
-                float2 dirB = lerp(float2(-0.35, 0.62), float2(-0.12, -0.78), _FlowMode);
-                float n1 = fbm((uv + dirA * t) * _WaveScale);
-                float n2 = fbm((uv * 1.73 + dirB * t + 7.13) * (_WaveScale * 0.72));
-                float waves = saturate(n1 * 0.62 + n2 * 0.38);
+                // Two counter-moving procedural flow fields. The displacement is deliberately
+                // subtle so the authored silhouette stays locked while the interior feels alive.
+                float nA = fbm(uv * float2(12.0, 18.0) + float2(time * 0.31, -time * 0.62));
+                float nB = fbm(uv * float2(21.0, 9.0) + float2(-time * 0.47, time * 0.23) + 7.13);
+                float2 flow = float2(nA - 0.5, nB - 0.5) * _FlowStrength;
 
-                float band = smoothstep(0.18, 0.82, waves + (uv.y - 0.5) * 0.18);
-                band = floor(band * 4.0) / 3.0;
-                float3 col = lerp(_DeepColor.rgb, _MidColor.rgb, saturate(band * 1.25));
-                col = lerp(col, _ShallowColor.rgb, smoothstep(0.58, 0.92, waves));
+                half4 authored = SAMPLE_TEXTURE2D(_ReferenceTex, sampler_ReferenceTex, saturate(uv + flow));
+                half baseAlpha = SAMPLE_TEXTURE2D(_ReferenceTex, sampler_ReferenceTex, uv).a;
+                clip(baseAlpha - 0.001h);
 
-                float streakCoord = lerp(uv.x + uv.y * 0.24, uv.x * 0.45 + uv.y * 2.2, _FlowMode);
-                float streak = sin(streakCoord * 31.0 + n1 * 5.0 - t * lerp(2.2, 8.0, _FlowMode));
-                streak = pow(saturate(streak * 0.5 + 0.5), 8.0);
-                float sparkle = pow(saturate(sin((uv.x * 1.7 - uv.y) * 22.0 + n2 * 7.0 + t * 1.3) * 0.5 + 0.5), 14.0);
-                col += (_ShallowColor.rgb * 0.52) * streak;
-                col += (_FoamColor.rgb * 0.32) * sparkle;
+                float2 texel = _ReferenceTex_TexelSize.xy * 1.7;
+                half aL = SAMPLE_TEXTURE2D(_ReferenceTex, sampler_ReferenceTex, uv + float2(-texel.x, 0)).a;
+                half aR = SAMPLE_TEXTURE2D(_ReferenceTex, sampler_ReferenceTex, uv + float2( texel.x, 0)).a;
+                half aD = SAMPLE_TEXTURE2D(_ReferenceTex, sampler_ReferenceTex, uv + float2(0, -texel.y)).a;
+                half aU = SAMPLE_TEXTURE2D(_ReferenceTex, sampler_ReferenceTex, uv + float2(0,  texel.y)).a;
+                half neighbor = min(min(aL, aR), min(aD, aU));
+                half edge = saturate((baseAlpha - neighbor) * 4.0h);
 
-                float foamNoise = fbm(float2(uv.x * 13.0 + t * 0.35, uv.y * 9.0 - t * 0.62) + _Phase * 3.1);
-                float foamMask = smoothstep(0.42, 0.67, foamNoise + i.color.r * 0.42);
-                float foam = saturate(_FoamAmount * foamMask);
-                col = lerp(col, _FoamColor.rgb, foam);
+                // Stylized sparkle bands: short, high-frequency highlights that travel across
+                // the authored cyan texture without flattening its painted detail.
+                float waveA = sin((uv.x * 1.9 - uv.y * 0.7) * 76.0 + nA * 8.0 + time * 2.4);
+                float waveB = sin((uv.x * 0.8 + uv.y * 1.6) * 49.0 + nB * 6.0 - time * 1.7);
+                float sparkle = pow(saturate(waveA * 0.5 + 0.5), 18.0) * 0.68
+                              + pow(saturate(waveB * 0.5 + 0.5), 22.0) * 0.32;
 
-                float alpha = _Alpha * i.color.a;
-                alpha *= lerp(1.0, smoothstep(0.25, 0.52, foamNoise + 0.22), _FoamAmount * 0.82);
-                return half4(col, alpha);
+                half3 color = authored.rgb;
+                color += _FoamColor.rgb * sparkle * _Shimmer * saturate(baseAlpha * 1.2);
+                color = lerp(color, _FoamColor.rgb, edge * _EdgeFoam);
+
+                // Preserve the reference alpha exactly. Motion only affects interior color,
+                // preventing the waterfall/pool silhouette from swimming or growing halos.
+                return half4(color, baseAlpha * _Alpha);
             }
             ENDHLSL
         }
