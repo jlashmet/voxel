@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -10,11 +9,8 @@ namespace VoxelEngine.CI
     {
         private const int Width = 1024;
         private const int Height = 1536;
-
-        // 512x768 one-bit silhouette extracted from the approved water reference.
-        // Keeping shape data separate from shading lets the shader animate/interpolate
-        // without destroying the authored waterfall and pool silhouette.
-        private const string MaskBase64 = "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";
+        private const int MaskWidth = 512;
+        private const int MaskHeight = 768;
 
         public static void Run()
         {
@@ -36,52 +32,43 @@ namespace VoxelEngine.CI
                 if (shader == null)
                     throw new InvalidOperationException("StylizedWaterLookdev shader was not found.");
 
-                maskTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false, false)
-                {
-                    name = "Authored Water Silhouette",
-                    wrapMode = TextureWrapMode.Clamp,
-                    filterMode = FilterMode.Bilinear
-                };
-                if (!ImageConversion.LoadImage(maskTexture, Convert.FromBase64String(MaskBase64), false))
-                    throw new InvalidOperationException("Could not decode the authored water silhouette.");
-                maskTexture.wrapMode = TextureWrapMode.Clamp;
-                maskTexture.filterMode = FilterMode.Bilinear;
-
+                maskTexture = BuildReferenceLikeMask();
                 material = new Material(shader) { name = "AAA Stylized Water Material" };
                 material.SetTexture("_ReferenceTex", maskTexture);
-                material.SetColor("_DeepColor", new Color(0.025f, 0.33f, 0.55f, 1f));
-                material.SetColor("_MidColor", new Color(0.025f, 0.68f, 0.88f, 1f));
-                material.SetColor("_ShallowColor", new Color(0.31f, 0.89f, 0.98f, 1f));
-                material.SetColor("_FoamColor", new Color(0.95f, 0.995f, 1f, 1f));
-                material.SetFloat("_FlowSpeed", 0.28f);
-                material.SetFloat("_FlowStrength", 0.0035f);
-                material.SetFloat("_Shimmer", 0.28f);
-                material.SetFloat("_EdgeFoam", 0.58f);
-                material.SetFloat("_Alpha", 1f);
+                material.SetColor("_DeepColor", new Color(0.018f, 0.30f, 0.56f, 1f));
+                material.SetColor("_MidColor", new Color(0.02f, 0.66f, 0.88f, 1f));
+                material.SetColor("_ShallowColor", new Color(0.31f, 0.90f, 0.99f, 1f));
+                material.SetColor("_FoamColor", new Color(0.96f, 0.995f, 1f, 1f));
+                material.SetFloat("_TimeOffset", 1.75f);
+                material.SetFloat("_FoamWidth", 0.12f);
+                material.SetFloat("_FlowStrength", 0.55f);
+                material.SetFloat("_SparkleStrength", 0.18f);
 
-                mesh = BuildFullFrameQuad();
-                quad = new GameObject("Reference Locked Stylized Water");
-                quad.AddComponent<MeshFilter>().sharedMesh = mesh;
-                quad.AddComponent<MeshRenderer>().sharedMaterial = material;
+                quad = new GameObject("Water Lookdev Quad");
+                mesh = BuildQuadMesh();
+                var filter = quad.AddComponent<MeshFilter>();
+                filter.sharedMesh = mesh;
+                var renderer = quad.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = material;
 
-                cameraObject = new GameObject("Water Study Camera");
+                cameraObject = new GameObject("Water Lookdev Camera");
                 Camera camera = cameraObject.AddComponent<Camera>();
                 camera.enabled = false;
                 camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
+                camera.backgroundColor = new Color(0.86f, 0.94f, 0.91f, 1f);
                 camera.allowHDR = false;
                 camera.allowMSAA = true;
                 camera.orthographic = true;
-                camera.orthographicSize = 11.25f;
+                camera.orthographicSize = 1f;
                 camera.nearClipPlane = 0.1f;
-                camera.farClipPlane = 50f;
-                camera.transform.position = new Vector3(0f, 0f, -10f);
+                camera.farClipPlane = 10f;
+                camera.transform.position = new Vector3(0f, 0f, -2f);
                 camera.transform.rotation = Quaternion.identity;
 
                 target = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32)
                 {
-                    name = "Water Study Render",
-                    antiAliasing = 4
+                    antiAliasing = 4,
+                    name = "Water Study Target"
                 };
                 target.Create();
                 camera.targetTexture = target;
@@ -104,12 +91,12 @@ namespace VoxelEngine.CI
                 }
 
                 File.WriteAllText(Path.Combine(outputDirectory, "water-study.txt"),
-                    "target=Sunlit Cleric extracted water silhouette\n" +
-                    "shape=reference locked 512x768 authored mask\n" +
-                    "shader=dual flow noise; stepped cyan depth bands; vertical waterfall streaks; shimmer; broken edge foam\n" +
-                    "background=transparent\n" +
+                    "target=Sunlit Cleric waterfall water\n" +
+                    "mask=procedural authored terraces + narrow falls\n" +
+                    "shader=layered stylized cyan water with foam, flow and sparkle\n" +
                     $"size={Width}x{Height}\n");
-                Debug.Log("Reference-locked stylized water written to " + outputDirectory);
+
+                Debug.Log($"Water study written to {outputDirectory}");
             }
             catch (Exception exception)
             {
@@ -120,7 +107,11 @@ namespace VoxelEngine.CI
             finally
             {
                 if (capture != null) UnityEngine.Object.DestroyImmediate(capture);
-                if (target != null) { target.Release(); UnityEngine.Object.DestroyImmediate(target); }
+                if (target != null)
+                {
+                    target.Release();
+                    UnityEngine.Object.DestroyImmediate(target);
+                }
                 if (cameraObject != null) UnityEngine.Object.DestroyImmediate(cameraObject);
                 if (quad != null) UnityEngine.Object.DestroyImmediate(quad);
                 if (mesh != null) UnityEngine.Object.DestroyImmediate(mesh);
@@ -131,24 +122,94 @@ namespace VoxelEngine.CI
             EditorApplication.Exit(0);
         }
 
-        private static Mesh BuildFullFrameQuad()
+        private static Texture2D BuildReferenceLikeMask()
         {
-            const float halfHeight = 11.25f;
-            const float halfWidth = 7.5f;
-            Mesh mesh = new Mesh { name = "Full Frame Water Quad" };
+            var texture = new Texture2D(MaskWidth, MaskHeight, TextureFormat.RGBA32, false, true)
+            {
+                name = "Procedural Authored Water Silhouette",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+
+            Color32[] pixels = new Color32[MaskWidth * MaskHeight];
+            for (int y = 0; y < MaskHeight; y++)
+            {
+                float v = (y + 0.5f) / MaskHeight;
+                for (int x = 0; x < MaskWidth; x++)
+                {
+                    float u = (x + 0.5f) / MaskWidth;
+                    float mask = 0f;
+
+                    mask = Mathf.Max(mask, Ellipse(u, v, 0.68f, 0.83f, 0.19f, 0.075f, 0.08f));
+                    mask = Mathf.Max(mask, Ellipse(u, v, 0.60f, 0.68f, 0.23f, 0.085f, -0.05f));
+                    mask = Mathf.Max(mask, Ellipse(u, v, 0.50f, 0.51f, 0.29f, 0.10f, 0.05f));
+                    mask = Mathf.Max(mask, Ellipse(u, v, 0.44f, 0.33f, 0.35f, 0.12f, -0.06f));
+                    mask = Mathf.Max(mask, Ellipse(u, v, 0.55f, 0.13f, 0.43f, 0.13f, 0.02f));
+
+                    mask = Mathf.Max(mask, Capsule(u, v, 0.65f, 0.765f, 0.61f, 0.735f, 0.055f));
+                    mask = Mathf.Max(mask, Capsule(u, v, 0.58f, 0.63f, 0.53f, 0.57f, 0.07f));
+                    mask = Mathf.Max(mask, Capsule(u, v, 0.50f, 0.45f, 0.46f, 0.39f, 0.082f));
+                    mask = Mathf.Max(mask, Capsule(u, v, 0.67f, 0.29f, 0.64f, 0.23f, 0.045f));
+
+                    mask *= 1f - 0.95f * Ellipse(u, v, 0.36f, 0.51f, 0.11f, 0.045f, 0.1f);
+                    mask *= 1f - 0.90f * Ellipse(u, v, 0.72f, 0.34f, 0.12f, 0.05f, -0.2f);
+                    mask *= 1f - 0.88f * Ellipse(u, v, 0.30f, 0.14f, 0.14f, 0.055f, 0.1f);
+
+                    float n = Mathf.PerlinNoise(u * 19.0f + 3.1f, v * 23.0f + 7.3f);
+                    float edge = Mathf.SmoothStep(0.42f, 0.62f, n);
+                    mask *= Mathf.Lerp(0.82f, 1f, edge);
+
+                    byte a = (byte)Mathf.RoundToInt(Mathf.Clamp01(mask) * 255f);
+                    pixels[y * MaskWidth + x] = new Color32(a, a, a, a);
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(false, false);
+            return texture;
+        }
+
+        private static float Ellipse(float u, float v, float cx, float cy, float rx, float ry, float rot)
+        {
+            float c = Mathf.Cos(rot);
+            float s = Mathf.Sin(rot);
+            float dx = u - cx;
+            float dy = v - cy;
+            float x = (dx * c - dy * s) / rx;
+            float y = (dx * s + dy * c) / ry;
+            float d = Mathf.Sqrt(x * x + y * y);
+            return 1f - Mathf.SmoothStep(0.88f, 1.02f, d);
+        }
+
+        private static float Capsule(float u, float v, float ax, float ay, float bx, float by, float radius)
+        {
+            Vector2 p = new Vector2(u, v);
+            Vector2 a = new Vector2(ax, ay);
+            Vector2 b = new Vector2(bx, by);
+            Vector2 ab = b - a;
+            float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(0.0001f, Vector2.Dot(ab, ab)));
+            float d = Vector2.Distance(p, a + ab * t) / radius;
+            return 1f - Mathf.SmoothStep(0.82f, 1.04f, d);
+        }
+
+        private static Mesh BuildQuadMesh()
+        {
+            var mesh = new Mesh { name = "Water Lookdev Quad Mesh" };
             mesh.vertices = new[]
             {
-                new Vector3(-halfWidth, -halfHeight, 0f),
-                new Vector3( halfWidth, -halfHeight, 0f),
-                new Vector3( halfWidth,  halfHeight, 0f),
-                new Vector3(-halfWidth,  halfHeight, 0f)
+                new Vector3(-2f / 3f, -1f, 0f),
+                new Vector3( 2f / 3f, -1f, 0f),
+                new Vector3(-2f / 3f,  1f, 0f),
+                new Vector3( 2f / 3f,  1f, 0f),
             };
             mesh.uv = new[]
             {
-                new Vector2(0f, 0f), new Vector2(1f, 0f),
-                new Vector2(1f, 1f), new Vector2(0f, 1f)
+                new Vector2(0f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(0f, 1f),
+                new Vector2(1f, 1f),
             };
-            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            mesh.triangles = new[] { 0, 2, 1, 2, 3, 1 };
             mesh.RecalculateBounds();
             return mesh;
         }
