@@ -13,6 +13,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeDistrictTerraceCatalogue.Build(seed, settings, Allocator.Temp),
+                KentridgeTerraceSurfaceCorrectionCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeProcessionalClimbCatalogue.Build(seed, settings, Allocator.Temp),
                 KentridgeUrbanCirculationCatalogue.Build(seed, settings, Allocator.Temp),
