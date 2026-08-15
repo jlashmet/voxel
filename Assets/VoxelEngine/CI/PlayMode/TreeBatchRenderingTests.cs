@@ -100,7 +100,7 @@ namespace VoxelEngine.CI
                 // Foliage damage alone is enough to release a tree from the static batch. This path
                 // used to synchronously rebuild all three meshes for every healthy neighbour in the
                 // same 32 m cell, producing visible frame hitches.
-                TreeWorldRuntime.SetDamage(0, 0.70f, false);
+                TreeWorldRuntime.SetDamage(0, 0.70f, false, float3.zero, float3.zero, -1);
                 for (int frame = 0;
                      frame < 60 && (renderer.BatchedTreeCount != instances.Length - 1
                                     || renderer.DynamicPresentationCount != 1
