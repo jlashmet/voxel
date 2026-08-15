@@ -110,9 +110,24 @@ namespace Game.WorldBuilder.Api
             return this;
         }
 
-        public SiteBuilder DistanceFrom(SiteRef other, DistanceRangeMetres distance)
+        public SiteBuilder BoundaryDistanceFrom(SiteRef other, DistanceRangeMetres distance)
         {
-            _constraintSink.Add(SpatialConstraintSpec.DistanceRange(_ref, other, distance));
+            _constraintSink.Add(SpatialConstraintSpec.BoundaryDistanceRange(_ref, other, distance));
+            return this;
+        }
+
+        public SiteBuilder EntranceDistanceFrom(SiteRef other, DistanceRangeMetres distance)
+        {
+            _constraintSink.Add(SpatialConstraintSpec.PublicEntranceDistanceRange(_ref, other, distance));
+            return this;
+        }
+
+        public SiteBuilder TravelDistanceFrom(
+            SiteRef other,
+            TraversalProfile traversal,
+            DistanceRangeMetres distance)
+        {
+            _constraintSink.Add(SpatialConstraintSpec.TraversalDistanceRange(_ref, other, traversal, distance));
             return this;
         }
 
