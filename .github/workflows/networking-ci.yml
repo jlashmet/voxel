@@ -81,6 +81,7 @@ jobs:
           ROOT="$GITHUB_WORKSPACE/Artifacts/NetworkingCI"
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
+          cp Assets/VoxelEngine/Structures/CastleBuilder.cs "$ROOT/CastleBuilder.cs"
           chmod +x tools/unity-run.sh
 
           UNITY_MAX_RSS_MB=8192 \
