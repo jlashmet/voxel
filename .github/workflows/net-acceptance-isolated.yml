@@ -1,0 +1,37 @@
+name: Net acceptance isolated
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-acceptance-isolated.yml]
+permissions:
+  contents: read
+jobs:
+  unity-editmode:
+    runs-on: [self-hosted, macOS, X64]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 84b817635c5282ae958b6166b0c0c8c48cc7d91a
+          clean: true
+          fetch-depth: 1
+      - name: Run EditMode suite
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -rf Artifacts/NetworkingCI
+          mkdir -p Artifacts/NetworkingCI
+          /Applications/Unity/Hub/Editor/6000.0.30f1/Unity.app/Contents/MacOS/Unity \
+            -batchmode -nographics -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests -testPlatform EditMode \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/NetworkingCI/results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/NetworkingCI/unity.log" || true
+          test -f Artifacts/NetworkingCI/results.xml
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetworkingCI
+          path: Artifacts/NetworkingCI/
+          if-no-files-found: warn
