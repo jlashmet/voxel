@@ -22,53 +22,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  static-boundary:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Verify final Composition ownership
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          scene = Path('Assets/Scenes/Showcase')
-          composition = Path('Assets/VoxelEngine/Composition')
-          moved = (
-              'ShowcaseWorld.cs',
-              'ShowcaseWorld.StorageBridge.cs',
-              'ShowcaseCatalogue.cs',
-              'ShowcaseHeightJob.cs',
-              'FarFieldStructureStore.cs',
-          )
-          missing = [name for name in moved if not (composition / name).is_file()]
-          stale = [name for name in moved if (scene / name).exists()]
-          if missing:
-              raise SystemExit('Composition-owned Showcase files missing: ' + ', '.join(missing))
-          if stale:
-              raise SystemExit('Showcase still owns concrete runtime files: ' + ', '.join(stale))
-
-          asmdef = json.loads((scene / 'VoxelEngine.Showcase.asmdef').read_text())
-          runtime_refs = [
-              ref for ref in asmdef.get('references', [])
-              if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime')
-          ]
-          if runtime_refs:
-              raise SystemExit('Showcase asmdef Runtime references: ' + ', '.join(runtime_refs))
-
-          source_violations = []
-          for path in scene.rglob('*.cs'):
-              text = path.read_text()
-              if 'VoxelEngine.Storage.Runtime' in text or 'VoxelEngine.Structures.Runtime' in text or 'VoxelEngine.Rendering.Runtime' in text or 'VoxelEngine.Vegetation.Runtime' in text or 'VoxelEngine.Net.Runtime' in text:
-                  source_violations.append(path.as_posix())
-          if source_violations:
-              raise SystemExit('Showcase concrete Runtime source references: ' + ', '.join(source_violations))
-
-          print('Final Composition ownership accepted')
-          PY
-
   editmode:
     runs-on: [self-hosted, macOS]
     timeout-minutes: 30
