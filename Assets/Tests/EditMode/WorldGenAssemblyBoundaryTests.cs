@@ -15,6 +15,9 @@ namespace VoxelEngine.Tests.EditMode
         private static readonly Regex QuotedStringRegex = new Regex(
             "\\\"(?<value>[^\\\"]+)\\\"",
             RegexOptions.Compiled);
+        private static readonly Regex EngineRuntimeNamespaceRegex = new Regex(
+            @"VoxelEngine\.[A-Za-z0-9_.]+\.Runtime(?:\.|\b)",
+            RegexOptions.Compiled);
 
         private static string RepoRoot
         {
@@ -71,17 +74,37 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void VoxelAdapterDoesNotReferenceEngineRuntimeAssemblies()
+        public void VoxelAdapterReferencesOnlyEngineApiAssemblies()
         {
             const string asmdef = "Runtime/Voxel/MountingForce.WorldGen.Voxel.asmdef";
             var violations = ReadReferences(asmdef)
                 .Where(r => r.StartsWith("VoxelEngine.", StringComparison.Ordinal)
-                            && r.EndsWith(".Runtime", StringComparison.Ordinal))
+                            && !r.EndsWith(".Api", StringComparison.Ordinal))
                 .ToArray();
 
             Assert.IsEmpty(violations,
-                "The worldgen Voxel adapter may consume engine contracts only, never engine runtime implementations.\n" +
-                string.Join("\n", violations));
+                "The worldgen Voxel adapter may consume engine contracts only. Every VoxelEngine " +
+                "assembly reference must be an Api assembly.\n" + string.Join("\n", violations));
+        }
+
+        [Test]
+        public void VoxelAdapterSourceDoesNotImportEngineRuntimeNamespaces()
+        {
+            string voxelRoot = Path.Combine(
+                RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel");
+            Assert.IsTrue(Directory.Exists(voxelRoot), "Missing WorldGen Voxel adapter root: " + voxelRoot);
+            var violations = new List<string>();
+
+            foreach (string path in Directory.EnumerateFiles(voxelRoot, "*.cs", SearchOption.AllDirectories))
+            {
+                string source = File.ReadAllText(path);
+                if (EngineRuntimeNamespaceRegex.IsMatch(source))
+                    violations.Add(Path.GetRelativePath(voxelRoot, path));
+            }
+
+            Assert.IsEmpty(violations,
+                "WorldGen Voxel source must not bypass Api assembly references with direct Runtime " +
+                "namespace coupling.\n\n" + string.Join("\n", violations));
         }
 
         [Test]
