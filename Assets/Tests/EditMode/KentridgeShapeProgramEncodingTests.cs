@@ -1,9 +1,9 @@
+using System.IO;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Core.Features;
-
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -55,6 +55,39 @@ namespace VoxelEngine.Tests.EditMode
             {
                 catalogue.Dispose();
             }
+        }
+
+        [Test]
+        public void KentridgeUsesCanonicalEncodingWithoutCompatibilityNormalizer()
+        {
+            string root = FindRepoRoot();
+            string voxelRoot = Path.Combine(
+                root, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel");
+            string compatibility = Path.Combine(
+                voxelRoot, "KentridgeShapeProgramCompatibility.cs");
+            Assert.False(File.Exists(compatibility),
+                "Kentridge builders must emit canonical Structures.Api bytecode directly; " +
+                "do not restore the compatibility normalizer.");
+
+            string core = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeCombinedVoxelCatalogueCanonical.Core.cs"));
+            string merge = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeCombinedVoxelCatalogueCanonical.Merge.cs"));
+            StringAssert.DoesNotContain("KentridgeShapeProgramCompatibility", core);
+            StringAssert.DoesNotContain("KentridgeShapeProgramCompatibility", merge);
+            StringAssert.Contains("programs += stage.Program.Length", core,
+                "Combined allocation must use already-canonical source lengths.");
+            StringAssert.Contains("source.Program[definition.ProgramOffset + code]", merge,
+                "Combined merge must copy canonical program bytes verbatim.");
+        }
+
+        private static string FindRepoRoot()
+        {
+            DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Packages")))
+                directory = directory.Parent;
+            Assert.NotNull(directory, "Could not locate project root containing Packages/.");
+            return directory.FullName;
         }
 
         private static VoxelWorldGenSettings BuildSettings()
