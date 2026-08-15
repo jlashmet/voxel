@@ -38,6 +38,18 @@ namespace VoxelEngine.Composition
             uint allowedCoatings);
 
         /// <summary>
+        /// Adjusts presentation-only decoration values on an existing coating while concrete
+        /// catalogue ownership remains inside Composition/Storage.Runtime.
+        /// </summary>
+        void ConfigureCoatingDecoration(
+            byte coatingId,
+            byte density,
+            byte radiusQ4,
+            byte heightQ4,
+            byte dropQ4,
+            byte separation);
+
+        /// <summary>
         /// Publishes the currently resident regions to derived consumers after an application
         /// finishes a bulk authoring phase. Physical region enumeration and journal mutation stay
         /// inside Composition/Storage.Runtime.
@@ -181,6 +193,25 @@ namespace VoxelEngine.Composition
                     destructionClass,
                     defaultSurfaceStyle,
                     allowedCoatings);
+            }
+
+            public void ConfigureCoatingDecoration(
+                byte coatingId,
+                byte density,
+                byte radiusQ4,
+                byte heightQ4,
+                byte dropQ4,
+                byte separation)
+            {
+                ThrowIfDisposed();
+                CoatingDefinition coating = _coatings.Get(coatingId);
+                coating.DecorationDensity = density;
+                coating.DecorationRadiusQ4 = radiusQ4;
+                coating.DecorationHeightQ4 = heightQ4;
+                coating.DecorationDropQ4 = dropQ4;
+                coating.DecorationSeparation = separation;
+                _coatings.Register(in coating);
+                _coatings.Seal(_coatings.Version, _coatings.ComputeHash());
             }
 
             public void PublishAllResidentRegions()
