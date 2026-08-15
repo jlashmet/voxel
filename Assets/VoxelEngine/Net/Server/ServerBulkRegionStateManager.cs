@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Interest;
 using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Transport;
@@ -60,12 +60,12 @@ namespace VoxelEngine.Net.Server
 
         public int ProcessRequests(
             uint serverTick,
-            ref RegionTable table,
-            in BrickPool pool,
+            IRegionSnapshotSource snapshots,
             RegionSubscriptionIndex subscriptions,
             ServerNetworkRuntime network)
         {
             if (serverTick == 0) throw new ArgumentOutOfRangeException(nameof(serverTick));
+            if (snapshots == null) throw new ArgumentNullException(nameof(snapshots));
             if (subscriptions == null) throw new ArgumentNullException(nameof(subscriptions));
             if (network == null) throw new ArgumentNullException(nameof(network));
 
@@ -107,7 +107,12 @@ namespace VoxelEngine.Net.Server
                     continue;
                 }
 
-                if (!table.TryGetRegion(request.regionCoord, out Region region) || !region.BrickRefs.IsCreated)
+                RegionSnapshotCaptureResult captureResult = snapshots.CaptureSemanticSnapshot(
+                    request.regionCoord,
+                    RegionStateChunkPacket.MaxSnapshotBytes,
+                    out RegionSemanticSnapshot semanticSnapshot);
+
+                if (captureResult == RegionSnapshotCaptureResult.NotResident)
                 {
                     SendUnavailable(queued.ConnectionId, request.regionCoord, serverTick, network);
                     RejectedRequests++;
@@ -115,14 +120,19 @@ namespace VoxelEngine.Net.Server
                     continue;
                 }
 
-                if (!SemanticRegionSnapshotCodec.TryEncode(
-                        in region,
-                        in pool,
-                        RegionStateChunkPacket.MaxSnapshotBytes,
-                        out byte[] snapshot))
+                if (captureResult == RegionSnapshotCaptureResult.TooLarge)
                 {
                     SnapshotsTooLarge++;
                     SendUnavailable(queued.ConnectionId, request.regionCoord, serverTick, network);
+                    _requests.RemoveAt(i);
+                    continue;
+                }
+
+                byte[] snapshot = semanticSnapshot.Bytes;
+                if (snapshot == null)
+                {
+                    SendUnavailable(queued.ConnectionId, request.regionCoord, serverTick, network);
+                    RejectedRequests++;
                     _requests.RemoveAt(i);
                     continue;
                 }
@@ -134,7 +144,6 @@ namespace VoxelEngine.Net.Server
                 }
 
                 uint transferId = AllocateTransferId();
-                uint semanticHash = SemanticRegionHasher.HashRegion(in region, in pool);
                 var fence = new S_RegionStateFence(transferId, request.regionCoord, serverTick);
 
                 if (!network.SendRegionStateFence(queued.ConnectionId, in fence))
@@ -149,7 +158,7 @@ namespace VoxelEngine.Net.Server
                     transferId,
                     request.regionCoord,
                     serverTick,
-                    semanticHash,
+                    semanticSnapshot.SemanticHash,
                     snapshot));
                 _pendingSnapshotBytes += snapshot.Length;
                 AcceptedRequests++;
