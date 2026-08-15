@@ -1,0 +1,44 @@
+name: Structures CastleBuilder inventory
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - name: Inventory CastleBuilder seam and callers
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/Artifacts/StructuresInventory"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          {
+            echo '=== CastleBuilder callers ==='
+            grep -RInE 'CastleBuilder\.(Build|BeginBuild|StepBuild)\s*\(' Assets Packages --include='*.cs' || true
+            echo
+            echo '=== CastleBuilder palette references ==='
+            grep -nE '\bpalette\b' Assets/VoxelEngine/Structures/CastleBuilder.cs || true
+            echo
+            echo '=== CastleBuilder Core.Storage references ==='
+            grep -nE 'RegionTable|BrickPool|VoxelEngine\.Core\.Storage|RegionReadSource|RegionMutationStore' Assets/VoxelEngine/Structures/CastleBuilder.cs || true
+          } > "$OUT/inventory.txt"
+          cat "$OUT/inventory.txt"
+      - name: Upload inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: structures-castlebuilder-inventory-${{ github.sha }}
+          path: Artifacts/StructuresInventory/
+          retention-days: 2
