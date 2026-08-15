@@ -9,6 +9,7 @@
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "Unity.Collections",
+    "Unity.Mathematics",
     "VoxelEngine.Vegetation.Api",
     "VoxelEngine.Vegetation.Runtime"
   ],

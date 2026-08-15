@@ -39,6 +39,7 @@ namespace VoxelEngine.Composition
     public static class RenderingComposition
     {
         private static RenderingWorldBinding s_world;
+        private static uint s_terrainSeed;
         private static bool s_hasWorld;
 
         /// <summary>
@@ -70,11 +71,24 @@ namespace VoxelEngine.Composition
             bool farFieldEnabled) =>
             BindWorld(in world, changes, terrainSeed, farFieldEnabled);
 
+        /// <summary>
+        /// Returns the application-owned world binding currently registered with Rendering.
+        /// Scene adapters can consume the same stable Storage.Api capabilities without reaching
+        /// through the Rendering.Runtime bridge.
+        /// </summary>
+        public static bool TryGetWorld(out RenderingWorldBinding world, out uint terrainSeed)
+        {
+            world = s_world;
+            terrainSeed = s_terrainSeed;
+            return s_hasWorld;
+        }
+
         /// <summary>Disconnects the application world from Rendering.Runtime.</summary>
         public static void ClearWorld()
         {
             s_hasWorld = false;
             s_world = default;
+            s_terrainSeed = 0;
             VoxelRenderBridge.Source = null;
             VoxelRenderBridge.Changes = null;
             VoxelRenderBridge.FarFieldEnabled = false;
@@ -151,6 +165,7 @@ namespace VoxelEngine.Composition
                 throw new ArgumentException("Rendering requires a storage read source.", nameof(world));
 
             s_world = world;
+            s_terrainSeed = terrainSeed;
             s_hasWorld = true;
             VoxelRenderBridge.Source = ResolveWorld;
             VoxelRenderBridge.Changes = changes;
