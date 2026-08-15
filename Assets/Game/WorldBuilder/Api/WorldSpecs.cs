@@ -15,6 +15,18 @@ namespace Game.WorldBuilder.Api
         Dungeon = 7
     }
 
+    /// <summary>
+    /// How an authored SiteRef role is resolved. Every role has cardinality exactly one.
+    /// RequiredArchetype means the resolved site must use the declared archetype.
+    /// ConstraintMatch means archetype is intentionally unconstrained and the planner may choose
+    /// any generated site that satisfies every capability, ownership, topology, and spatial constraint.
+    /// </summary>
+    public enum SiteResolutionMode
+    {
+        RequiredArchetype = 0,
+        ConstraintMatch = 1
+    }
+
     public enum SiteCapabilityKind
     {
         Interior = 0,
@@ -196,10 +208,20 @@ namespace Game.WorldBuilder.Api
                 SiteDistanceMetric.TraversalPathLength);
     }
 
+    /// <summary>
+    /// Stable authored site role. A SiteRef always resolves to exactly one concrete site identity.
+    /// Archetype is a hard constraint when supplied; otherwise ResolutionMode is ConstraintMatch and
+    /// the planner has freedom to choose an archetype while satisfying the rest of the blueprint.
+    /// </summary>
     public sealed class SiteSpec
     {
         public SiteRef Ref { get; }
         public SiteArchetype Archetype { get; }
+        public SiteResolutionMode ResolutionMode =>
+            Archetype == SiteArchetype.Unspecified
+                ? SiteResolutionMode.ConstraintMatch
+                : SiteResolutionMode.RequiredArchetype;
+        public int RequiredCardinality => 1;
         public IReadOnlyList<SiteCapabilityRequirement> Capabilities { get; }
 
         internal SiteSpec(SiteRef @ref, SiteArchetype archetype, SiteCapabilityRequirement[] capabilities)
