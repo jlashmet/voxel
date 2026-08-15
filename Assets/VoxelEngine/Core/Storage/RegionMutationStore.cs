@@ -55,6 +55,53 @@ namespace VoxelEngine.Core.Storage
             return true;
         }
 
+        public bool SetWholeCellBlock(int3 worldBlock, in VoxelCell cell, bool markHardSurface)
+        {
+            DecomposeBlock(worldBlock, out int3 regionCoord, out int blockIndex);
+            Region region = _table.LoadRegion(regionCoord);
+            if (!region.BrickRefs.IsCreated)
+                return false;
+
+            bool changed = markHardSurface && region.MarkHardSurfaceBrick(blockIndex);
+            BrickRef current = region.BrickRefs[blockIndex];
+            bool hasAuthoredPayload = (cell.IsSolid && cell.Surface.PackedStorage != 0)
+                                   || cell.Boundary.Packed != 0;
+
+            if (!hasAuthoredPayload)
+            {
+                if (!(current.IsUniform && current.UniformMaterial == cell.BaseMaterialId))
+                {
+                    if (current.IsMixed)
+                        _pool.Free(current.PoolIndex);
+                    region.BrickRefs[blockIndex] = BrickRef.Uniform(cell.BaseMaterialId);
+                    changed = true;
+                }
+            }
+            else
+            {
+                int poolIndex;
+                if (current.IsMixed)
+                {
+                    poolIndex = current.PoolIndex;
+                }
+                else
+                {
+                    poolIndex = _pool.Allocate();
+                    region.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
+                }
+
+                _pool.FillBrick(poolIndex, in cell);
+                changed = true;
+            }
+
+            if (!changed)
+                return false;
+
+            region.Dirty = true;
+            _table.CommitRegion(in region);
+            return true;
+        }
+
         public bool TryBeginPartialBlock(
             int3 worldBlock,
             byte targetMaterial,
