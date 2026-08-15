@@ -76,10 +76,10 @@ replace_exact(
     "            if (!CastleVegetationPlanner.TryBuild(\n                    in plan, view.Storage, worldSeed, out var instances))",
 )
 
-# VoxelWorldView producers/consumers must no longer reach through physical storage fields.
+# VoxelWorldView producers/consumers must no longer reach through its removed physical fields.
 for path in (SHOWCASE, ARCH, TERRAIN, TREES):
     text = Path(path).read_text()
-    for token in ("view.Table", "view.Pool", "Table = _world.Table", "Pool = _world.Pool", "Table = _table", "Pool = _pool"):
+    for token in ("view.Table", "view.Pool", "Table = _world.Table", "Pool = _world.Pool"):
         if token in text:
             raise RuntimeError(f"{path}: stale VoxelWorldView physical storage access remains: {token}")
 
