@@ -244,12 +244,15 @@ jobs:
 
           CANONICAL="$OUT/canonical_mannequin_ci.glb"
           INPUT="$OUT/canonical_mannequin_ci.input.png"
+          GARMENT_INPUT="$OUT/canonical_cleric_robe_ci.input.png"
           "$BLENDER_BIN" --background \
             --python tools/character-factory/ci/create_canonical_character_fixture.py -- \
             --canonical "$CANONICAL" \
-            --input "$INPUT"
+            --input "$INPUT" \
+            --garment-input "$GARMENT_INPUT"
           test -s "$CANONICAL"
           test -s "$INPUT"
+          test -s "$GARMENT_INPUT"
 
           SPEC="$RUNNER_TEMP/canonical-mannequin-character-ci.json"
           cat > "$SPEC" <<JSON
@@ -298,6 +301,74 @@ jobs:
           test -s "$RENDER"
           ls -lh "$OUT"
 
+      - name: Build and verify skinned clothing smoke
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHARACTER_OUT="$GITHUB_WORKSPACE/Artifacts/CharacterFactoryCharacterSmoke"
+          OUT="$GITHUB_WORKSPACE/Artifacts/CharacterFactoryClothingSmoke"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+
+          CANONICAL="$CHARACTER_OUT/canonical_mannequin_ci.glb"
+          GARMENT_INPUT="$CHARACTER_OUT/canonical_cleric_robe_ci.input.png"
+          cp "$GARMENT_INPUT" "$OUT/canonical_cleric_robe_ci.input.png"
+
+          SPEC="$RUNNER_TEMP/canonical-cleric-robe-ci.json"
+          cat > "$SPEC" <<JSON
+          {
+            "id": "canonical_cleric_robe_ci",
+            "assetType": "clothing",
+            "views": {
+              "front": "$GARMENT_INPUT"
+            },
+            "outputDir": "$OUT",
+            "generator": {
+              "python": "$TRIPOSR_PY",
+              "backend": "triposr-mps",
+              "source": "$TRIPOSR_SOURCE",
+              "weights": "$TRIPOSR_WEIGHTS",
+              "preset": "smoke",
+              "device": "auto",
+              "mcResolution": 192,
+              "chunkSize": 8192,
+              "removeBackground": false
+            },
+            "rig": {
+              "blender": "$BLENDER_BIN",
+              "canonicalBody": "$CANONICAL",
+              "bodyObject": "GarmentDonor",
+              "armatureObject": "Armature",
+              "maxTransferDistance": 0.38
+            },
+            "runtimePart": {
+              "slot": "Torso",
+              "socketBoneName": null,
+              "socketLocalPosition": [0, 0, 0],
+              "socketLocalEulerAngles": [0, 0, 0],
+              "socketLocalScale": [1, 1, 1]
+            }
+          }
+          JSON
+
+          python3 tools/character-factory/character_factory.py build "$SPEC"
+          test -s "$OUT/canonical_cleric_robe_ci.raw.glb"
+          test -s "$OUT/canonical_cleric_robe_ci.fbx"
+
+          "$BLENDER_BIN" --background \
+            --python tools/character-factory/ci/verify_skinned_character.py -- \
+            --input "$OUT/canonical_cleric_robe_ci.fbx"
+
+          RENDER="$OUT/canonical_cleric_robe_ci.render.png"
+          "$BLENDER_BIN" --background \
+            --python tools/character-factory/ci/render_pipeline_artifact.py -- \
+            --input "$OUT/canonical_cleric_robe_ci.fbx" \
+            --output "$RENDER" \
+            --preserve-materials
+          test -s "$RENDER"
+          ls -lh "$OUT"
+
       - name: Upload generated pipeline smoke artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -306,5 +377,6 @@ jobs:
           path: |
             Artifacts/CharacterFactorySmoke/
             Artifacts/CharacterFactoryCharacterSmoke/
+            Artifacts/CharacterFactoryClothingSmoke/
           if-no-files-found: warn
           retention-days: 7
