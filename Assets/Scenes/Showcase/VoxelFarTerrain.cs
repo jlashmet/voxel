@@ -4,9 +4,8 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Composition;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
-using VoxelEngine.Rendering.Runtime;
-using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
@@ -286,7 +285,7 @@ namespace VoxelEngine.Showcase
                 byte material = isStructure
                     ? Mat.Stone
                     : ShowcaseWorld.SurfaceMaterialAt(height);
-                Vector4 albedo = VoxelPresentationCatalogue.MaterialAlbedo[material];
+                Vector4 albedo = RenderingComposition.GetMaterialAlbedo(material);
                 colours[i] = new Color(albedo.x, albedo.y, albedo.z, 1f);
             }
 
