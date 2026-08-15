@@ -1,6 +1,6 @@
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Core.Features
 {
@@ -37,14 +37,14 @@ namespace VoxelEngine.Core.Features
             in FeatureCatalogue catalogue,
             uint seed,
             int3 regionCoord,
-            ref RegionTable table,
-            ref BrickPool pool)
+            IRegionReadSource reads,
+            IRegionMutationStore mutations)
         {
             var report = new FeatureGenerationReport();
 
             if (!catalogue.IsCreated) return report;
 
-            int regionEdge = 1 << VoxelDimensions.RegionVoxelEdgeLog2;
+            int regionEdge = VoxelGrid.RegionVoxelEdge;
             int3 regionMin = regionCoord * regionEdge;
             int3 regionMax = regionMin + regionEdge;
 
@@ -97,7 +97,7 @@ namespace VoxelEngine.Core.Features
 
                     var raster = PrimitiveRasteriser.Rasterise(
                         primitives.AsArray(), regionMin, regionMax,
-                        ref table, ref pool, markHardSurface);
+                        reads, mutations, markHardSurface);
 
                     report.VoxelsWritten += raster.VoxelsWritten;
                     report.BudgetExceeded |= raster.BudgetExceeded;
