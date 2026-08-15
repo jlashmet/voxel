@@ -1570,7 +1570,7 @@ At the end, generate an asmdef dependency report and verify:
 - [x] create Edits.Api/Runtime
 - [x] split canonical alteration domain values into Api
 - [ ] move expansion/apply implementation to Runtime
-- [ ] route mutations through Storage.Api
+- [x] route mutations through Storage.Api
 - [ ] delete `ServerDeterministicAlterationApplier`
 - [ ] update Net protocol to Edits.Api
 
