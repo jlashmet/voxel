@@ -533,13 +533,13 @@ with `VoxelSurfaceQuery` (or the equivalent concrete Api value created above). I
 ## 7.6 Storage acceptance gates
 
 - [x] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are owned by `Storage.Runtime`; physical move + Core deletion accepted by static gate `31894801235` and exact behavioral gate `31895124610`.
-- [ ] No source outside `Storage/Runtime` imports their namespaces.
+- [x] No production source outside `Storage/Runtime` or the single `Composition` wiring root names `VoxelEngine.Storage.Runtime`; accepted by exact-head static gate at source `337fa479187736c6f960453e331b549b2e0c4f57`, run `31910444579`, static job `95074580171`.
 - [x] Rendering and Collision use readonly native views, not virtual per-voxel services.
 - [x] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`; it consumes `IVoxelSurfaceQuery` and preserves water/cascade exclusion via caller-owned material IDs.
 - [x] Kentridge vegetation surface-query slice accepted by CI at `a47c3b8abff99e27e5c5cbeda0451ad8b963c314`: 382 total / 369 passed / exact 13 known baseline failures.
 - [x] Net semantic hash/snapshot paths do not depend on physical brick layout.
 - [x] Existing storage/read/mutation parity tests pass against the established CI baseline; snapshot/hash final ownership remains tracked by the unchecked item above.
-- [ ] Architecture guard has no Storage.Runtime foreign-reference exception.
+- [x] Architecture guard has no Storage.Runtime foreign-reference exception; the permanent final gate rejects foreign production Runtime wiring and separately enforces Storage.Runtime source ownership, accepted at source `337fa479187736c6f960453e331b549b2e0c4f57`, run `31910444579`, static job `95074580171`.
 
 ---
 
