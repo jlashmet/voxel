@@ -1,0 +1,152 @@
+name: Final architecture static acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [refactor/system-boundaries-finalization-clean]
+    paths:
+      - ".github/workflows/final-architecture-static.yml"
+      - "Assets/VoxelEngine/**"
+      - "Assets/Scenes/Showcase/**"
+      - "Assets/Tests/EditMode/**"
+      - "Packages/com.mountingforce.worldgen/**"
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify final dependency graph and emit report
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p Artifacts/FinalArchitecture
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+
+          root = Path('.')
+          engine = root / 'Assets' / 'VoxelEngine'
+          search_roots = [root / 'Assets', root / 'Packages']
+
+          guid_to_name = {}
+          for asmdef in engine.rglob('*.asmdef'):
+              meta = Path(str(asmdef) + '.meta')
+              if not meta.exists():
+                  continue
+              m = re.search(r'^guid:\s*([0-9a-fA-F]{32})\s*$', meta.read_text(), re.M)
+              if m:
+                  guid_to_name[m.group(1).lower()] = json.loads(asmdef.read_text())['name']
+
+          def resolve(ref):
+              if not ref.startswith('GUID:'):
+                  return ref
+              return guid_to_name.get(ref[5:].lower(), ref)
+
+          asmdefs = []
+          for base in search_roots:
+              if not base.exists():
+                  continue
+              for path in base.rglob('*.asmdef'):
+                  data = json.loads(path.read_text())
+                  asmdefs.append((path.as_posix(), data['name'], [resolve(r) for r in data.get('references', [])]))
+
+          def production(path):
+              p = '/' + path.lower().replace('\\', '/') + '/'
+              return '/tests/' not in p and '/test/' not in p and '/editor/' not in p and '/voxelengine/ci/' not in p
+
+          violations = []
+          for path, name, refs in asmdefs:
+              if name.endswith('.Api'):
+                  for ref in refs:
+                      if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime'):
+                          violations.append(f'Api->Runtime: {name} -> {ref} ({path})')
+              if name.endswith('.Runtime'):
+                  for ref in refs:
+                      if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime') and ref != name:
+                          violations.append(f'Runtime->foreign Runtime: {name} -> {ref} ({path})')
+              if production(path) and name != 'VoxelEngine.Composition':
+                  for ref in refs:
+                      if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime'):
+                          violations.append(f'production Runtime wiring outside Composition: {name} -> {ref} ({path})')
+
+              if name in {'MountingForce.WorldGen.Core', 'MountingForce.WorldGen.Architecture'}:
+                  for ref in refs:
+                      if ref.startswith('VoxelEngine.'):
+                          violations.append(f'semantic WorldGen depends on engine: {name} -> {ref} ({path})')
+              if name == 'MountingForce.WorldGen.Voxel':
+                  for ref in refs:
+                      if ref.startswith('VoxelEngine.') and not ref.endswith('.Api'):
+                          violations.append(f'WorldGen Voxel depends on non-Api engine assembly: {name} -> {ref} ({path})')
+
+          core_hits = []
+          compatibility_hits = []
+          allowed_ext = {'.cs', '.asmdef', '.asmref', '.json'}
+          for base in search_roots:
+              if not base.exists():
+                  continue
+              for path in base.rglob('*'):
+                  if not path.is_file() or not production(path.as_posix()):
+                      continue
+
+                  if path.suffix.lower() == '.cs':
+                      lowered_name = path.name.lower()
+                      if 'compatibility' in lowered_name or 'legacy' in lowered_name:
+                          compatibility_hits.append(path.as_posix())
+
+                  if path.suffix.lower() not in allowed_ext:
+                      continue
+                  if 'VoxelEngine.Core' in path.read_text(errors='ignore'):
+                      core_hits.append(path.as_posix())
+
+          if core_hits:
+              violations.extend(f'VoxelEngine.Core reference: {p}' for p in core_hits)
+          if compatibility_hits:
+              violations.extend(f'legacy/compatibility adapter source: {p}' for p in compatibility_hits)
+
+          report = []
+          report.append('# Final Architecture Dependency Report')
+          report.append('')
+          report.append(f'Generated for source `${{GITHUB_SHA}}` by `.github/workflows/final-architecture-static.yml`.')
+          report.append('')
+          report.append('## VoxelEngine assembly edges')
+          report.append('')
+          for path, name, refs in sorted(asmdefs, key=lambda x: (x[1], x[0])):
+              if not name.startswith('VoxelEngine.'):
+                  continue
+              engine_refs = sorted(r for r in refs if r.startswith('VoxelEngine.'))
+              report.append(f'- `{name}` (`{path}`): ' + (', '.join(f'`{r}`' for r in engine_refs) if engine_refs else 'no VoxelEngine references'))
+          report.append('')
+          report.append('## WorldGen assembly edges')
+          report.append('')
+          for path, name, refs in sorted(asmdefs, key=lambda x: (x[1], x[0])):
+              if not name.startswith('MountingForce.WorldGen.'):
+                  continue
+              relevant = sorted(r for r in refs if r.startswith('VoxelEngine.') or r.startswith('MountingForce.WorldGen.'))
+              report.append(f'- `{name}` (`{path}`): ' + (', '.join(f'`{r}`' for r in relevant) if relevant else 'no engine/worldgen references'))
+          report.append('')
+          report.append('## Final boundary assertions')
+          report.append('')
+          report.append('- Api assemblies reference no Runtime assemblies.')
+          report.append('- Runtime assemblies reference no foreign Runtime assemblies.')
+          report.append('- Composition is the only production assembly that wires concrete Runtime assemblies.')
+          report.append('- Production Assets/Packages contain no `VoxelEngine.Core` references.')
+          report.append('- Production architecture contains no `Legacy*` or `*Compatibility*` adapter source files.')
+          report.append('- WorldGen Core/Architecture are engine-independent; WorldGen.Voxel references engine Api assemblies only.')
+          Path('Artifacts/FinalArchitecture/dependency-report.md').write_text('\n'.join(report) + '\n')
+
+          if violations:
+              raise SystemExit('\n'.join(violations))
+          print('Final architecture static boundary accepted')
+          PY
+      - name: Upload dependency report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-architecture-dependency-report-${{ github.sha }}
+          path: Artifacts/FinalArchitecture/
+          if-no-files-found: error
+          retention-days: 14
