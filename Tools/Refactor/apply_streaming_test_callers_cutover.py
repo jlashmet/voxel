@@ -44,9 +44,8 @@ replace_exact(
 # Traversal has two independent table/pool scopes. Construct one residency store per scope.
 replace_exact(
     TRAVERSAL,
-    "            var table = new RegionTable(1024, Allocator.Persistent);\n            var pool = new BrickPool(1 << 20, Allocator.Persistent);\n",
-    "            var table = new RegionTable(1024, Allocator.Persistent);\n            var pool = new BrickPool(1 << 20, Allocator.Persistent);\n            var residency = new RegionResidencyStore(in table, in pool);\n",
-    expected=1,
+    "            var table = new RegionTable(1024, Allocator.Persistent);\n            var pool = new BrickPool(1 << 20, Allocator.Persistent); // 1 MB for test.\n",
+    "            var table = new RegionTable(1024, Allocator.Persistent);\n            var pool = new BrickPool(1 << 20, Allocator.Persistent); // 1 MB for test.\n            var residency = new RegionResidencyStore(in table, in pool);\n",
 )
 replace_exact(
     TRAVERSAL,
