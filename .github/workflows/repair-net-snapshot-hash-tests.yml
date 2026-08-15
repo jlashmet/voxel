@@ -1,0 +1,66 @@
+name: Repair Net snapshot hash tests
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs')
+          s = p.read_text()
+          old1 = '''                Assert.True(aTable.TryGetRegion(int3.zero, out Region aRegion));
+                Assert.True(bTable.TryGetRegion(int3.zero, out Region bRegion));
+                Assert.AreNotEqual(RegionHasher.HashRegion(in aRegion, in aPool),
+                                   RegionHasher.HashRegion(in bRegion, in bPool));'''
+          new1 = '''                var aSnapshots = new RegionReadSource(in aTable, in aPool);
+                var bSnapshots = new RegionReadSource(in bTable, in bPool);
+                Assert.AreEqual(RegionSnapshotCaptureResult.Ok,
+                    aSnapshots.CaptureSemanticSnapshot(
+                        int3.zero, RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,
+                        out RegionSemanticSnapshot aSnapshot));
+                Assert.AreEqual(RegionSnapshotCaptureResult.Ok,
+                    bSnapshots.CaptureSemanticSnapshot(
+                        int3.zero, RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,
+                        out RegionSemanticSnapshot bSnapshot));
+                Assert.AreNotEqual(aSnapshot.SemanticHash, bSnapshot.SemanticHash);'''
+          old2 = '''                Assert.AreEqual(RegionHasher.HashRegion(in aRegion, in aPool),
+                                RegionHasher.HashRegion(in bRegion, in bPool));'''
+          new2 = '''                var aSnapshots = new RegionReadSource(in aTable, in aPool);
+                var bSnapshots = new RegionReadSource(in bTable, in bPool);
+                Assert.AreEqual(RegionSnapshotCaptureResult.Ok,
+                    aSnapshots.CaptureSemanticSnapshot(
+                        int3.zero, RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,
+                        out RegionSemanticSnapshot aSnapshot));
+                Assert.AreEqual(RegionSnapshotCaptureResult.Ok,
+                    bSnapshots.CaptureSemanticSnapshot(
+                        int3.zero, RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,
+                        out RegionSemanticSnapshot bSnapshot));
+                Assert.AreEqual(aSnapshot.SemanticHash, bSnapshot.SemanticHash);'''
+          if s.count(old1) != 1:
+              raise SystemExit(f'expected first stale hash assertion once, got {s.count(old1)}')
+          if s.count(old2) != 1:
+              raise SystemExit(f'expected second stale hash assertion once, got {s.count(old2)}')
+          s = s.replace(old1, new1).replace(old2, new2)
+          if 'RegionHasher.HashRegion' in s:
+              raise SystemExit('stale RegionHasher.HashRegion remains')
+          p.write_text(s)
+          PY
+          git rm .github/workflows/repair-net-snapshot-hash-tests.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+          git commit -m 'test: validate region hashes through Storage snapshot API'
+          git push origin HEAD:${{ github.ref_name }}
