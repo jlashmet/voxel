@@ -8,19 +8,19 @@ permissions:
   contents: read
 jobs:
   unity-editmode:
-    runs-on: [self-hosted, macOS]
+    runs-on: [self-hosted, macOS, X64]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 4a8fa6a98967872337f3e945b2663b8c6c8dd5ef
+          ref: ed126903cd18dcd62324fab41942d41fdaa37532
           clean: false
           fetch-depth: 1
       - name: Reset pinned source while preserving Unity cache
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard 4a8fa6a98967872337f3e945b2663b8c6c8dd5ef
+          git reset --hard ed126903cd18dcd62324fab41942d41fdaa37532
           git clean -ffdx -e Library/
       - id: unity
         shell: bash
