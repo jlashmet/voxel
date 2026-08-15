@@ -105,6 +105,33 @@ namespace VoxelEngine.Tests.EditMode
                 string.Join("\n", duplicates));
         }
 
+        [Test]
+        public void TransvoxelCacheReadsStorageOnlyThroughStorageApi()
+        {
+            string path = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Rendering", "SurfaceExtraction",
+                "CpuTransvoxelChunkCache.cs");
+            Assert.IsTrue(File.Exists(path), "Missing Transvoxel cache source: " + path);
+
+            string source = File.ReadAllText(path);
+            string[] forbidden =
+            {
+                "RegionTable",
+                "BrickPool",
+                "BrickRef",
+                "VoxelMipSampler",
+                "VoxelDimensions.",
+            };
+
+            var violations = forbidden
+                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                .ToArray();
+
+            Assert.IsEmpty(violations,
+                "The solid Rendering cache must consume Storage through Storage.Api read views, " +
+                "not physical Core storage representation.\n\n" + string.Join("\n", violations));
+        }
+
         private static IReadOnlyList<Asmdef> EnumerateVoxelEngineAsmdefs()
         {
             string root = Path.Combine(RepoRoot, "Assets", "VoxelEngine");
