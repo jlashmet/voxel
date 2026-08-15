@@ -172,32 +172,23 @@ namespace VoxelEngine.Net.Client
             out int appliedEvents)
         {
             ThrowIfDisposed();
+            var snapshotMutations = new RegionSnapshotMutationStore(in table, in pool);
 
             if (_fullState.TryDequeue(out var full))
             {
                 if (!_events.FullSnapshotWaitPending ||
-                    !_events.FullSnapshotWaitRegion.Equals(full.RegionCoord) ||
-                    !SemanticRegionSnapshotCodec.TryComputeSemanticHash(
-                        full.RegionCoord,
-                        full.Snapshot,
-                        out uint encodedHash) ||
-                    encodedHash != full.SemanticHash)
+                    !_events.FullSnapshotWaitRegion.Equals(full.RegionCoord))
                 {
                     PacketRejected?.Invoke();
                     appliedEvents = 0;
                     return 0;
                 }
 
-                if (!table.TryGetRegion(full.RegionCoord, out _))
-                    table.LoadRegion(full.RegionCoord);
-
-                if (!SemanticRegionSnapshotCodec.TryApply(
-                        ref table,
-                        ref pool,
+                if (!snapshotMutations.TryApplySemanticSnapshot(
                         full.RegionCoord,
-                        full.Snapshot) ||
-                    !table.TryGetRegion(full.RegionCoord, out Region fullRegion) ||
-                    SemanticRegionHasher.HashRegion(in fullRegion, in pool) != full.SemanticHash ||
+                        full.Snapshot,
+                        full.SemanticHash,
+                        createIfMissing: true) ||
                     !_events.CompleteFullRegionSnapshot(
                         full.TransferId,
                         full.RegionCoord,
@@ -228,7 +219,7 @@ namespace VoxelEngine.Net.Client
 
                 int3 repairedRegion = _repair.RegionCoord;
                 uint repairedTick = _repair.SnapshotTick;
-                if (!_repair.TryApplyCompleted(ref table, ref pool, _events))
+                if (!_repair.TryApplyCompleted(snapshotMutations, _events))
                 {
                     appliedEvents = 0;
                     return 0;
