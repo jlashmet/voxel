@@ -11,12 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 8b456de486f5cfe320676cae6d1e2fa01794cafe
+          ref: e882a66034d4d1524716be27db616873212d6c17
           clean: false
       - shell: bash
         run: |
           set -euo pipefail
-          git reset --hard 8b456de486f5cfe320676cae6d1e2fa01794cafe
+          git reset --hard e882a66034d4d1524716be27db616873212d6c17
           git clean -ffdx -e Library/
       - id: unity
         shell: bash
@@ -51,7 +51,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: net-ownership-8b456de4
+          name: net-ownership-e882a660
           path: Artifacts/NetOwnershipAcceptance/
           if-no-files-found: warn
           retention-days: 14
