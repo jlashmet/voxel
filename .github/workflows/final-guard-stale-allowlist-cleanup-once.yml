@@ -1,0 +1,70 @@
+name: Final guard stale allowlist cleanup once
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths:
+      - ".github/workflows/final-guard-stale-allowlist-cleanup-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-stable
+          fetch-depth: 0
+      - name: Remove stale deleted-workflow allowlist entries and self-delete
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for attempt in $(seq 1 12); do
+            git fetch origin refactor/system-boundaries-finalization-stable
+            git checkout -B final-guard-cleanup origin/refactor/system-boundaries-finalization-stable
+
+            python3 - <<'PY'
+          from pathlib import Path
+
+          deleted_guard = Path('.github/workflows/final-architecture-static.yml')
+          if deleted_guard.exists():
+              raise SystemExit('final-architecture-static.yml unexpectedly exists; refusing stale-entry cleanup')
+
+          replacements = [
+              (
+                  Path('.github/workflows/stable-final-architecture-acceptance.yml'),
+                  "              '.github/workflows/final-architecture-static.yml',\n",
+              ),
+              (
+                  Path('Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs'),
+                  '                ".github/workflows/final-architecture-static.yml",\n',
+              ),
+          ]
+
+          for path, stale_line in replacements:
+              text = path.read_text()
+              if stale_line in text:
+                  text = text.replace(stale_line, '', 1)
+                  path.write_text(text)
+              if 'final-architecture-static.yml' in path.read_text():
+                  raise SystemExit(f'stale final-static reference still present in {path}')
+          PY
+
+            git rm -f --ignore-unmatch .github/workflows/final-guard-stale-allowlist-cleanup-once.yml
+            git add -A
+            if git diff --cached --quiet; then
+              echo "Final guard allowlists already clean"
+              exit 0
+            fi
+            git commit -m "test(architecture): remove stale final-static allowlist entries"
+            if git push origin HEAD:refactor/system-boundaries-finalization-stable; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
