@@ -17,6 +17,7 @@ namespace Game.WorldBuilder.Runtime
 
             var nodes = new List<PlanningNode>();
             var siteRolePlans = new List<SiteRolePlan>();
+            var npcPlacementPlans = new List<NpcPlacementPlan>();
             var stagePlans = new List<CutsceneStagePlan>();
             var secretCandidatePlans = new List<SecretCandidatePlan>();
             var requiredSecretPlans = new List<RequiredSecretCandidatePlan>();
@@ -72,6 +73,10 @@ namespace Game.WorldBuilder.Runtime
             for (var i = 0; i < blueprint.Npcs.Count; i++)
             {
                 NpcSpec npc = blueprint.Npcs[i];
+                npcPlacementPlans.Add(new NpcPlacementPlan(
+                    npc.Ref,
+                    npc.Site,
+                    npc.RequiresConversation));
                 nodes.Add(new PlanningNode(NodeId("npc", npc.Ref.Id), PlanningNodeKind.Npc,
                     new[] { NodeId("site", npc.Site.Id) }));
             }
@@ -146,6 +151,7 @@ namespace Game.WorldBuilder.Runtime
                 siteRolePlans.ToArray(),
                 blueprint.Hierarchy,
                 spatialConstraints,
+                npcPlacementPlans.ToArray(),
                 stagePlans.ToArray(),
                 secretCandidatePlans.ToArray(),
                 requiredSecretPlans.ToArray());
