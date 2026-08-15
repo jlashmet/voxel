@@ -103,7 +103,7 @@ namespace MountingForce.WorldGen.Voxel
         private static int[] CourtProgram(CourtBuild build, byte material, int scale)
         {
             var code = new List<int>(16);
-            Op(code, ShapeOp.EmitBox, 0, 0, 0, build.WidthDm * scale, SurfaceThicknessDm * scale, build.DepthDm * scale, material, (int)PrimitiveMode.Fill);
+            Op(code, ShapeOp.EmitBox, 0, 0, 0, build.WidthDm * scale, SurfaceThicknessDm * scale, build.DepthDm * scale, material, 0, 0, (int)PrimitiveMode.Fill);
             Op(code, ShapeOp.End);
             return code.ToArray();
         }
