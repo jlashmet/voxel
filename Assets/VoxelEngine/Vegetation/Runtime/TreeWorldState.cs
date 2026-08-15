@@ -12,7 +12,7 @@ namespace VoxelEngine.Vegetation.Runtime
     /// tree identities here; gameplay mutates branch/damage state here. Rendering is a subscriber,
     /// never an owner of gameplay state.
     /// </summary>
-    public static class TreeWorldState
+    internal static class TreeWorldState
     {
         private const float RootQuantizationMetres = 0.1f;
 
