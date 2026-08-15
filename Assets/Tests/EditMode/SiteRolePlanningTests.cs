@@ -14,15 +14,13 @@ namespace VoxelEngine.Tests.EditMode
             RegionRef region = game.World.RequireRegion("region", value => value
                 .Biome(BiomeFamily.TemperateForest));
 
-            SiteRef pub = game.World.RequireSite("pub", site => site
+            SiteRef pub = game.World.RequireSite("pub", region, site => site
                 .Archetype(SiteArchetype.Pub)
                 .RequireCapability(SiteCapability.Interior));
-            game.World.Place(pub).In(region);
 
-            SiteRef destination = game.World.RequireSite("destination", site => site
+            SiteRef destination = game.World.RequireSite("destination", region, site => site
                 .DifferentSiteFrom(pub)
                 .ReachableFrom(pub, TraversalProfile.NormalParty));
-            game.World.Place(destination).In(region);
             game.World.RequireNpc("guide", npc => npc
                 .PlaceAt(destination)
                 .RequireConversation());
