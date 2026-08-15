@@ -22,6 +22,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  static-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify final Showcase and Composition ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          scene = Path('Assets/Scenes/Showcase')
+          arch = scene / 'ArchLookdev.cs'
+          composition = Path('Assets/VoxelEngine/Composition/StructuresComposition.cs')
+          pipeline = Path('Assets/VoxelEngine/Structures/Runtime/ArchBayAuthoringPipeline.cs')
+
+          if not arch.is_file() or not composition.is_file() or not pipeline.is_file():
+              raise SystemExit('ArchLookdev Composition boundary files are incomplete')
+          if 'StructuresComposition.AuthorArchBay' not in arch.read_text():
+              raise SystemExit('ArchLookdev is not routed through StructuresComposition.AuthorArchBay')
+          if 'ArchBayAuthoringPipeline.Author' not in composition.read_text():
+              raise SystemExit('StructuresComposition does not own the runtime authoring handoff')
+
+          asmdef = json.loads((scene / 'VoxelEngine.Showcase.asmdef').read_text())
+          runtime_refs = [
+              ref for ref in asmdef.get('references', [])
+              if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime')
+          ]
+          if runtime_refs:
+              raise SystemExit('Showcase asmdef Runtime references: ' + ', '.join(runtime_refs))
+
+          using_runtime = re.compile(r'^\s*using\s+VoxelEngine\.[A-Za-z0-9_.]+\.Runtime\s*;', re.MULTILINE)
+          violations = []
+          concrete_namespaces = (
+              'VoxelEngine.Storage.Runtime',
+              'VoxelEngine.Structures.Runtime',
+              'VoxelEngine.Rendering.Runtime',
+              'VoxelEngine.Vegetation.Runtime',
+              'VoxelEngine.Net.Runtime',
+              'VoxelEngine.Streaming.Runtime',
+              'VoxelEngine.Collision.Runtime',
+              'VoxelEngine.Edits.Runtime',
+              'VoxelEngine.Terrain.Runtime',
+          )
+          for path in scene.rglob('*.cs'):
+              text = path.read_text()
+              if using_runtime.search(text) or any(namespace in text for namespace in concrete_namespaces):
+                  violations.append(path.as_posix())
+          if violations:
+              raise SystemExit('Showcase concrete Runtime source references: ' + ', '.join(violations))
+
+          print('Final Showcase/Composition ownership accepted')
+          PY
+
   editmode:
     runs-on: [self-hosted, macOS]
     timeout-minutes: 30
@@ -124,8 +180,8 @@ jobs:
           retention-days: 14
 
   record-plan:
-    needs: editmode
-    if: ${{ needs.editmode.result == 'success' }}
+    needs: [static-boundary, editmode]
+    if: ${{ needs.static-boundary.result == 'success' && needs.editmode.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
