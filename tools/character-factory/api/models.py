@@ -18,9 +18,15 @@ class AssetType(str, Enum):
     ACCESSORY = "accessory"
 
 
+class GeneratorBackend(str, Enum):
+    HUNYUAN_PYTORCH = "hunyuan-pytorch"
+    TRIPOSR_MPS = "triposr-mps"
+
+
 GENERATOR_PRESETS: dict[str, dict[str, object]] = {
-    # Deliberately low-quality/low-resolution: prove the complete pipeline as fast as possible.
-    # Hunyuan's Turbo model is step-distilled and FlashVDM accelerates mesh decoding.
+    # Hunyuan fallback smoke profile. CI currently overrides the backend to the
+    # much faster feed-forward TripoSR MPS adapter so we can prove the whole
+    # asset pipeline without waiting on diffusion quality.
     "smoke": {
         "model": "tencent/Hunyuan3D-2mini",
         "subfolder": "hunyuan3d-dit-v2-mini-turbo",
@@ -28,8 +34,9 @@ GENERATOR_PRESETS: dict[str, dict[str, object]] = {
         "octreeResolution": 64,
         "numChunks": 20000,
         "enableFlashVdm": True,
+        "mcResolution": 64,
+        "chunkSize": 8192,
     },
-    # Higher-quality future default. It consumes all supplied views and avoids smoke-test shortcuts.
     "quality": {
         "model": "tencent/Hunyuan3D-2mv",
         "subfolder": "hunyuan3d-dit-v2-mv",
@@ -37,6 +44,8 @@ GENERATOR_PRESETS: dict[str, dict[str, object]] = {
         "octreeResolution": 380,
         "numChunks": 20000,
         "enableFlashVdm": False,
+        "mcResolution": 256,
+        "chunkSize": 8192,
     },
 }
 
@@ -87,6 +96,9 @@ class ViewSet:
 @dataclass(frozen=True)
 class GeneratorConfig:
     python: str
+    backend: GeneratorBackend = GeneratorBackend.HUNYUAN_PYTORCH
+    source: Path | None = None
+    weights: Path | None = None
     preset: str = "smoke"
     model: str = "tencent/Hunyuan3D-2mini"
     subfolder: str = "hunyuan3d-dit-v2-mini-turbo"
@@ -97,14 +109,19 @@ class GeneratorConfig:
     num_chunks: int = 20000
     remove_background: bool = False
     enable_flashvdm: bool = True
+    mc_resolution: int = 64
+    chunk_size: int = 8192
 
     @staticmethod
-    def from_dict(data: dict[str, Any]) -> "GeneratorConfig":
-        python_executable = data.get("python")
+    def from_dict(
+        data: dict[str, Any],
+        base_dir: Path,
+        validate_paths: bool = True,
+    ) -> "GeneratorConfig":
+        python_executable = data.get("python") or data.get("executable")
         if not python_executable:
             raise CharacterFactoryError(
-                "generator.python is required and should point at the Python executable "
-                "inside the local Hunyuan3D environment"
+                "generator.python (or generator.executable) is required"
             )
 
         preset = str(data.get("preset", "smoke")).strip().lower()
@@ -113,8 +130,40 @@ class GeneratorConfig:
             allowed = ", ".join(sorted(GENERATOR_PRESETS))
             raise CharacterFactoryError(f"generator.preset must be one of: {allowed}")
 
+        raw_backend = str(
+            data.get("backend", GeneratorBackend.HUNYUAN_PYTORCH.value)
+        ).strip().lower()
+        try:
+            backend = GeneratorBackend(raw_backend)
+        except ValueError as exc:
+            allowed = ", ".join(item.value for item in GeneratorBackend)
+            raise CharacterFactoryError(f"generator.backend must be one of: {allowed}") from exc
+
+        def resolve_optional(value: object) -> Path | None:
+            if value is None or str(value).strip() == "":
+                return None
+            path = Path(str(value))
+            return path if path.is_absolute() else (base_dir / path).resolve()
+
+        source = resolve_optional(data.get("source"))
+        weights = resolve_optional(data.get("weights"))
+
+        if backend == GeneratorBackend.TRIPOSR_MPS:
+            if source is None:
+                raise CharacterFactoryError("triposr-mps requires generator.source")
+            if weights is None:
+                raise CharacterFactoryError("triposr-mps requires generator.weights")
+            if validate_paths:
+                if not source.is_dir():
+                    raise CharacterFactoryError(f"generator.source does not exist: {source}")
+                if not weights.is_dir():
+                    raise CharacterFactoryError(f"generator.weights does not exist: {weights}")
+
         return GeneratorConfig(
             python=str(python_executable),
+            backend=backend,
+            source=source,
+            weights=weights,
             preset=preset,
             model=str(data.get("model", defaults["model"])),
             subfolder=str(data.get("subfolder", defaults["subfolder"])),
@@ -129,6 +178,8 @@ class GeneratorConfig:
             enable_flashvdm=bool(
                 data.get("enableFlashVdm", defaults["enableFlashVdm"])
             ),
+            mc_resolution=int(data.get("mcResolution", defaults["mcResolution"])),
+            chunk_size=int(data.get("chunkSize", defaults["chunkSize"])),
         )
 
 
@@ -269,7 +320,11 @@ class BuildSpec:
                 validate_paths=validate_paths,
             ),
             output_dir=output,
-            generator=GeneratorConfig.from_dict(data.get("generator", {})),
+            generator=GeneratorConfig.from_dict(
+                data.get("generator", {}),
+                base_dir,
+                validate_paths=validate_paths,
+            ),
             rig=rig,
             rigid=rigid,
             runtime_part=runtime_part,

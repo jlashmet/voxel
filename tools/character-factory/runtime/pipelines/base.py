@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 
 from api.models import AssetType, BuildSpec, CharacterFactoryError
+from runtime.generators import generator_command_for
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,7 @@ class AssetPipeline(ABC):
         raw_mesh = spec.output_dir / f"{spec.asset_id}.raw.glb"
         output = spec.output_dir / f"{spec.asset_id}.fbx"
 
-        generator_command = self._generator_command(spec, raw_mesh)
+        generator_command = generator_command_for(self.tool_root, spec, raw_mesh)
         self._run(generator_command, dry_run)
 
         prepare_command = self._prepare_command(spec, raw_mesh, output)
@@ -48,45 +49,6 @@ class AssetPipeline(ABC):
             prepare_command=prepare_command,
             runtime_metadata=self._runtime_metadata(spec),
         )
-
-    def _generator_command(self, spec: BuildSpec, output: Path) -> list[str]:
-        cfg = spec.generator
-        command = [
-            cfg.python,
-            str(self.tool_root / "runtime" / "hunyuan_multiview.py"),
-            "--front",
-            str(spec.views.front),
-            "--output",
-            str(output),
-            "--model",
-            cfg.model,
-            "--subfolder",
-            cfg.subfolder,
-            "--device",
-            cfg.device,
-            "--seed",
-            str(cfg.seed),
-            "--steps",
-            str(cfg.steps),
-            "--octree-resolution",
-            str(cfg.octree_resolution),
-            "--num-chunks",
-            str(cfg.num_chunks),
-        ]
-
-        for name, path in (
-            ("back", spec.views.back),
-            ("left", spec.views.left),
-            ("right", spec.views.right),
-        ):
-            if path is not None:
-                command.extend([f"--{name}", str(path)])
-
-        if cfg.remove_background:
-            command.append("--remove-background")
-        if cfg.enable_flashvdm:
-            command.append("--enable-flashvdm")
-        return command
 
     @abstractmethod
     def _prepare_command(
