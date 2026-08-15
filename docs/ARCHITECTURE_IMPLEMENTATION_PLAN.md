@@ -26,7 +26,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 5 — Edits | **Complete** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; all edit implementation lives under `Edits/Runtime` with Runtime namespace and preserved Unity GUIDs; Net protocol/client/server/validation consume Api only; dead `DensityCap`, redundant Net wrapper, and `VoxelEngine.Core.Edits` are gone; Storage boundaries/parity accepted | none |
 | 6 — StructuralIntegrity | **Complete** | dead Net `StructuralGraph` removed; StructuralIntegrity.Api/Runtime assemblies created; `SupportField`, `CollapseDetection`, and `Connectivity` all live in Runtime with preserved Unity GUIDs and Storage.Api-only reads; `Core/Structure` is gone; final inventory found no production/network structural consumer, so Api remains intentionally empty rather than inventing DTOs; parity accepted | none |
 | 7 — Tiering | **Complete** | `DeviceTier`/`DeviceTierBudget` live under `Tiering/Api` with preserved Unity GUIDs; broad Tiering assembly replaced by dependency-free `VoxelEngine.Tiering.Api`; Streaming, Rendering, Showcase and tests consume Api; no Tiering.Runtime exists; parity accepted | none |
-| 8 — Streaming | **In progress — current** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
+| 8 — Streaming | **In progress — current** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core or Net | final Streaming.Api/Runtime move and orchestration API |
 | 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
 | 10 — Vegetation | **Partial dependency cleanup** | Kentridge top-surface reads use Storage.Api and terrain sampling uses Terrain.Api | full Vegetation.Api/Runtime cutover |
 | 11 — Net | **Partial dependency cleanup** | authoritative edit application callers now consume Storage mutation capability | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `a0e123454878c81b9a0f2a03db2d2c9f7e1cf89e` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Cutover 7 Tiering: `DeviceTier`/`DeviceTierBudget` are physically under `Tiering/Api` with their Unity GUIDs preserved; `VoxelEngine.Tiering.Api` has no engine references; the broad Tiering assembly is gone; Streaming, Rendering, Showcase and tests reference Tiering.Api; no Tiering.Runtime exists.
+- Latest accepted code gate: `ea092bc0358043cea458fceeb5054210ed6781ca` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Streaming dependency slice: the broad Streaming assembly no longer references Net, matching the source inventory that found no legitimate Streaming networking dependency.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -978,6 +978,8 @@ It owns desired residency/prefetch/fade policy. It releases regions through Stor
 - [x] Streaming residency/eviction mechanics consume `IRegionResidencyStore`; physical region/pool mechanics remain in Storage.
 - [x] dead `BrickRef` completion payload removed and first-completion ring indexing regression covered.
 - [x] existing Streaming assembly no longer references `VoxelEngine.Core`.
+- [x] existing Streaming assembly no longer references Net; source inventory found no legitimate networking dependency.
+- [x] Streaming -> Net dependency-removal slice accepted by CI at `ea092bc0358043cea458fceeb5054210ed6781ca`: 382 total / 369 passed / exact same 13 known baseline failures.
 - [ ] Streaming.Api/Runtime physical move complete.
 
 ### Gate
@@ -1611,7 +1613,7 @@ At the end, generate an asmdef dependency report and verify:
 - [ ] create Streaming.Api/Runtime
 - [ ] move four implementation files
 - [ ] rewrite RegionLoader as API-driven orchestration
-- [ ] remove Streaming -> Net
+- [x] remove Streaming -> Net
 - [ ] make Net interest call Streaming.Api
 
 ### 9. Collision
