@@ -55,3 +55,7 @@ This is the repository-persisted copy of the final static dependency review. The
 - WorldGen Core/Architecture are engine-independent; WorldGen.Voxel references engine Api assemblies only.
 
 The CI and test assemblies intentionally appear above with direct Runtime references because they are non-production verification/tooling assemblies; the permanent production guard excludes tests/editor/CI while still enforcing subsystem and Api direction rules.
+
+## Behavioral acceptance
+
+Final Unity/EditMode parity is the only remaining Cutover 13 acceptance gate. The implementation plan stays open until a stable user-authored branch head compiles with zero C# errors and matches the documented 387 total / 374 passed / 13 known-failure baseline.
