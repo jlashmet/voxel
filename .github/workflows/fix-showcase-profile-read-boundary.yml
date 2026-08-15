@@ -1,0 +1,45 @@
+name: Fix Showcase profile read boundary
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-clean]
+    paths: [.github/workflows/fix-showcase-profile-read-boundary.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-clean
+          fetch-depth: 0
+      - name: Hide concrete profile store behind Storage.Api read capability
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization-clean
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Assets/VoxelEngine/Composition/ShowcaseWorld.cs')
+          text = path.read_text()
+          old = '        public ProfileBlockStore ProfileBlocks => _profileBlocks;'
+          new = '        public IProfileBlockReadSource ProfileBlocks => _profileBlocks;'
+          if old not in text:
+              if new in text:
+                  raise SystemExit('Boundary already fixed')
+              raise SystemExit('Expected concrete ProfileBlocks property not found')
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          rm .github/workflows/fix-showcase-profile-read-boundary.yml
+          git diff --check
+          grep -q 'public IProfileBlockReadSource ProfileBlocks => _profileBlocks;' Assets/VoxelEngine/Composition/ShowcaseWorld.cs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(architecture): hide Showcase profile store behind Api'
+          git push origin HEAD:refactor/system-boundaries-finalization-clean
