@@ -3,8 +3,8 @@ using MountingForce.WorldGen;
 using Unity.Mathematics;
 using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Structures;
 using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -37,8 +37,8 @@ namespace MountingForce.WorldGen.Voxel
 
             int top = plan.Centre.y + plan.PlateauHeight;
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
-            int streamX = CastleBuilder.WaterfallStreamX(in plan);
-            int3 gateProbe = CastleBuilder.FrontGateMinimum(in plan)
+            int streamX = CastleLayout.WaterfallStreamX(in plan);
+            int3 gateProbe = CastleLayout.FrontGateMinimum(in plan)
                            + new int3(-plan.WallThickness, 0, 0);
             RegionCursor cursor = default;
 
@@ -57,8 +57,8 @@ namespace MountingForce.WorldGen.Voxel
                 plan.BaileyHalfX, plan.BaileyHalfZ,
                 plan.TowerRadius,
                 streamX,
-                CastleBuilder.WaterfallLipZ(in plan),
-                CastleBuilder.LowerRiverZAt(in plan, streamX));
+                CastleLayout.WaterfallLipZ(in plan),
+                CastleLayout.LowerRiverZAt(in plan, streamX));
 
             List<VegetationCandidate> candidates = CastleVegetationLayoutPlanner.Build(in context);
             instances = new List<TreeInstance>(candidates.Count);

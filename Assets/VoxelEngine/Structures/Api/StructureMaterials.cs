@@ -1,4 +1,4 @@
-namespace VoxelEngine.Structures
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// Palette indices for authored structures and authored environment materials.

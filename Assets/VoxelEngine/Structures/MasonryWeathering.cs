@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Structures
 {

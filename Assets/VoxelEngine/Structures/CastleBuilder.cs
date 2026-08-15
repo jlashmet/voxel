@@ -1,32 +1,11 @@
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures
 {
-    /// <summary>Dimensions drawn for one castle. Every field is in voxels; one voxel is 10 cm.</summary>
-    public struct CastlePlan
-    {
-        public int3 Centre;
-
-        public int PlateauRadius;
-        public int PlateauHeight;
-        public int CliffDrop;
-
-        public int BaileyHalfX, BaileyHalfZ;
-        public int WallHeight, WallThickness;
-
-        public int TowerRadius, TowerHeight;
-        public int GateTowerRadius, GateTowerHeight;
-
-        public int KeepHalfX, KeepHalfZ, KeepHeight;
-        public int FloorHeight;
-        public int Floors;
-
-        public uint Seed;
-    }
-
     /// <summary>
     /// Builds a castle: its site, its walls, its keep, its interiors, and the dungeon beneath it.
     ///
@@ -57,66 +36,6 @@ namespace VoxelEngine.Structures
             public bool IsComplete => Stage > 8;
             public int StageNumber => Stage;
             public long TotalVoxelsWritten => Brush.TotalVoxelsWritten;
-        }
-
-        public const int TrapdoorHalfSize = 8;
-        public const int ChapelBellTowerSize = 56;
-        public const int ChapelBellTowerStairRadius = 16;
-        public const int FrontGateWidth = 48;
-        public const int FrontGateHeight = 60;
-        public const int FrontGateDepth = 4;
-        public const int LowerRiverDepth = 88;
-
-        /// <summary>Centre of the ground-floor hatch leading to the cellar.</summary>
-        public static int3 TrapdoorCentre(in CastlePlan plan)
-        {
-            int baseY = plan.Centre.y + plan.PlateauHeight;
-            int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
-            return new int3(plan.Centre.x, baseY, keepMinZ + plan.KeepHalfZ + 40);
-        }
-
-        /// <summary>Minimum corner of the operable timber gate in the front gatehouse arch.</summary>
-        public static int3 FrontGateMinimum(in CastlePlan plan)
-        {
-            int baseY = plan.Centre.y + plan.PlateauHeight;
-            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
-            return new int3(plan.Centre.x - FrontGateWidth / 2, baseY + 1,
-                            gateZ - plan.WallThickness + 2);
-        }
-
-        public static int WaterfallStreamX(in CastlePlan plan) =>
-            plan.Centre.x + plan.BaileyHalfX + plan.TowerRadius + 36;
-
-        public static int LowerRiverZAt(in CastlePlan plan, int x)
-        {
-            int gateZ = plan.Centre.z - plan.BaileyHalfZ;
-            return gateZ - plan.WallThickness - 92
-                 + (int)math.round(math.sin((x - plan.Centre.x) * 0.028f) * 8f
-                                  + math.sin((x - plan.Centre.x) * 0.071f) * 3f);
-        }
-
-        public static int WaterfallLipZ(in CastlePlan plan)
-        {
-            int streamX = WaterfallStreamX(in plan);
-            return LowerRiverZAt(in plan, streamX) + 68;
-        }
-
-        /// <summary>Centre of the occupied bell tower accumulated behind the chapel.</summary>
-        public static int3 ChapelBellTowerCentre(in CastlePlan plan)
-        {
-            int baseY = plan.Centre.y + plan.PlateauHeight;
-            int keepMinX = plan.Centre.x - plan.KeepHalfX;
-            int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
-            int keepWidth = plan.KeepHalfX * 2;
-            int keepDepth = plan.KeepHalfZ * 2;
-            int chapelWidth = math.max(78, keepWidth / 3);
-            int chapelDepth = math.max(96, keepDepth * 3 / 5);
-            int chapelMinX = keepMinX - chapelWidth + 4;
-            int chapelMinZ = keepMinZ + keepDepth - chapelDepth - 38;
-            int towerMinX = chapelMinX + 8;
-            int towerMinZ = chapelMinZ + chapelDepth - 6;
-            return new int3(towerMinX + ChapelBellTowerSize / 2, baseY,
-                            towerMinZ + ChapelBellTowerSize / 2);
         }
 
         /// <summary>Draws a plan from a seed. This is where the family lives.</summary>
@@ -426,7 +345,7 @@ namespace VoxelEngine.Structures
             int riverZ = gateZ - plan.WallThickness - 92;
             const int halfWidth = 90;
             const int waterHalfWidth = 42;
-            int riverY = top - LowerRiverDepth;
+            int riverY = top - CastleLayout.LowerRiverDepth;
             for (int column = firstColumn; column < endColumn; column++)
             {
                 int x = plan.Centre.x - reach + column;
@@ -547,9 +466,9 @@ namespace VoxelEngine.Structures
         private static void RavineWaterfall(ref VoxelBrush brush, in CastlePlan plan,
                                             uint terrainSeed, int top)
         {
-            int streamX = WaterfallStreamX(in plan);
-            int lipZ = WaterfallLipZ(in plan);
-            int riverZ = LowerRiverZAt(in plan, streamX);
+            int streamX = CastleLayout.WaterfallStreamX(in plan);
+            int lipZ = CastleLayout.WaterfallLipZ(in plan);
+            int riverZ = CastleLayout.LowerRiverZAt(in plan, streamX);
             int streamStartZ = plan.Centre.z + plan.BaileyHalfZ + plan.TowerRadius + 18;
             int streamLength = math.max(1, streamStartZ - lipZ);
 
@@ -621,7 +540,7 @@ namespace VoxelEngine.Structures
             for (int z = poolZ; z >= riverZ; z--)
             {
                 float t = (poolZ - z) / (float)outletLength;
-                int waterY = (int)math.round(math.lerp(poolY, top - LowerRiverDepth, t));
+                int waterY = (int)math.round(math.lerp(poolY, top - CastleLayout.LowerRiverDepth, t));
                 int halfWidth = 18 + (int)math.round(t * 8f);
                 for (int dx = -halfWidth; dx <= halfWidth; dx++)
                 {
@@ -662,9 +581,9 @@ namespace VoxelEngine.Structures
         private static void RemoveFloatingRiverTerrain(ref VoxelBrush brush,
                                                        in CastlePlan plan, int top)
         {
-            int streamX = WaterfallStreamX(in plan);
-            int lipZ = WaterfallLipZ(in plan);
-            int riverZ = LowerRiverZAt(in plan, streamX);
+            int streamX = CastleLayout.WaterfallStreamX(in plan);
+            int lipZ = CastleLayout.WaterfallLipZ(in plan);
+            int riverZ = CastleLayout.LowerRiverZAt(in plan, streamX);
             const int poolRadiusX = 68;
 
             // Run after every planting/debris pass. Pool carving can expose old cap fragments,
@@ -674,7 +593,7 @@ namespace VoxelEngine.Structures
             {
                 bool waterBelow = false;
                 bool structurallyAnchored = false;
-                for (int y = top - LowerRiverDepth - 12; y <= top + 8; y++)
+                for (int y = top - CastleLayout.LowerRiverDepth - 12; y <= top + 8; y++)
                 {
                     byte material = brush.Get(x, y, z);
                     if (material == Mat.Water || material == Mat.Cascade)
@@ -721,8 +640,8 @@ namespace VoxelEngine.Structures
                 bool outsideWalls = math.abs(ox) > plan.BaileyHalfX + plan.TowerRadius + 16
                                  || math.abs(oz) > plan.BaileyHalfZ + plan.TowerRadius + 16;
                 bool blocksGate = oz < -plan.BaileyHalfZ && math.abs(ox) < 105;
-                int waterfallOffsetX = WaterfallStreamX(in plan) - plan.Centre.x;
-                int waterfallOffsetZ = WaterfallLipZ(in plan) - plan.Centre.z;
+                int waterfallOffsetX = CastleLayout.WaterfallStreamX(in plan) - plan.Centre.x;
+                int waterfallOffsetZ = CastleLayout.WaterfallLipZ(in plan) - plan.Centre.z;
                 bool nearWaterfall = math.abs(ox - waterfallOffsetX) < 125
                                   && math.abs(oz - waterfallOffsetZ) < 165;
                 if (!outsideWalls || blocksGate || nearWaterfall) continue;
@@ -1210,14 +1129,14 @@ namespace VoxelEngine.Structures
             // A real closed double gate occupies the approach arch. It is deliberately one
             // authored arch volume so the E interaction can remove exactly the door without
             // invoking blast physics or disturbing the surrounding gatehouse masonry.
-            brush.Arch(FrontGateMinimum(in plan), FrontGateWidth, FrontGateHeight,
-                       FrontGateDepth, 2, Mat.Wood);
-            int3 gateMin = FrontGateMinimum(in plan);
+            brush.Arch(CastleLayout.FrontGateMinimum(in plan), CastleLayout.FrontGateWidth, CastleLayout.FrontGateHeight,
+                       CastleLayout.FrontGateDepth, 2, Mat.Wood);
+            int3 gateMin = CastleLayout.FrontGateMinimum(in plan);
             for (int band = 0; band < 3; band++)
                 brush.Box(new int3(gateMin.x + 2, gateMin.y + 10 + band * 13, gateMin.z),
-                          new int3(FrontGateWidth - 4, 3, FrontGateDepth), Mat.DarkStone);
+                          new int3(CastleLayout.FrontGateWidth - 4, 3, CastleLayout.FrontGateDepth), Mat.DarkStone);
             brush.Box(new int3(plan.Centre.x - 2, gateMin.y + 2, gateMin.z),
-                      new int3(4, 44, FrontGateDepth), Mat.DarkStone);
+                      new int3(4, 44, CastleLayout.FrontGateDepth), Mat.DarkStone);
             for (int side = -1; side <= 1; side += 2)
                 brush.Box(new int3(plan.Centre.x + side * 8 - 2, gateMin.y + 23, gateMin.z),
                           new int3(4, 4, 2), Mat.Gold);
@@ -1264,7 +1183,7 @@ namespace VoxelEngine.Structures
                           new int3(8, 5, 150), Mat.DarkStone);
 
             int riverZ = gateZ - plan.WallThickness - 92;
-            int riverY = baseY - LowerRiverDepth;
+            int riverY = baseY - CastleLayout.LowerRiverDepth;
             int[] pierOffsets = { -27, 0, 27 };
             for (int p = 0; p < pierOffsets.Length; p++)
             for (int side = -1; side <= 1; side += 2)
@@ -1859,9 +1778,9 @@ namespace VoxelEngine.Structures
         /// </summary>
         private static void ChapelBellTower(ref VoxelBrush brush, in CastlePlan plan, int baseY)
         {
-            const int size = ChapelBellTowerSize;
+            const int size = CastleLayout.ChapelBellTowerSize;
             int height = plan.FloorHeight * 4;
-            int3 centre = ChapelBellTowerCentre(in plan);
+            int3 centre = CastleLayout.ChapelBellTowerCentre(in plan);
             var min = new int3(centre.x - size / 2, baseY, centre.z - size / 2);
 
             brush.Box(new int3(min.x - 5, baseY - 16, min.z - 5),
@@ -1883,7 +1802,7 @@ namespace VoxelEngine.Structures
             int stairX = min.x + size - 19;
             int stairZ = min.z + size / 2;
             brush.SpiralStair(stairX, baseY + 2, stairZ,
-                              ChapelBellTowerStairRadius, height - 4, Mat.Stone);
+                              CastleLayout.ChapelBellTowerStairRadius, height - 4, Mat.Stone);
 
             // The chapel-to-tower threshold lies on the chapel's rear wall. Restore a solid
             // landing, then clear an actor-sized core across both overlapping shells.
@@ -2542,7 +2461,7 @@ namespace VoxelEngine.Structures
             }
 
             // Trapdoor from the ground floor into the cellar.
-            int3 trapdoor = TrapdoorCentre(in plan);
+            int3 trapdoor = CastleLayout.TrapdoorCentre(in plan);
             int tx = trapdoor.x, tz = trapdoor.z;
             brush.Box(new int3(tx - 10, cellarY + 40, tz - 10), new int3(20, 8, 20), Mat.Empty);
             brush.SpiralStair(tx, cellarY, tz, 9, 46, Mat.Stone);
@@ -2550,12 +2469,12 @@ namespace VoxelEngine.Structures
             // The stair is complete beneath a real hatch. Runtime interaction removes this
             // exact timber lid; keeping the opening closed during construction makes the secret
             // route discoverable rather than presenting the cellar as an accidental floor hole.
-            brush.Box(new int3(tx - TrapdoorHalfSize, baseY, tz - TrapdoorHalfSize),
-                      new int3(TrapdoorHalfSize * 2, 2, TrapdoorHalfSize * 2), Mat.Wood);
-            brush.Box(new int3(tx - TrapdoorHalfSize, baseY + 2, tz - TrapdoorHalfSize),
-                      new int3(3, 2, TrapdoorHalfSize * 2), Mat.Gold);
-            brush.Box(new int3(tx + TrapdoorHalfSize - 3, baseY + 2, tz - TrapdoorHalfSize),
-                      new int3(3, 2, TrapdoorHalfSize * 2), Mat.Gold);
+            brush.Box(new int3(tx - CastleLayout.TrapdoorHalfSize, baseY, tz - CastleLayout.TrapdoorHalfSize),
+                      new int3(CastleLayout.TrapdoorHalfSize * 2, 2, CastleLayout.TrapdoorHalfSize * 2), Mat.Wood);
+            brush.Box(new int3(tx - CastleLayout.TrapdoorHalfSize, baseY + 2, tz - CastleLayout.TrapdoorHalfSize),
+                      new int3(3, 2, CastleLayout.TrapdoorHalfSize * 2), Mat.Gold);
+            brush.Box(new int3(tx + CastleLayout.TrapdoorHalfSize - 3, baseY + 2, tz - CastleLayout.TrapdoorHalfSize),
+                      new int3(3, 2, CastleLayout.TrapdoorHalfSize * 2), Mat.Gold);
 
             // Shaft down to the dungeon.
             brush.Cylinder(tx, dungeonY, tz, 16, cellarY - dungeonY, Mat.Empty);

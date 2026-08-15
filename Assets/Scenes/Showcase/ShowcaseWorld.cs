@@ -1081,7 +1081,7 @@ namespace VoxelEngine.Showcase
             int dungeonY = cellarY - 120;
             int trapZ = keepMinZ + plan.KeepHalfZ + 40;
             int caveZ = trapZ - 411;
-            int3 bellTower = CastleBuilder.ChapelBellTowerCentre(in plan);
+            int3 bellTower = CastleLayout.ChapelBellTowerCentre(in plan);
 
             static Vector4 LightAt(int x, int y, int z, float radiusMetres) =>
                 new(x * 0.1f, y * 0.1f, z * 0.1f, radiusMetres);
@@ -1144,8 +1144,8 @@ namespace VoxelEngine.Showcase
             get
             {
                 if (!_hasCastlePlan) return Vector3.positiveInfinity;
-                int3 min = CastleBuilder.FrontGateMinimum(in _castlePlan);
-                return new Vector3(min.x + CastleBuilder.FrontGateWidth * 0.5f,
+                int3 min = CastleLayout.FrontGateMinimum(in _castlePlan);
+                return new Vector3(min.x + CastleLayout.FrontGateWidth * 0.5f,
                                    min.y,
                                    min.z - 8f) * VoxelSize;
             }
@@ -1163,15 +1163,15 @@ namespace VoxelEngine.Showcase
         {
             if (!CanOpenCastleFrontGate(playerFeetMetres)) return false;
 
-            int3 min = CastleBuilder.FrontGateMinimum(in _castlePlan);
-            int half = CastleBuilder.FrontGateWidth / 2;
-            int archTop = CastleBuilder.FrontGateHeight - half;
-            var gateVoxels = new List<FallingVoxel>(CastleBuilder.FrontGateWidth
-                                                    * CastleBuilder.FrontGateHeight
-                                                    * CastleBuilder.FrontGateDepth);
-            for (int d = 0; d < CastleBuilder.FrontGateDepth; d++)
-            for (int w = 0; w < CastleBuilder.FrontGateWidth; w++)
-            for (int h = 0; h < CastleBuilder.FrontGateHeight; h++)
+            int3 min = CastleLayout.FrontGateMinimum(in _castlePlan);
+            int half = CastleLayout.FrontGateWidth / 2;
+            int archTop = CastleLayout.FrontGateHeight - half;
+            var gateVoxels = new List<FallingVoxel>(CastleLayout.FrontGateWidth
+                                                    * CastleLayout.FrontGateHeight
+                                                    * CastleLayout.FrontGateDepth);
+            for (int d = 0; d < CastleLayout.FrontGateDepth; d++)
+            for (int w = 0; w < CastleLayout.FrontGateWidth; w++)
+            for (int h = 0; h < CastleLayout.FrontGateHeight; h++)
             {
                 int dx = w - half;
                 if (h > archTop && dx * dx + (h - archTop) * (h - archTop) > half * half)
@@ -1191,7 +1191,7 @@ namespace VoxelEngine.Showcase
             get
             {
                 if (!_hasCastlePlan) return Vector3.positiveInfinity;
-                int3 centre = CastleBuilder.TrapdoorCentre(in _castlePlan);
+                int3 centre = CastleLayout.TrapdoorCentre(in _castlePlan);
                 return ((Vector3)(float3)centre + new Vector3(0.5f, 0.2f, 0.5f)) * 0.1f;
             }
         }
@@ -1213,8 +1213,8 @@ namespace VoxelEngine.Showcase
         {
             if (!CanOpenCastleTrapdoor(playerFeetMetres)) return false;
 
-            int3 centre = CastleBuilder.TrapdoorCentre(in _castlePlan);
-            int half = CastleBuilder.TrapdoorHalfSize;
+            int3 centre = CastleLayout.TrapdoorCentre(in _castlePlan);
+            int half = CastleLayout.TrapdoorHalfSize;
             for (int y = centre.y; y < centre.y + 4; y++)
             for (int z = centre.z - half; z < centre.z + half; z++)
             for (int x = centre.x - half; x < centre.x + half; x++)

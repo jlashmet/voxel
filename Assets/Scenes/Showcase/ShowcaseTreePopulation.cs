@@ -5,6 +5,7 @@ using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Rendering;
 using VoxelEngine.Structures;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
 {

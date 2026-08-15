@@ -4,8 +4,8 @@ using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Terrain.Api;
 using VoxelEngine.Core.Vegetation;
-using VoxelEngine.Structures;
 using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {

@@ -8,6 +8,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -87,14 +88,14 @@ namespace VoxelEngine.Tests.PlayMode
 
             var stairCamera = new Vector3(plan.Centre.x, baseY + 18, keepMin.z + 16) * 0.1f;
             var stairLook = new Vector3(plan.Centre.x - 60, baseY + 20, keepMin.z + 76) * 0.1f;
-            int3 trapdoor = CastleBuilder.TrapdoorCentre(in plan);
-            int3 bellTower = CastleBuilder.ChapelBellTowerCentre(in plan);
+            int3 trapdoor = CastleLayout.TrapdoorCentre(in plan);
+            int3 bellTower = CastleLayout.ChapelBellTowerCentre(in plan);
             int chapelWidth = math.max(78, keepSize.x / 3);
             int chapelDepth = math.max(96, keepSize.z * 3 / 5);
             var chapelMin = new int3(keepMin.x - chapelWidth + 4, baseY,
                                      keepMin.z + keepSize.z - chapelDepth - 38);
-            int waterfallX = CastleBuilder.WaterfallStreamX(in plan);
-            int waterfallZ = CastleBuilder.WaterfallLipZ(in plan);
+            int waterfallX = CastleLayout.WaterfallStreamX(in plan);
+            int waterfallZ = CastleLayout.WaterfallLipZ(in plan);
             int waterfallY = baseY - 48;
             var waterfallPool = new Vector3(waterfallX, waterfallY, waterfallZ) * 0.1f;
             Vector3 archMin = (Vector3)((float3)world.ReferenceArchMin * ShowcaseWorld.VoxelSize);
