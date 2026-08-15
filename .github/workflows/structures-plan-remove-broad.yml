@@ -1,0 +1,47 @@
+name: Record broad Structures assembly removal
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - name: Update implementation plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text=p.read_text()
+          old_row='''| 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts live in `VoxelEngine.Structures.Api`; `Structures.Runtime` assembly created with the allowed dependency set; feature VM/generation/rasterizer/Arch/Bonded/emitters plus CastleBuilder/VoxelBrush/MasonryWeathering are physically under `Structures/Runtime` with GUIDs preserved; feature-runtime Storage validation dependencies route through Storage.Api; retained-profile writes route through `Structures.Api.IProfileBlockWriter`; retained-profile reads exposed through Storage.Api `IProfileBlockReadSource` and Rendering consumes that read-only boundary; `VoxelBrush` consumes Storage.Api read/mutation/catalogue capabilities with no physical Storage handle escape; mutable `ProfileBlockStore` is physically under `Structures/Runtime`; stale `VoxelEngine.Core.Features` imports are removed from the WorldGen Voxel adapter; CastleBuilder orchestration consumes Storage.Api read/mutation/material-authoring capabilities and no longer accepts physical Storage handles; semantic `Mat` IDs plus `CastlePlan`/`CastleLayout` landmark geometry live in Structures.Api and WorldGen Voxel no longer references the broad Structures assembly; canonical ramp direction bits and first directional Kentridge consumers use Structures.Api; retained-profile logical value/read contract extracted to Storage.Api; Kentridge compatibility seam deleted | finish Runtime namespaces; remove broad Structures assembly |'''
+          new_row='''| 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts live in `VoxelEngine.Structures.Api`; `Structures.Runtime` assembly created with the allowed dependency set; feature VM/generation/rasterizer/Arch/Bonded/emitters plus CastleBuilder/VoxelBrush/MasonryWeathering are physically under `Structures/Runtime` with GUIDs preserved; feature-runtime Storage validation dependencies route through Storage.Api; retained-profile writes route through `Structures.Api.IProfileBlockWriter`; retained-profile reads exposed through Storage.Api `IProfileBlockReadSource` and Rendering consumes that read-only boundary; `VoxelBrush` consumes Storage.Api read/mutation/catalogue capabilities with no physical Storage handle escape; mutable `ProfileBlockStore` is physically under `Structures/Runtime`; stale `VoxelEngine.Core.Features` imports are removed from the WorldGen Voxel adapter; CastleBuilder orchestration consumes Storage.Api read/mutation/material-authoring capabilities and no longer accepts physical Storage handles; semantic `Mat` IDs plus `CastlePlan`/`CastleLayout` landmark geometry live in Structures.Api and WorldGen Voxel no longer references the broad Structures assembly; the empty broad `VoxelEngine.Structures` assembly and all stale asmdef references are removed; canonical ramp direction bits and first directional Kentridge consumers use Structures.Api; retained-profile logical value/read contract extracted to Storage.Api; Kentridge compatibility seam deleted | finish Runtime namespaces |'''
+          old_gate='''- Latest accepted code gate: `b4e6ec2812a33c4efda2cd27488826cfde5b4339` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate accepts the top-level Structures implementation move: `CastleBuilder`, `VoxelBrush`, and `MasonryWeathering` moved physically under `Structures/Runtime` with their existing Unity GUIDs preserved; the PlayMode implementation tests explicitly reference `VoxelEngine.Structures.Runtime`; no production subsystem gained a new foreign Runtime dependency. The preceding accepted gate `e2945f5e4d18e2d3ccb97bb069cfa24254dfdf1f` accepted the castle semantic API extraction at the same 382/369/13 baseline.'''
+          new_gate='''- Latest accepted code gate: `6209dfd3ffe2210073395ee610c9a5907cf2d767` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate removes the now-empty broad `VoxelEngine.Structures` assembly and its meta file, plus the four stale broad-assembly references from Showcase, EditMode tests, PlayMode tests, and CI Editor; those consumers already reference the explicit Structures.Api/Runtime assemblies they actually use. The preceding accepted gate `b4e6ec2812a33c4efda2cd27488826cfde5b4339` accepted the top-level Structures implementation move at the same 382/369/13 baseline.'''
+          anchor='''- [x] move existing CastleBuilder/etc. under Runtime\n- [x] rename `CatalogueLoader` to `FeatureCatalogueBuilder`'''
+          replacement='''- [x] move existing CastleBuilder/etc. under Runtime\n- [x] remove broad Structures assembly and stale asmdef references\n- [ ] normalize Structures Runtime namespaces\n- [x] rename `CatalogueLoader` to `FeatureCatalogueBuilder`'''
+          for old,new,label in ((old_row,new_row,'status'),(old_gate,new_gate,'gate'),(anchor,replacement,'checklist')):
+              if text.count(old)!=1: raise SystemExit(f'{label}: {text.count(old)} matches')
+              text=text.replace(old,new,1)
+          p.write_text(text)
+          PY
+          git rm .github/workflows/structures-plan-remove-broad.yml
+          git diff --check
+          git config user.name 'architecture-refactor-ci'
+          git config user.email 'architecture-refactor-ci@users.noreply.github.com'
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'Record broad Structures assembly removal'
+          git push origin HEAD:${{ github.ref_name }}
