@@ -1,0 +1,48 @@
+name: Fix Vegetation readonly list migration
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+
+          files = [
+              Path('Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs'),
+              Path('Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs'),
+          ]
+          for p in files:
+              s = p.read_text()
+              old = 'int[] parents = skeleton.BranchParents;'
+              if s.count(old) != 1:
+                  raise SystemExit(f'{p}: expected exactly one parent-array assignment, found {s.count(old)}')
+              s = s.replace(old, 'IReadOnlyList<int> parents = skeleton.BranchParents;', 1)
+              # Only the affected local scopes use parents.Length; the API contract is IReadOnlyList.
+              count = s.count('parents.Length')
+              if count < 1:
+                  raise SystemExit(f'{p}: expected parents.Length usage')
+              s = s.replace('parents.Length', 'parents.Count')
+              p.write_text(s)
+          PY
+          git rm .github/workflows/fix-vegetation-readonly-list.yml
+          git diff --check
+          git diff -- Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git commit -m 'fix: consume Vegetation presentation lists read-only'
+          git push origin HEAD:${{ github.ref_name }}
