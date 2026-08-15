@@ -1,0 +1,36 @@
+name: Net cutover inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-cutover-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== NET ASMDEF REFERENCES ==='
+          rg -n --glob '*.asmdef' 'VoxelEngine\.Net|"VoxelEngine.Net"' Assets Packages || true
+          echo '=== NET NAMESPACE IMPORTS OUTSIDE NET ==='
+          rg -n --glob '*.cs' 'using VoxelEngine\.Net|VoxelEngine\.Net\.' Assets Packages | grep -v '^Assets/VoxelEngine/Net/' || true
+          echo '=== SERVER REGION RESIDENCY CALLERS ==='
+          rg -n --glob '*.cs' 'ServerRegionResidency\.|ServerRegionState|\bState\.(Hot|Warm|Cold)' Assets Packages | grep -v '^Assets/VoxelEngine/Net/Server/RegionResidency.cs:' || true
+          echo '=== REGION STORE CALLERS ==='
+          rg -n --glob '*.cs' '\bRegionStore\.' Assets Packages | grep -v '^Assets/VoxelEngine/Net/Server/Storage/RegionStore.cs:' || true
+          echo '=== REGION HASHER CALLERS ==='
+          rg -n --glob '*.cs' '\bRegionHasher\.' Assets Packages | grep -v '^Assets/VoxelEngine/Net/Server/RegionHasher.cs:' || true
+          echo '=== CORE STORAGE IMPORTS IN NET ==='
+          rg -n --glob '*.cs' 'using VoxelEngine\.Core\.(Storage|Occupancy)|\b(RegionTable|BrickPool|BrickRef|VoxelAccess|SemanticRegionHasher|SemanticRegionSnapshotCodec)\b' Assets/VoxelEngine/Net || true
+          echo '=== STREAMING API IMPORTS/USES IN NET ==='
+          rg -n --glob '*.cs' 'VoxelEngine\.Streaming|IRegionStreaming|RegionLoadRequest' Assets/VoxelEngine/Net || true
+          echo '=== STRUCTURAL API IMPORTS/USES IN NET ==='
+          rg -n --glob '*.cs' 'VoxelEngine\.StructuralIntegrity' Assets/VoxelEngine/Net || true
+          echo '=== NET PUBLIC TYPE CONSUMERS OUTSIDE NET ==='
+          rg -n --glob '*.cs' '\b(ClientNetworkRuntime|ServerSession|NetworkRole|ClientTickLoop|ServerTickLoop|RegionSubscriptionIndex|SimulationInterest|InterestFilter)\b' Assets Packages | grep -v '^Assets/VoxelEngine/Net/' || true
