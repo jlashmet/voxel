@@ -4,7 +4,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -238,7 +238,7 @@ namespace MountingForce.WorldGen.Voxel
 
         private static void Sample(int x, int z, uint seed, ref int minY, ref int maxY)
         {
-            int y = TerrainSampler.HeightAt(x, z, seed);
+            int y = TerrainQuery.HeightAt(x, z, seed);
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
         }
