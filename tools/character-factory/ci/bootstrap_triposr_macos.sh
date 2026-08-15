@@ -6,11 +6,42 @@ set -euo pipefail
 TRIPOSR_REV="24e6763a8b20d07b4b9f796f44aed45e412f2dcd"
 CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character-factory}"
 SOURCE_DIR="$CACHE_ROOT/TripoSR-$TRIPOSR_REV"
-VENV_DIR="$CACHE_ROOT/triposr-$TRIPOSR_REV-venv"
+VENV_DIR="$CACHE_ROOT/triposr-$TRIPOSR_REV-py312-venv"
 MODEL_DIR="$CACHE_ROOT/models/triposr"
 DINO_DIR="$CACHE_ROOT/models/dino-vitb16"
-STAMP="$VENV_DIR/.voxel-ready-v1"
-PYTHON_BIN="${PYTHON_BIN:-$(command -v python3)}"
+STAMP="$VENV_DIR/.voxel-ready-v2"
+
+resolve_python312() {
+  if [ -n "${PYTHON_BIN:-}" ]; then
+    "$PYTHON_BIN" -c 'import sys; assert sys.version_info[:2] == (3, 12)' >/dev/null
+    printf '%s\n' "$PYTHON_BIN"
+    return
+  fi
+
+  if command -v python3.12 >/dev/null 2>&1; then
+    command -v python3.12
+    return
+  fi
+
+  if [ -x /opt/homebrew/bin/python3.12 ]; then
+    printf '%s\n' /opt/homebrew/bin/python3.12
+    return
+  fi
+
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "TripoSR smoke backend requires Python 3.12; Homebrew is unavailable" >&2
+    exit 1
+  fi
+
+  brew install python@3.12
+  local brew_python
+  brew_python="$(brew --prefix python@3.12)/bin/python3.12"
+  test -x "$brew_python"
+  printf '%s\n' "$brew_python"
+}
+
+PYTHON_BIN="$(resolve_python312)"
+"$PYTHON_BIN" -c 'import sys; print(f"TripoSR bootstrap Python: {sys.version.split()[0]}"); assert sys.version_info[:2] == (3, 12)'
 
 mkdir -p "$CACHE_ROOT" "$MODEL_DIR" "$DINO_DIR"
 
@@ -25,6 +56,8 @@ if [ ! -x "$VENV_DIR/bin/python" ]; then
   rm -rf "$VENV_DIR"
   "$PYTHON_BIN" -m venv "$VENV_DIR"
 fi
+
+"$VENV_DIR/bin/python" -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
 
 if [ ! -f "$STAMP" ]; then
   "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
@@ -74,8 +107,9 @@ print("TripoSR smoke cache ready", flush=True)
 PY
 
 "$VENV_DIR/bin/python" - <<'PY'
+import sys
 import torch
-print(f"torch={torch.__version__} mps={torch.backends.mps.is_available()}")
+print(f"python={sys.version.split()[0]} torch={torch.__version__} mps={torch.backends.mps.is_available()}")
 if not torch.backends.mps.is_available():
     raise SystemExit("Apple MPS is unavailable")
 PY

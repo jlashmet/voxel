@@ -85,13 +85,14 @@ jobs:
           TRIPOSR_REV="24e6763a8b20d07b4b9f796f44aed45e412f2dcd"
           CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character-factory}"
           TRIPOSR_SOURCE="$CACHE_ROOT/TripoSR-$TRIPOSR_REV"
-          TRIPOSR_PY="$CACHE_ROOT/triposr-$TRIPOSR_REV-venv/bin/python"
+          TRIPOSR_PY="$CACHE_ROOT/triposr-$TRIPOSR_REV-py312-venv/bin/python"
           TRIPOSR_WEIGHTS="$CACHE_ROOT/models/triposr"
 
           chmod +x tools/character-factory/ci/bootstrap_triposr_macos.sh
           tools/character-factory/ci/bootstrap_triposr_macos.sh
 
           test -x "$TRIPOSR_PY"
+          "$TRIPOSR_PY" -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
           test -f "$TRIPOSR_WEIGHTS/model.ckpt"
           echo "TRIPOSR_SOURCE=$TRIPOSR_SOURCE" >> "$GITHUB_ENV"
           echo "TRIPOSR_PY=$TRIPOSR_PY" >> "$GITHUB_ENV"
