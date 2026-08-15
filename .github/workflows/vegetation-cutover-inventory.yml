@@ -1,0 +1,41 @@
+name: Vegetation cutover inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== Vegetation files ==='
+          find Assets/VoxelEngine/Vegetation -maxdepth 2 -type f | sort
+          echo '=== Declarations ==='
+          for f in Assets/VoxelEngine/Vegetation/*.cs; do
+            echo "--- $f"
+            grep -nE '^using |^namespace |^\s*(public|internal) (static )?(class|struct|enum|interface)|^\s*public static |^\s*public [A-Za-z].*\(' "$f" || true
+          done
+          echo '=== Core.Vegetation imports/qualified refs ==='
+          grep -RInE 'VoxelEngine\.Core\.Vegetation|using VoxelEngine\.Vegetation;|VoxelEngine\.Vegetation\.' Assets Packages --include='*.cs' --include='*.asmdef' | grep -v '^Assets/VoxelEngine/Vegetation/' | sort || true
+          echo '=== Type consumers ==='
+          grep -RInE '\b(ProceduralTreeDamageService|ProceduralTreeSkeletonBuilder|TreeWorldState|TreeInstance|TreeSpecies|TreeSpeciesProfile|TreeSpeciesProfiles|TreeRender|TreeSkeleton|TreeSegment|TreeNode|TreeDamage)\b' Assets Packages --include='*.cs' | grep -v '^Assets/VoxelEngine/Vegetation/' | sort || true
+          echo '=== Vegetation asmdef consumers ==='
+          grep -RIn '"VoxelEngine.Vegetation"' Assets Packages --include='*.asmdef' | sort || true
+          echo '=== Rendering vegetation refs ==='
+          grep -RInE 'Core\.Vegetation|Tree(WorldState|Instance|Species|Skeleton|Render|Segment|Node)' Assets/VoxelEngine/Rendering --include='*.cs' --include='*.asmdef' | sort || true
+          echo '=== WorldGen vegetation refs ==='
+          grep -RInE 'Core\.Vegetation|Tree(WorldState|Instance|Species|Skeleton|Render|Segment|Node)|Vegetation' Packages/com.mountingforce.worldgen/Runtime/Voxel --include='*.cs' --include='*.asmdef' | sort || true
+          echo '=== Vegetation tests ==='
+          find Assets/Tests -type f -name '*.cs' | grep -Ei 'tree|vegetation' | sort || true
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git rm .github/workflows/vegetation-cutover-inventory.yml
+          git commit -m 'Remove temporary Vegetation inventory workflow'
+          git push origin HEAD:${{ github.ref_name }}
