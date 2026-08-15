@@ -1,0 +1,43 @@
+name: Sync Net acceptance record
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/sync-net-acceptance-doc.yml]
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "${GITHUB_REF_NAME}"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = p.read_text()
+          old = "- Latest accepted code gate: `ed126903cd18dcd62324fab41942d41fdaa37532` — 384 tests, 371 passed, exactly the same 13 known baseline failures. This is the final Net post-repair source; isolated acceptance artifact from run `31892401811` produced a complete `results.xml` with the identical 13 failed test names, so Cutover 11 is accepted."
+          new = "- Latest accepted code gate: `871fd663ac9c57d8e001ce2ff11f5ac30df242f0` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated acceptance run `31892491967` tested this source-equivalent final Net tree with the standard Unity harness and produced a complete `results.xml`; the 13 failed test names match accepted gate `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` exactly, so Cutover 11 is accepted."
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one stale latest-accepted line, found {text.count(old)}')
+          text = text.replace(old, new, 1)
+          old_gate = "- [x] protocol/convergence/late-join/reconciliation tests pass against the accepted 384/371/13 baseline at `ed126903cd18dcd62324fab41942d41fdaa37532`."
+          new_gate = "- [x] protocol/convergence/late-join/reconciliation tests pass against the accepted 384/371/13 baseline at `871fd663ac9c57d8e001ce2ff11f5ac30df242f0` (isolated run `31892491967`)."
+          if text.count(old_gate) != 1:
+              raise SystemExit(f'expected one stale Net gate line, found {text.count(old_gate)}')
+          text = text.replace(old_gate, new_gate, 1)
+          p.write_text(text)
+          PY
+          git rm .github/workflows/sync-net-acceptance-doc.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'docs: record accepted final Net baseline'
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
