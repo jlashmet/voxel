@@ -42,13 +42,11 @@ jobs:
 
           world = Path('Assets/VoxelEngine/Composition/Showcase/ShowcaseWorld.cs')
           text = world.read_text()
-          old = 'public readonly List<FallingVoxel> Samples = new(GpuDebrisSystem.RenderInstancesPerChunk);'
-          if old not in text:
-              raise SystemExit('expected GpuDebrisSystem sample-capacity reference not found')
-          text = text.replace(
-              old,
-              'public readonly List<FallingVoxel> Samples = new(RenderSamplesPerDetachedChunk);',
-              1)
+          presentation_ref = 'GpuDebrisSystem.RenderInstancesPerChunk'
+          count = text.count(presentation_ref)
+          if count != 3:
+              raise SystemExit(f'expected 3 GpuDebrisSystem capacity references, found {count}')
+          text = text.replace(presentation_ref, 'RenderSamplesPerDetachedChunk')
           anchor = 'private const int FallingChunkEdge = 8;'
           if anchor not in text:
               raise SystemExit('expected FallingChunkEdge anchor not found')
