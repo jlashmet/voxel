@@ -4,9 +4,9 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Application-level logical storage bridge for Showcase collaborators. This partial keeps
-    /// networking/presentation adapters on Storage.Api vocabulary while the main ShowcaseWorld
-    /// still owns the transitional concrete storage implementation.
+    /// Application-level logical storage bridge for Showcase collaborators. The concrete
+    /// storage implementation is Composition-owned while networking/presentation adapters stay
+    /// on Storage.Api vocabulary.
     /// </summary>
     public sealed partial class ShowcaseWorld
     {
