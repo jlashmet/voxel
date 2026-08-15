@@ -1,0 +1,66 @@
+name: Refactor one-shot Composition dependency cleanup
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-finalization-clean
+    paths:
+      - .github/workflows/refactor-one-shot-debris-limit.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-clean
+          fetch-depth: 0
+      - name: Patch dependency and accepted checklist history
+        shell: python
+        run: |
+          from pathlib import Path
+          world_path = Path('Assets/VoxelEngine/Composition/ShowcaseWorld.cs')
+          world = world_path.read_text()
+          if world.count('GpuDebrisSystem.RenderInstancesPerChunk') != 2:
+              raise SystemExit('unexpected debris dependency count')
+          world = world.replace('GpuDebrisSystem.RenderInstancesPerChunk', 'DetachedVoxelSamplesPerChunk')
+          marker = '        public const int MaxQueuedDetachedChunks = 256;\n        private const int MaxVisualChunksPerCollapse = 192;'
+          replacement = '        public const int MaxQueuedDetachedChunks = 256;\n        public const int DetachedVoxelSamplesPerChunk = 16;\n        private const int MaxVisualChunksPerCollapse = 192;'
+          if world.count(marker) != 1:
+              raise SystemExit('debris limit marker changed')
+          world_path.write_text(world.replace(marker, replacement))
+
+          gpu_path = Path('Assets/Scenes/Showcase/GpuDebrisSystem.cs')
+          gpu = gpu_path.read_text()
+          old = '        public const int RenderInstancesPerChunk = 16;'
+          new = '        public const int RenderInstancesPerChunk = ShowcaseWorld.DetachedVoxelSamplesPerChunk;'
+          if gpu.count(old) != 1:
+              raise SystemExit('GPU render limit declaration changed')
+          gpu_path.write_text(gpu.replace(old, new))
+
+          plan_path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          lines = plan_path.read_text().splitlines()
+          anchor = next((i for i, line in enumerate(lines) if '8780cffe66a0e3e4ba75b524957d00b481ace971' in line), None)
+          if anchor is None:
+              raise SystemExit('Cutover 13 anchor missing')
+          additions = []
+          if not any('31907948874' in line for line in lines):
+              additions.append('- [x] route `ArchLookdev` structure authoring through `StructuresComposition`; accepted in the `05de54c3` slice, run `31907948874` with exact 387/374/13 baseline and zero compiler errors')
+          if not any('31908243915' in line for line in lines):
+              additions.append('- [x] route `ShowcaseMultiplayerSession` through Composition-owned network facades; accepted in the `28a3fda2` slice, run `31908243915` with exact 387/374/13 baseline and zero compiler errors')
+          if additions:
+              lines[anchor + 1:anchor + 1] = additions
+              plan_path.write_text('\n'.join(lines) + '\n')
+      - name: Self-delete and commit
+        run: |
+          rm .github/workflows/refactor-one-shot-debris-limit.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'refactor(composition): invert Showcase debris dependency'
+          git push origin HEAD:refactor/system-boundaries-finalization-clean
