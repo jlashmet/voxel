@@ -1,0 +1,134 @@
+name: Cutover 13 integrated 983 acceptance
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-integrated-983-acceptance.yml
+permissions:
+  contents: read
+jobs:
+  static-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 983ce759bb4ac9ea67c04f05ae949519f7a3da24
+          fetch-depth: 1
+      - name: Verify repaired integrated boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('Assets/Scenes/Showcase')
+          arch=(root/'ArchLookdev.cs').read_text()
+          terrain=(root/'TerrainLookdev.cs').read_text()
+          tonal=(root/'TerrainLookdev.TonalMap.cs').read_text()
+          world=(root/'ShowcaseWorld.cs').read_text()
+          debris=(root/'GpuDebrisSystem.cs').read_text()
+          composition=Path('Assets/VoxelEngine/Composition/VoxelEngineBootstrap.cs').read_text()
+
+          for name,text in [('ArchLookdev',arch),('TerrainLookdev',terrain)]:
+              if 'using VoxelEngine.Storage.Runtime;' in text:
+                  raise SystemExit(name+' still imports Storage.Runtime')
+              if 'IVoxelStorageRuntime' not in text or 'VoxelEngineBootstrap.CreateStorage' not in text:
+                  raise SystemExit(name+' is not Composition-owned')
+          if '_palette' in tonal or tonal.count('_storage.RegisterMaterial(') != 4:
+              raise SystemExit('TerrainLookdev.TonalMap still uses removed palette owner')
+          if 'VoxelEngine.Rendering.Runtime' in debris:
+              raise SystemExit('GpuDebrisSystem retains stale Rendering.Runtime import')
+
+          forbidden_public=[
+              'public ref RegionTable Table', 'public ref BrickPool Pool',
+              'public MaterialPalette Palette', 'public SurfaceCatalogue SurfaceRules',
+              'public CoatingCatalogue CoatingRules', 'public MaterialAdjacencyCatalogue',
+              'public VoxelChangeJournal Changes',
+          ]
+          bad=[t for t in forbidden_public if t in world]
+          if bad:
+              raise SystemExit('ShowcaseWorld still leaks physical Storage types publicly: '+', '.join(bad))
+          for token in ['public MaterialPaletteView Palette','public SurfaceCatalogueView SurfaceRules',
+                        'public CoatingCatalogueView CoatingRules','public IVoxelChangeSource Changes',
+                        'public const int RegionVoxelEdge = VoxelGrid.RegionVoxelEdge;']:
+              if token not in world:
+                  raise SystemExit('ShowcaseWorld API-facing surface missing: '+token)
+
+          for token in ['void RegisterMaterial(', 'void ConfigureCoatingDecoration(',
+                        'void PublishAllResidentRegions()', 'private MaterialPalette _materials;',
+                        'private SurfaceCatalogue _surfaces;', 'private CoatingCatalogue _coatings;']:
+              if token not in composition:
+                  raise SystemExit('Composition runtime ownership missing: '+token)
+
+          core=[]
+          for root_name in ('Assets','Packages'):
+              base=Path(root_name)
+              if not base.exists(): continue
+              for p in base.rglob('*'):
+                  if not p.is_file() or p.suffix not in ('.cs','.asmdef','.md','.json','.yml','.yaml'): continue
+                  if 'VoxelEngine.Core' in p.read_text(errors='ignore'): core.append(p)
+          if core:
+              raise SystemExit('Residual VoxelEngine.Core literals: '+', '.join(map(str,core)))
+
+          storage=[p for p in sorted(root.rglob('*.cs'))
+                   if 'using VoxelEngine.Storage.Runtime;' in p.read_text(errors='ignore')]
+          expected=[root/'ShowcaseWorld.cs']
+          print('SHOWCASE_STORAGE_RUNTIME_IMPORTS=',len(storage))
+          if storage != expected:
+              raise SystemExit('Expected only ShowcaseWorld to import Storage.Runtime')
+          print('Repaired integrated Cutover 13 static boundary accepted')
+          PY
+  editmode:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 983ce759bb4ac9ea67c04f05ae949519f7a3da24
+          clean: false
+          fetch-depth: 1
+      - name: Reset pinned integrated candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard 983ce759bb4ac9ea67c04f05ae949519f7a3da24
+          git clean -ffdx -e Library/
+          rm -rf Library/ScriptAssemblies Library/Bee
+      - id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then exit 1; fi
+            sleep 5
+          done
+      - name: Run EditMode acceptance
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/Cutover13Integrated983"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || true
+          test -s "$ROOT/results.xml"
+      - name: Upload acceptance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover13-integrated-983ce759
+          path: Artifacts/Cutover13Integrated983/
+          if-no-files-found: warn
+          retention-days: 14
