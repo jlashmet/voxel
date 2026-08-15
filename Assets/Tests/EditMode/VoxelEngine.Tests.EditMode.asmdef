@@ -18,6 +18,7 @@
     "Game.WorldBuilder.Api",
     "Game.WorldBuilder.Runtime",
     "Game.Composition.Campaign",
+    "Game.Composition.Campaign.Content",
     "Game.Composition.Campaign.Runtime",
     "Game.Composition.WorldBuilderWorldGen",
     "Game.Composition.WorldBuilderWorldGen.Runtime",
