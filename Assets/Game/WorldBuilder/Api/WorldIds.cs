@@ -42,6 +42,16 @@ namespace Game.WorldBuilder.Api
         public override string ToString() => Id ?? string.Empty;
     }
 
+    public readonly struct StoryRuleRef : IEquatable<StoryRuleRef>
+    {
+        public string Id { get; }
+        public StoryRuleRef(string id) => Id = WorldIdRules.Require(id, nameof(id));
+        public bool Equals(StoryRuleRef other) => string.Equals(Id, other.Id, StringComparison.Ordinal);
+        public override bool Equals(object obj) => obj is StoryRuleRef other && Equals(other);
+        public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Id ?? string.Empty);
+        public override string ToString() => Id ?? string.Empty;
+    }
+
     public readonly struct ObjectiveRef : IEquatable<ObjectiveRef>
     {
         public string Id { get; }
