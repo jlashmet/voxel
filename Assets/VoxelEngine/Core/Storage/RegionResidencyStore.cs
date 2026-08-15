@@ -33,9 +33,11 @@ namespace VoxelEngine.Core.Storage
             get
             {
                 long bytesPerMixedBlock = VoxelDimensions.BytesPerMixedBrick;
+                int criticalAllocatedBlocks = _pool.Capacity - (_pool.Capacity >> 14);
                 return new StoragePressure(
                     _pool.AllocatedCount * bytesPerMixedBlock,
                     _pool.Capacity * bytesPerMixedBlock,
+                    criticalAllocatedBlocks * bytesPerMixedBlock,
                     _pool.IsUnderPressure);
             }
         }
