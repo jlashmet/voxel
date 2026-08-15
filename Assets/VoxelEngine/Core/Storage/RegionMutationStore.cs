@@ -78,37 +78,31 @@ namespace VoxelEngine.Core.Storage
                 return true;
             }
 
-            int poolIndex;
-            bool materializedUniform = false;
-            if (original.IsUniform)
-            {
-                poolIndex = _pool.Allocate();
-                _pool.FillBrick(poolIndex, original.UniformMaterial);
-                region.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
-                materializedUniform = true;
-            }
-            else
-            {
-                poolIndex = original.PoolIndex;
-            }
-
-            mutation = new VoxelBlockMutation(
-                _pool.Voxels,
-                _pool.SurfaceSemantics,
-                _pool.BoundarySamples,
-                _pool.Occupancy,
-                _pool.VoxelOffset(poolIndex),
-                _pool.OccupancyOffset(poolIndex),
-                regionCoord,
-                blockIndex,
-                original.Value,
-                poolIndex,
-                materializedUniform,
-                metadataChanged);
+            mutation = MaterializeBlock(
+                in region, regionCoord, blockIndex, in original, metadataChanged);
             return true;
         }
 
-        public bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool materialChanged)
+        public bool TryBeginCellBlock(
+            int3 worldBlock,
+            bool markHardSurface,
+            out VoxelBlockMutation mutation)
+        {
+            DecomposeBlock(worldBlock, out int3 regionCoord, out int blockIndex);
+            if (!_table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
+            {
+                mutation = default;
+                return false;
+            }
+
+            bool metadataChanged = markHardSurface && region.MarkHardSurfaceBrick(blockIndex);
+            BrickRef original = region.BrickRefs[blockIndex];
+            mutation = MaterializeBlock(
+                in region, regionCoord, blockIndex, in original, metadataChanged);
+            return true;
+        }
+
+        public bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool payloadChanged)
         {
             if (!_table.TryGetRegion(mutation.RegionCoord, out Region region) || !region.BrickRefs.IsCreated)
             {
@@ -116,9 +110,9 @@ namespace VoxelEngine.Core.Storage
                 return false;
             }
 
-            bool changed = mutation.MetadataChangedInternal || materialChanged;
+            bool changed = mutation.MetadataChangedInternal || payloadChanged;
 
-            if (!materialChanged)
+            if (!payloadChanged)
             {
                 if (mutation.MaterializedUniform)
                 {
@@ -142,6 +136,43 @@ namespace VoxelEngine.Core.Storage
 
             mutation = default;
             return changed;
+        }
+
+        private VoxelBlockMutation MaterializeBlock(
+            in Region region,
+            int3 regionCoord,
+            int blockIndex,
+            in BrickRef original,
+            bool metadataChanged)
+        {
+            int poolIndex;
+            bool materializedUniform = false;
+            if (original.IsUniform)
+            {
+                poolIndex = _pool.Allocate();
+                _pool.FillBrick(poolIndex, original.UniformMaterial);
+                Region writable = region;
+                writable.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
+                materializedUniform = true;
+            }
+            else
+            {
+                poolIndex = original.PoolIndex;
+            }
+
+            return new VoxelBlockMutation(
+                _pool.Voxels,
+                _pool.SurfaceSemantics,
+                _pool.BoundarySamples,
+                _pool.Occupancy,
+                _pool.VoxelOffset(poolIndex),
+                _pool.OccupancyOffset(poolIndex),
+                regionCoord,
+                blockIndex,
+                original.Value,
+                poolIndex,
+                materializedUniform,
+                metadataChanged);
         }
 
         private static byte DecodeUniformMaterial(int encoded)
