@@ -12,15 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 4a6e161f09e95e2459ead088b4d3b6d531758b00
+          ref: d37aa1b3689f68851459200f386be10657e566e2
           clean: true
           fetch-depth: 1
       - name: Reset pinned Rendering source
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard 4a6e161f09e95e2459ead088b4d3b6d531758b00
+          git reset --hard d37aa1b3689f68851459200f386be10657e566e2
           git clean -ffdx -e Library/
+          rm -rf Library/ScriptAssemblies Library/Bee
       - id: unity
         shell: bash
         run: |
@@ -60,7 +61,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rendering-acceptance-4a6e161f
+          name: rendering-acceptance-d37aa1b3
           path: Artifacts/RenderingAcceptance/
           if-no-files-found: warn
           retention-days: 14
