@@ -26,11 +26,12 @@ namespace VoxelEngine.Tests.EditMode
                 "CatalogueLoader must be clean-renamed rather than retained as a compatibility alias.");
             Assert.True(File.Exists(Path.Combine(api, "FeatureCatalogueBuilder.cs")));
 
+            string legacyFeaturesNamespace = string.Join(".", "VoxelEngine", "Core", "Features");
             var violations = new List<string>();
             foreach (string path in Directory.EnumerateFiles(api, "*.cs", SearchOption.AllDirectories))
             {
                 string source = File.ReadAllText(path);
-                if (source.Contains("VoxelEngine.Core.Features"))
+                if (source.Contains(legacyFeaturesNamespace))
                     violations.Add(Path.GetFileName(path) + " -> old Core.Features namespace");
                 if (source.Contains("class CatalogueLoader"))
                     violations.Add(Path.GetFileName(path) + " -> compatibility CatalogueLoader type");
