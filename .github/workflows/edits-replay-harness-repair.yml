@@ -1,0 +1,48 @@
+name: Edits replay harness repair
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - name: Repair Runtime expansion callers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Tests/Parity/ReplayHarness.cs')
+          text = p.read_text()
+          replacements = {
+              'ExplosionExpansion.Expand(in pool, in table, in evt)': 'ExplosionExpansion.Expand(new RegionReadSource(in table, in pool), in evt)',
+              'BrushExpansion.Expand(in pool, in table, evt)': 'BrushExpansion.Expand(evt)',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one caller for {old!r}, found {text.count(old)}')
+              text = text.replace(old, new)
+          text = text.replace('Dispatches to the real Core.Edits expansions', 'Dispatches to the real Edits.Runtime expansions')
+          p.write_text(text)
+          PY
+          git rm .github/workflows/edits-replay-harness-repair.yml
+          git diff --check
+          git diff -- Assets/Tests/Parity/ReplayHarness.cs
+          git config user.name 'architecture-refactor-ci'
+          git config user.email 'architecture-refactor-ci@users.noreply.github.com'
+          git add Assets/Tests/Parity/ReplayHarness.cs
+          git commit -m 'Repair Edits Runtime replay harness callers'
+          git push origin HEAD:${{ github.ref_name }}
