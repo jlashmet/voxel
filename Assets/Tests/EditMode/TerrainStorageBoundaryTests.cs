@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -17,6 +18,10 @@ namespace VoxelEngine.Tests.EditMode
             string path = Path.Combine(
                 root, "Assets", "VoxelEngine", "Core", "Terrain", "TerrainGenerator.cs");
             string source = File.ReadAllText(path);
+            string codeOnly = Regex.Replace(source,
+                @"//.*?$|/\*.*?\*/",
+                string.Empty,
+                RegexOptions.Multiline | RegexOptions.Singleline);
             string[] forbidden =
             {
                 "RegionTable",
@@ -27,10 +32,10 @@ namespace VoxelEngine.Tests.EditMode
             };
 
             foreach (string token in forbidden)
-                Assert.Less(source.IndexOf(token, StringComparison.Ordinal), 0,
+                Assert.Less(codeOnly.IndexOf(token, StringComparison.Ordinal), 0,
                     "Terrain generation must not depend on physical Storage type: " + token);
-            StringAssert.Contains("VoxelEngine.Storage.Api", source);
-            StringAssert.Contains("IRegionGenerationStore", source);
+            StringAssert.Contains("VoxelEngine.Storage.Api", codeOnly);
+            StringAssert.Contains("IRegionGenerationStore", codeOnly);
         }
 
         [Test]
