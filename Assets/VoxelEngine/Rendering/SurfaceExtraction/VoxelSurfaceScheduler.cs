@@ -447,9 +447,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 {
                     CpuTransvoxelChunkCache worker = ring.Workers[i];
                     worker.InvalidateSurfaceBricks(_discoveredSurfaceBricks);
-                    // Solid extraction is the final remaining physical-storage reader in
-                    // Rendering; it is cut over in the next step of this same branch.
-                    worker.Prepare(ref table, in pool, in palette, in surfaceCatalogue,
+                    worker.Prepare(_readSource, in palette, in surfaceCatalogue,
                                    in coatingCatalogue, profileBlocks, camera, voxelSize, frame,
                                    workerBudget);
                     double visibilityStart = Time.realtimeSinceStartupAsDouble;

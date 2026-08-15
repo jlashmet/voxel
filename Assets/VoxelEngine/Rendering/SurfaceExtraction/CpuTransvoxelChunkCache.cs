@@ -7,7 +7,6 @@ using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
@@ -51,7 +50,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// <summary>
         /// True when this ring reads the region mip pyramid rather than individual voxels.
         /// Rings finer than one brick have no mip level to read and require resident bricks;
-        /// see <see cref="VoxelMipSampler.LevelForStride"/>.
+        /// see <see cref="VoxelReadGrid.LevelForStride"/>.
         /// </summary>
         public readonly bool SamplesFromMips;
 
@@ -60,7 +59,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// ring-dependent instance values.</summary>
         public const int BaseSourceStep = 1;
         public const int BaseVoxelsPerAxis = CellsPerAxis * BaseSourceStep;
-        public const int BaseBricksPerAxis = BaseVoxelsPerAxis / VoxelDimensions.BrickEdge;
+        public const int BaseBricksPerAxis = BaseVoxelsPerAxis / VoxelReadGrid.BlockEdge;
 
         private const int Padding = 1;
         private const int GridSize = CellsPerAxis + 3;
@@ -326,11 +325,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                   + "decomposition rely on shifts.");
             SourceStep = sourceStep;
             VoxelsPerAxis = CellsPerAxis * sourceStep;
-            BricksPerAxis = VoxelsPerAxis / VoxelDimensions.BrickEdge;
+            BricksPerAxis = VoxelsPerAxis / VoxelReadGrid.BlockEdge;
             // A ring whose stride reaches a whole brick or more reads the mip pyramid instead
             // of caching bricks; its brick cache would grow with the cube of the stride and is
             // never allocated.
-            SamplesFromMips = VoxelMipSampler.LevelForStride(sourceStep) >= 0;
+            SamplesFromMips = VoxelReadGrid.LevelForStride(sourceStep) >= 0;
             BrickCacheEdge = SamplesFromMips ? 0 : BricksPerAxis + BrickCachePadding * 2;
             BrickCacheCount = BrickCacheEdge * BrickCacheEdge * BrickCacheEdge;
             _surfaceCatalogue = SurfaceCatalogue.CreateBuiltIns();
@@ -438,7 +437,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// same vertex and index lists and ships in one mesh. A chunk with no finer neighbour —
         /// the common case, and every chunk in the innermost ring — does no work here.
         /// </summary>
-        private void AppendTransitionFaces(ref RegionTable table, in BrickPool pool,
+        private void AppendTransitionFaces(IRegionReadSource source,
                                            in MaterialPalette palette,
                                            Camera camera, float voxelSize)
         {
@@ -450,7 +449,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 if (!FaceNeedsTransition(_build.Coordinate, face, voxelSize, cameraPosition))
                     continue;
 
-                SnapshotTransitionFace(ref table, in pool, in palette, face);
+                SnapshotTransitionFace(source, in palette, face);
 
                 _transitionVertices.Clear();
                 _transitionIndices.Clear();
@@ -491,7 +490,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// authoritative source the finer ring reads is what makes the two sides agree on where
         /// the surface crosses, which is the whole mechanism by which the seam closes.
         /// </summary>
-        private void SnapshotTransitionFace(ref RegionTable table, in BrickPool pool,
+        private void SnapshotTransitionFace(IRegionReadSource source,
                                             in MaterialPalette palette, int face)
         {
             int axis = face >> 1;
@@ -511,16 +510,17 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             int halfStep = math.max(1, SourceStep / 2);
             // Half a ring stride is one level finer than the ring itself; for the finest ring
             // that reaches actual voxels, which LevelForStride reports as a negative level.
-            int mipLevel = VoxelMipSampler.LevelForStride(halfStep);
+            int mipLevel = VoxelReadGrid.LevelForStride(halfStep);
+            RegionSampleCursor cursor = default;
 
             for (int v = 0; v < FaceSamplesPerAxis; v++)
             for (int u = 0; u < FaceSamplesPerAxis; u++)
             {
                 int3 voxel = faceOrigin + uAxis * (u * halfStep) + vAxis * (v * halfStep);
                 bool occupied = false;
-                byte material = VoxelDimensions.MaterialEmpty;
-                if (VoxelMipSampler.TrySample(ref table, in pool, voxel, mipLevel,
-                                              out bool sampled, out byte sampledMaterial))
+                byte material = VoxelGrid.MaterialEmpty;
+                if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
+                                   out bool sampled, out byte sampledMaterial))
                 {
                     occupied = sampled;
                     material = sampledMaterial;
@@ -635,8 +635,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         {
             int3 chunkMin = chunk * voxelsPerAxis - Padding * sourceStep;
             int3 chunkMax = (chunk + 1) * voxelsPerAxis + Padding * sourceStep;
-            int3 regionMin = region * VoxelDimensions.RegionVoxelEdge;
-            int3 regionMax = regionMin + VoxelDimensions.RegionVoxelEdge;
+            int3 regionMin = region * VoxelGrid.RegionVoxelEdge;
+            int3 regionMax = regionMin + VoxelGrid.RegionVoxelEdge;
             return !math.any(chunkMax <= regionMin) && !math.any(chunkMin >= regionMax);
         }
 
@@ -703,7 +703,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             for (int i = 0; i < affected.Count; i++) Invalidate(affected[i]);
         }
 
-        public void Prepare(ref RegionTable table, in BrickPool pool, in MaterialPalette palette,
+        public void Prepare(IRegionReadSource source, in MaterialPalette palette,
                             in SurfaceCatalogue surfaceCatalogue,
                             in CoatingCatalogue coatingCatalogue,
                             ProfileBlockStore profileBlocks,
@@ -718,7 +718,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             SetProfileBlocks(profileBlocks);
             _ruleSyncTiming.Add(ElapsedMs(sectionStart));
             sectionStart = Time.realtimeSinceStartupAsDouble;
-            DropNoLongerResident(ref table);
+            DropNoLongerResident(source);
             _residencyPruneTiming.Add(ElapsedMs(sectionStart));
             sectionStart = Time.realtimeSinceStartupAsDouble;
             EnforceCapacity(camera, voxelSize);
@@ -747,7 +747,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 if (_build.Phase == 0)
                 {
                     if (!_densityJobScheduled)
-                        ScheduleDensityJob(ref table, in pool, in palette, voxelSize);
+                        ScheduleDensityJob(source, in palette, voxelSize);
 
                     // Border invalidation intentionally discovers halo chunks. If the immutable
                     // snapshot proves this chunk owns no solid cells, publish a complete empty
@@ -813,8 +813,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 _profileEmitTiming.Add(ElapsedMs(profileStart));
                 if (profilesDone)
                 {
-                    AppendTransitionFaces(ref table, in pool, in palette,
-                                          camera, voxelSize);
+                    AppendTransitionFaces(source, in palette, camera, voxelSize);
                     FinishBuild(frame);
                 }
             }
@@ -912,7 +911,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private void ScheduleSnapshotFacetedMaskJob()
         {
             int3 chunkOrigin = _build.Coordinate * VoxelsPerAxis;
-            int3 chunkBrickOrigin = chunkOrigin >> VoxelDimensions.BrickEdgeLog2;
+            int3 chunkBrickOrigin = chunkOrigin >> VoxelReadGrid.BlockEdgeLog2;
             var job = new SnapshotFacetedMaskJob
             {
                 Bricks = _densityBricks,
@@ -1152,14 +1151,15 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// they cover. Samples whose region is absent read as empty, which leaves a hole rather
         /// than inventing geometry the server never sent.
         /// </summary>
-        private void ScheduleMipDensityJob(ref RegionTable table, in BrickPool pool,
+        private void ScheduleMipDensityJob(IRegionReadSource source,
                                            in MaterialPalette palette, float voxelSize)
         {
             double snapshotStart = Time.realtimeSinceStartupAsDouble;
             using var snapshotScope = s_SnapshotMarker.Auto();
 
             int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
-            int mipLevel = VoxelMipSampler.LevelForStride(SourceStep);
+            int mipLevel = VoxelReadGrid.LevelForStride(SourceStep);
+            RegionSampleCursor cursor = default;
             bool anySolid = false;
 
             for (int gz = 0; gz < GridSize; gz++)
@@ -1171,9 +1171,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                            + (new int3(gx, gy, gz) - Padding) * SourceStep;
 
                 bool occupied = false;
-                byte material = VoxelDimensions.MaterialEmpty;
-                if (VoxelMipSampler.TrySample(ref table, in pool, voxel, mipLevel,
-                                              out bool sampled, out byte sampledMaterial))
+                byte material = VoxelGrid.MaterialEmpty;
+                if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
+                                   out bool sampled, out byte sampledMaterial))
                 {
                     occupied = sampled;
                     material = sampledMaterial;
@@ -1223,12 +1223,12 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// voxel payloads. This snapshot is immutable until the Burst density job completes, so
         /// gameplay may continue editing/evicting authoritative storage without racing the job.
         /// </summary>
-        private void ScheduleDensityJob(ref RegionTable table, in BrickPool pool,
+        private void ScheduleDensityJob(IRegionReadSource source,
                                         in MaterialPalette palette, float voxelSize)
         {
             if (SamplesFromMips)
             {
-                ScheduleMipDensityJob(ref table, in pool, in palette, voxelSize);
+                ScheduleMipDensityJob(source, in palette, voxelSize);
                 return;
             }
 
@@ -1239,10 +1239,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _densityMixedBoundarySamples.Clear();
 
             int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
-            int3 chunkBrickOrigin = new(chunkOriginVoxel.x >> VoxelDimensions.BrickEdgeLog2,
-                                        chunkOriginVoxel.y >> VoxelDimensions.BrickEdgeLog2,
-                                        chunkOriginVoxel.z >> VoxelDimensions.BrickEdgeLog2);
+            int3 chunkBrickOrigin = new(chunkOriginVoxel.x >> VoxelReadGrid.BlockEdgeLog2,
+                                        chunkOriginVoxel.y >> VoxelReadGrid.BlockEdgeLog2,
+                                        chunkOriginVoxel.z >> VoxelReadGrid.BlockEdgeLog2);
             int3 cacheOrigin = chunkBrickOrigin - BrickCachePadding;
+            RegionSampleCursor cursor = default;
 
             for (int z = 0; z < BrickCacheEdge; z++)
             for (int y = 0; y < BrickCacheEdge; y++)
@@ -1250,7 +1251,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             {
                 int cacheIndex = x + BrickCacheEdge * (y + BrickCacheEdge * z);
                 int3 worldBrick = cacheOrigin + new int3(x, y, z);
-                _densityBricks[cacheIndex] = SnapshotBrick(ref table, in pool, worldBrick);
+                _densityBricks[cacheIndex] = SnapshotBlock(source, ref cursor, worldBrick);
             }
 
             _buildSurfaceCatalogue = _surfaceCatalogue;
@@ -1350,53 +1351,44 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                     continue;
                 }
 
-                int endVoxel = brick.MixedOffset + VoxelDimensions.VoxelsPerBrick;
+                int endVoxel = brick.MixedOffset + VoxelReadGrid.VoxelsPerBlock;
                 for (int voxel = brick.MixedOffset; voxel < endVoxel; voxel++)
                     if (IsSolidSurfaceMaterial(_densityMixedVoxels[voxel])) return true;
             }
             return false;
         }
 
-        private TransvoxelDensityBrick SnapshotBrick(ref RegionTable table, in BrickPool pool,
-                                                      int3 worldBrick)
+        private TransvoxelDensityBrick SnapshotBlock(IRegionReadSource source,
+                                                      ref RegionSampleCursor cursor,
+                                                      int3 worldBlock)
         {
-            int3 regionCoord = new(worldBrick.x >> VoxelDimensions.RegionEdgeLog2,
-                                   worldBrick.y >> VoxelDimensions.RegionEdgeLog2,
-                                   worldBrick.z >> VoxelDimensions.RegionEdgeLog2);
-            if (!table.TryGetRegion(regionCoord, out Region region)) return default;
+            if (!TryAcquireWorldBlock(source, ref cursor, worldBlock, out RegionReadView region)
+                || !region.TryGetWorldBlock(worldBlock, out VoxelReadBlock block)
+                || block.Kind == VoxelReadBlockKind.Empty)
+                return default;
 
-            int bx = worldBrick.x & VoxelDimensions.RegionEdgeMask;
-            int by = worldBrick.y & VoxelDimensions.RegionEdgeMask;
-            int bz = worldBrick.z & VoxelDimensions.RegionEdgeMask;
-            int brickIndex = Region.BrickIndex(bx, by, bz);
-            BrickRef brick = region.BrickRefs[brickIndex];
-            if (brick.IsUniform)
+            if (block.Kind == VoxelReadBlockKind.Uniform)
             {
-                byte material = brick.UniformMaterial;
-                if (material == VoxelDimensions.MaterialEmpty) return default;
                 return new TransvoxelDensityBrick
                 {
                     Kind = 1,
-                    UniformMaterial = material,
+                    UniformMaterial = block.UniformMaterial,
                     MixedOffset = 0
                 };
             }
 
             int mixedOffset = _densityMixedVoxels.Length;
-            int nextLength = mixedOffset + VoxelDimensions.VoxelsPerBrick;
+            int nextLength = mixedOffset + VoxelReadGrid.VoxelsPerBlock;
             _densityMixedVoxels.ResizeUninitialized(nextLength);
             _densityMixedSurfaceSemantics.ResizeUninitialized(nextLength);
             _densityMixedBoundarySamples.ResizeUninitialized(nextLength);
-            NativeArray<byte> packed = _densityMixedVoxels.AsArray();
-            NativeArray<ushort> packedSurfaces = _densityMixedSurfaceSemantics.AsArray();
-            NativeArray<byte> packedBoundaries = _densityMixedBoundarySamples.AsArray();
-            int sourceOffset = pool.VoxelOffset(brick.PoolIndex);
-            NativeArray<byte>.Copy(pool.Voxels, sourceOffset, packed, mixedOffset,
-                                   VoxelDimensions.VoxelsPerBrick);
-            NativeArray<ushort>.Copy(pool.SurfaceSemantics, sourceOffset, packedSurfaces,
-                                     mixedOffset, VoxelDimensions.VoxelsPerBrick);
-            NativeArray<byte>.Copy(pool.BoundarySamples, sourceOffset, packedBoundaries,
-                                   mixedOffset, VoxelDimensions.VoxelsPerBrick);
+            if (!region.TryCopyWorldBlock(
+                    worldBlock,
+                    _densityMixedVoxels.AsArray(),
+                    _densityMixedSurfaceSemantics.AsArray(),
+                    _densityMixedBoundarySamples.AsArray(),
+                    mixedOffset))
+                throw new InvalidOperationException($"Failed to snapshot Storage read block {worldBlock}.");
 
             return new TransvoxelDensityBrick
             {
@@ -2104,7 +2096,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         {
             int3 chunkBrickOrigin = _build.Coordinate * BricksPerAxis;
             int3 cacheOrigin = chunkBrickOrigin - BrickCachePadding;
-            int3 worldBrick = voxel >> VoxelDimensions.BrickEdgeLog2;
+            int3 worldBrick = voxel >> VoxelReadGrid.BlockEdgeLog2;
             int3 localBrick = worldBrick - cacheOrigin;
             if (math.any(localBrick < 0) || math.any(localBrick >= BrickCacheEdge))
             {
@@ -2130,7 +2122,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 boundary = 0;
                 return;
             }
-            int3 local = voxel & VoxelDimensions.BrickEdgeMask;
+            int3 local = voxel & VoxelReadGrid.BlockEdgeMask;
             int voxelIndex = local.x | (local.y << 3) | (local.z << 6);
             material = _densityMixedVoxels[brick.MixedOffset + voxelIndex];
             surface = VoxelSurfaceSemantics.FromStorage(
@@ -2233,13 +2225,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _indices.Clear();
         }
 
-        private void DropNoLongerResident(ref RegionTable table)
+        private void DropNoLongerResident(IRegionReadSource source)
         {
             if (_known.Count == 0) return;
             List<int3> gone = null;
             foreach (int3 chunk in _known)
             {
-                if (AnyOverlappedRegionResident(ref table, chunk)) continue;
+                if (AnyOverlappedRegionResident(source, chunk)) continue;
                 (gone ??= new List<int3>()).Add(chunk);
             }
 
@@ -2253,21 +2245,21 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// discard a chunk that still has most of its data — and, worse, keep one whose origin
         /// happens to survive while the rest of it has gone.
         /// </summary>
-        private bool AnyOverlappedRegionResident(ref RegionTable table, int3 chunk)
+        private bool AnyOverlappedRegionResident(IRegionReadSource source, int3 chunk)
         {
             int3 minVoxel = chunk * VoxelsPerAxis;
             int3 maxVoxel = minVoxel + (VoxelsPerAxis - 1);
-            int3 minRegion = new(FloorDiv(minVoxel.x, VoxelDimensions.RegionVoxelEdge),
-                                 FloorDiv(minVoxel.y, VoxelDimensions.RegionVoxelEdge),
-                                 FloorDiv(minVoxel.z, VoxelDimensions.RegionVoxelEdge));
-            int3 maxRegion = new(FloorDiv(maxVoxel.x, VoxelDimensions.RegionVoxelEdge),
-                                 FloorDiv(maxVoxel.y, VoxelDimensions.RegionVoxelEdge),
-                                 FloorDiv(maxVoxel.z, VoxelDimensions.RegionVoxelEdge));
+            int3 minRegion = new(FloorDiv(minVoxel.x, VoxelGrid.RegionVoxelEdge),
+                                 FloorDiv(minVoxel.y, VoxelGrid.RegionVoxelEdge),
+                                 FloorDiv(minVoxel.z, VoxelGrid.RegionVoxelEdge));
+            int3 maxRegion = new(FloorDiv(maxVoxel.x, VoxelGrid.RegionVoxelEdge),
+                                 FloorDiv(maxVoxel.y, VoxelGrid.RegionVoxelEdge),
+                                 FloorDiv(maxVoxel.z, VoxelGrid.RegionVoxelEdge));
 
             for (int z = minRegion.z; z <= maxRegion.z; z++)
             for (int y = minRegion.y; y <= maxRegion.y; y++)
             for (int x = minRegion.x; x <= maxRegion.x; x++)
-                if (table.IsResident(new int3(x, y, z))) return true;
+                if (source.IsRegionResident(new int3(x, y, z))) return true;
             return false;
         }
 
@@ -2430,9 +2422,63 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private int3 ChunkRegion(int3 chunk)
         {
             int3 originVoxel = chunk * VoxelsPerAxis;
-            return new int3(FloorDiv(originVoxel.x, VoxelDimensions.RegionVoxelEdge),
-                            FloorDiv(originVoxel.y, VoxelDimensions.RegionVoxelEdge),
-                            FloorDiv(originVoxel.z, VoxelDimensions.RegionVoxelEdge));
+            return new int3(FloorDiv(originVoxel.x, VoxelGrid.RegionVoxelEdge),
+                            FloorDiv(originVoxel.y, VoxelGrid.RegionVoxelEdge),
+                            FloorDiv(originVoxel.z, VoxelGrid.RegionVoxelEdge));
+        }
+
+
+        private struct RegionSampleCursor
+        {
+            public bool HasLookup;
+            public bool Resident;
+            public int3 RegionCoord;
+            public RegionReadView View;
+        }
+
+        private static bool TryAcquireWorldBlock(IRegionReadSource source,
+                                                 ref RegionSampleCursor cursor,
+                                                 int3 worldBlock,
+                                                 out RegionReadView view)
+        {
+            int3 regionCoord = worldBlock >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            return TryAcquireRegion(source, ref cursor, regionCoord, out view);
+        }
+
+        private static bool TrySampleWorld(IRegionReadSource source,
+                                           ref RegionSampleCursor cursor,
+                                           int3 worldVoxel, int level,
+                                           out bool occupied, out byte material)
+        {
+            int3 regionCoord = new(
+                FloorDiv(worldVoxel.x, VoxelGrid.RegionVoxelEdge),
+                FloorDiv(worldVoxel.y, VoxelGrid.RegionVoxelEdge),
+                FloorDiv(worldVoxel.z, VoxelGrid.RegionVoxelEdge));
+            if (!TryAcquireRegion(source, ref cursor, regionCoord, out RegionReadView region))
+            {
+                occupied = false;
+                material = VoxelGrid.MaterialEmpty;
+                return false;
+            }
+
+            int3 localVoxel = worldVoxel - regionCoord * VoxelGrid.RegionVoxelEdge;
+            return region.TrySample(localVoxel, level, out occupied, out material);
+        }
+
+        private static bool TryAcquireRegion(IRegionReadSource source,
+                                             ref RegionSampleCursor cursor,
+                                             int3 regionCoord,
+                                             out RegionReadView view)
+        {
+            if (!cursor.HasLookup || math.any(cursor.RegionCoord != regionCoord))
+            {
+                cursor.RegionCoord = regionCoord;
+                cursor.HasLookup = true;
+                cursor.Resident = source.TryAcquireRegion(regionCoord, out cursor.View);
+            }
+
+            view = cursor.View;
+            return cursor.Resident;
         }
 
         private static int GridIndex(int x, int y, int z) =>
