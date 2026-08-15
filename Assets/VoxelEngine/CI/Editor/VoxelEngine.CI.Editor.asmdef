@@ -10,6 +10,7 @@
     "MountingForce.WorldGen.Voxel",
     "VoxelEngine.Structures",
     "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Showcase",
     "Unity.Collections",
     "Unity.Mathematics",
