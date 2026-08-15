@@ -92,6 +92,35 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ManualBoxProgramBuildersDeriveAllocationLengthFromShapeOps()
+        {
+            string root = FindRepoRoot();
+            string voxelRoot = Path.Combine(
+                root, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel");
+
+            string terrace = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeTerraceSupportCatalogue.cs"));
+            StringAssert.Contains(
+                "programLength: count * (ShapeOps.InstructionLength(ShapeOp.EmitBox)", terrace);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.End)", terrace);
+            StringAssert.DoesNotContain("programLength: count * 12", terrace);
+
+            string frontage = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeFrontagePathCatalogue.cs"));
+            StringAssert.Contains("private static int ProgramLengthPerPath", frontage);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.EmitBox)", frontage);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.End)", frontage);
+            StringAssert.DoesNotContain("ProgramLengthPerPath = 12", frontage);
+
+            string sidewalk = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeUrbanSidewalkCatalogue.cs"));
+            StringAssert.Contains("private static int ProgramLengthPerStrip", sidewalk);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.EmitBox)", sidewalk);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.End)", sidewalk);
+            StringAssert.DoesNotContain("ProgramLengthPerStrip = 12", sidewalk);
+        }
+
+        [Test]
         public void KentridgeUsesCanonicalEncodingWithoutCompatibilityNormalizer()
         {
             string root = FindRepoRoot();
