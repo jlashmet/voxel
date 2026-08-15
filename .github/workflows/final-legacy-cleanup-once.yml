@@ -1,0 +1,183 @@
+name: Final legacy architecture cleanup once
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths: [.github/workflows/final-legacy-cleanup-once.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-stable
+          fetch-depth: 0
+      - name: Remove retired migration artifacts and classify retained history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization-stable
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+          retired_workflows=(
+            .github/workflows/cutover13-core-zero-match.yml
+            .github/workflows/cutover13-final-gap-inventory.yml
+            .github/workflows/cutover13-integrated-983-acceptance.yml
+            .github/workflows/cutover13-integrated-a6b-acceptance.yml
+            .github/workflows/cutover13-worldgen-static.yml
+            .github/workflows/record-composition-storage-slice.yml
+            .github/workflows/record-rendering-cutover12-acceptance.yml
+            .github/workflows/record-rendering-final-cutover12.yml
+            .github/workflows/rendering-plan-complete.yml
+            .github/workflows/rendering-static-cutover12.yml
+            .github/workflows/showcase-network-storage-api-acceptance.yml
+            .github/workflows/storage-core-cutover-acceptance.yml
+            .github/workflows/storage-runtime-cutover.yml
+            .github/workflows/terrain-cutover3-acceptance.yml
+            .github/workflows/terrain-runtime-cutover.yml
+            .github/workflows/zz-net-static-c7d-gate.yml
+            .github/workflows/stable-static-checklist-sync.yml
+            .github/workflows/stable-plan-static-checkoff-once.yml
+            .github/workflows/sync-accepted-architecture-checklist-v2.yml
+            .github/workflows/sync-accepted-architecture-checklist-no-lint.yml
+            .github/workflows/final-core-literal-inventory.yml
+          )
+          for path in "${retired_workflows[@]}"; do
+            [ ! -e "$path" ] || git rm -f "$path"
+          done
+
+          archived_logs=(
+            Artifacts/ArchStudy/unity-hero-beveled-profile-v2.log
+            Artifacts/ArchStudy/unity-hero-beveled-profile.log
+            Artifacts/ArchStudy/unity-hero-final.log
+            Artifacts/ArchStudy/unity-hero-moss-fringe-v3.log
+            Artifacts/ArchStudy/unity-hero-moss-fringe.log
+            Artifacts/ArchStudy/unity-hero-profile-blocks-v2.log
+            Artifacts/ArchStudy/unity-hero-profile-blocks-v3.log
+            Artifacts/ArchStudy/unity-hero-profile-blocks-v4.log
+            Artifacts/ArchStudy/unity-lookdev-compile.log
+            Artifacts/ArchStudy/unity-profile-block-compile.log
+            Artifacts/showcase-performance-keep-sections.log
+          )
+          for path in "${archived_logs[@]}"; do
+            [ ! -e "$path" ] || git rm -f "$path"
+          done
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          tool = Path('tools/check-compile.sh')
+          text = tool.read_text()
+          text = text.replace(
+              'Type-checks every project assembly with the Roslyn compiler Unity ships, against the',
+              'Type-checks the VoxelEngine, Showcase, CI and test assemblies with Unity\'s Roslyn compiler, against the')
+
+          block = '''ASSEMBLIES=(
+              "VoxelEngine.Foundation:Assets/VoxelEngine/Foundation"
+              "VoxelEngine.Storage.Api:Assets/VoxelEngine/Storage/Api"
+              "VoxelEngine.Terrain.Api:Assets/VoxelEngine/Terrain/Api"
+              "VoxelEngine.Tiering.Api:Assets/VoxelEngine/Tiering/Api"
+              "VoxelEngine.Vegetation.Api:Assets/VoxelEngine/Vegetation/Api"
+              "VoxelEngine.Collision.Api:Assets/VoxelEngine/Collision/Api"
+              "VoxelEngine.Streaming.Api:Assets/VoxelEngine/Streaming/Api"
+              "VoxelEngine.Edits.Api:Assets/VoxelEngine/Edits/Api"
+              "VoxelEngine.Structures.Api:Assets/VoxelEngine/Structures/Api"
+              "VoxelEngine.StructuralIntegrity.Api:Assets/VoxelEngine/StructuralIntegrity/Api"
+              "VoxelEngine.Net.Api:Assets/VoxelEngine/Net/Api"
+              "VoxelEngine.Rendering.Api:Assets/VoxelEngine/Rendering/Api"
+              "VoxelEngine.Storage.Runtime:Assets/VoxelEngine/Storage/Runtime"
+              "VoxelEngine.Terrain.Runtime:Assets/VoxelEngine/Terrain/Runtime"
+              "VoxelEngine.Vegetation.Runtime:Assets/VoxelEngine/Vegetation/Runtime"
+              "VoxelEngine.Collision.Runtime:Assets/VoxelEngine/Collision/Runtime"
+              "VoxelEngine.Streaming.Runtime:Assets/VoxelEngine/Streaming/Runtime"
+              "VoxelEngine.Edits.Runtime:Assets/VoxelEngine/Edits/Runtime"
+              "VoxelEngine.Structures.Runtime:Assets/VoxelEngine/Structures/Runtime"
+              "VoxelEngine.StructuralIntegrity.Runtime:Assets/VoxelEngine/StructuralIntegrity/Runtime"
+              "VoxelEngine.Net.Runtime:Assets/VoxelEngine/Net/Runtime"
+              "VoxelEngine.Rendering.Runtime:Assets/VoxelEngine/Rendering/Runtime"
+              "VoxelEngine.Composition:Assets/VoxelEngine/Composition"
+              "VoxelEngine.Showcase:Assets/Scenes/Showcase"
+              "VoxelEngine.CI.Editor:Assets/VoxelEngine/CI/Editor"
+              "VoxelEngine.CI.PlayMode:Assets/VoxelEngine/CI/PlayMode"
+              "VoxelEngine.Tests.EditMode:Assets/Tests/EditMode"
+              "VoxelEngine.Tests.PlayMode:Assets/Tests/PlayMode"
+          )'''
+          text, count = re.subn(r'ASSEMBLIES=\(.*?\n\)', block, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('Could not replace compile assembly inventory')
+
+          old = '    [ -d "$src" ] || { echo "### $name  SKIPPED (no $src)"; continue; }\n\n    rsp="$OUT/$name.rsp"'
+          new = '    [ -d "$src" ] || { echo "### $name  SKIPPED (no $src)"; continue; }\n    [ -n "$(find "$src" -name "*.cs" -print -quit)" ] || { echo "### $name  SKIPPED (no C# sources)"; continue; }\n\n    rsp="$OUT/$name.rsp"'
+          if old not in text:
+              raise SystemExit('Could not add empty-assembly handling to compile helper')
+          tool.write_text(text.replace(old, new, 1))
+
+          plan = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          s = plan.read_text()
+          s = s.replace(
+              '[ ] no compatibility/legacy adapter was introduced to preserve the old architecture',
+              '[x] no compatibility/legacy adapter was introduced to preserve the old architecture; static gate `31910007277` rejects production `Legacy*` / `*Compatibility*` adapter source',
+              1)
+          old_cleanup = '- [ ] classify/remove stale repository-wide `VoxelEngine.Core` literals outside production; inventory run `31909802220` found 181 matches, primarily historical migration docs, retired one-shot workflows, guard/test vocabulary, and archived logs. Intentional guard/history references must be explicitly retained rather than pretending the repository is at literal zero-match.'
+          new_cleanup = '- [x] classify/remove stale repository-wide `VoxelEngine.Core` literals outside production; retired migration publishers and archived Unity logs are removed, `tools/check-compile.sh` targets the final Api/Runtime layout, and the only retained literals are explicit final guards plus architecture/spec history.'
+          if old_cleanup not in s:
+              raise SystemExit('Legacy-literal cleanup checklist item not found')
+          s = s.replace(old_cleanup, new_cleanup, 1)
+          old_remaining = 'classify/remove stale non-production legacy Core literals, then exact EditMode acceptance for the final Composition move and final validation closeout'
+          if old_remaining in s:
+              s = s.replace(old_remaining, 'exact EditMode 387/374/13 acceptance for the final Composition move and final validation closeout', 1)
+          note = '- Repository-wide legacy-literal cleanup: the 181-match inventory from run `31909802220` was classified. Retired migration workflows and archived Unity logs were removed; the offline compile helper was migrated to the final Api/Runtime assembly names. Intentional residual `VoxelEngine.Core` text is restricted to final guard enforcement and architecture/spec history.\n'
+          anchor = '- Repository-wide legacy-token inventory:'
+          if note not in s:
+              idx = s.find(anchor)
+              if idx >= 0:
+                  end = s.find('\n', idx)
+                  s = s[:end+1] + note + s[end+1:]
+          plan.write_text(s)
+
+          report = Path('docs/ARCHITECTURE_DEPENDENCY_REPORT.md')
+          r = report.read_text()
+          section = '''\n## Legacy-token classification\n\nThe final repository inventory deliberately distinguishes active architecture from historical text. Retired migration/publisher workflows and archived Unity logs were removed, and `tools/check-compile.sh` now targets the final Api/Runtime assembly layout. Remaining `VoxelEngine.Core` literals are intentional: permanent guards that forbid its return plus architecture/spec history describing the migration. Production source and assembly metadata remain zero-match.\n'''
+          if '## Legacy-token classification' not in r:
+              r = r.rstrip() + '\n' + section
+          report.write_text(r)
+          PY
+
+          # The cleanup workflow is one-shot and must not remain in the repository.
+          git rm .github/workflows/final-legacy-cleanup-once.yml
+
+          # Re-inventory the literal after cleanup. Any residual path outside this explicit
+          # history/guard allowlist is a stale item and blocks the cleanup commit.
+          token='VoxelEngine.'"Core"
+          git grep -n -F "$token" -- ':!Library' ':!Temp' ':!Logs' > /tmp/core-literals.txt || true
+          python3 - <<'PY'
+          from pathlib import Path
+          allowed = {
+              '.github/workflows/final-architecture-static.yml',
+              '.github/workflows/stable-final-architecture-acceptance.yml',
+              'Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs',
+              'docs/ARCHITECTURE_DEPENDENCY_REPORT.md',
+              'docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md',
+              'docs/ARCHITECTURE_MIGRATION_PLAN.md',
+              'specs/001-destructible-voxel-engine/tasks.md',
+              'specs/002-world-feature-authoring/tasks.md',
+          }
+          rows = Path('/tmp/core-literals.txt').read_text().splitlines()
+          paths = {row.split(':', 1)[0] for row in rows if row}
+          unexpected = sorted(paths - allowed)
+          if unexpected:
+              raise SystemExit('Unexpected legacy Core literal paths remain:\n' + '\n'.join(unexpected))
+          print(f'Legacy Core literal classification accepted: {len(rows)} matches in {len(paths)} intentional files')
+          PY
+
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'chore(architecture): remove retired migration artifacts'
+          git push origin HEAD:refactor/system-boundaries-finalization-stable
