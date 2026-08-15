@@ -1,0 +1,88 @@
+name: Cutover 13 publish vegetation damage API
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-publish-vegetation-damage-api.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+
+      - name: Add semantic tree damage capability
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          api = Path('Assets/VoxelEngine/Vegetation/Api/ITreeDamageService.cs')
+          api.write_text('''using Unity.Mathematics;\n\nnamespace VoxelEngine.Vegetation.Api\n{\n    /// <summary>\n    /// Semantic tree collision/damage capability for gameplay. Callers work only in metre-space\n    /// domain values; Vegetation.Runtime owns broadphase indexing, procedural skeleton caching and\n    /// authoritative tree-state mutation.\n    /// </summary>\n    public interface ITreeDamageService\n    {\n        bool TrySweepImpact(\n            float3 fromMetres,\n            float3 toMetres,\n            float sweepRadiusMetres,\n            out float3 hitMetres,\n            out int treeIndex);\n\n        void ApplyBlast(\n            float3 impactMetres,\n            float blastRadiusMetres,\n            float3 impulse);\n    }\n}\n''')
+          Path(str(api) + '.meta').write_text('fileFormatVersion: 2\nguid: 4c6e24df1ac64f588866ac53dfb13f90\n')
+
+          runtime = Path('Assets/VoxelEngine/Vegetation/Runtime/TreeDamageService.cs')
+          runtime.write_text('''using Unity.Mathematics;\nusing VoxelEngine.Vegetation.Api;\n\nnamespace VoxelEngine.Vegetation.Runtime\n{\n    /// <summary>\n    /// Runtime implementation of the stable semantic damage capability. The existing static\n    /// service remains the optimized state/cache owner; this adapter adds no per-query allocation.\n    /// </summary>\n    public sealed class TreeDamageService : ITreeDamageService\n    {\n        public bool TrySweepImpact(\n            float3 fromMetres,\n            float3 toMetres,\n            float sweepRadiusMetres,\n            out float3 hitMetres,\n            out int treeIndex) =>\n            ProceduralTreeDamageService.TrySweepImpact(\n                fromMetres, toMetres, sweepRadiusMetres, out hitMetres, out treeIndex);\n\n        public void ApplyBlast(\n            float3 impactMetres,\n            float blastRadiusMetres,\n            float3 impulse) =>\n            ProceduralTreeDamageService.ApplyBlast(impactMetres, blastRadiusMetres, impulse);\n    }\n}\n''')
+          Path(str(runtime) + '.meta').write_text('fileFormatVersion: 2\nguid: f2f51a8495a94578aa1e93677fa1cf77\n')
+
+          composition = Path('Assets/VoxelEngine/Composition/VegetationComposition.cs')
+          composition.write_text('''using VoxelEngine.Vegetation.Api;\nusing VoxelEngine.Vegetation.Runtime;\n\nnamespace VoxelEngine.Composition\n{\n    /// <summary>Production wiring for Vegetation runtime capabilities.</summary>\n    public static class VegetationComposition\n    {\n        private static readonly ITreeDamageService s_treeDamage = new TreeDamageService();\n\n        public static ITreeDamageService TreeDamage => s_treeDamage;\n    }\n}\n''')
+          Path(str(composition) + '.meta').write_text('fileFormatVersion: 2\nguid: a7b9acf484934dcfa48d9808ec46eafa\n')
+
+          showcase = Path('Assets/Scenes/Showcase/VoxelShowcase.cs')
+          text = showcase.read_text()
+          if 'using VoxelEngine.Vegetation.Runtime;' not in text:
+              raise SystemExit('VoxelShowcase Vegetation.Runtime import not found')
+          text = text.replace('using VoxelEngine.Vegetation.Runtime;\n', '', 1)
+          count = text.count('ProceduralTreeDamageService.')
+          if count != 2:
+              raise SystemExit(f'expected two tree-damage runtime calls, found {count}')
+          text = text.replace('ProceduralTreeDamageService.ApplyBlast(',
+                              'VegetationComposition.TreeDamage.ApplyBlast(', 1)
+          text = text.replace('ProceduralTreeDamageService.TrySweepImpact(',
+                              'VegetationComposition.TreeDamage.TrySweepImpact(', 1)
+          showcase.write_text(text)
+
+          def update_refs(path, add=(), remove=()):
+              p=Path(path)
+              data=json.loads(p.read_text())
+              refs=[r for r in data.get('references', []) if r not in set(remove)]
+              for r in add:
+                  if r not in refs: refs.append(r)
+              data['references']=refs
+              p.write_text(json.dumps(data, indent=2)+'\n')
+
+          update_refs('Assets/VoxelEngine/Composition/VoxelEngine.Composition.asmdef',
+                      add=('VoxelEngine.Vegetation.Api','VoxelEngine.Vegetation.Runtime'))
+          update_refs('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef',
+                      remove=('VoxelEngine.Vegetation.Runtime',))
+          PY
+
+          test -f Assets/VoxelEngine/Vegetation/Api/ITreeDamageService.cs
+          test -f Assets/VoxelEngine/Vegetation/Runtime/TreeDamageService.cs
+          test -f Assets/VoxelEngine/Composition/VegetationComposition.cs
+          ! grep -q 'VoxelEngine.Vegetation.Runtime' Assets/Scenes/Showcase/VoxelShowcase.cs
+          ! grep -q 'ProceduralTreeDamageService' Assets/Scenes/Showcase/VoxelShowcase.cs
+          grep -q 'VegetationComposition.TreeDamage.ApplyBlast' Assets/Scenes/Showcase/VoxelShowcase.cs
+          grep -q 'VegetationComposition.TreeDamage.TrySweepImpact' Assets/Scenes/Showcase/VoxelShowcase.cs
+          ! grep -q 'VoxelEngine.Vegetation.Runtime' Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef
+          grep -q 'VoxelEngine.Vegetation.Runtime' Assets/VoxelEngine/Composition/VoxelEngine.Composition.asmdef
+          git diff --check
+
+      - name: Commit vegetation seam
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/VoxelEngine/Vegetation Assets/VoxelEngine/Composition Assets/Scenes/Showcase
+          git commit -m 'refactor(vegetation): expose semantic tree damage capability'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
