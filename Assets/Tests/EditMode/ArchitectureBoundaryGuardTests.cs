@@ -140,6 +140,38 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ProductionSourceDoesNotReferenceRemovedCoreNamespace()
+        {
+            var violations = new List<string>();
+            foreach (string rootName in new[] { "Assets", "Packages" })
+            {
+                string root = Path.Combine(RepoRoot, rootName);
+                if (!Directory.Exists(root)) continue;
+
+                foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                {
+                    string extension = Path.GetExtension(file);
+                    if (!string.Equals(extension, ".cs", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(extension, ".asmdef", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string relative = Relative(file);
+                    string normalized = "/" + relative.Replace('\\', '/') + "/";
+                    if (normalized.IndexOf("/Tests/", StringComparison.OrdinalIgnoreCase) >= 0
+                        || normalized.IndexOf("/Editor/", StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
+
+                    if (File.ReadAllText(file).IndexOf("VoxelEngine.Core", StringComparison.Ordinal) >= 0)
+                        violations.Add(relative);
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "VoxelEngine.Core was deleted by the final cutover and may not reappear in production source or asmdefs.\n\n" +
+                string.Join("\n", violations));
+        }
+
+        [Test]
         public void ApiAndRuntimeAssemblyNamesHaveSingleOwners()
         {
             var duplicates = EnumerateVoxelEngineAsmdefs()
