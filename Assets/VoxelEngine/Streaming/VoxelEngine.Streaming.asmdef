@@ -6,7 +6,6 @@
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
-    "VoxelEngine.Net",
     "VoxelEngine.Tiering.Api"
   ],
   "includePlatforms": [],
