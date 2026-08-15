@@ -6,7 +6,6 @@ using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
@@ -299,7 +298,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private ProfileBlock[] _profileBlocks = Array.Empty<ProfileBlock>();
         private ProfileBlock[] _buildProfileBlocks = Array.Empty<ProfileBlock>();
         private readonly Dictionary<int3, ProfileBlock[]> _profileBlocksByChunk = new();
-        private ProfileBlockStore _profileBlockStore;
+        private IProfileBlockReadSource _profileBlockStore;
         private uint _profileBlockVersion;
         private readonly VoxelTimingWindow _snapshotTiming = new();
         private readonly VoxelTimingWindow _densityTurnaroundTiming = new();
@@ -594,9 +593,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public double LastUploadMs { get; private set; }
         public VoxelTimingSummary SnapshotTiming => _snapshotTiming.Snapshot();
         public VoxelTimingSummary DensityTurnaroundTiming => _densityTurnaroundTiming.Snapshot();
-        public VoxelTimingSummary TopologyTurnaroundTiming => _topologyTurnaroundTiming.Snapshot();
+        public VoxelTimingSummary TopologyJobTurnaroundTiming => _topologyTurnaroundTiming.Snapshot();
         public VoxelTimingSummary TopologyCompactTiming => _topologyCompactTiming.Snapshot();
-        public VoxelTimingSummary FacetedTurnaroundTiming => _facetedTurnaroundTiming.Snapshot();
+        public VoxelTimingSummary FacetedJobTurnaroundTiming => _facetedTurnaroundTiming.Snapshot();
         public VoxelTimingSummary FacetedMergeTiming => _facetedMergeTiming.Snapshot();
         public VoxelTimingSummary ProfileEmitTiming => _profileEmitTiming.Snapshot();
         public VoxelTimingSummary UploadTiming => _uploadTiming.Snapshot();
@@ -706,7 +705,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public void Prepare(IRegionReadSource source, in MaterialPalette palette,
                             in SurfaceCatalogue surfaceCatalogue,
                             in CoatingCatalogue coatingCatalogue,
-                            ProfileBlockStore profileBlocks,
+                            IProfileBlockReadSource profileBlocks,
                             Camera camera,
                             float voxelSize, int frame, double budgetMs = 0.20)
         {
@@ -1103,7 +1102,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 
-        private void SetProfileBlocks(ProfileBlockStore store)
+        private void SetProfileBlocks(IProfileBlockReadSource store)
         {
             uint version = store?.Version ?? 0;
             if (ReferenceEquals(_profileBlockStore, store) && _profileBlockVersion == version)
@@ -1181,7 +1180,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
                 _mipSampleOccupancy[index] = occupied ? (byte)1 : (byte)0;
                 _mipSampleMaterials[index] = material;
-                anySolid |= occupied;
             }
 
             _buildSurfaceCatalogue = _surfaceCatalogue;
