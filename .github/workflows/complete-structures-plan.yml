@@ -31,7 +31,7 @@ jobs:
           replacements = [
               (
                   '**Current focus:** Cutover 4 Structures — Runtime dependency migration / physical Runtime move  ',
-                  '**Current focus:** Cutover 5 Edits — final Api/Runtime move and obsolete wrapper cleanup  ',
+                  '**Current focus:** Cutover 5 Edits — final Api/Runtime move and obsolete wrapper cleanup',
                   'current focus'
               ),
               (
