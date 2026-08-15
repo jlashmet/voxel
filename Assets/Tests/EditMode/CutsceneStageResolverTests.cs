@@ -100,8 +100,7 @@ namespace VoxelEngine.Tests.EditMode
                 .Bind(KentridgeOpeningCutscene.Lead, CutsceneActorTarget.Player(0))
                 .Bind(KentridgeOpeningCutscene.Madeline, CutsceneActorTarget.Player(1))
                 .Bind(KentridgeOpeningCutscene.Steven, CutsceneActorTarget.Player(2))
-                .Bind(KentridgeOpeningCutscene.Logan, CutsceneActorTarget.Player(3))
-                .Trigger(StoryTrigger.NewGame()));
+                .Bind(KentridgeOpeningCutscene.Logan, CutsceneActorTarget.Player(3)));
 
             PlanningGraph graph = BlueprintCompiler.Compile(game.Build());
             return graph.CutsceneStages.Single();
