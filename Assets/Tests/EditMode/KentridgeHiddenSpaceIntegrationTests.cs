@@ -141,6 +141,57 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void AliasedSiteRolesProduceOnePhysicalHiddenSpaceRequest()
+        {
+            var game = Campaign.Create("aliased-secret-sites");
+            SiteRef pubA = game.World.RequireSite("pub-role-a", site => site
+                .Archetype(SiteArchetype.Pub));
+            SiteRef pubB = game.World.RequireSite("pub-role-b", site => site
+                .Archetype(SiteArchetype.Pub));
+            LootTableRef loot = game.Loot.Table("secret-loot", table => table
+                .RollCount(1, 1)
+                .Guaranteed(LootCategory.Currency));
+
+            game.World.RequireSecret("cache-a", secret => secret
+                .Inside(pubA)
+                .Entrance(SecretEntranceType.DestroyableFalseWall)
+                .RequireHiddenSpace()
+                .RewardWith(loot));
+            game.World.RequireSecret("cache-b", secret => secret
+                .Inside(pubB)
+                .Entrance(SecretEntranceType.DestroyableFalseWall)
+                .RequireHiddenSpace()
+                .RewardWith(loot));
+
+            CampaignBlueprint blueprint = game.Build();
+            PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            var projections = new KentridgeArchitectureSiteProjectionProvider(plan);
+            var traversal = new SettlementStreetTraversalFacts(plan, projections);
+            var facts = new SettlementPlanWorldBuilderFacts(
+                plan,
+                new RegionRef("kentridge-region"),
+                new SettlementRef("kentridge"),
+                projections,
+                traversal,
+                projections);
+            SiteResolutionResult sites = SiteRoleResolver.Resolve(graph, facts);
+
+            Assert.That(sites.IsResolved, Is.True);
+            ResolvedSiteId a = sites.Bindings.Single(value => value.Role.Equals(pubA)).Site;
+            ResolvedSiteId b = sites.Bindings.Single(value => value.Role.Equals(pubB)).Site;
+            Assert.That(a, Is.EqualTo(b),
+                "Without DifferentSite, both authored Pub roles are allowed to alias the one generated pub.");
+
+            var requests = KentridgeHiddenSpaceRequestComposer.Compose(graph, sites, plan);
+            Assert.That(requests.Count, Is.EqualTo(1),
+                "Aliased semantic roles must aggregate into one request for the physical WorldGen site.");
+            Assert.That(requests[0].RoleId, Is.EqualTo((int)KentridgeRole.Pub));
+            Assert.That(requests[0].MinimumCount, Is.EqualTo(2));
+            Assert.That(requests[0].TargetCount, Is.EqualTo(2));
+        }
+
+        [Test]
         public void HiddenSpaceVoxelCatalogueEmitsSealedRoomAndFalseWallProgram()
         {
             SettlementPlan plan = KentridgeDefinition.Build(Seed);
