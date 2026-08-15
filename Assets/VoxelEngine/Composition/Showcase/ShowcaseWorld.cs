@@ -90,6 +90,15 @@ namespace VoxelEngine.Showcase
         private readonly RegionMutationStore _mutationStore;
         private readonly RegionSnapshotMutationStore _snapshotMutationStore;
         private readonly RegionResidencyStore _residencyStore;
+
+        // Borrow one Storage.Api region view across tight collapse/connectivity scans. Reacquire
+        // only when the scan crosses a region or the logical storage version changes; this keeps
+        // the clean API boundary without reintroducing a sparse-table lookup per voxel.
+        private RegionReadView _cachedReadView;
+        private int3 _cachedReadRegion;
+        private ulong _cachedReadVersion;
+        private bool _hasCachedReadView;
+
         private FeatureCatalogue _catalogue;
         private MaterialPalette _palette;
         private MaterialSimulationView _materialSimulation;
@@ -2003,8 +2012,30 @@ namespace VoxelEngine.Showcase
             return changed;
         }
 
-        private bool TryReadCellApi(int3 voxel, out VoxelCell cell) =>
-            _readSource.TryRead(voxel, out cell);
+        private bool TryReadCellApi(int3 voxel, out VoxelCell cell)
+        {
+            int3 regionCoord = voxel >> VoxelGrid.RegionVoxelEdgeLog2;
+            ulong version = _readSource.Version;
+
+            if (!_hasCachedReadView
+                || !math.all(regionCoord == _cachedReadRegion)
+                || version != _cachedReadVersion)
+            {
+                if (!_readSource.TryAcquireRegion(regionCoord, out _cachedReadView))
+                {
+                    _hasCachedReadView = false;
+                    cell = default;
+                    return false;
+                }
+
+                _cachedReadRegion = regionCoord;
+                _cachedReadVersion = version;
+                _hasCachedReadView = true;
+            }
+
+            int3 localVoxel = voxel - (regionCoord << VoxelGrid.RegionVoxelEdgeLog2);
+            return _cachedReadView.TryReadCell(localVoxel, out cell);
+        }
 
         private byte ReadMaterialApi(int3 voxel) =>
             TryReadCellApi(voxel, out VoxelCell cell)
