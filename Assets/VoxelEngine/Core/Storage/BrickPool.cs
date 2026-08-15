@@ -44,12 +44,22 @@ namespace VoxelEngine.Core.Storage
         public NativeArray<ulong> Occupancy;
 
         private NativeList<int> _freeList;
-        private int _highWater;
+        // Handle-like allocator state. BrickPool is copied into Storage capability objects, so
+        // scalar allocator bookkeeping must live in shared native memory just like the payloads.
+        private NativeArray<int> _highWaterState;
+
+        private int HighWater
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _highWaterState.IsCreated ? _highWaterState[0] : 0;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            set => _highWaterState[0] = value;
+        }
 
         public int Capacity { get; private set; }
 
         /// <summary>Bricks currently allocated. The number to watch in a soak test.</summary>
-        public int AllocatedCount => _highWater - _freeList.Length;
+        public int AllocatedCount => HighWater - _freeList.Length;
 
         public bool IsCreated => Voxels.IsCreated;
 
@@ -74,7 +84,7 @@ namespace VoxelEngine.Core.Storage
             Occupancy = new NativeArray<ulong>(capacity * VoxelDimensions.OccupancyWordsPerBrick,
                                               allocator, NativeArrayOptions.ClearMemory);
             _freeList = new NativeList<int>(capacity >> 4, allocator);
-            _highWater = 0;
+            _highWaterState = new NativeArray<int>(1, allocator, NativeArrayOptions.ClearMemory);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -102,7 +112,8 @@ namespace VoxelEngine.Core.Storage
             }
             else
             {
-                if (_highWater >= Capacity)
+                int highWater = HighWater;
+                if (highWater >= Capacity)
                 {
                     throw new InvalidOperationException(
                         $"BrickPool exhausted at capacity {Capacity}. The streaming layer " +
@@ -110,7 +121,8 @@ namespace VoxelEngine.Core.Storage
                         "eviction is not keeping pace (see IsUnderPressure).");
                 }
 
-                index = _highWater++;
+                index = highWater;
+                HighWater = highWater + 1;
             }
 
             ClearBrick(index);
@@ -127,7 +139,7 @@ namespace VoxelEngine.Core.Storage
         /// </summary>
         public void Free(int brickIndex)
         {
-            if ((uint)brickIndex >= (uint)_highWater)
+            if ((uint)brickIndex >= (uint)HighWater)
                 throw new ArgumentOutOfRangeException(nameof(brickIndex));
 
             _freeList.Add(brickIndex);
@@ -272,8 +284,8 @@ namespace VoxelEngine.Core.Storage
             if (BoundarySamples.IsCreated) BoundarySamples.Dispose();
             if (Occupancy.IsCreated) Occupancy.Dispose();
             if (_freeList.IsCreated) _freeList.Dispose();
+            if (_highWaterState.IsCreated) _highWaterState.Dispose();
             Capacity = 0;
-            _highWater = 0;
         }
     }
 }
