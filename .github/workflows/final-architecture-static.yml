@@ -59,6 +59,56 @@ jobs:
               return '/tests/' not in p and '/test/' not in p and '/editor/' not in p and '/voxelengine/ci/' not in p
 
           violations = []
+
+          expected_apis = {
+              'VoxelEngine.Storage.Api',
+              'VoxelEngine.Terrain.Api',
+              'VoxelEngine.Structures.Api',
+              'VoxelEngine.Edits.Api',
+              'VoxelEngine.StructuralIntegrity.Api',
+              'VoxelEngine.Tiering.Api',
+              'VoxelEngine.Streaming.Api',
+              'VoxelEngine.Collision.Api',
+              'VoxelEngine.Vegetation.Api',
+              'VoxelEngine.Net.Api',
+              'VoxelEngine.Rendering.Api',
+          }
+          for api_name in sorted(expected_apis):
+              owners = [path for path, name, _ in asmdefs if name == api_name]
+              if len(owners) != 1:
+                  violations.append(f'expected exactly one Api assembly owner for {api_name}, found {owners}')
+                  continue
+              if '/Api/' not in '/' + owners[0].replace('\\', '/'):
+                  violations.append(f'Api assembly is not under an Api directory: {api_name} ({owners[0]})')
+
+          def one_refs(name):
+              matches = [(path, refs) for path, candidate, refs in asmdefs if candidate == name]
+              if len(matches) != 1:
+                  violations.append(f'expected exactly one assembly named {name}, found {[p for p, _ in matches]}')
+                  return set()
+              return set(matches[0][1])
+
+          streaming_refs = one_refs('VoxelEngine.Streaming.Runtime')
+          if any(ref.startswith('VoxelEngine.Net') for ref in streaming_refs):
+              violations.append('Streaming.Runtime must not reference Net: ' + ', '.join(sorted(streaming_refs)))
+
+          net_refs = one_refs('VoxelEngine.Net.Runtime')
+          if 'VoxelEngine.Streaming.Api' not in net_refs:
+              violations.append('Net.Runtime must reference VoxelEngine.Streaming.Api')
+          if 'VoxelEngine.Streaming.Runtime' in net_refs:
+              violations.append('Net.Runtime must not reference VoxelEngine.Streaming.Runtime')
+
+          rendering_refs = {r for r in one_refs('VoxelEngine.Rendering.Runtime') if r.startswith('VoxelEngine.')}
+          expected_rendering_refs = {
+              'VoxelEngine.Storage.Api',
+              'VoxelEngine.Tiering.Api',
+              'VoxelEngine.Vegetation.Api',
+          }
+          if rendering_refs != expected_rendering_refs:
+              violations.append(
+                  'Rendering.Runtime VoxelEngine references must be exactly Storage.Api, Tiering.Api, Vegetation.Api; found ' +
+                  ', '.join(sorted(rendering_refs)))
+
           for path, name, refs in asmdefs:
               if name.endswith('.Api'):
                   for ref in refs:
@@ -130,9 +180,13 @@ jobs:
           report.append('')
           report.append('## Final boundary assertions')
           report.append('')
+          report.append('- Every exposed engine subsystem has exactly one Api assembly under an Api directory.')
           report.append('- Api assemblies reference no Runtime assemblies.')
           report.append('- Runtime assemblies reference no foreign Runtime assemblies.')
           report.append('- Composition is the only production assembly that wires concrete Runtime assemblies.')
+          report.append('- Streaming has no Net reference.')
+          report.append('- Net consumes Streaming.Api and not Streaming.Runtime.')
+          report.append('- Rendering consumes exactly Storage.Api, Tiering.Api, and Vegetation.Api from VoxelEngine.')
           report.append('- Production Assets/Packages contain no `VoxelEngine.Core` references.')
           report.append('- Production architecture contains no `Legacy*` or `*Compatibility*` adapter source files.')
           report.append('- WorldGen Core/Architecture are engine-independent; WorldGen.Voxel references engine Api assemblies only.')
