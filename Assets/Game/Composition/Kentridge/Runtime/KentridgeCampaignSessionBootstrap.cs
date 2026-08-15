@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Game.Composition.Campaign.Runtime;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.WorldBuilderWorldGen;
@@ -84,36 +85,21 @@ namespace Game.Composition.Kentridge.Runtime
                     siteFacts,
                     hiddenSpaceFacts);
 
-            // A selected secret is not gameplay-ready until its exact generated room/entrance/container
-            // geometry is registered by the authoritative interaction host. Require that handoff before
-            // touching character state so incomplete session wiring fails cleanly.
-            if (world.Secrets.Count > 0)
-            {
-                if (secretHost == null)
-                    throw new ArgumentNullException(
-                        nameof(secretHost),
-                        "Campaign selected physical secrets but no gameplay secret host was supplied.");
-                secretHost.PrepareSecrets(world.Secrets);
-            }
-
-            // Player actors are session-owned and must already exist. Check them before preparing any
-            // NPCs so a missing local/network player cannot leave the actor host partially mutated.
+            // Finish every non-mutating integration preflight before touching gameplay-owned state.
+            if (world.Secrets.Count > 0 && secretHost == null)
+                throw new ArgumentNullException(
+                    nameof(secretHost),
+                    "Campaign selected physical secrets but no gameplay secret host was supplied.");
             ValidatePlayerBindings(blueprint, actors);
+            ValidateNpcPlacements(blueprint, world.Npcs);
 
-            for (var i = 0; i < world.Npcs.Count; i++)
-            {
-                ResolvedNpcWorldPlacement placement = world.Npcs[i]
-                    ?? throw new InvalidOperationException(
-                        "Kentridge world realization contains a null NPC placement at index " + i + ".");
-                actors.PrepareNpc(placement);
+            // Both external hosts receive their campaign state as batches. Each implementation owns
+            // atomic application within its subsystem; Composition never creates half of an NPC set.
+            if (world.Secrets.Count > 0)
+                secretHost.PrepareSecrets(world.Secrets);
 
-                ICutsceneActorRuntime prepared;
-                if (!actors.TryResolveNpc(placement.Npc, out prepared) || prepared == null)
-                    throw new InvalidOperationException(
-                        "Campaign actor host prepared NPC '" + placement.Npc +
-                        "' but did not expose it through TryResolveNpc.");
-            }
-
+            actors.PrepareNpcs(world.Npcs);
+            ValidatePreparedNpcs(world.Npcs, actors);
             ValidateAllCutsceneBindings(blueprint, actors);
 
             var runtime = new CampaignRuntime(
@@ -148,6 +134,52 @@ namespace Game.Composition.Kentridge.Runtime
                             " for cutscene '" + cutscene.Ref +
                             "', but the actor host has no authoritative player runtime.");
                 }
+            }
+        }
+
+        private static void ValidateNpcPlacements(
+            CampaignBlueprint blueprint,
+            IReadOnlyList<ResolvedNpcWorldPlacement> placements)
+        {
+            var realized = new HashSet<NpcRef>();
+            for (var i = 0; i < placements.Count; i++)
+            {
+                ResolvedNpcWorldPlacement placement = placements[i]
+                    ?? throw new InvalidOperationException(
+                        "Kentridge world realization contains a null NPC placement at index " + i + ".");
+                if (!realized.Add(placement.Npc))
+                    throw new InvalidOperationException(
+                        "Kentridge world realization contains more than one placement for NPC '" +
+                        placement.Npc + "'.");
+            }
+
+            for (var i = 0; i < blueprint.Cutscenes.Count; i++)
+            {
+                CutsceneSpec cutscene = blueprint.Cutscenes[i];
+                for (var j = 0; j < cutscene.ActorBindings.Count; j++)
+                {
+                    CutsceneActorBindingSpec binding = cutscene.ActorBindings[j];
+                    if (binding.Target.Kind != CutsceneActorTargetKind.Npc) continue;
+                    if (!realized.Contains(binding.Target.Npc))
+                        throw new InvalidOperationException(
+                            "Cutscene '" + cutscene.Ref + "' requires NPC '" + binding.Target.Npc +
+                            "', but the generated world contains no physical placement for it.");
+                }
+            }
+        }
+
+        private static void ValidatePreparedNpcs(
+            IReadOnlyList<ResolvedNpcWorldPlacement> placements,
+            IKentridgeCampaignActorHost actors)
+        {
+            for (var i = 0; i < placements.Count; i++)
+            {
+                ResolvedNpcWorldPlacement placement = placements[i];
+                ICutsceneActorRuntime prepared;
+                if (!actors.TryResolveNpc(placement.Npc, out prepared) || prepared == null)
+                    throw new InvalidOperationException(
+                        "Campaign actor host prepared NPC batch but did not expose NPC '" +
+                        placement.Npc + "' through TryResolveNpc.");
             }
         }
 
