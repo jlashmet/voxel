@@ -20,6 +20,12 @@ namespace Game.WorldBuilder.Api
         internal InteractWithNpcTriggerSpec(NpcRef npc) => Npc = npc;
     }
 
+    public sealed class CutsceneCompletedTriggerSpec : IStoryTriggerSpec
+    {
+        public CutsceneRef Cutscene { get; }
+        internal CutsceneCompletedTriggerSpec(CutsceneRef cutscene) => Cutscene = cutscene;
+    }
+
     public sealed class ObjectiveActiveConditionSpec : IStoryConditionSpec
     {
         public ObjectiveRef Objective { get; }
@@ -48,6 +54,8 @@ namespace Game.WorldBuilder.Api
     {
         public static IStoryTriggerSpec NewGame() => new NewGameTriggerSpec();
         public static InteractWithNpcTriggerSpec InteractWith(NpcRef npc) => new InteractWithNpcTriggerSpec(npc);
+        public static CutsceneCompletedTriggerSpec CutsceneCompleted(CutsceneRef cutscene) =>
+            new CutsceneCompletedTriggerSpec(cutscene);
     }
 
     public static class StoryCondition
@@ -116,6 +124,11 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// A concrete use of an authored cutscene definition in the generated world. This owns only
+    /// physical/world binding: site and actor identities. Story sequencing is expressed separately
+    /// through StoryRuleSpec.
+    /// </summary>
     public sealed class CutsceneSpec
     {
         public CutsceneRef Ref { get; }
@@ -123,24 +136,36 @@ namespace Game.WorldBuilder.Api
         public SiteRef Site { get; }
         public IReadOnlyList<CutsceneActorBindingSpec> ActorBindings { get; }
         public IReadOnlyList<CutsceneStagePointId> StageRequirements => Definition.RequiredStagePoints;
-        public IStoryTriggerSpec Trigger { get; }
-        public IReadOnlyList<IStoryConditionSpec> Conditions { get; }
-        public IReadOnlyList<IStoryEffectSpec> Effects { get; }
 
         internal CutsceneSpec(
             CutsceneRef @ref,
             CutsceneDefinition definition,
             SiteRef site,
-            CutsceneActorBindingSpec[] actorBindings,
-            IStoryTriggerSpec trigger,
-            IStoryConditionSpec[] conditions,
-            IStoryEffectSpec[] effects)
+            CutsceneActorBindingSpec[] actorBindings)
         {
             Ref = @ref;
             Definition = definition ?? throw new ArgumentNullException(nameof(definition));
             Site = site;
             ActorBindings = actorBindings ?? Array.Empty<CutsceneActorBindingSpec>();
-            Trigger = trigger;
+        }
+    }
+
+    /// <summary>Runtime story transition: WHEN Trigger, IF all Conditions, THEN Effects in authored order.</summary>
+    public sealed class StoryRuleSpec
+    {
+        public StoryRuleRef Ref { get; }
+        public IStoryTriggerSpec Trigger { get; }
+        public IReadOnlyList<IStoryConditionSpec> Conditions { get; }
+        public IReadOnlyList<IStoryEffectSpec> Effects { get; }
+
+        internal StoryRuleSpec(
+            StoryRuleRef @ref,
+            IStoryTriggerSpec trigger,
+            IStoryConditionSpec[] conditions,
+            IStoryEffectSpec[] effects)
+        {
+            Ref = @ref;
+            Trigger = trigger ?? throw new ArgumentNullException(nameof(trigger));
             Conditions = conditions ?? Array.Empty<IStoryConditionSpec>();
             Effects = effects ?? Array.Empty<IStoryEffectSpec>();
         }
