@@ -112,7 +112,7 @@ namespace VoxelEngine.Tests.EditMode
 
             foreach (Asmdef asmdef in EnumerateProjectAsmdefs())
             {
-                if (!IsProductionAsmdef(asmdef.RelativePath)
+                if (!IsProductionPath(asmdef.RelativePath)
                     || string.Equals(asmdef.Name, "VoxelEngine.Composition", StringComparison.Ordinal))
                     continue;
 
@@ -153,11 +153,15 @@ namespace VoxelEngine.Tests.EditMode
                     if (!extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
                         continue;
 
+                    string relativePath = ToRepoRelativePath(path);
+                    if (!IsProductionPath(relativePath))
+                        continue;
+
                     string source = File.ReadAllText(path);
                     if (source.IndexOf("VoxelEngine.Core", StringComparison.Ordinal) < 0)
                         continue;
 
-                    violations.Add(ToRepoRelativePath(path));
+                    violations.Add(relativePath);
                 }
             }
 
@@ -235,7 +239,7 @@ namespace VoxelEngine.Tests.EditMode
                 .ToArray();
         }
 
-        private static bool IsProductionAsmdef(string relativePath)
+        private static bool IsProductionPath(string relativePath)
         {
             string normalized = relativePath.Replace('\\', '/');
             return normalized.IndexOf("/Tests/", StringComparison.OrdinalIgnoreCase) < 0
