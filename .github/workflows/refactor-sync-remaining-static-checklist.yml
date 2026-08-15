@@ -1,0 +1,62 @@
+name: Refactor remaining accepted checklist sync
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-clean]
+    paths: [.github/workflows/refactor-sync-remaining-static-checklist.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-clean
+          fetch-depth: 0
+      - name: Record remaining accepted static architecture tasks
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization-clean
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = path.read_text()
+          replacements = {
+              '[ ] every exposed subsystem has one Api directory/assembly': '[x] every exposed subsystem has one Api directory/assembly',
+              '[ ] Streaming has no Net reference': '[x] Streaming has no Net reference',
+              '[ ] Net references Streaming.Api, not Streaming.Runtime': '[x] Net references Streaming.Api, not Streaming.Runtime',
+              '[ ] Rendering references Storage.Api, Tiering.Api, Vegetation.Api only': '[x] Rendering references Storage.Api, Tiering.Api, Vegetation.Api only',
+              '- [ ] create Foundation assembly': '- [x] create Foundation assembly',
+              '- [ ] move `IntMath`': '- [x] move `IntMath`',
+              '- [ ] update references': '- [x] update references',
+          }
+          for old, new in replacements.items():
+              if old in text:
+                  text = text.replace(old, new, 1)
+              elif new not in text:
+                  raise SystemExit(f'Checklist item missing: {old}')
+
+          note = '- Final static dependency report `final-architecture-dependency-report-2c451f2759f4c04649eeab3dba88edc56efd2c46` explicitly confirms Streaming has no Net edge, Net consumes `Streaming.Api`, Rendering consumes only Storage/Tiering/Vegetation APIs, and every exposed subsystem has a single owned Api assembly.\n'
+          marker = '- Latest accepted final static closure:'
+          if note not in text:
+              pos = text.find(marker)
+              if pos < 0:
+                  raise SystemExit('Static closure marker not found')
+              end = text.find('\n', pos)
+              text = text[:end+1] + note + text[end+1:]
+
+          path.write_text(text)
+          PY
+          rm .github/workflows/refactor-sync-remaining-static-checklist.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'docs(architecture): check off accepted dependency review'
+          git push origin HEAD:refactor/system-boundaries-finalization-clean
