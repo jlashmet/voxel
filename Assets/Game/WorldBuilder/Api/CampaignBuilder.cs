@@ -55,7 +55,7 @@ namespace Game.WorldBuilder.Api
             Secrets = new SecretPolicyBlueprintBuilder(campaign);
         }
 
-        public SiteRef RequireSite(string id, Action<SiteBuilder> configure)
+        internal SiteRef RequireSite(string id, Action<SiteBuilder> configure)
         {
             var siteRef = new SiteRef(id);
             var builder = new SiteBuilder(siteRef, _campaign.SpatialConstraints);
@@ -64,7 +64,7 @@ namespace Game.WorldBuilder.Api
             return siteRef;
         }
 
-        public NpcRef RequireNpc(string id, Action<NpcBuilder> configure)
+        internal NpcRef RequireNpc(string id, Action<NpcBuilder> configure)
         {
             var npcRef = new NpcRef(id);
             var builder = new NpcBuilder(npcRef);
@@ -171,7 +171,7 @@ namespace Game.WorldBuilder.Api
         private readonly CampaignBuilder _campaign;
         internal StoryBlueprintBuilder(CampaignBuilder campaign) => _campaign = campaign;
 
-        public ObjectiveRef Objective(string id, Action<ObjectiveBuilder> configure)
+        internal ObjectiveRef Objective(string id, Action<ObjectiveBuilder> configure)
         {
             var objectiveRef = new ObjectiveRef(id);
             var builder = new ObjectiveBuilder(objectiveRef);
@@ -180,7 +180,7 @@ namespace Game.WorldBuilder.Api
             return objectiveRef;
         }
 
-        public CutsceneRef Cutscene(CutsceneDefinition definition, Action<CutsceneBuilder> configure)
+        internal CutsceneRef Cutscene(CutsceneDefinition definition, Action<CutsceneBuilder> configure)
         {
             if (definition == null) throw new ArgumentNullException(nameof(definition));
             var cutsceneRef = new CutsceneRef(definition.Id);

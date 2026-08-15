@@ -235,7 +235,7 @@ namespace Game.WorldBuilder.Api
 
     public sealed partial class WorldBlueprintBuilder
     {
-        public RegionRef RequireRegion(string id, Action<RegionBuilder> configure)
+        internal RegionRef RequireRegion(string id, Action<RegionBuilder> configure)
         {
             var regionRef = new RegionRef(id);
             var builder = new RegionBuilder(regionRef);
@@ -244,7 +244,7 @@ namespace Game.WorldBuilder.Api
             return regionRef;
         }
 
-        public RouteRef RequireRoute(string id, Action<RouteBuilder> configure)
+        internal RouteRef RequireRoute(string id, Action<RouteBuilder> configure)
         {
             var routeRef = new RouteRef(id);
             var builder = new RouteBuilder(routeRef);
@@ -253,7 +253,7 @@ namespace Game.WorldBuilder.Api
             return routeRef;
         }
 
-        public SettlementRef RequireSettlement(string id, Action<SettlementBuilder> configure)
+        internal SettlementRef RequireSettlement(string id, Action<SettlementBuilder> configure)
         {
             var settlementRef = new SettlementRef(id);
             var builder = new SettlementBuilder(settlementRef, _campaign.SettlementRouteAccess);
@@ -262,14 +262,14 @@ namespace Game.WorldBuilder.Api
             return settlementRef;
         }
 
-        public SiteRef RequireSite(string id, RegionRef region, Action<SiteBuilder> configure)
+        internal SiteRef RequireSite(string id, RegionRef region, Action<SiteBuilder> configure)
         {
             SiteRef site = RequireSite(id, configure);
             _campaign.SitePlacements.Add(SitePlacementSpec.InRegion(site, region));
             return site;
         }
 
-        public SiteRef RequireSite(string id, SettlementRef settlement, Action<SiteBuilder> configure)
+        internal SiteRef RequireSite(string id, SettlementRef settlement, Action<SiteBuilder> configure)
         {
             SiteRef site = RequireSite(id, configure);
             _campaign.SitePlacements.Add(SitePlacementSpec.InSettlement(site, settlement));

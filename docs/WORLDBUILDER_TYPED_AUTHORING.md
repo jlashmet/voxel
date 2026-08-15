@@ -73,9 +73,9 @@ These checks should happen at the earliest layer that has enough information.
 
 ## Compatibility boundary
 
-Stable `*Ref` types remain public because compiled plans, runtime adapters, diagnostics, save/network code, and tests need to carry those identities across assembly boundaries. Construction from strings is now internal to `Game.WorldBuilder.Api`. `VoxelEngine.Tests.EditMode` is the only friend assembly and retains direct construction strictly for test fixtures.
+Stable `*Ref` types remain public because compiled plans, runtime adapters, diagnostics, save/network code, and tests need to carry those identities across assembly boundaries. Construction from strings is internal to `Game.WorldBuilder.Api`. `VoxelEngine.Tests.EditMode` is the only friend assembly and retains direct construction strictly for test fixtures.
 
-The legacy `RequireRegion`, `RequireSettlement`, `RequireSite`, `RequireNpc`, and raw relationship builders are still present as a low-level compatibility surface. Production campaign content uses the typed handle DSL. The next cutover is to internalize that legacy builder surface once remaining compatibility tests/callers are migrated.
+The legacy `RequireRegion`, `RequireSettlement`, `RequireSite`, `RequireNpc`, raw objective/cutscene placement entry points, and their underlying builders remain available internally for compatibility tests and implementation reuse, but they are no longer public campaign-authoring entry points. Production campaign content must enter through the typed handle DSL. Public story rules and loot/secret authoring remain separate surfaces until typed facades exist for those domains.
 
 The intended migration is:
 
@@ -89,6 +89,6 @@ The intended migration is:
 - [x] Migrate current production campaign-content call sites from the legacy `Require*` path.
 - [x] Split test-only identity construction from public authoring identity construction.
 - [x] Make stable `*Ref` constructors non-public.
-- [ ] Remove or internalize legacy raw relationship builders once remaining compatibility callers have migrated.
+- [x] Internalize legacy world ownership, site/NPC placement, objective target, and cutscene placement entry points that the typed handle DSL replaces.
 
-The public authoring surface can no longer express arbitrary `new SiteRef("...")`/`new RegionRef("...")` construction. Stable deterministic refs still flow through compiled plans and runtimes; only WorldBuilder creates authored identities from strings.
+The public authoring surface can no longer express arbitrary `new SiteRef("...")`/`new RegionRef("...")` construction or enter the old ownership/placement DSL. Stable deterministic refs still flow through compiled plans and runtimes; only WorldBuilder creates authored identities from strings.
