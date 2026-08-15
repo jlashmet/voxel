@@ -8,6 +8,8 @@ using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Server;
 using VoxelEngine.Net.Transport;
 
+using VoxelEngine.Core.Edits;
+
 namespace VoxelEngine.Tests.EditMode
 {
     public sealed class PlayerStateLoopbackTests
@@ -17,7 +19,7 @@ namespace VoxelEngine.Tests.EditMode
         public void EphemeralSnapshotReconcilesOutsideTransportCallback()
         {
             using var server = new UtpServerHost();
-            using var client = new ClientNetworkRuntime();
+            using var client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
             var serverHandler = new RecordingServerHandler();
             var prediction = new RecordingPredictionAdapter();
 

@@ -25,8 +25,8 @@ namespace VoxelEngine.Tests.EditMode
                 alterationApplier: new DeterministicAlterationApplier(),
                 maxConnections: 2,
                 playerStateIntervalTicks: 1);
-            using var clientOne = new ClientNetworkRuntime();
-            using var clientTwo = new ClientNetworkRuntime();
+            using var clientOne = new ClientNetworkRuntime(new DeterministicAlterationApplier());
+            using var clientTwo = new ClientNetworkRuntime(new DeterministicAlterationApplier());
 
             uint connectionOne = 0;
             uint connectionTwo = 0;

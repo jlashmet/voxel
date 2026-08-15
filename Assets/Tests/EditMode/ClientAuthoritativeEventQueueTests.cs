@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
+using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Client;
 using VoxelEngine.Net.Protocol;
@@ -13,7 +14,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void MissingNeighborRegionDefersBatchWithoutConsumingAuthority()
         {
-            var queue = new ClientAuthoritativeEventQueue();
+            var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
             var table = new RegionTable(2, Allocator.TempJob);
             var pool = new BrickPool(8, Allocator.TempJob);
             try
@@ -48,7 +49,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void LaterReadyBatchCannotLeapfrogDeferredAuthority()
         {
-            var queue = new ClientAuthoritativeEventQueue();
+            var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
             var table = new RegionTable(2, Allocator.TempJob);
             var pool = new BrickPool(8, Allocator.TempJob);
             try
@@ -89,7 +90,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void RejectionNotifiesImmediatelyAndDoesNotEnterWorldQueue()
         {
-            var queue = new ClientAuthoritativeEventQueue();
+            var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
             var notifications = new RecordingNotifications();
             var rejection = new S_AlterationRejected(
                 tick: 50,
@@ -107,7 +108,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void RegressingServerAuthorityIsRejectedBeforeQueueing()
         {
-            var queue = new ClientAuthoritativeEventQueue();
+            var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
             AlterationEvent first = Explosion(100, 2, 1, new int3(100, 100, 100));
             AlterationEvent older = Explosion(99, 9, 99, new int3(100, 100, 100));
 

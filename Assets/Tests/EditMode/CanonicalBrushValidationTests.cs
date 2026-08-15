@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
+using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
@@ -74,6 +75,7 @@ namespace VoxelEngine.Tests.EditMode
                     in player,
                     players,
                     mutationStorage,
+                    new DeterministicAlterationApplier(),
                     ref table,
                     in pool,
                     new Validation.DensityCap(1f, 0));

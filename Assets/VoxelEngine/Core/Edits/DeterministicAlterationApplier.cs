@@ -12,11 +12,28 @@ namespace VoxelEngine.Core.Edits
     /// </summary>
     public sealed class DeterministicAlterationApplier : IAlterationApplier
     {
+        bool IAlterationApplier.Supports(in AlterationEvent evt) => Supports(in evt);
+
+        bool IAlterationApplier.HasRequiredResidency(
+            IRegionMutationStore storage, in AlterationEvent evt) =>
+            HasRequiredResidency(storage, in evt);
+
+        bool IAlterationApplier.HasRequiredResidencyExcept(
+            IRegionMutationStore storage, in AlterationEvent evt, int3 excludedRegion) =>
+            HasRequiredResidencyExcept(storage, in evt, excludedRegion);
+
         bool IAlterationApplier.TryApply(
             IRegionMutationStore storage,
             in AlterationEvent evt,
             out NativeList<int3> affectedBlocks) =>
             TryApply(storage, in evt, out affectedBlocks);
+
+        bool IAlterationApplier.TryApplyExceptRegion(
+            IRegionMutationStore storage,
+            in AlterationEvent evt,
+            int3 excludedRegion,
+            out NativeList<int3> affectedBlocks) =>
+            TryApplyExceptRegion(storage, in evt, excludedRegion, out affectedBlocks);
 
         public static bool Supports(in AlterationEvent evt) =>
             evt.kind == AlterationEvent.KindExplosion ||

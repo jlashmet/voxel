@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
@@ -26,6 +25,7 @@ namespace VoxelEngine.Net.Client
         public const int DefaultMaxPendingEvents = 4096;
 
         private readonly Queue<PendingAuthority> _authority = new Queue<PendingAuthority>(64);
+        private readonly IAlterationApplier _applier;
         private readonly int _maxPendingEvents;
         private int _pendingEvents;
         private int _pendingBatches;
@@ -49,8 +49,11 @@ namespace VoxelEngine.Net.Client
         private uint _snapshotCatchupTick;
         private RegionMutationStore _mutationStorage;
 
-        public ClientAuthoritativeEventQueue(int maxPendingEvents = DefaultMaxPendingEvents)
+        public ClientAuthoritativeEventQueue(
+            IAlterationApplier applier,
+            int maxPendingEvents = DefaultMaxPendingEvents)
         {
+            _applier = applier ?? throw new ArgumentNullException(nameof(applier));
             if (maxPendingEvents <= 0)
                 throw new ArgumentOutOfRangeException(nameof(maxPendingEvents));
             _maxPendingEvents = maxPendingEvents;
@@ -142,7 +145,7 @@ namespace VoxelEngine.Net.Client
             for (int i = 0; i < header.count; i++)
             {
                 if (!S_AlterationEventBatch.TryDecodeEvent(payload, in header, i, out AlterationEvent evt) ||
-                    !DeterministicAlterationApplier.Supports(in evt) || evt.tick < _lastBarrierTick ||
+                    !_applier.Supports(in evt) || evt.tick < _lastBarrierTick ||
                     (hasPrior && CompareAuthority(in evt, in prior) < 0))
                     return false;
 
@@ -269,7 +272,7 @@ namespace VoxelEngine.Net.Client
                     NativeList<int3> affectedBricks;
                     if (catchupBatch)
                     {
-                        DeterministicAlterationApplier.TryApplyExceptRegion(
+                        _applier.TryApplyExceptRegion(
                             _mutationStorage,
                             in evt,
                             _snapshotCatchupRegion,
@@ -277,7 +280,7 @@ namespace VoxelEngine.Net.Client
                     }
                     else
                     {
-                        DeterministicAlterationApplier.TryApply(
+                        _applier.TryApply(
                             _mutationStorage,
                             in evt,
                             out affectedBricks);
@@ -372,7 +375,7 @@ namespace VoxelEngine.Net.Client
             _repairHash = 0;
         }
 
-        private static bool HasRequiredResidency(
+        private bool HasRequiredResidency(
             IRegionMutationStore storage,
             AlterationEvent[] events,
             bool excludeRegion,
@@ -382,8 +385,8 @@ namespace VoxelEngine.Net.Client
             {
                 AlterationEvent evt = events[i];
                 bool resident = excludeRegion
-                    ? DeterministicAlterationApplier.HasRequiredResidencyExcept(storage, in evt, excludedRegion)
-                    : DeterministicAlterationApplier.HasRequiredResidency(storage, in evt);
+                    ? _applier.HasRequiredResidencyExcept(storage, in evt, excludedRegion)
+                    : _applier.HasRequiredResidency(storage, in evt);
                 if (!resident) return false;
             }
             return true;

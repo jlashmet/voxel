@@ -110,7 +110,7 @@ namespace VoxelEngine.Tests.EditMode
                 densityCap: new Validation.DensityCap(1f, 0),
                 alterationApplier: new DeterministicAlterationApplier(),
                 hashIntervalTicks: 1);
-            using var client = new ClientNetworkRuntime();
+            using var client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
 
             uint connectionId = 0;
             bool connected = false;

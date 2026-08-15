@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Transport;
@@ -48,12 +49,13 @@ namespace VoxelEngine.Net.Client
         public event Action<S_PlayerState, int> LocalPlayerReconciled;
 
         public ClientNetworkRuntime(
+            IAlterationApplier alterationApplier,
             IClientEventNotificationSink notifications = null,
             int maxPendingAuthoritativeEvents = ClientAuthoritativeEventQueue.DefaultMaxPendingEvents,
             int predictionHistoryCapacity = ClientPredictionReconciler.DefaultHistoryCapacity)
         {
             _notifications = notifications;
-            _events = new ClientAuthoritativeEventQueue(maxPendingAuthoritativeEvents);
+            _events = new ClientAuthoritativeEventQueue(alterationApplier, maxPendingAuthoritativeEvents);
             _repair = new ClientRegionRepairAssembler();
             _fullState = new ClientRegionStateAssembler();
             _prediction = new ClientPredictionReconciler(predictionHistoryCapacity);

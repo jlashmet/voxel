@@ -1,4 +1,5 @@
 using System;
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 
@@ -18,12 +19,14 @@ namespace VoxelEngine.Net.Client
     {
         public static bool TryApply(
             ReadOnlySpan<byte> packet,
+            IAlterationApplier applier,
             IRegionMutationStore storage,
             out bool anyChanged) =>
-            TryApply(packet, storage, out anyChanged, null);
+            TryApply(packet, applier, storage, out anyChanged, null);
 
         public static bool TryApply(
             ReadOnlySpan<byte> packet,
+            IAlterationApplier applier,
             IRegionMutationStore storage,
             out bool anyChanged,
             IClientEventNotificationSink notifications)
@@ -37,6 +40,7 @@ namespace VoxelEngine.Net.Client
                 case ProtocolMessageKind.S_AlterationEventBatch:
                     return AlterationBatchReceiver.TryApply(
                         packet.Slice(payloadOffset),
+                        applier,
                         storage,
                         out anyChanged);
 

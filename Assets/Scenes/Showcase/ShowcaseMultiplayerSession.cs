@@ -239,7 +239,7 @@ namespace VoxelEngine.Showcase
 
         private void CreateClient(ushort localPlayerId)
         {
-            _client = new ClientNetworkRuntime();
+            _client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
             _client.Connected += OnClientConnected;
             _client.Disconnected += OnClientDisconnected;
             _client.PacketRejected += OnClientPacketRejected;

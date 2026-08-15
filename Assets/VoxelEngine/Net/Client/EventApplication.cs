@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
@@ -12,11 +11,12 @@ namespace VoxelEngine.Net.Client
     public static class EventApplication
     {
         public static bool Apply(
+            IAlterationApplier applier,
             IRegionMutationStore storage,
             in AlterationEvent evt,
             out NativeList<int3> affectedBricks)
         {
-            return DeterministicAlterationApplier.TryApply(storage, in evt, out affectedBricks);
+            return applier.TryApply(storage, in evt, out affectedBricks);
         }
 
         /// <summary>
@@ -52,6 +52,7 @@ namespace VoxelEngine.Net.Client
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ApplyWithArbitration(
+            IAlterationApplier applier,
             IRegionMutationStore storage,
             in NativeArray<AlterationEvent> events)
         {
@@ -59,7 +60,7 @@ namespace VoxelEngine.Net.Client
             for (int i = 0; i < events.Length; i++)
             {
                 AlterationEvent evt = events[i];
-                bool changed = DeterministicAlterationApplier.TryApply(
+                bool changed = applier.TryApply(
                     storage, in evt, out NativeList<int3> affectedBricks);
                 if (affectedBricks.IsCreated) affectedBricks.Dispose();
                 anyChanged |= changed;

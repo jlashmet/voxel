@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
+using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Client;
 using VoxelEngine.Net.Protocol;
@@ -38,7 +39,7 @@ namespace VoxelEngine.Tests.EditMode
                     playerId: 4,
                     sequence: 1);
 
-                var queue = new ClientAuthoritativeEventQueue();
+                var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
                 byte[] batchPacket = FrameBatch(replacedRegion, 5, evt);
                 Assert.That(queue.TryEnqueueEventPacket(batchPacket), Is.True);
 

@@ -1,6 +1,5 @@
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
@@ -17,13 +16,14 @@ namespace VoxelEngine.Net.Server
             in ServerPlayerRegistry.PlayerSession player,
             ServerPlayerRegistry players,
             IRegionMutationStore mutationStorage,
+            IAlterationApplier applier,
             ref RegionTable table,
             in BrickPool pool,
             Validation.DensityCap densityCap,
             in ProtectedZones zones = default)
         {
             if (!evt.Validate() || evt.playerId != player.PlayerId || !player.CanAlterWorld ||
-                !DeterministicAlterationApplier.Supports(in evt))
+                !applier.Supports(in evt))
                 return Validation.ValidationResult.InvalidTarget;
 
             int estimatedBricks = EstimateAffectedBricks(in evt);
@@ -37,7 +37,7 @@ namespace VoxelEngine.Net.Server
 
             // Fail before expensive placement checks and before the applier has a chance to see a
             // partially resident effect. Missing streaming state is not a valid mutation target.
-            if (!DeterministicAlterationApplier.HasRequiredResidency(mutationStorage, in evt))
+            if (!applier.HasRequiredResidency(mutationStorage, in evt))
                 return Validation.ValidationResult.InvalidTarget;
 
             if (zones.IsCreated && zones.IntersectsProtected(minVoxel, maxVoxel))

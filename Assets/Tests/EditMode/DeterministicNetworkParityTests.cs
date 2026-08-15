@@ -23,7 +23,7 @@ namespace VoxelEngine.Tests.EditMode
                 serverSeed: 0xA11CE55u,
                 densityCap: new Validation.DensityCap(1f, 0),
                 alterationApplier: new DeterministicAlterationApplier());
-            using var client = new ClientNetworkRuntime();
+            using var client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
 
             uint connectionId = 0;
             bool clientConnected = false;

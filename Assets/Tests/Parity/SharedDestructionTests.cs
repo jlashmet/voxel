@@ -2,6 +2,7 @@ using VoxelEngine.Edits.Api;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Client;
@@ -58,8 +59,8 @@ namespace VoxelEngine.Tests.Parity
                 playerId = 1, sequence = 1,
             };
 
-            var resultA = EventApplication.Apply(storageA, in evt, out _);
-            var resultB = EventApplication.Apply(storageB, in evt, out _);
+            var resultA = EventApplication.Apply(new DeterministicAlterationApplier(), storageA, in evt, out _);
+            var resultB = EventApplication.Apply(new DeterministicAlterationApplier(), storageB, in evt, out _);
 
             // Both must report changes (the explosion hits the wall).
             Assert.IsTrue(resultA, "Client A: destruction should have changed the world.");
@@ -123,7 +124,7 @@ namespace VoxelEngine.Tests.Parity
                 seed = 42u, playerId = 1, sequence = 1,
             };
 
-            EventApplication.Apply(storage, in evt, out _);
+            EventApplication.Apply(new DeterministicAlterationApplier(), storage, in evt, out _);
 
             // The hole's radius (in voxels) should be approximately ShapeRadius * BrickEdge.
             int expectedVoxelRadius = evt.Radius() * VoxelDimensions.BrickEdge;

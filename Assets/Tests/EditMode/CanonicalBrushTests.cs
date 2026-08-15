@@ -196,7 +196,7 @@ namespace VoxelEngine.Tests.EditMode
                     out int written), Is.True);
                 Assert.That(written, Is.EqualTo(payloadSize));
 
-                var queue = new ClientAuthoritativeEventQueue();
+                var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
                 Assert.That(queue.TryEnqueueEventPacket(packet), Is.True);
                 Assert.That(queue.DrainReady(ref clientTable, ref clientPool, out int appliedEvents), Is.EqualTo(1));
                 Assert.That(appliedEvents, Is.EqualTo(1));

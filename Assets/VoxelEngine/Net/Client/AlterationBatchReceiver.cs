@@ -40,6 +40,7 @@ namespace VoxelEngine.Net.Client
         /// <summary>Decode and apply one compact packet to authoritative client voxel state.</summary>
         public static bool TryApply(
             ReadOnlySpan<byte> payload,
+            IAlterationApplier applier,
             IRegionMutationStore storage,
             out bool anyChanged)
         {
@@ -49,7 +50,7 @@ namespace VoxelEngine.Net.Client
 
             try
             {
-                anyChanged = EventApplication.ApplyWithArbitration(storage, in events);
+                anyChanged = EventApplication.ApplyWithArbitration(applier, storage, in events);
                 return true;
             }
             finally
