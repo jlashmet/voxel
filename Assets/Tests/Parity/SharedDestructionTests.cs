@@ -1,3 +1,4 @@
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Edits;
 using NUnit.Framework;
 using Unity.Collections;
@@ -50,7 +51,7 @@ namespace VoxelEngine.Tests.Parity
             var evt = new AlterationEvent
             {
                 tick = 1u,
-                kind = (byte)VoxelEngine.Core.Edits.AlterationEventKind.Explosion,
+                kind = (byte)VoxelEngine.Edits.Api.AlterationEventKind.Explosion,
                 origin = new int3(256, 250, 256),
                 shapeData = 30,
                 material = VoxelDimensions.MaterialEmpty,
@@ -117,7 +118,7 @@ namespace VoxelEngine.Tests.Parity
             var evt = new AlterationEvent
             {
                 tick = 1u,
-                kind = (byte)VoxelEngine.Core.Edits.AlterationEventKind.Explosion,
+                kind = (byte)VoxelEngine.Edits.Api.AlterationEventKind.Explosion,
                 origin = new int3(256, 250, 256),
                 shapeData = 20, material = VoxelDimensions.MaterialEmpty,
                 seed = 42u, playerId = 1, sequence = 1,

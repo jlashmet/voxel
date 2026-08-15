@@ -1,6 +1,7 @@
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Edits.Api;
 
 namespace VoxelEngine.Core.Edits
 {

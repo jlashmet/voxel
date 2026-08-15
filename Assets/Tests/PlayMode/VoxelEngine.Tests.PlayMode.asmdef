@@ -17,7 +17,8 @@
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "VoxelEngine.Showcase",
-    "VoxelEngine.Terrain.Api"
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Edits.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

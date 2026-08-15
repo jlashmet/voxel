@@ -1,3 +1,4 @@
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Edits;
 using NUnit.Framework;
 using Unity.Collections;
@@ -363,7 +364,7 @@ namespace VoxelEngine.Tests.Parity
         private static AlterationEvent BuildExplosionEvent(int3 origin, byte radius) =>
             new()
             {
-                kind = (byte)VoxelEngine.Core.Edits.AlterationEventKind.Explosion,
+                kind = (byte)VoxelEngine.Edits.Api.AlterationEventKind.Explosion,
                 tick = 1u,
                 origin = origin,
                 shapeData = radius,

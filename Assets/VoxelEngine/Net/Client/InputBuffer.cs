@@ -2,6 +2,7 @@ using Unity.Mathematics;
 using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Net.Protocol;
 

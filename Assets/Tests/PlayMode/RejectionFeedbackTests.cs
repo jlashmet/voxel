@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using Unity.Mathematics;
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Net.Client;
 using VoxelEngine.Net.Protocol;

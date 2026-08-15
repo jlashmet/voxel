@@ -5,6 +5,7 @@ using Unity.Mathematics;
 using VoxelEngine.Foundation;
 using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Edits.Api;
 
 namespace VoxelEngine.Core.Edits
 {

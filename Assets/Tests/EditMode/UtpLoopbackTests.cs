@@ -3,6 +3,7 @@ using System.Threading;
 using NUnit.Framework;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Server;

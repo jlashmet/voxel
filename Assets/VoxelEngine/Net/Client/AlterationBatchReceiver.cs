@@ -1,5 +1,6 @@
 using System;
 using Unity.Collections;
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;

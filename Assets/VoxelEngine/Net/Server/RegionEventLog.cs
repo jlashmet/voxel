@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Edits;
 
 namespace VoxelEngine.Net.Server

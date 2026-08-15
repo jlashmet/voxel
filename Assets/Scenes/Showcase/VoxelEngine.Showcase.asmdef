@@ -17,7 +17,8 @@
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
-    "Unity.Networking.Transport"
+    "Unity.Networking.Transport",
+    "VoxelEngine.Edits.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
