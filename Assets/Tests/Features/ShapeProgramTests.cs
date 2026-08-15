@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Runtime.Emitters;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Tests.Features.Fixtures;
 
@@ -180,9 +181,9 @@ namespace VoxelEngine.Tests.Features
             var pool = new BrickPool(1024, Allocator.Temp);
 
             var primitives = new NativeArray<Primitive>(2, Allocator.Temp);
-            primitives[0] = Core.Features.Emitters.BoxEmitter.Box(
+            primitives[0] = BoxEmitter.Box(
                 new int3(10, 10, 10), new int3(8, 8, 8), 1, PrimitiveMode.Fill, 0);
-            primitives[1] = Core.Features.Emitters.BoxEmitter.Box(
+            primitives[1] = BoxEmitter.Box(
                 new int3(12, 12, 12), new int3(2, 2, 2), 0, PrimitiveMode.Carve, 1);
 
             Rasterise(primitives, new int3(0, 0, 0), new int3(32, 32, 32),
