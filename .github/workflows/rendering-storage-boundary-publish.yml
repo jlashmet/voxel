@@ -1,5 +1,5 @@
 name: Rendering Storage boundary publisher
-# trigger Storage.Api presentation boundary migration
+# trigger Storage.Api presentation boundary migration v2
 on:
   push:
     branches: [refactor/system-boundaries-foundation-storage]
@@ -71,7 +71,7 @@ jobs:
           if bad:
               raise SystemExit('Rendering physical Storage dependencies remain: ' + ', '.join(bad))
           PY
-          git rm .github/workflows/rendering-storage-boundary-publish.yml .github/scripts/rendering-storage-boundary.py
+          git rm -f .github/workflows/rendering-storage-boundary-publish.yml .github/scripts/rendering-storage-boundary.py
           git diff --check
           git status --short
           git config user.name architecture-refactor-ci
