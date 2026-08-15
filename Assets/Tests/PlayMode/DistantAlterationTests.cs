@@ -134,7 +134,8 @@ namespace VoxelEngine.Tests.PlayMode
             table.CommitRegion(in region);
 
             // Evict to cold.
-            ResidencyManager.EvictWithoutWriteBack(regionCoord, ref table, ref pool);
+            var residency = new RegionResidencyStore(in table, in pool);
+            ResidencyManager.EvictWithoutWriteBack(regionCoord, residency);
             Assert.That(table.IsResident(regionCoord), Is.False, "Region must be evicted.");
 
             // Re-load the region (simulates player returning).
