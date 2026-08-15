@@ -12,14 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 46c233311404d94cfa17b82a8a1e925f1a416a92
+          ref: c6089e18e1774dcedb6145f0b6977147ffba3d0d
           clean: false
           fetch-depth: 1
       - name: Reset pinned Core/Storage candidate
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard 46c233311404d94cfa17b82a8a1e925f1a416a92
+          git reset --hard c6089e18e1774dcedb6145f0b6977147ffba3d0d
           git clean -ffdx -e Library/
           rm -rf Library/ScriptAssemblies Library/Bee
       - id: unity
@@ -56,7 +56,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cutover13-core-storage-46c23331
+          name: cutover13-core-storage-c6089e18
           path: Artifacts/CoreStorageCutover/
           if-no-files-found: warn
           retention-days: 14
