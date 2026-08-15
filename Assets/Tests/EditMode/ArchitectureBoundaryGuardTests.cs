@@ -14,15 +14,15 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class ArchitectureBoundaryGuardTests
     {
         private static readonly Regex NameRegex = new Regex(
-            "\\\"name\\\"\\s*:\\s*\\\"(?<value>[^\\\"]+)\\\"",
+            "\"name\"\s*:\s*\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
 
         private static readonly Regex ReferencesRegex = new Regex(
-            "\\\"references\\\"\\s*:\\s*\\[(?<value>.*?)\\]",
+            "\"references\"\s*:\s*\[(?<value>.*?)\]",
             RegexOptions.Compiled | RegexOptions.Singleline);
 
         private static readonly Regex QuotedStringRegex = new Regex(
-            "\\\"(?<value>[^\\\"]+)\\\"",
+            "\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
 
         private static string RepoRoot
@@ -68,10 +68,6 @@ namespace VoxelEngine.Tests.EditMode
             foreach (Asmdef asmdef in EnumerateVoxelEngineAsmdefs())
             {
                 if (!asmdef.Name.EndsWith(".Runtime", StringComparison.Ordinal))
-                    continue;
-
-                // Composition is the deliberate wiring root and is the only runtime-to-runtime exception.
-                if (string.Equals(asmdef.Name, "VoxelEngine.Composition.Runtime", StringComparison.Ordinal))
                     continue;
 
                 foreach (string reference in asmdef.References)
