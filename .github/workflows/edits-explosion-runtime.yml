@@ -1,0 +1,110 @@
+name: Edits Explosion Runtime publisher
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - name: Move ExplosionExpansion behind Storage.Api reads
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+
+          git mv Assets/VoxelEngine/Core/Edits/ExplosionExpansion.cs Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs
+          git mv Assets/VoxelEngine/Core/Edits/ExplosionExpansion.cs.meta Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs.meta
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs')
+          text = p.read_text()
+          text = text.replace('using VoxelEngine.Core.Storage;\n', 'using VoxelEngine.Storage.Api;\n')
+          text = text.replace('namespace VoxelEngine.Core.Edits\n', 'namespace VoxelEngine.Edits.Runtime\n', 1)
+
+          old_expand = 'public static NativeList<int3> Expand(in BrickPool pool, in RegionTable table, in AlterationEvent evt)'
+          if text.count(old_expand) != 1:
+              raise SystemExit(f'Expand signature count {text.count(old_expand)}')
+          text = text.replace(old_expand, 'public static NativeList<int3> Expand(IRegionReadSource storage, in AlterationEvent evt)', 1)
+
+          old_lookup = '''                int3 regionCoord = c >> VoxelDimensions.RegionEdgeLog2;\n                int3 local = c & VoxelDimensions.RegionEdgeMask;\n                if (!table.TryGet(regionCoord, out var region)) continue;\n                var br = region.GetBrickRef(local);\n                if (!br.IsEmpty) result.Add(c);'''
+          new_lookup = '''                if (!storage.TryAcquireRegionContainingBlock(c, out RegionReadView region)) continue;\n                if (region.TryGetWorldBlock(c, out VoxelReadBlock block) && block.IsSolid)\n                    result.Add(c);'''
+          if text.count(old_lookup) != 1:
+              raise SystemExit(f'Expand lookup count {text.count(old_lookup)}')
+          text = text.replace(old_lookup, new_lookup, 1)
+
+          old_chain_sig = '''        public static NativeList<int3> ExpandChainReaction(\n            in BrickPool pool,\n            in RegionTable table,\n            in AlterationEvent evt)'''
+          new_chain_sig = '''        public static NativeList<int3> ExpandChainReaction(\n            IRegionReadSource storage,\n            in AlterationEvent evt)'''
+          if text.count(old_chain_sig) != 1:
+              raise SystemExit(f'chain signature count {text.count(old_chain_sig)}')
+          text = text.replace(old_chain_sig, new_chain_sig, 1)
+
+          old_chain_lookup = '''                int3 regionCoord = c >> VoxelDimensions.RegionEdgeLog2;\n                int3 local = c & VoxelDimensions.RegionEdgeMask;\n                if (!table.TryGet(regionCoord, out var region)) continue;\n                var br = region.GetBrickRef(local);\n                if (br.IsEmpty) continue;\n\n                result.Add(c);\n\n                // Check if this brick contains explosive material.\n                byte brickMaterial;\n                if (br.IsUniform)\n                {\n                    brickMaterial = br.UniformMaterialId;\n                }\n                else\n                {\n                    // Sample first non-zero voxel for material classification.\n                    var voxels = pool.GetVoxelArray(br.PoolIndex);\n                    brickMaterial = 0;\n                    for (int vi = 0; vi < voxels.Length; vi++)\n                    {\n                        if (voxels[vi] != 0)\n                        {\n                            brickMaterial = voxels[vi];\n                            break;\n                        }\n                    }\n                }\n\n                if (brickMaterial == MaterialExplosive && secondaryRadius > 0)'''
+          new_chain_lookup = '''                if (!storage.TryAcquireRegionContainingBlock(c, out RegionReadView region)) continue;\n                if (!TryGetFirstSolidMaterial(in region, c, out byte brickMaterial)) continue;\n\n                result.Add(c);\n\n                if (brickMaterial == MaterialExplosive && secondaryRadius > 0)'''
+          if text.count(old_chain_lookup) != 1:
+              raise SystemExit(f'chain lookup count {text.count(old_chain_lookup)}')
+          text = text.replace(old_chain_lookup, new_chain_lookup, 1)
+
+          marker = '        /// <summary>\n        /// Applies an Explosion alteration event by expanding affected bricks and clearing them.\n'
+          if text.count(marker) != 1:
+              raise SystemExit('legacy TryApply marker mismatch')
+          text = text.split(marker, 1)[0].rstrip() + '''\n\n        private static bool TryGetFirstSolidMaterial(\n            in RegionReadView region, int3 worldBlockCoord, out byte material)\n        {\n            material = VoxelGrid.MaterialEmpty;\n            if (!region.TryGetWorldBlock(worldBlockCoord, out VoxelReadBlock block) || !block.IsSolid)\n                return false;\n\n            if (block.Kind == VoxelReadBlockKind.Uniform)\n            {\n                material = block.UniformMaterial;\n                return material != VoxelGrid.MaterialEmpty;\n            }\n\n            int3 localBlock = worldBlockCoord\n                            - (region.RegionCoord << VoxelReadGrid.BlocksPerRegionEdgeLog2);\n            int3 voxelBase = localBlock << VoxelReadGrid.BlockEdgeLog2;\n            for (int z = 0; z < VoxelReadGrid.BlockEdge; z++)\n            for (int y = 0; y < VoxelReadGrid.BlockEdge; y++)\n            for (int x = 0; x < VoxelReadGrid.BlockEdge; x++)\n            {\n                if (!region.TryReadCell(voxelBase + new int3(x, y, z), out VoxelCell cell))\n                    return false;\n                if (cell.BaseMaterialId == VoxelGrid.MaterialEmpty) continue;\n                material = cell.BaseMaterialId;\n                return true;\n            }\n            return false;\n        }\n    }\n}\n'''
+          p.write_text(text)
+
+          # Test adapters own concrete physical Storage construction; the Runtime helper sees only
+          # the read capability.
+          p = Path('Assets/Tests/EditMode/ExpansionDeterminismTests.cs')
+          text = p.read_text()
+          replacements = {
+              'ExplosionExpansion.Expand(in poolA, in tableA, in evt)': 'ExplosionExpansion.Expand(new RegionReadSource(in tableA, in poolA), in evt)',
+              'ExplosionExpansion.Expand(in poolB, in tableB, in evt)': 'ExplosionExpansion.Expand(new RegionReadSource(in tableB, in poolB), in evt)',
+              'ExplosionExpansion.Expand(in pool, in table, ExplosionEvent(1u))': 'ExplosionExpansion.Expand(new RegionReadSource(in table, in pool), ExplosionEvent(1u))',
+              'ExplosionExpansion.Expand(in pool, in table, ExplosionEvent(99999u))': 'ExplosionExpansion.Expand(new RegionReadSource(in table, in pool), ExplosionEvent(99999u))',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Missing ExpansionDeterminism call: {old}')
+              text = text.replace(old, new)
+          p.write_text(text)
+
+          p = Path('Assets/Tests/Parity/TenThousandEventParityTests.cs')
+          text = p.read_text()
+          replacements = {
+              'ExplosionExpansion.Expand(in poolA, in tableA, in evt)': 'ExplosionExpansion.Expand(new RegionReadSource(in tableA, in poolA), in evt)',
+              'ExplosionExpansion.Expand(in poolB, in tableB, in evt)': 'ExplosionExpansion.Expand(new RegionReadSource(in tableB, in poolB), in evt)',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Missing parity call: {old}')
+              text = text.replace(old, new)
+          p.write_text(text)
+          PY
+
+          git rm .github/workflows/edits-explosion-runtime.yml
+          git diff --check
+          test -f Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs
+          test ! -e Assets/VoxelEngine/Core/Edits/ExplosionExpansion.cs
+          if grep -nE 'VoxelEngine\.Core\.Storage|\b(RegionTable|BrickPool|BrickRef|VoxelAccess|VoxelDimensions|Region)\b' Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs; then
+            echo 'ExplosionExpansion still leaks physical Storage' >&2
+            exit 1
+          fi
+          git status --short
+          git diff --stat
+          git config user.name 'architecture-refactor-ci'
+          git config user.email 'architecture-refactor-ci@users.noreply.github.com'
+          git add Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs.meta Assets/Tests/EditMode/ExpansionDeterminismTests.cs Assets/Tests/Parity/TenThousandEventParityTests.cs
+          git commit -m 'Move explosion expansion behind Storage API reads'
+          git push origin HEAD:${{ github.ref_name }}
