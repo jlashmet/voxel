@@ -63,6 +63,7 @@ namespace Game.WorldBuilder.Runtime
             var cutscenes = CollectIds(blueprint.Cutscenes, spec => spec.Ref.Id, "cutscene", diagnostics);
             var lootTables = CollectIds(blueprint.LootTables, spec => spec.Ref.Id, "loot table", diagnostics);
             CollectIds(blueprint.SecretPolicies, spec => spec.Ref.Id, "secret policy", diagnostics);
+            CollectIds(blueprint.RequiredSecrets, spec => spec.Ref.Id, "required secret", diagnostics);
 
             ValidateHierarchy(blueprint, regions, routes, settlements, sites, diagnostics);
 
@@ -72,8 +73,7 @@ namespace Game.WorldBuilder.Runtime
                 if (site.Archetype == SiteArchetype.Unspecified)
                 {
                     diagnostics.Add(new BlueprintDiagnostic(
-                        "WB1001",
-                        BlueprintDiagnosticSeverity.Warning,
+                        "WB1001", BlueprintDiagnosticSeverity.Warning,
                         $"Site '{site.Ref}' has no concrete archetype yet. It can participate in story constraints, but cannot be physically realized until a site archetype or selector is supplied."));
                 }
             }
@@ -95,7 +95,6 @@ namespace Game.WorldBuilder.Runtime
             {
                 var objective = blueprint.Objectives[i];
                 RequireExists(sites, objective.Target.Id, "WB2101", $"Objective '{objective.Ref}' targets unknown site '{objective.Target}'.", diagnostics);
-
                 if (objective.Completion is InteractWithNpcTriggerSpec interact)
                     RequireExists(npcs, interact.Npc.Id, "WB2102", $"Objective '{objective.Ref}' completes by interacting with unknown NPC '{interact.Npc}'.", diagnostics);
             }
@@ -109,17 +108,14 @@ namespace Game.WorldBuilder.Runtime
                 if (siteExists && cutscene.StageRequirements.Count > 0 && !SiteHasCapability(blueprint, cutscene.Site, SiteCapabilityKind.CutsceneStage))
                 {
                     diagnostics.Add(new BlueprintDiagnostic(
-                        "WB2207",
-                        BlueprintDiagnosticSeverity.Error,
+                        "WB2207", BlueprintDiagnosticSeverity.Error,
                         $"Cutscene '{cutscene.Ref}' requires {cutscene.StageRequirements.Count} semantic stage point(s), but site '{cutscene.Site}' does not declare CutsceneStage capability."));
                 }
 
                 ValidateActorBindings(cutscene, npcs, diagnostics);
                 ValidateTrigger(cutscene.Ref, cutscene.Trigger, npcs, diagnostics);
-
                 for (var j = 0; j < cutscene.Conditions.Count; j++)
                     ValidateCondition(cutscene.Ref, cutscene.Conditions[j], objectives, cutscenes, diagnostics);
-
                 for (var j = 0; j < cutscene.Effects.Count; j++)
                     ValidateEffect(cutscene.Ref, cutscene.Effects[j], objectives, cutscenes, diagnostics);
             }
@@ -128,13 +124,33 @@ namespace Game.WorldBuilder.Runtime
             {
                 var policy = blueprint.SecretPolicies[i];
                 RequireExists(lootTables, policy.Reward.Id, "WB2301", $"Secret policy '{policy.Ref}' references unknown loot table '{policy.Reward}'.", diagnostics);
-
                 if (!policy.RequiresHiddenSpace)
                 {
                     diagnostics.Add(new BlueprintDiagnostic(
-                        "WB1301",
-                        BlueprintDiagnosticSeverity.Warning,
+                        "WB1301", BlueprintDiagnosticSeverity.Warning,
                         $"Secret policy '{policy.Ref}' does not require hidden space; false-wall secrets may not be topologically hidden."));
+                }
+            }
+
+            for (var i = 0; i < blueprint.RequiredSecrets.Count; i++)
+            {
+                RequiredSecretSpec secret = blueprint.RequiredSecrets[i];
+                bool siteExists = sites.Contains(secret.Site.Id);
+                RequireExists(sites, secret.Site.Id, "WB2310", $"Required secret '{secret.Ref}' targets unknown site '{secret.Site}'.", diagnostics);
+                RequireExists(lootTables, secret.Reward.Id, "WB2311", $"Required secret '{secret.Ref}' references unknown loot table '{secret.Reward}'.", diagnostics);
+
+                if (siteExists && !SiteHasCapability(blueprint, secret.Site, SiteCapabilityKind.SecretCandidateHost))
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB2312", BlueprintDiagnosticSeverity.Error,
+                        $"Required secret '{secret.Ref}' targets site '{secret.Site}', but that site does not declare SecretCandidateHost capability."));
+                }
+
+                if (secret.Entrance == SecretEntranceType.DestroyableFalseWall && !secret.RequiresHiddenSpace)
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB2313", BlueprintDiagnosticSeverity.Error,
+                        $"Required secret '{secret.Ref}' uses a destroyable false wall but does not require topologically hidden space."));
                 }
             }
 
@@ -163,14 +179,9 @@ namespace Game.WorldBuilder.Runtime
                 SettlementSpec settlement = blueprint.Hierarchy.Settlements[i];
                 RequireExists(regions, settlement.Region.Id, "WB2402", $"Settlement '{settlement.Ref}' belongs to unknown region '{settlement.Region}'.", diagnostics);
                 settlementRegions[settlement.Ref.Id] = settlement.Region.Id;
-
                 if (settlement.Archetype == SettlementArchetype.Unspecified)
-                {
-                    diagnostics.Add(new BlueprintDiagnostic(
-                        "WB1401",
-                        BlueprintDiagnosticSeverity.Warning,
+                    diagnostics.Add(new BlueprintDiagnostic("WB1401", BlueprintDiagnosticSeverity.Warning,
                         $"Settlement '{settlement.Ref}' has no archetype. Placement can be planned, but settlement generation does not yet know what class of settlement to build."));
-                }
             }
 
             var accessKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -179,25 +190,15 @@ namespace Game.WorldBuilder.Runtime
                 SettlementRouteAccessSpec access = blueprint.Hierarchy.RouteAccess[i];
                 RequireExists(settlements, access.Settlement.Id, "WB2403", $"Route access references unknown settlement '{access.Settlement}'.", diagnostics);
                 RequireExists(routes, access.Route.Id, "WB2404", $"Route access references unknown route '{access.Route}'.", diagnostics);
-
                 string key = access.Settlement.Id + "->" + access.Route.Id;
                 if (!accessKeys.Add(key))
-                {
-                    diagnostics.Add(new BlueprintDiagnostic(
-                        "WB2405",
-                        BlueprintDiagnosticSeverity.Error,
+                    diagnostics.Add(new BlueprintDiagnostic("WB2405", BlueprintDiagnosticSeverity.Error,
                         $"Settlement '{access.Settlement}' declares route access to '{access.Route}' more than once."));
-                }
-
                 if (settlementRegions.TryGetValue(access.Settlement.Id, out string settlementRegion)
                     && routeRegions.TryGetValue(access.Route.Id, out string routeRegion)
                     && !string.Equals(settlementRegion, routeRegion, StringComparison.Ordinal))
-                {
-                    diagnostics.Add(new BlueprintDiagnostic(
-                        "WB2406",
-                        BlueprintDiagnosticSeverity.Error,
+                    diagnostics.Add(new BlueprintDiagnostic("WB2406", BlueprintDiagnosticSeverity.Error,
                         $"Settlement '{access.Settlement}' and connected route '{access.Route}' belong to different regions."));
-                }
             }
 
             var placedSites = new HashSet<string>(StringComparer.Ordinal);
@@ -205,15 +206,9 @@ namespace Game.WorldBuilder.Runtime
             {
                 SitePlacementSpec placement = blueprint.Hierarchy.SitePlacements[i];
                 RequireExists(sites, placement.Site.Id, "WB2410", $"Site placement references unknown site '{placement.Site}'.", diagnostics);
-
                 if (!placedSites.Add(placement.Site.Id))
-                {
-                    diagnostics.Add(new BlueprintDiagnostic(
-                        "WB2411",
-                        BlueprintDiagnosticSeverity.Error,
+                    diagnostics.Add(new BlueprintDiagnostic("WB2411", BlueprintDiagnosticSeverity.Error,
                         $"Site '{placement.Site}' has more than one spatial owner."));
-                }
-
                 if (placement.Kind == SitePlacementKind.Region)
                     RequireExists(regions, placement.Region.Id, "WB2412", $"Site '{placement.Site}' is assigned to unknown region '{placement.Region}'.", diagnostics);
                 else if (placement.Kind == SitePlacementKind.Settlement)
@@ -223,61 +218,32 @@ namespace Game.WorldBuilder.Runtime
             for (var i = 0; i < blueprint.Sites.Count; i++)
             {
                 if (placedSites.Contains(blueprint.Sites[i].Ref.Id)) continue;
-                diagnostics.Add(new BlueprintDiagnostic(
-                    "WB1402",
-                    BlueprintDiagnosticSeverity.Warning,
+                diagnostics.Add(new BlueprintDiagnostic("WB1402", BlueprintDiagnosticSeverity.Warning,
                     $"Site '{blueprint.Sites[i].Ref}' has no region or settlement owner. This is allowed during migration but cannot be spatially placed by the hierarchical planner."));
             }
         }
 
-        private static void ValidateActorBindings(
-            CutsceneSpec cutscene,
-            HashSet<string> npcs,
-            List<BlueprintDiagnostic> diagnostics)
+        private static void ValidateActorBindings(CutsceneSpec cutscene, HashSet<string> npcs, List<BlueprintDiagnostic> diagnostics)
         {
             var required = new HashSet<CutsceneActorId>(cutscene.Definition.RequiredActors);
             var bound = new HashSet<CutsceneActorId>();
-
             for (var i = 0; i < cutscene.ActorBindings.Count; i++)
             {
                 var binding = cutscene.ActorBindings[i];
                 if (!bound.Add(binding.Actor))
-                {
-                    diagnostics.Add(new BlueprintDiagnostic(
-                        "WB2208",
-                        BlueprintDiagnosticSeverity.Error,
+                    diagnostics.Add(new BlueprintDiagnostic("WB2208", BlueprintDiagnosticSeverity.Error,
                         $"Cutscene '{cutscene.Ref}' binds actor '{binding.Actor}' more than once."));
-                }
-
                 if (!required.Contains(binding.Actor))
-                {
-                    diagnostics.Add(new BlueprintDiagnostic(
-                        "WB2209",
-                        BlueprintDiagnosticSeverity.Error,
+                    diagnostics.Add(new BlueprintDiagnostic("WB2209", BlueprintDiagnosticSeverity.Error,
                         $"Cutscene '{cutscene.Ref}' binds actor '{binding.Actor}', but that actor is not used by the cutscene definition."));
-                }
-
                 if (binding.Target.Kind == CutsceneActorTargetKind.Npc)
-                {
-                    RequireExists(
-                        npcs,
-                        binding.Target.Npc.Id,
-                        "WB2210",
-                        $"Cutscene '{cutscene.Ref}' binds actor '{binding.Actor}' to unknown NPC '{binding.Target.Npc}'.",
-                        diagnostics);
-                }
+                    RequireExists(npcs, binding.Target.Npc.Id, "WB2210",
+                        $"Cutscene '{cutscene.Ref}' binds actor '{binding.Actor}' to unknown NPC '{binding.Target.Npc}'.", diagnostics);
             }
-
             foreach (CutsceneActorId actor in required)
-            {
                 if (!bound.Contains(actor))
-                {
-                    diagnostics.Add(new BlueprintDiagnostic(
-                        "WB2211",
-                        BlueprintDiagnosticSeverity.Error,
+                    diagnostics.Add(new BlueprintDiagnostic("WB2211", BlueprintDiagnosticSeverity.Error,
                         $"Cutscene '{cutscene.Ref}' requires actor '{actor}', but WorldBuilder has no actor binding for it."));
-                }
-            }
         }
 
         private static bool SiteHasCapability(CampaignBlueprint blueprint, SiteRef siteRef, SiteCapabilityKind capability)
@@ -286,50 +252,30 @@ namespace Game.WorldBuilder.Runtime
             {
                 var site = blueprint.Sites[i];
                 if (!site.Ref.Equals(siteRef)) continue;
-                for (var j = 0; j < site.Capabilities.Count; j++)
-                    if (site.Capabilities[j].Kind == capability) return true;
+                for (var j = 0; j < site.Capabilities.Count; j++) if (site.Capabilities[j].Kind == capability) return true;
                 return false;
             }
             return false;
         }
 
-        private static HashSet<string> CollectIds<T>(
-            IReadOnlyList<T> items,
-            Func<T, string> selectId,
-            string label,
-            List<BlueprintDiagnostic> diagnostics)
+        private static HashSet<string> CollectIds<T>(IReadOnlyList<T> items, Func<T, string> selectId, string label, List<BlueprintDiagnostic> diagnostics)
         {
             var ids = new HashSet<string>(StringComparer.Ordinal);
             for (var i = 0; i < items.Count; i++)
             {
                 var id = selectId(items[i]);
-                if (!ids.Add(id))
-                {
-                    diagnostics.Add(new BlueprintDiagnostic(
-                        "WB0001",
-                        BlueprintDiagnosticSeverity.Error,
-                        $"Duplicate {label} id '{id}'."));
-                }
+                if (!ids.Add(id)) diagnostics.Add(new BlueprintDiagnostic("WB0001", BlueprintDiagnosticSeverity.Error, $"Duplicate {label} id '{id}'."));
             }
             return ids;
         }
 
-        private static void ValidateTrigger(
-            CutsceneRef cutscene,
-            IStoryTriggerSpec trigger,
-            HashSet<string> npcs,
-            List<BlueprintDiagnostic> diagnostics)
+        private static void ValidateTrigger(CutsceneRef cutscene, IStoryTriggerSpec trigger, HashSet<string> npcs, List<BlueprintDiagnostic> diagnostics)
         {
             if (trigger is InteractWithNpcTriggerSpec interact)
                 RequireExists(npcs, interact.Npc.Id, "WB2202", $"Cutscene '{cutscene}' is triggered by unknown NPC '{interact.Npc}'.", diagnostics);
         }
 
-        private static void ValidateCondition(
-            CutsceneRef cutscene,
-            IStoryConditionSpec condition,
-            HashSet<string> objectives,
-            HashSet<string> cutscenes,
-            List<BlueprintDiagnostic> diagnostics)
+        private static void ValidateCondition(CutsceneRef cutscene, IStoryConditionSpec condition, HashSet<string> objectives, HashSet<string> cutscenes, List<BlueprintDiagnostic> diagnostics)
         {
             if (condition is ObjectiveActiveConditionSpec active)
                 RequireExists(objectives, active.Objective.Id, "WB2203", $"Cutscene '{cutscene}' depends on unknown objective '{active.Objective}'.", diagnostics);
@@ -337,12 +283,7 @@ namespace Game.WorldBuilder.Runtime
                 RequireExists(cutscenes, notCompleted.Cutscene.Id, "WB2204", $"Cutscene '{cutscene}' depends on unknown cutscene '{notCompleted.Cutscene}'.", diagnostics);
         }
 
-        private static void ValidateEffect(
-            CutsceneRef cutscene,
-            IStoryEffectSpec effect,
-            HashSet<string> objectives,
-            HashSet<string> cutscenes,
-            List<BlueprintDiagnostic> diagnostics)
+        private static void ValidateEffect(CutsceneRef cutscene, IStoryEffectSpec effect, HashSet<string> objectives, HashSet<string> cutscenes, List<BlueprintDiagnostic> diagnostics)
         {
             if (effect is StartObjectiveEffectSpec start)
                 RequireExists(objectives, start.Objective.Id, "WB2205", $"Cutscene '{cutscene}' starts unknown objective '{start.Objective}'.", diagnostics);
@@ -350,15 +291,9 @@ namespace Game.WorldBuilder.Runtime
                 RequireExists(cutscenes, play.Cutscene.Id, "WB2206", $"Cutscene '{cutscene}' plays unknown cutscene '{play.Cutscene}'.", diagnostics);
         }
 
-        private static void RequireExists(
-            HashSet<string> ids,
-            string id,
-            string code,
-            string message,
-            List<BlueprintDiagnostic> diagnostics)
+        private static void RequireExists(HashSet<string> ids, string id, string code, string message, List<BlueprintDiagnostic> diagnostics)
         {
-            if (!ids.Contains(id))
-                diagnostics.Add(new BlueprintDiagnostic(code, BlueprintDiagnosticSeverity.Error, message));
+            if (!ids.Contains(id)) diagnostics.Add(new BlueprintDiagnostic(code, BlueprintDiagnosticSeverity.Error, message));
         }
     }
 }
