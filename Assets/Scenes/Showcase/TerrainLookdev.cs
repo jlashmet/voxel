@@ -429,6 +429,19 @@ namespace VoxelEngine.Showcase
             return Mathf.RoundToInt(metres * 10f);
         }
 
+        private VoxelBrush CreateWriter(int budget)
+        {
+            var reads = new RegionReadSource(in _table, in _pool);
+            var mutations = new RegionMutationStore(in _table, in _pool);
+            return new VoxelBrush(reads, mutations, _palette, budget);
+        }
+
+        private void PublishAllResidentRegions()
+        {
+            using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
+                for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
+        }
+
         private VoxelWorldView WorldView()
         {
             _readSource ??= new RegionReadSource(in _table, in _pool, _changes);

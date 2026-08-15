@@ -1,6 +1,4 @@
-using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Structures.Runtime;
@@ -22,9 +20,7 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _foregroundContrastApplied) return;
 
-            var reads = new RegionReadSource(in _table, in _pool);
-            var mutations = new RegionMutationStore(in _table, in _pool);
-            var writer = new VoxelBrush(reads, mutations, _palette, 1_050_000);
+            var writer = CreateWriter(1_050_000);
             var rng = new Unity.Mathematics.Random(Seed ^ 0xF09Eu);
 
             for (int cluster = 0; cluster < 42; cluster++)
@@ -88,8 +84,7 @@ namespace VoxelEngine.Showcase
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain foreground contrast pass exceeded voxel authoring budget.");
 
-            using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
-                for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
+            PublishAllResidentRegions();
             _foregroundContrastApplied = true;
         }
     }

@@ -1,7 +1,5 @@
-using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
@@ -15,9 +13,7 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _visibleDetailsApplied) return;
 
-            var reads = new RegionReadSource(in _table, in _pool);
-            var mutations = new RegionMutationStore(in _table, in _pool);
-            var writer = new VoxelBrush(reads, mutations, _palette, 2_400_000);
+            var writer = CreateWriter(2_400_000);
             BuildTurfTufts(ref writer);
             BuildTurfShelfBanks(ref writer);
             BuildReadableFlowerClumps(ref writer);
@@ -27,8 +23,7 @@ namespace VoxelEngine.Showcase
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain visible detail pass exceeded voxel authoring budget.");
 
-            using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
-                for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
+            PublishAllResidentRegions();
             _visibleDetailsApplied = true;
         }
 

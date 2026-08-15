@@ -1,6 +1,4 @@
-using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Structures.Runtime;
@@ -16,9 +14,7 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _referenceDetailsApplied) return;
 
-            var reads = new RegionReadSource(in _table, in _pool);
-            var mutations = new RegionMutationStore(in _table, in _pool);
-            var writer = new VoxelBrush(reads, mutations, _palette, 2_200_000);
+            var writer = CreateWriter(2_200_000);
             RestyleBaseStoneRounded(ref writer);
             BuildReferenceTufts(ref writer);
             BuildReferenceFlowers(ref writer);
@@ -27,8 +23,7 @@ namespace VoxelEngine.Showcase
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain reference detail pass exceeded voxel authoring budget.");
 
-            using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
-                for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
+            PublishAllResidentRegions();
             _referenceDetailsApplied = true;
         }
 
