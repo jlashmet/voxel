@@ -1,0 +1,33 @@
+name: Restructuring structures inventory
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/restructuring-structures-inventory.yml
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+      - name: Inventory remaining Structures implementation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== Remaining Core/Features files ==='
+          find Assets/VoxelEngine/Core/Features -type f \( -name '*.cs' -o -name '*.asmdef' \) -print | sort
+          echo '=== References to implementation types ==='
+          rg -n --glob '*.cs' '\b(FeatureGeneration|ShapeProgram|PrimitiveRasteriser|ProfileBlockStore|ArchFeature|BondedBlockVeneer)\b' Assets Packages || true
+          echo '=== Remaining Core.Features imports ==='
+          rg -n --glob '*.cs' 'using VoxelEngine\.Core\.Features' Assets Packages || true
+          echo '=== Remaining Structures broad imports ==='
+          rg -n --glob '*.cs' 'using VoxelEngine\.Structures;' Assets Packages || true
+          echo '=== Target implementation imports ==='
+          for f in $(find Assets/VoxelEngine/Core/Features -name '*.cs' -print | sort); do
+            echo "--- $f"
+            grep '^using ' "$f" || true
+          done
