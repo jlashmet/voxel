@@ -50,10 +50,14 @@ namespace VoxelEngine.Tests.EditMode
 
             public Actor Npc(NpcRef npc) => _npcs[npc];
 
-            public void PrepareNpc(ResolvedNpcWorldPlacement placement)
+            public void PrepareNpcs(IReadOnlyList<ResolvedNpcWorldPlacement> placements)
             {
-                Prepared.Add(placement.Npc);
-                _npcs[placement.Npc] = new Actor(ToCutscene(placement.Position.Position));
+                for (var i = 0; i < placements.Count; i++)
+                {
+                    ResolvedNpcWorldPlacement placement = placements[i];
+                    Prepared.Add(placement.Npc);
+                    _npcs[placement.Npc] = new Actor(ToCutscene(placement.Position.Position));
+                }
             }
 
             public bool TryResolveNpc(NpcRef npc, out ICutsceneActorRuntime actor)
@@ -178,7 +182,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.That(error.Message, Does.Contain("player slot 0"));
             Assert.That(actors.Prepared, Is.Empty,
-                "Player preflight must fail before any authoritative NPC is created or repositioned.");
+                "Player preflight must fail before the authoritative NPC batch is created or repositioned.");
         }
 
         private static void DrainActiveCutscene(KentridgeCampaignSession session)
