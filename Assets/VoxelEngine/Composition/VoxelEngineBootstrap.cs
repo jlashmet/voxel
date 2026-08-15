@@ -1,6 +1,7 @@
 using System;
 using Unity.Collections;
 using UnityEngine;
+using VoxelEngine.Rendering.Api;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Storage.Runtime;
@@ -62,6 +63,22 @@ namespace VoxelEngine.Composition
             VoxelRenderBridge.SunDirection = sunDirection;
             VoxelRenderBridge.SkyHorizon = skyHorizon;
             VoxelRenderBridge.SkyZenith = skyZenith;
+        }
+
+        /// <summary>
+        /// Projects concrete renderer timing state into the stable presentation diagnostics API.
+        /// </summary>
+        public static SurfaceTimingDiagnostics GetSurfaceTimingDiagnostics()
+        {
+            var metrics = VoxelRenderBridge.SurfaceMetrics;
+            return new SurfaceTimingDiagnostics(
+                metrics.SchedulerPrepareTiming.P95Ms,
+                metrics.SurfaceDiscoveryTiming.P95Ms,
+                metrics.SnapshotTiming.P95Ms,
+                metrics.TopologyCompactTiming.P95Ms,
+                metrics.FacetedMergeTiming.P95Ms,
+                metrics.UploadTiming.P95Ms,
+                metrics.QueueLatencyTiming.P95Ms);
         }
 
         public static IVoxelStorageRuntime CreateStorage(
