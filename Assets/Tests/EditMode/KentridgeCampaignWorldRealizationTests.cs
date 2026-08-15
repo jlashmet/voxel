@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Game.Composition.Campaign.Content;
 using Game.Composition.WorldBuilderWorldGen;
@@ -122,6 +123,27 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(realized.Secrets[0].EntranceBounds.UnitsPerDecimetre, Is.EqualTo(1));
             Assert.That(realized.Secrets[0].ContainerFloorPoint.Position.Y,
                 Is.EqualTo(realized.Secrets[0].HiddenSpaceBounds.MinInclusive.Y));
+        }
+
+        [Test]
+        public void KentridgePlannerRejectsPopulationRequirementItCannotProve()
+        {
+            var game = Campaign.Create("unsupported-kentridge-population");
+            RegionRef region = game.World.RequireRegion("kentridge-region", _ => { });
+            SettlementRef kentridge = game.World.RequireSettlement("kentridge", settlement => settlement
+                .InRegion(region)
+                .Archetype(SettlementArchetype.Town)
+                .Population(100, 200));
+            game.World.RequireSite("starting-pub", kentridge, site => site
+                .Archetype(SiteArchetype.Pub));
+
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+                KentridgeCampaignWorldPlanner.Plan(
+                    game.Build(),
+                    KentridgeDefinition.Build(Seed)));
+
+            Assert.That(error.Message, Does.Contain("population requirement"));
+            Assert.That(error.Message, Does.Contain("100..200"));
         }
 
         [Test]
