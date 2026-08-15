@@ -6,6 +6,36 @@ using Game.WorldBuilder.Api;
 namespace Game.Composition.Campaign.Content
 {
     /// <summary>
+    /// Stable semantic roles already known to participate in the opening. Destination cutscene content
+    /// can use these refs to bind its own actor ids without moving choreography into campaign authoring.
+    /// </summary>
+    public readonly struct KnownOpeningCampaignRoles
+    {
+        public SiteRef StartingPub { get; }
+        public SiteRef FirstDestination { get; }
+        public NpcRef Madeline { get; }
+        public NpcRef Steven { get; }
+        public NpcRef Logan { get; }
+        public NpcRef DestinationNpc { get; }
+
+        internal KnownOpeningCampaignRoles(
+            SiteRef startingPub,
+            SiteRef firstDestination,
+            NpcRef madeline,
+            NpcRef steven,
+            NpcRef logan,
+            NpcRef destinationNpc)
+        {
+            StartingPub = startingPub;
+            FirstDestination = firstDestination;
+            Madeline = madeline;
+            Steven = steven;
+            Logan = logan;
+            DestinationNpc = destinationNpc;
+        }
+    }
+
+    /// <summary>
     /// Production authoring for the opening story facts that are currently known. The first
     /// destination deliberately remains a constraint-matched site, and the destination cutscene
     /// definition is supplied by the caller because its choreography/dialogue has not been recovered.
@@ -14,45 +44,44 @@ namespace Game.Composition.Campaign.Content
     public sealed class KnownOpeningCampaignContent
     {
         public CampaignBlueprint Blueprint { get; }
-        public SiteRef StartingPub { get; }
-        public SiteRef FirstDestination { get; }
-        public NpcRef Madeline { get; }
-        public NpcRef Steven { get; }
-        public NpcRef Logan { get; }
-        public NpcRef DestinationNpc { get; }
+        public KnownOpeningCampaignRoles Roles { get; }
+        public SiteRef StartingPub => Roles.StartingPub;
+        public SiteRef FirstDestination => Roles.FirstDestination;
+        public NpcRef Madeline => Roles.Madeline;
+        public NpcRef Steven => Roles.Steven;
+        public NpcRef Logan => Roles.Logan;
+        public NpcRef DestinationNpc => Roles.DestinationNpc;
         public ObjectiveRef TravelObjective { get; }
         public CutsceneRef IntroCutscene { get; }
         public CutsceneRef DestinationCutscene { get; }
 
         private KnownOpeningCampaignContent(
             CampaignBlueprint blueprint,
-            SiteRef startingPub,
-            SiteRef firstDestination,
-            NpcRef madeline,
-            NpcRef steven,
-            NpcRef logan,
-            NpcRef destinationNpc,
+            KnownOpeningCampaignRoles roles,
             ObjectiveRef travelObjective,
             CutsceneRef introCutscene,
             CutsceneRef destinationCutscene)
         {
             Blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
-            StartingPub = startingPub;
-            FirstDestination = firstDestination;
-            Madeline = madeline;
-            Steven = steven;
-            Logan = logan;
-            DestinationNpc = destinationNpc;
+            Roles = roles;
             TravelObjective = travelObjective;
             IntroCutscene = introCutscene;
             DestinationCutscene = destinationCutscene;
         }
 
         public static KnownOpeningCampaignContent Build(
-            CutsceneDefinition destinationCutsceneDefinition)
+            CutsceneDefinition destinationCutsceneDefinition,
+            Action<CutsceneBuilder, KnownOpeningCampaignRoles> configureDestinationCutscene = null)
         {
             if (destinationCutsceneDefinition == null)
                 throw new ArgumentNullException(nameof(destinationCutsceneDefinition));
+            if (destinationCutsceneDefinition.RequiredActors.Count > 0
+                && configureDestinationCutscene == null)
+                throw new ArgumentException(
+                    "Destination cutscene '" + destinationCutsceneDefinition.Id +
+                    "' requires actor bindings; supply configureDestinationCutscene so campaign roles " +
+                    "can be mapped to the cutscene's semantic actor ids.",
+                    nameof(configureDestinationCutscene));
 
             var game = Game.WorldBuilder.Api.Campaign.Create("main-campaign");
 
@@ -74,6 +103,13 @@ namespace Game.Composition.Campaign.Content
             NpcRef destinationNpc = game.World.RequireNpc("destination-npc", npc => npc
                 .PlaceAt(firstDestination)
                 .RequireConversation());
+            var roles = new KnownOpeningCampaignRoles(
+                startingPub,
+                firstDestination,
+                madeline,
+                steven,
+                logan,
+                destinationNpc);
 
             ObjectiveRef travelObjective = game.Story.Objective(
                 "travel-to-first-destination",
@@ -83,7 +119,11 @@ namespace Game.Composition.Campaign.Content
 
             CutsceneRef destinationCutscene = game.Story.Cutscene(
                 destinationCutsceneDefinition,
-                scene => scene.At(firstDestination));
+                scene =>
+                {
+                    scene.At(firstDestination);
+                    configureDestinationCutscene?.Invoke(scene, roles);
+                });
             CutsceneRef introCutscene = game.Story.Cutscene(
                 KentridgeOpeningCutscene.Definition,
                 scene => scene
@@ -107,12 +147,7 @@ namespace Game.Composition.Campaign.Content
 
             return new KnownOpeningCampaignContent(
                 game.Build(),
-                startingPub,
-                firstDestination,
-                madeline,
-                steven,
-                logan,
-                destinationNpc,
+                roles,
                 travelObjective,
                 introCutscene,
                 destinationCutscene);
