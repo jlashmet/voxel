@@ -19,6 +19,7 @@ The final cleanup removes or repairs the categories that can mislead future impl
 
 - generated `Artifacts/ArchStudy/*-unity.log` and the stale root showcase performance log that captured pre-cutover compiler output were removed;
 - retired cutover/workflow publishers and acceptance helpers whose scripts still named the deleted Core assembly were removed;
+- the redundant standalone final-static workflow was retired after its checks were folded into the stable final architecture acceptance gate;
 - `tools/check-compile.sh` was migrated from the obsolete Core-era target to the final Api/Runtime assembly layout and no longer contains a `VoxelEngine.Core` literal.
 
 Generated logs are not architecture documentation. Retired migration workflows are especially unsafe to retain because they can become accidental branch writers or imply that the old dependency graph is still executable.
@@ -34,21 +35,21 @@ The following tracked files are allowed to mention `VoxelEngine.Core` because th
 - `specs/001-destructible-voxel-engine/tasks.md` — historical task record authored against the pre-cutover layout.
 - `specs/002-world-feature-authoring/tasks.md` — historical task record authored against the pre-cutover layout.
 - `Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs` — permanent test that rejects production references to the deleted assembly/namespace.
-- `.github/workflows/final-architecture-static.yml` — permanent repository and dependency-graph enforcement.
-- `.github/workflows/stable-final-architecture-acceptance.yml` — final isolated acceptance gate for the stable continuation branch.
+- `.github/workflows/stable-final-architecture-acceptance.yml` — permanent final dependency, legacy-literal, and EditMode acceptance gate.
 
 These files are evidence or guardrails, not live consumers of the deleted architecture.
 
 ## Permanent enforcement
 
-`.github/workflows/final-architecture-static.yml` scans tracked textual files repository-wide. Any `VoxelEngine.Core` literal outside the exact allowlist above fails the architecture gate, and any allowlist entry that no longer contains the literal also fails so the allowlist cannot silently become stale.
+`.github/workflows/stable-final-architecture-acceptance.yml` scans tracked textual files repository-wide. Any `VoxelEngine.Core` literal outside the exact allowlist above fails the architecture gate, and any allowlist entry that no longer contains the literal also fails so the allowlist cannot silently become stale.
 
-The same workflow continues to enforce the stronger production rules independently:
+The same workflow independently enforces the stronger production rules:
 
 - no production `VoxelEngine.Core` references under `Assets/` or `Packages/`;
 - no `Api -> Runtime` edges;
 - no foreign `Runtime -> Runtime` edges;
 - only `VoxelEngine.Composition` may wire concrete Runtime assemblies;
+- WorldGen semantic assemblies remain engine-free and the Voxel adapter references engine Api assemblies only;
 - no production compatibility/legacy adapter source.
 
 This classification preserves useful migration history without permitting the old boundary to re-enter source, tooling, generated artifacts, or active migration automation.
