@@ -96,6 +96,8 @@ namespace VoxelEngine.Showcase
             if (_disposed) return;
             if (!Available)
             {
+                // Visual debris is deliberately lossy. On a device without compute support the
+                // destroyed voxels stay gone and the presentation samples are simply discarded.
                 while (world.TryDequeueDetachedChunk(out _)) { }
                 return;
             }
@@ -113,6 +115,7 @@ namespace VoxelEngine.Showcase
                     _cube, 0, _material, _drawBounds, _argumentsBuffer, 0, null,
                     ShadowCastingMode.Off, false, 0, null, LightProbeUsage.Off);
             }
+
         }
 
         private void SubmitPending(ShowcaseWorld world)
@@ -121,6 +124,9 @@ namespace VoxelEngine.Showcase
             int minSlot = MaxChunks;
             int maxSlot = -1;
 
+            // Drain the entire event in one frame. Only the first budgeted samples become GPU
+            // visuals; the remainder disappear immediately instead of leaking into a queue that
+            // emits a fake secondary explosion on every later frame.
             while (world.TryDequeueDetachedChunk(out var chunk))
             {
                 if (submitted >= MaxSubmissionsPerFrame) continue;
@@ -188,9 +194,9 @@ namespace VoxelEngine.Showcase
                 float materialScale = chunk.Materials[firstVisibleSource] switch
                 {
                     ShowcaseWorld.MatWood => 0.58f,
-                    9 => 0.50f,
-                    10 => 0.38f,
-                    14 => 0.45f,
+                    9 => 0.50f,  // cloth
+                    10 => 0.38f, // foliage/grass
+                    14 => 0.45f, // moss
                     _ => 1f,
                 };
                 float massScale = math.clamp(math.rsqrt(math.max(1f, representedSourceVoxels / 8f)),
@@ -204,6 +210,8 @@ namespace VoxelEngine.Showcase
                                             Signed(Hash(hash + 79u)),
                                             Signed(Hash(hash + 97u))) * 7f;
                 velocity *= impulseScale;
+                // Structural debris should read as collapse immediately. A strong upward kick
+                // made towers hover for half a second before gravity became visible.
                 velocity.y = math.lerp(-1.4f, 0.15f, Unit(Hash(hash + 113u)));
                 angular *= math.lerp(0.65f, 1f, impulseScale);
                 float ground = world.FindLandingCentreY(pivot, collisionRadius);
