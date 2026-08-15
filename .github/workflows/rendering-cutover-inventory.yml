@@ -16,15 +16,9 @@ jobs:
       - shell: bash
         run: |
           set -euo pipefail
-          echo '=== RENDERING FILES ==='
-          find Assets/VoxelEngine/Rendering -type f \( -name '*.cs' -o -name '*.asmdef' -o -name '*.shader' -o -name '*.compute' \) | sort
-          echo '=== CORE REFERENCES INSIDE RENDERING ==='
-          grep -RIn 'VoxelEngine.Core' Assets/VoxelEngine/Rendering --include='*.cs' --include='*.asmdef' || true
-          echo '=== ENGINE REFERENCES INSIDE RENDERING ==='
-          grep -RInE 'using VoxelEngine\.|"VoxelEngine\.' Assets/VoxelEngine/Rendering --include='*.cs' --include='*.asmdef' | sort || true
-          echo '=== OUTSIDE SOURCE REFERENCES TO RENDERING ==='
-          grep -RInE 'using VoxelEngine\.Rendering|VoxelEngine\.Rendering\.' Assets Packages --include='*.cs' | grep -v '^Assets/VoxelEngine/Rendering/' | sort || true
-          echo '=== OUTSIDE ASMDEF REFERENCES TO RENDERING ==='
-          grep -RIn '"VoxelEngine.Rendering"' Assets Packages --include='*.asmdef' | grep -v '^Assets/VoxelEngine/Rendering/' | sort || true
-          echo '=== PUBLIC TYPES IN RENDERING ==='
-          grep -RInE '^\s*public\s+(static\s+)?(class|struct|interface|enum|sealed\s+class|readonly\s+struct)\s+' Assets/VoxelEngine/Rendering --include='*.cs' | sort || true
+          echo '=== CORE STORAGE SYMBOL USE IN RENDERING ==='
+          grep -RInE '\b(MaterialPalette|SurfaceCatalogue|CoatingCatalogue|VoxelChangeJournal|VoxelDimensions|RegionTable|BrickPool|BrickRef|VoxelAccess|Region\b|Mat\.)\b' Assets/VoxelEngine/Rendering --include='*.cs' | sort || true
+          echo '=== WORLD VIEW MEMBERS USED OUTSIDE BRIDGE ==='
+          grep -RInE '\.(Palette|SurfaceCatalogue|CoatingCatalogue|Storage|ProfileBlocks)\b|VoxelRenderBridge\.Changes' Assets/VoxelEngine/Rendering Assets/Scenes/Showcase Assets/Tests Assets/VoxelEngine/CI --include='*.cs' | sort || true
+          echo '=== CHANGE JOURNAL API USE ==='
+          grep -RInE 'VoxelChangeJournal|\.Changes\b|TryDequeue|Consume|Read.*Change|Version' Assets/VoxelEngine/Rendering --include='*.cs' | sort || true
