@@ -41,6 +41,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
 - Latest accepted code gate: `8780cffe66a0e3e4ba75b524957d00b481ace971`, run `31907252082` — 387 tests, 374 passed, exactly the same 13 known baseline failures with zero C# compiler errors. This accepts `ArchLookdev` routing rendering presentation/build configuration and surface-status access through `RenderingComposition` and reduces the remaining Runtime-coupled Showcase source inventory to two files.
 - Latest accepted final static closure: source `2c451f2759f4c04649eeab3dba88edc56efd2c46`, run `31910012496` — GUID-resolved asmdef scanning accepts Api/Runtime direction, Composition-only concrete Runtime wiring, production `VoxelEngine.Core` zero-match, no legacy/compatibility adapter source, and WorldGen Core/Architecture/Voxel dependency direction. Final Unity/EditMode parity remains pending.
+- Final explicit dependency assertions verified on the clean branch: `Streaming.Runtime` has no Net edge; `Net.Runtime` references `Streaming.Api` and not Streaming.Runtime; `Rendering.Runtime` engine dependencies are Storage.Api, Tiering.Api and Vegetation.Api only.
 - Final static dependency report `final-architecture-dependency-report-2c451f2759f4c04649eeab3dba88edc56efd2c46` explicitly confirms Streaming has no Net edge, Net consumes `Streaming.Api`, Rendering consumes only Storage/Tiering/Vegetation APIs, and every exposed subsystem has a single owned Api assembly.
 - [x] route `ArchLookdev` structure authoring through `StructuresComposition`; accepted in the `05de54c3` slice, run `31907948874` with exact 387/374/13 baseline and zero compiler errors
 - [x] route `ShowcaseMultiplayerSession` through Composition-owned network facades; accepted in the `28a3fda2` slice, run `31908243915` with exact 387/374/13 baseline and zero compiler errors
@@ -534,13 +535,13 @@ with `VoxelSurfaceQuery` (or the equivalent concrete Api value created above). I
 ## 7.6 Storage acceptance gates
 
 - [x] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are owned by `Storage.Runtime`; physical move + Core deletion accepted by static gate `31894801235` and exact behavioral gate `31895124610`.
-- [ ] No source outside `Storage/Runtime` imports their namespaces.
+- [x] No non-Composition production source imports Storage.Runtime representation namespaces; Composition is the deliberate concrete owner/wiring root. Final static closure accepted at source `2c451f2759f4c04649eeab3dba88edc56efd2c46`, run `31910012496`.
 - [x] Rendering and Collision use readonly native views, not virtual per-voxel services.
 - [x] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`; it consumes `IVoxelSurfaceQuery` and preserves water/cascade exclusion via caller-owned material IDs.
 - [x] Kentridge vegetation surface-query slice accepted by CI at `a47c3b8abff99e27e5c5cbeda0451ad8b963c314`: 382 total / 369 passed / exact 13 known baseline failures.
 - [x] Net semantic hash/snapshot paths do not depend on physical brick layout.
 - [x] Existing storage/read/mutation parity tests pass against the established CI baseline; snapshot/hash final ownership remains tracked by the unchecked item above.
-- [ ] Architecture guard has no Storage.Runtime foreign-reference exception.
+- [x] Architecture guard has no Storage.Runtime foreign-reference exception; the permanent foreign-Runtime rule is explicit and has no migration allowlist.
 
 ---
 
@@ -1468,9 +1469,9 @@ Do not retain Core as a forwarding facade.
 
 - [x] Core folder and asmdef deleted at `0027e6a64f137763b994d304eac9621071e1ea3d`; static Core/Storage gate `31894801235` and exact behavioral gate `31895124610` accept the deletion with no forwarding facade;
 - [x] no source namespace begins `VoxelEngine.Core`; static Core/Storage gate `31894801235` verifies this after physical deletion;
-- [ ] all production asmdefs satisfy dependency guard;
+- [x] all production asmdefs satisfy dependency guard; final static closure accepted at source `2c451f2759f4c04649eeab3dba88edc56efd2c46`, run `31910012496`;
 - [x] semantic WorldGen assemblies still have no VoxelEngine refs; hosted Cutover 13 WorldGen gate `31894519041` verified Core/Architecture remain engine-free after source `4599efb83f1ccd95382711be4f229ae2bb344163`;
-- [ ] Composition is the only runtime-wiring exception.
+- [x] Composition is the only runtime-wiring exception; final static closure accepted at source `2c451f2759f4c04649eeab3dba88edc56efd2c46`, run `31910012496`.
 
 ---
 
@@ -1720,7 +1721,7 @@ At the end, generate an asmdef dependency report and verify:
 - [x] remove scattered scene Runtime coupling where practical
 - [x] update WorldGen.Voxel asmdef to exact Api refs
 - [x] delete Core asmdef/folder
-- [ ] remove all architecture-test temporary exceptions
+- [x] remove all architecture-test temporary exceptions
 - [x] repository-wide zero-match check for `VoxelEngine.Core`
 - [ ] final targeted/full-available validation
 
