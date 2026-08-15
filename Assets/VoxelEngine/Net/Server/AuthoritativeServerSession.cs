@@ -192,14 +192,14 @@ namespace VoxelEngine.Net.Server
             _playerStates.Emit(serverTick, _network.Replication.Subscriptions, _network);
 
             _network.FlushReplication();
+            var storageReadSource = new RegionReadSource(in table, in pool);
             _convergence.EmitHashes(
                 serverTick,
-                ref table,
-                in pool,
+                storageReadSource,
+                storageReadSource,
                 _network.Replication.Subscriptions,
                 _network);
 
-            var storageReadSource = new RegionReadSource(in table, in pool);
             _bulkRegionState.ProcessRequests(
                 serverTick,
                 storageReadSource,
