@@ -4,7 +4,7 @@ using UnityEngine;
 using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Collision.Runtime;
-using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Tiering.Api;
 
@@ -125,8 +125,8 @@ namespace VoxelEngine.Showcase
             // Clamp by bytes, not an obsolete slot count. Sidecars change per-slot cost; tier
             // budgets remain the authority and cannot silently be exceeded by an inspector value.
             int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
-            int tierSlots = Mathf.Max(4096, tierBytes / VoxelDimensions.BytesPerMixedBrick);
-            int capacity = Mathf.Clamp(m_BrickPoolCapacity, 4096, tierSlots);
+            int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
+                m_BrickPoolCapacity, tierBytes);
 
             _world = new ShowcaseWorld(m_Seed, capacity,
                                        m_LoadRadiusRegions, m_UnloadRadiusRegions);
