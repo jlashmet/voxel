@@ -13,15 +13,19 @@ namespace VoxelEngine.Storage.Api
     /// </summary>
     public struct RegionGenerationWriteView
     {
-        private NativeArray<int> _encodedBlockRefs;
+        private NativeArray<int> _blockStates;
 
         public int3 RegionCoord { get; }
-        public bool IsCreated => _encodedBlockRefs.IsCreated;
+        public bool IsCreated => _blockStates.IsCreated;
 
-        internal RegionGenerationWriteView(int3 regionCoord, NativeArray<int> encodedBlockRefs)
+        /// <summary>
+        /// Provider construction boundary. The backing array remains owned by Storage and is never
+        /// exposed to consumers of this view; callers use only the logical block-writing methods.
+        /// </summary>
+        public RegionGenerationWriteView(int3 regionCoord, NativeArray<int> blockStates)
         {
             RegionCoord = regionCoord;
-            _encodedBlockRefs = encodedBlockRefs;
+            _blockStates = blockStates;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -33,7 +37,7 @@ namespace VoxelEngine.Storage.Api
 
             int index = x | (y << VoxelReadGrid.BlocksPerRegionEdgeLog2)
                           | (z << (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2));
-            _encodedBlockRefs[index] = material == VoxelGrid.MaterialEmpty
+            _blockStates[index] = material == VoxelGrid.MaterialEmpty
                 ? -1
                 : -material - 1;
         }
