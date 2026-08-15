@@ -200,7 +200,10 @@ namespace VoxelEngine.Showcase
                     throw new InvalidOperationException("Arch exceeded the feature budget.");
             }
 
-            var brush = new VoxelBrush(reads, mutations, nextPalette, 2_000_000);
+            var brush = new VoxelBrush(
+      new RegionReadSource(in nextTable, in nextPool),
+      new RegionMutationStore(in nextTable, in nextPool),
+      nextPalette, 2_000_000);
             MasonryWeathering.CoatExposedSurfaces(ref brush, origin - 2,
                 bay.Metadata.Footprint + 4, Coatings.Moss,
                 0xA341u + (uint)_seedOffset,
