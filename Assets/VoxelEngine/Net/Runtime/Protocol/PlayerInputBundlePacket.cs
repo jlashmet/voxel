@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>
     /// Redundant EPHEMERAL input datagram. Carries 1-3 command samples ordered oldest -> newest.

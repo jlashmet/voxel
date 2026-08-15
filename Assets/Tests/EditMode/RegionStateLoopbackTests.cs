@@ -6,9 +6,9 @@ using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.EditMode
 {

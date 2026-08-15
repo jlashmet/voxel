@@ -1,7 +1,7 @@
 using System;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     /// <summary>
     /// Game-owned prediction adapter. Networking supplies the authoritative rewind point and the

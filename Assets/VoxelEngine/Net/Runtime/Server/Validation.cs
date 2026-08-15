@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Stable server-side alteration validation vocabulary and policy limits.

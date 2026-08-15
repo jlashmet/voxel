@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 
-namespace VoxelEngine.Net.Transport
+namespace VoxelEngine.Net.Runtime.Transport
 {
     /// <summary>
     /// Rate limiter for the BULK channel that reserves the EVENT channel share per

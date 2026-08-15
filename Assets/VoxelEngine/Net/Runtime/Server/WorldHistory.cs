@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Per-tick region snapshot store for rollback and late-join state reconstruction.

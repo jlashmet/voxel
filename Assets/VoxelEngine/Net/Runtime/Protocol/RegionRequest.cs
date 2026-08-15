@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>
     /// C_RegionRequest — client-to-server message requesting a region's state.

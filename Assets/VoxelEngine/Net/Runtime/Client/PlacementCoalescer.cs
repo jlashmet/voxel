@@ -4,7 +4,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     /// <summary>
     /// Coalesces individual voxel placement inputs into block-scoped RLE batches

@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>Versioned EVENT packet wrapper for S_AlterationRejected.</summary>
     public static class AlterationRejectedPacket

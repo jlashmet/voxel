@@ -1,7 +1,7 @@
 using System;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>
     /// One reliable fragmented BULK packet carrying a slice of a semantic full-region snapshot.

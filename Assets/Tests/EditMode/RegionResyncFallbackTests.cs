@@ -6,9 +6,9 @@ using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -84,7 +84,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             var inbox = new ServerConvergenceInbox();
             var players = new ServerPlayerRegistry();
-            var subscriptions = new VoxelEngine.Net.Interest.RegionSubscriptionIndex();
+            var subscriptions = new VoxelEngine.Net.Runtime.Interest.RegionSubscriptionIndex();
             var manager = new ServerConvergenceManager(inbox, players);
 
             Assert.That(players.TryRegisterAuthenticated(7, 3, int3.zero, 64, true), Is.True);

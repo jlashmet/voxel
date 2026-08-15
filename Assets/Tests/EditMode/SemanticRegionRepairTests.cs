@@ -2,7 +2,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
 namespace VoxelEngine.Tests.EditMode
 {

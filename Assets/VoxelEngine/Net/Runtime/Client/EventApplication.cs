@@ -4,7 +4,7 @@ using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     public static class EventApplication
     {

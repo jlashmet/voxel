@@ -2,10 +2,10 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     /// <summary>
     /// Legacy client tick scaffold retained for source compatibility. New sessions use

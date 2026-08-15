@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Arbitrates competing alterations by total order: (serverTick, playerId, sequence).

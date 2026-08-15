@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>
     /// C_AlterationRequest — client-to-server request for a semantic world alteration.

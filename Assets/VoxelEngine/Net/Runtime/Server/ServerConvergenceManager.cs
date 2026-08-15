@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Net.Interest;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Transport;
+using VoxelEngine.Net.Runtime.Interest;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Transport;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Periodic semantic drift detection plus exact-checkpoint repair.

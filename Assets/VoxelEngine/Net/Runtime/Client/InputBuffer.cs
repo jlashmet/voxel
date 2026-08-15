@@ -3,9 +3,9 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     /// <summary>
     /// Ring buffer of player inputs for redundant send and reconciliation replay.

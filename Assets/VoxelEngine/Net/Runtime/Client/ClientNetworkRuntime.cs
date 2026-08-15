@@ -4,10 +4,10 @@ using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Transport;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Transport;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     /// <summary>
     /// Client-side composition root. Transport callbacks decode/assemble protocol state only;

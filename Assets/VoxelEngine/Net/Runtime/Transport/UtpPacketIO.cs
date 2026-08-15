@@ -1,7 +1,7 @@
 using System;
 using Unity.Collections;
 
-namespace VoxelEngine.Net.Transport
+namespace VoxelEngine.Net.Runtime.Transport
 {
     /// <summary>
     /// Small allocation-free bridge between Unity Collections data streams and the span-based

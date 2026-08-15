@@ -4,7 +4,7 @@ using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Streaming.Api;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Network-side region interest policy: hot when an active player is nearby, warm while the

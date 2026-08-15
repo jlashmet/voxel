@@ -7,7 +7,7 @@ using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Runtime.Emitters;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Net.Runtime.Server;
 using VoxelEngine.Rendering.SurfaceExtraction;
 
 using VoxelEngine.Structures.Api;

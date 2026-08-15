@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Unity.Networking.Transport;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Net.Runtime.Server;
 
-namespace VoxelEngine.Net.Transport
+namespace VoxelEngine.Net.Runtime.Transport
 {
     /// <summary>Concrete Unity Transport 6.5 server lifecycle.</summary>
     public sealed class UtpServerHost : IDisposable, IEventPacketSender

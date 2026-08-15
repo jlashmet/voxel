@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using VoxelEngine.Edits.Api;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Tick-scoped stream of authoritative world mutations.

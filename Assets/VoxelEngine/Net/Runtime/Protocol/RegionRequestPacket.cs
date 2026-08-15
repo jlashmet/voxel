@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>
     /// Framed C_RegionRequest. The live full-state path currently uses haveMipLevel=0xFF to mean

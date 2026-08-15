@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.Utilities;
 
-namespace VoxelEngine.Net.Transport
+namespace VoxelEngine.Net.Runtime.Transport
 {
     /// <summary>
     /// Configures Unity Transport quality-of-service pipelines for the custom replication stack.

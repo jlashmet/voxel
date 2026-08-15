@@ -5,8 +5,8 @@ using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
 
 namespace VoxelEngine.Tests.EditMode
 {

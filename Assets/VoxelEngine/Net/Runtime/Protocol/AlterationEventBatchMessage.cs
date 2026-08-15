@@ -4,7 +4,7 @@ using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>
     /// Server-to-client batch of authoritative alteration events sharing a target region and tick.

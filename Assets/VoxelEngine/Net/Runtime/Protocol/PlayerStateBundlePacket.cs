@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>
     /// EPHEMERAL server snapshot bundle. Bundling several players into one sequenced datagram avoids

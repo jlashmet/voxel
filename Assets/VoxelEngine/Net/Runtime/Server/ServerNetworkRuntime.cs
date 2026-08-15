@@ -2,10 +2,10 @@ using System;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Transport;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Transport;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>Composition root for authoritative UTP networking.</summary>
     public sealed class ServerNetworkRuntime : IDisposable, IAuthoritativeAlterationPublisher, IAlterationRejectionSink, IPlayerStateBundleSink

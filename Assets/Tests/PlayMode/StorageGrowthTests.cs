@@ -3,7 +3,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.PlayMode
 {

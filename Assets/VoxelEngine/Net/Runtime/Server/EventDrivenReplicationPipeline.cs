@@ -1,9 +1,9 @@
 using System;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Net.Interest;
+using VoxelEngine.Net.Runtime.Interest;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Small orchestration facade intended to be owned by the authoritative server loop.

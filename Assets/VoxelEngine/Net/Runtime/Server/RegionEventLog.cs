@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using VoxelEngine.Edits.Api;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Bounded per-region semantic event ring for rollback, moderation, and cheap repair suffixes.

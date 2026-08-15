@@ -4,9 +4,9 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
-using VoxelEngine.Net.Transport;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
+using VoxelEngine.Net.Runtime.Transport;
 
 namespace VoxelEngine.Tests.EditMode
 {

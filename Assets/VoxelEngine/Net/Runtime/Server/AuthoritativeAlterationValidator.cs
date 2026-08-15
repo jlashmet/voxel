@@ -2,7 +2,7 @@ using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Stateless validation of a server-materialized AlterationEvent.

@@ -2,9 +2,9 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     public static class RejectionFeedback
     {

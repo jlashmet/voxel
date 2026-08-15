@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>Stable message-kind registry for the custom UTP protocol.</summary>
     public enum ProtocolMessageKind : byte

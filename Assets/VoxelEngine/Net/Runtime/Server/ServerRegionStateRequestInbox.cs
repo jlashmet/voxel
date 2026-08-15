@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Bounded frame-pump -> fixed-tick queue for region state requests. Requests are untrusted until

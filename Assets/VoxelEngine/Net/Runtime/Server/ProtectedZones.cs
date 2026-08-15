@@ -4,7 +4,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Server-authoritative registry of protected zones and the validation predicate that

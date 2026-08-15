@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Server-owned alteration rate/allocation accounting. Validation queries without mutation;

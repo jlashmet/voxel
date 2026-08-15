@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Session-state lifecycle only. World storage creation, reset and terrain regeneration belong

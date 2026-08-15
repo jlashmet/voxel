@@ -1,9 +1,9 @@
 using System;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Lowest transport-independent boundary for the reliable EVENT channel.

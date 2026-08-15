@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Mathematics;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Interest;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
-using VoxelEngine.Net.Transport;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Interest;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
+using VoxelEngine.Net.Runtime.Transport;
 
 namespace VoxelEngine.Tests.EditMode
 {

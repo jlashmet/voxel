@@ -1,6 +1,6 @@
 using NUnit.Framework;
 using Unity.Networking.Transport;
-using VoxelEngine.Net.Transport;
+using VoxelEngine.Net.Runtime.Transport;
 
 namespace VoxelEngine.Tests.EditMode
 {

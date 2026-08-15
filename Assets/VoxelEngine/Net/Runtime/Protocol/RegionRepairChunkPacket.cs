@@ -1,7 +1,7 @@
 using System;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>
     /// One reliable REPAIR chunk from a semantic region checkpoint snapshot.

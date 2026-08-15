@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Net.Interest
+namespace VoxelEngine.Net.Runtime.Interest
 {
     /// <summary>
     /// Spatial interest management for world and player replication.

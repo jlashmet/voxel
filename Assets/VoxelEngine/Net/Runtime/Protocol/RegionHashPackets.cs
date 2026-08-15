@@ -1,7 +1,7 @@
 using System;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>Reliable EVENT wrapper for a tick-scoped server region hash.</summary>
     public static class RegionHashPacket

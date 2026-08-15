@@ -1,4 +1,4 @@
-namespace VoxelEngine.Net.Transport
+namespace VoxelEngine.Net.Runtime.Transport
 {
     /// <summary>
     /// Logical channels exposed by the concrete Unity Transport host. Values are internal API,

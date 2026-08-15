@@ -4,7 +4,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Late-join flow for a new player entering an active session.

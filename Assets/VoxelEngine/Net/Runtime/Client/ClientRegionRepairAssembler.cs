@@ -1,9 +1,9 @@
 using System;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     /// <summary>
     /// Buffers one ordered semantic region repair. Network callbacks only copy bytes here; region

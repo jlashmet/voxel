@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     public readonly struct RemotePlayerSample
     {

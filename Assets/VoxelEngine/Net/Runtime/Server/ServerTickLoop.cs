@@ -1,9 +1,9 @@
 using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Legacy fixed-clock scaffold retained for source compatibility.

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Net.Interest
+namespace VoxelEngine.Net.Runtime.Interest
 {
     /// <summary>
     /// Platform-neutral simulation/replication interest.

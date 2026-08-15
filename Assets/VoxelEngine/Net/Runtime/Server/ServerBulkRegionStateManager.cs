@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Net.Interest;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Transport;
+using VoxelEngine.Net.Runtime.Interest;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Transport;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Fixed-tick producer and throttled sender for semantic full-region BULK snapshots.

@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Net.Interest;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Interest;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     public interface IAlterationReplicationSink
     {

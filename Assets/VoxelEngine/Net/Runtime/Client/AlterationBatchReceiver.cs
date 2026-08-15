@@ -2,9 +2,9 @@ using System;
 using Unity.Collections;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     /// <summary>
     /// Client bridge from compact replication packets to the existing deterministic event applier.

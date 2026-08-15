@@ -3,10 +3,10 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Net.Interest;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Interest;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Compatibility facade for callers that still think in terms of one destruction request.

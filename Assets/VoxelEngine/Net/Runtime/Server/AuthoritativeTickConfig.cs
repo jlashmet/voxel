@@ -1,4 +1,4 @@
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>Shared fixed-clock constants for authoritative networking/simulation handoff.</summary>
     public static class AuthoritativeTickConfig

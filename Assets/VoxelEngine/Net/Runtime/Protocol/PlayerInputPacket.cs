@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelEngine.Net.Protocol
+namespace VoxelEngine.Net.Runtime.Protocol
 {
     /// <summary>Versioned framed C_PlayerInput packet (2-byte envelope + 16-byte payload).</summary>
     public static class PlayerInputPacket

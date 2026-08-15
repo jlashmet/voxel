@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Net.Interest
+namespace VoxelEngine.Net.Runtime.Interest
 {
     /// <summary>
     /// Persistent bidirectional subscription index for simulation regions.

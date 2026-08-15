@@ -5,7 +5,7 @@
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
-    "VoxelEngine.Net",
+    "VoxelEngine.Net.Runtime",
     "VoxelEngine.Rendering",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",

@@ -1,11 +1,11 @@
-using VoxelEngine.Net.Server;
+using VoxelEngine.Net.Runtime.Server;
 using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Net.Client
+namespace VoxelEngine.Net.Runtime.Client
 {
     /// <summary>
     /// Reconciliation engine that replays client inputs against historical world state

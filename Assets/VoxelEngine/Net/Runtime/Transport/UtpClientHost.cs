@@ -1,8 +1,8 @@
 using System;
 using Unity.Networking.Transport;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Transport
+namespace VoxelEngine.Net.Runtime.Transport
 {
     public interface IUtpClientPacketHandler
     {

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
-namespace VoxelEngine.Net.Server
+namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Server-owned connection -> authenticated player state. Client packets never establish
