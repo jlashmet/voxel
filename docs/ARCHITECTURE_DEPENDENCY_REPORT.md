@@ -55,3 +55,7 @@ The current-head static acceptance passed all of these rules:
 `Assets/Tests/**`, `Assets/VoxelEngine/CI/**`, and Editor-only assemblies may reference concrete Runtime assemblies so they can test and inspect implementations. These are explicit tooling exceptions; they are not production dependency edges and do not weaken the production guard.
 
 The permanent EditMode guard resolves named and `GUID:` engine assembly references so a production dependency cannot evade the rule by changing asmdef reference syntax.
+
+## Legacy-token classification
+
+The final repository inventory deliberately distinguishes active architecture from historical text. Retired migration/publisher workflows and archived Unity logs were removed, and `tools/check-compile.sh` now targets the final Api/Runtime assembly layout. Remaining `VoxelEngine.Core` literals are intentional: permanent guards that forbid its return plus architecture/spec history describing the migration. Production source and assembly metadata remain zero-match.

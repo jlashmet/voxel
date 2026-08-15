@@ -2,7 +2,7 @@
 #
 # Offline compile check.
 #
-# Type-checks every project assembly with the Roslyn compiler Unity ships, against the
+# Type-checks the VoxelEngine, Showcase, CI and test assemblies with Unity's Roslyn compiler, against the
 # reference assemblies already on disk. It never launches the editor, so it is safe to run
 # while the developer has one open — which matters here, because tools/unity-run.sh must
 # refuse in that case and a full test run is otherwise the only way to learn that a change
@@ -48,25 +48,25 @@ FILTER="${1:-}"
 ASSEMBLIES=(
     "VoxelEngine.Foundation:Assets/VoxelEngine/Foundation"
     "VoxelEngine.Storage.Api:Assets/VoxelEngine/Storage/Api"
-    "VoxelEngine.Storage.Runtime:Assets/VoxelEngine/Storage/Runtime"
     "VoxelEngine.Terrain.Api:Assets/VoxelEngine/Terrain/Api"
-    "VoxelEngine.Terrain.Runtime:Assets/VoxelEngine/Terrain/Runtime"
-    "VoxelEngine.Structures.Api:Assets/VoxelEngine/Structures/Api"
-    "VoxelEngine.Structures.Runtime:Assets/VoxelEngine/Structures/Runtime"
-    "VoxelEngine.Edits.Api:Assets/VoxelEngine/Edits/Api"
-    "VoxelEngine.Edits.Runtime:Assets/VoxelEngine/Edits/Runtime"
-    "VoxelEngine.StructuralIntegrity.Api:Assets/VoxelEngine/StructuralIntegrity/Api"
-    "VoxelEngine.StructuralIntegrity.Runtime:Assets/VoxelEngine/StructuralIntegrity/Runtime"
     "VoxelEngine.Tiering.Api:Assets/VoxelEngine/Tiering/Api"
-    "VoxelEngine.Streaming.Api:Assets/VoxelEngine/Streaming/Api"
-    "VoxelEngine.Streaming.Runtime:Assets/VoxelEngine/Streaming/Runtime"
-    "VoxelEngine.Collision.Api:Assets/VoxelEngine/Collision/Api"
-    "VoxelEngine.Collision.Runtime:Assets/VoxelEngine/Collision/Runtime"
     "VoxelEngine.Vegetation.Api:Assets/VoxelEngine/Vegetation/Api"
-    "VoxelEngine.Vegetation.Runtime:Assets/VoxelEngine/Vegetation/Runtime"
+    "VoxelEngine.Collision.Api:Assets/VoxelEngine/Collision/Api"
+    "VoxelEngine.Streaming.Api:Assets/VoxelEngine/Streaming/Api"
+    "VoxelEngine.Edits.Api:Assets/VoxelEngine/Edits/Api"
+    "VoxelEngine.Structures.Api:Assets/VoxelEngine/Structures/Api"
+    "VoxelEngine.StructuralIntegrity.Api:Assets/VoxelEngine/StructuralIntegrity/Api"
     "VoxelEngine.Net.Api:Assets/VoxelEngine/Net/Api"
-    "VoxelEngine.Net.Runtime:Assets/VoxelEngine/Net/Runtime"
     "VoxelEngine.Rendering.Api:Assets/VoxelEngine/Rendering/Api"
+    "VoxelEngine.Storage.Runtime:Assets/VoxelEngine/Storage/Runtime"
+    "VoxelEngine.Terrain.Runtime:Assets/VoxelEngine/Terrain/Runtime"
+    "VoxelEngine.Vegetation.Runtime:Assets/VoxelEngine/Vegetation/Runtime"
+    "VoxelEngine.Collision.Runtime:Assets/VoxelEngine/Collision/Runtime"
+    "VoxelEngine.Streaming.Runtime:Assets/VoxelEngine/Streaming/Runtime"
+    "VoxelEngine.Edits.Runtime:Assets/VoxelEngine/Edits/Runtime"
+    "VoxelEngine.Structures.Runtime:Assets/VoxelEngine/Structures/Runtime"
+    "VoxelEngine.StructuralIntegrity.Runtime:Assets/VoxelEngine/StructuralIntegrity/Runtime"
+    "VoxelEngine.Net.Runtime:Assets/VoxelEngine/Net/Runtime"
     "VoxelEngine.Rendering.Runtime:Assets/VoxelEngine/Rendering/Runtime"
     "VoxelEngine.Composition:Assets/VoxelEngine/Composition"
     "VoxelEngine.Showcase:Assets/Scenes/Showcase"
@@ -84,6 +84,7 @@ for entry in "${ASSEMBLIES[@]}"; do
     src="${entry##*:}"
     [ -n "$FILTER" ] && [[ "$name" != *"$FILTER"* ]] && continue
     [ -d "$src" ] || { echo "### $name  SKIPPED (no $src)"; continue; }
+    [ -n "$(find "$src" -name "*.cs" -print -quit)" ] || { echo "### $name  SKIPPED (no C# sources)"; continue; }
 
     rsp="$OUT/$name.rsp"
     {
