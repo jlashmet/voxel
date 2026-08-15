@@ -1,16 +1,14 @@
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Terrain-only look-development scene authored into the normal voxel world. Rendering stays
-    /// entirely on Storage.Api read capabilities -> VoxelRenderBridge -> production surface extraction.
+    /// entirely on Storage.Api read capabilities -> Composition -> production surface extraction.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
@@ -23,7 +21,6 @@ namespace VoxelEngine.Showcase
         private const int TerrainZMax = 560;
 
         private IVoxelStorageRuntime _storage;
-        private ProfileBlockStore _profiles;
         private bool _built;
 
         public Camera SceneCamera => GetComponent<Camera>();
@@ -77,8 +74,6 @@ namespace VoxelEngine.Showcase
             _storage.RegisterMaterial(Mat.FlowerBlue, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
 
-            _profiles = new ProfileBlockStore();
-
             var writer = VoxelEngineBootstrap.CreateStructureAuthoring(_storage, 9_000_000);
             AuthorTerrain(writer);
             if (writer.BudgetExceeded)
@@ -86,12 +81,14 @@ namespace VoxelEngine.Showcase
 
             _storage.PublishAllResidentRegions();
 
-            VoxelRenderBridge.Changes = _storage.Changes;
-            VoxelRenderBridge.Source = WorldView;
-            VoxelRenderBridge.SolidBuildBudgetMs = 12.0;
-            VoxelRenderBridge.WaterBuildBudgetMs = 0.0;
-            VoxelRenderBridge.FarFieldEnabled = false;
-            VoxelRenderBridge.TerrainSeed = Seed;
+            var renderingWorld = new RenderingWorldBinding(
+                _storage.Reads,
+                _storage.MaterialPresentation,
+                _storage.SurfacePresentation,
+                _storage.CoatingPresentation);
+            RenderingComposition.ConfigureWorld(
+                in renderingWorld, _storage.Changes, Seed,
+                solidBuildBudgetMs: 12.0, waterBuildBudgetMs: 0.0, farFieldEnabled: false);
             _built = true;
         }
 
@@ -104,10 +101,11 @@ namespace VoxelEngine.Showcase
             camera.transform.position = new Vector3(-0.60f, 23.0f, -20.0f);
             camera.transform.LookAt(new Vector3(0.10f, 2.0f, 12.0f));
 
-            VoxelRenderBridge.SurfaceDebugTint = Color.white;
-            VoxelRenderBridge.SunDirection = new Vector3(-0.43f, 0.87f, -0.24f).normalized;
-            VoxelRenderBridge.SkyHorizon = new Color(0.94f, 0.87f, 0.49f, 1f);
-            VoxelRenderBridge.SkyZenith = new Color(0.82f, 0.80f, 0.46f, 1f);
+            RenderingComposition.ConfigureEnvironment(
+                Color.white,
+                new Vector3(-0.43f, 0.87f, -0.24f).normalized,
+                new Color(0.94f, 0.87f, 0.49f, 1f),
+                new Color(0.82f, 0.80f, 0.46f, 1f));
         }
 
         private void AuthorTerrain(IStructureAuthoringSession writer)
@@ -419,20 +417,11 @@ namespace VoxelEngine.Showcase
 
         private void PublishAllResidentRegions() => _storage.PublishAllResidentRegions();
 
-        private VoxelWorldView WorldView() => new VoxelWorldView
-        {
-            Storage = _storage.Reads,
-            Palette = _storage.MaterialPresentation,
-            SurfaceCatalogueView = _storage.SurfacePresentation,
-            CoatingCatalogueView = _storage.CoatingPresentation,
-            ProfileBlocks = _profiles,
-        };
 
         public void Shutdown()
         {
             if (!_built && _storage == null) return;
-            VoxelRenderBridge.Source = null;
-            VoxelRenderBridge.Changes = null;
+            RenderingComposition.ClearWorld();
             _storage?.Dispose();
             _storage = null;
             _built = false;
