@@ -1,0 +1,40 @@
+name: Edits Runtime dependency inventory
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - name: Inventory remaining Edits implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo '=== remaining Core/Edits files and usings ==='
+          for f in Assets/VoxelEngine/Core/Edits/*.cs; do
+            echo "--- $f"
+            grep -nE '^using |^namespace |^\s*public (static )?(class|struct|enum)' "$f" || true
+          done
+          echo
+          echo '=== physical/Core Storage references in Edits implementation ==='
+          grep -RInE 'VoxelEngine\.Core\.Storage|\b(RegionTable|BrickPool|BrickRef|VoxelAccess|VoxelDimensions|Region)\b' Assets/VoxelEngine/Core/Edits --include='*.cs' | sort || true
+          echo
+          echo '=== implementation type consumers outside Core/Edits ==='
+          grep -RInE '\b(AllocationBudget|BrushExpansion|BuildBrushes|DensityCap|DeterministicAlterationApplier|DeterministicRandom|ExplosionExpansion|RawBatchExpansion)\b' Assets Packages --include='*.cs' | grep -v 'Assets/VoxelEngine/Core/Edits/' | sort || true
+          echo
+          echo '=== server wrapper and authoritative applier interface ==='
+          sed -n '1,180p' Assets/VoxelEngine/Net/Server/ServerDeterministicAlterationApplier.cs
+          grep -RInE '\bIAuthoritativeAlterationApplier\b|\bServerDeterministicAlterationApplier\b' Assets/VoxelEngine/Net Assets/Tests --include='*.cs' | sort || true
