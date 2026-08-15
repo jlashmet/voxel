@@ -1246,8 +1246,8 @@ No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtim
 ### Gate
 
 - [ ] Net.Runtime references only domain APIs;
-- [ ] structural graph is gone from Net;
-- [ ] no duplicate deterministic edit applier wrapper;
+- [x] structural graph is gone from Net;
+- [x] no duplicate deterministic edit applier wrapper;
 - [ ] network residency calls Streaming.Api;
 - [ ] semantic repair/snapshot paths use Storage.Api logical data;
 - [ ] protocol/convergence/late-join/reconciliation tests pass.
