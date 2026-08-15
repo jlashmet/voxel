@@ -1104,7 +1104,7 @@ namespace VoxelEngine.Showcase
         public long CastleVoxels { get; private set; }
         public int3 ReferenceArchMin { get; private set; }
         public int3 ReferenceArchMax { get; private set; }
-        public ProfileBlockStore ProfileBlocks => _profileBlocks;
+        public IProfileBlockReadSource ProfileBlocks => _profileBlocks;
 
         public Vector4[] CastlePresentationLights { get; private set; } = Array.Empty<Vector4>();
         public Vector4[] CastlePresentationLightColours { get; private set; } = Array.Empty<Vector4>();
