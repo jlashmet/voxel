@@ -9,6 +9,7 @@ on:
       - "Assets/Scenes/Showcase/**"
       - "Assets/Tests/EditMode/**"
       - "Packages/com.mountingforce.worldgen/**"
+      - "tools/check-compile.sh"
   pull_request:
     branches: [master]
     paths:
@@ -33,19 +34,17 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
-      - name: Verify final production dependency graph
+      - name: Verify final architecture and retained legacy literals
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json
+          import re
+          import subprocess
           from pathlib import Path
 
-          roots = [
-              Path('Assets/VoxelEngine'),
-              Path('Assets/Scenes/Showcase'),
-              Path('Packages/com.mountingforce.worldgen/Runtime'),
-          ]
+          roots = [Path('Assets'), Path('Packages')]
 
           def production(path: Path) -> bool:
               p = '/' + path.as_posix().lower().strip('/') + '/'
@@ -56,15 +55,32 @@ jobs:
                   and '/voxelengine/ci/' not in p
               )
 
-          asmdefs = []
+          # Resolve repository-owned GUID references so asmdef direction checks cannot be bypassed
+          # by switching a named reference to its GUID form.
+          guid_to_name = {}
+          asmdef_paths = []
           for root in roots:
-              if not root.exists():
+              if root.exists():
+                  asmdef_paths.extend(root.rglob('*.asmdef'))
+          for path in asmdef_paths:
+              meta = Path(str(path) + '.meta')
+              if not meta.exists():
                   continue
-              for path in root.rglob('*.asmdef'):
-                  if not production(path):
-                      continue
-                  data = json.loads(path.read_text())
-                  asmdefs.append((path, data.get('name', ''), data.get('references', [])))
+              match = re.search(r'^guid:\s*([0-9a-fA-F]{32})\s*$', meta.read_text(errors='ignore'), re.MULTILINE)
+              if match:
+                  guid_to_name[match.group(1).lower()] = json.loads(path.read_text())['name']
+
+          def resolve(reference: str) -> str:
+              if reference.startswith('GUID:'):
+                  return guid_to_name.get(reference[5:].lower(), reference)
+              return reference
+
+          asmdefs = []
+          for path in asmdef_paths:
+              if not production(path):
+                  continue
+              data = json.loads(path.read_text())
+              asmdefs.append((path, data.get('name', ''), [resolve(r) for r in data.get('references', [])]))
 
           violations = []
           by_name = {name: (path, refs) for path, name, refs in asmdefs}
@@ -74,23 +90,22 @@ jobs:
                   violations.extend(f'{path}: Api -> Runtime {r}' for r in bad)
 
               runtime_refs = [r for r in refs if r.startswith('VoxelEngine.') and r.endswith('.Runtime')]
-              if name == 'VoxelEngine.Composition':
-                  continue
-              for ref in runtime_refs:
-                  if name.endswith('.Runtime') and ref == name:
-                      continue
-                  violations.append(f'{path}: production concrete Runtime reference {ref}')
+              if name != 'VoxelEngine.Composition':
+                  for ref in runtime_refs:
+                      if name.endswith('.Runtime') and ref == name:
+                          continue
+                      violations.append(f'{path}: production concrete Runtime reference {ref}')
 
           allowed_ext = {'.cs', '.asmdef', '.asmref', '.json'}
           for root in roots:
               if not root.exists():
                   continue
               for path in root.rglob('*'):
-                  if not path.is_file() or path.suffix.lower() not in allowed_ext or not production(path):
+                  if not path.is_file() or not production(path):
                       continue
 
-                  source = path.read_text(errors='ignore')
-                  if 'VoxelEngine.Core' in source:
+                  source = path.read_text(errors='ignore') if path.suffix.lower() in allowed_ext else ''
+                  if source and 'VoxelEngine.Core' in source:
                       violations.append(f'{path}: VoxelEngine.Core literal')
 
                   if path.suffix.lower() == '.cs':
@@ -106,14 +121,14 @@ jobs:
                               violations.append(
                                   f'{path}: Storage.Runtime source reference outside Storage owner/Composition')
 
-          scene_asm = Path('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef')
-          scene_data = json.loads(scene_asm.read_text())
-          scene_runtime_refs = [
-              r for r in scene_data.get('references', [])
-              if r.startswith('VoxelEngine.') and r.endswith('.Runtime')
-          ]
-          if scene_runtime_refs:
-              violations.append('Showcase Runtime refs: ' + ', '.join(scene_runtime_refs))
+          scene_name = 'VoxelEngine.Showcase'
+          if scene_name not in by_name:
+              violations.append(f'missing expected assembly: {scene_name}')
+          else:
+              path, refs = by_name[scene_name]
+              scene_runtime_refs = [r for r in refs if r.startswith('VoxelEngine.') and r.endswith('.Runtime')]
+              if scene_runtime_refs:
+                  violations.append(f'{path}: Showcase Runtime refs {scene_runtime_refs}')
 
           for assembly_name in ('MountingForce.WorldGen.Core', 'MountingForce.WorldGen.Architecture'):
               if assembly_name not in by_name:
@@ -124,11 +139,49 @@ jobs:
               if bad:
                   violations.append(f'{path}: engine refs {bad}')
 
+          voxel_name = 'MountingForce.WorldGen.Voxel'
+          if voxel_name not in by_name:
+              violations.append(f'missing expected assembly: {voxel_name}')
+          else:
+              path, refs = by_name[voxel_name]
+              bad = [r for r in refs if r.startswith('VoxelEngine.') and not r.endswith('.Api')]
+              if bad:
+                  violations.append(f'{path}: non-Api engine refs {bad}')
+
           if violations:
               raise SystemExit('\n'.join(violations))
-          print('Final production dependency graph accepted')
+
+          # The deleted Core name may survive only as explicit historical evidence or as a
+          # forbidden-token guard. New paths fail this classification immediately.
+          allowed_core_literal_paths = {
+              '.github/workflows/stable-final-architecture-acceptance.yml',
+              'Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs',
+              'docs/ARCHITECTURE_DEPENDENCY_REPORT.md',
+              'docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md',
+              'docs/ARCHITECTURE_LEGACY_LITERAL_CLASSIFICATION.md',
+              'docs/ARCHITECTURE_MIGRATION_PLAN.md',
+              'specs/001-destructible-voxel-engine/tasks.md',
+              'specs/002-world-feature-authoring/tasks.md',
+          }
+          grep = subprocess.run(
+              ['git', 'grep', '-l', '-F', 'VoxelEngine.Core', '--', ':!Library', ':!Temp', ':!Logs'],
+              text=True,
+              capture_output=True,
+          )
+          if grep.returncode not in (0, 1):
+              raise SystemExit(grep.stderr)
+          actual = {line.strip() for line in grep.stdout.splitlines() if line.strip()}
+          unexpected = sorted(actual - allowed_core_literal_paths)
+          stale = sorted(path for path in allowed_core_literal_paths if Path(path).exists() and path not in actual)
+          if unexpected:
+              raise SystemExit('Unexpected legacy Core literal paths remain:\n' + '\n'.join(unexpected))
+          if stale:
+              raise SystemExit('Stale Core-literal allowlist entries:\n' + '\n'.join(stale))
+
+          print('Final production dependency graph accepted with GUID resolution')
           print('Storage.Runtime source ownership accepted: Storage/Runtime + Composition only')
           print('Legacy/compatibility adapter source guard accepted')
+          print(f'Legacy Core literal classification accepted in {len(actual)} intentional files')
           PY
 
   editmode:
