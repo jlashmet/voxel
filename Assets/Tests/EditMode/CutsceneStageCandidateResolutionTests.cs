@@ -6,6 +6,7 @@ using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
+using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 
 namespace VoxelEngine.Tests.EditMode
@@ -36,6 +37,77 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(
                 SettlementPlanSiteCandidateFacts.CandidateId(plan.Id, (int)KentridgeRole.Pub),
                 result.Bindings[0].Site);
+        }
+
+        [Test]
+        public void KentridgeOpeningRealizesAgainstExactVoxelEntrancePlacement()
+        {
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            var projections = new KentridgeArchitectureSiteProjectionProvider(plan);
+            var traversal = new SettlementStreetTraversalFacts(plan, projections);
+            var candidateFacts = new SettlementPlanWorldBuilderFacts(
+                plan,
+                new RegionRef("kentridge-region"),
+                new SettlementRef("kentridge-settlement"),
+                projections,
+                traversal,
+                projections);
+            PlanningGraph graph = BuildOpeningGraph();
+            SiteResolutionResult resolution = SiteRoleResolver.Resolve(graph, candidateFacts);
+            Assert.IsTrue(resolution.IsResolved, FirstDiagnostic(resolution));
+
+            var realizationFacts = new KentridgeVoxelSiteRealizationFacts(plan, 1);
+            var geometryProvider = new SettlementCutsceneSiteGeometryProvider(
+                plan,
+                resolution,
+                projections,
+                realizationFacts);
+
+            SiteRef pub = graph.CutsceneStages[0].Site;
+            CutsceneSiteGeometry geometry;
+            Assert.IsTrue(geometryProvider.TryResolve(pub, out geometry));
+
+            RealizedWorldPoint exactEntrance;
+            Assert.IsTrue(realizationFacts.TryGetPublicEntrance(
+                (int)KentridgeRole.Pub,
+                out exactEntrance));
+            Assert.AreEqual(exactEntrance.Position.X, geometry.EntrancePosition.X);
+            Assert.AreEqual(exactEntrance.Position.Y, geometry.EntrancePosition.Y);
+            Assert.AreEqual(exactEntrance.Position.Z, geometry.EntrancePosition.Z);
+
+            IReadOnlyList<CutsceneStageRealization> stages =
+                CutsceneStageRealizer.Realize(graph, geometryProvider);
+            Assert.AreEqual(1, stages.Count);
+            Assert.AreEqual(pub, stages[0].Site);
+        }
+
+        [Test]
+        public void FinalStageGeometryFailsClosedWhenRealizedPointIsNotIntegralDecimetres()
+        {
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            var projections = new KentridgeArchitectureSiteProjectionProvider(plan);
+            var traversal = new SettlementStreetTraversalFacts(plan, projections);
+            var candidateFacts = new SettlementPlanWorldBuilderFacts(
+                plan,
+                new RegionRef("kentridge-region"),
+                new SettlementRef("kentridge-settlement"),
+                projections,
+                traversal,
+                projections);
+            PlanningGraph graph = BuildOpeningGraph();
+            SiteResolutionResult resolution = SiteRoleResolver.Resolve(graph, candidateFacts);
+            Assert.IsTrue(resolution.IsResolved, FirstDiagnostic(resolution));
+
+            var geometryProvider = new SettlementCutsceneSiteGeometryProvider(
+                plan,
+                resolution,
+                projections,
+                new FractionalEntranceFacts((int)KentridgeRole.Pub));
+
+            CutsceneSiteGeometry geometry;
+            Assert.IsFalse(geometryProvider.TryResolve(
+                graph.CutsceneStages[0].Site,
+                out geometry));
         }
 
         [Test]
@@ -76,6 +148,24 @@ namespace VoxelEngine.Tests.EditMode
 
         private static string FirstDiagnostic(SiteResolutionResult result) =>
             result.Diagnostics.Count == 0 ? string.Empty : result.Diagnostics[0].ToString();
+
+        private sealed class FractionalEntranceFacts : ISettlementSiteRealizationFacts
+        {
+            private readonly int _roleId;
+            public FractionalEntranceFacts(int roleId) => _roleId = roleId;
+
+            public bool TryGetPublicEntrance(int roleId, out RealizedWorldPoint entrance)
+            {
+                if (roleId != _roleId)
+                {
+                    entrance = default(RealizedWorldPoint);
+                    return false;
+                }
+
+                entrance = new RealizedWorldPoint(new Int3(20, 21, 40), 2);
+                return true;
+            }
+        }
 
         private sealed class NarrowStageFacts :
             ISiteCandidateFacts,

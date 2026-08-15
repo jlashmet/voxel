@@ -2,6 +2,7 @@
   "name": "Game.Composition.WorldBuilderWorldGen",
   "rootNamespace": "Game.Composition.WorldBuilderWorldGen",
   "references": [
+    "Game.Cutscenes.Api",
     "Game.WorldBuilder.Api",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Architecture"

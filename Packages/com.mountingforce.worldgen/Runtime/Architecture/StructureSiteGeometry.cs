@@ -4,32 +4,39 @@ using MountingForce.WorldGen.Content.Kentridge;
 namespace MountingForce.WorldGen.Architecture
 {
     /// <summary>
-    /// Renderer-independent horizontal realization facts for a structure site. Bounds describe the
+    /// Renderer-independent realization facts for a structure site. Horizontal bounds describe the
     /// fixed placement envelope in world decimetres; PublicEntranceDm is the actual authored/generated
-    /// door anchor after frontage rotation. Non-building interaction anchors (for example Kentridge's
-    /// well) are intentionally not coerced into this contract.
+    /// door anchor after frontage rotation. PublicEntranceHeightDm is local to the structure placement
+    /// origin and lets a realization backend combine this canonical door with its exact terrain Y.
+    /// Non-building interaction anchors (for example Kentridge's well) are intentionally not coerced
+    /// into this contract.
     /// </summary>
     public readonly struct StructureSiteGeometry
     {
         public readonly Int2 FootprintMinDm;
         public readonly Int2 FootprintMaxDm;
         public readonly Int2 PublicEntranceDm;
+        public readonly int PublicEntranceHeightDm;
         public readonly FrontageDirection PublicEntranceFacing;
 
         public StructureSiteGeometry(
             Int2 footprintMinDm,
             Int2 footprintMaxDm,
             Int2 publicEntranceDm,
+            int publicEntranceHeightDm,
             FrontageDirection publicEntranceFacing)
         {
             if (footprintMaxDm.X <= footprintMinDm.X)
                 throw new ArgumentOutOfRangeException(nameof(footprintMaxDm));
             if (footprintMaxDm.Y <= footprintMinDm.Y)
                 throw new ArgumentOutOfRangeException(nameof(footprintMaxDm));
+            if (publicEntranceHeightDm < 0)
+                throw new ArgumentOutOfRangeException(nameof(publicEntranceHeightDm));
 
             FootprintMinDm = footprintMinDm;
             FootprintMaxDm = footprintMaxDm;
             PublicEntranceDm = publicEntranceDm;
+            PublicEntranceHeightDm = publicEntranceHeightDm;
             PublicEntranceFacing = publicEntranceFacing;
         }
     }
@@ -75,12 +82,17 @@ namespace MountingForce.WorldGen.Architecture
             ValidateIdentity(intent, form);
 
             Int2 localEntrance;
+            int entranceHeightDm;
             if (form.IsGenerated)
             {
                 ArchitectureCompiler.ValidateGenerated(intent, theme, form);
                 localEntrance = ResolveGeneratedLocalEntrance(intent, form);
+                entranceHeightDm = theme.FoundationHeightDm;
             }
-            else if (!TryResolveKentridgeBespokeLocalEntrance(intent, out localEntrance))
+            else if (!TryResolveKentridgeBespokeLocalEntrance(
+                         intent,
+                         out localEntrance,
+                         out entranceHeightDm))
             {
                 geometry = default(StructureSiteGeometry);
                 return false;
@@ -100,6 +112,7 @@ namespace MountingForce.WorldGen.Architecture
                 new Int2(
                     intent.PositionDm.X + rotatedEntrance.X,
                     intent.PositionDm.Y + rotatedEntrance.Y),
+                entranceHeightDm,
                 intent.Frontage);
             return true;
         }
@@ -141,17 +154,14 @@ namespace MountingForce.WorldGen.Architecture
                 switch (intent.Archetype)
                 {
                     case StructureArchetype.Warehouse:
-                        // Legacy voxel program: shell x=15..173, z=18..160, t=5, door centre x=94.
                         interior = new StructureInteriorEnvelope(74, 137);
                         return true;
                     case StructureArchetype.Mansion:
-                        // Legacy voxel program: shell x=26..236, z=26..214, t=5, door centre x=131.
                         interior = new StructureInteriorEnvelope(100, 183);
                         return true;
                     case StructureArchetype.Church:
-                        // The bell tower overlays the front of the nave. The guaranteed entrance-connected
-                        // corridor is therefore conservatively bounded by the 20dm front door and the
-                        // tower's rear wall, rather than claiming the whole nave is one unobstructed room.
+                        // Bell tower overlays the front nave. This is the guaranteed 20dm-wide
+                        // entrance-connected corridor through the tower, not the full nave width.
                         interior = new StructureInteriorEnvelope(10, 42);
                         return true;
                 }
@@ -185,11 +195,13 @@ namespace MountingForce.WorldGen.Architecture
 
         private static bool TryResolveKentridgeBespokeLocalEntrance(
             StructureIntent intent,
-            out Int2 entrance)
+            out Int2 entrance,
+            out int heightDm)
         {
             if (!string.Equals(intent.StyleId, KentridgeDefinition.Id, StringComparison.Ordinal))
             {
                 entrance = default(Int2);
+                heightDm = 0;
                 return false;
             }
 
@@ -197,16 +209,20 @@ namespace MountingForce.WorldGen.Architecture
             {
                 case StructureArchetype.Warehouse:
                     entrance = new Int2(94, 18);
+                    heightDm = 8;
                     return true;
                 case StructureArchetype.Mansion:
                     entrance = new Int2(131, 26);
+                    heightDm = 9;
                     return true;
                 case StructureArchetype.Church:
                     entrance = new Int2(82, 18);
+                    heightDm = 8;
                     return true;
                 default:
-                    // Well's canonical anchor is an interaction point at (28,28), not a public entrance.
+                    // Well's canonical anchor is an interaction point at (28,11,28), not an entrance.
                     entrance = default(Int2);
+                    heightDm = 0;
                     return false;
             }
         }
