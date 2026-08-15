@@ -1,6 +1,6 @@
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Showcase
 {
@@ -13,7 +13,7 @@ namespace VoxelEngine.Showcase
     /// brickmap. Collision reads the same storage the renderer meshes (Constitution
     /// Principle II), so what you stand on is exactly what you see.
     ///
-    /// This does *not* use <see cref="VoxelEngine.Collision.Runtime.SweptAabb"/>, and that is worth explaining:
+    /// This does *not* use the existing brick-space swept-AABB helper, and that is worth explaining:
     /// that helper interprets its AABB in **brick** coordinates, so its finest resolution is
     /// 0.8 m. A character at 10 cm voxels would stop nearly a metre from walls and could not
     /// stand on anything smaller than a brick. Resolution here is per voxel. The engine helper
@@ -246,11 +246,13 @@ namespace VoxelEngine.Showcase
             int maxY = Mathf.FloorToInt((max.y - 1e-4f) / VoxelSize);
             int maxZ = Mathf.FloorToInt((max.z - 1e-4f) / VoxelSize);
 
+            IVoxelSurfaceQuery surface = world.SurfaceQuery;
             for (int y = minY; y <= maxY; y++)
             for (int z = minZ; z <= maxZ; z++)
             for (int x = minX; x <= maxX; x++)
             {
-                if (VoxelAccess.IsSolid(ref world.Table, in world.Pool, new int3(x, y, z)))
+                if (surface.TryRead(new int3(x, y, z), out VoxelCell cell) &&
+                    cell.BaseMaterialId != VoxelGrid.MaterialEmpty)
                     return true;
             }
 
