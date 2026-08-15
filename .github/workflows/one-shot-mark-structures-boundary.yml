@@ -20,7 +20,7 @@ jobs:
           ref: refactor/system-boundaries-foundation-storage
           fetch-depth: 0
       - name: Update checklist
-        run: python .github/scripts/one_shot_mark_structures_boundary.py
+        run: python .github/scripts/one_shot_mark_structures_boundary_v2.py
       - name: Verify documentation-only diff
         run: |
           git diff -- docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
@@ -28,9 +28,10 @@ jobs:
       - name: Commit and remove one-shot tooling
         run: |
           rm .github/scripts/one_shot_mark_structures_boundary.py
+          rm .github/scripts/one_shot_mark_structures_boundary_v2.py
           rm .github/workflows/one-shot-mark-structures-boundary.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md .github/scripts/one_shot_mark_structures_boundary.py .github/workflows/one-shot-mark-structures-boundary.yml
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md .github/scripts/one_shot_mark_structures_boundary.py .github/scripts/one_shot_mark_structures_boundary_v2.py .github/workflows/one-shot-mark-structures-boundary.yml
           git commit -m "docs: mark structures storage boundary complete"
           git push origin HEAD:refactor/system-boundaries-foundation-storage
