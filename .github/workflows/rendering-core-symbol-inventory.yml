@@ -16,14 +16,11 @@ jobs:
       - shell: bash
         run: |
           set -euo pipefail
-          echo '=== CORE_IMPORT_FILES_AND_MATCHING_SYMBOLS ==='
-          for f in $(grep -RIl 'using VoxelEngine.Core.Storage;' Assets/VoxelEngine/Rendering --include='*.cs' | sort); do
-            echo "--- $f"
-            grep -nE 'MaterialPalette|SurfaceCatalogue|CoatingCatalogue|VoxelChangeJournal|VoxelDimensions|RegionTable|BrickPool|BrickRef|VoxelAccess|Region\b|OccupancyMask|MaterialAdjacencyCatalogue|SurfaceStyles|Coatings|VoxelCell|VoxelBoundarySample' "$f" || true
-          done
-          echo '=== CORE_STORAGE_DEFINITIONS ==='
-          grep -RInE '^(public |internal )?(sealed |readonly )?(class|struct) (MaterialPalette|SurfaceCatalogue|CoatingCatalogue|VoxelChangeJournal|MaterialAdjacencyCatalogue)|class MaterialPalette|struct MaterialPalette|class SurfaceCatalogue|struct SurfaceCatalogue|class CoatingCatalogue|struct CoatingCatalogue|class VoxelChangeJournal|struct VoxelChangeJournal' Assets/VoxelEngine/Core/Storage --include='*.cs' || true
-          echo '=== SYMBOL_USAGE_ALL_RENDERING ==='
-          grep -RInE 'MaterialPalette|SurfaceCatalogue|CoatingCatalogue|VoxelChangeJournal|VoxelDimensions|MaterialAdjacencyCatalogue' Assets/VoxelEngine/Rendering --include='*.cs' | sort || true
-          echo '=== STORAGE_API_RELATED_TYPES ==='
-          grep -RInE 'public (readonly )?(struct|class|interface|enum).*Material|public (readonly )?(struct|class|interface|enum).*Surface|public (readonly )?(struct|class|interface|enum).*Coating|ChangeJournal|Change.*View|Material.*Catalogue|Surface.*Catalogue|Coating.*Catalogue' Assets/VoxelEngine/Storage/Api --include='*.cs' | sort || true
+          echo '=== TYPE_USAGE ==='
+          grep -RInE '\b(VoxelGpuBuffers|ProbeCache)\b' Assets Packages --include='*.cs' | sort || true
+          echo '=== PALETTE_METHOD_USAGE_RENDERING ==='
+          grep -RInE '(Palette|palette)\.(Version|GetDefaultSurfaceStyle|GetHardness|GetDestructionClass|IsRegistered|AllowsCoating)|Catalogue\.(Get|GetJoin)|Coatings\.Get' Assets/VoxelEngine/Rendering --include='*.cs' | sort || true
+          echo '=== CHANGE_JOURNAL_USAGE ==='
+          grep -RInE '(VoxelChangeJournal|VoxelChangeRecord|VoxelChangeKind|ReadSince|CurrentVersion|OldestRetainedVersion)' Assets/VoxelEngine/Rendering Assets/Scenes/Showcase Assets/VoxelEngine/CI Assets/Tests --include='*.cs' | sort || true
+          echo '=== WORLDVIEW_CONSTRUCTION ==='
+          grep -RInE 'new VoxelWorldView|VoxelWorldView[[:space:]]*\{' Assets Packages --include='*.cs' | sort || true
