@@ -12,14 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ed126903cd18dcd62324fab41942d41fdaa37532
+          ref: 34b2f65f2c371313c58334c2ffe5c3369c42ced0
           clean: false
           fetch-depth: 1
-      - shell: bash
+      - name: Fully clean checkout and Unity cache
+        shell: bash
         run: |
           set -euo pipefail
-          git reset --hard ed126903cd18dcd62324fab41942d41fdaa37532
-          git clean -ffdx -e Library/
+          git reset --hard 34b2f65f2c371313c58334c2ffe5c3369c42ced0
+          git clean -ffdx
       - id: unity
         shell: bash
         run: |
@@ -28,7 +29,8 @@ jobs:
           UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
           test -x "$UNITY_PATH"
           echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
-      - shell: bash
+      - name: Wait for Unity editor
+        shell: bash
         run: |
           set -euo pipefail
           deadline=$((SECONDS + 600))
@@ -36,7 +38,8 @@ jobs:
             if (( SECONDS >= deadline )); then exit 1; fi
             sleep 5
           done
-      - shell: bash
+      - name: Run clean EditMode acceptance suite
+        shell: bash
         run: |
           set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/NetworkingCI"
@@ -44,6 +47,7 @@ jobs:
           mkdir -p "$ROOT"
           "${{ steps.unity.outputs.path }}" \
             -batchmode -nographics -quit \
+            -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests -testPlatform EditMode \
             -testResults "$ROOT/results.xml" \
@@ -52,7 +56,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: NetworkingCI
+          name: NetworkingCI-clean-${{ github.sha }}
           path: Artifacts/NetworkingCI/
           if-no-files-found: warn
           retention-days: 14
