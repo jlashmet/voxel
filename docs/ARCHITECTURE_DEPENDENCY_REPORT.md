@@ -1,8 +1,8 @@
 # Final Architecture Dependency Report
 
 **Verified branch:** `refactor/system-boundaries-finalization-stable`  
-**Verified code SHA:** `6f872e30763b57abd3af5d9282de0af50e3a93c5`  
-**Static acceptance:** `Stable final architecture acceptance` run `31909538430`, `static-boundary` job — passed  
+**Verified code SHA:** `c09dc595211d492f8bb934292367dfd5b4215b4e`  
+**Static acceptance:** `Stable final architecture acceptance` run `31909666042`, static job `95072945213` — passed  
 **Generated report precursor:** `Final architecture static acceptance` run `31909432576` at `02a6bff15f8d034ac62e91a84219d7b5d42b07e7` — passed
 
 This report records the final production assembly dependency graph for the architecture cutover. The generated precursor report was rechecked against the current code head after Composition restored its required Vegetation wiring. Test, CI, and Editor assemblies are intentionally outside the production Runtime-wiring rule because they must be able to exercise concrete implementations.
