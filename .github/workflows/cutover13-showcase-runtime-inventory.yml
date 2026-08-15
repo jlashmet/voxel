@@ -1,0 +1,65 @@
+name: Cutover 13 Showcase Runtime inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/cutover13-showcase-runtime-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+      - name: Inventory Showcase concrete Runtime imports/usages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+
+          root = Path('Assets/Scenes/Showcase')
+          runtime_import = re.compile(r'^\s*using\s+(VoxelEngine\.[A-Za-z0-9_.]+\.Runtime(?:\.[A-Za-z0-9_.]+)?)\s*;', re.M)
+          runtime_qualified = re.compile(r'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime(?:\.[A-Za-z0-9_.]+)*')
+
+          print('=== SHOWCASE RUNTIME SOURCE DEPENDENCIES ===')
+          all_namespaces = set()
+          files = []
+          for path in sorted(root.rglob('*.cs')):
+              text = path.read_text()
+              imports = sorted(set(runtime_import.findall(text)))
+              qualified = sorted(set(runtime_qualified.findall(text)))
+              if imports or qualified:
+                  files.append(path)
+                  print(path)
+                  for value in imports:
+                      print('  using', value)
+                      all_namespaces.add(value)
+                  for value in qualified:
+                      if value not in imports:
+                          print('  qualified', value)
+                          all_namespaces.add(value)
+          print('FILES_WITH_RUNTIME=', len(files))
+          print('RUNTIME_NAMESPACES=', ','.join(sorted(all_namespaces)))
+
+          asm = json.loads((root / 'VoxelEngine.Showcase.asmdef').read_text())
+          runtime_refs = sorted(r for r in asm.get('references', []) if r.startswith('VoxelEngine.') and r.endswith('.Runtime'))
+          print('=== SHOWCASE ASMDEF RUNTIME REFS ===')
+          for ref in runtime_refs:
+              print(ref)
+          print('RUNTIME_REF_COUNT=', len(runtime_refs))
+
+          # Identify stale asmdef Runtime refs that have no textual namespace/type evidence in Showcase source.
+          stale = []
+          corpus = '\n'.join(path.read_text() for path in root.rglob('*.cs'))
+          for ref in runtime_refs:
+              namespace = ref
+              if namespace not in corpus:
+                  stale.append(ref)
+          print('=== POSSIBLY STALE ASMDEF RUNTIME REFS ===')
+          for ref in stale:
+              print(ref)
+          PY
