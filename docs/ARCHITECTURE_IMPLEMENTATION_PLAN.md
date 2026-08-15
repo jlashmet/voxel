@@ -1605,15 +1605,15 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 0. Guardrails
 
-- [ ] add `VoxelEngineAssemblyBoundaryTests`
-- [ ] convert Constitution determinism scan from Core path to explicit deterministic assembly/path policy
+- [x] add asmdef boundary guard (`ArchitectureBoundaryGuardTests`); introduced at `fcfea314` and still enforced by the accepted integrated architecture gates
+- [x] convert Constitution determinism scan from Core path to explicit deterministic assembly/path policy; introduced at `9223509c` and now scans Foundation/Storage/Terrain/Edits/StructuralIntegrity explicitly
 - [ ] strengthen Kentridge boundary tests
 
 ### 1. Foundation
 
-- [ ] create Foundation assembly
-- [ ] move `IntMath`
-- [ ] update references
+- [x] create Foundation assembly; `VoxelEngine.Foundation` introduced at `60c3f0abcf8c023a310a473b2e756a2982b1d178`
+- [x] move `IntMath`; clean-moved to `VoxelEngine.Foundation` at `6986b7ccadfa983e6ffec81115f5702d29fbca63`
+- [x] update Foundation references; all surviving consumers compile against `VoxelEngine.Foundation` and later integrated 387/374/13 gates preserve the accepted boundary
 
 ### 2. Storage
 
