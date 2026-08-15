@@ -1,0 +1,81 @@
+name: Cutover 13 publish terrain lookdev composition seam
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-publish-terrain-lookdev-composition.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+
+      - name: Route TerrainLookdev through Composition
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('Assets/Scenes/Showcase/TerrainLookdev.cs')
+          text = path.read_text()
+
+          text = text.replace('using VoxelEngine.Structures.Runtime;\n', '')
+          text = text.replace('using VoxelEngine.Rendering.Runtime;\n', '')
+          text = text.replace('        private ProfileBlockStore _profiles;\n', '')
+          text = text.replace('            _profiles = new ProfileBlockStore();\n\n', '')
+
+          old_world = '''            VoxelRenderBridge.Changes = _storage.Changes;\n            VoxelRenderBridge.Source = WorldView;\n            VoxelRenderBridge.SolidBuildBudgetMs = 12.0;\n            VoxelRenderBridge.WaterBuildBudgetMs = 0.0;\n            VoxelRenderBridge.FarFieldEnabled = false;\n            VoxelRenderBridge.TerrainSeed = Seed;'''
+          new_world = '''            var renderingWorld = new RenderingWorldBinding(\n                _storage.Reads,\n                _storage.MaterialPresentation,\n                _storage.SurfacePresentation,\n                _storage.CoatingPresentation);\n            RenderingComposition.ConfigureWorld(\n                in renderingWorld, _storage.Changes, Seed,\n                solidBuildBudgetMs: 12.0, waterBuildBudgetMs: 0.0, farFieldEnabled: false);'''
+          if old_world not in text:
+              raise SystemExit('expected TerrainLookdev renderer world block not found')
+          text = text.replace(old_world, new_world, 1)
+
+          old_env = '''            VoxelRenderBridge.SurfaceDebugTint = Color.white;\n            VoxelRenderBridge.SunDirection = new Vector3(-0.43f, 0.87f, -0.24f).normalized;\n            VoxelRenderBridge.SkyHorizon = new Color(0.94f, 0.87f, 0.49f, 1f);\n            VoxelRenderBridge.SkyZenith = new Color(0.82f, 0.80f, 0.46f, 1f);'''
+          new_env = '''            RenderingComposition.ConfigureEnvironment(\n                Color.white,\n                new Vector3(-0.43f, 0.87f, -0.24f).normalized,\n                new Color(0.94f, 0.87f, 0.49f, 1f),\n                new Color(0.82f, 0.80f, 0.46f, 1f));'''
+          if old_env not in text:
+              raise SystemExit('expected TerrainLookdev environment block not found')
+          text = text.replace(old_env, new_env, 1)
+
+          pattern = re.compile(
+              r'''\n        private VoxelWorldView WorldView\(\) => new VoxelWorldView\n        \{\n            Storage = _storage\.Reads,\n            Palette = _storage\.MaterialPresentation,\n            SurfaceCatalogueView = _storage\.SurfacePresentation,\n            CoatingCatalogueView = _storage\.CoatingPresentation,\n            ProfileBlocks = _profiles,\n        \};\n''')
+          text, count = pattern.subn('\n', text, count=1)
+          if count != 1:
+              raise SystemExit(f'expected one TerrainLookdev WorldView method, found {count}')
+
+          old_shutdown = '''            VoxelRenderBridge.Source = null;\n            VoxelRenderBridge.Changes = null;'''
+          if old_shutdown not in text:
+              raise SystemExit('expected TerrainLookdev renderer shutdown block not found')
+          text = text.replace(old_shutdown, '            RenderingComposition.ClearWorld();', 1)
+
+          text = text.replace(
+              'Rendering stays\n    /// entirely on Storage.Api read capabilities -> VoxelRenderBridge -> production surface extraction.',
+              'Rendering stays\n    /// entirely on Storage.Api read capabilities -> Composition -> production surface extraction.')
+
+          path.write_text(text)
+          PY
+
+          ! grep -q '^using VoxelEngine\..*Runtime' Assets/Scenes/Showcase/TerrainLookdev.cs
+          ! grep -q 'VoxelRenderBridge' Assets/Scenes/Showcase/TerrainLookdev.cs
+          ! grep -q 'ProfileBlockStore\|_profiles\|VoxelWorldView' Assets/Scenes/Showcase/TerrainLookdev.cs
+          grep -q 'RenderingComposition.ConfigureWorld' Assets/Scenes/Showcase/TerrainLookdev.cs
+          grep -q 'RenderingComposition.ClearWorld' Assets/Scenes/Showcase/TerrainLookdev.cs
+          git diff --check
+
+      - name: Commit source cut
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/Scenes/Showcase/TerrainLookdev.cs
+          git commit -m 'refactor(showcase): route terrain lookdev renderer through Composition'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
