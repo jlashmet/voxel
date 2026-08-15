@@ -119,7 +119,7 @@ jobs:
               "weights": "$TRIPOSR_WEIGHTS",
               "preset": "smoke",
               "device": "auto",
-              "mcResolution": 256,
+              "mcResolution": 320,
               "chunkSize": 8192,
               "removeBackground": false
             },
