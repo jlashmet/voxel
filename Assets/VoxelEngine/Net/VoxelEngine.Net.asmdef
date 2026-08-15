@@ -4,6 +4,7 @@
   "references": [
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
+    "VoxelEngine.Streaming.Api",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
