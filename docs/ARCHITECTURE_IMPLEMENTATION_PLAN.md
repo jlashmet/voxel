@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 9 Collision — final Api/Runtime ownership cutover
+**Current focus:** Cutover 10 Vegetation — final Api/Runtime ownership cutover
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -27,8 +27,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 6 — StructuralIntegrity | **Complete** | dead Net `StructuralGraph` removed; StructuralIntegrity.Api/Runtime assemblies created; `SupportField`, `CollapseDetection`, and `Connectivity` all live in Runtime with preserved Unity GUIDs and Storage.Api-only reads; `Core/Structure` is gone; final inventory found no production/network structural consumer, so Api remains intentionally empty rather than inventing DTOs; parity accepted | none |
 | 7 — Tiering | **Complete** | `DeviceTier`/`DeviceTierBudget` live under `Tiering/Api` with preserved Unity GUIDs; broad Tiering assembly replaced by dependency-free `VoxelEngine.Tiering.Api`; Streaming, Rendering, Showcase and tests consume Api; no Tiering.Runtime exists; parity accepted | none |
 | 8 — Streaming | **Complete** | `Streaming.Api` exposes the real `RegionLoadRequest`/`IRegionStreaming` orchestration contract; all four implementation files live under `Streaming/Runtime` with preserved Unity GUIDs; `RegionStreamingService` hides Storage residency behind the Api; Runtime depends only on Streaming.Api, Storage.Api and Tiering.Api; broad Streaming/Net coupling is gone | none |
-| 9 — Collision | **In progress — current** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
-| 10 — Vegetation | **Partial dependency cleanup** | Kentridge top-surface reads use Storage.Api and terrain sampling uses Terrain.Api | full Vegetation.Api/Runtime cutover |
+| 9 — Collision | **Complete** | `Collision.Api`/`Collision.Runtime` replace the broad assembly; DDA/raycast/sweep/hull implementation lives in Runtime with preserved Unity GUIDs; Runtime consumes Storage.Api only; final caller inventory found no production subsystem consumer, so Api remains intentionally empty instead of inventing DTOs | none |
+| 10 — Vegetation | **In progress — current** | Kentridge top-surface reads use Storage.Api and terrain sampling uses Terrain.Api | full Vegetation.Api/Runtime cutover |
 | 11 — Net | **Partial dependency cleanup** | authoritative edit application callers now consume Storage mutation capability | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |
 | 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; parity accepted | final Rendering.Api/Runtime move and Vegetation.Api-only dependency |
 | 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `9a3702d4a7e5127a3573a5aaa185c9fced344e63` — 383 tests, 370 passed, exactly the same 13 known baseline failures. Accepted Cutover 8 Streaming: `Streaming.Api`/`Streaming.Runtime` replace the broad assembly; all four implementation files moved with Unity GUIDs preserved; `RegionLoadRequest` + `IRegionStreaming` are the real application contract; `RegionStreamingService` hides Storage residency; Runtime has no Net or foreign Runtime reference. The additional passing test is the new no-network instantiation guard.
+- Latest accepted code gate: `2ed342aef7ed05d2d7bc67a8d88460b23e9e693d` — 383 tests, 370 passed, exactly the same 13 known baseline failures. Accepted Cutover 9 Collision: all four current collision algorithms are physically under `Collision/Runtime` with preserved Unity GUIDs; broad Collision assembly/namespace is gone; Runtime consumes Storage.Api and no foreign Runtime; final caller inventory found no production subsystem consumer, so `Collision.Api` is deliberately empty rather than inventing unused query/result DTOs.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -1003,16 +1003,16 @@ It owns desired residency/prefetch/fade policy. It releases regions through Stor
 | `Collision/SweptAabb.cs` | `Collision/Runtime/SweptAabb.cs` |
 | `Collision/VoxelRaycast.cs` | `Collision/Runtime/VoxelRaycast.cs` |
 
-Create Api query/result values:
+Final caller inventory found no production engine subsystem caller of Collision. Showcase and tests exercise the implementation directly, so `VoxelEngine.Collision.Api` exists as the deliberate subsystem contract assembly but is intentionally empty today. Do not invent raycast/sweep/hull DTOs until a real foreign subsystem requires them.
 
-```text
-Collision/Api/VoxelRaycastQuery.cs
-Collision/Api/VoxelRaycastHit.cs
-Collision/Api/VoxelSweepQuery.cs
-Collision/Api/VoxelSweepResult.cs
-Collision/Api/HullExportRequest.cs   (only if called outside Collision)
-Collision/Api/HullExportResult.cs    (only if called outside Collision)
-```
+Collision.Runtime performs DDA/sweep/hull work against Storage.Api readonly native views. The DDA and storage representation are implementation details.
+
+### Implementation progress
+
+- [x] `Collision.Api`/`Collision.Runtime` created; `DdaTraversal`, `HullExport`, `SweptAabb`, and `VoxelRaycast` moved to Runtime with original Unity GUIDs and Runtime namespaces.
+- [x] Broad `VoxelEngine.Collision` assembly/namespace removed; Showcase and implementation tests reference Runtime directly; no engine production subsystem references Collision.Runtime.
+- [x] Final caller inventory found no production API consumer, so Collision.Api remains intentionally empty rather than adding speculative request/result types.
+- [x] Collision Api/Runtime cutover accepted by CI at `2ed342aef7ed05d2d7bc67a8d88460b23e9e693d`: 383 total / 370 passed / exact same 13 known baseline failures.
 
 Collision.Runtime performs DDA/sweep/hull work against Storage.Api readonly native views. The DDA and storage representation are implementation details.
 
@@ -1020,7 +1020,8 @@ Collision.Runtime performs DDA/sweep/hull work against Storage.Api readonly nati
 
 - [x] no Collision source references BrickPool/RegionTable/Occupancy Runtime types;
 - [x] hot jobs operate on readonly Burst-compatible Storage.Api data views;
-- [x] raycast/sweep/hull parity tests pass.
+- [x] raycast/sweep/hull parity tests pass;
+- [x] Collision.Runtime has no foreign Runtime dependency and no production subsystem consumes it.
 
 ---
 
@@ -1619,9 +1620,10 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 9. Collision
 
-- [ ] create Collision.Api/Runtime
-- [ ] move DDA/raycast/sweep/hull implementation
-- [ ] consume Storage.Api readonly views
+- [x] create Collision.Api/Runtime
+- [x] move DDA/raycast/sweep/hull implementation
+- [x] consume Storage.Api readonly views
+- [x] resolve public Collision Api from real consumers — none exist today, so do not invent DTOs
 
 ### 10. Vegetation
 
