@@ -130,6 +130,7 @@ jobs:
               'Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs',
               'docs/ARCHITECTURE_DEPENDENCY_REPORT.md',
               'docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md',
+              'docs/ARCHITECTURE_LEGACY_LITERAL_CLASSIFICATION.md',
               'docs/ARCHITECTURE_MIGRATION_PLAN.md',
               'specs/001-destructible-voxel-engine/tasks.md',
               'specs/002-world-feature-authoring/tasks.md',
