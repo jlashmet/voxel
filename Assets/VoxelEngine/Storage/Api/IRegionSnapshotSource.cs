@@ -2,6 +2,12 @@ using Unity.Mathematics;
 
 namespace VoxelEngine.Storage.Api
 {
+    /// <summary>Stable semantic snapshot limits shared by Storage producers and clients.</summary>
+    public static class RegionSemanticSnapshotLimits
+    {
+        public const int DefaultMaxSnapshotBytes = 16 * 1024 * 1024;
+    }
+
     /// <summary>
     /// Logical semantic snapshot produced by Storage for convergence/current-state replication.
     /// The encoded bytes and hash describe voxel semantics only; allocator slots and physical
