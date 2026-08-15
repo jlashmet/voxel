@@ -4,7 +4,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -152,7 +152,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int z = 0; z <= footprint.z; z += sampleStep)
             for (int x = 0; x <= footprint.x; x += sampleStep)
             {
-                int h = TerrainSampler.HeightAt(ox + x, oz + z, seed);
+                int h = TerrainQuery.HeightAt(ox + x, oz + z, seed);
                 if (h < lowest) lowest = h;
             }
 
