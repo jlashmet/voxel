@@ -7,6 +7,7 @@ using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Features;
+using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
 
@@ -36,17 +37,37 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private static readonly ProfilerMarker s_UploadMarker =
             new("Voxel.Surface.Upload");
         public const int CellsPerAxis = 64;
-        public const int SourceStep = 1;
-        public const int VoxelsPerAxis = CellsPerAxis * SourceStep;
-        public const int BricksPerAxis = VoxelsPerAxis / VoxelDimensions.BrickEdge;
+
+        // A chunk is always CellsPerAxis cells regardless of ring, so extraction work per
+        // chunk is constant; SourceStep only widens the world extent each cell spans. That
+        // asymmetry is what makes coarse rings cheaper per unit volume: the density grid,
+        // topology tables, and faceted masks below are all sized by cells, not voxels.
+        // Only the snapshot brick cache scales, because it must still cover the full extent.
+        public readonly int SourceStep;
+        public readonly int VoxelsPerAxis;
+        public readonly int BricksPerAxis;
+
+        /// <summary>
+        /// True when this ring reads the region mip pyramid rather than individual voxels.
+        /// Rings finer than one brick have no mip level to read and require resident bricks;
+        /// see <see cref="VoxelMipSampler.LevelForStride"/>.
+        /// </summary>
+        public readonly bool SamplesFromMips;
+
+        /// <summary>Chunk geometry of the base ring (SourceStep 1). Authoring and capture tools
+        /// address the world in full-resolution chunks, so they want these rather than the
+        /// ring-dependent instance values.</summary>
+        public const int BaseSourceStep = 1;
+        public const int BaseVoxelsPerAxis = CellsPerAxis * BaseSourceStep;
+        public const int BaseBricksPerAxis = BaseVoxelsPerAxis / VoxelDimensions.BrickEdge;
 
         private const int Padding = 1;
         private const int GridSize = CellsPerAxis + 3;
         private const int GridSampleCount = GridSize * GridSize * GridSize;
         private const int CellsPerSlice = 512;
         private const int BrickCachePadding = 1;
-        private const int BrickCacheEdge = BricksPerAxis + BrickCachePadding * 2;
-        private const int BrickCacheCount = BrickCacheEdge * BrickCacheEdge * BrickCacheEdge;
+        private readonly int BrickCacheEdge;
+        private readonly int BrickCacheCount;
         private const uint FullyLitOcclusion = 0x0000FF00u;
 
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
@@ -56,6 +77,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public sealed class Entry : IDisposable
         {
             public readonly int3 Coordinate;
+            /// <summary>Voxels this chunk spans per axis — ring-dependent, so bounds and
+            /// any consumer's world-space reasoning must use it rather than a constant.</summary>
+            public readonly int VoxelsPerAxis;
+            /// <summary>Voxels between adjacent samples in the ring that produced this entry.</summary>
+            public readonly int SourceStep;
             public ComputeBuffer Vertices;
             public ComputeBuffer Indices;
             public ComputeBuffer Args;
@@ -72,7 +98,12 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             public uint CoatingCatalogueVersion { get; internal set; }
             public ulong CoatingCatalogueHash { get; internal set; }
 
-            internal Entry(int3 coordinate) => Coordinate = coordinate;
+            internal Entry(int3 coordinate, int voxelsPerAxis, int sourceStep)
+            {
+                Coordinate = coordinate;
+                VoxelsPerAxis = voxelsPerAxis;
+                SourceStep = sourceStep;
+            }
 
             internal void Upload(List<SmoothSurfaceVertex> vertices, List<uint> indices)
             {
@@ -179,6 +210,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             public uint CoatingCatalogueVersion;
             public ulong CoatingCatalogueHash;
             public bool SnapshotTaken;
+            public bool HasOwnedSolid;
             public bool RequiresContinuousTopology;
             public double BuildStartSeconds;
             public double DensityScheduledSeconds;
@@ -190,6 +222,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly HashSet<int3> _known = new();
         private readonly HashSet<int3> _dirty = new();
         private readonly Dictionary<int3, ulong> _desiredVersions = new();
+        // Chunks whose last completed build produced no geometry, and the source version that
+        // proved it. They hold no Entry and no GPU memory, so they cost a dictionary slot
+        // rather than a resident chunk, and they stay out of the dirty set until invalidated.
+        private readonly Dictionary<int3, ulong> _emptyVersions = new();
         private readonly Dictionary<int3, double> _queuedAtSeconds = new();
         private ulong _versionCounter;
         private readonly List<Entry> _visible = new();
@@ -200,6 +236,10 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly NativeArray<uint> _surfaceSemantics;
         private readonly NativeArray<byte> _boundarySamples;
         private NativeArray<TransvoxelDensityBrick> _densityBricks;
+        // Coarse-ring snapshot: one mip cell per lattice sample. Fixed size regardless of how
+        // much world the chunk covers, unlike the brick cache it replaces.
+        private NativeArray<byte> _mipSampleOccupancy;
+        private NativeArray<byte> _mipSampleMaterials;
         private NativeList<byte> _densityMixedVoxels;
         private NativeList<ushort> _densityMixedSurfaceSemantics;
         private NativeList<byte> _densityMixedBoundarySamples;
@@ -221,6 +261,22 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private NativeList<SmoothSurfaceVertex> _compactedTopologyVertices;
         private NativeList<uint> _compactedTopologyIndices;
         private NativeArray<int> _topologyOverflowCell;
+        // Transition-cell tables, uploaded once per cache. Only coarse rings stitch faces, but
+        // the tables are a few kilobytes and sharing the allocation keeps the build path simple.
+        /// <summary>Half-stride samples per axis on a transition face: two per coarse cell,
+        /// plus one to close the last cell.</summary>
+        private const int FaceSamplesPerAxis = CellsPerAxis * 2 + 1;
+        private NativeArray<float> _faceDensity;
+        private NativeArray<byte> _faceMaterials;
+        private NativeArray<uint> _faceSurfaces;
+        private NativeArray<byte> _transitionCellClass;
+        private NativeArray<byte> _transitionGeometryCounts;
+        private NativeArray<byte> _transitionCellIndices;
+        private NativeArray<ushort> _transitionVertexData;
+        private int _transitionVertexStride;
+        private int _transitionIndexStride;
+        private NativeList<SmoothSurfaceVertex> _transitionVertices;
+        private NativeList<uint> _transitionIndices;
         private NativeArray<uint> _facetedMasks;
         private NativeList<SmoothSurfaceVertex> _facetedVertices;
         private NativeList<uint> _facetedIndices;
@@ -260,8 +316,22 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly VoxelTimingWindow _capacityTiming = new();
         private readonly VoxelTimingWindow _buildSelectionTiming = new();
 
-        public CpuTransvoxelChunkCache()
+        public CpuTransvoxelChunkCache(int sourceStep = 1)
         {
+            if (sourceStep < 1 || (sourceStep & (sourceStep - 1)) != 0)
+                throw new ArgumentOutOfRangeException(
+                    nameof(sourceStep), sourceStep,
+                    "Source step must be a positive power of two; chunk coordinates and brick "
+                  + "decomposition rely on shifts.");
+            SourceStep = sourceStep;
+            VoxelsPerAxis = CellsPerAxis * sourceStep;
+            BricksPerAxis = VoxelsPerAxis / VoxelDimensions.BrickEdge;
+            // A ring whose stride reaches a whole brick or more reads the mip pyramid instead
+            // of caching bricks; its brick cache would grow with the cube of the stride and is
+            // never allocated.
+            SamplesFromMips = VoxelMipSampler.LevelForStride(sourceStep) >= 0;
+            BrickCacheEdge = SamplesFromMips ? 0 : BricksPerAxis + BrickCachePadding * 2;
+            BrickCacheCount = BrickCacheEdge * BrickCacheEdge * BrickCacheEdge;
             _surfaceCatalogue = SurfaceCatalogue.CreateBuiltIns();
             _coatingCatalogue = CoatingCatalogue.CreateBuiltIns();
             _density = new NativeArray<float>(GridSampleCount, Allocator.Persistent,
@@ -272,8 +342,21 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                                                       NativeArrayOptions.UninitializedMemory);
             _boundarySamples = new NativeArray<byte>(GridSampleCount, Allocator.Persistent,
                                                      NativeArrayOptions.UninitializedMemory);
-            _densityBricks = new NativeArray<TransvoxelDensityBrick>(
-                BrickCacheCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            if (SamplesFromMips)
+            {
+                _mipSampleOccupancy = new NativeArray<byte>(
+                    GridSampleCount, Allocator.Persistent,
+                    NativeArrayOptions.UninitializedMemory);
+                _mipSampleMaterials = new NativeArray<byte>(
+                    GridSampleCount, Allocator.Persistent,
+                    NativeArrayOptions.UninitializedMemory);
+            }
+            else
+            {
+                _densityBricks = new NativeArray<TransvoxelDensityBrick>(
+                    BrickCacheCount, Allocator.Persistent,
+                    NativeArrayOptions.UninitializedMemory);
+            }
             _densityMixedVoxels = new NativeList<byte>(64 * 1024, Allocator.Persistent);
             _densityMixedSurfaceSemantics = new NativeList<ushort>(64 * 1024, Allocator.Persistent);
             _densityMixedBoundarySamples = new NativeList<byte>(64 * 1024, Allocator.Persistent);
@@ -294,6 +377,160 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _facetedVertices = new NativeList<SmoothSurfaceVertex>(16_384, Allocator.Persistent);
             _facetedIndices = new NativeList<uint>(24_576, Allocator.Persistent);
             InitialiseTopologyTables();
+            InitialiseTransitionTables();
+        }
+
+        /// <summary>
+        /// Flattens the jagged transition tables into Burst-friendly arrays. The jagged form is
+        /// how the data is published; jobs need fixed strides.
+        /// </summary>
+        private void InitialiseTransitionTables()
+        {
+            byte[] cellClass = TransvoxelTransitionTables.CellClass;
+            RegularCellData[] cellData = TransvoxelTransitionTables.CellData;
+            ushort[][] vertexData = TransvoxelTransitionTables.VertexData;
+
+            _transitionVertexStride = 0;
+            for (int i = 0; i < vertexData.Length; i++)
+                _transitionVertexStride = math.max(_transitionVertexStride, vertexData[i].Length);
+            _transitionIndexStride = 0;
+            for (int i = 0; i < cellData.Length; i++)
+                _transitionIndexStride = math.max(_transitionIndexStride,
+                                                  cellData[i].VertexIndices.Length);
+
+            _transitionCellClass = new NativeArray<byte>(cellClass.Length, Allocator.Persistent);
+            for (int i = 0; i < cellClass.Length; i++) _transitionCellClass[i] = cellClass[i];
+
+            _transitionGeometryCounts = new NativeArray<byte>(cellData.Length,
+                                                              Allocator.Persistent);
+            _transitionCellIndices = new NativeArray<byte>(
+                cellData.Length * math.max(1, _transitionIndexStride), Allocator.Persistent);
+            for (int i = 0; i < cellData.Length; i++)
+            {
+                _transitionGeometryCounts[i] = cellData[i].GeometryCounts;
+                byte[] indices = cellData[i].VertexIndices;
+                for (int j = 0; j < indices.Length; j++)
+                    _transitionCellIndices[i * _transitionIndexStride + j] = indices[j];
+            }
+
+            _transitionVertexData = new NativeArray<ushort>(
+                vertexData.Length * math.max(1, _transitionVertexStride), Allocator.Persistent);
+            for (int i = 0; i < vertexData.Length; i++)
+            {
+                ushort[] row = vertexData[i];
+                for (int j = 0; j < row.Length; j++)
+                    _transitionVertexData[i * _transitionVertexStride + j] = row[j];
+            }
+
+            int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
+            _faceDensity = new NativeArray<float>(faceSamples, Allocator.Persistent);
+            _faceMaterials = new NativeArray<byte>(faceSamples, Allocator.Persistent);
+            _faceSurfaces = new NativeArray<uint>(faceSamples, Allocator.Persistent);
+            _transitionVertices = new NativeList<SmoothSurfaceVertex>(2048, Allocator.Persistent);
+            _transitionIndices = new NativeList<uint>(3072, Allocator.Persistent);
+        }
+
+        /// <summary>
+        /// Stitches every face of the in-flight chunk that borders a finer ring.
+        ///
+        /// Runs after the regular cells are appended, so transition geometry is added to the
+        /// same vertex and index lists and ships in one mesh. A chunk with no finer neighbour —
+        /// the common case, and every chunk in the innermost ring — does no work here.
+        /// </summary>
+        private void AppendTransitionFaces(ref RegionTable table, in BrickPool pool,
+                                           in MaterialPalette palette,
+                                           Camera camera, float voxelSize)
+        {
+            if (MinViewDistanceMetres <= 0f || camera == null) return;
+
+            Vector3 cameraPosition = camera.transform.position;
+            for (int face = 0; face < 6; face++)
+            {
+                if (!FaceNeedsTransition(_build.Coordinate, face, voxelSize, cameraPosition))
+                    continue;
+
+                SnapshotTransitionFace(ref table, in pool, in palette, face);
+
+                _transitionVertices.Clear();
+                _transitionIndices.Clear();
+                new TransitionMeshJob
+                {
+                    FaceDensity = _faceDensity,
+                    FaceMaterials = _faceMaterials,
+                    FaceSurfaces = _faceSurfaces,
+                    FaceSamplesPerAxis = FaceSamplesPerAxis,
+                    TransitionCellClass = _transitionCellClass,
+                    TransitionGeometryCounts = _transitionGeometryCounts,
+                    TransitionCellIndices = _transitionCellIndices,
+                    TransitionVertexData = _transitionVertexData,
+                    VertexDataStride = _transitionVertexStride,
+                    CellIndexStride = _transitionIndexStride,
+                    Vertices = _transitionVertices,
+                    Indices = _transitionIndices,
+                    ChunkOriginVoxel = _build.Coordinate * VoxelsPerAxis,
+                    CellsPerAxis = CellsPerAxis,
+                    SourceStep = SourceStep,
+                    VoxelSize = voxelSize,
+                    Face = face,
+                }.Run();
+
+                uint vertexBase = (uint)_vertices.Count;
+                NativeArray<SmoothSurfaceVertex> vertices = _transitionVertices.AsArray();
+                for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
+                NativeArray<uint> indices = _transitionIndices.AsArray();
+                for (int i = 0; i < indices.Length; i++) _indices.Add(vertexBase + indices[i]);
+            }
+        }
+
+        /// <summary>
+        /// Samples one chunk face at half this ring's stride — the finer neighbour's spacing.
+        ///
+        /// The chunk lattice cannot supply these: it is sampled at the ring's own stride and
+        /// simply does not contain the intermediate positions. Reading them from the same
+        /// authoritative source the finer ring reads is what makes the two sides agree on where
+        /// the surface crosses, which is the whole mechanism by which the seam closes.
+        /// </summary>
+        private void SnapshotTransitionFace(ref RegionTable table, in BrickPool pool,
+                                            in MaterialPalette palette, int face)
+        {
+            int axis = face >> 1;
+            bool positive = (face & 1) != 0;
+            int3 uAxis, vAxis;
+            switch (axis)
+            {
+                case 0: uAxis = new int3(0, 1, 0); vAxis = new int3(0, 0, 1); break;
+                case 1: uAxis = new int3(0, 0, 1); vAxis = new int3(1, 0, 0); break;
+                default: uAxis = new int3(1, 0, 0); vAxis = new int3(0, 1, 0); break;
+            }
+
+            int3 chunkOrigin = _build.Coordinate * VoxelsPerAxis;
+            int3 faceOrigin = chunkOrigin;
+            if (positive) faceOrigin[axis] += VoxelsPerAxis;
+
+            int halfStep = math.max(1, SourceStep / 2);
+            // Half a ring stride is one level finer than the ring itself; for the finest ring
+            // that reaches actual voxels, which LevelForStride reports as a negative level.
+            int mipLevel = VoxelMipSampler.LevelForStride(halfStep);
+
+            for (int v = 0; v < FaceSamplesPerAxis; v++)
+            for (int u = 0; u < FaceSamplesPerAxis; u++)
+            {
+                int3 voxel = faceOrigin + uAxis * (u * halfStep) + vAxis * (v * halfStep);
+                bool occupied = false;
+                byte material = VoxelDimensions.MaterialEmpty;
+                if (VoxelMipSampler.TrySample(ref table, in pool, voxel, mipLevel,
+                                              out bool sampled, out byte sampledMaterial))
+                {
+                    occupied = sampled;
+                    material = sampledMaterial;
+                }
+
+                int index = u + FaceSamplesPerAxis * v;
+                _faceDensity[index] = occupied ? 0.5f : -0.5f;
+                _faceMaterials[index] = material;
+                _faceSurfaces[index] = occupied
+                    ? palette.GetDefaultSurfaceStyle(material) : 0u;
+            }
         }
 
         private void InitialiseTopologyTables()
@@ -321,7 +558,21 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         }
 
         public int MaxResidentChunks { get; set; } = 4096;
-        public float MaxViewDistanceMetres { get; set; } = 80f;
+        /// <summary>
+        /// Outer edge of this ring's band. Beyond it the next coarser ring takes over.
+        /// </summary>
+        public float MaxViewDistanceMetres { get; set; } = 96f;
+
+        /// <summary>
+        /// Inner edge of this ring's band. A chunk lying entirely inside it belongs to a finer
+        /// ring and is neither drawn nor built here, so the rings partition the view rather
+        /// than overlapping. Zero for the innermost ring.
+        ///
+        /// The test is against the chunk's *farthest* corner: a chunk is surrendered only once
+        /// all of it is within the finer ring's reach, so a chunk straddling the boundary is
+        /// still drawn here and the seam never opens into a gap.
+        /// </summary>
+        public float MinViewDistanceMetres { get; set; }
         public int ShardIndex { get; set; }
         public int ShardCount { get; set; } = 1;
         public int ResidentCount => _entries.Count;
@@ -372,10 +623,17 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _profileBlocksByChunk.TryGetValue(coordinate, out ProfileBlock[] blocks)
                 ? blocks.Length : 0;
 
-        public static bool ChunkOverlapsRegion(int3 chunk, int3 region)
+        /// <summary>
+        /// Whether a chunk's sampled extent, including its one-sample halo, reaches into a
+        /// region. The halo is a full <paramref name="sourceStep"/> wide, so a coarse ring
+        /// reaches further past its own bounds than the base ring does.
+        /// </summary>
+        public static bool ChunkOverlapsRegion(int3 chunk, int3 region,
+                                               int voxelsPerAxis = BaseVoxelsPerAxis,
+                                               int sourceStep = BaseSourceStep)
         {
-            int3 chunkMin = chunk * VoxelsPerAxis - Padding * SourceStep;
-            int3 chunkMax = (chunk + 1) * VoxelsPerAxis + Padding * SourceStep;
+            int3 chunkMin = chunk * voxelsPerAxis - Padding * sourceStep;
+            int3 chunkMax = (chunk + 1) * voxelsPerAxis + Padding * sourceStep;
             int3 regionMin = region * VoxelDimensions.RegionVoxelEdge;
             int3 regionMax = regionMin + VoxelDimensions.RegionVoxelEdge;
             return !math.any(chunkMax <= regionMin) && !math.any(chunkMin >= regionMax);
@@ -433,7 +691,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             {
                 foreach (int3 dirtyRegion in dirtyRegions)
                 {
-                    if (!ChunkOverlapsRegion(chunk, dirtyRegion)) continue;
+                    if (!ChunkOverlapsRegion(chunk, dirtyRegion, VoxelsPerAxis, SourceStep))
+                        continue;
                     (affected ??= new List<int3>()).Add(chunk);
                     break;
                 }
@@ -489,6 +748,17 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                     if (!_densityJobScheduled)
                         ScheduleDensityJob(ref table, in pool, in palette, voxelSize);
 
+                    // Border invalidation intentionally discovers halo chunks. If the immutable
+                    // snapshot proves this chunk owns no solid cells, publish a complete empty
+                    // result without scanning/merging all 64^3 cells. Profile blocks still run
+                    // because their authored geometry may overlap an otherwise empty core.
+                    if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
+                    {
+                        _build.Phase = 3;
+                        _build.Cursor = 0;
+                        continue;
+                    }
+
                     if (!_build.RequiresContinuousTopology)
                     {
                         ScheduleSnapshotFacetedMaskJob();
@@ -540,7 +810,12 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 bool profilesDone;
                 using (s_ProfileMarker.Auto()) profilesDone = StepProfileBlocks(voxelSize);
                 _profileEmitTiming.Add(ElapsedMs(profileStart));
-                if (profilesDone) FinishBuild(frame);
+                if (profilesDone)
+                {
+                    AppendTransitionFaces(ref table, in pool, in palette,
+                                          camera, voxelSize);
+                    FinishBuild(frame);
+                }
             }
             while (Time.realtimeSinceStartupAsDouble < deadline);
         }
@@ -628,7 +903,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 FaceMasks = _facetedMasks,
             };
             _build.FacetedScheduledSeconds = Time.realtimeSinceStartupAsDouble;
-            _facetedMaskJobHandle = job.Schedule(_facetedMasks.Length, 128, dependency);
+            _facetedMaskJobHandle = job.Schedule(
+                CellsPerAxis * CellsPerAxis * CellsPerAxis, 128, dependency);
             _facetedMaskJobScheduled = true;
         }
 
@@ -652,7 +928,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 FaceMasks = _facetedMasks,
             };
             _build.FacetedScheduledSeconds = Time.realtimeSinceStartupAsDouble;
-            _facetedMaskJobHandle = job.Schedule(_facetedMasks.Length, 128);
+            _facetedMaskJobHandle = job.Schedule(
+                CellsPerAxis * CellsPerAxis * CellsPerAxis, 128);
             _facetedMaskJobScheduled = true;
         }
 
@@ -711,13 +988,15 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             foreach (int3 coordinate in _known)
             {
                 Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
-                if (bounds.SqrDistance(cameraPosition)
-                    > MaxViewDistanceMetres * MaxViewDistanceMetres) continue;
+                if (!WithinRingBand(bounds, cameraPosition)) continue;
                 if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
                     continue;
                 if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
                 {
-                    MissingVisibleCount++;
+                    // A known-empty chunk is a completed build with nothing to draw, not a
+                    // hole waiting on work. Counting it as missing would keep the metric
+                    // permanently alarmed across the mostly-air volume of any view sphere.
+                    if (!_emptyVersions.ContainsKey(coordinate)) MissingVisibleCount++;
                     continue;
                 }
                 // A ready zero-index entry is a complete, intentionally empty result.
@@ -740,8 +1019,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             foreach (int3 candidate in _dirty)
             {
                 Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
-                float boundsDistance = bounds.SqrDistance(cameraWorldPosition);
-                if (boundsDistance > MaxViewDistanceMetres * MaxViewDistanceMetres) continue;
+                if (!WithinRingBand(bounds, cameraWorldPosition)) continue;
                 Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
                                 + Vector3.one * 0.5f) * chunkMetres;
                 float distance = (centre - cameraWorldPosition).sqrMagnitude;
@@ -775,6 +1053,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
 
         private void Invalidate(int3 chunk)
         {
+            _emptyVersions.Remove(chunk);
             _desiredVersions[chunk] = ++_versionCounter;
             if (!_dirty.Contains(chunk) && (!_build.Active || !_build.Coordinate.Equals(chunk)))
                 _queuedAtSeconds[chunk] = Time.realtimeSinceStartupAsDouble;
@@ -864,6 +1143,81 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         }
 
         /// <summary>
+        /// Snapshots one mip cell per lattice sample and schedules the coarse-ring density job.
+        ///
+        /// A coarse chunk spans far too much world to cache its bricks, but it only ever reads
+        /// GridSize³ samples, so the snapshot is sized by the lattice rather than by the world
+        /// extent. That is what keeps the outermost rings affordable no matter how much terrain
+        /// they cover. Samples whose region is absent read as empty, which leaves a hole rather
+        /// than inventing geometry the server never sent.
+        /// </summary>
+        private void ScheduleMipDensityJob(ref RegionTable table, in BrickPool pool,
+                                           in MaterialPalette palette, float voxelSize)
+        {
+            double snapshotStart = Time.realtimeSinceStartupAsDouble;
+            using var snapshotScope = s_SnapshotMarker.Auto();
+
+            int3 chunkOriginVoxel = _build.Coordinate * VoxelsPerAxis;
+            int mipLevel = VoxelMipSampler.LevelForStride(SourceStep);
+            bool anySolid = false;
+
+            for (int gz = 0; gz < GridSize; gz++)
+            for (int gy = 0; gy < GridSize; gy++)
+            for (int gx = 0; gx < GridSize; gx++)
+            {
+                int index = GridIndex(gx, gy, gz);
+                int3 voxel = chunkOriginVoxel
+                           + (new int3(gx, gy, gz) - Padding) * SourceStep;
+
+                bool occupied = false;
+                byte material = VoxelDimensions.MaterialEmpty;
+                if (VoxelMipSampler.TrySample(ref table, in pool, voxel, mipLevel,
+                                              out bool sampled, out byte sampledMaterial))
+                {
+                    occupied = sampled;
+                    material = sampledMaterial;
+                }
+
+                _mipSampleOccupancy[index] = occupied ? (byte)1 : (byte)0;
+                _mipSampleMaterials[index] = material;
+                anySolid |= occupied;
+            }
+
+            _buildSurfaceCatalogue = _surfaceCatalogue;
+            _buildCoatingCatalogue = _coatingCatalogue;
+            _buildPalette = palette;
+            _build.MaterialPaletteVersion = palette.Version;
+            _build.SnapshotTaken = true;
+            _buildProfileBlocks = Array.Empty<ProfileBlock>();
+            _build.HasOwnedSolid = anySolid;
+
+            LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
+            _snapshotTiming.Add(LastSnapshotMs);
+            if (!anySolid) return;
+
+            // Coarse rings always take the continuous path. Authored planar/cubic styles
+            // describe centimetre detail; at these strides a cell spans metres, and faceting
+            // it would produce a staircase silhouette across the whole far field.
+            _build.RequiresContinuousTopology = true;
+
+            var job = new MipDensityJob
+            {
+                SampleOccupancy = _mipSampleOccupancy,
+                SampleMaterials = _mipSampleMaterials,
+                Palette = palette,
+                Density = _density,
+                Materials = _materials,
+                SurfaceSemantics = _surfaceSemantics,
+                BoundarySamples = _boundarySamples,
+                GridSize = GridSize,
+            };
+            _build.DensityScheduledSeconds = Time.realtimeSinceStartupAsDouble;
+            _densityJobHandle = job.Schedule(GridSampleCount, 256);
+            _densityJobScheduled = true;
+            ScheduleTopologyJob(voxelSize, _densityJobHandle);
+        }
+
+        /// <summary>
         /// Resolves the padded brick neighbourhood around the chunk once and copies only mixed
         /// voxel payloads. This snapshot is immutable until the Burst density job completes, so
         /// gameplay may continue editing/evicting authoritative storage without racing the job.
@@ -871,6 +1225,12 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private void ScheduleDensityJob(ref RegionTable table, in BrickPool pool,
                                         in MaterialPalette palette, float voxelSize)
         {
+            if (SamplesFromMips)
+            {
+                ScheduleMipDensityJob(ref table, in pool, in palette, voxelSize);
+                return;
+            }
+
             double snapshotStart = Time.realtimeSinceStartupAsDouble;
             using var snapshotScope = s_SnapshotMarker.Auto();
             _densityMixedVoxels.Clear();
@@ -921,6 +1281,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _buildProfileBlocks = _profileBlocksByChunk.TryGetValue(
                 _build.Coordinate, out ProfileBlock[] blocks)
                 ? blocks : Array.Empty<ProfileBlock>();
+            _build.HasOwnedSolid = SnapshotCoreHasSolid();
+            if (!_build.HasOwnedSolid && _buildProfileBlocks.Length == 0)
+            {
+                LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
+                _snapshotTiming.Add(LastSnapshotMs);
+                return;
+            }
 
             _build.RequiresContinuousTopology = _buildProfileBlocks.Length > 0;
             for (int i = 0; i < _densityBricks.Length
@@ -963,6 +1330,30 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
             LastSnapshotMs = (Time.realtimeSinceStartupAsDouble - snapshotStart) * 1000.0;
             _snapshotTiming.Add(LastSnapshotMs);
+        }
+
+        private bool SnapshotCoreHasSolid()
+        {
+            int first = BrickCachePadding;
+            int end = first + BricksPerAxis;
+            for (int z = first; z < end; z++)
+            for (int y = first; y < end; y++)
+            for (int x = first; x < end; x++)
+            {
+                int index = x + BrickCacheEdge * (y + BrickCacheEdge * z);
+                TransvoxelDensityBrick brick = _densityBricks[index];
+                if (brick.Kind == 0) continue;
+                if (brick.Kind == 1)
+                {
+                    if (IsSolidSurfaceMaterial(brick.UniformMaterial)) return true;
+                    continue;
+                }
+
+                int endVoxel = brick.MixedOffset + VoxelDimensions.VoxelsPerBrick;
+                for (int voxel = brick.MixedOffset; voxel < endVoxel; voxel++)
+                    if (IsSolidSurfaceMaterial(_densityMixedVoxels[voxel])) return true;
+            }
+            return false;
         }
 
         private TransvoxelDensityBrick SnapshotBrick(ref RegionTable table, in BrickPool pool,
@@ -1791,9 +2182,32 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 return;
             }
 
+            // An empty result is a complete answer, but it owns no geometry, so it must not
+            // hold a resident slot. Air dominates any view sphere; letting it consume capacity
+            // 1:1 with geometry is what drove real surfaces out of the cache and produced the
+            // evict/rebuild churn. Record it as known-empty and reclaim the slot instead.
+            if (_indices.Count == 0)
+            {
+                if (_entries.TryGetValue(_build.Coordinate, out Entry stale))
+                {
+                    stale.Dispose();
+                    _entries.Remove(_build.Coordinate);
+                }
+                _emptyVersions[_build.Coordinate] = _build.SourceVersion;
+                CompletedBuildCount++;
+                _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
+                _desiredVersions.Remove(_build.Coordinate);
+                _queuedAtSeconds.Remove(_build.Coordinate);
+                _build = default;
+                _vertices.Clear();
+                _indices.Clear();
+                return;
+            }
+
+            _emptyVersions.Remove(_build.Coordinate);
             if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
             {
-                entry = new Entry(_build.Coordinate);
+                entry = new Entry(_build.Coordinate, VoxelsPerAxis, SourceStep);
                 _entries.Add(_build.Coordinate, entry);
             }
 
@@ -1824,12 +2238,36 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             List<int3> gone = null;
             foreach (int3 chunk in _known)
             {
-                if (table.IsResident(ChunkRegion(chunk))) continue;
+                if (AnyOverlappedRegionResident(ref table, chunk)) continue;
                 (gone ??= new List<int3>()).Add(chunk);
             }
 
             if (gone == null) return;
             for (int i = 0; i < gone.Count; i++) RemoveChunk(gone[i]);
+        }
+
+        /// <summary>
+        /// Whether any region the chunk overlaps is still resident. A coarse ring's chunk can be
+        /// larger than a region and straddle several, so testing only the origin region would
+        /// discard a chunk that still has most of its data — and, worse, keep one whose origin
+        /// happens to survive while the rest of it has gone.
+        /// </summary>
+        private bool AnyOverlappedRegionResident(ref RegionTable table, int3 chunk)
+        {
+            int3 minVoxel = chunk * VoxelsPerAxis;
+            int3 maxVoxel = minVoxel + (VoxelsPerAxis - 1);
+            int3 minRegion = new(FloorDiv(minVoxel.x, VoxelDimensions.RegionVoxelEdge),
+                                 FloorDiv(minVoxel.y, VoxelDimensions.RegionVoxelEdge),
+                                 FloorDiv(minVoxel.z, VoxelDimensions.RegionVoxelEdge));
+            int3 maxRegion = new(FloorDiv(maxVoxel.x, VoxelDimensions.RegionVoxelEdge),
+                                 FloorDiv(maxVoxel.y, VoxelDimensions.RegionVoxelEdge),
+                                 FloorDiv(maxVoxel.z, VoxelDimensions.RegionVoxelEdge));
+
+            for (int z = minRegion.z; z <= maxRegion.z; z++)
+            for (int y = minRegion.y; y <= maxRegion.y; y++)
+            for (int x = minRegion.x; x <= maxRegion.x; x++)
+                if (table.IsResident(new int3(x, y, z))) return true;
+            return false;
         }
 
         private void EnforceCapacity(Camera camera, float voxelSize)
@@ -1869,7 +2307,69 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
         }
 
-        private static Bounds ChunkWorldBounds(int3 coordinate, float voxelSize)
+        /// <summary>
+        /// Whether a chunk falls in this ring's band.
+        ///
+        /// <para>The band is an axis-aligned box shell, not a sphere. That is deliberate and
+        /// load-bearing: a spherical boundary cuts across chunk faces, so a coarse chunk would
+        /// meet a finer neighbour over part of one face and a same-resolution neighbour over
+        /// the rest, and a transition cell has nowhere to attach. Snapping the boundary to the
+        /// coarse ring's own chunk grid means every LOD change happens exactly on a chunk face,
+        /// which is the precondition for stitching it. This is the standard clipmap
+        /// arrangement.</para>
+        ///
+        /// <para>The inner cut tests the chunk's farthest corner and the outer cut its nearest,
+        /// so the bands overlap by up to one chunk rather than leaving a gap when the viewer
+        /// moves between frames.</para>
+        /// </summary>
+        private bool WithinRingBand(Bounds bounds, Vector3 cameraPosition)
+        {
+            Vector3 extents = bounds.extents;
+            Vector3 delta = bounds.center - cameraPosition;
+            float nearX = Mathf.Max(0f, Mathf.Abs(delta.x) - extents.x);
+            float nearY = Mathf.Max(0f, Mathf.Abs(delta.y) - extents.y);
+            float nearZ = Mathf.Max(0f, Mathf.Abs(delta.z) - extents.z);
+            // Chebyshev distance: the box shell's defining metric.
+            float near = Mathf.Max(nearX, Mathf.Max(nearY, nearZ));
+            if (near > MaxViewDistanceMetres) return false;
+            if (MinViewDistanceMetres <= 0f) return true;
+
+            float far = Mathf.Max(Mathf.Abs(delta.x) + extents.x,
+                        Mathf.Max(Mathf.Abs(delta.y) + extents.y,
+                                  Mathf.Abs(delta.z) + extents.z));
+            return far > MinViewDistanceMetres;
+        }
+
+        /// <summary>
+        /// Whether the neighbour across <paramref name="face"/> belongs to a finer ring, which
+        /// is where this chunk must emit transition geometry. Faces are indexed as
+        /// 0=-X, 1=+X, 2=-Y, 3=+Y, 4=-Z, 5=+Z.
+        ///
+        /// A finer neighbour exists exactly when this chunk sits on the inner edge of the band:
+        /// the neighbour in that direction lies wholly inside <see cref="MinViewDistanceMetres"/>
+        /// and is therefore owned by the ring one step finer.
+        /// </summary>
+        public bool FaceNeedsTransition(int3 coordinate, int face, float voxelSize,
+                                        Vector3 cameraPosition)
+        {
+            if (MinViewDistanceMetres <= 0f) return false;
+
+            int axis = face >> 1;
+            int direction = (face & 1) == 0 ? -1 : 1;
+            int3 neighbour = coordinate;
+            neighbour[axis] += direction;
+
+            Bounds neighbourBounds = ChunkWorldBounds(neighbour, voxelSize);
+            Vector3 extents = neighbourBounds.extents;
+            Vector3 delta = neighbourBounds.center - cameraPosition;
+            float far = Mathf.Max(Mathf.Abs(delta.x) + extents.x,
+                        Mathf.Max(Mathf.Abs(delta.y) + extents.y,
+                                  Mathf.Abs(delta.z) + extents.z));
+            // Wholly inside the inner cut means the finer ring owns it outright.
+            return far <= MinViewDistanceMetres;
+        }
+
+        private Bounds ChunkWorldBounds(int3 coordinate, float voxelSize)
         {
             float size = VoxelsPerAxis * voxelSize;
             Vector3 min = new Vector3(coordinate.x, coordinate.y, coordinate.z) * size;
@@ -1882,6 +2382,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _known.Remove(chunk);
             _dirty.Remove(chunk);
             _desiredVersions.Remove(chunk);
+            _emptyVersions.Remove(chunk);
             _queuedAtSeconds.Remove(chunk);
             if (_entries.TryGetValue(chunk, out Entry entry))
             {
@@ -1920,12 +2421,17 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
         }
 
-        private static int3 ChunkRegion(int3 chunk)
+        /// <summary>
+        /// Maps a chunk coordinate in this ring's own coordinate space to the region that
+        /// contains its origin. Derived from the voxel origin rather than a chunks-per-region
+        /// shift, because a coarse ring's chunk can be as large as, or larger than, a region.
+        /// </summary>
+        private int3 ChunkRegion(int3 chunk)
         {
-            const int chunksPerRegion = VoxelDimensions.RegionVoxelEdge / VoxelsPerAxis;
-            int shift = 0;
-            for (int n = chunksPerRegion; n > 1; n >>= 1) shift++;
-            return new int3(chunk.x >> shift, chunk.y >> shift, chunk.z >> shift);
+            int3 originVoxel = chunk * VoxelsPerAxis;
+            return new int3(FloorDiv(originVoxel.x, VoxelDimensions.RegionVoxelEdge),
+                            FloorDiv(originVoxel.y, VoxelDimensions.RegionVoxelEdge),
+                            FloorDiv(originVoxel.z, VoxelDimensions.RegionVoxelEdge));
         }
 
         private static int GridIndex(int x, int y, int z) =>
@@ -1961,6 +2467,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             if (_surfaceSemantics.IsCreated) _surfaceSemantics.Dispose();
             if (_boundarySamples.IsCreated) _boundarySamples.Dispose();
             if (_densityBricks.IsCreated) _densityBricks.Dispose();
+            if (_mipSampleOccupancy.IsCreated) _mipSampleOccupancy.Dispose();
+            if (_mipSampleMaterials.IsCreated) _mipSampleMaterials.Dispose();
             if (_densityMixedVoxels.IsCreated) _densityMixedVoxels.Dispose();
             if (_densityMixedSurfaceSemantics.IsCreated) _densityMixedSurfaceSemantics.Dispose();
             if (_densityMixedBoundarySamples.IsCreated) _densityMixedBoundarySamples.Dispose();
@@ -1972,6 +2480,15 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             if (_compactedTopologyVertices.IsCreated) _compactedTopologyVertices.Dispose();
             if (_compactedTopologyIndices.IsCreated) _compactedTopologyIndices.Dispose();
             if (_topologyOverflowCell.IsCreated) _topologyOverflowCell.Dispose();
+            if (_faceDensity.IsCreated) _faceDensity.Dispose();
+            if (_faceMaterials.IsCreated) _faceMaterials.Dispose();
+            if (_faceSurfaces.IsCreated) _faceSurfaces.Dispose();
+            if (_transitionCellClass.IsCreated) _transitionCellClass.Dispose();
+            if (_transitionGeometryCounts.IsCreated) _transitionGeometryCounts.Dispose();
+            if (_transitionCellIndices.IsCreated) _transitionCellIndices.Dispose();
+            if (_transitionVertexData.IsCreated) _transitionVertexData.Dispose();
+            if (_transitionVertices.IsCreated) _transitionVertices.Dispose();
+            if (_transitionIndices.IsCreated) _transitionIndices.Dispose();
             if (_facetedMasks.IsCreated) _facetedMasks.Dispose();
             if (_facetedVertices.IsCreated) _facetedVertices.Dispose();
             if (_facetedIndices.IsCreated) _facetedIndices.Dispose();

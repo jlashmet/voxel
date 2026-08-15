@@ -32,6 +32,10 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
             float4 _SunDirection;
             float4 _SkyHorizon;
             float4 _SkyZenith;
+            // x = deck scale, y = coverage threshold, z = drift speed, w = opacity
+            float4 _CloudParams;
+            float4 _CloudColour;
+            float4 _CloudShadow;
 
             struct Varyings
             {
@@ -55,8 +59,79 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
 
             float3 GradientSky(float3 direction)
             {
-                return lerp(_SkyHorizon.rgb, _SkyZenith.rgb,
-                            saturate(direction.y * 0.5 + 0.5));
+                // Horizon wash must be confined to a narrow band just above the skyline.
+                // An exponent of 2.2 left the horizon colour still contributing 66% at ten
+                // degrees up and 40% at twenty, so everything except the zenith read grey —
+                // worse than the linear ramp it replaced. A high exponent collapses the wash
+                // into the few degrees where it actually belongs.
+                float t = saturate(direction.y);
+                float blend = pow(1.0 - t, 9.0);
+                return lerp(_SkyZenith.rgb, _SkyHorizon.rgb, blend);
+            }
+
+            // -- clouds ---------------------------------------------------------------
+            // Value-noise fBm on a plane at cloud altitude. Cheap, and the sky pass is a
+            // single full-screen quad that only shades background pixels, so this costs
+            // nothing where terrain covers the view.
+            float CloudHash(float2 p)
+            {
+                p = frac(p * float2(127.1, 311.7));
+                p += dot(p, p + 34.23);
+                return frac(p.x * p.y);
+            }
+
+            float CloudNoise(float2 p)
+            {
+                float2 i = floor(p);
+                float2 f = frac(p);
+                f = f * f * (3.0 - 2.0 * f);
+                float a = CloudHash(i);
+                float b = CloudHash(i + float2(1.0, 0.0));
+                float c = CloudHash(i + float2(0.0, 1.0));
+                float d = CloudHash(i + float2(1.0, 1.0));
+                return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+            }
+
+            float CloudFbm(float2 p)
+            {
+                float sum = 0.0;
+                float amplitude = 0.5;
+                [unroll]
+                for (int i = 0; i < 5; i++)
+                {
+                    sum += CloudNoise(p) * amplitude;
+                    p = p * 2.02 + 17.3;
+                    amplitude *= 0.5;
+                }
+                return sum;
+            }
+
+            float3 Clouds(float3 direction, float3 sky)
+            {
+                // Below the horizon there is no cloud plane to intersect.
+                if (direction.y <= 0.02) return sky;
+
+                float drift = _Time.y * _CloudParams.z;
+                // Project the view ray onto the cloud deck. The 1/y term is what gives the
+                // deck its perspective: cells stretch toward the horizon instead of tiling
+                // uniformly across the dome.
+                float2 uv = direction.xz / direction.y * _CloudParams.x + float2(drift, drift * 0.6);
+
+                // Domain warp, so the shapes billow instead of reading as noise.
+                float2 warp = float2(CloudFbm(uv * 0.5 + 11.7), CloudFbm(uv * 0.5 + 41.3));
+                float density = CloudFbm(uv + warp * 1.8);
+
+                float coverage = _CloudParams.y;
+                float mask = smoothstep(coverage, coverage + 0.28, density);
+                // Fade the deck out at the horizon so it never forms a hard band.
+                mask *= smoothstep(0.02, 0.30, direction.y);
+
+                float sunAmount = saturate(dot(direction, normalize(_SunDirection.xyz)));
+                float3 lit = lerp(_CloudColour.rgb, float3(1.0, 0.96, 0.90),
+                                  pow(sunAmount, 6.0) * 0.55);
+                // Thicker cloud shades toward its own underside rather than going grey.
+                float3 shaded = lerp(_CloudShadow.rgb, lit, saturate(density * 1.4));
+                return lerp(sky, shaded, mask * _CloudParams.w);
             }
 
             float3 AuthoredSky(float3 direction)
@@ -66,7 +141,9 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
                 float3 painted = SAMPLE_TEXTURE2D_LOD(_SkyTexture, sampler_SkyTexture, skyUv, 0).rgb;
                 float luminance = dot(painted, float3(0.2126, 0.7152, 0.0722));
                 painted = lerp(luminance.xxx, painted, 0.46);
-                float3 sky = lerp(painted, GradientSky(direction), 0.48);
+                // The gradient now leads. The panorama had been supplying most of the colour
+                // and it is a desaturated plate, which is what kept the sky looking washed out.
+                float3 sky = lerp(painted, GradientSky(direction), 0.82);
 
                 float sunDot = saturate(dot(direction, normalize(_SunDirection.xyz)));
                 float broadHalo = pow(sunDot, 18.0);
@@ -75,6 +152,8 @@ Shader "Hidden/VoxelEngine/AuthoredSky"
                 sky += float3(1.0, 0.55, 0.23) * broadHalo * 0.12;
                 sky += float3(1.0, 0.72, 0.42) * innerHalo * 0.24;
                 sky += float3(1.0, 0.92, 0.72) * disc * 1.25;
+                // Clouds last: they occlude the sun halo rather than being washed out by it.
+                sky = Clouds(direction, sky);
                 return sky;
             }
 

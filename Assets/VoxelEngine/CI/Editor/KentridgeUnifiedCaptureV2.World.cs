@@ -15,8 +15,8 @@ namespace VoxelEngine.CI
     {
         private static List<int3> ChunkSeeds(int minX, int maxX, int minZ, int maxZ)
         {
-            int edge = CpuTransvoxelChunkCache.VoxelsPerAxis;
-            int bricks = CpuTransvoxelChunkCache.BricksPerAxis;
+            int edge = CpuTransvoxelChunkCache.BaseVoxelsPerAxis;
+            int bricks = CpuTransvoxelChunkCache.BaseBricksPerAxis;
             int interior = Math.Max(1, bricks / 2);
             int minCX = FloorDiv(minX, edge) - 1;
             int maxCX = FloorDiv(maxX, edge) + 1;

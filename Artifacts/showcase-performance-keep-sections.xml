@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Failed(Child)" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-13 20:00:03Z" end-time="2026-08-13 20:00:13Z" duration="10.028502">
+  <test-suite type="TestSuite" id="1175" name="voxel" fullname="voxel" runstate="Runnable" testcasecount="121" result="Failed" site="Child" start-time="2026-08-13 20:00:03Z" end-time="2026-08-13 20:00:13Z" duration="10.028502" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <failure>
+      <message><![CDATA[One or more child tests had errors]]></message>
+    </failure>
+    <test-suite type="Assembly" id="1171" name="VoxelEngine.Tests.PlayMode.dll" fullname="/Users/jlashmet/code/voxel/Library/ScriptAssemblies/VoxelEngine.Tests.PlayMode.dll" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 20:00:03Z" end-time="2026-08-13 20:00:13Z" duration="10.024033" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="41120" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <failure>
+        <message><![CDATA[One or more child tests had errors]]></message>
+      </failure>
+      <test-suite type="TestSuite" id="1172" name="VoxelEngine" fullname="VoxelEngine" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 20:00:03Z" end-time="2026-08-13 20:00:13Z" duration="10.023253" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <failure>
+          <message><![CDATA[One or more child tests had errors]]></message>
+        </failure>
+        <test-suite type="TestSuite" id="1173" name="Tests" fullname="VoxelEngine.Tests" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 20:00:03Z" end-time="2026-08-13 20:00:13Z" duration="10.022569" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <failure>
+            <message><![CDATA[One or more child tests had errors]]></message>
+          </failure>
+          <test-suite type="TestSuite" id="1174" name="PlayMode" fullname="VoxelEngine.Tests.PlayMode" runstate="Runnable" testcasecount="67" result="Failed" site="Child" start-time="2026-08-13 20:00:03Z" end-time="2026-08-13 20:00:13Z" duration="10.021836" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <failure>
+              <message><![CDATA[One or more child tests had errors]]></message>
+            </failure>
+            <test-suite type="TestFixture" id="1153" name="ShowcasePerformanceTests" fullname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests" classname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests" runstate="Runnable" testcasecount="1" result="Failed" site="Child" start-time="2026-08-13 20:00:03Z" end-time="2026-08-13 20:00:13Z" duration="10.020038" total="1" passed="0" failed="1" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <failure>
+                <message><![CDATA[One or more child tests had errors]]></message>
+              </failure>
+              <test-case id="1154" name="FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls" fullname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests.FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls" methodname="FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls" classname="VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests" runstate="Runnable" seed="1280612958" result="Failed" start-time="2026-08-13 20:00:03Z" end-time="2026-08-13 20:00:13Z" duration="10.015302" asserts="0">
+                <properties>
+                  <property name="_JOINTYPE" value="UnityCombinatorial" />
+                  <property name="Timeout" value="120000" />
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <failure>
+                  <message><![CDATA[  Full showcase did not converge within 10 seconds: elapsed=10.01s frames=105 castle=44,367,415 castleRegions=9/9 castleStage=9 lastCastleStage=8:254.19ms maxCastleStage=6:2361.63ms regionProgress=0.87 lastGenerate=3.18ms resident=368/2673 dirty=2305 visible=259 missing=437 jobs=3 sections.p95=prepare:9.05,journal:0.00,invalidate:0.00,discover:0.00,workers:8.84,rules:0.00,residency:0.03,capacity:0.00,select:0.08,visibility:0.57,snapshot:1.73,compact:1.69,merge:0.61,upload:0.34,queue:1272.99,build:56.97ms state=feature-aware resident=368/2673 dirty=2305 visible=259 missingVisible=437 jobs=3 prepare.p95=9.05ms discover.p95=0.00ms select.p95=0.08ms visibility.p95=0.57ms queue.p95=1273.0ms build.p95=57.0ms snapshot.p95=1.73ms compact.p95=1.69ms merge.p95=0.61ms upload.p95=0.34ms
+  Expected: True
+  But was:  False
+]]></message>
+                  <stack-trace><![CDATA[at VoxelEngine.Tests.PlayMode.ShowcasePerformanceTests+<FullShowcaseConvergesWithinTenSecondsWithoutLaterStalls>d__0.MoveNext () [0x001af] in /Users/jlashmet/code/voxel/Assets/Tests/PlayMode/ShowcasePerformanceTests.cs:58
+at UnityEngine.TestTools.TestEnumerator+<Execute>d__7.MoveNext () [0x0003a] in ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEngine.TestRunner/NUnitExtensions/Attributes/TestEnumerator.cs:44
+]]></stack-trace>
+                </failure>
+                <output><![CDATA[Procedural vegetation: worldgen published 30 semantic Showcase trees.
+### CASTLE_KEEP shell=768.53ms
+### CASTLE_KEEP turrets=340.12ms
+### CASTLE_KEEP floors-and-rooms=334.46ms
+### CASTLE_KEEP entrance-and-stairs=50.70ms
+### CASTLE_KEEP windows=67.76ms
+### CASTLE_KEEP facade-and-oriel=43.07ms
+### CASTLE_KEEP roof-and-wings=756.08ms
+### CASTLE_KEEP total=2360.88ms
+<b><color=#2EA3FF>MCP-FOR-UNITY</color></b>: [TestRunnerNoThrottle] Restored Interaction Mode after test run.
+Saving results to: /Users/jlashmet/Library/Application Support/DefaultCompany/voxel/TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

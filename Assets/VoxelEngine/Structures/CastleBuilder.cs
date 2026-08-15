@@ -48,6 +48,10 @@ namespace VoxelEngine.Structures
             internal CastlePlan Plan;
             internal uint TerrainSeed;
             internal int Stage;
+            internal int KeepStage;
+            internal int SitePhase;
+            internal int SiteCursor;
+            internal Random SiteRandom;
 
             public bool IsCreated => Stage > 0;
             public bool IsComplete => Stage > 8;
@@ -274,12 +278,32 @@ namespace VoxelEngine.Structures
             string stage;
             switch (build.Stage)
             {
-                case 1: Site(ref build.Brush, in build.Plan, build.TerrainSeed); stage = "site"; break;
+                case 1:
+                    stage = "site";
+                    if (!StepSite(ref build.Brush, in build.Plan, build.TerrainSeed,
+                                  ref build.SitePhase, ref build.SiteCursor,
+                                  ref build.SiteRandom))
+                    {
+                        RequireBudget(in build.Brush, stage);
+                        table = build.Brush.Table;
+                        pool = build.Brush.Pool;
+                        return false;
+                    }
+                    break;
                 case 2: CurtainWalls(ref build.Brush, in build.Plan); stage = "curtain walls"; break;
                 case 3: CornerTowers(ref build.Brush, in build.Plan); stage = "corner towers"; break;
                 case 4: Gatehouse(ref build.Brush, in build.Plan); stage = "gatehouse"; break;
                 case 5: Courtyard(ref build.Brush, in build.Plan); stage = "courtyard"; break;
-                case 6: Keep(ref build.Brush, in build.Plan); stage = "keep"; break;
+                case 6:
+                    stage = $"keep {build.KeepStage + 1}";
+                    if (!StepKeep(ref build.Brush, in build.Plan, ref build.KeepStage))
+                    {
+                        RequireBudget(in build.Brush, stage);
+                        table = build.Brush.Table;
+                        pool = build.Brush.Pool;
+                        return false;
+                    }
+                    break;
                 case 7: Dungeon(ref build.Brush, in build.Plan); stage = "dungeon"; break;
                 case 8:
                     LandscapeDetails(ref build.Brush, in build.Plan, build.TerrainSeed);
@@ -317,72 +341,81 @@ namespace VoxelEngine.Structures
         /// Done before any masonry so the walls have something to sit on, and so the cliff edge
         /// can be read when placing them.
         /// </summary>
-        private static void Site(ref VoxelBrush brush, in CastlePlan plan, uint terrainSeed)
+        private static bool StepSite(ref VoxelBrush brush, in CastlePlan plan, uint terrainSeed,
+                                     ref int phase, ref int cursor, ref Random rng)
         {
-            var rng = new Random(plan.Seed ^ 0x51E5u);
-
             int top = plan.Centre.y + plan.PlateauHeight;
             int radius = plan.PlateauRadius;
             int skirt = radius + plan.CliffDrop;
 
-            for (int z = -skirt; z <= skirt; z++)
-            for (int x = -skirt; x <= skirt; x++)
+            if (phase == 0)
             {
-                int wx = plan.Centre.x + x;
-                int wz = plan.Centre.z + z;
+                if (cursor == 0) rng = new Random(plan.Seed ^ 0x51E5u);
+                int rowEnd = math.min(skirt * 2 + 1, cursor + 4);
+                for (; cursor < rowEnd; cursor++)
+                {
+                    int z = cursor - skirt;
+                    for (int x = -skirt; x <= skirt; x++)
+                    {
+                        int wx = plan.Centre.x + x;
+                        int wz = plan.Centre.z + z;
 
-                float d = math.sqrt(x * x + z * z);
+                        float d = math.sqrt(x * x + z * z);
 
                 // Irregular edge: a perfectly circular plateau reads as a cake stand.
-                float angle = math.atan2(z, x);
-                float wobble = math.sin(angle * 3.7f) * 18f
-                             + math.sin(angle * 8.3f) * 9f
-                             + math.sin(angle * 17.1f) * 4f;
+                        float angle = math.atan2(z, x);
+                        float wobble = math.sin(angle * 3.7f) * 18f
+                                     + math.sin(angle * 8.3f) * 9f
+                                     + math.sin(angle * 17.1f) * 4f;
 
-                float edge = radius + wobble;
-                if (d > edge + plan.CliffDrop) continue;
+                        float edge = radius + wobble;
+                        if (d > edge + plan.CliffDrop) continue;
 
-                int ground = TerrainSampler.HeightAt(wx, wz, terrainSeed);
+                        int ground = TerrainSampler.HeightAt(wx, wz, terrainSeed);
 
-                int target;
-                if (d <= edge)
-                {
-                    target = top;
-                }
-                else
-                {
+                        int target;
+                        if (d <= edge) target = top;
+                        else
+                        {
                     // Cliff face: steep, and broken up per column. The first version eased out of
                     // the plateau with pow(t, 0.55), which gives a long shallow shoulder — and a
                     // shallow slope in voxels is a staircase of contour terraces. Falling fast
                     // and unevenly is both more castle-like and cheaper.
-                    float t = (d - edge) / plan.CliffDrop;
-                    float broken = math.pow(t, 1.7f)
-                                 + math.sin(angle * 11f + t * 6f) * 0.10f;
+                            float t = (d - edge) / plan.CliffDrop;
+                            float broken = math.pow(t, 1.7f)
+                                         + math.sin(angle * 11f + t * 6f) * 0.10f;
 
-                    target = (int)math.round(math.lerp(top, ground - 14, math.saturate(broken)));
-                }
+                            target = (int)math.round(math.lerp(
+                                top, ground - 14, math.saturate(broken)));
+                        }
 
-                if (target <= ground)
-                {
-                    brush.FillColumnBulk(wx, target + 1, ground + 1, wz, Mat.Empty);
-                }
-                else
-                {
+                        if (target <= ground)
+                            brush.FillColumnBulk(wx, target + 1, ground + 1, wz, Mat.Empty);
+                        else
+                        {
                     // Building the outcrop up. The cap is written per voxel because it is the
                     // visible surface and wants its material bands; the bulk beneath goes in as
                     // whole bricks, which is thousands of times cheaper than writing it voxel by
                     // voxel and waiting for each brick to collapse back to uniform.
-                    int stoneBottom = math.max(ground, target - 2);
-                    brush.FillColumnBulk(wx, ground, stoneBottom, wz, Mat.DarkStone);
-                    brush.FillColumnBulk(wx, stoneBottom, target + 1, wz, Mat.Stone);
-                }
+                            int stoneBottom = math.max(ground, target - 2);
+                            brush.FillColumnBulk(wx, ground, stoneBottom, wz, Mat.DarkStone);
+                            brush.FillColumnBulk(wx, stoneBottom, target + 1, wz, Mat.Stone);
+                        }
 
-                // Grass cap on the plateau, away from where the walls will sit.
-                if (d < edge - 12 && rng.NextInt(0, 100) < 92)
-                    brush.FillColumnBulk(wx, target, target + 1, wz, Mat.Grass);
+                        if (d < edge - 12 && rng.NextInt(0, 100) < 92)
+                            brush.FillColumnBulk(wx, target, target + 1, wz, Mat.Grass);
+                    }
+                }
+                if (cursor <= skirt * 2) return false;
+                phase = 1;
+                cursor = 0;
             }
 
-            LowerRiverGorge(ref brush, in plan, top);
+            int reach = plan.PlateauRadius + plan.CliffDrop - 8;
+            int columnEnd = math.min(reach * 2 + 1, cursor + 2);
+            LowerRiverGorge(ref brush, in plan, top, cursor, columnEnd, reach);
+            cursor = columnEnd;
+            return cursor > reach * 2;
         }
 
         /// <summary>
@@ -391,17 +424,17 @@ namespace VoxelEngine.Structures
         /// Dirt, grass, and exposed dark rock are authored as actual bank strata rather than a
         /// colour decal, so the height change reads from both the hero view and ground level.
         /// </summary>
-        private static void LowerRiverGorge(ref VoxelBrush brush, in CastlePlan plan, int top)
+        private static void LowerRiverGorge(ref VoxelBrush brush, in CastlePlan plan, int top,
+                                            int firstColumn, int endColumn, int reach)
         {
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
             int riverZ = gateZ - plan.WallThickness - 92;
             const int halfWidth = 90;
             const int waterHalfWidth = 42;
             int riverY = top - LowerRiverDepth;
-            int reach = plan.PlateauRadius + plan.CliffDrop - 8;
-
-            for (int x = plan.Centre.x - reach; x <= plan.Centre.x + reach; x++)
+            for (int column = firstColumn; column < endColumn; column++)
             {
+                int x = plan.Centre.x - reach + column;
                 int meander = (int)math.round(math.sin((x - plan.Centre.x) * 0.028f) * 8f
                                             + math.sin((x - plan.Centre.x) * 0.071f) * 3f);
                 int channelZ = riverZ + meander;
@@ -1312,49 +1345,64 @@ namespace VoxelEngine.Structures
         /// space rather than decoration painted on a solid block. The cutaway in the reference is
         /// only possible if the inside is actually hollow.
         /// </summary>
-        private static void Keep(ref VoxelBrush brush, in CastlePlan plan)
+        private static bool StepKeep(ref VoxelBrush brush, in CastlePlan plan, ref int stage)
         {
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int hx = plan.KeepHalfX, hz = plan.KeepHalfZ;
             var min = new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz + 60);
             var size = new int3(hx * 2, plan.KeepHeight, hz * 2);
-
-            // Shell with a plinth.
-            brush.Box(new int3(min.x - 6, baseY - 26, min.z - 6), new int3(size.x + 12, 30, size.z + 12), Mat.DarkStone);
-            brush.HollowBox(min, size, 8, Mat.Stone, false, false);
-
-            // HollowBox writes only the shell; it does not erase terrain or the solid plinth
-            // already inside that shell. Preserve the baseY floor and explicitly clear the full
-            // occupied volume above it before adding floors, partitions, and furniture.
-            brush.FillBulk(new int3(min.x + 8, baseY + 1, min.z + 8),
-                           new int3(size.x - 16, size.y - 1, size.z - 16), Mat.Empty);
-
-            // Corner turrets.
-            for (int i = 0; i < 4; i++)
-            {
-                int cx = min.x + (i % 2 == 0 ? 0 : size.x);
-                int cz = min.z + (i < 2 ? 0 : size.z);
-                Tower(ref brush, in plan, new int3(cx, baseY, cz), 26, plan.KeepHeight + 30, true);
-            }
-
-            // Floors, rooms, and the stair that connects them.
             int floors = plan.Floors;
-            for (int f = 0; f < floors; f++)
-            {
-                int y = baseY + f * plan.FloorHeight;
-                if (f > 0) brush.Box(new int3(min.x + 8, y, min.z + 8), new int3(size.x - 16, 3, size.z - 16), Mat.Wood);
 
-                Rooms(ref brush, in plan, min, size, y, f);
+            if (stage == 0)
+            {
+                // Shell with a plinth.
+                brush.Box(new int3(min.x - 6, baseY - 26, min.z - 6),
+                          new int3(size.x + 12, 30, size.z + 12), Mat.DarkStone);
+                brush.HollowBox(min, size, 8, Mat.Stone, false, false);
+
+                // HollowBox writes only the shell; it does not erase terrain or the solid plinth
+                // already inside that shell. Preserve the baseY floor and explicitly clear the
+                // occupied volume before adding floors, partitions, and furniture.
+                brush.FillBulk(new int3(min.x + 8, baseY + 1, min.z + 8),
+                               new int3(size.x - 16, size.y - 1, size.z - 16), Mat.Empty);
             }
 
-            // A visible courtyard entrance, with open timber leaves against the inner wall.
-            int entranceX = plan.Centre.x;
-            brush.Arch(new int3(entranceX - 15, baseY + 1, min.z - 1),
-                       30, 34, 10, 2, Mat.Empty);
-            brush.Box(new int3(entranceX - 15, baseY + 2, min.z + 9),
-                      new int3(4, 29, 3), Mat.Wood);
-            brush.Box(new int3(entranceX + 11, baseY + 2, min.z + 9),
-                      new int3(4, 29, 3), Mat.Wood);
+            else if (stage == 1)
+            {
+                // Corner turrets.
+                for (int i = 0; i < 4; i++)
+                {
+                    int cx = min.x + (i % 2 == 0 ? 0 : size.x);
+                    int cz = min.z + (i < 2 ? 0 : size.z);
+                    Tower(ref brush, in plan, new int3(cx, baseY, cz), 26,
+                          plan.KeepHeight + 30, true);
+                }
+            }
+
+            else if (stage == 2)
+            {
+                // Floors and rooms.
+                for (int f = 0; f < floors; f++)
+                {
+                    int y = baseY + f * plan.FloorHeight;
+                    if (f > 0)
+                        brush.Box(new int3(min.x + 8, y, min.z + 8),
+                                  new int3(size.x - 16, 3, size.z - 16), Mat.Wood);
+
+                    Rooms(ref brush, in plan, min, size, y, f);
+                }
+            }
+
+            else if (stage == 3)
+            {
+                // A visible courtyard entrance, with open timber leaves against the inner wall.
+                int entranceX = plan.Centre.x;
+                brush.Arch(new int3(entranceX - 15, baseY + 1, min.z - 1),
+                           30, 34, 10, 2, Mat.Empty);
+                brush.Box(new int3(entranceX - 15, baseY + 2, min.z + 9),
+                          new int3(4, 29, 3), Mat.Wood);
+                brush.Box(new int3(entranceX + 11, baseY + 2, min.z + 9),
+                          new int3(4, 29, 3), Mat.Wood);
 
             // Keep the entrance aisle clear after furnishing/clutter, so the front door cannot
             // generate behind a table or chest.
@@ -1390,34 +1438,41 @@ namespace VoxelEngine.Structures
             int stairX = min.x + 34;
             int stairZ = min.z + 34;
             const int stairRadius = 22;
-            brush.SpiralStair(stairX, baseY + 2, stairZ, stairRadius,
-                              floors * plan.FloorHeight, Mat.Stone);
+                brush.SpiralStair(stairX, baseY + 2, stairZ, stairRadius,
+                                  floors * plan.FloorHeight, Mat.Stone);
+            }
 
-            // Windows: arched, larger on the hall floor.
-            for (int f = 0; f < floors; f++)
+            else if (stage == 4)
             {
-                int y = baseY + f * plan.FloorHeight + 12;
-                int height = f == 1 ? plan.FloorHeight - 14 : plan.FloorHeight - 18;
-
-                for (int i = 0; i < 3; i++)
+                // Windows: arched, larger on the hall floor.
+                for (int f = 0; f < floors; f++)
                 {
-                    int x = min.x + size.x / 4 + i * size.x / 4 - 8;
-                    bool mainEntrance = f == 0 && i == 1;
-                    if (!mainEntrance)
-                    {
-                        brush.Arch(new int3(x, y, min.z), 16, height, 9, 2, Mat.Empty);
-                        brush.Box(new int3(x + 3, y + 4, min.z + 2),
-                                  new int3(10, height - 10, 2), Mat.LitWindow);
-                        brush.Box(new int3(x + 7, y + 5, min.z + 1),
-                                  new int3(2, height - 12, 3), Mat.DarkStone);
-                        brush.Box(new int3(x + 3, y + height / 2, min.z + 1),
-                                  new int3(10, 2, 3), Mat.DarkStone);
-                    }
+                    int y = baseY + f * plan.FloorHeight + 12;
+                    int height = f == 1 ? plan.FloorHeight - 14 : plan.FloorHeight - 18;
 
-                    brush.Arch(new int3(x, y, min.z + size.z - 8), 16, height, 9, 2, Mat.Empty);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        int x = min.x + size.x / 4 + i * size.x / 4 - 8;
+                        bool mainEntrance = f == 0 && i == 1;
+                        if (!mainEntrance)
+                        {
+                            brush.Arch(new int3(x, y, min.z), 16, height, 9, 2, Mat.Empty);
+                            brush.Box(new int3(x + 3, y + 4, min.z + 2),
+                                      new int3(10, height - 10, 2), Mat.LitWindow);
+                            brush.Box(new int3(x + 7, y + 5, min.z + 1),
+                                      new int3(2, height - 12, 3), Mat.DarkStone);
+                            brush.Box(new int3(x + 3, y + height / 2, min.z + 1),
+                                      new int3(10, 2, 3), Mat.DarkStone);
+                        }
+
+                        brush.Arch(new int3(x, y, min.z + size.z - 8),
+                                   16, height, 9, 2, Mat.Empty);
+                    }
                 }
             }
 
+            else if (stage == 5)
+            {
             // Floor-height string courses and projecting window hoods make the tall keep read as
             // stacked occupied storeys rather than one extruded slab. They stay outside the shell
             // and therefore do not narrow any interior route.
@@ -1455,11 +1510,15 @@ namespace VoxelEngine.Structures
                           new int3(3, keepStains[i].y + 5, 2), Mat.Moss);
             }
 
-            KeepRearOriel(ref brush, in plan, min, size, baseY);
+                KeepRearOriel(ref brush, in plan, min, size, baseY);
+            }
 
-            // Battlements and a steep roof.
-            int topY = baseY + floors * plan.FloorHeight;
-            brush.Box(new int3(min.x - 5, topY, min.z - 5), new int3(size.x + 10, 6, size.z + 10), Mat.DarkStone);
+            else if (stage == 6)
+            {
+                // Battlements and a steep roof.
+                int topY = baseY + floors * plan.FloorHeight;
+                brush.Box(new int3(min.x - 5, topY, min.z - 5),
+                          new int3(size.x + 10, 6, size.z + 10), Mat.DarkStone);
 
             for (int i = 0; i < size.x + 10; i += 44)
             {
@@ -1472,7 +1531,11 @@ namespace VoxelEngine.Structures
             KeepRooflineDetails(ref brush, in plan, min, size, topY);
 
             GreatHallWing(ref brush, in plan, min, size, baseY);
-            ChapelWing(ref brush, in plan, min, size, baseY);
+                ChapelWing(ref brush, in plan, min, size, baseY);
+            }
+
+            stage++;
+            return stage > 6;
         }
 
         /// <summary>

@@ -1,0 +1,721 @@
+Unity Editor version:    6000.5.6f1 (0e0577a1a2ac)
+Branch:                  6000.5/staging
+Build type:              Release
+Batch mode:              YES
+macOS version:           Version 15.5 (Build 24F74)
+Darwin version:          24.5.0
+Architecture:            arm64
+Running under Rosetta:   NO
+Available memory:        65536 MB
+Date:                    2026-08-13T19:51:54Z
+[Licensing::Module] Trying to connect to existing licensing client channel...
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-jlashmet" at "2026-08-13T19:51:54.147988Z"
+Launching external process: /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Helpers/PackageManager/Server/UnityPackageManager
+
+COMMAND LINE ARGUMENTS:
+/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/MacOS/Unity
+-batchmode
+-projectPath
+/Users/jlashmet/code/voxel
+-runTests
+-testPlatform
+PlayMode
+-testFilter
+VoxelEngine.Tests.PlayMode.ShowcaseSurfaceTests.ShowcaseBuildsFeatureAwareSolidGeometry
+-testResults
+Artifacts/showcase-surface-empty-fast-path.xml
+-logFile
+Artifacts/showcase-surface-empty-fast-path.log
+Successfully changed project path to: /Users/jlashmet/code/voxel
+/Users/jlashmet/code/voxel
+[UnityMemory] Configuration Parameters - Can be set up in boot.config
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-nav-mesh-worker=65536"
+    "memorysetup-temp-allocator-size-audio-worker=65536"
+    "memorysetup-temp-allocator-size-cloud-worker=32768"
+    "memorysetup-allocator-temp-initial-block-size-main=262144"
+    "memorysetup-allocator-temp-initial-block-size-worker=262144"
+    "memorysetup-temp-allocator-size-preload-manager=33554432"
+    "memorysetup-temp-allocator-size-gfx=262144"
+    "memorysetup-temp-allocator-size-background-worker=32768"
+    "memorysetup-temp-allocator-size-job-worker=262144"
+    "memorysetup-bucket-allocator-granularity=16"
+    "memorysetup-bucket-allocator-bucket-count=8"
+    "memorysetup-bucket-allocator-block-size=33554432"
+    "memorysetup-bucket-allocator-block-count=8"
+    "memorysetup-main-allocator-block-size=16777216"
+    "memorysetup-thread-allocator-block-size=16777216"
+    "memorysetup-main-allocator-mimalloc-enabled=0"
+    "memorysetup-gfx-main-allocator-block-size=16777216"
+    "memorysetup-gfx-thread-allocator-block-size=16777216"
+    "memorysetup-cache-allocator-block-size=4194304"
+    "memorysetup-typetree-allocator-block-size=2097152"
+    "memorysetup-profiler-bucket-allocator-granularity=16"
+    "memorysetup-profiler-bucket-allocator-bucket-count=8"
+    "memorysetup-profiler-bucket-allocator-block-size=33554432"
+    "memorysetup-profiler-bucket-allocator-block-count=8"
+    "memorysetup-profiler-allocator-block-size=16777216"
+    "memorysetup-profiler-editor-allocator-block-size=1048576"
+    "memorysetup-temp-allocator-size-main=16777216"
+    "memorysetup-job-temp-allocator-block-size=2097152"
+    "memorysetup-job-temp-allocator-block-size-background=1048576"
+    "memorysetup-job-temp-allocator-reduction-small-platforms=262144"
+Logging is directed to a specific file, skipping project log.Player connection [8495210240]  Target information:
+
+Player connection [8495210240]  * "[IP] 10.10.54.7 [Port] 55504 [Flags] 2 [Guid] 3583898017 [EditorId] 3583898017 [Version] 1048832 [Id] OSXEditor(0,Jasons-MacBook-Pro.local) [Debug] 1 [PackageName] OSXEditor [ProjectName] Editor" 
+
+Player connection [8495210240] Host joined multi-casting on [225.0.0.222:54997]...
+Player connection [8495210240] Host joined alternative multi-casting on [225.0.0.222:34997]...
+Input System module state changed to: Initialized.
+[Physics::Module] Initialized fallback backend.
+[Physics::Module] Id: 0xdecafbad
+[Licensing::Client] Error: HandshakeResponse reported an error:
+	ResponseCode: 505
+	ResponseStatus: Unsupported protocol version '1.18.1'.
+[Licensing::Module] Error: Failed to handshake to channel: "LicenseClient-jlashmet"
+[Licensing::IpcConnector] LicenseClient-jlashmet channel disconnected successfully.
+[Licensing::IpcConnector] Channel LicenseClient-jlashmet-6000.5.6 doesn't exist
+Launching external process: /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Helpers/UnityLicensingClient.app/Contents/MacOS/Unity.Licensing.Client
+[Licensing::Module] Successfully launched the LicensingClient (PId: 34732)
+[Package Manager] Connected to IPC stream "Upm-34729" after 0.1 seconds.
+[Licensing::Module] Licensing is not yet initialized.
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-jlashmet-6000.5.6" at "2026-08-13T19:51:54.416497Z"
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.18.1+9fbee8e
+  Session Id:              6c84af6c3c534cbea8875336459c1c3c
+  Correlation Id:          3317525d704498099f6590c9c6252d10
+  External correlation Id: 8277856674834398562
+  Machine Id:              +RIQ8xEkJcR9okhzEI7uTO1sGwM=
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-jlashmet-6000.5.6" (connect: 0.11s, validation: 0.01s, handshake: 0.15s)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-jlashmet-6000.5.6-notifications" at "2026-08-13T19:51:54.576822Z"
+[Licensing::Module] Connected to LicensingClient (PId: 34732, launch time: 0.00, total connection time: 0.27s)
+[Licensing::Module] Error: Access token is unavailable; failed to update
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] License group:
+  Id: 3465641-UnityPersXXXX
+  Product: Unity Personal
+  Type: Assigned
+  Expiration: Unlimited
+[Licensing::Client] Successfully updated license, isAsync: True, time: 0.00
+[Licensing::Module] Licensing Background thread has ended after 0.44s
+[Licensing::Module] Licensing is initialized (took 0.25s).
+[Licensing::Client] Successfully resolved entitlement details
+Library Redirect Path: Library/
+[Physics::Module] Selected backend.
+[Physics::Module] Name: PhysX
+[Physics::Module] Id: 0xf2b8ea05
+[Physics::Module] SDK Version: 4.1.2
+[Physics::Module] Integration Version: 1.0.0
+[Physics::Module] Threading Mode: Multi-Threaded
+Initialize engine version: 6000.5.6f1 (0e0577a1a2ac)
+[Subsystems] Discovering subsystems at path /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/UnitySubsystems
+[Subsystems] Discovering subsystems at path /Users/jlashmet/code/voxel/Assets
+GfxDevice: creating device client; kGfxThreadingModeNonThreaded
+ preferred device: Apple M4 Max (high power)
+Metal devices available: 1
+0: Apple M4 Max (high power)
+Using device Apple M4 Max (high power)
+Initializing Metal device caps: Apple M4 Max
+Mac GPU Family: 2
+Apple GPU Family: 9
+MSL Version: 3.0
+Has Float MSAA: 1
+Has Float Filtering: 1
+ReadWrite Texture Tier: 2
+Initialize mono
+Mono path[0] = '/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/Managed'
+Mono path[1] = '/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/BCLExtensions/runtime/netstandard2.1'
+Mono path[2] = '/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/MonoBleedingEdge/lib/mono/unityjit-macos'
+Mono config path = '/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/MonoBleedingEdge/etc'
+Using monoOptions --debugger-agent=transport=dt_socket,embedding=1,server=y,suspend=n,address=127.0.0.1:56729
+CodeReloadManager initialized
+ImportWorker Server TCP listen port: 0
+AcceleratorClientConnectionCallback - disconnected - :0
+Begin MonoManager ReloadAssembly
+Registering precompiled unity dll's ...
+Register platform support module: /Applications/Unity/Hub/Editor/6000.5.6f1/PlaybackEngines/WebGLSupport/UnityEditor.WebGL.Extensions.dll
+Register platform support module: /Applications/Unity/Hub/Editor/6000.5.6f1/PlaybackEngines/MacStandaloneSupport/UnityEditor.OSXStandalone.Extensions.dll
+Registered in 0.000282 seconds.
+Native extension for OSXStandalone target not found
+Native extension for WebGL target not found
+Package Manager log level set to [2]
+ScheduleIndexationOnStartup MainProcess:False IndexOnStartup:True
+Mono: successfully reloaded assembly
+- Finished resetting the current domain, in  0.176 seconds
+Domain Reload Profiling: 382ms
+	BeginReloadAssembly (47ms)
+		CreateAndSetChildDomain (15ms)
+	RebuildNativeTypeToScriptingClass (8ms)
+	initialDomainReloadingComplete (22ms)
+	LoadAllAssembliesAndSetupDomain (126ms)
+		LoadAssemblies (32ms)
+		AnalyzeDomain (95ms)
+			TypeCache.Refresh (95ms)
+				TypeCache.ScanAssembly (88ms)
+	FinalizeReload (177ms)
+		SetupLoadedEditorAssemblies (0ms)
+			BeforeProcessingInitializeOnLoad (38ms)
+			ProcessInitializeOnLoadAttributes (41ms)
+			ProcessInitializeOnLoadMethodAttributes (59ms)
+[Licensing::Client] Successfully resolved entitlement details
+Application.AssetDatabase Initial Refresh Start
+[Package Manager] Restoring resolved packages state from cache
+[Licensing::Client] Successfully resolved entitlement details
+[Package Manager] Registered 66 packages:
+  Packages from [https://packages.unity.com]:
+    com.unity.ai.navigation@2.0.14 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ai.navigation@134dd6a3b97b)
+    com.unity.analytics@3.8.2 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.analytics@c9d14a6bdec6)
+    com.unity.burst@1.8.29 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.burst@6bb9aca3ef38)
+    com.unity.collab-proxy@2.13.3 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.collab-proxy@4f3be89e8675)
+    com.unity.ide.rider@3.0.38 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ide.rider@1f60b3138684)
+    com.unity.ide.visualstudio@2.0.26 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ide.visualstudio@a99d56dec63f)
+    com.unity.purchasing@5.4.2 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.purchasing@290a16a9a099)
+    com.unity.timeline@1.8.12 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.timeline@8cd8509afae5)
+    com.unity.xr.legacyinputhelpers@3.0.1 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.xr.legacyinputhelpers@3f62d634f63b)
+    com.unity.services.core@1.18.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.services.core@3464cb68d709)
+    com.unity.nuget.mono-cecil@1.11.6 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.nuget.mono-cecil@ecb9724e46ff)
+    com.unity.test-framework.performance@3.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.test-framework.performance@8b56083ec0f0)
+    com.unity.services.analytics@6.3.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.services.analytics@cde4e6cf92f9)
+    com.unity.nuget.newtonsoft-json@3.2.2 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.nuget.newtonsoft-json@4dfd81071c64)
+    com.unity.searcher@4.9.4 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.searcher@d45a78918735)
+  Built-in packages:
+    com.unity.2d.sprite@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.2d.sprite@053a968eab56)
+    com.unity.2d.tilemap@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.2d.tilemap@b959501fd678)
+    com.unity.collections@6.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.collections@a43cabe808ca)
+    com.unity.mathematics@1.4.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.mathematics@981956d94fb6)
+    com.unity.multiplayer.center@1.0.1 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.multiplayer.center@b860850997d0)
+    com.unity.render-pipelines.universal@17.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.render-pipelines.universal@73b4c4ff130e)
+    com.unity.test-framework@1.7.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.test-framework@1405238725ab)
+    com.unity.transport@6.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.transport@0c07c94c2861)
+    com.unity.ugui@2.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ugui@67707a67a4ab)
+    com.unity.modules.accessibility@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.accessibility)
+    com.unity.modules.adaptiveperformance@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.adaptiveperformance)
+    com.unity.modules.ai@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.ai)
+    com.unity.modules.androidjni@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.androidjni)
+    com.unity.modules.animation@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.animation)
+    com.unity.modules.assetbundle@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.assetbundle)
+    com.unity.modules.audio@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.audio)
+    com.unity.modules.cloth@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.cloth)
+    com.unity.modules.director@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.director)
+    com.unity.modules.imageconversion@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.imageconversion)
+    com.unity.modules.imgui@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.imgui)
+    com.unity.modules.jsonserialize@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.jsonserialize)
+    com.unity.modules.particlesystem@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.particlesystem)
+    com.unity.modules.physics@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.physics)
+    com.unity.modules.physics2d@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.physics2d)
+    com.unity.modules.physicscore2d@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.physicscore2d)
+    com.unity.modules.screencapture@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.screencapture)
+    com.unity.modules.terrain@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.terrain)
+    com.unity.modules.terrainphysics@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.terrainphysics)
+    com.unity.modules.tilemap@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.tilemap)
+    com.unity.modules.ui@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.ui)
+    com.unity.modules.uielements@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.uielements)
+    com.unity.modules.umbra@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.umbra)
+    com.unity.modules.unityanalytics@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unityanalytics)
+    com.unity.modules.unitywebrequest@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequest)
+    com.unity.modules.unitywebrequestassetbundle@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequestassetbundle)
+    com.unity.modules.unitywebrequestaudio@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequestaudio)
+    com.unity.modules.unitywebrequesttexture@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequesttexture)
+    com.unity.modules.unitywebrequestwww@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.unitywebrequestwww)
+    com.unity.modules.vectorgraphics@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.vectorgraphics)
+    com.unity.modules.vehicles@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.vehicles)
+    com.unity.modules.video@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.video)
+    com.unity.modules.wind@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.wind)
+    com.unity.modules.xr@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.xr)
+    com.unity.modules.subsystems@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.subsystems)
+    com.unity.modules.hierarchycore@1.0.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.modules.hierarchycore)
+    com.unity.ext.nunit@2.1.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.ext.nunit@44f7d31723bd)
+    com.unity.render-pipelines.core@17.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.render-pipelines.core@645717f21c5f)
+    com.unity.shadergraph@17.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.shadergraph@8d7376ec43ee)
+    com.unity.render-pipelines.universal-config@17.5.0 (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.unity.render-pipelines.universal-config@fdda01c80fe3)
+  Embedded packages:
+    com.mountingforce.worldgen@file:/Users/jlashmet/code/voxel/Packages/com.mountingforce.worldgen (location: /Users/jlashmet/code/voxel/Packages/com.mountingforce.worldgen)
+  Git packages:
+    com.coplaydev.unity-mcp@https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main (location: /Users/jlashmet/code/voxel/Library/PackageCache/com.coplaydev.unity-mcp@8bd91ce7bd3a)
+[Subsystems] No new subsystems found in resolved package list.
+[Package Manager] Done registering packages in 0.01 seconds
+Assembly for Assembly Definition File 'Assets/VoxelEngine/Tools/Features/VoxelEngine.Tools.Features.asmdef' will not be compiled, because it has no scripts associated with it.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:LogFormat (UnityEngine.LogType,string,object[])
+UnityEngine.Debug:LogWarningFormat (string,object[])
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:WarnIfThereAreAssembliesWithoutAnyScripts (UnityEditor.Scripting.ScriptCompilation.ScriptAssemblySettings,UnityEditor.Scripting.ScriptCompilation.ScriptAssembly[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:814)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:CompileScriptsWithSettings (UnityEditor.Scripting.ScriptCompilation.ScriptAssemblySettings) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:871)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:CompileScripts (UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions,UnityEditor.BuildTarget,int,string[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:748)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface/<>c__DisplayClass21_0:<CompileScripts>b__0 () (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:187)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface:EmitExceptionAsError<UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus> (System.Func`1<UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus>,UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:52)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface:CompileScripts (UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions,UnityEditor.BuildTarget,int,string[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:187)
+
+(Filename: /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs Line: 814)
+
+Assembly for Assembly Definition File 'Assets/VoxelEngine/Tools/VoxelEngine.Tools.asmdef' will not be compiled, because it has no scripts associated with it.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:LogFormat (UnityEngine.LogType,string,object[])
+UnityEngine.Debug:LogWarningFormat (string,object[])
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:WarnIfThereAreAssembliesWithoutAnyScripts (UnityEditor.Scripting.ScriptCompilation.ScriptAssemblySettings,UnityEditor.Scripting.ScriptCompilation.ScriptAssembly[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:814)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:CompileScriptsWithSettings (UnityEditor.Scripting.ScriptCompilation.ScriptAssemblySettings) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:871)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilation:CompileScripts (UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions,UnityEditor.BuildTarget,int,string[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs:748)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface/<>c__DisplayClass21_0:<CompileScripts>b__0 () (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:187)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface:EmitExceptionAsError<UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus> (System.Func`1<UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus>,UnityEditor.Scripting.ScriptCompilation.EditorCompilation/CompileStatus) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:52)
+UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface:CompileScripts (UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions,UnityEditor.BuildTarget,int,string[]) (at /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilationInterface.cs:187)
+
+(Filename: /Users/bokken/build/output/unity/unity/Editor/Mono/Scripting/ScriptCompilation/EditorCompilation.cs Line: 814)
+
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://unix:/tmp/ilpp.sock-c3b432dd611250ca5bcc2f17f61b6832
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: /Users/jlashmet/code/voxel
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/Ping - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/Ping'
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/Ping'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/Ping - 200 - application/grpc 11.9920ms
+Starting: /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/BuildPipeline/bee_backend --ipc --defer-dag-verification --dagfile="Library/Bee/200b0aE.dag" --continue-on-failure --profile="Library/Bee/backend1.traceevents" ScriptAssemblies
+WorkingDir: /Users/jlashmet/code/voxel
+DisplayProgressbar: Compiling Scripts
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/ConfigurePostProcessors - application/grpc -
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'gRPC - /UnityILPP.PostProcessing/ConfigurePostProcessors'
+warn: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Assembly system.runtime.interopservices.windowsruntime has duplicate hint path. Ignoring "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/Facades/System.Runtime.InteropServices.WindowsRuntime.dll" in favor of "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/Extensions/2.0.0/System.Runtime.InteropServices.WindowsRuntime.dll"
+warn: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Assembly system.componentmodel.composition has duplicate hint path. Ignoring "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/UnityReferenceAssemblies/unity-4.8-api/System.ComponentModel.Composition.dll" in favor of "/Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Resources/Scripting/NetStandard/compat/2.1.0/shims/netfx/System.ComponentModel.Composition.dll"
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved Unity.Burst.Cecil, Version=0.11.6.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e with Library/PackageCache/com.unity.burst@6bb9aca3ef38/Unity.Burst.CodeGen/Unity.Burst.Cecil.dll
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      Resolved Mono.Cecil, Version=0.11.5.0, Culture=neutral, PublicKeyToken=50cebf1cceb9d05e with Library/PackageCache/com.unity.nuget.mono-cecil@ecb9724e46ff/Mono.Cecil.dll
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'gRPC - /UnityILPP.PostProcessing/ConfigurePostProcessors'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/2 POST http://ilpp/UnityILPP.PostProcessing/ConfigurePostProcessors - 200 - application/grpc 11.0367ms
+ExitCode: 0 Duration: 0s290ms
+[ 946/1280  0s] ILPP-Configuration Library/ilpp-configuration.nevergeneratedoutput
+*** Tundra build success (0.28 seconds), 1 items updated, 1280 evaluated
+AssetDatabase: script compilation time: 0.568619s
+Total cache size 161032424
+Total cache size after purge 161032424, took 00:00:00.1321948
+Begin MonoManager ReloadAssembly
+Symbol file LoadedFromMemory is not a mono symbol file
+Native extension for OSXStandalone target not found
+Native extension for WebGL target not found
+ScheduleIndexationOnStartup MainProcess:True IndexOnStartup:True
+Mono: successfully reloaded assembly
+- Finished resetting the current domain, in  2.092 seconds
+Domain Reload Profiling: 2450ms
+	BeginReloadAssembly (77ms)
+		DisableScriptedObjects (8ms)
+		CreateAndSetChildDomain (21ms)
+	RebuildCommonClasses (4ms)
+	RebuildNativeTypeToScriptingClass (8ms)
+	initialDomainReloadingComplete (20ms)
+	LoadAllAssembliesAndSetupDomain (250ms)
+		LoadAssemblies (114ms)
+		AnalyzeDomain (114ms)
+			TypeCache.Refresh (83ms)
+				TypeCache.ScanAssembly (75ms)
+			BuildScriptInfoCaches (27ms)
+			ResolveRequiredComponents (3ms)
+	FinalizeReload (2093ms)
+		SetupLoadedEditorAssemblies (0ms)
+			BeforeProcessingInitializeOnLoad (35ms)
+			ProcessInitializeOnLoadAttributes (1731ms)
+			ProcessInitializeOnLoadMethodAttributes (194ms)
+		AwakeInstancesAfterBackupRestoration (10ms)
+Starting new worker id: 0 with log in /Users/jlashmet/code/voxel/Logs/AssetImportWorkerHW0.log
+
+Asset Pipeline Refresh (id=24fbd018b5e374635aeef6c35fe67c55): Total: 3.802 seconds - Initiated by InitialRefreshV2(ForceSynchronousImport)
+	(Values over 0.05ms)
+	Summary:
+		Imports: total=0 (actual=0, local cache=0, cache server=0)
+		Asset DB Process Time: managed=0 ms, native=2764 ms
+		Asset DB Callback time: managed=54 ms, native=9 ms
+		Scripting: domain reloads=1, domain reload time=375 ms, compile time=569 ms, other=29 ms
+		Project Asset Count: scripts=1724, non-scripts=2517
+		Asset File Changes: new=0, changed=0, moved=0, deleted=0
+		Scan Filter Count: 1
+	InvokePackagesCallback: 9.808ms
+	ApplyChangesToAssetFolders: 0.173ms
+	Scan: 487.592ms
+	Collect global state as custom dependencies: 7.658ms
+	CategorizeScriptCompilationAssets: 18.339ms
+	ProcessAssetsWithTransientArtifactChanges: 35.765ms
+	CategorizeAssets: 32.239ms
+	CompileScripts: 569.163ms
+	ImportOutOfDateAssets: 2133.102ms (2106.963ms without children)
+		UnloadImportedAssets: 0.515ms
+		EnsureUptoDateAssetsAreRegisteredWithGuidPM: 0.404ms
+		ImportSchedulerStart: 25.193ms
+	PostProcessAllAssets: 54.775ms
+		MonoPostProcessAllAssets: 54.759ms
+			UniversalRenderPipelineGlobalSettingsPostprocessor.OnPostprocessAllAssets 5.745ms
+			SpeedTree9Postprocessor.OnPostprocessAllAssets 0.865ms
+			WindowAssetPostprocessingWatcher.OnPostprocessAllAssets 0.850ms
+			EditModeScopePostprocessor.OnPostprocessAllAssets 0.443ms
+			RenderPipelineGlobalSettingsPostprocessor.OnPostprocessAllAssets 0.297ms
+			ShaderReflectionAssetPostProcessor.OnPostprocessAllAssets 0.156ms
+			ReferencedClipsPostProcessor.OnPostprocessAllAssets 0.120ms
+			TerrainToolbarOverlayPostProcessor.OnPostprocessAllAssets 0.082ms
+			AssetPostprocessorProxy.OnPostprocessAllAssets 0.064ms
+			AssetDatabaseCallbacks.OnPostprocessAllAssets 0.061ms
+	UnloadStreamsBegin: 0.943ms
+	PersistCurrentRevisions: 0.087ms
+	GenerateScriptTypeHashes: 0.890ms
+	GenerateScriptTypeSerializationHashes: 1.979ms
+	Untracked: 450.940ms
+
+Application.AssetDatabase Initial Refresh End
+Shader Hidden/ChartRasterizerHardware is not supported: GPU does not support conservative rasterization
+Launching external process: /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Helpers/UnityShaderCompiler
+Launched and connected shader compiler UnityShaderCompiler after 0.02 seconds
+Shader Hidden/ChartRasterizerHardware is not supported: GPU does not support conservative rasterization
+Scanning for USB devices : 0.197ms
+Initializing Unity extensions:
+[MODES] ModeService[none].Initialize
+[MODES] ModeService[none].LoadModes
+[MODES] Loading mode Default (0) for mode-current-id-voxel
+2026-08-13 09:51:59.427 Unity[34729:1439068] NSEventModifierFlagFunction specified to -setKeyEquivalentModifierMask: for item <NSMenuItem: 0x6000027d56c0 SDF, ke='Command-F12'>, but is only supported for system-provided menu items; will not be used
+Unloading 52 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 7069 unused Assets / (8.6 MB). Loaded Objects now: 7872.
+Memory consumption went from 266.5 MB to 257.9 MB.
+Total: 8.316916 ms (FindLiveObjects: 0.276125 ms CreateObjectMapping: 1.351083 ms MarkObjects: 4.251042 ms  DeleteObjects: 2.438333 ms)
+
+[Project] Loading completed in 5.333 seconds
+	Project init time: 				5.021 seconds
+		Template init time: 		0.000 seconds
+		Package Manager init time: 		0.364 seconds
+		Asset Database init time: 		0.182 seconds
+		Global illumination init time: 	0.000 seconds
+		Assemblies load time: 			0.392 seconds
+		Unity extensions init time: 	0.021 seconds
+		Asset Database refresh time: 	3.802 seconds
+	Scene opening time: 			0.259 seconds
+##utp:{"type":"ProjectInfo","version":2,"phase":"Immediate","time":1786650719478,"processId":34729,"projectLoad":5.332507250000001,"projectInit":5.021431625,"templateInit":0.0,"packageManagerInit":0.363850042,"assetDatabaseInit":0.181580209,"globalIlluminationInit":0.000497708,"assembliesLoad":0.392389958,"unityExtensionsInit":0.021174625,"assetDatabaseRefresh":3.80205875,"sceneOpening":0.258653333}
+##utp:{"type":"EditorInfo","version":2,"phase":"Immediate","time":1786650719478,"processId":34729,"editorVersion":"6000.5.6f1 (0e0577a1a2ac)","branch":"6000.5/staging","buildType":"Release","platform":"OSX"}
+Subscribe to USB device events
+Scanning for USB devices : 0.151ms
+[Licensing::Client] Successfully resolved entitlement details
+Running tests for ExecutionSettings with details:
+targetPlatform = 
+playerHeartbeatTimeout = 600
+filters[0] = 
+   Filter with settings:
+   testMode = PlayMode
+   targetPlatform = 
+   testNames = null
+   groupNames = VoxelEngine.Tests.PlayMode.ShowcaseSurfaceTests.ShowcaseBuildsFeatureAwareSolidGeometry
+   categoryNames = null
+   assemblyNames = null
+ignoreTests = {}
+featureFlags = null
+
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+UnityEditor.TestTools.TestRunner.CommandLineTest.Executer:InitializeAndExecuteRun (string[]) (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs:53)
+UnityEditor.TestTools.TestRunner.CommandLineTest.TestStarter:InitializeAndExecuteRun () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/TestStarter.cs:64)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/CommandLineTest/Executer.cs Line: 53)
+
+Start Indexing on Editor startup
+[Indexing] Starting Initial Indexing for Assets
+[UnityConnectServicesConfig] config is NOT valid, switching to default
+Created GICache directory at /Users/jlashmet/Library/Caches/com.unity3d.UnityEditor/GiCache. Took: 0.001s, timestamps: [5.334 - 5.335]
+[Licensing::Client] Successfully resolved entitlement details
+Worker ready: AssetImportWorkerHW0 0
+Unloading 3 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 1 unused Assets / (60.1 KB). Loaded Objects now: 7892.
+Memory consumption went from 245.3 MB to 245.3 MB.
+Total: 5.769917 ms (FindLiveObjects: 0.145000 ms CreateObjectMapping: 0.499625 ms MarkObjects: 5.114291 ms  DeleteObjects: 0.010875 ms)
+
+Importing 'GUID: 42eb96ce7716c42d5b9457e0303f4b6c - Path: Assets/InitTestScene8c3101be-ed99-4db9-9a16-2cbfa8e23087.unity' with importer (DefaultImporter)
+Imported 'GUID: 42eb96ce7716c42d5b9457e0303f4b6c' -> (Import Result ID: '12f199cb6edeb194b424f94045b310d2') in 0.003 seconds [static dependencies only]. Details - ImportResultOutputID=1e49b1de213dddc2ba26a0fe526b48bf DependenciesID=7ef37a3fb147f7faed2ca13ec5572be4 StaticDependenciesID=2ba57cb84073b386f2bd180972066ddf 
+Asset Pipeline Refresh (id=4a5f54207c319414aab30e899f9d421b): Total: 0.178 seconds - Initiated by StopAssetImportingV2(NoUpdateAssetOptions)
+Executing IPrebuildSetup for: Unity.PerformanceTesting.Editor.TestRunBuilder.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace () (at /Users/bokken/build/output/unity/unity/Runtime/Export/Scripting/StackTrace.cs:35)
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<ExecuteMethods>d__8<UnityEngine.TestTools.IPrebuildSetup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:48)
+UnityEditor.TestTools.TestRunner.TestRun.Tasks.BuildActionTaskBase`1/<Execute>d__7<UnityEngine.TestTools.IPrebuildSetup>:MoveNext () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs:34)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteStep () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:194)
+UnityEditor.TestTools.TestRunner.TestRun.TestJobRunner:ExecuteCallback () (at ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/TestJobRunner.cs:129)
+UnityEditor.EditorApplication:Internal_CallUpdateFunctions () (at /Users/bokken/build/output/unity/unity/Editor/Mono/EditorApplication.cs:403)
+
+(Filename: ./Library/PackageCache/com.unity.test-framework@1405238725ab/UnityEditor.TestRunner/TestRun/Tasks/BuildActionTaskBase.cs Line: 48)
+
+Thread 0x3a9087000 may have been prematurely finalized
+Reloading assemblies for play mode.
+Reloading assemblies after forced synchronous recompile.
+Begin MonoManager ReloadAssembly
+2026-08-13 09:52:00.132 Unity[34729:1439068] NSEventModifierFlagFunction specified to -setKeyEquivalentModifierMask: for item <NSMenuItem: 0x60000277baa0 SDF, ke='Command-F12'>, but is only supported for system-provided menu items; will not be used
+2026-08-13 09:52:00.134 Unity[34729:1439068] NSEventModifierFlagFunction specified to -setKeyEquivalentModifierMask: for item <NSMenuItem: 0x600002778770 SDF, ke='Command-F12'>, but is only supported for system-provided menu items; will not be used
+Symbol file LoadedFromMemory is not a mono symbol file
+
+=================================================================
+	Native Crash Reporting
+=================================================================
+Got a segv while executing native code. This usually indicates
+a fatal error in the mono runtime or one of the native libraries 
+used by your application.
+=================================================================
+
+=================================================================
+	Native stacktrace:
+=================================================================
+	0x33df4134c - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_dump_native_crash_info
+	0x33df035cc - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_handle_native_crash
+	0x33de8bdd4 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_sigsegv_signal_handler_debug
+	0x18c4d4624 - /usr/lib/system/libsystem_platform.dylib : _sigtramp
+	0x388727384 - Unknown
+	0x341e916d8 - Unknown
+	0x341e914d4 - Unknown
+	0x388726af8 - Unknown
+	0x3887269f0 - Unknown
+	0x388724e44 - Unknown
+	0x388706f04 - Unknown
+	0x3887248b0 - Unknown
+	0x388724764 - Unknown
+	0x3887246b4 - Unknown
+	0x38872059c - Unknown
+	0x3887160fc - Unknown
+	0x388713430 - Unknown
+	0x388712b6c - Unknown
+	0x388712714 - Unknown
+	0x3a3827284 - Unknown
+	0x3a3825918 - Unknown
+	0x3a3825580 - Unknown
+	0x3a3825114 - Unknown
+	0x38649b710 - Unknown
+	0x38649b548 - Unknown
+	0x38649b41c - Unknown
+	0x38649b270 - Unknown
+	0x38649b164 - Unknown
+	0x38649b11c - Unknown
+	0x341e7f304 - Unknown
+	0x341e7f12c - Unknown
+	0x38649ae80 - Unknown
+	0x38649a928 - Unknown
+	0x38649a7b8 - Unknown
+	0x38649a720 - Unknown
+	0x341e7fec4 - Unknown
+	0x341e7f8a4 - Unknown
+	0x341e7f304 - Unknown
+	0x341e7f12c - Unknown
+	0x341e7effc - Unknown
+	0x341e7ed3c - Unknown
+	0x341e7eb88 - Unknown
+	0x33de8f0a8 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_jit_runtime_invoke
+	0x33e014b38 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : do_runtime_invoke
+	0x33e016500 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : mono_runtime_delegate_try_invoke
+	0x33e036ba4 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : start_wrapper_internal
+	0x33e03695c - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : start_wrapper
+	0x33e0b5f38 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : GC_inner_start_routine
+	0x33e0b5ec0 - /Applications/Unity/Hub/Editor/6000.5.6f1/Unity.app/Contents/Frameworks/libmonobdwgc-2.0.dylib : GC_start_routine
+	0x18c49ac0c - /usr/lib/system/libsystem_pthread.dylib : _pthread_start
+	0x18c495b80 - /usr/lib/system/libsystem_pthread.dylib : thread_start
+
+=================================================================
+	Telemetry Dumper:
+=================================================================
+Pkilling 0x6120189952x from 0x15060267008x
+Pkilling 0x6120763392x from 0x15060267008x
+Pkilling 0x6121336832x from 0x15060267008x
+Pkilling 0x14351282176x from 0x15060267008x
+Pkilling 0x14355574784x from 0x15060267008x
+Pkilling 0x6121910272x from 0x15060267008x
+Pkilling 0x14359867392x from 0x15060267008x
+Pkilling 0x14241312768x from 0x15060267008x
+Pkilling 0x13934735360x from 0x15060267008x
+Pkilling 0x14364160000x from 0x15060267008x
+Pkilling 0x14368452608x from 0x15060267008x
+Pkilling 0x15034511360x from 0x15060267008x
+Pkilling 0x14410133504x from 0x15060267008x
+Pkilling 0x13935308800x from 0x15060267008x
+Pkilling 0x15038803968x from 0x15060267008x
+Pkilling 0x15043096576x from 0x15060267008x
+Pkilling 0x15047389184x from 0x15060267008x
+Pkilling 0x15051681792x from 0x15060267008x
+Pkilling 0x15055974400x from 0x15060267008x
+Pkilling 0x14056763392x from 0x15060267008x
+Pkilling 0x14061056000x from 0x15060267008x
+Pkilling 0x14627762176x from 0x15060267008x
+Pkilling 0x14065348608x from 0x15060267008x
+Pkilling 0x14353428480x from 0x15060267008x
+Pkilling 0x14357721088x from 0x15060267008x
+Pkilling 0x8495210240x from 0x15060267008x
+Pkilling 0x14362013696x from 0x15060267008x
+Pkilling 0x13932589056x from 0x15060267008x
+Pkilling 0x14366306304x from 0x15060267008x
+Pkilling 0x15036657664x from 0x15060267008x
+Pkilling 0x15040950272x from 0x15060267008x
+Pkilling 0x15045242880x from 0x15060267008x
+Pkilling 0x14390947840x from 0x15060267008x
+Pkilling 0x15049535488x from 0x15060267008x
+Pkilling 0x15053828096x from 0x15060267008x
+Pkilling 0x15058120704x from 0x15060267008x
+Pkilling 0x15062413312x from 0x15060267008x
+Pkilling 0x6117322752x from 0x15060267008x
+Pkilling 0x6117896192x from 0x15060267008x
+Pkilling 0x14054617088x from 0x15060267008x
+Pkilling 0x14058909696x from 0x15060267008x
+Pkilling 0x14625615872x from 0x15060267008x
+Pkilling 0x6118469632x from 0x15060267008x
+Pkilling 0x14063202304x from 0x15060267008x
+Pkilling 0x6119043072x from 0x15060267008x
+Pkilling 0x6119616512x from 0x15060267008x
+Entering thread summarizer pause from 0x15060267008x
+Finished thread summarizer pause from 0x15060267008x.
+Failed to create breadcrumb file (null)/crash_hash_0x2f61622115
+debugger-agent: Unable to listen on 45
+Refreshing native plugins compatible for Editor in 2.50 ms, found 2 plugins.
+
+Waiting for dumping threads to resume
+Native extension for OSXStandalone target not found
+Native extension for WebGL target not found
+ScheduleIndexationOnStartup MainProcess:True IndexOnStartup:True
+Mono: successfully reloaded assembly
+- Finished resetting the current domain, in  0.863 seconds
+Domain Reload Profiling: 1279ms
+	BeginReloadAssembly (255ms)
+		DisableScriptedObjects (13ms)
+		CreateAndSetChildDomain (187ms)
+	RebuildCommonClasses (4ms)
+	RebuildNativeTypeToScriptingClass (8ms)
+	initialDomainReloadingComplete (33ms)
+	LoadAllAssembliesAndSetupDomain (115ms)
+		LoadAssemblies (43ms)
+		AnalyzeDomain (19ms)
+			TypeCache.Refresh (4ms)
+			ResolveRequiredComponents (13ms)
+	FinalizeReload (864ms)
+		SetupLoadedEditorAssemblies (0ms)
+			BeforeProcessingInitializeOnLoad (38ms)
+			ProcessInitializeOnLoadAttributes (539ms)
+			ProcessInitializeOnLoadMethodAttributes (103ms)
+		AwakeInstancesAfterBackupRestoration (15ms)
+No restricted APIs configured; Validation skipped.
+Checking 23 assemblies for restricted APIs found 0 usage(s) in 1 ms
+
+=================================================================
+	External Debugger Dump:
+=================================================================
+
+=================================================================
+	Basic Fault Address Reporting
+=================================================================
+Memory around native instruction pointer (0x1450b72c0):0x1450b72b0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x1450b72c0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x1450b72d0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x1450b72e0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+=================================================================
+	Managed Stacktrace:
+=================================================================
+	  at <unknown> <0xffffffff>
+	  at System.Object:wrapper_native_0x3db78d5c4 <0x00007>
+	  at <Module>:invoke_TargetMachine_TargetPlatform_string_TargetCpu_bool_ObjectFormat_FloatPrecision_uint_FloatMode_BranchProtection <0x0011f>
+	  at Burst.Backend.StandardCompilerBackend:CreateTargetMachine <0x0008b>
+	  at Burst.Backend.ChainCompilerBackend:CreateTargetMachine <0x0008b>
+	  at Burst.Compiler.IL.NativeCompiler:.ctor <0x0031b>
+	  at Burst.Compiler.IL.Server.LibraryCompiler:HashAndCompileMethodGroup <0x00b7b>
+	  at Burst.Compiler.IL.Server.LibraryCompiler:CompileMethodGroupImpl <0x003e7>
+	  at Burst.Compiler.IL.Server.LibraryCompiler:CompileMethodGroup <0x00113>
+	  at Burst.Compiler.IL.Server.CompilerServer:CompileMethodGroup <0x001f3>
+	  at <CompileLibrary>d__19:MoveNext <0x00483>
+	  at System.Runtime.CompilerServices.AsyncTaskMethodBuilder:Start <0x0007f>
+	  at Burst.Compiler.IL.Server.CompilerServer:CompileLibrary <0x000ff>
+	  at <>c__DisplayClass17_1:<Compile>b__1 <0x00053>
+	  at <<RunTask>b__0>d:MoveNext <0x000c7>
+	  at System.Runtime.CompilerServices.AsyncTaskMethodBuilder:Start <0x0009f>
+	  at <>c__DisplayClass25_0:<RunTask>b__0 <0x00093>
+	  at System.Threading.Tasks.Task`1:InnerInvoke <0x00057>
+	  at System.Threading.Tasks.Task:Execute <0x00023>
+	  at System.Threading.Tasks.Task:ExecutionContextCallback <0x00053>
+	  at System.Threading.ExecutionContext:RunInternal <0x0017b>
+	  at System.Threading.ExecutionContext:Run <0x0002b>
+	  at System.Threading.Tasks.Task:ExecuteWithThreadLocal <0x00117>
+	  at System.Threading.Tasks.Task:ExecuteEntry <0x000bf>
+	  at System.Threading.Tasks.TaskScheduler:TryExecuteTask <0x00037>
+	  at TaskJob:Execute <0x00027>
+	  at Burst.Compiler.IL.Server.CompilerThread:CompilerThreadLoop <0x003db>
+	  at System.Threading.ThreadHelper:ThreadStart_Context <0x000bb>
+	  at System.Threading.ExecutionContext:RunInternal <0x0017b>
+	  at System.Threading.ExecutionContext:Run <0x0002b>
+	  at System.Threading.ExecutionContext:Run <0x0004b>
+	  at System.Threading.ThreadHelper:ThreadStart <0x00033>
+	  at System.Object:runtime_invoke_void__this__ <0x000cf>
+=================================================================
+Obtained 46 stack frames.
+#0  0x000001450b72c0 in (Unknown)
+#1  0x00000341e916d8 in  System.RuntimeType:GetMethodImplCommon (string,int,System.Reflection.BindingFlags,System.Reflection.Binder,System.Reflection.CallingConventions,System.Type[],System.Reflection.ParameterModifier[]) [{0x3436f3920} + 0x1a8]  (0x341e91530 0x341e91750) [0x166e822a0 - Burst Child Domain]
+#2  0x00000341e914d4 in  System.RuntimeType:GetMethodImpl (string,System.Reflection.BindingFlags,System.Reflection.Binder,System.Reflection.CallingConventions,System.Type[],System.Reflection.ParameterModifier[]) [{0x139a161e0} + 0x4c]  (0x341e91488 0x341e914e0) [0x166e822a0 - Burst Child Domain]
+#3  0x00000388726af8 in  System.Type:GetMethod (string,System.Reflection.BindingFlags,System.Reflection.Binder,System.Reflection.CallingConventions,System.Type[],System.Reflection.ParameterModifier[]) [{0x139a0bdb0} + 0xa8]  (0x388726a50 0x388726b70) [0x166e822a0 - Burst Child Domain]
+#4  0x000003887269f0 in  System.Type:GetMethod (string,System.Reflection.BindingFlags,System.Reflection.Binder,System.Type[],System.Reflection.ParameterModifier[]) [{0x139a0bd88} + 0x40]  (0x3887269b0 0x3887269fc) [0x166e822a0 - Burst Child Domain]
+#5  0x00000388724e44 in  System.Runtime.InteropServices.Marshal:GetCustomMarshalerInstance (System.Type,string) [{0x3a1099f50} + 0x2e4]  (0x388724b60 0x3887251e4) [0x166e822a0 - Burst Child Domain]
+#6  0x00000388706f04 in  (wrapper managed-to-native) object:wrapper_native_0x3db78d5c4 (Burst.Backend.TargetPlatform,string,Burst.Backend.TargetCpu,bool,Burst.Backend.ObjectFormat,Burst.Backend.FloatPrecision,uint,Burst.Backend.FloatMode,Burst.Backend.BranchProtection) [{0x1231ff158} + 0xbc]  (0x388706e48 0x388707054) [0x166e822a0 - Burst Child Domain]
+#7  0x000003887248b0 in  (wrapper delegate-invoke) <Module>:invoke_TargetMachine_TargetPlatform_string_TargetCpu_bool_ObjectFormat_FloatPrecision_uint_FloatMode_BranchProtection (Burst.Backend.TargetPlatform,string,Burst.Backend.TargetCpu,bool,Burst.Backend.ObjectFormat,Burst.Backend.FloatPrecision,uint,Burst.Backend.FloatMode,Burst.Backend.BranchProtection) [{0x126154df8} + 0x120]  (0x388724790 0x3887249b8) [0x166e822a0 - Burst Child Domain]
+#8  0x00000388724764 in  Burst.Backend.StandardCompilerBackend:CreateTargetMachine (Burst.Backend.TargetPlatform,string,Burst.Backend.TargetCpu,bool,Burst.Backend.ObjectFormat,Burst.Backend.FloatPrecision,uint,Burst.Backend.FloatMode,Burst.Backend.BranchProtection) [{0x1255072f0} + 0x8c]  (0x3887246d8 0x388724790) [0x166e822a0 - Burst Child Domain]
+#9  0x000003887246b4 in  Burst.Backend.ChainCompilerBackend:CreateTargetMachine (Burst.Backend.TargetPlatform,string,Burst.Backend.TargetCpu,bool,Burst.Backend.ObjectFormat,Burst.Backend.FloatPrecision,uint,Burst.Backend.FloatMode,Burst.Backend.BranchProtection) [{0x12513efc0} + 0x8c]  (0x388724628 0x3887246d4) [0x166e822a0 - Burst Child Domain]
+#10 0x0000038872059c in  Burst.Compiler.IL.NativeCompiler:.ctor (Burst.Compiler.IL.MethodReferenceWithLinkName[],Burst.Compiler.IL.NativeCompilerOptions,string,Burst.Compiler.IL.Hashing.CacheRuntime.HashCacheAssemblyStore,Burst.Compiler.IL.AssemblyLoader,Burst.Backend.ExtendedCompilerBackend,bool) [{0x34f12aeb0} + 0x31c]  (0x388720280 0x388720b10) [0x166e822a0 - Burst Child Domain]
+#11 0x000003887160fc in  Burst.Compiler.IL.Server.LibraryCompiler:HashAndCompileMethodGroup (Burst.Compiler.IL.Server.CompilationJob,int,Burst.Compiler.IL.Server.SharedLibraryCompilationState,Burst.Compiler.IL.Aot.AotCompilerOptions,Burst.Compiler.IL.NativeCompiler&,Burst.Compiler.IL.Aot.AotModuleGroup&) [{0x342ca53b8} + 0xb7c]  (0x388715580 0x388717fcc) [0x166e822a0 - Burst Child Domain]
+#12 0x00000388713430 in  Burst.Compiler.IL.Server.LibraryCompiler:CompileMethodGroupImpl (Burst.Compiler.IL.Server.CompilationJob,int,Burst.Compiler.IL.Server.SharedLibraryCompilationState) [{0x342ca4ba8} + 0x3e8]  (0x388713048 0x388713804) [0x166e822a0 - Burst Child Domain]
+#13 0x00000388712b6c in  Burst.Compiler.IL.Server.LibraryCompiler:CompileMethodGroup (Burst.Compiler.IL.Server.CompilationJob,int,Burst.Compiler.IL.Server.SharedLibraryCompilationState) [{0x342ca4af8} + 0x114]  (0x388712a58 0x388712da4) [0x166e822a0 - Burst Child Domain]
+#14 0x00000388712714 in  Burst.Compiler.IL.Server.CompilerServer:CompileMethodGroup (Burst.Compiler.IL.Server.CompileMethodGroupJob,Burst.Compiler.IL.Server.CompilationMessageStreamer,Burst.Compiler.IL.Server.ProgressMessageHelper) [{0x130ffa198} + 0x1f4]  (0x388712520 0x3887127f8) [0x166e822a0 - Burst Child Domain]
+#15 0x000003a3827284 in  Burst.Compiler.IL.Server.CompilerServer/<CompileLibrary>d__19:MoveNext () [{0x130ff9490} + 0x484]  (0x3a3826e00 0x3a38277ac) [0x166e822a0 - Burst Child Domain]
+#16 0x000003a3825918 in  System.Runtime.CompilerServices.AsyncTaskMethodBuilder:Start<Burst.Compiler.IL.Server.CompilerServer/<CompileLibrary>d__19> (Burst.Compiler.IL.Server.CompilerServer/<CompileLibrary>d__19&) [{0x60000a926ee0} + 0x80]  (0x3a3825898 0x3a3825954) [0x166e822a0 - Burst Child Domain]
+#17 0x000003a3825580 in  Burst.Compiler.IL.Server.CompilerServer:CompileLibrary (Burst.Compiler.IL.Server.CompileLibraryJob,Burst.Compiler.IL.Server.CompilationMessageStreamer,Burst.Compiler.IL.Server.ProgressMessageHelper,System.Threading.CancellationToken) [{0x130ff8fc8} + 0x100]  (0x3a3825480 0x3a38255a0) [0x166e822a0 - Burst Child Domain]
+#18 0x000003a3825114 in  Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass17_1:<Compile>b__1 (Burst.Compiler.IL.Server.Caching.CacheManager) [{0x124e7bc10} + 0x54]  (0x3a38250c0 0x3a3825130) [0x166e822a0 - Burst Child Domain]
+#19 0x0000038649b710 in  Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass25_0/<<RunTask>b__0>d:MoveNext () [{0x342daa250} + 0xc8]  (0x38649b648 0x38649ba58) [0x166e822a0 - Burst Child Domain]
+#20 0x0000038649b548 in  System.Runtime.CompilerServices.AsyncTaskMethodBuilder:Start<Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass25_0/<<RunTask>b__0>d> (Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass25_0/<<RunTask>b__0>d&) [{0x60000a853960} + 0xa0]  (0x38649b4a8 0x38649b584) [0x166e822a0 - Burst Child Domain]
+#21 0x0000038649b41c in  Burst.Compiler.IL.Server.CompilerServer/<>c__DisplayClass25_0:<RunTask>b__0 () [{0x342db37d8} + 0x94]  (0x38649b388 0x38649b438) [0x166e822a0 - Burst Child Domain]
+#22 0x0000038649b270 in  System.Threading.Tasks.Task`1<TResult_REF>:InnerInvoke () [{0x6000066ca640} + 0x58]  (0x38649b218 0x38649b324) [0x166e822a0 - Burst Child Domain]
+#23 0x0000038649b164 in  System.Threading.Tasks.Task:Execute () [{0x12319cd60} + 0x24]  (0x38649b140 0x38649b1a8) [0x166e822a0 - Burst Child Domain]
+#24 0x0000038649b11c in  System.Threading.Tasks.Task:ExecutionContextCallback (object) [{0x12319cd88} + 0x54]  (0x38649b0c8 0x38649b12c) [0x166e822a0 - Burst Child Domain]
+#25 0x00000341e7f304 in  System.Threading.ExecutionContext:RunInternal (System.Threading.ExecutionContext,System.Threading.ContextCallback,object,bool) [{0x139aad790} + 0x17c]  (0x341e7f188 0x341e7f34c) [0x166e822a0 - Burst Child Domain]
+#26 0x00000341e7f12c in  System.Threading.ExecutionContext:Run (System.Threading.ExecutionContext,System.Threading.ContextCallback,object,bool) [{0x139aad738} + 0x2c]  (0x341e7f100 0x341e7f138) [0x166e822a0 - Burst Child Domain]
+#27 0x0000038649ae80 in  System.Threading.Tasks.Task:ExecuteWithThreadLocal (System.Threading.Tasks.Task&) [{0x12319cb40} + 0x118]  (0x38649ad68 0x38649aefc) [0x166e822a0 - Burst Child Domain]
+#28 0x0000038649a928 in  System.Threading.Tasks.Task:ExecuteEntry (bool) [{0x12319ca50} + 0xc0]  (0x38649a868 0x38649a9b4) [0x166e822a0 - Burst Child Domain]
+#29 0x0000038649a7b8 in  System.Threading.Tasks.TaskScheduler:TryExecuteTask (System.Threading.Tasks.Task) [{0x125fb2e20} + 0x38]  (0x38649a780 0x38649a7e8) [0x166e822a0 - Burst Child Domain]
+#30 0x0000038649a720 in  Burst.Compiler.IL.Server.CompilerServerTaskScheduler/TaskJob:Execute (Burst.Compiler.IL.Server.GlobalContext) [{0x342db3b30} + 0x28]  (0x38649a6f8 0x38649a730) [0x166e822a0 - Burst Child Domain]
+#31 0x00000341e7fec4 in  Burst.Compiler.IL.Server.CompilerThread:CompilerThreadLoop () [{0x12563b3b0} + 0x3dc]  (0x341e7fae8 0x341e80254) [0x166e822a0 - Burst Child Domain]
+#32 0x00000341e7f8a4 in  System.Threading.ThreadHelper:ThreadStart_Context (object) [{0x139aacb00} + 0xbc]  (0x341e7f7e8 0x341e7f910) [0x166e822a0 - Burst Child Domain]
+#33 0x00000341e7f304 in  System.Threading.ExecutionContext:RunInternal (System.Threading.ExecutionContext,System.Threading.ContextCallback,object,bool) [{0x139aad790} + 0x17c]  (0x341e7f188 0x341e7f34c) [0x166e822a0 - Burst Child Domain]
+#34 0x00000341e7f12c in  System.Threading.ExecutionContext:Run (System.Threading.ExecutionContext,System.Threading.ContextCallback,object,bool) [{0x139aad738} + 0x2c]  (0x341e7f100 0x341e7f138) [0x166e822a0 - Burst Child Domain]
+#35 0x00000341e7effc in  System.Threading.ExecutionContext:Run (System.Threading.ExecutionContext,System.Threading.ContextCallback,object) [{0x139aad6c0} + 0x4c]  (0x341e7efb0 0x341e7f04c) [0x166e822a0 - Burst Child Domain]
+#36 0x00000341e7ed3c in  System.Threading.ThreadHelper:ThreadStart () [{0x139aac780} + 0x34]  (0x341e7ed08 0x341e7ed9c) [0x166e822a0 - Burst Child Domain]
+#37 0x00000341e7eb88 in  (wrapper runtime-invoke) object:runtime_invoke_void__this__ (object,intptr,intptr,intptr) [{0x1238e3658} + 0xd0]  (0x341e7eab8 0x341e7ebc4) [0x166e822a0 - Burst Child Domain]
+#38 0x0000033de8f0a8 in mono_jit_runtime_invoke
+#39 0x0000033e014b38 in do_runtime_invoke
+#40 0x0000033e016500 in mono_runtime_delegate_try_invoke
+#41 0x0000033e036ba4 in start_wrapper_internal
+#42 0x0000033e03695c in start_wrapper
+#43 0x0000033e0b5f38 in GC_inner_start_routine
+#44 0x0000033e0b5ec0 in GC_start_routine
+#45 0x0000018c49ac0c in _pthread_start
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+info: Unity.ILPP.Runner.PostProcessingAssemblyLoadContext[0]
+      ALC ILPP context 1 is unloading
