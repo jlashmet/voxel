@@ -2,7 +2,6 @@ using System;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Interest;
 using VoxelEngine.Net.Protocol;
@@ -14,7 +13,7 @@ namespace VoxelEngine.Net.Server
     ///
     /// The canonical network path is ServerCommandInbox -> ServerCommandProcessor. This type no
     /// longer constructs authority from client payload fields: callers must supply the authenticated
-    /// player session, authoritative tick/sequence/seed, mutation capability, and world applier.
+    /// player session, authoritative tick/sequence/seed, Storage capabilities, and world applier.
     /// </summary>
     public static class DestructionHandler
     {
@@ -27,13 +26,14 @@ namespace VoxelEngine.Net.Server
             uint authoritativeTick,
             ushort authoritativeSequence,
             uint authoritativeSeed,
+            IRegionReadSource readStorage,
             IRegionMutationStore mutationStorage,
-            ref RegionTable table,
-            ref BrickPool pool,
             Validation.DensityCap densityCap,
             IAlterationApplier applier,
             in ProtectedZones zones = default)
         {
+            if (readStorage == null)
+                throw new ArgumentNullException(nameof(readStorage));
             if (mutationStorage == null)
                 throw new ArgumentNullException(nameof(mutationStorage));
             if (applier == null)
@@ -49,10 +49,9 @@ namespace VoxelEngine.Net.Server
                 in evt,
                 in player,
                 players,
+                readStorage,
                 mutationStorage,
                 applier,
-                ref table,
-                in pool,
                 densityCap,
                 in zones);
 
@@ -70,27 +69,9 @@ namespace VoxelEngine.Net.Server
 
             var broadcast = new S_AlterationEvent(
                 authoritativeTick,
-                table.GetRegionCoordFor(evt.origin));
+                evt.origin >> VoxelGrid.RegionVoxelEdgeLog2);
 
             return AdjudicationResult.Accept(broadcast, evt);
-        }
-
-        /// <summary>
-        /// The pre-authentication overload is deliberately fail-closed. It remains only so old
-        /// scaffold/tests compile while migrating; network code must use the authoritative overload.
-        /// </summary>
-        [Obsolete("Use the authoritative overload or ServerCommandProcessor; client packets no longer carry player identity.")]
-        public static AdjudicationResult Adjudicate(
-            in C_AlterationRequest request,
-            ref RegionTable table,
-            ref BrickPool pool,
-            Validation.AllocationBudget budget,
-            Validation.DensityCap densityCap)
-        {
-            return AdjudicationResult.Reject(
-                request.tick,
-                0,
-                S_AlterationRejected.Reason.InvalidTarget);
         }
 
         private static S_AlterationRejected.Reason ToReason(Validation.ValidationResult result) => result switch
@@ -128,15 +109,6 @@ namespace VoxelEngine.Net.Server
             // the old API behavior side-effect free instead of inventing a parallel transport path.
             interestedPlayers.Dispose();
         }
-    }
-
-    public static class RegionTableExtensions
-    {
-        public static int3 GetRegionCoordFor(this ref RegionTable table, int3 origin) =>
-            new int3(
-                origin.x >> VoxelDimensions.RegionVoxelEdgeLog2,
-                origin.y >> VoxelDimensions.RegionVoxelEdgeLog2,
-                origin.z >> VoxelDimensions.RegionVoxelEdgeLog2);
     }
 
     public struct AdjudicationResult
