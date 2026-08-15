@@ -81,6 +81,9 @@ namespace Game.Composition.WorldBuilderWorldGen
                         spawnCapacity));
             }
 
+            if (CanHostHiddenSpace(site.RoleId))
+                capabilities.Add(new SiteCapabilityOffer(SiteCapabilityKind.SecretCandidateHost));
+
             projection = new SettlementSiteProjection(
                 archetype,
                 new SiteFootprintBoundsDm(
@@ -121,6 +124,20 @@ namespace Game.Composition.WorldBuilderWorldGen
                 interior.HalfWidthDm,
                 interior.DepthDm);
             return true;
+        }
+
+        private bool CanHostHiddenSpace(int roleId)
+        {
+            BuildingPlot plot;
+            if (!_plots.TryGetValue(roleId, out plot)) return false;
+
+            var probe = new SiteHiddenSpaceRequest(
+                "capability-probe/" + roleId,
+                roleId,
+                minimumCount: 0,
+                targetCount: 1,
+                HiddenSpaceEntranceKind.BreakableMatchingWall);
+            return KentridgeHiddenSpacePlanner.Resolve(plot, _plan.Seed, probe).Count > 0;
         }
 
         private bool TryResolveSite(
