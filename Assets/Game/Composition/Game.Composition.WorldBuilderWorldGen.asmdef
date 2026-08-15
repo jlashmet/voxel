@@ -1,0 +1,17 @@
+{
+  "name": "Game.Composition.WorldBuilderWorldGen",
+  "rootNamespace": "Game.Composition.WorldBuilderWorldGen",
+  "references": [
+    "Game.WorldBuilder.Api",
+    "MountingForce.WorldGen.Core"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
