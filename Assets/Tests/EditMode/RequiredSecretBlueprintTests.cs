@@ -20,8 +20,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             var game = Campaign.Create("required-secret-blueprint");
             SiteRef ruins = game.World.RequireSite("ruins", site => site
-                .Archetype(SiteArchetype.Ruin)
-                .RequireCapability(SiteCapability.SecretCandidateHost));
+                .Archetype(SiteArchetype.Ruin));
             LootTableRef storyLoot = game.Loot.Table("story-loot", loot => loot
                 .RollCount(0, 0)
                 .Guaranteed(new LootItemId("story.ancient-key"), 1));
@@ -35,6 +34,10 @@ namespace VoxelEngine.Tests.EditMode
 
             CampaignBlueprint blueprint = game.Build();
             Assert.That(BlueprintValidator.Validate(blueprint).IsValid, Is.True);
+
+            SiteCapabilityRequirement derivedHost = blueprint.Sites.Single(site => site.Ref.Equals(ruins))
+                .Capabilities.Single(capability => capability.Kind == SiteCapabilityKind.SecretCandidateHost);
+            Assert.That(derivedHost.Source, Is.EqualTo(SiteCapabilitySource.Derived));
 
             PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
             Assert.That(graph.RequiredSecrets.Count, Is.EqualTo(1));
@@ -54,8 +57,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             var game = Campaign.Create("required-secret-resolution");
             SiteRef ruins = game.World.RequireSite("ruins", site => site
-                .Archetype(SiteArchetype.Ruin)
-                .RequireCapability(SiteCapability.SecretCandidateHost));
+                .Archetype(SiteArchetype.Ruin));
             LootTableRef storyLoot = game.Loot.Table("story-loot", loot => loot
                 .RollCount(0, 0)
                 .Guaranteed(new LootItemId("story.ancient-key"), 1));
@@ -87,20 +89,38 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void ValidatorRejectsRequiredSecretOnSiteThatCannotExposeCandidates()
+        public void DerivedRequiredSecretCapabilityDoesNotOptSiteIntoScatteredSecretPolicy()
         {
-            var game = Campaign.Create("invalid-required-secret");
+            var game = Campaign.Create("required-versus-policy");
             SiteRef camp = game.World.RequireSite("camp", site => site.Archetype(SiteArchetype.Camp));
             LootTableRef loot = game.Loot.Table("loot", table => table.RollCount(0, 0));
-            game.World.RequireSecret("bad-cache", secret => secret
+
+            game.World.RequireSecret("story-cache", secret => secret
                 .Inside(camp)
                 .Entrance(SecretEntranceType.DestroyableFalseWall)
                 .RequireHiddenSpace()
                 .RewardWith(loot));
 
-            BlueprintValidationResult result = BlueprintValidator.Validate(game.Build());
-            Assert.That(result.IsValid, Is.False);
-            Assert.That(result.Diagnostics.Any(d => d.Code == "WB2312"), Is.True);
+            game.World.Secrets.Policy("scattered", policy => policy
+                .Entrance(SecretEntranceType.DestroyableFalseWall)
+                .Distribution(new SecretDistribution(0, 1, 10000))
+                .RequireHiddenSpace()
+                .RewardWith(loot));
+
+            CampaignBlueprint blueprint = game.Build();
+            Assert.That(BlueprintValidator.Validate(blueprint).IsValid, Is.True);
+
+            SiteCapabilityRequirement capability = blueprint.Sites.Single().Capabilities.Single(value =>
+                value.Kind == SiteCapabilityKind.SecretCandidateHost);
+            Assert.That(capability.Source, Is.EqualTo(SiteCapabilitySource.Derived));
+
+            PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
+            Assert.That(graph.RequiredSecrets.Single().Site, Is.EqualTo(camp));
+            Assert.That(graph.SecretCandidates.Any(plan => plan.Site.Equals(camp)), Is.False,
+                "Only an authored SecretCandidateHost capability opts a site into scattered secret policy generation.");
+
+            PlanningNode policyNode = graph.Nodes.Single(node => node.Kind == PlanningNodeKind.SecretPolicy);
+            Assert.That(policyNode.Dependencies, Does.Not.Contain("site:camp"));
         }
     }
 }
