@@ -21,7 +21,11 @@ namespace VoxelEngine.Tests.EditMode
         public void OpeningCampaignPlansBeforeVoxelEmissionAndRealizesAfterPlacement()
         {
             var game = Campaign.Create("kentridge-opening-world");
-            SiteRef startingPub = game.World.RequireSite("starting-pub", site => site
+            RegionRef region = game.World.RequireRegion("kentridge-region", _ => { });
+            SettlementRef kentridge = game.World.RequireSettlement("kentridge", settlement => settlement
+                .InRegion(region)
+                .Archetype(SettlementArchetype.Town));
+            SiteRef startingPub = game.World.RequireSite("starting-pub", kentridge, site => site
                 .Archetype(SiteArchetype.Pub)
                 .RequireCapability(SiteCapability.Interior)
                 .RequireCapability(SiteCapability.PlayerSpawn(4))
@@ -53,9 +57,7 @@ namespace VoxelEngine.Tests.EditMode
 
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignWorldPlanner.Plan(
                 blueprint,
-                settlement,
-                new RegionRef("kentridge-region"),
-                new SettlementRef("kentridge"));
+                settlement);
 
             Assert.That(generation.Sites.IsResolved, Is.True);
             Assert.That(generation.NpcAssignments.Count, Is.EqualTo(3));
@@ -131,9 +133,7 @@ namespace VoxelEngine.Tests.EditMode
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignWorldPlanner.Plan(
                 blueprint,
-                settlement,
-                new RegionRef("kentridge-region"),
-                new SettlementRef("kentridge"));
+                settlement);
 
             ResolvedSiteId pubSite = generation.Sites.Bindings
                 .Single(value => value.Role.Equals(content.StartingPub)).Site;
