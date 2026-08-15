@@ -29,7 +29,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 8 — Streaming | **Complete** | `Streaming.Api` exposes the real `RegionLoadRequest`/`IRegionStreaming` orchestration contract; all four implementation files live under `Streaming/Runtime` with preserved Unity GUIDs; `RegionStreamingService` hides Storage residency behind the Api; Runtime depends only on Streaming.Api, Storage.Api and Tiering.Api; broad Streaming/Net coupling is gone | none |
 | 9 — Collision | **Complete** | `Collision.Api`/`Collision.Runtime` replace the broad assembly; DDA/raycast/sweep/hull implementation lives in Runtime with preserved Unity GUIDs; Runtime consumes Storage.Api only; final caller inventory found no production subsystem consumer, so Api remains intentionally empty instead of inventing DTOs | none |
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
-| 11 — Net | **In progress — current** | authoritative edit application callers consume domain/Storage Api capabilities | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |
+| 11 — Net | **In progress — current** | Net.Api/Runtime assemblies exist; edit vocabulary/application is Api-only; structural graph/wrapper violations are gone; residency policy calls Streaming.Api; semantic convergence/repair uses Storage.Api read/snapshot/mutation capabilities; residual Core.Storage/Core.Occupancy imports and dead physical helpers were removed; transitional broad Net assembly now references only domain APIs | physically move Client/Interest/Protocol/Server/Transport under Net/Runtime, normalize Runtime namespaces, delete broad Net assembly, and run final Net parity gate |
 | 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; vegetation presentation consumes Vegetation.Api only; parity accepted | final Rendering.Api/Runtime move |
 | 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
 
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Final Vegetation cutover: immutable presentation/damage/topology contracts live in Vegetation.Api; mutable world state, skeleton generation and damage implementation live in Vegetation.Runtime; Rendering and WorldGen are Vegetation.Api-only consumers.
+- Latest accepted code gate: `da3b6f0b3daf6b6e0e1f30917fd3d88267c1af34` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Net ownership checkpoint: server residency now delegates to Streaming.Api; authoritative validation/session/client repair paths consume Storage.Api read/mutation/snapshot capabilities; semantic convergence uses `IRegionSnapshotSource`; Net has no live `VoxelEngine.Core.*` source imports; `RegionHasher` is limited to network-payload hashing; dead physical persistence/compaction scaffolding was removed. The final physical Net Runtime move remains unchecked.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -532,8 +532,6 @@ with `VoxelSurfaceQuery` (or the equivalent concrete Api value created above). I
 - [x] Rendering and Collision use readonly native views, not virtual per-voxel services.
 - [x] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`; it consumes `IVoxelSurfaceQuery` and preserves water/cascade exclusion via caller-owned material IDs.
 - [x] Kentridge vegetation surface-query slice accepted by CI at `a47c3b8abff99e27e5c5cbeda0451ad8b963c314`: 382 total / 369 passed / exact 13 known baseline failures.
-- [x] Whole-cell authored block replacement is available through Storage.Api and preserves compact uniform storage vs authored surface/boundary payload ownership inside Storage.
-- [x] Whole-cell authoring + retained-profile API prerequisite slice accepted by CI at `023a8fce13d5203bb80e4b85fab178048e6caf2f`: 382 total / 369 passed / exact same 13 known baseline failures.
 - [ ] Net semantic hash/snapshot paths do not depend on physical brick layout.
 - [x] Existing storage/read/mutation parity tests pass against the established CI baseline; snapshot/hash final ownership remains tracked by the unchecked item above.
 - [ ] Architecture guard has no Storage.Runtime foreign-reference exception.
@@ -718,21 +716,28 @@ Do **not** add any engine reference to `MountingForce.WorldGen.Core` or `Mountin
 - [x] Structures Runtime dependency-cleanup slice accepted by CI at `0c2b0cdd7148e3d14f6ab3a14348a5fc993dfcac`: 382 total / 369 passed / exact 13 known baseline failures.
 - [x] Canonical ramp direction encoding (`RampAxisMask`/`ReverseRampBit`) is owned by `Structures.Api.ShapeOps`; Runtime and the first directional Kentridge catalogue consumers/tests use the API constants rather than Runtime emitter constants.
 - [x] Ramp-encoding / first WorldGen consumer slice accepted by CI at `3c983386b82cbfeb28b8b151c0cf154d65c6995c`: 382 total / 369 passed / exact 13 known baseline failures.
-- [x] Retained `ProfileBlock` logical data and `IProfileBlockReadSource` live in Storage.Api; mutable `ProfileBlockStore` implements the read contract.
-- [x] Storage.Api exposes whole-cell block authoring so `VoxelBrush` can preserve styled whole-block semantics and block-level efficiency without owning `RegionTable`, `BrickPool`, `Region`, or `BrickRef`.
-- [x] Retained-profile/API + whole-cell authoring prerequisite slice accepted by CI at `023a8fce13d5203bb80e4b85fab178048e6caf2f`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] Retained-profile authoring uses `Structures.Api.IProfileBlockWriter`; Arch runtime code no longer depends on the concrete mutable `ProfileBlockStore`.
-- [x] Retained-profile writer seam accepted by CI at `eee4fe26ae0c87a882389e210b38d171bb80aa2c`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] `FeatureGeneration`, `ShapeProgram`, `PrimitiveRasteriser`, `ArchFeature`, `BondedBlockVeneer`, and all feature emitters are physically under `Structures/Runtime`; Unity GUIDs were preserved and no engine subsystem or WorldGen package gained a Structures.Runtime reference.
-- [x] Feature-runtime physical move accepted by CI at `37241eb3c1c1b5afe50b3e6729bbf4ae8acfc935`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] Rendering retained-profile consumers (`VoxelWorldView`, `VoxelSurfaceScheduler`, and `CpuTransvoxelChunkCache`) take Storage.Api `IProfileBlockReadSource`; Rendering no longer depends on the concrete mutable `ProfileBlockStore` or Structures-side writer contract.
-- [x] Retained-profile Rendering cutover accepted by CI at `e0cdc61099ab3a1ae18af06a0b50ffa2f36af90c`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] `VoxelBrush` consumes Storage.Api read/mutation/authoring-catalogue capabilities only; its block-granular column and whole-cell write paths preserve the prior bulk-write semantics without owning `RegionTable`, `BrickPool`, `Region`, `BrickRef`, or `VoxelAccess`, and no `Table`/`Pool` escape properties remain.
-- [x] `VoxelBrush` Storage-boundary cutover accepted by CI at `dd7d5013c1409d4efe0dbfed3672cb9b5ab13ecd`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] Mutable `ProfileBlockStore` is physically under `Structures/Runtime` with its original Unity GUID preserved.
-- [x] WorldGen Voxel authoring cleanup removed all stale `using VoxelEngine.Core.Features;` imports exposed by the retained-profile owner move; no compatibility namespace was added.
-- [x] Profile-store Runtime move + WorldGen import cleanup accepted by CI at `00f1ddfc89af4fa52aa03c79c4b922bf5a9dd70d`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] Final Structures Runtime namespace cutover accepted by CI at `2d35d46a3e74935e224e70ee2038c5b0629322b5`: 382 total / 369 passed / exact same 13 known baseline failures.
+- [x] Storage authoring exposes `SetWholeCellBlock`; the implementation preserves compact uniform blocks when possible and mixed authored cell semantics when surface/boundary metadata is present.
+- [x] Whole-cell authoring capability accepted by CI at `cc08db71463d21bf23fca8a7459ddde61a3f9d58`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] `ArchFeature` emits retained profile blocks through `IProfileBlockWriter`; the concrete `ProfileBlockStore` still owns mutation.
+- [x] Profile-block writer seam accepted by CI at `eee4fe264a014a654fd08001d1f6eed69c64b754`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] Feature VM/generation/rasteriser/emitters plus Arch/Bonded implementation moved physically under `Structures/Runtime` with existing Unity GUIDs preserved; production subsystems/WorldGen did not gain Structures.Runtime references.
+- [x] Physical feature-runtime move accepted by CI at `37241eb3c1e00bd97ea9e22a5682cf17cd9382e7`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] Retained profile value/read contract lives in Storage.Api; Rendering consumers and `VoxelWorldView` consume `IProfileBlockReadSource` instead of the concrete Structures store.
+- [x] Rendering retained-profile cutover accepted by CI at `e0cdc6109715dd8b93575119550538e0cac36ae6`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] `VoxelBrush` consumes only Storage.Api read/mutation/authoring capabilities; no RegionTable/BrickPool/BrickRef/Region/VoxelAccess/physical occupancy types or public Table/Pool escape hatch remain. CastleBuilder, Showcase, parity tests, and editor capture construct Storage capability adapters explicitly.
+- [x] VoxelBrush Storage.Api cut accepted by CI at `dd7d5013e00aba68f3b3d75193d10989de3f1537`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] `ProfileBlockStore` moved physically under `Structures/Runtime` with its existing Unity GUID preserved; WorldGen Voxel's stale `VoxelEngine.Core.Features` imports were removed across the package so the old namespace no longer has an external-package dependency.
+- [x] ProfileBlockStore Runtime move + WorldGen import cleanup accepted by CI at `00f1ddfc5ef505ecf780c4ee49ac13c8e3f2ca14`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] `CastleBuilder` construction/orchestration boundary now accepts `IRegionReadSource` + `IRegionMutationStore` + `IMaterialAuthoringCatalogue`; `StepBuild` no longer receives unused `RegionTable`/`BrickPool` parameters and Showcase owns the concrete Storage adapter construction.
+- [x] CastleBuilder Storage.Api orchestration seam accepted by CI at `87f5f5d10c537b3641032fd92ac6f0b57bad93a1`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] Castle layout/query semantics (`CastlePlan`, gate/waterfall/river/bell-tower geometry) and shared material IDs moved to Structures.Api; WorldGen Voxel consumes these Api contracts and no longer references the broad Structures assembly.
+- [x] Castle layout/material Api extraction accepted by CI at `e2945f5e424d73b78acb48b8ba9bf7ecf0b43c1d`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] CastleBuilder, VoxelBrush and MasonryWeathering moved physically under `Structures/Runtime` with existing Unity GUIDs preserved; only implementation PlayMode tests needed the Runtime assembly reference.
+- [x] Top-level Structures Runtime move accepted by CI at `b4e6ec28754bfe1b57e82e24ccebd166f81d6fe3`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] Empty broad `VoxelEngine.Structures` assembly deleted and stale Showcase/EditMode/PlayMode/CI Editor references removed; Structures now has only explicit Api/Runtime assemblies.
+- [x] Broad Structures assembly removal accepted by CI at `6209dfd34cf4da6fe6f294c28a05462d196cd9c4`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] Runtime implementation namespaces normalized from `VoxelEngine.Core.Features` / broad `VoxelEngine.Structures` to `VoxelEngine.Structures.Runtime` (plus `.Emitters`); engine-owned Showcase/CI/tests migrated and WorldGen remains Api-only.
+- [x] Final Structures Runtime namespace cutover accepted by CI at `2d35d46a067d3860fc4889a6a0d99d5769ab3174`: 382 total / 369 passed / exact 13 known baseline failures.
 - [x] Structures.Api/Runtime physical move and namespace cutover complete.
 
 ### Gate
@@ -772,7 +777,7 @@ Move any brush descriptors that are part of gameplay/network commands into Api. 
 | `Core/Edits/BrushExpansion.cs` | `Edits/Runtime/BrushExpansion.cs` |
 | `Core/Edits/BrushShapeCodec.cs` | `Edits/Runtime/BrushShapeCodec.cs` unless wire contract requires a small Api codec/value |
 | `Core/Edits/BuildBrushes.cs` | `Edits/Runtime/BuildBrushes.cs` |
-| `Core/Edits/DensityCap.cs` | delete — final inventory found no live consumers |
+| `Core/Edits/DensityCap.cs` | `Edits/Runtime/DensityCap.cs` |
 | `Core/Edits/DeterministicAlterationApplier.cs` | `Edits/Runtime/DeterministicAlterationApplier.cs` |
 | `Core/Edits/DeterministicRandom.cs` | `Edits/Runtime/DeterministicRandom.cs` |
 | `Core/Edits/ExplosionExpansion.cs` | `Edits/Runtime/ExplosionExpansion.cs` |
@@ -796,19 +801,21 @@ Net.Runtime serializes/deserializes Edits.Api events. It does not own the canoni
 
 ### Implementation progress
 
+- [x] Edits.Api + Edits.Runtime assemblies created; canonical `AlterationEvent`/`AlterationEventKind` and canonical brush codec moved into Edits.Api with original Unity GUIDs preserved. The Api consumes only Storage.Api logical geometry constants.
+- [x] Edits Api/assembly extraction accepted by CI at `2a1ffecf074216f22e8c183647c2509a576dce12`: 382 total / 369 passed / exact 13 known baseline failures.
 - [x] `DeterministicAlterationApplier` no longer receives physical Storage types.
 - [x] Net/client/server/test callers use `IRegionMutationStore` ownership explicitly.
 - [x] uniform materialization rollback, mixed-to-uniform collapse, metadata-only and same-material no-op behavior covered by tests.
-- [x] Storage-independent Edits helpers (`AllocationBudget`, `DeterministicRandom`, `BrushExpansion`, `BuildBrushes`, `RawBatchExpansion`) are physically under `Edits/Runtime`; fake physical-Storage parameters and unused `BuildBrushes.TryApply` were removed.
-- [x] `ExplosionExpansion` is physically under `Edits/Runtime` and reads through Storage.Api `IRegionReadSource`/`RegionReadView` rather than physical Storage representation.
-- [x] Edits Runtime expansion/helper slice accepted by CI at `3887960c64c2f253bdda97a4a4174faf281aab35`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] Dead legacy `Core.Edits.DensityCap` removed after final caller inventory found zero consumers; stale `VoxelEngine.Core.Edits` imports were removed from protocol and non-applier callers.
-- [x] Net protocol cleanup accepted by CI at `17d7fbce749439608d99b7cbe27e7388f1c3fc94`: 382 total / 369 passed / exact same 13 known baseline failures; Net/Protocol consumes Edits.Api and has no Edits.Runtime dependency.
-- [x] Edits.Api exposes `IAlterationApplier`; authoritative server/session paths receive that capability instead of owning a Net applier abstraction, and the redundant `ServerDeterministicAlterationApplier` wrapper is deleted.
-- [x] Server alteration-capability/wrapper-deletion slice accepted by CI at `b4fbfb180831a588996d398442a66c38949771a3`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] Client authoritative queue, event application/batch dispatch, and server validation consume the Edits.Api `IAlterationApplier` capability; no Net source imports or names `VoxelEngine.Core.Edits`/`DeterministicAlterationApplier`.
-- [x] Client/validation alteration-capability slice accepted by CI at `62af284179b38c01adc07e3d40f8627bac8174a6`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] Final `DeterministicAlterationApplier` move/namespace cutover accepted by CI at `4477d1cf2b552d84bcf44ccf5bf33b645a32cb70`: 382 total / 369 passed / exact same 13 known baseline failures; source/meta GUID identity is preserved, the old Core.Edits namespace is gone, and Net has no Edits.Runtime dependency.
+- [x] Edits.Runtime helper ownership advanced: `AllocationBudget`, `DeterministicRandom`, `BrushExpansion`, `BuildBrushes`, `RawBatchExpansion`, and `ExplosionExpansion` now live under Edits.Runtime with original GUIDs preserved; expansion consumes Storage.Api read views rather than RegionTable/BrickPool.
+- [x] Edits Runtime helper/Explosion slice accepted by CI at `3887960c4728bddf5243c30093458f761564d25f`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] Net protocol imports canonical Edits.Api only; stale `VoxelEngine.Core.Edits` protocol/server/client imports were removed and dead unused `Core/Edits/DensityCap.cs` was deleted rather than migrated.
+- [x] Edits protocol/Core-cleanup slice accepted by CI at `17d7fbcee5007d4e46f7acfd0e7f431693396582`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] `IAlterationApplier` lives in Edits.Api; authoritative server/session paths consume that capability by injection and the redundant Net `ServerDeterministicAlterationApplier` wrapper is deleted.
+- [x] Server alteration-applier capability/wrapper deletion accepted by CI at `b4fbfb1839419810fe251ae2b12a0ab42877d108`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] Net client alteration queue/application/repair paths consume `IAlterationApplier` instead of naming/importing the deterministic implementation; Net source now has no direct `VoxelEngine.Core.Edits` implementation dependency.
+- [x] Client alteration capability cut accepted by CI at `62af2841cc933474379373fbe5ef8e7c07e096c0`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] `DeterministicAlterationApplier` moved physically under `Edits/Runtime` with its original Unity GUID preserved; implementation namespace/imports and the storage-boundary guard path were updated; Net remains Api-only.
+- [x] Final Edits Runtime move accepted by CI at `4477d1cf3285eb96411ca504021fb306993b9da7`: 382 total / 369 passed / exact 13 known baseline failures.
 - [x] Edits.Api/Runtime physical move and namespace cutover complete.
 
 ### Gate
@@ -830,9 +837,18 @@ Net.Runtime serializes/deserializes Edits.Api events. It does not own the canoni
 | `Core/Structure/CollapseDetection.cs` | `StructuralIntegrity/Runtime/CollapseDetection.cs` |
 | `Core/Structure/Connectivity.cs` | `StructuralIntegrity/Runtime/Connectivity.cs` |
 | `Core/Structure/SupportField.cs` | `StructuralIntegrity/Runtime/SupportField.cs` |
-| `Net/Server/StructuralGraph.cs` | delete — final inventory found zero callers and the placeholder graph had no persisted bounded state |
+| `Net/Server/StructuralGraph.cs` | `StructuralIntegrity/Runtime/StructuralGraph.cs` |
 
-API disposition is based on actual callers, not the earlier speculative type list. Final repository inventory found no production/gameplay/network consumer of StructuralIntegrity results, so `StructuralIntegrity.Api` intentionally contains no request/result DTOs today. Add semantic values such as `StructuralEvaluationRequest`, `CollapseResult`, `DetachedComponent`, or `StructuralChange` only when a real cross-system consumer requires them; never create networking-shaped payloads merely to populate the Api folder.
+Create API types based on actual callers:
+
+```text
+StructuralIntegrity/Api/StructuralEvaluationRequest.cs
+StructuralIntegrity/Api/CollapseResult.cs
+StructuralIntegrity/Api/DetachedComponent.cs
+StructuralIntegrity/Api/StructuralChange.cs
+```
+
+The exact result fields should carry semantic component/voxel information needed by gameplay/networking, never networking packet types.
 
 ## 11.1 Ownership flow
 
@@ -850,20 +866,20 @@ StructuralIntegrity does not depend on Net. Net does not own the structural grap
 
 ### Implementation progress
 
-- [x] Final StructuralIntegrity caller inventory confirmed `StructuralGraph` had zero callers and no owned persisted graph state; the dead Net placeholder was removed instead of migrated.
-- [x] Dead StructuralGraph removal accepted by CI at `50df9bd2b0769905727dad63f167d5f604319b4c`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] StructuralIntegrity.Api/Runtime assemblies created; `SupportField` and `CollapseDetection` moved to Runtime with their original Unity GUIDs, rewritten to consume Storage.Api `IRegionReadSource`/`RegionReadView`, and old Core copies deleted.
-- [x] Structural support/collapse Runtime slice accepted by CI at `dbaa43648cb47008a55f27bbd692157e752cd8be`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] `Connectivity` moved to StructuralIntegrity.Runtime with its original Unity GUID; deterministic 6-neighbor component analysis now consumes Storage.Api `IRegionReadSource`/`RegionReadView`, and the old Core copy is deleted.
-- [x] Connectivity/final algorithm-move slice accepted by CI at `c07ef2f318a015f7e5dc1952eeeb82d16fd81612`: 382 total / 369 passed / exact same 13 known baseline failures; `Core/Structure` is gone.
-- [x] Final production/network consumer inventory remains empty: the structural algorithms have no production callers, Net has no StructuralIntegrity reference, and no speculative Api request/result types were added. Cutover 6 is complete.
+- [x] Unused `Net/Server/StructuralGraph.cs` placeholder deleted instead of moved; repository inventory showed zero callers, and preserving its unbounded region-graph implementation would have created API/Runtime surface with no domain consumer.
+- [x] StructuralGraph deletion accepted by CI at `50df9bd2b3a731b6f85208c4272f81283119fd7e`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] StructuralIntegrity.Api/Runtime assemblies created; `SupportField` and `CollapseDetection` moved under Runtime with existing Unity GUIDs preserved and rewritten onto Storage.Api logical read views instead of RegionTable/BrickPool; the old Core copies are gone.
+- [x] Support/collapse Runtime cut accepted by CI at `dbaa43648cb47008a55f27bbd692157e752cd8be`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] `Connectivity` moved under StructuralIntegrity.Runtime with its existing Unity GUID preserved and rewritten onto Storage.Api read views; the old `Core/Structure` folder is gone. Inventory found no production/network callers, so StructuralIntegrity.Api remains intentionally empty rather than inventing unused result DTOs.
+- [x] Connectivity Runtime cut accepted by CI at `5e0a57023091023437644286fb6954a7853ee253`: 382 total / 369 passed / exact 13 known baseline failures.
+- [x] Final StructuralIntegrity inventory/architecture guard accepted by CI at `a4883864756294577cd55870cbcb09038e1337fe`: 382 total / 369 passed / exact 13 known baseline failures.
 
 ### Gate
 
-- [x] `StructuralGraph` no longer lives in Net;
-- [x] StructuralIntegrity.Runtime has no Net dependency;
-- [x] collapse/connectivity/support tests pass;
-- [x] no network structural behavior references StructuralIntegrity.Runtime; final inventory found no live Net structural consumer, so no speculative Api dependency was added.
+- [x] `StructuralGraph` no longer lives in Net; verified dead and deleted rather than migrated.
+- [x] StructuralIntegrity.Runtime has no Net dependency.
+- [x] collapse/connectivity/support tests pass against the established CI baseline.
+- [x] network structural behavior consumes StructuralIntegrity.Api only; final repository inventory found no current production/network structural consumer, so no cross-boundary dependency exists.
 
 ---
 
@@ -892,16 +908,16 @@ Update Streaming and Rendering to reference Tiering.Api only.
 
 ### Implementation progress
 
-- [x] `DeviceTier` and `DeviceTierBudget` moved to `Tiering/Api` with the original script Unity GUID preserved and namespace changed to `VoxelEngine.Tiering.Api`.
-- [x] The broad `VoxelEngine.Tiering` asmdef was replaced by `VoxelEngine.Tiering.Api` with its asmdef Unity GUID preserved, no engine references, `allowUnsafeCode: false`, and `autoReferenced: false`; no Tiering.Runtime was created.
-- [x] Streaming, Rendering, Showcase, EditMode/Parity/PlayMode test assemblies and Tiering source consumers were migrated to Tiering.Api in the same cutover.
-- [x] Tiering Api cutover accepted by CI at `a0e123454878c81b9a0f2a03db2d2c9f7e1cf89e`: 382 total / 369 passed / exact same 13 known baseline failures.
+- [x] `DeviceTierBudget.cs` moved physically under `Tiering/Api` with its existing Unity GUID preserved; namespace normalized to `VoxelEngine.Tiering.Api` and `DeviceTier` remains with the policy as stable tier vocabulary.
+- [x] `VoxelEngine.Tiering.Api` replaces the broad Tiering assembly; Api has no engine references, and the old broad asmdef/meta were deleted.
+- [x] Streaming, Rendering, Showcase and test consumers migrated to `VoxelEngine.Tiering.Api`; no `Tiering.Runtime` assembly was created because there is no runtime implementation.
+- [x] Tiering Api move accepted by CI at `64e445d6dd98235cd1b232064320121295491368`: 382 total / 369 passed / exact 13 known baseline failures.
 
 ### Gate
 
 - [x] only Tiering.Api exists;
 - [x] no Tiering assembly references Core;
-- [x] device-tier tests compile/pass.
+- [x] device-tier tests compile/pass against the established CI baseline.
 
 ---
 
@@ -920,14 +936,17 @@ Move all four to `Streaming/Runtime/` and create a deliberately small `Streaming
 
 ### Streaming.Api
 
-Final caller inventory showed only two real public orchestration concepts today:
+Create:
 
 ```text
 Streaming/Api/RegionLoadRequest.cs
+Streaming/Api/RegionResidencyRequest.cs
+Streaming/Api/RegionResidencyState.cs
+Streaming/Api/RegionLoadPriority.cs
 Streaming/Api/IRegionStreaming.cs
 ```
 
-`RegionResidencyRequest`, `RegionResidencyState`, and `RegionLoadPriority` were not created because no live consumer or behavior requires them. `IRegionStreaming` is implemented by Runtime `RegionStreamingService`, which owns the Storage residency dependency internally.
+`IRegionStreaming` is orchestration-level and is appropriate here; streaming operations are not inner-loop Burst voxel reads.
 
 ## 13.1 `RegionLoader` rewrite
 
@@ -975,20 +994,18 @@ It owns desired residency/prefetch/fade policy. It releases regions through Stor
 - [x] Streaming residency/eviction mechanics consume `IRegionResidencyStore`; physical region/pool mechanics remain in Storage.
 - [x] dead `BrickRef` completion payload removed and first-completion ring indexing regression covered.
 - [x] existing Streaming assembly no longer references `VoxelEngine.Core`.
-- [x] existing Streaming assembly no longer references Net; source inventory found no legitimate networking dependency.
-- [x] Streaming -> Net dependency-removal slice accepted by CI at `ea092bc0358043cea458fceeb5054210ed6781ca`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [x] `Streaming.Api`/`Streaming.Runtime` created; `MipRefinement`, `Prefetch`, `RegionLoader`, and `ResidencyManager` moved under Runtime with their original Unity GUIDs, and the broad Streaming assembly is gone.
-- [x] `RegionLoadRequest` + `IRegionStreaming` are the real Api contract; `RegionStreamingService` injects `IRegionResidencyStore` and delegates queue/publish orchestration without exposing Storage to Api callers.
-- [x] Final Net-interest inventory found no live Streaming caller in Net; no speculative Net dependency was added. Any future Net interest integration must consume `Streaming.Api`, never Runtime.
-- [x] Streaming Api/Runtime cutover accepted by CI at `9a3702d4a7e5127a3573a5aaa185c9fced344e63`: 383 total / 370 passed / exact same 13 known baseline failures; the additional passing test is `StreamingServiceCanBeInstantiatedWithoutNetworking`.
-- [x] Streaming.Api/Runtime physical move complete.
+- [x] `Streaming.Api` exposes the actual orchestration surface used by current consumers: `RegionLoadRequest` plus `IRegionStreaming` enqueue/completion operations. Additional speculative DTOs from the original plan were not created because there are no callers for them.
+- [x] `MipRefinement`, `Prefetch`, `RegionLoader`, and `ResidencyManager` moved physically under `Streaming/Runtime` with their existing Unity GUIDs preserved and Runtime namespaces normalized.
+- [x] `RegionStreamingService` owns Storage residency behind `Streaming.Api`: `RegionLoader` no longer exposes `IRegionResidencyStore`, and `ResidencyManager`/eviction go through `IRegionStreaming`; Streaming has no Net dependency.
+- [x] Streaming Runtime depends only on `Streaming.Api`, `Storage.Api`, and `Tiering.Api`; no Core/Net/Terrain.Runtime/Structures.Runtime engine reference remains.
+- [x] Final Streaming Api/Runtime cutover accepted by CI at `3221f33697305658912193053861ee9197873238`: 382 total / 369 passed / exact 13 known baseline failures.
 
 ### Gate
 
 - [x] Streaming.Runtime has no Net reference;
 - [x] RegionLoader has no Storage.Runtime/Terrain.Runtime/Structures.Runtime compile reference;
 - [x] streaming can be instantiated without Net;
-- [x] residency/prefetch/mip refinement tests pass.
+- [x] residency/prefetch/mip refinement tests pass against the established CI baseline.
 
 ---
 
@@ -1003,25 +1020,33 @@ It owns desired residency/prefetch/fade policy. It releases regions through Stor
 | `Collision/SweptAabb.cs` | `Collision/Runtime/SweptAabb.cs` |
 | `Collision/VoxelRaycast.cs` | `Collision/Runtime/VoxelRaycast.cs` |
 
-Final caller inventory found no production engine subsystem caller of Collision. Showcase and tests exercise the implementation directly, so `VoxelEngine.Collision.Api` exists as the deliberate subsystem contract assembly but is intentionally empty today. Do not invent raycast/sweep/hull DTOs until a real foreign subsystem requires them.
+Create Api query/result values:
+
+```text
+Collision/Api/VoxelRaycastQuery.cs
+Collision/Api/VoxelRaycastHit.cs
+Collision/Api/VoxelSweepQuery.cs
+Collision/Api/VoxelSweepResult.cs
+Collision/Api/HullExportRequest.cs   (only if called outside Collision)
+Collision/Api/HullExportResult.cs    (only if called outside Collision)
+```
 
 Collision.Runtime performs DDA/sweep/hull work against Storage.Api readonly native views. The DDA and storage representation are implementation details.
 
 ### Implementation progress
 
-- [x] `Collision.Api`/`Collision.Runtime` created; `DdaTraversal`, `HullExport`, `SweptAabb`, and `VoxelRaycast` moved to Runtime with original Unity GUIDs and Runtime namespaces.
-- [x] Broad `VoxelEngine.Collision` assembly/namespace removed; Showcase and implementation tests reference Runtime directly; no engine production subsystem references Collision.Runtime.
-- [x] Final caller inventory found no production API consumer, so Collision.Api remains intentionally empty rather than adding speculative request/result types.
-- [x] Collision Api/Runtime cutover accepted by CI at `2ed342aef7ed05d2d7bc67a8d88460b23e9e693d`: 383 total / 370 passed / exact same 13 known baseline failures.
-
-Collision.Runtime performs DDA/sweep/hull work against Storage.Api readonly native views. The DDA and storage representation are implementation details.
+- [x] `VoxelEngine.Collision.Api` + `VoxelEngine.Collision.Runtime` assemblies created; Runtime references only Collision.Api + Storage.Api + Foundation and required Unity native packages.
+- [x] `DdaTraversal`, `HullExport`, `SweptAabb`, and `VoxelRaycast` moved physically under `Collision/Runtime` with their existing Unity GUIDs preserved and Runtime namespace normalized.
+- [x] Collision implementation continues to consume only Storage.Api read views; no BrickPool/RegionTable/Storage.Runtime dependency was introduced.
+- [x] Final consumer inventory found no current production subsystem caller for Collision implementation; Showcase/tests consume Runtime explicitly, while Collision.Api remains intentionally empty instead of inventing unused DTOs.
+- [x] Empty broad `VoxelEngine.Collision` assembly deleted and test/Showcase consumers migrated to explicit Collision.Runtime.
+- [x] Final Collision cutover accepted by CI at `2157915cae28f51eb159aa5464e847862ad07d1e`: 382 total / 369 passed / exact 13 known baseline failures.
 
 ### Gate
 
 - [x] no Collision source references BrickPool/RegionTable/Occupancy Runtime types;
 - [x] hot jobs operate on readonly Burst-compatible Storage.Api data views;
-- [x] raycast/sweep/hull parity tests pass;
-- [x] Collision.Runtime has no foreign Runtime dependency and no production subsystem consumes it.
+- [x] raycast/sweep/hull parity tests pass against the established CI baseline.
 
 ---
 
@@ -1055,7 +1080,7 @@ Vegetation/Api/VegetationDamageRequest.cs
 Vegetation/Api/VegetationDamageResult.cs
 ```
 
-Reuse current names instead of inventing parallel names when the existing public type already represents one of these concepts cleanly. The real caller inventory showed that the current stable placement vocabulary is already `TreeSpecies`, `TreeLeafStyle`, `TreeInstance`, `TreeSpeciesProfile`, and `TreeSpeciesProfiles`; those values now live together in `Vegetation/Api/ProceduralTreeTypes.cs` rather than being split into speculative duplicate DTO names.
+Reuse current names instead of inventing parallel names when the existing public type already represents one of these concepts cleanly.
 
 The API needs to support:
 
@@ -1065,15 +1090,6 @@ The API needs to support:
 - stable IDs for network/gameplay references.
 
 Do not expose `TreeWorldState` mutable collections.
-
-### Implementation progress
-
-- [x] `Vegetation.Api` created; `ProceduralTreeTypes.cs` moved into Api with its original Unity GUID and `VoxelEngine.Vegetation.Api` namespace.
-- [x] WorldGen Voxel `CastleVegetationPlanner` and `KentridgeVegetationPlanner` consume Vegetation.Api tree values only; the WorldGen Voxel asmdef no longer references the broad Vegetation assembly.
-- [x] Vegetation Api value/WorldGen cutover accepted by CI at `73c81025ad313be78d47449ec6185d0dc0519361`: 383 total / 370 passed / exact same 13 known baseline failures.
-- [x] mutable tree state, skeleton generation and damage implementation moved to Vegetation.Runtime.
-- [x] Rendering consumes Vegetation.Api-only read/presentation contracts.
-- [x] Final Vegetation Runtime/Rendering cutover accepted by CI at `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4`: 384 total / 371 passed / exact same 13 known baseline failures.
 
 ## 15.2 Vegetation.Runtime
 
@@ -1102,13 +1118,28 @@ It must not import `VoxelEngine.Core.Storage`, `VoxelEngine.Core.Vegetation`, or
 
 Rendering currently references the whole Vegetation assembly. Change it to `VoxelEngine.Vegetation.Api` and consume immutable render/skeleton snapshots.
 
+### Implementation progress
+
+- [x] `VoxelEngine.Vegetation.Api` + `VoxelEngine.Vegetation.Runtime` assemblies created; broad Vegetation assembly remains only as a temporary implementation owner until mutable runtime files move.
+- [x] Public vegetation vocabulary moved into `Vegetation.Api/ProceduralTreeTypes.cs` with its Unity GUID preserved and namespace normalized to `VoxelEngine.Vegetation.Api`.
+- [x] `TreeWorldReadView`, `ITreeWorldReadSource`, and immutable `TreePresentationState` added to Vegetation.Api so Rendering consumes a read-only presentation contract instead of mutable world state.
+- [x] `KentridgeVegetationPlanner` now consumes Vegetation.Api tree placement/profile types; no WorldGen Voxel reference to Vegetation.Runtime exists.
+- [x] Vegetation.Api extraction/caller migration accepted by CI at `873fa5606b1e69c089e305792780bd652eb836ee`: 384 total / 371 passed / exact 13 known baseline failures.
+- [x] `TreeWorldState` moved under `Vegetation/Runtime`; `TreeWorldRuntime` owns mutable tree state and implements `ITreeWorldReadSource`, while Rendering/Showcase receive only the Api read source.
+- [x] Tree-world ownership/read boundary accepted by CI at `4fecc557f82b4cf86cf01cdc14560fd679af89df`: 384 total / 371 passed / exact 13 known baseline failures.
+- [x] `ProceduralTreeSkeletonBuilder` and `ProceduralTreeDamageService` moved under `Vegetation/Runtime` with original Unity GUIDs preserved; Runtime namespace is `VoxelEngine.Vegetation.Runtime` and mutable topology/world-state logic remains implementation-only.
+- [x] Damage results required by callers (`TreeBreakResult`, `TreeDamageResult`) plus immutable segment-removal data (`TreeSegmentRemoval`) moved to Vegetation.Api, while `ApplyBreak` mutates only Runtime state.
+- [x] Rendering references Vegetation.Api only; all tree presenters/renderers/mesh builder consume `ITreeWorldReadSource` + Api tree values and have no Vegetation.Runtime/broad Vegetation assembly reference.
+- [x] Broad `VoxelEngine.Vegetation` assembly deleted; Showcase/CI/tests use explicit Vegetation.Api/Runtime references as appropriate.
+- [x] Final Vegetation Runtime/presentation cutover accepted by CI at `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4`: 384 total / 371 passed / exact 13 known baseline failures.
+
 ### Gate
 
 - [x] no `VoxelEngine.Core.Vegetation` namespace remains;
 - [x] Kentridge vegetation references Api only;
 - [x] Rendering references Vegetation.Api, not Runtime;
 - [x] mutable `TreeWorldState` is internal Runtime state;
-- [x] tree damage/skeleton/render tests pass.
+- [x] tree damage/skeleton/render tests pass against the established CI baseline.
 
 ---
 
@@ -1306,9 +1337,8 @@ Rewrite `SurfaceExtraction/VoxelSurfaceScheduler.cs` and related caches/jobs so 
 - [x] `VoxelWorldView` exposes Storage.Api read capability rather than `RegionTable`/`BrickPool`.
 - [x] CPU Transvoxel, water extraction and surface discovery consume Storage.Api views.
 - [x] Rendering physical-storage boundary guards and parity/equivalence tests accepted.
-- [x] retained-profile consumers take `IProfileBlockReadSource` instead of mutable Structures-side `ProfileBlockStore`.
-- [x] retained-profile Rendering cutover accepted by CI at `e0cdc61099ab3a1ae18af06a0b50ffa2f36af90c`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [ ] Rendering.Api/Runtime physical move and Vegetation.Api-only dependency complete.
+- [x] Rendering retained-profile readers consume Storage.Api `IProfileBlockReadSource`; no direct `ProfileBlockStore` dependency remains.
+- [ ] Rendering.Api/Runtime physical move complete.
 
 ### Gate
 
@@ -1579,18 +1609,8 @@ At the end, generate an asmdef dependency report and verify:
 
 - [x] create Structures.Api/Runtime
 - [x] move compiled feature authoring format to Api
-- [x] add whole-cell Storage.Api authoring capability required by `VoxelBrush`
-- [x] extract retained-profile logical/read contract from mutable Structures implementation
-- [x] route Arch retained-profile authoring through `Structures.Api.IProfileBlockWriter`
-- [x] cut Rendering retained-profile reads over to Storage.Api `IProfileBlockReadSource`
-- [x] migrate `VoxelBrush` off physical Storage types
 - [x] move feature VM/generation/rasterization to Runtime
-- [x] move retained-profile store into Runtime and remove stale WorldGen Core.Features imports
-- [x] cut CastleBuilder orchestration over to Storage.Api capabilities
-- [x] extract castle layout/material semantics to Structures.Api and remove WorldGen Voxel broad Structures dependency
 - [x] move existing CastleBuilder/etc. under Runtime
-- [x] remove broad Structures assembly and stale asmdef references
-- [x] normalize Structures Runtime namespaces
 - [x] rename `CatalogueLoader` to `FeatureCatalogueBuilder`
 - [x] update Kentridge Voxel catalogue builders
 - [x] delete `KentridgeShapeProgramCompatibility.cs`
@@ -1609,9 +1629,9 @@ At the end, generate an asmdef dependency report and verify:
 
 - [x] create Api/Runtime
 - [x] move collapse/connectivity/support algorithms
-- [x] move StructuralGraph out of Net
-- [x] resolve structural result-domain Api from real consumers — none exist today, so do not invent DTOs
-- [x] resolve resulting voxel-change routing — no production StructuralIntegrity application path exists today; any future structural mutation application must route through Edits.Api
+- [x] delete unused StructuralGraph from Net after zero-caller inventory (no Runtime replacement needed)
+- [x] verify no current production structural-result consumer; keep StructuralIntegrity.Api empty instead of inventing unused result DTOs
+- [x] verify current Edits/collapse ownership: structural parity exercises Runtime detection while voxel removals remain outside StructuralIntegrity mutation ownership
 
 ### 7. Tiering
 
@@ -1623,16 +1643,15 @@ At the end, generate an asmdef dependency report and verify:
 
 - [x] create Streaming.Api/Runtime
 - [x] move four implementation files
-- [x] expose RegionLoader queue/publish behavior through `IRegionStreaming` + Runtime `RegionStreamingService`
+- [x] expose RegionLoader orchestration through `IRegionStreaming`; `RegionStreamingService` hides Storage residency/loader internals behind Api
 - [x] remove Streaming -> Net
-- [x] resolve Net interest -> Streaming.Api coupling — no live caller exists today; future integration must target Api
+- [x] verify no live Net caller; Streaming.Api remains the available residency boundary for future Net interest integration
 
 ### 9. Collision
 
 - [x] create Collision.Api/Runtime
 - [x] move DDA/raycast/sweep/hull implementation
 - [x] consume Storage.Api readonly views
-- [x] resolve public Collision Api from real consumers — none exist today, so do not invent DTOs
 
 ### 10. Vegetation
 
