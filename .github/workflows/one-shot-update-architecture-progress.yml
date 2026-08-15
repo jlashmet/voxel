@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Update implementation progress
-        run: python .github/scripts/one_shot_update_architecture_progress.py
+        run: python .github/scripts/one_shot_update_architecture_progress_v2.py
 
       - name: Verify intended documentation-only diff
         run: |
@@ -31,9 +31,10 @@ jobs:
       - name: Commit progress and remove one-shot tooling
         run: |
           rm .github/scripts/one_shot_update_architecture_progress.py
+          rm .github/scripts/one_shot_update_architecture_progress_v2.py
           rm .github/workflows/one-shot-update-architecture-progress.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md .github/scripts/one_shot_update_architecture_progress.py .github/workflows/one-shot-update-architecture-progress.yml
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md .github/scripts/one_shot_update_architecture_progress.py .github/scripts/one_shot_update_architecture_progress_v2.py .github/workflows/one-shot-update-architecture-progress.yml
           git commit -m "docs: track architecture refactor progress"
           git push origin HEAD:refactor/system-boundaries-foundation-storage
