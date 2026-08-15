@@ -9,7 +9,7 @@ SOURCE_DIR="$CACHE_ROOT/TripoSR-$TRIPOSR_REV"
 VENV_DIR="$CACHE_ROOT/triposr-$TRIPOSR_REV-py312-venv"
 MODEL_DIR="$CACHE_ROOT/models/triposr"
 DINO_DIR="$CACHE_ROOT/models/dino-vitb16"
-STAMP="$VENV_DIR/.voxel-ready-v3"
+STAMP="$VENV_DIR/.voxel-ready-v4"
 
 resolve_python312() {
   if [ -n "${PYTHON_BIN:-}" ]; then
@@ -73,9 +73,15 @@ if [ ! -f "$STAMP" ]; then
   "$VENV_DIR/bin/python" -m pip install 'xatlas==0.0.11'
   "$VENV_DIR/bin/python" -m pip install -r "$SMOKE_REQUIREMENTS"
 
+  # rembg is imported by TripoSR's run.py even when --no-remove-bg is used.
+  # The rembg package does not pull in an ONNX execution provider by default,
+  # so install the CPU runtime to satisfy that import without adding another
+  # model to the actual smoke inference path.
+  "$VENV_DIR/bin/python" -m pip install onnxruntime
+
   "$VENV_DIR/bin/python" - <<'PY'
 import importlib
-for module in ("torch", "torchvision", "omegaconf", "PIL", "einops", "transformers", "trimesh", "rembg", "xatlas", "moderngl"):
+for module in ("torch", "torchvision", "omegaconf", "PIL", "einops", "transformers", "trimesh", "onnxruntime", "rembg", "xatlas", "moderngl"):
     importlib.import_module(module)
 print("TripoSR smoke runtime imports ready")
 PY
