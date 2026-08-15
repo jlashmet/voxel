@@ -1,5 +1,6 @@
 # Permanent exact-head acceptance gate for the completed system-boundary refactor.
 # Final baseline includes two passing permanent architecture-guard tests; the known failure set is unchanged.
+# Refresh marker: keep one authoritative exact-head macOS validation queued for Cutover 13 closure.
 name: Stable final architecture acceptance
 
 on:
