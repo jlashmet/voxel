@@ -17,6 +17,7 @@ jobs:
       - shell: bash
         run: |
           set -euo pipefail
+          echo '--- preconditions ---'
           test -f Assets/VoxelEngine/Rendering/VoxelEngine.Rendering.asmdef
           test ! -e Assets/VoxelEngine/Rendering/Runtime
           test ! -e Assets/VoxelEngine/Rendering/Api
@@ -24,6 +25,7 @@ jobs:
 
           mkdir -p Assets/VoxelEngine/Rendering/Runtime Assets/VoxelEngine/Rendering/Api
           for name in RenderFeature Shaders SurfaceExtraction Vegetation; do
+            echo "moving $name"
             git mv "Assets/VoxelEngine/Rendering/$name" "Assets/VoxelEngine/Rendering/Runtime/$name"
             git mv "Assets/VoxelEngine/Rendering/$name.meta" "Assets/VoxelEngine/Rendering/Runtime/$name.meta"
           done
@@ -69,9 +71,9 @@ jobs:
                   'folderAsset: yes\n'
                   'DefaultImporter:\n'
                   '  externalObjects: {}\n'
-                  '  userData: \n'
-                  '  assetBundleName: \n'
-                  '  assetBundleVariant: \n')
+                  '  userData:\n'
+                  '  assetBundleName:\n'
+                  '  assetBundleVariant:\n')
           def file_meta(path):
               Path(path).write_text(f'fileFormatVersion: 2\nguid: {uuid.uuid4().hex}\n')
 
@@ -89,8 +91,8 @@ jobs:
           for p in consumers:
               obj = json.loads(p.read_text())
               refs = obj.get('references', [])
-              if 'VoxelEngine.Rendering' not in refs:
-                  raise SystemExit(f'{p}: missing expected broad Rendering reference before cutover')
+              if refs.count('VoxelEngine.Rendering') != 1:
+                  raise SystemExit(f'{p}: expected exactly one broad Rendering reference before cutover, found {refs.count("VoxelEngine.Rendering")}')
               obj['references'] = [
                   'VoxelEngine.Rendering.Runtime' if r == 'VoxelEngine.Rendering' else r
                   for r in refs
@@ -112,11 +114,18 @@ jobs:
                   raise SystemExit(f'{p}: broad Rendering reference survived cutover')
           PY
 
+          echo '--- postconditions ---'
           test ! -e Assets/VoxelEngine/Rendering/VoxelEngine.Rendering.asmdef
           test -f Assets/VoxelEngine/Rendering/Runtime/VoxelEngine.Rendering.Runtime.asmdef
           test -f Assets/VoxelEngine/Rendering/Api/VoxelEngine.Rendering.Api.asmdef
-          ! grep -RIn '"VoxelEngine.Rendering"' Assets Packages --include='*.asmdef'
+          if grep -RIn '"VoxelEngine.Rendering"' Assets Packages --include='*.asmdef'; then
+            echo 'broad Rendering asmdef reference survived' >&2
+            exit 1
+          fi
+          echo '--- diff check ---'
           git diff --check
+          echo '--- staged source status ---'
+          git status --short
 
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
