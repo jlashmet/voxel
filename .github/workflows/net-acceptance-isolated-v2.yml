@@ -1,0 +1,58 @@
+name: Net acceptance isolated v2
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-acceptance-isolated-v2.yml]
+permissions:
+  contents: read
+jobs:
+  unity-editmode:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 84b817635c5282ae958b6166b0c0c8c48cc7d91a
+          clean: false
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard 84b817635c5282ae958b6166b0c0c8c48cc7d91a
+          git clean -ffdx -e Library/
+      - id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+      - shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then exit 1; fi
+            sleep 5
+          done
+      - shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/NetworkingCI"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -nographics -quit \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log" || true
+          test -s "$ROOT/results.xml"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetworkingCI
+          path: Artifacts/NetworkingCI/
+          if-no-files-found: warn
+          retention-days: 14
