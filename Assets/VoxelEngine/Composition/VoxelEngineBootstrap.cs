@@ -1,5 +1,7 @@
 using System;
 using Unity.Collections;
+using UnityEngine;
+using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Storage.Runtime;
 
@@ -44,6 +46,22 @@ namespace VoxelEngine.Composition
                 minimumCapacity,
                 budgetBytes / VoxelDimensions.BytesPerMixedBrick);
             return Math.Min(Math.Max(requestedCapacity, minimumCapacity), budgetCapacity);
+        }
+
+        /// <summary>
+        /// Applies application-owned presentation settings to the concrete renderer bridge.
+        /// Scene code supplies presentation values but does not reference Rendering.Runtime.
+        /// </summary>
+        public static void ConfigureRenderingEnvironment(
+            Color surfaceDebugTint,
+            Vector3 sunDirection,
+            Color skyHorizon,
+            Color skyZenith)
+        {
+            VoxelRenderBridge.SurfaceDebugTint = surfaceDebugTint;
+            VoxelRenderBridge.SunDirection = sunDirection;
+            VoxelRenderBridge.SkyHorizon = skyHorizon;
+            VoxelRenderBridge.SkyZenith = skyZenith;
         }
 
         public static IVoxelStorageRuntime CreateStorage(
