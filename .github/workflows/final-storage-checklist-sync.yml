@@ -52,4 +52,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md .github/workflows/final-storage-checklist-sync.yml
           git commit -m "docs(architecture): accept final Storage source boundary"
-          git push origin HEAD:refactor/system-boundaries-finalization-stable
+
+          for attempt in 1 2 3 4; do
+            git fetch origin refactor/system-boundaries-finalization-stable
+            git rebase origin/refactor/system-boundaries-finalization-stable
+            if git push origin HEAD:refactor/system-boundaries-finalization-stable; then
+              exit 0
+            fi
+            echo "Push raced with another finalization commit; rebasing again (attempt ${attempt})."
+          done
+          echo "Could not publish Storage checklist sync after repeated branch races." >&2
+          exit 1
