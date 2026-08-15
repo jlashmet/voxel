@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
+import numpy as np
 from PIL import Image
 import trimesh
 
@@ -67,6 +68,87 @@ def patch_mps_texture_baker(source: Path) -> None:
         print(f"patched MPS-safe TripoSR texture baker: {path}", flush=True)
 
 
+def _foreground_pixels(image: Image.Image) -> np.ndarray | None:
+    rgba = np.asarray(image.convert("RGBA"), dtype=np.uint8)
+    alpha = rgba[..., 3]
+    if alpha.min() < 250:
+        mask = alpha > 16
+    else:
+        rgb = rgba[..., :3].astype(np.float32)
+        border = np.concatenate(
+            [rgb[0, :, :], rgb[-1, :, :], rgb[:, 0, :], rgb[:, -1, :]],
+            axis=0,
+        )
+        background = np.median(border, axis=0)
+        border_delta = np.max(np.abs(border - background), axis=1)
+        # Source-guided palette transfer is only safe when the input has a
+        # deliberately simple background (the CI/automation path uses neutral gray).
+        if float(np.percentile(border_delta, 90)) > 18.0:
+            return None
+        mask = np.max(np.abs(rgb - background), axis=2) > 12.0
+
+    count = int(mask.sum())
+    total = int(mask.size)
+    if count < max(64, total // 200) or count > int(total * 0.92):
+        return None
+    return rgba[..., :3][mask].astype(np.float32)
+
+
+def harmonize_source_palette(
+    texture_path: Path,
+    source_image_path: Path,
+    strength: float = 0.85,
+) -> bool:
+    """Pull TripoSR's baked atlas toward the source asset's actual color palette.
+
+    TripoSR is excellent for fast geometry smoke tests on Apple Silicon, but its
+    inferred colors can be heavily desaturated. Matching masked RGB statistics
+    keeps the learned spatial texture/detail while restoring the reference's
+    dominant material palette. Hidden/back surfaces stay learned rather than
+    receiving a mirrored front-view projection.
+    """
+
+    source_pixels = _foreground_pixels(Image.open(source_image_path))
+    if source_pixels is None:
+        print("source palette harmonization skipped: foreground could not be isolated", flush=True)
+        return False
+
+    texture_image = Image.open(texture_path).convert("RGBA")
+    texture = np.asarray(texture_image, dtype=np.uint8).copy()
+    atlas_mask = texture[..., 3] > 8
+    if int(atlas_mask.sum()) < 64:
+        print("source palette harmonization skipped: baked atlas has no usable texels", flush=True)
+        return False
+
+    rgb = texture[..., :3].astype(np.float32)
+    atlas_pixels = rgb[atlas_mask]
+    adjusted = rgb.copy()
+    for channel in range(3):
+        source_mean = float(source_pixels[:, channel].mean())
+        source_std = float(source_pixels[:, channel].std())
+        atlas_mean = float(atlas_pixels[:, channel].mean())
+        atlas_std = float(atlas_pixels[:, channel].std())
+        scale = np.clip(source_std / max(atlas_std, 1e-6), 0.55, 1.80)
+        adjusted[..., channel] = (adjusted[..., channel] - atlas_mean) * scale + source_mean
+
+    strength = float(np.clip(strength, 0.0, 1.0))
+    recolored = rgb * (1.0 - strength) + adjusted * strength
+    texture[..., :3] = np.clip(recolored, 0.0, 255.0).astype(np.uint8)
+    Image.fromarray(texture, mode="RGBA").save(texture_path)
+
+    before = atlas_pixels.mean(axis=0)
+    after = texture[..., :3][atlas_mask].astype(np.float32).mean(axis=0)
+    source_mean = source_pixels.mean(axis=0)
+    print(
+        "source palette harmonized: "
+        f"source={source_mean.round(1).tolist()} "
+        f"before={before.round(1).tolist()} "
+        f"after={after.round(1).tolist()}",
+        flush=True,
+    )
+    return True
+
+
 def single_mesh(path: Path) -> trimesh.Trimesh:
     loaded = trimesh.load(str(path), process=False, maintain_order=True)
     if isinstance(loaded, trimesh.Scene):
@@ -105,6 +187,7 @@ def main() -> int:
     args = parse_args()
     source = Path(args.source).resolve()
     weights = Path(args.weights).resolve()
+    front = Path(args.front).resolve()
     output = Path(args.output).resolve()
     work = output.parent / f".{output.stem}.triposr"
     bake_texture = not args.no_bake_texture
@@ -122,7 +205,7 @@ def main() -> int:
     command = [
         __import__("sys").executable,
         str(source / "run.py"),
-        args.front,
+        str(front),
         "--device",
         device,
         "--pretrained-model-name-or-path",
@@ -159,6 +242,7 @@ def main() -> int:
     if bake_texture:
         if not produced_texture.is_file() or produced_texture.stat().st_size == 0:
             raise RuntimeError(f"TripoSR did not produce {produced_texture}")
+        harmonize_source_palette(produced_texture, front)
         export_textured_glb(produced, produced_texture, output)
         sidecar = output.with_name(f"{output.stem}.basecolor.png")
         shutil.copy2(produced_texture, sidecar)
