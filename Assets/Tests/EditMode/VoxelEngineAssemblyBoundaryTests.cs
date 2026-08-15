@@ -101,7 +101,7 @@ namespace VoxelEngine.Tests.EditMode
             var violations = new List<string>();
             foreach (var asmdef in LoadAsmdefs().Where(a => IsRuntimeAssembly(a.Name)))
             {
-                if (asmdef.Name == "VoxelEngine.Composition")
+                if (IsCompositionAssembly(asmdef.Name))
                     continue;
 
                 string owner = SubsystemPrefix(asmdef.Name);
@@ -175,6 +175,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             var violations = LoadAsmdefs()
                 .Where(a => IsRuntimeAssembly(a.Name) && a.Name != "VoxelEngine.Rendering.Runtime")
+                .Where(a => !IsCompositionAssembly(a.Name))
                 .Where(a => a.References.Contains("VoxelEngine.Rendering.Runtime"))
                 .Select(a => $"{a.Name} -> VoxelEngine.Rendering.Runtime")
                 .ToList();
@@ -190,7 +191,7 @@ namespace VoxelEngine.Tests.EditMode
             var violations = new List<string>();
             foreach (var asmdef in LoadAsmdefs().Where(IsProductionAssembly))
             {
-                if (asmdef.Name == "VoxelEngine.Composition")
+                if (IsCompositionAssembly(asmdef.Name))
                     continue;
 
                 string owner = SubsystemPrefix(asmdef.Name);
@@ -257,6 +258,11 @@ namespace VoxelEngine.Tests.EditMode
 
         private static bool IsRuntimeAssembly(string assemblyName) =>
             assemblyName.EndsWith(".Runtime", StringComparison.Ordinal);
+
+        private static bool IsCompositionAssembly(string assemblyName) =>
+            string.Equals(assemblyName, "VoxelEngine.Composition", StringComparison.Ordinal)
+            || string.Equals(assemblyName, "Game.Composition", StringComparison.Ordinal)
+            || assemblyName.StartsWith("Game.Composition.", StringComparison.Ordinal);
 
         private static string SubsystemPrefix(string assemblyName)
         {
