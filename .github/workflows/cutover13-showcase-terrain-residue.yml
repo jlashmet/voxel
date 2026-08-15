@@ -37,7 +37,7 @@ jobs:
 
           job_path = Path('Assets/Scenes/Showcase/ShowcaseHeightJob.cs')
           job = job_path.read_text()
-          if 'namespace VoxelEngine.Showcase' not in job or 'TerrainQuery.HeightAt' not in job:
+          if 'namespace VoxelEngine.Showcase' not in job or 'TerrainSampler.HeightAt' not in job:
               raise SystemExit('ShowcaseHeightJob is not the expected Showcase-owned Terrain.Api job')
           if 'VoxelEngine.Terrain.Runtime' in job:
               raise SystemExit('ShowcaseHeightJob still depends on Terrain.Runtime')
