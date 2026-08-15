@@ -12,14 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ed126903cd18dcd62324fab41942d41fdaa37532
+          ref: 34b2f65f2c371313c58334c2ffe5c3369c42ced0
           clean: false
           fetch-depth: 1
       - name: Fully clean checkout and Unity cache
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard ed126903cd18dcd62324fab41942d41fdaa37532
+          git reset --hard 34b2f65f2c371313c58334c2ffe5c3369c42ced0
           git clean -ffdx
       - id: unity
         shell: bash
