@@ -50,7 +50,7 @@ namespace VoxelEngine.Showcase
                     in plan, view.Storage, worldSeed, out var instances))
                 return;
 
-            TreeWorldState.Replace(instances);
+            TreeWorldRuntime.Replace(instances);
             _done = true;
             Completed = true;
             enabled = false;

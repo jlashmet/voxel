@@ -64,7 +64,7 @@ namespace VoxelEngine.CI
                     Seed = 0x00C0FFEEu,
                     Scale = 1f,
                 };
-                TreeWorldState.Replace(new[] { instance });
+                TreeWorldRuntime.Replace(new[] { instance });
 
                 for (int frame = 0;
                      frame < 60 && (renderer.PresentationCount != 1
@@ -221,7 +221,7 @@ namespace VoxelEngine.CI
                             "the tree is not demonstrably visible in the captured frame.");
 
                 string metadata =
-                    $"registryInstances={TreeWorldState.Instances.Count}\n" +
+                    $"registryInstances={TreeWorldRuntime.Instances.Count}\n" +
                     $"rendererInstances={renderers.Count}\n" +
                     $"semanticPresentations={renderer.PresentationCount}\n" +
                     $"batchCount={renderer.BatchCount}\n" +
@@ -245,7 +245,7 @@ namespace VoxelEngine.CI
             }
             finally
             {
-                TreeWorldState.Replace(System.Array.Empty<TreeInstance>());
+                TreeWorldRuntime.Replace(System.Array.Empty<TreeInstance>());
                 if (capture != null) Object.Destroy(capture);
                 if (noTreeCapture != null) Object.Destroy(noTreeCapture);
                 if (target != null)

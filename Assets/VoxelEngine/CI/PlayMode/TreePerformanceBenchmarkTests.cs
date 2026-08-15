@@ -126,14 +126,14 @@ namespace VoxelEngine.CI
             double trianglesPerTreeAllLods = 0.0;
             foreach (int count in RuntimeCounts)
             {
-                TreeWorldState.Replace(Array.Empty<TreeInstance>());
+                TreeWorldRuntime.Replace(Array.Empty<TreeInstance>());
                 for (int frame = 0; frame < 3; frame++) yield return null;
 
                 var instances = new TreeInstance[count];
                 for (int i = 0; i < count; i++) instances[i] = MakeInstance(i);
 
                 long beforeAllocated = Profiler.GetTotalAllocatedMemoryLong();
-                TreeWorldState.Replace(instances);
+                TreeWorldRuntime.Replace(instances);
 
                 float deadline = Time.realtimeSinceStartup + 90f;
                 while (renderer.PresentationCount != count
@@ -220,7 +220,7 @@ namespace VoxelEngine.CI
             text.Add("recommendation=healthy tree residency duplication is removed; next scaling target is direct batch-buffer construction so rebuilds stop creating temporary per-tree Unity Mesh objects before CombineMeshes");
             Flush(csvPath, txtPath, csv, text);
 
-            TreeWorldState.Replace(Array.Empty<TreeInstance>());
+            TreeWorldRuntime.Replace(Array.Empty<TreeInstance>());
             for (int frame = 0; frame < 3; frame++) yield return null;
 
             UnityEngine.Debug.Log("Tree performance benchmark:\n" + string.Join("\n", text));

@@ -49,18 +49,18 @@ namespace VoxelEngine.CI
             while (!load.isDone) yield return null;
 
             float deadline = Time.realtimeSinceStartup + StartupTimeoutSeconds;
-            while ((!ShowcaseTreePopulation.Completed || TreeWorldState.Instances.Count == 0)
+            while ((!ShowcaseTreePopulation.Completed || TreeWorldRuntime.Instances.Count == 0)
                    && Time.realtimeSinceStartup < deadline)
                 yield return null;
 
             Assert.That(ShowcaseTreePopulation.Completed, Is.True,
                         "Semantic Showcase tree population did not complete.");
-            Assert.That(TreeWorldState.Instances.Count, Is.GreaterThan(0),
+            Assert.That(TreeWorldRuntime.Instances.Count, Is.GreaterThan(0),
                         "Showcase never published semantic tree instances.");
 
             List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
             while ((renderers.Count != 1
-                    || renderers[0].PresentationCount < TreeWorldState.Instances.Count)
+                    || renderers[0].PresentationCount < TreeWorldRuntime.Instances.Count)
                    && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
@@ -72,8 +72,8 @@ namespace VoxelEngine.CI
             ProceduralTreeRenderer treeRenderer = renderers[0];
             for (int i = 0; i < 30; i++) yield return null;
 
-            int instanceCount = TreeWorldState.Instances.Count;
-            int damageCount = TreeWorldState.Damage.Count;
+            int instanceCount = TreeWorldRuntime.Instances.Count;
+            int damageCount = TreeWorldRuntime.Damage.Count;
             int severedCount = 0;
             int foliageDamagedCount = 0;
             int sidewaysSkeletonCount = 0;
@@ -84,12 +84,12 @@ namespace VoxelEngine.CI
             {
                 if (i < damageCount)
                 {
-                    TreeDamageState damage = TreeWorldState.Damage[i];
+                    TreeDamageState damage = TreeWorldRuntime.Damage[i];
                     if (damage.Severed) severedCount++;
                     if (damage.FoliageHealth < 0.999f) foliageDamagedCount++;
                 }
 
-                TreeInstance instance = TreeWorldState.Instances[i];
+                TreeInstance instance = TreeWorldRuntime.Instances[i];
                 TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                 if (!HasUprightTrunk(skeleton)) sidewaysSkeletonCount++;
 
@@ -165,7 +165,7 @@ namespace VoxelEngine.CI
                 camera.targetTexture = null;
             }
 
-            TreeInstance selected = TreeWorldState.Instances[selectedTreeIndex];
+            TreeInstance selected = TreeWorldRuntime.Instances[selectedTreeIndex];
             int expectedDynamic = instanceCount - treeRenderer.BatchedTreeCount;
             string metadata =
                 $"populationComplete={ShowcaseTreePopulation.Completed}\n" +

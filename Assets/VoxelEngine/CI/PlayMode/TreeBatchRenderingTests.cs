@@ -49,7 +49,7 @@ namespace VoxelEngine.CI
                         Scale = 0.92f + (i % 3) * 0.06f,
                     };
                 }
-                TreeWorldState.Replace(instances);
+                TreeWorldRuntime.Replace(instances);
 
                 for (int frame = 0;
                      frame < 90 && (renderer.PresentationCount != instances.Length
@@ -100,7 +100,7 @@ namespace VoxelEngine.CI
                 // Foliage damage alone is enough to release a tree from the static batch. This path
                 // used to synchronously rebuild all three meshes for every healthy neighbour in the
                 // same 32 m cell, producing visible frame hitches.
-                TreeWorldState.SetDamage(0, 0.70f, false);
+                TreeWorldRuntime.SetDamage(0, 0.70f, false);
                 for (int frame = 0;
                      frame < 60 && (renderer.BatchedTreeCount != instances.Length - 1
                                     || renderer.DynamicPresentationCount != 1
@@ -150,7 +150,7 @@ namespace VoxelEngine.CI
                         Scale = 1f,
                     };
                 }
-                TreeWorldState.Replace(sparseTrees);
+                TreeWorldRuntime.Replace(sparseTrees);
 
                 int maxBroadphaseCandidates = 0;
                 int maxSkeletonBuildsPerQuery = 0;
@@ -186,7 +186,7 @@ namespace VoxelEngine.CI
                     Seed = 0xC0FFEE11u,
                     Scale = 1f,
                 };
-                TreeWorldState.Replace(new[] { destructibleTree });
+                TreeWorldRuntime.Replace(new[] { destructibleTree });
                 TreeSkeletonSnapshot skeleton = ProceduralTreeDamageService.SkeletonFor(0);
                 Assert.That(skeleton, Is.Not.Null);
                 Assert.That(skeleton.Branches.Count, Is.GreaterThan(4));
@@ -199,9 +199,9 @@ namespace VoxelEngine.CI
                 ProceduralTreeDamageService.ApplyBlast(
                     firstImpact, 0.10f, new float3(1f, 0f, 0f));
 
-                Assert.That(TreeWorldState.Damage[0].Severed, Is.True,
+                Assert.That(TreeWorldRuntime.Damage[0].Severed, Is.True,
                             "The first lower-trunk impact did not sever the crown.");
-                IReadOnlyCollection<int> firstCuts = TreeWorldState.RemovedBranches(0);
+                IReadOnlyCollection<int> firstCuts = TreeWorldRuntime.RemovedBranches(0);
                 Assert.That(firstCuts.Count, Is.GreaterThan(0));
 
                 int stumpBranch = FindLowestStandingTrunkSegment(skeleton, firstCuts);
@@ -220,7 +220,7 @@ namespace VoxelEngine.CI
 
                 ProceduralTreeDamageService.ApplyBlast(
                     stumpMid, 0.10f, new float3(1f, 0f, 0f));
-                IReadOnlyCollection<int> finalCuts = TreeWorldState.RemovedBranches(0);
+                IReadOnlyCollection<int> finalCuts = TreeWorldRuntime.RemovedBranches(0);
                 for (int branch = 0; branch < skeleton.Branches.Count; branch++)
                 {
                     Assert.That(TreeSkeletonTopology.IsBranchRemoved(
@@ -243,7 +243,7 @@ namespace VoxelEngine.CI
             }
             finally
             {
-                TreeWorldState.Replace(System.Array.Empty<TreeInstance>());
+                TreeWorldRuntime.Replace(System.Array.Empty<TreeInstance>());
             }
         }
 

@@ -61,7 +61,7 @@ namespace VoxelEngine.CI
                     Seed = 0x00C0FFEEu,
                     Scale = 1f,
                 };
-                TreeWorldState.Replace(new[] { instance });
+                TreeWorldRuntime.Replace(new[] { instance });
 
                 for (int frame = 0;
                      frame < 60 && (renderer.PresentationCount != 1
@@ -140,7 +140,7 @@ namespace VoxelEngine.CI
 
                 float branchDeadline = Time.realtimeSinceStartup + 2f;
                 while ((!renderer.TryGetDynamicPresentationRoot(0, out _)
-                        || TreeWorldState.RemovedBranches(0).Count == 0)
+                        || TreeWorldRuntime.RemovedBranches(0).Count == 0)
                        && Time.realtimeSinceStartup < branchDeadline)
                     yield return null;
 
@@ -157,8 +157,8 @@ namespace VoxelEngine.CI
                 int barkAfterBranch = (int)liveMesh.GetIndexCount(0) / 3;
                 int leavesAfterBranch = (int)liveMesh.GetIndexCount(1) / 3;
                 int detachedAfterBranch = CountDetachedBodies();
-                Assert.That(TreeWorldState.RemovedBranches(0).Count, Is.GreaterThan(0));
-                Assert.That(TreeWorldState.Damage[0].Severed, Is.False);
+                Assert.That(TreeWorldRuntime.RemovedBranches(0).Count, Is.GreaterThan(0));
+                Assert.That(TreeWorldRuntime.Damage[0].Severed, Is.False);
                 Assert.That(barkAfterBranch, Is.LessThan(barkBefore));
                 Assert.That(leavesAfterBranch, Is.LessThan(leavesBefore));
                 Assert.That(detachedAfterBranch, Is.GreaterThan(detachedBeforeBranch),
@@ -184,12 +184,12 @@ namespace VoxelEngine.CI
                 ProceduralTreeDamageService.ApplyBlast(trunkHit, 0.20f, trunkSweep);
 
                 float deadline = Time.realtimeSinceStartup + 2f;
-                while ((!TreeWorldState.Damage[0].Severed
+                while ((!TreeWorldRuntime.Damage[0].Severed
                         || CountDetachedBodies() <= detachedBeforeTrunk)
                        && Time.realtimeSinceStartup < deadline)
                     yield return null;
 
-                Assert.That(TreeWorldState.Damage[0].Severed, Is.True);
+                Assert.That(TreeWorldRuntime.Damage[0].Severed, Is.True);
                 Assert.That(CountDetachedBodies(), Is.GreaterThan(detachedBeforeTrunk),
                             "Trunk sever spawned no detached crown presentation.");
                 Assert.That(Quaternion.Angle(treeRoot.localRotation, Quaternion.identity),
@@ -218,7 +218,7 @@ namespace VoxelEngine.CI
                         Path.Combine(outputDirectory, "03-after-trunk-hit.png"));
 
                 string metadata =
-                    $"registryInstances={TreeWorldState.Instances.Count}\n" +
+                    $"registryInstances={TreeWorldRuntime.Instances.Count}\n" +
                     $"semanticPresentations={renderer.PresentationCount}\n" +
                     $"beganBatched=True\n" +
                     $"dynamicAfterDamage={renderer.DynamicPresentationCount}\n" +
@@ -231,7 +231,7 @@ namespace VoxelEngine.CI
                     $"detachedAfterBranch={detachedAfterBranch}\n" +
                     $"trunkTarget={trunkIndex}\n" +
                     $"trunkCollision={trunkCollision}\n" +
-                    $"severedAfterTrunk={TreeWorldState.Damage[0].Severed}\n" +
+                    $"severedAfterTrunk={TreeWorldRuntime.Damage[0].Severed}\n" +
                     $"barkTrianglesAfterTrunk={barkAfterTrunk}\n" +
                     $"breakCaps={CountBreakCaps()}\n" +
                     $"detachedAfterTrunk={CountDetachedBodies()}\n" +
@@ -241,7 +241,7 @@ namespace VoxelEngine.CI
             }
             finally
             {
-                TreeWorldState.Replace(System.Array.Empty<TreeInstance>());
+                TreeWorldRuntime.Replace(System.Array.Empty<TreeInstance>());
                 if (baselineMesh != null) Object.Destroy(baselineMesh);
                 if (capture != null) Object.Destroy(capture);
                 if (target != null)
