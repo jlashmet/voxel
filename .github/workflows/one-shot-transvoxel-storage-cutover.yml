@@ -1,0 +1,52 @@
+name: One-shot Transvoxel Storage Cutover
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - '.github/workflows/one-shot-transvoxel-storage-cutover.yml'
+      - 'Tools/Refactor/apply_transvoxel_storage_cutover.py'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+
+      - name: Apply deterministic cutover
+        run: python Tools/Refactor/apply_transvoxel_storage_cutover.py
+
+      - name: Verify transformed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          cache='Assets/VoxelEngine/Rendering/SurfaceExtraction/CpuTransvoxelChunkCache.cs'
+          ! grep -qE '\b(RegionTable|BrickPool|BrickRef|VoxelMipSampler)\b' "$cache"
+          ! grep -q 'VoxelDimensions\.' "$cache"
+          grep -q 'public void Prepare(IRegionReadSource source' "$cache"
+          grep -q 'SnapshotBlock(IRegionReadSource source' "$cache"
+          grep -q 'TrySampleWorld(IRegionReadSource source' "$cache"
+          grep -q 'worker.Prepare(_readSource' Assets/VoxelEngine/Rendering/SurfaceExtraction/VoxelSurfaceScheduler.cs
+
+      - name: Commit transformed source and remove one-shot tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/one-shot-transvoxel-storage-cutover.yml
+          git rm Tools/Refactor/apply_transvoxel_storage_cutover.py
+          git add Assets/VoxelEngine/Rendering/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          git add Assets/VoxelEngine/Rendering/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'refactor: cut over transvoxel storage reads'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
