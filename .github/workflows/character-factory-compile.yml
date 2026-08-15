@@ -146,15 +146,16 @@ jobs:
             --output "$RENDER"
           test -s "$RENDER"
 
-      - name: Reconstruct staff head at high image coverage
+      - name: Reconstruct enlarged isolated staff head
         timeout-minutes: 10
         shell: bash
         run: |
           set -euo pipefail
           OUT="$GITHUB_WORKSPACE/Artifacts/CharacterFactorySmoke"
-          HEAD_INPUT="$OUT/sunlit_cleric_staff_head_ci.source.png"
+          FULL_INPUT="$OUT/sunlit_cleric_staff_ci.input.png"
+          HEAD_INPUT="$OUT/sunlit_cleric_staff_head_ci.input.png"
           "$TRIPOSR_PY" tools/character-factory/ci/prepare_staff_head_crop.py \
-            --input "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg" \
+            --input "$FULL_INPUT" \
             --output "$HEAD_INPUT"
           test -s "$HEAD_INPUT"
 
@@ -176,7 +177,7 @@ jobs:
               "device": "auto",
               "mcResolution": 320,
               "chunkSize": 8192,
-              "removeBackground": true
+              "removeBackground": false
             },
             "rigid": {
               "blender": "$BLENDER_BIN"
