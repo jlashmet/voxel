@@ -1,0 +1,37 @@
+name: One-shot Canonicalize Kentridge Shape Programs
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/one-shot-canonicalize-kentridge-shape-programs.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Canonicalize source builders and delete compatibility seam
+        run: python .github/scripts/one_shot_canonicalize_kentridge_shape_programs.py
+      - name: Verify compatibility seam is gone
+        run: |
+          test ! -e Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeShapeProgramCompatibility.cs
+          ! grep -R "KentridgeShapeProgramCompatibility" -n Packages/com.mountingforce.worldgen/Runtime/Voxel --include='*.cs'
+          git diff --stat
+      - name: Commit and self-clean
+        run: |
+          rm .github/scripts/one_shot_canonicalize_kentridge_shape_programs.py
+          rm .github/workflows/one-shot-canonicalize-kentridge-shape-programs.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "refactor: canonicalize kentridge shape programs"
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
