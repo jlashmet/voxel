@@ -16,6 +16,7 @@
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "VoxelEngine.Showcase",
+    "VoxelEngine.Composition",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Streaming.Runtime",
