@@ -5,13 +5,13 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Core.Storage
 {
     /// <summary>
-    /// Current Storage implementation of the public region-read boundary.
+    /// Current Storage implementation of the public region-read and focused world-surface boundaries.
     ///
     /// This type moves to Storage.Runtime when the physical storage files leave Core. It owns
     /// no memory: RegionTable/BrickPool native containers are borrowed and remain owned by the
     /// existing world-storage lifecycle.
     /// </summary>
-    public sealed class RegionReadSource : IRegionReadSource
+    public sealed class RegionReadSource : IRegionReadSource, IVoxelSurfaceQuery
     {
         private RegionTable _table;
         private BrickPool _pool;
@@ -72,6 +72,62 @@ namespace VoxelEngine.Core.Storage
                 _pool.BoundarySamples,
                 _pool.Occupancy);
             return true;
+        }
+
+        public bool TryRead(int3 worldVoxel, out VoxelCell cell)
+        {
+            VoxelAccess.Decompose(worldVoxel, out int3 regionCoord, out _, out _);
+            if (!_table.IsResident(regionCoord))
+            {
+                cell = default;
+                return false;
+            }
+
+            cell = VoxelAccess.GetCell(ref _table, in _pool, worldVoxel);
+            return true;
+        }
+
+        public bool TryFindTopSolid(int x, int z, int minY, int maxY,
+                                    out int y, out VoxelCell cell)
+        {
+            return TryFindTop(x, z, minY, maxY, landOnly: false, out y, out cell);
+        }
+
+        public bool TryFindTopLandSurface(int x, int z, int minY, int maxY,
+                                          out int y, out VoxelCell cell)
+        {
+            return TryFindTop(x, z, minY, maxY, landOnly: true, out y, out cell);
+        }
+
+        private bool TryFindTop(int x, int z, int minY, int maxY, bool landOnly,
+                                out int y, out VoxelCell cell)
+        {
+            if (maxY < minY)
+            {
+                y = default;
+                cell = default;
+                return false;
+            }
+
+            for (int candidateY = maxY; candidateY >= minY; candidateY--)
+            {
+                int3 worldVoxel = new int3(x, candidateY, z);
+                VoxelAccess.Decompose(worldVoxel, out int3 regionCoord, out _, out _);
+                if (!_table.IsResident(regionCoord)) continue;
+
+                VoxelCell candidate = VoxelAccess.GetCell(ref _table, in _pool, worldVoxel);
+                if (!candidate.IsSolid) continue;
+                if (landOnly && (candidate.BaseMaterialId == Mat.Water
+                              || candidate.BaseMaterialId == Mat.Cascade)) continue;
+
+                y = candidateY;
+                cell = candidate;
+                return true;
+            }
+
+            y = default;
+            cell = default;
+            return false;
         }
     }
 }
