@@ -16,12 +16,12 @@ jobs:
           ref: ed126903cd18dcd62324fab41942d41fdaa37532
           clean: false
           fetch-depth: 1
-      - name: Fully clean checkout and Unity cache
+      - name: Reset tracked and non-cache files
         shell: bash
         run: |
           set -euo pipefail
           git reset --hard ed126903cd18dcd62324fab41942d41fdaa37532
-          git clean -ffdx
+          git clean -ffdx -e Library/
       - id: unity
         shell: bash
         run: |
@@ -46,13 +46,17 @@ jobs:
           ROOT="$GITHUB_WORKSPACE/Artifacts/NetworkingCI"
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
-          "${{ steps.unity.outputs.path }}" \
-            -batchmode -nographics -quit \
-            -job-worker-count 1 \
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests -testPlatform EditMode \
             -testResults "$ROOT/results.xml" \
-            -logFile "$ROOT/unity.log" || true
+            -logFile "$ROOT/unity.log"
+          status=$?
+          if [[ $status -ne 0 ]]; then exit $status; fi
           test -s "$ROOT/results.xml"
       - if: always()
         uses: actions/upload-artifact@v4
