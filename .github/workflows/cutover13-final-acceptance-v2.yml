@@ -1,0 +1,309 @@
+name: Cutover 13 final Unity acceptance v2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [refactor/system-boundaries-finalization-clean]
+    paths:
+      - ".github/workflows/cutover13-final-acceptance-v2.yml"
+      - "Assets/VoxelEngine/**"
+      - "Assets/Scenes/Showcase/**"
+      - "Assets/Tests/EditMode/**"
+      - "Packages/com.mountingforce.worldgen/**"
+      - "Packages/manifest.json"
+      - "Packages/packages-lock.json"
+      - "ProjectSettings/ProjectVersion.txt"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cutover13-final-unity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify final Showcase and Composition ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          scene = Path('Assets/Scenes/Showcase')
+          arch = scene / 'ArchLookdev.cs'
+          composition = Path('Assets/VoxelEngine/Composition/StructuresComposition.cs')
+          pipeline = Path('Assets/VoxelEngine/Structures/Runtime/ArchBayAuthoringPipeline.cs')
+
+          if not arch.is_file() or not composition.is_file() or not pipeline.is_file():
+              raise SystemExit('ArchLookdev Composition boundary files are incomplete')
+          if 'StructuresComposition.AuthorArchBay' not in arch.read_text():
+              raise SystemExit('ArchLookdev is not routed through StructuresComposition.AuthorArchBay')
+          if 'ArchBayAuthoringPipeline.Author' not in composition.read_text():
+              raise SystemExit('StructuresComposition does not own the runtime authoring handoff')
+
+          asmdef = json.loads((scene / 'VoxelEngine.Showcase.asmdef').read_text())
+          runtime_refs = [
+              ref for ref in asmdef.get('references', [])
+              if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime')
+          ]
+          if runtime_refs:
+              raise SystemExit('Showcase asmdef Runtime references: ' + ', '.join(runtime_refs))
+
+          using_runtime = re.compile(r'^\s*using\s+VoxelEngine\.[A-Za-z0-9_.]+\.Runtime\s*;', re.MULTILINE)
+          violations = []
+          concrete_namespaces = (
+              'VoxelEngine.Storage.Runtime',
+              'VoxelEngine.Structures.Runtime',
+              'VoxelEngine.Rendering.Runtime',
+              'VoxelEngine.Vegetation.Runtime',
+              'VoxelEngine.Net.Runtime',
+              'VoxelEngine.Streaming.Runtime',
+              'VoxelEngine.Collision.Runtime',
+              'VoxelEngine.Edits.Runtime',
+              'VoxelEngine.Terrain.Runtime',
+          )
+          for path in scene.rglob('*.cs'):
+              text = path.read_text()
+              if using_runtime.search(text) or any(namespace in text for namespace in concrete_namespaces):
+                  violations.append(path.as_posix())
+          if violations:
+              raise SystemExit('Showcase concrete Runtime source references: ' + ', '.join(violations))
+
+          showcase_world = Path('Assets/VoxelEngine/Composition/ShowcaseWorld.cs').read_text()
+          if 'public ProfileBlockStore ProfileBlocks' in showcase_world:
+              raise SystemExit('ShowcaseWorld leaks concrete ProfileBlockStore through its public API')
+          if 'public IProfileBlockReadSource ProfileBlocks' not in showcase_world:
+              raise SystemExit('ShowcaseWorld stable profile read boundary is missing')
+
+          print('Final Showcase/Composition ownership accepted')
+          PY
+
+  editmode:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 1
+      - name: Reset exact candidate while preserving Unity cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git clean -ffdx -e Library/
+          rm -rf Library/ScriptAssemblies Library/Bee
+      - id: unity
+        name: Locate Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+      - name: Run and verify exact EditMode baseline
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/Cutover13FinalV2"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || true
+
+          test -s "$ROOT/results.xml"
+          if grep -E 'error CS[0-9]+' "$ROOT/unity.log"; then
+            echo 'Compiler errors detected' >&2
+            exit 1
+          fi
+
+          python3 - "$ROOT/results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          expected = {
+              'VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.CurrentCascadeLabBootsWithEnemyAIStack',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.BattleResetClearsSharedPlanHistoryAndGhostBackToStart',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.PlannerBootsWithGhostBoardAndVisualLayer',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.SharedPlanExecutionRequiresEveryLivingPlayerReady',
+              'VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.CascadeLabControllerBootsFourPlayerBattle',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.CommittingApprovedPlanPreservesReadyForEnemyHandoff',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.EditingAnApprovedPlanRevokesEveryReadyApproval',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.ControllerBootsPlayableBattlePresentation',
+              'VoxelEngine.Tests.EditMode.KentridgeAnchorUndercroftTests.AnchorUndercroftsOccupyPubAndWarehouseSupportFacesWithoutAddingGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DistrictTerracesCreateNeighbourhoodScaleShelves',
+              'VoxelEngine.Tests.EditMode.KentridgeInfrastructureTests.UrbanInfrastructureStaysSeparateFromStableGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeUrbanFabricTests.UrbanFabricCatalogueRealizesAllEightBlocksAsIndividualBuildings',
+              'VoxelEngine.Tests.EditMode.SurfaceRingBandTests.RingsDoNotReachBeyondTheStreamingRadius',
+          }
+
+          root = ET.parse(sys.argv[1]).getroot()
+          failed = {
+              case.get('fullname') or case.get('name')
+              for case in root.iter('test-case')
+              if (case.get('result') or '').lower() in ('failed', 'failure', 'error')
+          }
+          if failed != expected:
+              print('Unexpected failures:', sorted(failed - expected))
+              print('Missing baseline failures:', sorted(expected - failed))
+              raise SystemExit(1)
+
+          totals = (root.get('total'), root.get('passed'), root.get('failed'))
+          if totals != ('391', '378', '13'):
+              raise SystemExit('Unexpected totals: total=%s passed=%s failed=%s' % totals)
+
+          print('Exact accepted 391/378/13 baseline matched')
+          PY
+      - name: Upload final acceptance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover13-final-v2-${{ github.sha }}
+          path: Artifacts/Cutover13FinalV2/
+          if-no-files-found: warn
+          retention-days: 14
+
+  record-plan:
+    needs: [static-boundary, editmode]
+    if: ${{ needs.static-boundary.result == 'success' && needs.editmode.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-clean
+          fetch-depth: 0
+      - name: Verify no newer source invalidates this acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch='refactor/system-boundaries-finalization-clean'
+          git fetch origin "$branch"
+          changed="$(git diff --name-only "$GITHUB_SHA"..origin/$branch -- \
+            Assets/VoxelEngine \
+            Assets/Scenes/Showcase \
+            Assets/Tests/EditMode \
+            Packages/com.mountingforce.worldgen \
+            Packages/manifest.json \
+            Packages/packages-lock.json \
+            ProjectSettings/ProjectVersion.txt)"
+          if [ -n "$changed" ]; then
+            echo 'A newer source change exists; refusing to mark final validation complete:' >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+      - name: Mark final architecture validation complete in the implementation plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch='refactor/system-boundaries-finalization-clean'
+          git checkout -B "$branch" "origin/$branch"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          source = os.environ['GITHUB_SHA']
+          run = os.environ['GITHUB_RUN_ID']
+          path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = path.read_text()
+
+          required = [
+              '**Status:** In progress — live checklist maintained on the implementation branch  ',
+              '**Current focus:** Cutover 13 — static architecture closure accepted; final Unity/EditMode parity pending',
+              '- [ ] final targeted/full-available validation',
+          ]
+          for item in required:
+              if item not in text:
+                  raise SystemExit('Expected final-plan marker missing: ' + item)
+
+          text = text.replace(
+              '**Status:** In progress — live checklist maintained on the implementation branch  ',
+              '**Status:** Complete — final architecture acceptance passed  ',
+              1)
+          text = text.replace(
+              '**Current focus:** Cutover 13 — static architecture closure accepted; final Unity/EditMode parity pending',
+              '**Current focus:** Complete — system-boundary refactor accepted',
+              1)
+
+          lines = text.splitlines()
+          for i, line in enumerate(lines):
+              if line.startswith('| 13 — Composition/Core deletion |'):
+                  lines[i] = (
+                      '| 13 — Composition/Core deletion | **Complete** | '
+                      'concrete Runtime wiring is centralized in Composition; scene Showcase is Runtime-free; '
+                      'production Runtime/Core/legacy-adapter closure and WorldGen direction pass the permanent static gate; '
+                      f'final Unity/EditMode parity accepted at source `{source}`, run `{run}` with 391/378/13 and zero compiler errors | none |'
+                  )
+              elif line.strip() == '- [ ] final targeted/full-available validation':
+                  lines[i] = (
+                      f'- [x] final targeted/full-available validation; source `{source}`, run `{run}` — '
+                      '391 total / 378 passed / exact 13 known baseline failures / zero C# compiler errors'
+                  )
+          text = '\n'.join(lines) + '\n'
+
+          pending = 'Final Unity/EditMode parity remains pending.'
+          if pending in text:
+              text = text.replace(
+                  pending,
+                  f'Final Unity/EditMode parity was subsequently accepted at source `{source}`, run `{run}` with 391/378/13 and zero compiler errors.',
+                  1)
+
+          diagnosis_pending = 'has passed the strengthened final static ownership check and still awaits the self-hosted Unity job.'
+          if diagnosis_pending in text:
+              text = text.replace(
+                  diagnosis_pending,
+                  'passed the strengthened final static ownership check; the final accepted candidate is recorded below.',
+                  1)
+
+          anchor = '- Final explicit dependency assertions verified on the clean branch:'
+          acceptance = (
+              f'- Final Unity/EditMode acceptance: source `{source}`, run `{run}` — 391 tests, 378 passed, '
+              'exactly the same 13 known baseline failures with zero C# compiler errors. '
+              'This closes Cutover 13 and the system-boundary refactor.\n'
+          )
+          if acceptance not in text:
+              pos = text.find(anchor)
+              if pos < 0:
+                  raise SystemExit('Could not locate final acceptance insertion anchor')
+              text = text[:pos] + acceptance + text[pos:]
+
+          if '[ ]' in text:
+              unchecked = [line for line in text.splitlines() if '[ ]' in line]
+              raise SystemExit('Unchecked implementation-plan tasks remain after final acceptance:\n' + '\n'.join(unchecked))
+          if '**Status:** Complete — final architecture acceptance passed' not in text:
+              raise SystemExit('Plan status was not updated to Complete')
+          if '| 13 — Composition/Core deletion | **Complete** |' not in text:
+              raise SystemExit('Cutover 13 table row was not updated to Complete')
+
+          path.write_text(text)
+          PY
+
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'docs(architecture): mark system-boundary refactor complete'
+          git pull --rebase origin "$branch"
+          git push origin HEAD:"$branch"
