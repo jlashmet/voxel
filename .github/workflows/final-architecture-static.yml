@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
           mkdir -p Artifacts/FinalArchitecture
           python3 - <<'PY'
-          import json, re
+          import json, os, re
           from pathlib import Path
 
           root = Path('.')
@@ -110,7 +110,7 @@ jobs:
           report = []
           report.append('# Final Architecture Dependency Report')
           report.append('')
-          report.append(f'Generated for source `${{GITHUB_SHA}}` by `.github/workflows/final-architecture-static.yml`.')
+          report.append(f"Generated for source `{os.environ.get('GITHUB_SHA', 'unknown')}` by `.github/workflows/final-architecture-static.yml`.")
           report.append('')
           report.append('## VoxelEngine assembly edges')
           report.append('')
