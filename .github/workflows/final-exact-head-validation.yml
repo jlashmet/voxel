@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  CANDIDATE_SHA: a2d18db92ecce23ab6375776fa9d3b6c9287a574
+
 jobs:
   editmode:
     runs-on: [self-hosted, macOS]
@@ -15,14 +18,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ env.CANDIDATE_SHA }}
           clean: false
           fetch-depth: 1
       - name: Reset exact candidate while preserving Unity cache
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard "$GITHUB_SHA"
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git reset --hard "$CANDIDATE_SHA"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           git clean -ffdx -e Library/
           rm -rf Library/ScriptAssemblies Library/Bee
       - id: unity
@@ -58,11 +62,11 @@ jobs:
             -batchmode -nographics -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || true
-          test -s "$ROOT/results.xml"
           if grep -E 'error CS[0-9]+' "$ROOT/unity.log"; then
             echo 'Compiler errors detected' >&2
             exit 1
           fi
+          test -s "$ROOT/results.xml"
           python3 - "$ROOT/results.xml" <<'PY'
           import sys, xml.etree.ElementTree as ET
           expected = {
@@ -98,7 +102,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: final-exact-head-architecture-${{ github.sha }}
+          name: final-exact-head-architecture-a2d18db9
           path: Artifacts/FinalExactHeadArchitecture/
           if-no-files-found: warn
           retention-days: 14
