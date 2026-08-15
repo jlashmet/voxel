@@ -22,21 +22,25 @@ namespace MountingForce.WorldGen.Voxel
             SettlementPlan plan = KentridgeDefinition.Build(seed);
             IReadOnlyList<KentridgeHiddenSpaceGeometry> geometries =
                 KentridgeHiddenSpaceBatchPlanner.Resolve(plan, requests);
-            return BuildWithHiddenSpaceGeometry(seed, settings, geometries, allocator);
+            return BuildWithHiddenSpaceGeometry(plan, settings, geometries, allocator);
         }
 
         public static FeatureCatalogue BuildWithHiddenSpaceGeometry(
-            uint seed,
+            SettlementPlan plan,
             VoxelWorldGenSettings settings,
             IReadOnlyList<KentridgeHiddenSpaceGeometry> geometries,
             Allocator allocator)
         {
+            if (plan == null) throw new ArgumentNullException(nameof(plan));
             if (geometries == null) throw new ArgumentNullException(nameof(geometries));
+            if (!string.Equals(plan.Theme.Id, KentridgeDefinition.Id, StringComparison.Ordinal))
+                throw new ArgumentException(
+                    "Hidden-space voxel emission requires a Kentridge settlement plan.",
+                    nameof(plan));
             if (geometries.Count == 0)
-                return Build(seed, settings, allocator);
+                return Build(plan.Seed, settings, allocator);
 
-            SettlementPlan plan = KentridgeDefinition.Build(seed);
-            FeatureCatalogue baseCatalogue = Build(seed, settings, Allocator.Temp);
+            FeatureCatalogue baseCatalogue = Build(plan.Seed, settings, Allocator.Temp);
             FeatureCatalogue hiddenCatalogue = KentridgeHiddenSpaceVoxelCatalogue.Build(
                 plan,
                 settings,
