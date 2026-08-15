@@ -12,14 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: dd47df0c0fc3520bcba60cd51a9d935fbcf786e0
+          ref: 4a6e161f09e95e2459ead088b4d3b6d531758b00
           clean: false
           fetch-depth: 1
       - name: Reset pinned Rendering candidate
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard dd47df0c0fc3520bcba60cd51a9d935fbcf786e0
+          git reset --hard 4a6e161f09e95e2459ead088b4d3b6d531758b00
           git clean -ffdx -e Library/
           rm -rf Library/ScriptAssemblies Library/Bee
       - id: unity
