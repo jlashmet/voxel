@@ -18,9 +18,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  compile:
+  compile-and-pipeline-smoke:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 20
+    timeout-minutes: 60
+    env:
+      PYTORCH_ENABLE_MPS_FALLBACK: '1'
+      PYTHONUNBUFFERED: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,19 +51,6 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tools/character-factory/tests -p 'test_*.py'
-
-  pipeline-smoke:
-    needs: compile
-    runs-on: [self-hosted, macOS]
-    timeout-minutes: 50
-    env:
-      PYTORCH_ENABLE_MPS_FALLBACK: '1'
-      PYTHONUNBUFFERED: '1'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          clean: false
-          fetch-depth: 1
 
       - name: Resolve Blender
         shell: bash
