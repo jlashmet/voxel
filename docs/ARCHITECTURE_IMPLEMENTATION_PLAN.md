@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 5 Edits — final Api/Runtime move and obsolete wrapper cleanup
+**Current focus:** Cutover 6 StructuralIntegrity — full Api/Runtime ownership cutover
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -23,8 +23,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency, mutation, focused surface-query and authoring-validation capabilities; whole-cell block authoring; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
 | 4 — Structures | **Complete** | `Structures.Api` owns canonical authoring/material/layout contracts; all implementation (feature VM/generation/rasterizer/emitters, retained-profile store, CastleBuilder, VoxelBrush, MasonryWeathering) lives under `Structures/Runtime` with Runtime namespaces and preserved Unity GUIDs; Storage dependencies route through Storage.Api; Rendering uses the retained-profile read boundary; WorldGen Voxel is Api-only; broad Structures assembly, legacy `VoxelEngine.Core.Features` namespace, and Kentridge compatibility seam are gone | none |
-| 5 — Edits | **In progress — current** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; expansion helpers are in Runtime; Net protocol/client/server/validation consume Api only; dead `DensityCap` and redundant server wrapper are gone; Storage boundaries/parity accepted | move `DeterministicAlterationApplier` to Runtime; remove final `VoxelEngine.Core.Edits`; finish namespace cutover |
-| 6 — StructuralIntegrity | **Not started** | — | full cutover |
+| 5 — Edits | **Complete** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; all edit implementation lives under `Edits/Runtime` with Runtime namespace and preserved Unity GUIDs; Net protocol/client/server/validation consume Api only; dead `DensityCap`, redundant Net wrapper, and `VoxelEngine.Core.Edits` are gone; Storage boundaries/parity accepted | none |
+| 6 — StructuralIntegrity | **Not started — current** | — | full cutover |
 | 7 — Tiering | **Not started** | — | full cutover |
 | 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
 | 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `62af284179b38c01adc07e3d40f8627bac8174a6` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Edits client capability slice: all Net edit validation/residency/application flows consume Edits.Api `IAlterationApplier`; Net contains no `VoxelEngine.Core.Edits` import or deterministic implementation reference; Net still has no Edits.Runtime dependency.
+- Latest accepted code gate: `4477d1cf2b552d84bcf44ccf5bf33b645a32cb70` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate completes Cutover 5 Edits: `DeterministicAlterationApplier` is physically under `Edits/Runtime` with its Unity GUID preserved; all composition/test imports use `VoxelEngine.Edits.Runtime`; no live `VoxelEngine.Core.Edits` namespace remains; Net remains Edits.Api-only.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -808,11 +808,12 @@ Net.Runtime serializes/deserializes Edits.Api events. It does not own the canoni
 - [x] Server alteration-capability/wrapper-deletion slice accepted by CI at `b4fbfb180831a588996d398442a66c38949771a3`: 382 total / 369 passed / exact same 13 known baseline failures.
 - [x] Client authoritative queue, event application/batch dispatch, and server validation consume the Edits.Api `IAlterationApplier` capability; no Net source imports or names `VoxelEngine.Core.Edits`/`DeterministicAlterationApplier`.
 - [x] Client/validation alteration-capability slice accepted by CI at `62af284179b38c01adc07e3d40f8627bac8174a6`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [ ] Edits.Api/Runtime physical move and namespace cutover complete.
+- [x] Final `DeterministicAlterationApplier` move/namespace cutover accepted by CI at `4477d1cf2b552d84bcf44ccf5bf33b645a32cb70`: 382 total / 369 passed / exact same 13 known baseline failures; source/meta GUID identity is preserved, the old Core.Edits namespace is gone, and Net has no Edits.Runtime dependency.
+- [x] Edits.Api/Runtime physical move and namespace cutover complete.
 
 ### Gate
 
-- [ ] no `VoxelEngine.Core.Edits` namespace remains;
+- [x] no `VoxelEngine.Core.Edits` namespace remains;
 - [x] Net protocol depends on Edits.Api, not Edits.Runtime;
 - [x] server wrapper deleted;
 - [x] deterministic edit expansion/application parity tests pass;
@@ -1578,7 +1579,7 @@ At the end, generate an asmdef dependency report and verify:
 
 - [x] create Edits.Api/Runtime
 - [x] split canonical alteration domain values into Api
-- [ ] move expansion/apply implementation to Runtime
+- [x] move expansion/apply implementation to Runtime
 - [x] route mutations through Storage.Api
 - [x] delete `ServerDeterministicAlterationApplier`
 - [x] update Net protocol to Edits.Api
