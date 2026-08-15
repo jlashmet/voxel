@@ -1,0 +1,47 @@
+name: One-shot Restore WorldGen Vegetation
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/one-shot-restore-worldgen-vegetation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Restore exact pre-fix blob and remove only accidental import
+        shell: bash
+        run: |
+          set -euo pipefail
+          path='Packages/com.mountingforce.worldgen/Runtime/Core/VegetationLayout.cs'
+          git show 78b626d18c22d2426c5fcde514451188ad915082:"$path" > "$path"
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('Packages/com.mountingforce.worldgen/Runtime/Core/VegetationLayout.cs')
+          text = p.read_text()
+          needle = 'using VoxelEngine.Structures.Api;\n\n'
+          assert text.count(needle) == 1
+          p.write_text(text.replace(needle, '', 1))
+          PY
+          ! grep -q 'VoxelEngine\.' "$path"
+          grep -q 'CastleVegetationLayoutPlanner' "$path"
+      - name: Verify diff is only semantic-file restoration
+        run: git diff -- Packages/com.mountingforce.worldgen/Runtime/Core/VegetationLayout.cs
+      - name: Commit and self-clean
+        run: |
+          rm .github/workflows/one-shot-restore-worldgen-vegetation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Packages/com.mountingforce.worldgen/Runtime/Core/VegetationLayout.cs .github/workflows/one-shot-restore-worldgen-vegetation.yml
+          git commit -m "fix: restore semantic vegetation layout exactly"
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
