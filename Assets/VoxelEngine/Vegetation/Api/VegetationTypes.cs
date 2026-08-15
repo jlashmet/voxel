@@ -1,23 +1,105 @@
+using System;
 using Unity.Mathematics;
 
 namespace VoxelEngine.Core.Vegetation
 {
+    /// <summary>
+    /// Semantic species/category identity. Existing values are explicit so generated or serialized
+    /// vegetation remains stable as the catalogue grows.
+    /// </summary>
     public enum VegetationKind : byte
     {
-        Grass,
-        Flower,
-        Fern,
-        Bush,
-        Moss,
-        Vine,
+        Grass = 0,
+        Flower = 1,
+        Fern = 2,
+        Bush = 3,
+        Moss = 4,
+        Vine = 5,
+
+        Clover = 6,
+        Weed = 7,
+        Nettle = 8,
+        Reed = 9,
+        Cattail = 10,
+        Mushroom = 11,
+        FallenLeaves = 12,
+        PineNeedles = 13,
+        Ivy = 14,
+        Lichen = 15,
+        WallFern = 16,
+        BerryBush = 17,
+        ThornBush = 18,
+        HedgeShrub = 19,
+        DeadShrub = 20,
+        Sapling = 21,
+        FloweringShrub = 22,
+        LilyPad = 23,
+        WaterGrass = 24,
+        Algae = 25,
+        ShelfFungus = 26,
+        FallenLog = 27,
+        ExposedRoot = 28,
+        HangingMoss = 29,
+        TrunkMoss = 30,
+        Epiphyte = 31,
+        DeadBranch = 32,
+        HangingVine = 33,
+        ClimbingVine = 34,
+        DanglingRoot = 35,
+        DeadGrass = 36,
+        DeadVine = 37,
+
+        // Fantasy species. These use the same growth-form renderers as mundane vegetation;
+        // world generation opts into them through ArcaneSaturation rather than special cases.
+        Glowshroom = 38,
+        ManaBloom = 39,
+        CrystalShrub = 40,
+        WispReed = 41,
+        MoonFern = 42,
+        EmberThorn = 43,
+        StarMoss = 44,
+        ArcaneVine = 45,
+    }
+
+    /// <summary>
+    /// Geometry/growth strategy. Many species share one realization algorithm with different
+    /// deterministic parameters, which keeps the renderer from becoming species-specific.
+    /// </summary>
+    public enum VegetationGrowthForm : byte
+    {
+        Tuft,
+        Frond,
+        Shrub,
+        Creeper,
+        Climber,
+        Hanger,
+        Aquatic,
+        Fungus,
+        Root,
+        Debris,
+    }
+
+    [Flags]
+    public enum VegetationTraits : ushort
+    {
+        None = 0,
+        Magical = 1 << 0,
+        Luminous = 1 << 1,
+        Edible = 1 << 2,
+        Thorny = 1 << 3,
+        Toxic = 1 << 4,
+        Dead = 1 << 5,
+        Woody = 1 << 6,
+        Cuttable = 1 << 7,
     }
 
     public enum VegetationSurface : byte
     {
-        Ground,
-        Rock,
-        Wood,
-        Masonry,
+        Ground = 0,
+        Rock = 1,
+        Wood = 2,
+        Masonry = 3,
+        Water = 4,
     }
 
     /// <summary>
@@ -44,6 +126,12 @@ namespace VoxelEngine.Core.Vegetation
         public VegetationSurface Surface;
         public float Moisture;
         public float Shade;
+
+        /// <summary>
+        /// 0 = mundane environment, 1 = highly magical/enchanted. Worldgen can derive this from
+        /// ley lines, enchanted ruins, cursed ground, magical water, biome fields, or authored POIs.
+        /// </summary>
+        public float ArcaneSaturation;
     }
 
     public struct VegetationPlacementSettings
@@ -55,6 +143,7 @@ namespace VoxelEngine.Core.Vegetation
         public float MaxGroundSlopeDegrees;
         public float MoistureBias;
         public float ShadeBias;
+        public float ArcaneBias;
 
         public static VegetationPlacementSettings Default(uint worldSeed)
         {
@@ -67,82 +156,28 @@ namespace VoxelEngine.Core.Vegetation
                 MaxGroundSlopeDegrees = 42f,
                 MoistureBias = 0.35f,
                 ShadeBias = 0.20f,
+                ArcaneBias = 0.35f,
             };
         }
     }
 
     /// <summary>
-    /// Deterministic profile describing where a vegetation category prefers to live.
+    /// Deterministic ecological and rendering descriptor for a vegetation kind.
     /// </summary>
     public struct VegetationProfile
     {
         public VegetationKind Kind;
+        public VegetationGrowthForm GrowthForm;
+        public VegetationTraits Traits;
         public float GroundWeight;
         public float RockWeight;
         public float WoodWeight;
         public float MasonryWeight;
+        public float WaterWeight;
         public float MoistureAffinity;
         public float ShadeAffinity;
+        public float ArcaneAffinity;
+        public float MinArcaneSaturation;
         public float SlopeTolerance;
-    }
-
-    public static class VegetationProfiles
-    {
-        public static VegetationProfile Get(VegetationKind kind)
-        {
-            switch (kind)
-            {
-                case VegetationKind.Flower:
-                    return new VegetationProfile
-                    {
-                        Kind = kind, GroundWeight = 1f, RockWeight = 0.08f,
-                        MoistureAffinity = 0.35f, ShadeAffinity = -0.20f, SlopeTolerance = 0.70f,
-                    };
-                case VegetationKind.Fern:
-                    return new VegetationProfile
-                    {
-                        Kind = kind, GroundWeight = 1f, RockWeight = 0.15f,
-                        MoistureAffinity = 0.80f, ShadeAffinity = 0.75f, SlopeTolerance = 0.80f,
-                    };
-                case VegetationKind.Bush:
-                    return new VegetationProfile
-                    {
-                        Kind = kind, GroundWeight = 1f, RockWeight = 0.05f,
-                        MoistureAffinity = 0.25f, ShadeAffinity = 0.05f, SlopeTolerance = 0.55f,
-                    };
-                case VegetationKind.Moss:
-                    return new VegetationProfile
-                    {
-                        Kind = kind, GroundWeight = 0.45f, RockWeight = 1f, WoodWeight = 0.80f,
-                        MasonryWeight = 1f, MoistureAffinity = 1f, ShadeAffinity = 0.90f,
-                        SlopeTolerance = 1f,
-                    };
-                case VegetationKind.Vine:
-                    return new VegetationProfile
-                    {
-                        Kind = kind, RockWeight = 0.55f, WoodWeight = 1f, MasonryWeight = 1f,
-                        MoistureAffinity = 0.70f, ShadeAffinity = 0.45f, SlopeTolerance = 1f,
-                    };
-                case VegetationKind.Grass:
-                default:
-                    return new VegetationProfile
-                    {
-                        Kind = VegetationKind.Grass, GroundWeight = 1f, RockWeight = 0.04f,
-                        MoistureAffinity = 0.20f, ShadeAffinity = -0.05f, SlopeTolerance = 0.85f,
-                    };
-            }
-        }
-
-        public static float SurfaceWeight(in VegetationProfile profile, VegetationSurface surface)
-        {
-            switch (surface)
-            {
-                case VegetationSurface.Rock: return profile.RockWeight;
-                case VegetationSurface.Wood: return profile.WoodWeight;
-                case VegetationSurface.Masonry: return profile.MasonryWeight;
-                case VegetationSurface.Ground:
-                default: return profile.GroundWeight;
-            }
-        }
     }
 }
