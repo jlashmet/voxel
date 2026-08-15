@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 4 Structures — physical Api/Runtime split and canonical Kentridge shape encoding  
+**Current focus:** Cutover 4 Structures — canonical Kentridge shape encoding / compatibility seam deletion  
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -22,7 +22,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 1 — Foundation | **Complete** | `IntMath` clean-moved to `VoxelEngine.Foundation`; consumers and Core bridge reference migrated | none |
 | 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency and mutation capabilities; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; byte/value parity accepted | final Terrain.Api/Runtime move and public terrain query contract |
-| 4 — Structures | **In progress — current** | full-cell Storage mutation/read parity accepted, including authored boundary on empty cells | migrate `PrimitiveRasteriser`/`FeatureGeneration`, then Structures.Api/Runtime split and Kentridge canonical shape encoding |
+| 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts now live in `VoxelEngine.Structures.Api` | delete Kentridge compatibility encoding, migrate Runtime dependencies, then move Structures.Runtime |
 | 5 — Edits | **In progress** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |
 | 6 — StructuralIntegrity | **Not started** | — | full cutover |
 | 7 — Tiering | **Not started** | — | full cutover |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance currently means no new compiler/test regression and the failed-test-name set remains exactly the known 15-test baseline.
-- Latest accepted code gate: `f63d5be6e92d6b91862b9ac4cf539ecfdde85b18` — 377 tests, 362 passed, exactly 15 known baseline failures.
+- Latest accepted code gate: `d040d3182ef636016578321bbd90870680f817ac` — 379 tests, 364 passed, exactly 15 known baseline failures.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -702,12 +702,15 @@ Do **not** add any engine reference to `MountingForce.WorldGen.Core` or `Mountin
 - [x] Feature rasterisation/generation Storage.Api boundary accepted by CI: 377 total / 362 passed / exact 15 baseline failures.
 - [x] `PrimitiveRasteriser` consumes Storage.Api only and preserves primitive ordering/surface/boundary semantics.
 - [x] `FeatureGeneration` consumes the Storage.Api authoring capability rather than `RegionTable`/`BrickPool`.
+- [x] Structures.Api extracted with canonical `VoxelEngine.Structures.Api` namespace; authoring contracts moved with Unity GUIDs preserved.
+- [x] `CatalogueLoader` clean-renamed to `FeatureCatalogueBuilder`; no compatibility alias remains.
+- [x] Structures.Api extraction accepted by CI: 379 total / 364 passed / exact 15 baseline failures.
 - [ ] Structures.Api/Runtime physical move and namespace cutover complete.
 
 ### Gate
 
 - [ ] no `VoxelEngine.Core.Features` namespace remains;
-- [ ] Kentridge catalogue builders compile against Structures.Api only;
+- [x] Kentridge catalogue builders compile against Structures.Api for extracted authoring contracts;
 - [ ] compatibility encoding file deleted;
 - [x] feature parity/generation tests pass;
 - [ ] CastleBuilder is Runtime implementation, not public cross-system vocabulary;
