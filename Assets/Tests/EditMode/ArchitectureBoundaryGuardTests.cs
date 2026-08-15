@@ -217,6 +217,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             var allowed = new HashSet<string>(StringComparer.Ordinal)
             {
+                ".github/workflows/final-architecture-static.yml",
                 ".github/workflows/stable-final-architecture-acceptance.yml",
                 "Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs",
                 "docs/ARCHITECTURE_DEPENDENCY_REPORT.md",
