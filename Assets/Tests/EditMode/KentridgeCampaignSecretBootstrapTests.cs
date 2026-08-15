@@ -38,11 +38,15 @@ namespace VoxelEngine.Tests.EditMode
                 new Dictionary<NpcRef, ICutsceneActorRuntime>();
             public int PreparedCount { get; private set; }
 
-            public void PrepareNpc(ResolvedNpcWorldPlacement placement)
+            public void PrepareNpcs(IReadOnlyList<ResolvedNpcWorldPlacement> placements)
             {
-                PreparedCount++;
-                Int3 point = placement.Position.Position;
-                _npcs[placement.Npc] = new Actor(new CutsceneInt3(point.X, point.Y, point.Z));
+                for (var i = 0; i < placements.Count; i++)
+                {
+                    ResolvedNpcWorldPlacement placement = placements[i];
+                    PreparedCount++;
+                    Int3 point = placement.Position.Position;
+                    _npcs[placement.Npc] = new Actor(new CutsceneInt3(point.X, point.Y, point.Z));
+                }
             }
 
             public bool TryResolveNpc(NpcRef npc, out ICutsceneActorRuntime actor) =>
@@ -114,7 +118,7 @@ namespace VoxelEngine.Tests.EditMode
                     hiddenFacts));
             Assert.That(missingHost.ParamName, Is.EqualTo("secretHost"));
             Assert.That(missingHostActors.PreparedCount, Is.EqualTo(0),
-                "Missing secret runtime wiring must fail before authoritative NPC state is mutated.");
+                "Missing secret runtime wiring must fail before the authoritative NPC batch is mutated.");
 
             var actors = new ActorHost();
             var secrets = new SecretHost();
