@@ -1,1 +1,0 @@
-Net Runtime acceptance gate trigger; delete after gate.
