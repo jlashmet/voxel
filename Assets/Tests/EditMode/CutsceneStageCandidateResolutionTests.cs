@@ -117,7 +117,13 @@ namespace VoxelEngine.Tests.EditMode
             var candidate = new SiteCandidate(
                 new ResolvedSiteId("narrow-pub"),
                 SiteArchetype.Pub,
-                new[] { new SiteCapabilityOffer(SiteCapabilityKind.CutsceneStage) });
+                new[]
+                {
+                    new SiteCapabilityOffer(SiteCapabilityKind.CutsceneStage),
+                    new SiteCapabilityOffer(SiteCapabilityKind.Interior),
+                    new SiteCapabilityOffer(SiteCapabilityKind.PublicExit),
+                    new SiteCapabilityOffer(SiteCapabilityKind.PlayerSpawn)
+                });
             var facts = new NarrowStageFacts(candidate, new CutsceneStageEnvelope(12, 80));
 
             SiteResolutionResult result = SiteRoleResolver.Resolve(graph, facts);
