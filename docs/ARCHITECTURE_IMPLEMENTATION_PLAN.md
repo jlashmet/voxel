@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 10 Vegetation — final Api/Runtime ownership cutover
+**Current focus:** Cutover 11 Net — final Api/Runtime decomposition and ownership cleanup
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -28,8 +28,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 7 — Tiering | **Complete** | `DeviceTier`/`DeviceTierBudget` live under `Tiering/Api` with preserved Unity GUIDs; broad Tiering assembly replaced by dependency-free `VoxelEngine.Tiering.Api`; Streaming, Rendering, Showcase and tests consume Api; no Tiering.Runtime exists; parity accepted | none |
 | 8 — Streaming | **Complete** | `Streaming.Api` exposes the real `RegionLoadRequest`/`IRegionStreaming` orchestration contract; all four implementation files live under `Streaming/Runtime` with preserved Unity GUIDs; `RegionStreamingService` hides Storage residency behind the Api; Runtime depends only on Streaming.Api, Storage.Api and Tiering.Api; broad Streaming/Net coupling is gone | none |
 | 9 — Collision | **Complete** | `Collision.Api`/`Collision.Runtime` replace the broad assembly; DDA/raycast/sweep/hull implementation lives in Runtime with preserved Unity GUIDs; Runtime consumes Storage.Api only; final caller inventory found no production subsystem consumer, so Api remains intentionally empty instead of inventing DTOs | none |
-| 10 — Vegetation | **In progress — current** | Kentridge top-surface reads use Storage.Api and terrain sampling uses Terrain.Api; `Vegetation.Api` now owns stable tree species/instance/profile values with the original Unity GUID; WorldGen Voxel consumes Vegetation.Api only | isolate mutable tree state/skeleton/damage Runtime and cut Rendering to Api-only presentation reads |
-| 11 — Net | **Partial dependency cleanup** | authoritative edit application callers now consume Storage mutation capability | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |
+| 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable tree placement/species/profile plus immutable skeleton/damage/read contracts; mutable state, skeleton generation and damage live in `Vegetation.Runtime`; Rendering and WorldGen consume Api only; broad/Core Vegetation ownership is gone | none |
+| 11 — Net | **In progress — current** | authoritative edit application callers consume Edits.Api/Storage mutation capabilities; StructuralGraph and the redundant edit wrapper are already gone | final Net.Api/Runtime decomposition, residency/store ownership cleanup, and semantic snapshot/repair boundary |
 | 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; parity accepted | final Rendering.Api/Runtime move and Vegetation.Api-only dependency |
 | 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
 
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `73c81025ad313be78d47449ec6185d0dc0519361` — 383 tests, 370 passed, exactly the same 13 known baseline failures. Accepted Vegetation.Api value slice: `ProceduralTreeTypes.cs` moved to `Vegetation/Api` with its Unity GUID preserved and now owns `TreeSpecies`, `TreeLeafStyle`, `TreeInstance`, `TreeSpeciesProfile`, and `TreeSpeciesProfiles`; WorldGen Voxel references Vegetation.Api rather than broad/Core Vegetation.
+- Latest accepted code gate: `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Accepted final Vegetation cutover: stable placement/presentation/read contracts live in Vegetation.Api; mutable tree state, skeleton generation and damage live in Vegetation.Runtime; Rendering and WorldGen consume Vegetation.Api only. The two additional passing tests are Vegetation boundary coverage; no existing failure changed.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -1071,8 +1071,9 @@ Do not expose `TreeWorldState` mutable collections.
 - [x] `Vegetation.Api` created; `ProceduralTreeTypes.cs` moved into Api with its original Unity GUID and `VoxelEngine.Vegetation.Api` namespace.
 - [x] WorldGen Voxel `CastleVegetationPlanner` and `KentridgeVegetationPlanner` consume Vegetation.Api tree values only; the WorldGen Voxel asmdef no longer references the broad Vegetation assembly.
 - [x] Vegetation Api value/WorldGen cutover accepted by CI at `73c81025ad313be78d47449ec6185d0dc0519361`: 383 total / 370 passed / exact same 13 known baseline failures.
-- [ ] mutable tree state, skeleton generation and damage implementation moved to Vegetation.Runtime.
-- [ ] Rendering consumes Vegetation.Api-only read/presentation contracts.
+- [x] mutable tree state, skeleton generation and damage implementation moved to Vegetation.Runtime.
+- [x] Rendering consumes Vegetation.Api-only read/presentation contracts.
+- [x] Final Vegetation Runtime/Rendering cutover accepted by CI at `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4`: 384 total / 371 passed / exact same 13 known baseline failures.
 
 ## 15.2 Vegetation.Runtime
 
@@ -1103,11 +1104,11 @@ Rendering currently references the whole Vegetation assembly. Change it to `Voxe
 
 ### Gate
 
-- [ ] no `VoxelEngine.Core.Vegetation` namespace remains;
+- [x] no `VoxelEngine.Core.Vegetation` namespace remains;
 - [x] Kentridge vegetation references Api only;
-- [ ] Rendering references Vegetation.Api, not Runtime;
-- [ ] mutable `TreeWorldState` is internal Runtime state;
-- [ ] tree damage/skeleton/render tests pass.
+- [x] Rendering references Vegetation.Api, not Runtime;
+- [x] mutable `TreeWorldState` is internal Runtime state;
+- [x] tree damage/skeleton/render tests pass.
 
 ---
 
@@ -1635,12 +1636,12 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 10. Vegetation
 
-- [ ] create Vegetation.Api/Runtime
-- [ ] remove `VoxelEngine.Core.Vegetation` namespace
-- [ ] isolate tree state/build/damage implementation
-- [ ] expose stable placement/damage/render contracts
+- [x] create Vegetation.Api/Runtime
+- [x] remove `VoxelEngine.Core.Vegetation` namespace
+- [x] isolate tree state/build/damage implementation
+- [x] expose stable placement/damage/render contracts
 - [x] update Kentridge vegetation to Storage.Api + Vegetation.Api
-- [ ] update Rendering to Vegetation.Api
+- [x] update Rendering to Vegetation.Api
 
 ### 11. Net
 
