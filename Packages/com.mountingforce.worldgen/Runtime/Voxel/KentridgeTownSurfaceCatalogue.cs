@@ -4,7 +4,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -14,7 +14,7 @@ namespace MountingForce.WorldGen.Voxel
     /// Voxel backend for Kentridge's public-space plan.
     ///
     /// Streets are subdivided into roughly 12.8 m pieces. Every piece is a continuous ramp whose
-    /// endpoint heights come from TerrainSampler, and adjacent pieces share the same endpoint.
+    /// endpoint heights come from TerrainQuery, and adjacent pieces share the same endpoint.
     /// This follows broad terrain without either failure mode of the earlier prototypes: independent
     /// flat tiles produced longitudinal steps, while one giant end-to-end ramp cut deep trenches
     /// through intervening hills. The authored road width remains the actual cut/fill width.
@@ -212,8 +212,8 @@ namespace MountingForce.WorldGen.Voxel
                 int minZ = Math.Min(a.Y, b.Y) * scale;
                 int maxZ = Math.Max(a.Y, b.Y) * scale;
                 int centreX = a.X * scale;
-                int h0 = TerrainSampler.HeightAt(centreX, minZ, seed);
-                int h1 = TerrainSampler.HeightAt(centreX, maxZ, seed);
+                int h0 = TerrainQuery.HeightAt(centreX, minZ, seed);
+                int h1 = TerrainQuery.HeightAt(centreX, maxZ, seed);
                 int low = Math.Min(h0, h1);
                 int delta = Math.Abs(h1 - h0);
                 byte orientation = h0 <= h1 ? (byte)0 : (byte)2;
@@ -238,8 +238,8 @@ namespace MountingForce.WorldGen.Voxel
             int minX = Math.Min(a.X, b.X) * scale;
             int maxX = Math.Max(a.X, b.X) * scale;
             int centreZ = a.Y * scale;
-            int xh0 = TerrainSampler.HeightAt(minX, centreZ, seed);
-            int xh1 = TerrainSampler.HeightAt(maxX, centreZ, seed);
+            int xh0 = TerrainQuery.HeightAt(minX, centreZ, seed);
+            int xh1 = TerrainQuery.HeightAt(maxX, centreZ, seed);
             int xlow = Math.Min(xh0, xh1);
             int xdelta = Math.Abs(xh1 - xh0);
             byte xorientation = xh0 <= xh1 ? (byte)0 : (byte)2;
@@ -267,7 +267,7 @@ namespace MountingForce.WorldGen.Voxel
             int minX = plaza.CentreDm.X - plaza.SizeDm.X / 2;
             int minZ = plaza.CentreDm.Y - plaza.SizeDm.Y / 2;
             int fillHeight = (PlazaFillDepthDm + SurfaceThicknessDm) * scale;
-            int targetY = TerrainSampler.HeightAt(
+            int targetY = TerrainQuery.HeightAt(
                 plaza.CentreDm.X * scale, plaza.CentreDm.Y * scale, seed);
 
             return new ExplicitPlacement
