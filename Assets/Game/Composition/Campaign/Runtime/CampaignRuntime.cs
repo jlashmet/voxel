@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Composition.Campaign;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Runtime;
 using Game.Story.Api;
