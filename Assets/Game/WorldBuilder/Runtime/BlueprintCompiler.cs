@@ -146,6 +146,8 @@ namespace Game.WorldBuilder.Runtime
             for (var i = 0; i < spatialConstraints.Length; i++)
                 spatialConstraints[i] = blueprint.SpatialConstraints[i];
 
+            WorldHierarchyPlan hierarchyPlan = CompileHierarchyPlan(blueprint.Hierarchy);
+
             return new PlanningGraph(
                 nodes.ToArray(),
                 siteRolePlans.ToArray(),
@@ -154,7 +156,113 @@ namespace Game.WorldBuilder.Runtime
                 npcPlacementPlans.ToArray(),
                 stagePlans.ToArray(),
                 secretCandidatePlans.ToArray(),
-                requiredSecretPlans.ToArray());
+                requiredSecretPlans.ToArray(),
+                hierarchyPlan);
+        }
+
+        private static WorldHierarchyPlan CompileHierarchyPlan(WorldHierarchyBlueprint hierarchy)
+        {
+            var routeAccess = new WorldRouteAccessPlan[hierarchy.RouteAccess.Count];
+            for (var i = 0; i < routeAccess.Length; i++)
+            {
+                SettlementRouteAccessSpec source = hierarchy.RouteAccess[i];
+                routeAccess[i] = new WorldRouteAccessPlan(
+                    source.Settlement,
+                    source.Route,
+                    source.ConnectorLengthMetres);
+            }
+
+            var sitePlacements = new WorldSitePlacementPlan[hierarchy.SitePlacements.Count];
+            for (var i = 0; i < sitePlacements.Length; i++)
+            {
+                SitePlacementSpec source = hierarchy.SitePlacements[i];
+                sitePlacements[i] = source.Kind == SitePlacementKind.Region
+                    ? new WorldSitePlacementPlan(source.Site, source.Region)
+                    : new WorldSitePlacementPlan(source.Site, source.Settlement);
+            }
+
+            var regions = new WorldRegionPlan[hierarchy.Regions.Count];
+            for (var i = 0; i < regions.Length; i++)
+            {
+                RegionSpec source = hierarchy.Regions[i];
+                var routes = new List<RouteRef>();
+                var settlements = new List<SettlementRef>();
+                var sites = new List<SiteRef>();
+
+                for (var j = 0; j < hierarchy.Routes.Count; j++)
+                    if (hierarchy.Routes[j].Region.Equals(source.Ref))
+                        routes.Add(hierarchy.Routes[j].Ref);
+
+                for (var j = 0; j < hierarchy.Settlements.Count; j++)
+                    if (hierarchy.Settlements[j].Region.Equals(source.Ref))
+                        settlements.Add(hierarchy.Settlements[j].Ref);
+
+                for (var j = 0; j < hierarchy.SitePlacements.Count; j++)
+                {
+                    SitePlacementSpec placement = hierarchy.SitePlacements[j];
+                    if (placement.Kind == SitePlacementKind.Region && placement.Region.Equals(source.Ref))
+                        sites.Add(placement.Site);
+                }
+
+                regions[i] = new WorldRegionPlan(
+                    source.Ref,
+                    source.Biome,
+                    routes.ToArray(),
+                    settlements.ToArray(),
+                    sites.ToArray());
+            }
+
+            var routesPlans = new WorldRoutePlan[hierarchy.Routes.Count];
+            for (var i = 0; i < routesPlans.Length; i++)
+            {
+                RouteSpec source = hierarchy.Routes[i];
+                var accesses = new List<WorldRouteAccessPlan>();
+                for (var j = 0; j < routeAccess.Length; j++)
+                    if (routeAccess[j].Route.Equals(source.Ref))
+                        accesses.Add(routeAccess[j]);
+
+                routesPlans[i] = new WorldRoutePlan(
+                    source.Ref,
+                    source.Region,
+                    source.Kind,
+                    source.Importance,
+                    accesses.ToArray());
+            }
+
+            var settlementsPlans = new WorldSettlementPlan[hierarchy.Settlements.Count];
+            for (var i = 0; i < settlementsPlans.Length; i++)
+            {
+                SettlementSpec source = hierarchy.Settlements[i];
+                var accesses = new List<WorldRouteAccessPlan>();
+                var sites = new List<SiteRef>();
+
+                for (var j = 0; j < routeAccess.Length; j++)
+                    if (routeAccess[j].Settlement.Equals(source.Ref))
+                        accesses.Add(routeAccess[j]);
+
+                for (var j = 0; j < hierarchy.SitePlacements.Count; j++)
+                {
+                    SitePlacementSpec placement = hierarchy.SitePlacements[j];
+                    if (placement.Kind == SitePlacementKind.Settlement && placement.Settlement.Equals(source.Ref))
+                        sites.Add(placement.Site);
+                }
+
+                settlementsPlans[i] = new WorldSettlementPlan(
+                    source.Ref,
+                    source.Region,
+                    source.Archetype,
+                    source.Population,
+                    source.HasPopulationRange,
+                    accesses.ToArray(),
+                    sites.ToArray());
+            }
+
+            return new WorldHierarchyPlan(
+                regions,
+                routesPlans,
+                settlementsPlans,
+                routeAccess,
+                sitePlacements);
         }
 
         private static bool HasAuthoredCapability(SiteSpec site, SiteCapabilityKind kind)
