@@ -29,7 +29,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 8 — Streaming | **Complete** | `Streaming.Api` exposes the real `RegionLoadRequest`/`IRegionStreaming` orchestration contract; all four implementation files live under `Streaming/Runtime` with preserved Unity GUIDs; `RegionStreamingService` hides Storage residency behind the Api; Runtime depends only on Streaming.Api, Storage.Api and Tiering.Api; broad Streaming/Net coupling is gone | none |
 | 9 — Collision | **Complete** | `Collision.Api`/`Collision.Runtime` replace the broad assembly; DDA/raycast/sweep/hull implementation lives in Runtime with preserved Unity GUIDs; Runtime consumes Storage.Api only; final caller inventory found no production subsystem consumer, so Api remains intentionally empty instead of inventing DTOs | none |
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
-| 11 — Net | **In progress — current** | accepted earlier cutovers removed the structural graph and duplicate edit-applier wrapper; Edits.Api is the canonical edit dependency | Net ownership cleanup and the physical Runtime move are code-landed but require baseline revalidation; normalize Runtime namespaces and complete the final Net gate |
+| 11 — Net | **In progress — current** | Net.Api/Runtime physical decomposition, Runtime namespace normalization, broad assembly deletion and domain-only Runtime references are accepted by the final static architecture gate; earlier cutovers removed the structural graph and duplicate edit-applier wrapper | baseline revalidation still required for residency/snapshot/protocol behavior before Cutover 11 can close |
 | 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; vegetation presentation consumes Vegetation.Api only; parity accepted | final Rendering.Api/Runtime move |
 | 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
 
@@ -1276,14 +1276,15 @@ No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtim
 
 ### Implementation progress
 
-- [ ] Net.Api/Runtime assemblies exist and the source has been decomposed physically; acceptance is pending a baseline-clean compile/test gate.
+- [x] Net.Api/Runtime assemblies exist and Client/Interest/Protocol/Server/Transport are physically under `Net/Runtime`; broad `VoxelEngine.Net` is deleted.
 - [ ] Server residency delegates to Streaming.Api and semantic convergence/repair uses Storage.Api capabilities in the current code; acceptance is pending revalidation.
 - [ ] Net ownership checkpoint must be re-earned; the previously cited `da3b6f0b` acceptance could not be tied to a completed baseline artifact, and ownership-specific artifacts inspected during revalidation were compile-only failures.
-- [ ] Client/Interest/Protocol/Server/Transport physical Runtime move and broad Net assembly deletion are code-complete; Runtime namespace normalization and baseline acceptance remain.
+- [x] Runtime namespaces are normalized to `VoxelEngine.Net.Runtime.*`; final static architecture gate accepted the physical move, namespace cutover and absence of package Runtime references.
+- [x] Final Net static architecture gate passed at `8dafd264dfd3e228e833da23c258d9e21768ad98`; full 384/371/13 parity revalidation remains intentionally unchecked.
 
 ### Gate
 
-- [ ] Net.Runtime references only domain APIs;
+- [x] Net.Runtime references only the explicit domain/API allowlist; final static architecture gate passed at `8dafd264dfd3e228e833da23c258d9e21768ad98`;
 - [x] structural graph is gone from Net;
 - [x] no duplicate deterministic edit applier wrapper;
 - [ ] network residency calls Streaming.Api;
@@ -1672,7 +1673,7 @@ At the end, generate an asmdef dependency report and verify:
 ### 11. Net
 
 - [x] create Net.Api/Runtime
-- [ ] move client/interest/protocol/server/transport implementation
+- [x] move client/interest/protocol/server/transport implementation
 - [x] remove structural/storage/residency ownership violations
 - [x] verify no second authoritative Net region store remains; dead physical persistence/compaction scaffolding was deleted
 - [x] reference only domain APIs
