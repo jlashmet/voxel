@@ -92,6 +92,7 @@ namespace VoxelEngine.Showcase
         private BrickPool _pool;
         private readonly RegionReadSource _readSource;
         private readonly RegionMutationStore _mutationStore;
+        private readonly RegionSnapshotMutationStore _snapshotMutationStore;
         private readonly RegionResidencyStore _residencyStore;
         private FeatureCatalogue _catalogue;
         private MaterialPalette _palette;
@@ -167,6 +168,30 @@ namespace VoxelEngine.Showcase
                 return _readSource;
             }
         }
+        public IRegionMutationStore MutationStorage
+        {
+            get
+            {
+                _mutationStore.Refresh(in _table, in _pool);
+                return _mutationStore;
+            }
+        }
+        public IRegionSnapshotSource SnapshotStorage
+        {
+            get
+            {
+                _readSource.Refresh(in _table, in _pool);
+                return _readSource;
+            }
+        }
+        public IRegionSnapshotMutationStore SnapshotMutationStorage
+        {
+            get
+            {
+                _snapshotMutationStore.Refresh(in _table, in _pool);
+                return _snapshotMutationStore;
+            }
+        }
         public MaterialPalette Palette => _palette;
         public SurfaceCatalogue SurfaceRules => _surfaceCatalogue;
         public CoatingCatalogue CoatingRules => _coatingCatalogue;
@@ -225,6 +250,7 @@ namespace VoxelEngine.Showcase
             _pool = new BrickPool(brickPoolCapacity, Allocator.Persistent);
             _readSource = new RegionReadSource(in _table, in _pool, _changes);
             _mutationStore = new RegionMutationStore(in _table, in _pool);
+            _snapshotMutationStore = new RegionSnapshotMutationStore(in _table, in _pool);
             _residencyStore = new RegionResidencyStore(in _table, in _pool);
 
             _palette = default;

@@ -84,9 +84,7 @@ namespace VoxelEngine.Tests.EditMode
                 var applier = new DeterministicAlterationApplier();
                 server.ProcessAuthoritativeTick(
                     20,
-                    ref serverTable,
-                    ref serverPool,
-                    in zones,
+                    new RegionReadSource(in serverTable, in serverPool), new RegionMutationStore(in serverTable, in serverPool), new RegionReadSource(in serverTable, in serverPool), in zones,
                     inputSink,
                     applier);
 
@@ -98,10 +96,7 @@ namespace VoxelEngine.Tests.EditMode
                         server.PumpTransport();
                     });
 
-                Assert.That(client.ApplyReadyAuthoritativeEvents(
-                    ref clientTable,
-                    ref clientPool,
-                    out int appliedEvents), Is.EqualTo(1));
+                Assert.That(client.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientTable, in clientPool), new RegionReadSource(in clientTable, in clientPool), new RegionSnapshotMutationStore(in clientTable, in clientPool), out int appliedEvents), Is.EqualTo(1));
                 Assert.That(appliedEvents, Is.EqualTo(1));
                 Assert.That(client.PendingAuthoritativeEvents, Is.Zero);
 

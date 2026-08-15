@@ -74,10 +74,9 @@ namespace VoxelEngine.Tests.EditMode
                     in evt,
                     in player,
                     players,
+                    new RegionReadSource(in table, in pool),
                     mutationStorage,
                     new DeterministicAlterationApplier(),
-                    ref table,
-                    in pool,
                     new Validation.DensityCap(1f, 0));
 
                 Assert.That(result, Is.EqualTo(Validation.ValidationResult.Success));

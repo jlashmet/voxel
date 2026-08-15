@@ -52,7 +52,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(queue.CompleteFullRegionSnapshot(91, replacedRegion, 5), Is.True);
                 Assert.That(queue.SnapshotCatchupActive, Is.True);
 
-                Assert.That(queue.DrainReady(ref table, ref pool, out int appliedEvents), Is.EqualTo(1));
+                Assert.That(queue.DrainReady(new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), out int appliedEvents), Is.EqualTo(1));
                 Assert.That(appliedEvents, Is.EqualTo(1));
 
                 Assert.That(VoxelAccess.GetVoxel(ref table, in pool, replacedVoxel), Is.EqualTo(7),

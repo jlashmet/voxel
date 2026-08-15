@@ -116,9 +116,7 @@ namespace VoxelEngine.Tests.EditMode
                 var inputSink = new NoopInputSink();
                 server.ProcessAuthoritativeTick(
                     20,
-                    ref serverTable,
-                    ref serverPool,
-                    in zones,
+                    new RegionReadSource(in serverTable, in serverPool), new RegionMutationStore(in serverTable, in serverPool), new RegionReadSource(in serverTable, in serverPool), in zones,
                     inputSink);
 
                 PumpUntil(
@@ -140,14 +138,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(clientOne.ApplyPlayerStateUpdates(out _), Is.EqualTo(2));
                 Assert.That(clientTwo.ApplyPlayerStateUpdates(out _), Is.EqualTo(2));
 
-                Assert.That(clientOne.ApplyReadyAuthoritativeEvents(
-                    ref clientOneTable,
-                    ref clientOnePool,
-                    out int clientOneEvents), Is.EqualTo(1));
-                Assert.That(clientTwo.ApplyReadyAuthoritativeEvents(
-                    ref clientTwoTable,
-                    ref clientTwoPool,
-                    out int clientTwoEvents), Is.EqualTo(1));
+                Assert.That(clientOne.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientOneTable, in clientOnePool), new RegionReadSource(in clientOneTable, in clientOnePool), new RegionSnapshotMutationStore(in clientOneTable, in clientOnePool), out int clientOneEvents), Is.EqualTo(1));
+                Assert.That(clientTwo.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientTwoTable, in clientTwoPool), new RegionReadSource(in clientTwoTable, in clientTwoPool), new RegionSnapshotMutationStore(in clientTwoTable, in clientTwoPool), out int clientTwoEvents), Is.EqualTo(1));
                 Assert.That(clientOneEvents, Is.EqualTo(1));
                 Assert.That(clientTwoEvents, Is.EqualTo(1));
 

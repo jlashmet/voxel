@@ -263,8 +263,9 @@ namespace VoxelEngine.Showcase
             ProtectedZones zones = default;
             _server.ProcessAuthoritativeTick(
                 _serverTick,
-                ref _world.Table,
-                ref _world.Pool,
+                _world.ReadStorage,
+                _world.MutationStorage,
+                _world.SnapshotStorage,
                 in zones,
                 this);
 
@@ -311,8 +312,9 @@ namespace VoxelEngine.Showcase
             _client.PumpTransport();
             _client.ApplyPlayerStateUpdates(out _);
             _client.ApplyReadyAuthoritativeEvents(
-                ref _world.Table,
-                ref _world.Pool,
+                _world.MutationStorage,
+                _world.SnapshotStorage,
+                _world.SnapshotMutationStorage,
                 out int appliedEvents);
 
             if (appliedEvents > 0)

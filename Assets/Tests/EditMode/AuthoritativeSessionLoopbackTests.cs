@@ -79,7 +79,7 @@ namespace VoxelEngine.Tests.EditMode
             table.LoadRegion(int3.zero);
             try
             {
-                server.ProcessAuthoritativeTick(10, ref table, ref pool, in zones, inputSink, applier);
+                server.ProcessAuthoritativeTick(10, new RegionReadSource(in table, in pool), new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), in zones, inputSink, applier);
 
                 PumpUntil(
                     () => clientHandler.BatchCount == 1,
@@ -108,7 +108,7 @@ namespace VoxelEngine.Tests.EditMode
                         client.Pump(clientHandler);
                     });
 
-                server.ProcessAuthoritativeTick(11, ref table, ref pool, in zones, inputSink, applier);
+                server.ProcessAuthoritativeTick(11, new RegionReadSource(in table, in pool), new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), in zones, inputSink, applier);
 
                 PumpUntil(
                     () => clientHandler.RejectionCount == 1,

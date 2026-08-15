@@ -154,9 +154,7 @@ namespace VoxelEngine.Tests.EditMode
             {
                 Processor.ProcessTick(
                     tick,
-                    ref _table,
-                    ref _pool,
-                    in _zones,
+                    new RegionReadSource(in _table, in _pool), new RegionMutationStore(in _table, in _pool), in _zones,
                     Inputs,
                     Applier,
                     Publisher,

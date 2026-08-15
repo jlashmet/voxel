@@ -198,7 +198,7 @@ namespace VoxelEngine.Tests.EditMode
 
                 var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
                 Assert.That(queue.TryEnqueueEventPacket(packet), Is.True);
-                Assert.That(queue.DrainReady(ref clientTable, ref clientPool, out int appliedEvents), Is.EqualTo(1));
+                Assert.That(queue.DrainReady(new RegionMutationStore(in clientTable, in clientPool), new RegionReadSource(in clientTable, in clientPool), out int appliedEvents), Is.EqualTo(1));
                 Assert.That(appliedEvents, Is.EqualTo(1));
 
                 Assert.That(serverTable.TryGetRegion(int3.zero, out Region serverRegion), Is.True);
