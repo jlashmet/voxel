@@ -7,8 +7,9 @@ using UnityEngine;
 namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>
-    /// Enforces Constitution Principle I inside deterministic world generation: no `float` or
-    /// `double` may appear in the final Structures.Runtime or Terrain.Runtime implementation roots.
+    /// Enforces Constitution Principle I inside the deterministic generation roots that were
+    /// previously guarded as Core/Features and Core/Terrain. Those roots now live under
+    /// Structures.Runtime/Features and Terrain.Runtime respectively.
     ///
     /// The constitution names an analyzer rule as the enforcement mechanism. There is no analyzer
     /// in this project yet, and adding one is a build-infrastructure change of its own; this test
@@ -17,15 +18,15 @@ namespace VoxelEngine.Tests.EditMode
     /// is that a float never silently reaches a code path participating in cross-client
     /// agreement.
     ///
-    /// A float here does not fail loudly. It produces terrain/structure output that differs
-    /// between an ARM and an x86 client by one voxel somewhere, which no single client can detect
-    /// and which surfaces as players disagreeing about generated world state.
+    /// A float here does not fail loudly. It produces generated output that differs between an
+    /// ARM and an x86 client by one voxel somewhere, which no single client can detect and which
+    /// surfaces as players disagreeing about generated world state.
     /// </summary>
     public class IntegerOnlyGenerationTests
     {
         private static readonly string[] GuardedDirectories =
         {
-            "Assets/VoxelEngine/Structures/Runtime",
+            "Assets/VoxelEngine/Structures/Runtime/Features",
             "Assets/VoxelEngine/Terrain/Runtime",
         };
 
@@ -68,8 +69,8 @@ namespace VoxelEngine.Tests.EditMode
             }
 
             Assert.IsEmpty(offences,
-                "Floating point found in world generation. Cross-client agreement derives from " +
-                "this code, and float arithmetic is not reproducible across platforms " +
+                "Floating point found in deterministic world generation. Cross-client agreement " +
+                "derives from this code, and float arithmetic is not reproducible across platforms " +
                 "(Constitution I).\n" + string.Join("\n", offences));
         }
 
