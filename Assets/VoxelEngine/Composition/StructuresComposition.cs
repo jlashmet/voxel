@@ -66,18 +66,15 @@ namespace VoxelEngine.Composition
             CastleBuilder.Plan(centre, seed);
 
         /// <summary>
-        /// Executes the hero-arch lookdev authoring pass without exposing concrete structure
+        /// Wires the hero-arch lookdev request into Structures.Runtime without exposing concrete
         /// feature definitions, profile storage, rasterizers, brushes, or weathering helpers to
-        /// scene code. Domain work stays in Structures.Runtime; Composition only wires capabilities.
+        /// scene code. The structure algorithm remains owned by Structures.Runtime.
         /// </summary>
         public static ArchLookdevBuildResult BuildArchLookdev(
             IVoxelStorageRuntime storage,
             in ArchLookdevBuildRequest request)
         {
-            if (storage == null)
-                throw new ArgumentNullException(nameof(storage));
-            if (request.BrushBudget <= 0)
-                throw new ArgumentOutOfRangeException(nameof(request.BrushBudget));
+            if (storage == null) throw new ArgumentNullException(nameof(storage));
 
             ArchBayAuthoringPipeline.Author(
                 storage.Reads,
