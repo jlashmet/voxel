@@ -5,6 +5,7 @@
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
+    "VoxelEngine.Terrain.Api",
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
     "VoxelEngine.Streaming",
