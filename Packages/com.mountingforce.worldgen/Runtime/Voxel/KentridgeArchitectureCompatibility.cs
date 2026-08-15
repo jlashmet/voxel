@@ -3,15 +3,12 @@ using MountingForce.WorldGen.Content.Kentridge;
 
 namespace MountingForce.WorldGen.Voxel
 {
-    // Temporary emitter-facing vocabulary while KentridgeGrammarVoxelCatalogue is migrated from the
-    // former Content-owned grammar names. Resolution and validation are delegated to the current
-    // Architecture public handoff, so this file contains no architectural generation decisions.
-    internal enum KentridgeBuildingMode : byte { Generated, Bespoke }
-    internal enum KentridgeFootprintForm : byte { Rectangle, RearWing, SideWing, SteppedUpper }
-    internal enum KentridgeRoofForm : byte { Gable, SteepGable, TwinGable, GableWithLeanTo }
-    internal enum KentridgeFrontageRhythm : byte { TwoBay, ThreeBay, Asymmetric }
-    internal enum KentridgeWindowStyle : byte { Glass, Warm, Open }
-
+    // Temporary emitter-facing wrapper while KentridgeGrammarVoxelCatalogue is migrated from the
+    // former Content-owned grammar shape. The canonical compatibility enums now come from the
+    // Architecture migration layer; do not redeclare them in Voxel because same-named types poison
+    // name resolution for other Voxel emitters such as KentridgeUrbanFabricCatalogue.
+    // Resolution and validation remain delegated to the current Architecture public handoff, so
+    // this file contains no architectural generation decisions.
     internal readonly struct KentridgeBuildingForm
     {
         private readonly StructureIntent _intent;
