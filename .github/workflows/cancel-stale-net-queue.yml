@@ -18,25 +18,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          page=1
           while :; do
             json="$(curl -fsSL \
               -H "Authorization: Bearer $GH_TOKEN" \
               -H 'Accept: application/vnd.github+json' \
-              "https://api.github.com/repos/$REPO/actions/runs?branch=refactor/system-boundaries-foundation-storage&status=queued&per_page=100&page=$page")"
-            count="$(jq '.workflow_runs | length' <<<"$json")"
-            if [ "$count" -eq 0 ]; then break; fi
-            jq -r '.workflow_runs[].id' <<<"$json" | while read -r id; do
-              if [ "$id" = "$KEEP_RUN" ]; then
-                echo "preserving pinned ownership gate $id"
-                continue
-              fi
+              "https://api.github.com/repos/$REPO/actions/runs?branch=refactor/system-boundaries-foundation-storage&status=queued&per_page=100&page=1")"
+            ids="$(jq -r --arg keep "$KEEP_RUN" '.workflow_runs[] | select((.id|tostring) != $keep) | .id' <<<"$json")"
+            if [ -z "$ids" ]; then
+              echo "only preserved gate remains queued"
+              break
+            fi
+            while read -r id; do
+              [ -z "$id" ] && continue
               echo "cancelling stale queued run $id"
               curl -fsSL -X POST \
                 -H "Authorization: Bearer $GH_TOKEN" \
                 -H 'Accept: application/vnd.github+json' \
                 "https://api.github.com/repos/$REPO/actions/runs/$id/cancel" >/dev/null || true
-            done
-            if [ "$count" -lt 100 ]; then break; fi
-            page=$((page + 1))
+            done <<<"$ids"
+            sleep 1
           done
