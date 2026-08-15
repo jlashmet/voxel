@@ -1,0 +1,206 @@
+name: Cutover 13 arch rendering boundary
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-arch-rendering-boundary.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+      - name: Route ArchLookdev rendering through Composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          comp = Path('Assets/VoxelEngine/Composition/RenderingComposition.cs')
+          text = comp.read_text()
+          anchor = '''        public static Vector4 GetMaterialAlbedo(byte material) =>
+            VoxelPresentationCatalogue.MaterialAlbedo[material];
+'''
+          addition = anchor + '''
+        public static Vector4 GetCoatingTint(byte coating) =>
+            VoxelPresentationCatalogue.CoatingTint[coating];
+
+        public static void SetMaterialAlbedo(byte material, Vector4 albedo) =>
+            VoxelPresentationCatalogue.MaterialAlbedo[material] = albedo;
+
+        public static void SetCoatingTint(byte coating, Vector4 tint) =>
+            VoxelPresentationCatalogue.CoatingTint[coating] = tint;
+
+        public static void SetBuildBudgets(double solidBuildBudgetMs, double waterBuildBudgetMs)
+        {
+            VoxelRenderBridge.SolidBuildBudgetMs = solidBuildBudgetMs;
+            VoxelRenderBridge.WaterBuildBudgetMs = waterBuildBudgetMs;
+        }
+
+        public static void SetSky(Color horizon, Color zenith)
+        {
+            VoxelRenderBridge.SkyHorizon = horizon;
+            VoxelRenderBridge.SkyZenith = zenith;
+        }
+
+        public static bool TryGetSurfaceBuildStatus(
+            out int knownChunks,
+            out int dirtyChunks,
+            out int residentChunks,
+            out long residentGeometryBytes)
+        {
+            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+            knownChunks = metrics.SolidKnownChunks;
+            dirtyChunks = metrics.SolidDirtyChunks;
+            residentChunks = metrics.SolidResidentChunks;
+            residentGeometryBytes = metrics.ResidentGeometryBytes;
+            return knownChunks > 0;
+        }
+'''
+          if anchor not in text:
+              raise SystemExit('RenderingComposition albedo anchor changed')
+          text = text.replace(anchor, addition, 1)
+          comp.write_text(text)
+
+          arch = Path('Assets/Scenes/Showcase/ArchLookdev.cs')
+          text = arch.read_text()
+          text = text.replace('using VoxelEngine.Rendering.Runtime;\n', '')
+          text = text.replace('using VoxelEngine.Rendering.Runtime.SurfaceExtraction;\n', '')
+
+          old = '''            _originalStoneAlbedo = VoxelPresentationCatalogue.MaterialAlbedo[StoneMaterial];
+            _originalMossTint = VoxelPresentationCatalogue.CoatingTint[Coatings.Moss];
+            VoxelRenderBridge.SolidBuildBudgetMs = _buildBudgetMs;
+            VoxelRenderBridge.WaterBuildBudgetMs = 0;
+            VoxelRenderBridge.SkyZenith = new Color(0.341f, 0.600f, 0.847f, 1f);
+            VoxelRenderBridge.SkyHorizon = new Color(0.627f, 0.722f, 0.773f, 1f);
+'''
+          new = '''            _originalStoneAlbedo = RenderingComposition.GetMaterialAlbedo(StoneMaterial);
+            _originalMossTint = RenderingComposition.GetCoatingTint(Coatings.Moss);
+            RenderingComposition.SetBuildBudgets(_buildBudgetMs, 0);
+            RenderingComposition.SetSky(
+                new Color(0.627f, 0.722f, 0.773f, 1f),
+                new Color(0.341f, 0.600f, 0.847f, 1f));
+'''
+          if old not in text:
+              raise SystemExit('ArchLookdev OnEnable rendering anchor changed')
+          text = text.replace(old, new, 1)
+
+          old = '''            VoxelRenderBridge.Source = null;
+            VoxelRenderBridge.Changes = null;
+            VoxelPresentationCatalogue.MaterialAlbedo[StoneMaterial] = _originalStoneAlbedo;
+            VoxelPresentationCatalogue.CoatingTint[Coatings.Moss] = _originalMossTint;
+'''
+          new = '''            RenderingComposition.ClearWorld();
+            RenderingComposition.SetMaterialAlbedo(StoneMaterial, _originalStoneAlbedo);
+            RenderingComposition.SetCoatingTint(Coatings.Moss, _originalMossTint);
+'''
+          if old not in text:
+              raise SystemExit('ArchLookdev OnDisable rendering anchor changed')
+          text = text.replace(old, new, 1)
+
+          old = '''            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+            if (metrics.SolidKnownChunks > 0)
+            {
+                bool converged = metrics.SolidDirtyChunks == 0
+                    && metrics.SolidResidentChunks >= metrics.SolidKnownChunks;
+                _status = converged
+                    ? $"READY  {metrics.ResidentGeometryBytes / (1024f * 1024f):0.0} MB  ·  {_lastBuildMs:0} ms authoring"
+                    : $"MESHING  {metrics.SolidResidentChunks}/{metrics.SolidKnownChunks} chunks";
+            }
+'''
+          new = '''            if (RenderingComposition.TryGetSurfaceBuildStatus(
+                    out int knownChunks,
+                    out int dirtyChunks,
+                    out int residentChunks,
+                    out long residentGeometryBytes))
+            {
+                bool converged = dirtyChunks == 0 && residentChunks >= knownChunks;
+                _status = converged
+                    ? $"READY  {residentGeometryBytes / (1024f * 1024f):0.0} MB  ·  {_lastBuildMs:0} ms authoring"
+                    : $"MESHING  {residentChunks}/{knownChunks} chunks";
+            }
+'''
+          if old not in text:
+              raise SystemExit('ArchLookdev metrics anchor changed')
+          text = text.replace(old, new, 1)
+
+          old = '''            _storage = nextStorage;
+            _profileBlocks = nextProfiles;
+            VoxelRenderBridge.Changes = _storage.Changes;
+            VoxelRenderBridge.Source = WorldView;
+            oldStorage?.Dispose();
+'''
+          new = '''            _storage = nextStorage;
+            _profileBlocks = nextProfiles;
+            var world = new RenderingWorldBinding(
+                _storage.Reads,
+                _storage.MaterialPresentation,
+                _storage.SurfacePresentation,
+                _storage.CoatingPresentation,
+                _profileBlocks);
+            RenderingComposition.ConfigureWorld(
+                in world, _storage.Changes, 0, _buildBudgetMs, 0, farFieldEnabled: false);
+            oldStorage?.Dispose();
+'''
+          if old not in text:
+              raise SystemExit('ArchLookdev world publication anchor changed')
+          text = text.replace(old, new, 1)
+
+          old = '''        private VoxelWorldView WorldView() => new VoxelWorldView
+        {
+            Storage = _storage.Reads,
+            Palette = _storage.MaterialPresentation,
+            SurfaceCatalogueView = _storage.SurfacePresentation,
+            CoatingCatalogueView = _storage.CoatingPresentation,
+            ProfileBlocks = _profileBlocks,
+        };
+
+'''
+          if old not in text:
+              raise SystemExit('ArchLookdev WorldView anchor changed')
+          text = text.replace(old, '', 1)
+
+          old = '''            VoxelPresentationCatalogue.MaterialAlbedo[StoneMaterial] = new Vector4(
+                0.48f + 0.28f * _stoneWarmth,
+                0.42f + 0.23f * _stoneWarmth,
+                0.34f + 0.16f * _stoneWarmth,
+                1f) * _stoneValue;
+            VoxelPresentationCatalogue.CoatingTint[Coatings.Moss] = Color.HSVToRGB(
+                _mossHue, _mossSaturation, _mossValue);
+            VoxelRenderBridge.SolidBuildBudgetMs = _buildBudgetMs;
+'''
+          new = '''            RenderingComposition.SetMaterialAlbedo(StoneMaterial, new Vector4(
+                0.48f + 0.28f * _stoneWarmth,
+                0.42f + 0.23f * _stoneWarmth,
+                0.34f + 0.16f * _stoneWarmth,
+                1f) * _stoneValue);
+            RenderingComposition.SetCoatingTint(
+                Coatings.Moss,
+                Color.HSVToRGB(_mossHue, _mossSaturation, _mossValue));
+            RenderingComposition.SetBuildBudgets(_buildBudgetMs, 0);
+'''
+          if old not in text:
+              raise SystemExit('ArchLookdev presentation anchor changed')
+          text = text.replace(old, new, 1)
+
+          forbidden = ('VoxelRenderBridge', 'VoxelPresentationCatalogue', 'VoxelWorldView',
+                       'VoxelEngine.Rendering.Runtime')
+          leftovers = [token for token in forbidden if token in text]
+          if leftovers:
+              raise SystemExit(f'ArchLookdev still contains rendering Runtime tokens: {leftovers}')
+          arch.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Assets/VoxelEngine/Composition/RenderingComposition.cs Assets/Scenes/Showcase/ArchLookdev.cs
+          git rm .github/workflows/cutover13-arch-rendering-boundary.yml
+          git commit -m "refactor(showcase): route arch rendering through composition"
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
