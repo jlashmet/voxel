@@ -6,7 +6,7 @@ permissions:
   contents: write
 jobs:
   publish:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -17,7 +17,7 @@ jobs:
         run: |
           set -euo pipefail
           git reset --hard HEAD
-          git clean -ffdx -e Library/
+          git clean -ffdx
           python3 - <<'PY'
           from pathlib import Path
           replacements = {
@@ -46,5 +46,6 @@ jobs:
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
           git add Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git add -u .github/workflows/vegetation-branch-parent-list-fix.yml
           git commit -m 'fix: use Vegetation Api parent list contract'
           git push origin HEAD:${{ github.ref_name }}
