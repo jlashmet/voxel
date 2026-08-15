@@ -1,0 +1,82 @@
+name: Finalize Net Runtime namespaces
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-runtime-namespace-finalize.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard origin/refactor/system-boundaries-foundation-storage
+          git clean -ffdx
+          python3 - <<'PY'
+          from pathlib import Path
+          replacements = {
+              'VoxelEngine.Net.Client': 'VoxelEngine.Net.Runtime.Client',
+              'VoxelEngine.Net.Interest': 'VoxelEngine.Net.Runtime.Interest',
+              'VoxelEngine.Net.Protocol': 'VoxelEngine.Net.Runtime.Protocol',
+              'VoxelEngine.Net.Server': 'VoxelEngine.Net.Runtime.Server',
+              'VoxelEngine.Net.Transport': 'VoxelEngine.Net.Runtime.Transport',
+          }
+          roots = [Path('Assets/VoxelEngine/Net/Runtime'), Path('Assets/Scenes/Showcase'), Path('Assets/Tests'), Path('Assets/VoxelEngine/Tools')]
+          changed = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              for p in root.rglob('*.cs'):
+                  text = p.read_text()
+                  new = text
+                  for old, repl in replacements.items():
+                      new = new.replace(old, repl)
+                  if new != text:
+                      p.write_text(new)
+                      changed.append(str(p))
+          asm_changed = []
+          for root in [Path('Assets'), Path('Packages')]:
+              if not root.exists():
+                  continue
+              for p in root.rglob('*.asmdef'):
+                  text = p.read_text()
+                  new = text.replace('"VoxelEngine.Net"', '"VoxelEngine.Net.Runtime"')
+                  if new != text:
+                      p.write_text(new)
+                      asm_changed.append(str(p))
+          print('changed cs', len(changed))
+          print('\n'.join(changed))
+          print('changed asmdef', len(asm_changed))
+          print('\n'.join(asm_changed))
+          PY
+          # Remove obsolete broad assembly if any half remains.
+          git rm -f Assets/VoxelEngine/Net/VoxelEngine.Net.asmdef Assets/VoxelEngine/Net/VoxelEngine.Net.asmdef.meta 2>/dev/null || true
+          # Remove temporary Net CI/inventory scaffolding and marker files, including this workflow.
+          find .github/workflows -maxdepth 1 -type f -name 'net-*.yml' -print -delete
+          rm -f .github/net-ownership-checkpoint.trigger
+          rm -f docs/.oops docs/.stop docs/.net-runtime-direct-move-note docs/.net-direct-tree-lock docs/.net-runtime-*.trigger docs/.net-*.trigger docs/.net-*-note docs/.net-*-lock
+          # Validation: no legacy implementation namespaces or broad assembly refs remain.
+          if grep -RInE 'VoxelEngine\.Net\.(Client|Interest|Protocol|Server|Transport)' Assets Packages --include='*.cs'; then
+            echo 'legacy Net implementation namespace reference remains' >&2
+            exit 1
+          fi
+          if grep -RIn '"VoxelEngine.Net"' Assets Packages --include='*.asmdef'; then
+            echo 'broad Net assembly reference remains' >&2
+            exit 1
+          fi
+          test ! -e Assets/VoxelEngine/Net/VoxelEngine.Net.asmdef
+          test ! -e Assets/VoxelEngine/Net/VoxelEngine.Net.asmdef.meta
+          grep -q 'VoxelEngine.Net.Runtime' Assets/VoxelEngine/Net/Runtime/VoxelEngine.Net.Runtime.asmdef
+          git diff --check
+          git status --short
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add -A
+          git commit -m 'refactor: finalize Net Runtime namespace cutover'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
