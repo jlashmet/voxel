@@ -1,0 +1,53 @@
+name: Vegetation BranchParents compile fix
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx
+          python3 - <<'PY'
+          from pathlib import Path
+          files = [
+              Path('Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs'),
+              Path('Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs'),
+          ]
+          for path in files:
+              source = path.read_text()
+              old = 'int[] parents = skeleton.BranchParents;'
+              if source.count(old) != 1:
+                  raise SystemExit(f'{path}: expected exactly one BranchParents array declaration')
+              source = source.replace(old, 'var parents = skeleton.BranchParents;')
+              if path.name == 'ProceduralTreeDetachedLimbPresenter.cs':
+                  old_loop = 'for (int i = cut.BranchIndex + 1; i < parents.Length; i++)'
+                  if source.count(old_loop) != 1:
+                      raise SystemExit(f'{path}: expected detached-limb parents.Length loop')
+                  source = source.replace(old_loop, 'for (int i = cut.BranchIndex + 1; i < parents.Count; i++)')
+              else:
+                  old_check = 'if (parents == null || parents.Length != skeleton.Branches.Count) return 1;'
+                  old_bound = 'if ((uint)current >= (uint)parents.Length) break;'
+                  if source.count(old_check) != 1 or source.count(old_bound) != 1:
+                      raise SystemExit(f'{path}: expected damage-service parents.Length checks')
+                  source = source.replace(old_check, 'if (parents == null || parents.Count != skeleton.Branches.Count) return 1;')
+                  source = source.replace(old_bound, 'if ((uint)current >= (uint)parents.Count) break;')
+              path.write_text(source)
+          PY
+          git rm .github/workflows/vegetation-branchparents-fix.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs
+          git add -u .github/workflows
+          git commit -m 'fix: use immutable Vegetation BranchParents views'
+          git push origin HEAD:${{ github.ref_name }}
