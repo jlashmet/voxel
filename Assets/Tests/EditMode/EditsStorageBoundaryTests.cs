@@ -63,6 +63,9 @@ namespace VoxelEngine.Tests.EditMode
             foreach (string scanRoot in roots)
             foreach (string path in Directory.EnumerateFiles(scanRoot, "*.cs", SearchOption.AllDirectories))
             {
+                if (Path.GetFileName(path) == nameof(EditsStorageBoundaryTests) + ".cs")
+                    continue; // The guard necessarily contains the forbidden literals it searches for.
+
                 string source = StripComments(File.ReadAllText(path));
                 foreach (string token in forbidden)
                     if (source.IndexOf(token, StringComparison.Ordinal) >= 0)

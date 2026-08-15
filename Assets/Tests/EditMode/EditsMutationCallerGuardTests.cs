@@ -28,6 +28,11 @@ namespace VoxelEngine.Tests.EditMode
             foreach (string scanRoot in roots)
             foreach (string path in Directory.EnumerateFiles(scanRoot, "*.cs", SearchOption.AllDirectories))
             {
+                string fileName = Path.GetFileName(path);
+                if (fileName == nameof(EditsMutationCallerGuardTests) + ".cs" ||
+                    fileName == nameof(EditsStorageBoundaryTests) + ".cs")
+                    continue; // Guard definitions necessarily contain the signatures they prohibit.
+
                 string source = File.ReadAllText(path);
                 foreach (Regex pattern in forbidden)
                     if (pattern.IsMatch(source))
