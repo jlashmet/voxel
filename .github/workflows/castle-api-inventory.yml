@@ -1,0 +1,29 @@
+name: Castle API extraction inventory
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - name: Inventory CastleBuilder member usage
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo '=== CastleBuilder member usages ==='
+          grep -RInE '\bCastleBuilder\.[A-Za-z_]+' Assets Packages --include='*.cs' | sort || true
+          echo '=== CastlePlan declarations/usages outside CastleBuilder ==='
+          grep -RInE '\bCastlePlan\b' Assets Packages --include='*.cs' | grep -v 'Assets/VoxelEngine/Structures/CastleBuilder.cs' | sort || true
