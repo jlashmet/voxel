@@ -1,5 +1,6 @@
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using Random = Unity.Mathematics.Random;
 
@@ -249,7 +250,12 @@ namespace VoxelEngine.Structures
                                                   in CastlePlan plan, uint terrainSeed,
                                                   in MaterialPalette palette)
         {
-            var brush = new VoxelBrush(table, pool, in palette);
+            var reads = new RegionReadSource(in table, in pool);
+            var mutations = new RegionMutationStore(in table, in pool);
+            IMaterialAuthoringCatalogue materials = palette.IsCreated
+                ? (IMaterialAuthoringCatalogue)palette
+                : null;
+            var brush = new VoxelBrush(reads, mutations, materials);
 
             long estimate = EstimateWrites(in plan);
             if (estimate > brush.WriteBudget)
@@ -285,8 +291,6 @@ namespace VoxelEngine.Structures
                                   ref build.SiteRandom))
                     {
                         RequireBudget(in build.Brush, stage);
-                        table = build.Brush.Table;
-                        pool = build.Brush.Pool;
                         return false;
                     }
                     break;
@@ -299,8 +303,6 @@ namespace VoxelEngine.Structures
                     if (!StepKeep(ref build.Brush, in build.Plan, ref build.KeepStage))
                     {
                         RequireBudget(in build.Brush, stage);
-                        table = build.Brush.Table;
-                        pool = build.Brush.Pool;
                         return false;
                     }
                     break;
@@ -313,11 +315,8 @@ namespace VoxelEngine.Structures
             }
             RequireBudget(in build.Brush, stage);
 
-            // RegionTable and BrickPool are handle-like structs, but their scalar bookkeeping
-            // (notably BrickPool's high-water mark) is copied by value. Publish the updated
-            // handles back to the owner or later allocations can reuse slots the castle owns.
-            table = build.Brush.Table;
-            pool = build.Brush.Pool;
+            // Storage capability objects share their backing state; allocator/table bookkeeping
+            // stays inside Storage instead of escaping through VoxelBrush.
             build.Stage++;
             return build.IsComplete;
         }
