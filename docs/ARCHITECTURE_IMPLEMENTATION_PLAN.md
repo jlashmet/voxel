@@ -29,7 +29,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 8 — Streaming | **Complete** | `Streaming.Api` exposes the real `RegionLoadRequest`/`IRegionStreaming` orchestration contract; all four implementation files live under `Streaming/Runtime` with preserved Unity GUIDs; `RegionStreamingService` hides Storage residency behind the Api; Runtime depends only on Streaming.Api, Storage.Api and Tiering.Api; broad Streaming/Net coupling is gone | none |
 | 9 — Collision | **Complete** | `Collision.Api`/`Collision.Runtime` replace the broad assembly; DDA/raycast/sweep/hull implementation lives in Runtime with preserved Unity GUIDs; Runtime consumes Storage.Api only; final caller inventory found no production subsystem consumer, so Api remains intentionally empty instead of inventing DTOs | none |
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
-| 11 — Net | **In progress — current** | Net.Api/Runtime assemblies exist; edit vocabulary/application is Api-only; structural graph/wrapper violations are gone; residency policy calls Streaming.Api; semantic convergence/repair uses Storage.Api read/snapshot/mutation capabilities; residual Core.Storage/Core.Occupancy imports and dead physical helpers were removed; transitional broad Net assembly now references only domain APIs | physically move Client/Interest/Protocol/Server/Transport under Net/Runtime, normalize Runtime namespaces, delete broad Net assembly, and run final Net parity gate |
+| 11 — Net | **In progress — current** | accepted earlier cutovers removed the structural graph and duplicate edit-applier wrapper; Edits.Api is the canonical edit dependency | Net ownership cleanup and the physical Runtime move are code-landed but require baseline revalidation; normalize Runtime namespaces and complete the final Net gate |
 | 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; vegetation presentation consumes Vegetation.Api only; parity accepted | final Rendering.Api/Runtime move |
 | 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
 
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `da3b6f0b3daf6b6e0e1f30917fd3d88267c1af34` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Net ownership checkpoint: server residency now delegates to Streaming.Api; authoritative validation/session/client repair paths consume Storage.Api read/mutation/snapshot capabilities; semantic convergence uses `IRegionSnapshotSource`; Net has no live `VoxelEngine.Core.*` source imports; `RegionHasher` is limited to network-payload hashing; dead physical persistence/compaction scaffolding was removed. The final physical Net Runtime move remains unchecked.
+- Latest accepted code gate: `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Net ownership/decomposition work after this gate is code-landed but remains unaccepted until a full compile/test run returns to this baseline; the Net-specific artifacts inspected during revalidation stopped at compilation and did not produce `results.xml`.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -1276,19 +1276,19 @@ No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtim
 
 ### Implementation progress
 
-- [x] Net.Api/Runtime assemblies exist; transitional Net source is Core-free and references domain APIs only.
-- [x] Server residency delegates to Streaming.Api; semantic convergence/repair uses Storage.Api read/mutation/snapshot capabilities; duplicate structural/edit/storage ownership was removed.
-- [x] Net ownership checkpoint accepted by CI at `da3b6f0b3daf6b6e0e1f30917fd3d88267c1af34`: 384 total / 371 passed / exact 13 known baseline failures.
-- [ ] Client/Interest/Protocol/Server/Transport physical Runtime move, Runtime namespace normalization, and broad Net assembly deletion remain.
+- [ ] Net.Api/Runtime assemblies exist and the source has been decomposed physically; acceptance is pending a baseline-clean compile/test gate.
+- [ ] Server residency delegates to Streaming.Api and semantic convergence/repair uses Storage.Api capabilities in the current code; acceptance is pending revalidation.
+- [ ] Net ownership checkpoint must be re-earned; the previously cited `da3b6f0b` acceptance could not be tied to a completed baseline artifact, and ownership-specific artifacts inspected during revalidation were compile-only failures.
+- [ ] Client/Interest/Protocol/Server/Transport physical Runtime move and broad Net assembly deletion are code-complete; Runtime namespace normalization and baseline acceptance remain.
 
 ### Gate
 
 - [ ] Net.Runtime references only domain APIs;
 - [x] structural graph is gone from Net;
 - [x] no duplicate deterministic edit applier wrapper;
-- [x] network residency calls Streaming.Api;
-- [x] semantic repair/snapshot paths use Storage.Api logical data;
-- [x] protocol/convergence/late-join/reconciliation tests pass against the accepted `da3b6f0b` ownership baseline.
+- [ ] network residency calls Streaming.Api;
+- [ ] semantic repair/snapshot paths use Storage.Api logical data;
+- [ ] protocol/convergence/late-join/reconciliation tests pass against the accepted baseline.
 
 ---
 
