@@ -1,0 +1,34 @@
+name: StructuralIntegrity cutover inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo '=== structural source declarations/usings ==='
+          for f in Assets/VoxelEngine/Core/Structure/*.cs Assets/VoxelEngine/Net/Server/StructuralGraph.cs; do
+            echo "--- $f"
+            grep -nE '^using |^namespace |^\s*(public|internal) (static )?(class|struct|enum|interface)|^\s*public static |^\s*public [A-Za-z].*\(' "$f" || true
+          done
+          echo '=== structural type consumers ==='
+          grep -RInE '\b(CollapseDetection|Connectivity|SupportField|StructuralGraph)\b' Assets Packages --include='*.cs' | grep -vE 'Core/Structure/(CollapseDetection|Connectivity|SupportField)\.cs|Net/Server/StructuralGraph\.cs' | sort || true
+          echo '=== physical storage/net dependencies inside candidates ==='
+          grep -nE 'VoxelEngine\.Core\.Storage|VoxelEngine\.Net|\b(RegionTable|BrickPool|BrickRef|Region|VoxelAccess|VoxelDimensions|S_|C_)\b' Assets/VoxelEngine/Core/Structure/*.cs Assets/VoxelEngine/Net/Server/StructuralGraph.cs | sort || true
+          echo '=== asmdefs of candidate owners/consumers ==='
+          for f in Assets/VoxelEngine/Core/VoxelEngine.Core.asmdef Assets/VoxelEngine/Net/VoxelEngine.Net.asmdef Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef; do
+            echo "--- $f"; cat "$f"; done
+          echo '=== tests named structural/collapse/connectivity/support ==='
+          find Assets/Tests -type f -name '*.cs' | grep -Ei 'struct|collapse|connect|support' | sort || true
