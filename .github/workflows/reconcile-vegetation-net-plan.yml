@@ -1,4 +1,4 @@
-name: Reconcile Vegetation and Net checklist
+name: Finish Net checklist reconciliation
 on:
   push:
     branches: [refactor/system-boundaries-foundation-storage]
@@ -13,48 +13,29 @@ jobs:
         with:
           ref: refactor/system-boundaries-foundation-storage
           fetch-depth: 0
-      - name: Reconcile accepted checklist state
-        shell: bash
+      - shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
           s=p.read_text()
-          replacements={
-          '**Current focus:** Cutover 10 Vegetation — final Api/Runtime ownership cutover':'**Current focus:** Cutover 11 Net — Api/Runtime decomposition and ownership cleanup',
-          '| 10 — Vegetation | **In progress — current** | Kentridge top-surface reads use Storage.Api and terrain sampling uses Terrain.Api; `Vegetation.Api` now owns stable tree species/instance/profile values with the original Unity GUID; WorldGen Voxel consumes Vegetation.Api only | isolate mutable tree state/skeleton/damage Runtime and cut Rendering to Api-only presentation reads |':'| 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable tree values plus immutable skeleton/damage/presentation read contracts; mutable state, skeleton generation and damage implementation live in `Vegetation.Runtime`; `TreeWorldState` is internal; Rendering consumes Vegetation.Api-only read snapshots; WorldGen Voxel is Api-only; original Unity GUIDs preserved | none |',
-          '| 11 — Net | **Partial dependency cleanup** | authoritative edit application callers now consume Storage mutation capability | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |':'| 11 — Net | **In progress — current** | Edits integration is Api-only and StructuralGraph ownership is already resolved | create Net.Api/Runtime, remove physical residency/hash/storage ownership leaks, and migrate implementation under Runtime |',
-          '| 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; parity accepted | final Rendering.Api/Runtime move and Vegetation.Api-only dependency |':'| 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; Vegetation presentation reads consume Vegetation.Api only; parity accepted | final Rendering.Api/Runtime physical move |',
-          '- Latest accepted code gate: `73c81025ad313be78d47449ec6185d0dc0519361` — 383 tests, 370 passed, exactly the same 13 known baseline failures. Accepted Vegetation.Api value slice: `ProceduralTreeTypes.cs` moved to `Vegetation/Api` with its Unity GUID preserved and now owns `TreeSpecies`, `TreeLeafStyle`, `TreeInstance`, `TreeSpeciesProfile`, and `TreeSpeciesProfiles`; WorldGen Voxel references Vegetation.Api rather than broad/Core Vegetation.':'- Latest accepted code gate: `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Accepted final Vegetation Runtime/Rendering cutover: mutable tree state, skeleton generation and damage live in `Vegetation.Runtime`; immutable presentation/read values live in `Vegetation.Api`; WorldGen and Rendering are Api-only; `VoxelEngine.Core.Vegetation` is gone; and Runtime mutation defaults preserve existing call semantics.',
-          '- [ ] mutable tree state, skeleton generation and damage implementation moved to Vegetation.Runtime.':'- [x] mutable tree state, skeleton generation and damage implementation moved to Vegetation.Runtime.',
-          '- [ ] Rendering consumes Vegetation.Api-only read/presentation contracts.':'- [x] Rendering consumes Vegetation.Api-only read/presentation contracts.\n- [x] Final Vegetation Runtime/Rendering cutover accepted by CI at `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4`: 384 total / 371 passed / exact same 13 known baseline failures.',
-          '- [ ] no `VoxelEngine.Core.Vegetation` namespace remains;':'- [x] no `VoxelEngine.Core.Vegetation` namespace remains;',
-          '- [ ] Rendering references Vegetation.Api, not Runtime;':'- [x] Rendering references Vegetation.Api, not Runtime;',
-          '- [ ] mutable `TreeWorldState` is internal Runtime state;':'- [x] mutable `TreeWorldState` is internal Runtime state;',
-          '- [ ] tree damage/skeleton/render tests pass.':'- [x] tree damage/skeleton/render tests pass against the established CI baseline.',
-          '- [ ] Rendering.Api/Runtime physical move and Vegetation.Api-only dependency complete.':'- [x] Vegetation presentation dependency is Api-only; Rendering has no Vegetation.Runtime reference.\n- [ ] Rendering.Api/Runtime physical move complete.',
-          '- [ ] create Vegetation.Api/Runtime':'- [x] create Vegetation.Api/Runtime',
-          '- [ ] remove `VoxelEngine.Core.Vegetation` namespace':'- [x] remove `VoxelEngine.Core.Vegetation` namespace',
-          '- [ ] isolate tree state/build/damage implementation':'- [x] isolate tree state/build/damage implementation',
-          '- [ ] expose stable placement/damage/render contracts':'- [x] expose stable placement/damage/render contracts',
-          '- [ ] update Rendering to Vegetation.Api':'- [x] update Rendering to Vegetation.Api',
-          '- [ ] structural graph is gone from Net;':'- [x] structural graph is gone from Net;',
-          '- [ ] no duplicate deterministic edit applier wrapper;':'- [x] no duplicate deterministic edit applier wrapper;',
-          }
-          for old,new in replacements.items():
-              n=s.count(old)
-              if n != 1:
-                  raise SystemExit(f'expected exactly one match, got {n}: {old[:100]}')
-              s=s.replace(old,new)
+          for old,new in [
+            ('- [ ] structural graph is gone from Net;', '- [x] structural graph is gone from Net;'),
+            ('- [ ] no duplicate deterministic edit applier wrapper;', '- [x] no duplicate deterministic edit applier wrapper;'),
+          ]:
+            n=s.count(old)
+            if n != 1:
+              raise SystemExit(f'expected exactly one match, got {n}: {old}')
+            s=s.replace(old,new)
           p.write_text(s)
           PY
-          git diff --check
           git rm .github/workflows/reconcile-vegetation-net-plan.yml
+          git diff --check
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
           git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
           git add -u .github/workflows
-          git commit -m 'docs: reconcile accepted Vegetation cutover'
+          git commit -m 'docs: mark resolved Net ownership gates'
           git pull --rebase origin refactor/system-boundaries-foundation-storage
           git push origin HEAD:refactor/system-boundaries-foundation-storage
