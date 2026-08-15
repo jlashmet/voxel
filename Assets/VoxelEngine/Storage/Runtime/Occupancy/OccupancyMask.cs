@@ -17,7 +17,7 @@ namespace VoxelEngine.Storage.Runtime.Occupancy
     /// </summary>
     public static class OccupancyMask
     {
-        public const int WordCount = Storage.VoxelDimensions.OccupancyWordsPerBrick; // 8
+        public const int WordCount = global::VoxelEngine.Storage.Runtime.VoxelDimensions.OccupancyWordsPerBrick; // 8
 
         /// <summary>
         /// Linear voxel index within a brick. Layout is x-major within a row, then y,
@@ -26,8 +26,8 @@ namespace VoxelEngine.Storage.Runtime.Occupancy
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int VoxelIndex(int x, int y, int z) =>
-            x | (y << Storage.VoxelDimensions.BrickEdgeLog2)
-              | (z << (Storage.VoxelDimensions.BrickEdgeLog2 * 2));
+            x | (y << global::VoxelEngine.Storage.Runtime.VoxelDimensions.BrickEdgeLog2)
+              | (z << (global::VoxelEngine.Storage.Runtime.VoxelDimensions.BrickEdgeLog2 * 2));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Get(in NativeArray<ulong> words, int wordOffset, int voxelIndex)
@@ -85,30 +85,14 @@ namespace VoxelEngine.Storage.Runtime.Occupancy
             for (var i = 0; i < WordCount; i++) words[wordOffset + i] = ulong.MaxValue;
         }
 
-        /// <summary>
-        /// OR of every word — the value a parent mip level accumulates. Mip rebuild is
-        /// a bitwise OR up the chain rather than a recompute, which is what keeps edit
-        /// cost independent of world size.
-        /// </summary>
+        // Burst-compatible countbits without depending on Unity.Mathematics.math (no using needed).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ulong Aggregate(in NativeArray<ulong> words, int wordOffset)
+        private static int math_countbits(ulong value)
         {
-            ulong acc = 0UL;
-            for (var i = 0; i < WordCount; i++) acc |= words[wordOffset + i];
-            return acc;
-        }
-
-        /// <summary>
-        /// Burst lowers this to a hardware popcount. Written explicitly rather than via
-        /// math.countbits so that Core keeps no dependency beyond Collections.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int math_countbits(ulong v)
-        {
-            v -= (v >> 1) & 0x5555555555555555UL;
-            v = (v & 0x3333333333333333UL) + ((v >> 2) & 0x3333333333333333UL);
-            v = (v + (v >> 4)) & 0x0F0F0F0F0F0F0F0FUL;
-            return (int)((v * 0x0101010101010101UL) >> 56);
+            value = value - ((value >> 1) & 0x5555555555555555UL);
+            value = (value & 0x3333333333333333UL) + ((value >> 2) & 0x3333333333333333UL);
+            value = (value + (value >> 4)) & 0x0F0F0F0F0F0F0F0FUL;
+            return (int)((value * 0x0101010101010101UL) >> 56);
         }
     }
 }
