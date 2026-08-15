@@ -50,6 +50,33 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void PlayModeTestsDoNotUseRemovedPhysicalStreamingSignatures()
+        {
+            string playMode = Path.Combine(FindRepoRoot(), "Assets", "Tests", "PlayMode");
+            string[] removedSignatures =
+            {
+                "PublishLoaded(ref table, ref pool",
+                "EvictWithoutWriteBack(regionCoord, ref table, ref pool)",
+                "Update(playerPos, k_TickInterval, ref table, pool)",
+            };
+            var violations = new List<string>();
+
+            foreach (string path in Directory.EnumerateFiles(playMode, "*.cs", SearchOption.AllDirectories))
+            {
+                string source = File.ReadAllText(path);
+                foreach (string signature in removedSignatures)
+                {
+                    if (source.IndexOf(signature, StringComparison.Ordinal) >= 0)
+                        violations.Add(Path.GetFileName(path) + " -> " + signature);
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Tests must exercise Streaming through its Storage.Api boundary rather than " +
+                "keeping deleted table/pool signatures alive.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
         public void FirstCompletedRegionPublishesThroughResidencyStore()
         {
             Type loader = typeof(RegionLoader);
