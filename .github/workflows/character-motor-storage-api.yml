@@ -1,4 +1,4 @@
-name: CharacterMotor surface query publisher
+name: Showcase network bridge publisher
 on:
   push:
     branches:
@@ -15,16 +15,33 @@ jobs:
         with:
           ref: refactor/system-boundaries-foundation-storage
           fetch-depth: 0
-      - name: Add Showcase surface query property
+      - name: Add application-level dirty/change methods
         shell: bash
         run: |
           set -euo pipefail
-          python3 -c "from pathlib import Path; p=Path('Assets/Scenes/Showcase/ShowcaseWorld.cs'); s=p.read_text(); marker='        public IRegionMutationStore MutationStorage\\n        {\\n'; prop='        public IVoxelSurfaceQuery SurfaceQuery\\n        {\\n            get\\n            {\\n                _readSource.Refresh(in _table, in _pool);\\n                return _readSource;\\n            }\\n        }\\n'; assert 'public IVoxelSurfaceQuery SurfaceQuery' not in s; assert s.count(marker)==1; p.write_text(s.replace(marker, prop+marker, 1))"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Scenes/Showcase/ShowcaseWorld.cs')
+          s = p.read_text()
+          marker = '        public VoxelChangeJournal Changes => _changes;\n'
+          addition = marker + '''
+        public bool IsRegionDirty(int3 regionCoord) =>
+            _table.TryGetRegion(regionCoord, out Region region) && region.Dirty;
+
+        public void PublishRegionChange(int3 regionCoord, VoxelChangeKind kind) =>
+            _changes.PublishRegion(regionCoord, kind);
+'''
+          if s.count(marker) != 1:
+              raise SystemExit('Changes property marker did not match exactly once')
+          if 'public bool IsRegionDirty' in s or 'public void PublishRegionChange' in s:
+              raise SystemExit('network bridge application methods already exist unexpectedly')
+          p.write_text(s.replace(marker, addition, 1))
+          PY
           git diff --check
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
           git add Assets/Scenes/Showcase/ShowcaseWorld.cs
-          git commit -m 'refactor(showcase): expose Storage API surface query'
+          git commit -m 'refactor(showcase): expose logical network change bridge methods'
           git fetch origin refactor/system-boundaries-foundation-storage
           git rebase origin/refactor/system-boundaries-foundation-storage
           git push origin HEAD:refactor/system-boundaries-foundation-storage
