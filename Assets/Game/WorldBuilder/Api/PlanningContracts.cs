@@ -56,15 +56,61 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// Requirements a site generator must satisfy so a secret policy has real topology to select
+    /// from. MinimumCandidateCount is hard. PreferredCandidateCount is generation freedom/quality:
+    /// producing fewer than it is legal so long as the minimum is met.
+    /// </summary>
+    public sealed class SecretCandidatePlan
+    {
+        public SecretPolicyRef Policy { get; }
+        public SiteRef Site { get; }
+        public bool RequiresHiddenSpace { get; }
+        public int MinimumCandidateCount { get; }
+        public int PreferredCandidateCount { get; }
+        public IReadOnlyList<SecretEntranceType> AllowedEntrances { get; }
+
+        public SecretCandidatePlan(
+            SecretPolicyRef policy,
+            SiteRef site,
+            bool requiresHiddenSpace,
+            int minimumCandidateCount,
+            int preferredCandidateCount,
+            SecretEntranceType[] allowedEntrances)
+        {
+            if (minimumCandidateCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(minimumCandidateCount));
+            if (preferredCandidateCount < minimumCandidateCount)
+                throw new ArgumentOutOfRangeException(nameof(preferredCandidateCount));
+
+            Policy = policy;
+            Site = site;
+            RequiresHiddenSpace = requiresHiddenSpace;
+            MinimumCandidateCount = minimumCandidateCount;
+            PreferredCandidateCount = preferredCandidateCount;
+            AllowedEntrances = allowedEntrances ?? Array.Empty<SecretEntranceType>();
+        }
+    }
+
     public sealed class PlanningGraph
     {
         public IReadOnlyList<PlanningNode> Nodes { get; }
         public IReadOnlyList<CutsceneStagePlan> CutsceneStages { get; }
+        public IReadOnlyList<SecretCandidatePlan> SecretCandidates { get; }
 
         public PlanningGraph(PlanningNode[] nodes, CutsceneStagePlan[] cutsceneStages)
+            : this(nodes, cutsceneStages, null)
+        {
+        }
+
+        public PlanningGraph(
+            PlanningNode[] nodes,
+            CutsceneStagePlan[] cutsceneStages,
+            SecretCandidatePlan[] secretCandidates)
         {
             Nodes = nodes ?? Array.Empty<PlanningNode>();
             CutsceneStages = cutsceneStages ?? Array.Empty<CutsceneStagePlan>();
+            SecretCandidates = secretCandidates ?? Array.Empty<SecretCandidatePlan>();
         }
     }
 
