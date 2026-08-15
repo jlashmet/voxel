@@ -125,8 +125,8 @@ namespace VoxelEngine.Tests.Parity
                 playerId = 1, sequence = 1
             };
 
-            var resultA = ExplosionExpansion.Expand(in poolA, in tableA, in evt);
-            var resultB = ExplosionExpansion.Expand(in poolB, in tableB, in evt);
+            var resultA = ExplosionExpansion.Expand(new RegionReadSource(in tableA, in poolA), in evt);
+            var resultB = ExplosionExpansion.Expand(new RegionReadSource(in tableB, in poolB), in evt);
 
             Assert.AreEqual(resultA.Length, resultB.Length, "Large explosion affected brick count differs.");
             for (int i = 0; i < resultA.Length; i++)

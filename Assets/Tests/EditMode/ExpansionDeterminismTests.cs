@@ -31,8 +31,8 @@ namespace VoxelEngine.Tests.EditMode
             var tableA = new RegionTable(4, Allocator.Temp);
             var tableB = new RegionTable(4, Allocator.Temp);
             var evt = ExplosionEvent(Seed);
-            var resultA = ExplosionExpansion.Expand(in poolA, in tableA, in evt);
-            var resultB = ExplosionExpansion.Expand(in poolB, in tableB, in evt);
+            var resultA = ExplosionExpansion.Expand(new RegionReadSource(in tableA, in poolA), in evt);
+            var resultB = ExplosionExpansion.Expand(new RegionReadSource(in tableB, in poolB), in evt);
             CompareExpansions(resultA, resultB, "explosion");
         }
 
@@ -70,8 +70,8 @@ namespace VoxelEngine.Tests.EditMode
                 var tableA = new RegionTable(4, Allocator.Temp);
                 var tableB = new RegionTable(4, Allocator.Temp);
                 var evt = ExplosionEvent(s, radius: 4);
-                var resultA = ExplosionExpansion.Expand(in poolA, in tableA, in evt);
-                var resultB = ExplosionExpansion.Expand(in poolB, in tableB, in evt);
+                var resultA = ExplosionExpansion.Expand(new RegionReadSource(in tableA, in poolA), in evt);
+                var resultB = ExplosionExpansion.Expand(new RegionReadSource(in tableB, in poolB), in evt);
                 CompareExpansions(resultA, resultB, $"seed {s}");
             }
         }
@@ -81,8 +81,8 @@ namespace VoxelEngine.Tests.EditMode
         {
             var pool = new BrickPool(256, Allocator.Temp);
             var table = new RegionTable(4, Allocator.Temp);
-            using var withSeedA = ExplosionExpansion.Expand(in pool, in table, ExplosionEvent(1u));
-            using var withSeedB = ExplosionExpansion.Expand(in pool, in table, ExplosionEvent(99999u));
+            using var withSeedA = ExplosionExpansion.Expand(new RegionReadSource(in table, in pool), ExplosionEvent(1u));
+            using var withSeedB = ExplosionExpansion.Expand(new RegionReadSource(in table, in pool), ExplosionEvent(99999u));
             Assert.AreEqual(withSeedA.Length, withSeedB.Length);
             for (int i = 0; i < withSeedA.Length; i++)
                 Assert.IsTrue(math.all(withSeedA[i] == withSeedB[i]));
