@@ -1,0 +1,121 @@
+name: Finalization Showcase light Runtime acceptance
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization]
+    paths: [.github/workflows/finalization-showcase-light-runtime-acceptance.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  static-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify removed Showcase Runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -n -E 'VoxelEngine\.(Streaming|Terrain|Rendering)\.Runtime|ResidencyManager' Assets/Scenes/Showcase --include='*.cs'; then
+            echo 'Showcase still contains a removed light Runtime dependency' >&2
+            exit 1
+          fi
+          if grep -E 'VoxelEngine\.(Streaming|Terrain|Rendering)\.Runtime' Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef; then
+            echo 'Showcase asmdef still contains a removed light Runtime dependency' >&2
+            exit 1
+          fi
+          echo 'Showcase light Runtime boundary accepted'
+
+  editmode:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 1
+      - name: Reset non-cache Unity state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard "$GITHUB_SHA"
+          git clean -ffdx -e Library/
+          rm -rf Library/ScriptAssemblies Library/Bee
+      - id: unity
+        name: Locate Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+      - name: Run and verify EditMode baseline
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/FinalizationShowcaseLight"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || true
+          test -s "$ROOT/results.xml"
+          if grep -E 'error CS[0-9]+' "$ROOT/unity.log"; then
+            echo 'Compiler errors detected' >&2
+            exit 1
+          fi
+          python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          expected = {
+              'VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.CurrentCascadeLabBootsWithEnemyAIStack',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.BattleResetClearsSharedPlanHistoryAndGhostBackToStart',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.PlannerBootsWithGhostBoardAndVisualLayer',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.SharedPlanExecutionRequiresEveryLivingPlayerReady',
+              'VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.CascadeLabControllerBootsFourPlayerBattle',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.CommittingApprovedPlanPreservesReadyForEnemyHandoff',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.EditingAnApprovedPlanRevokesEveryReadyApproval',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.ControllerBootsPlayableBattlePresentation',
+              'VoxelEngine.Tests.EditMode.KentridgeAnchorUndercroftTests.AnchorUndercroftsOccupyPubAndWarehouseSupportFacesWithoutAddingGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DistrictTerracesCreateNeighbourhoodScaleShelves',
+              'VoxelEngine.Tests.EditMode.KentridgeInfrastructureTests.UrbanInfrastructureStaysSeparateFromStableGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeUrbanFabricTests.UrbanFabricCatalogueRealizesAllEightBlocksAsIndividualBuildings',
+              'VoxelEngine.Tests.EditMode.SurfaceRingBandTests.RingsDoNotReachBeyondTheStreamingRadius',
+          }
+          root = ET.parse(sys.argv[1]).getroot()
+          failed = {
+              tc.get('fullname') or tc.get('name')
+              for tc in root.iter('test-case')
+              if (tc.get('result') or '').lower() in ('failed', 'failure')
+          }
+          if failed != expected:
+              print('Unexpected failures:', sorted(failed - expected))
+              print('Missing baseline failures:', sorted(expected - failed))
+              raise SystemExit(1)
+          if root.get('total') != '387' or root.get('passed') != '374' or root.get('failed') != '13':
+              raise SystemExit(f"Unexpected totals: total={root.get('total')} passed={root.get('passed')} failed={root.get('failed')}")
+          print('Exact accepted 387/374/13 baseline matched')
+          PY
+      - name: Upload acceptance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: finalization-showcase-light-${{ github.sha }}
+          path: Artifacts/FinalizationShowcaseLight/
+          if-no-files-found: warn
+          retention-days: 14
