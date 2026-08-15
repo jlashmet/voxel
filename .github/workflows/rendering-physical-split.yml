@@ -25,7 +25,9 @@ jobs:
             if [ -d "Assets/VoxelEngine/Rendering/$name" ]; then
               git mv "Assets/VoxelEngine/Rendering/$name" "Assets/VoxelEngine/Rendering/Runtime/$name"
             fi
-            git mv "Assets/VoxelEngine/Rendering/$name.meta" "Assets/VoxelEngine/Rendering/Runtime/$name.meta"
+            if [ -f "Assets/VoxelEngine/Rendering/$name.meta" ]; then
+              git mv "Assets/VoxelEngine/Rendering/$name.meta" "Assets/VoxelEngine/Rendering/Runtime/$name.meta"
+            fi
           done
           git mv Assets/VoxelEngine/Rendering/AssemblyInfo.cs Assets/VoxelEngine/Rendering/Runtime/AssemblyInfo.cs
           git mv Assets/VoxelEngine/Rendering/AssemblyInfo.cs.meta Assets/VoxelEngine/Rendering/Runtime/AssemblyInfo.cs.meta
