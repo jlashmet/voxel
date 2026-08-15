@@ -25,6 +25,7 @@ from blender_common import (
 
 
 ALIGN_TO_CANONICAL_BLEND = 0.78
+AXIS_RANK_PENALTY = 0.35
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,6 +68,11 @@ def stats(points: list[Vector]) -> tuple[Vector, Vector, Vector]:
     return lo, hi, mean
 
 
+def extent_ranks(extent: Vector) -> dict[int, int]:
+    ordered = sorted(range(3), key=lambda axis: extent[axis], reverse=True)
+    return {axis: rank for rank, axis in enumerate(ordered)}
+
+
 def infer_axis_mapping(
     generated_points: list[Vector],
     canonical_points: list[Vector],
@@ -79,6 +85,9 @@ def infer_axis_mapping(
     if min(g_extent) <= 1e-6 or min(c_extent) <= 1e-6:
         raise RuntimeError("character alignment requires non-degenerate 3D bounds")
 
+    generated_rank = extent_ranks(g_extent)
+    canonical_rank = extent_ranks(c_extent)
+
     best_perm: tuple[int, int, int] | None = None
     best_scale = 1.0
     best_error = float("inf")
@@ -89,6 +98,9 @@ def infer_axis_mapping(
         for target in range(3):
             predicted = g_extent[perm[target]] * scale
             error += abs(math.log(max(predicted, 1e-8) / c_extent[target]))
+            error += AXIS_RANK_PENALTY * abs(
+                canonical_rank[target] - generated_rank[perm[target]]
+            )
         if error < best_error:
             best_error = error
             best_perm = perm
