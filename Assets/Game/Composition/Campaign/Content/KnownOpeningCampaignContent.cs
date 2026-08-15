@@ -37,7 +37,7 @@ namespace Game.Composition.Campaign.Content
 
     /// <summary>
     /// Production authoring for the opening story facts that are currently known. The first
-    /// destination deliberately remains a constraint-matched site, and the destination cutscene
+    /// destination deliberately remains a constraint-matched region site, and the destination cutscene
     /// definition is supplied by the caller because its choreography/dialogue has not been recovered.
     /// No placeholder dialogue, destination archetype, NPC name, or world coordinate is invented here.
     /// </summary>
@@ -85,15 +85,21 @@ namespace Game.Composition.Campaign.Content
 
             var game = Game.WorldBuilder.Api.Campaign.Create("main-campaign");
 
-            SiteRef startingPub = game.World.RequireSite("starting-pub", site => site
+            RegionRef kentridgeRegion = game.World.RequireRegion("kentridge-region", _ => { });
+            SettlementRef kentridge = game.World.RequireSettlement("kentridge", settlement => settlement
+                .InRegion(kentridgeRegion)
+                .Archetype(SettlementArchetype.Town));
+
+            SiteRef startingPub = game.World.RequireSite("starting-pub", kentridge, site => site
                 .Archetype(SiteArchetype.Pub)
                 .RequireCapability(SiteCapability.Interior)
                 .RequireCapability(SiteCapability.PlayerSpawn(4))
                 .RequireCapability(SiteCapability.PublicExit));
 
-            // The known story says only that the party goes somewhere else. The generator remains
-            // free to choose the concrete site as long as the hard traversal/content needs are met.
-            SiteRef firstDestination = game.World.RequireSite("first-destination", site => site
+            // The known story says only that the party goes somewhere else in the surrounding region.
+            // The generator remains free to choose the concrete site as long as the hard
+            // traversal/content needs are met; it is not forced into the starting settlement.
+            SiteRef firstDestination = game.World.RequireSite("first-destination", kentridgeRegion, site => site
                 .DifferentSiteFrom(startingPub)
                 .ReachableFrom(startingPub, TraversalProfile.NormalParty));
 
