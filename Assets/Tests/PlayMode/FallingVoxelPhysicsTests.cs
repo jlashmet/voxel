@@ -7,7 +7,6 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Showcase;
 
@@ -31,7 +30,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Assert.GreaterOrEqual(changed, 4, "joint plus detached top should leave the grid");
                 Assert.Greater(world.PendingDetachedChunks, 0);
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 6, 20)));
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, new int3(20, 6, 20)));
 
                 int detached = 0;
                 while (world.TryDequeueDetachedChunk(out var chunk))
@@ -41,9 +40,9 @@ namespace VoxelEngine.Tests.PlayMode
                 }
 
                 Assert.AreEqual(3, detached);
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 4, 20)));
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 5, 20)));
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 6, 20)),
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, new int3(20, 4, 20)));
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, new int3(20, 5, 20)));
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, new int3(20, 6, 20)),
                     "visual debris must never be reconciled into collision storage");
             }
             finally
@@ -71,8 +70,7 @@ namespace VoxelEngine.Tests.PlayMode
                             CoatingId = Coatings.Moss,
                         },
                     };
-                    VoxelAccess.SetCell(ref world.Table, ref world.Pool,
-                                        column + new int3(0, y, 0), in cell);
+                    SetCell(world, column + new int3(0, y, 0), in cell);
                 }
 
                 world.RemoveAndResolveCollapse(column + new int3(0, 3, 0));
@@ -117,7 +115,7 @@ namespace VoxelEngine.Tests.PlayMode
                     detached += chunk.Voxels.Length;
                 Assert.AreEqual(121, detached,
                     "a long unsupported top must not be treated as supported at a scan boundary");
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(140, 11, 20)));
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, new int3(140, 11, 20)));
             }
             finally
             {
@@ -159,7 +157,7 @@ namespace VoxelEngine.Tests.PlayMode
                     "the collapsed tower produced no visual debris sample");
                 Assert.Less(detached, 2400,
                     "the full tower was retained as expensive exact debris instead of a lossy sample");
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(20, 30, 20)));
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, new int3(20, 30, 20)));
             }
             finally
             {
@@ -228,9 +226,9 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Assert.Greater(world.PendingDetachedChunks, 0,
                     "the overloaded tower produced no falling visual sample");
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(140, 31, 20)),
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, new int3(140, 31, 20)),
                     "roof outside the bounded overload pass remained floating");
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, new int3(140, 25, 20)),
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, new int3(140, 25, 20)),
                     "banner severed with the roof remained floating");
             }
             finally
@@ -336,7 +334,7 @@ namespace VoxelEngine.Tests.PlayMode
                     "tower collapse exceeded the bounded visual queue");
                 Assert.Less(collapseTimer.Elapsed.TotalMilliseconds, 150,
                     "castle-scale collapse exceeded its synchronous frame budget");
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty,
+                Assert.AreEqual(VoxelGrid.MaterialEmpty,
                     Get(world, new int3(cx, 160, cz + radius)));
                 UnityEngine.Debug.Log($"### CASTLE_COLLAPSE collapse=" +
                                       $"{collapseTimer.Elapsed.TotalMilliseconds:0.0}ms " +
@@ -554,7 +552,7 @@ namespace VoxelEngine.Tests.PlayMode
                 step.Invoke(showcase, new object[] { 0.025f });
 
             Assert.Zero(showcase.ActiveTornadoCount, "projectile never reached its target");
-            Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, target),
+            Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, target),
                 "impact did not destroy the target voxel");
         }
 
@@ -580,7 +578,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.Zero(showcase.ActiveTornadoCount,
                 "swept tornado tunnelled through an offset target during a long frame");
-            Assert.AreEqual(VoxelDimensions.MaterialEmpty, Get(world, target));
+            Assert.AreEqual(VoxelGrid.MaterialEmpty, Get(world, target));
         }
 
         [UnityTest]
@@ -628,10 +626,27 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.True(File.Exists(output));
         }
 
-        private static void Set(ShowcaseWorld world, int3 voxel, byte material) =>
-            VoxelAccess.SetVoxel(ref world.Table, ref world.Pool, voxel, material);
+        private static bool SetCell(ShowcaseWorld world, int3 voxel, in VoxelCell cell)
+        {
+            IRegionMutationStore mutations = world.MutationStorage;
+            int3 worldBlock = voxel >> VoxelReadGrid.BlockEdgeLog2;
+            if (!mutations.TryBeginCellBlock(worldBlock, false, out VoxelBlockMutation mutation))
+                return false;
+            int3 inner = voxel & VoxelReadGrid.BlockEdgeMask;
+            int voxelIndex = inner.x | (inner.y << VoxelReadGrid.BlockEdgeLog2)
+                           | (inner.z << (VoxelReadGrid.BlockEdgeLog2 * 2));
+            bool changed = mutation.SetCell(voxelIndex, in cell);
+            return mutations.CompletePartialBlock(ref mutation, changed);
+        }
+
+        private static void Set(ShowcaseWorld world, int3 voxel, byte material)
+        {
+            var cell = new VoxelCell { BaseMaterialId = material };
+            SetCell(world, voxel, in cell);
+        }
 
         private static byte Get(ShowcaseWorld world, int3 voxel) =>
-            VoxelAccess.GetVoxel(ref world.Table, in world.Pool, voxel);
+            world.SurfaceQuery.TryRead(voxel, out VoxelCell cell)
+                ? cell.BaseMaterialId : VoxelGrid.MaterialEmpty;
     }
 }

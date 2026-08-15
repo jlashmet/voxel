@@ -6,8 +6,8 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Storage.Runtime;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Api;
@@ -557,6 +557,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         private static byte Get(ShowcaseWorld world, int x, int y, int z) =>
-            VoxelAccess.GetVoxel(ref world.Table, in world.Pool, new int3(x, y, z));
+            world.SurfaceQuery.TryRead(new int3(x, y, z), out VoxelCell cell)
+                ? cell.BaseMaterialId : VoxelGrid.MaterialEmpty;
     }
 }

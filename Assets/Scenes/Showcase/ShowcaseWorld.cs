@@ -203,6 +203,14 @@ namespace VoxelEngine.Showcase
         public SurfaceCatalogueView SurfaceRules => _surfaceCatalogue;
         public CoatingCatalogueView CoatingRules => _coatingCatalogue;
         public IVoxelChangeSource Changes => _changes;
+        public StoragePressure StoragePressure
+        {
+            get
+            {
+                _residencyStore.Refresh(in _table, in _pool);
+                return _residencyStore.Pressure;
+            }
+        }
 
         public uint Seed { get; }
 
