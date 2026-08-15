@@ -1,13 +1,13 @@
 {
-  "id": "cleric_robe_01",
-  "assetType": "clothing",
+  "id": "sunlit_cleric_body_01",
+  "assetType": "character",
   "views": {
-    "front": "views/cleric_robe_front.png",
-    "back": "views/cleric_robe_back.png",
-    "left": "views/cleric_robe_left.png",
-    "right": "views/cleric_robe_right.png"
+    "front": "views/cleric_front.png",
+    "back": "views/cleric_back.png",
+    "left": "views/cleric_left.png",
+    "right": "views/cleric_right.png"
   },
-  "outputDir": "../build/cleric_robe_01",
+  "outputDir": "../build/sunlit_cleric_body_01",
   "generator": {
     "python": "/path/to/hunyuan-env/bin/python",
     "device": "auto",
@@ -19,8 +19,5 @@
     "bodyObject": "Body",
     "armatureObject": "Armature",
     "maxTransferDistance": 0.25
-  },
-  "runtimePart": {
-    "slot": "Torso"
   }
 }

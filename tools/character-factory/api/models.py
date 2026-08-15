@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
+import json
 from pathlib import Path
 from typing import Any
-import json
 
 
 class CharacterFactoryError(RuntimeError):
     pass
+
+
+class AssetType(str, Enum):
+    CHARACTER = "character"
+    CLOTHING = "clothing"
+    WEAPON = "weapon"
+    ACCESSORY = "accessory"
 
 
 @dataclass(frozen=True)
@@ -87,7 +95,7 @@ class GeneratorConfig:
 
 
 @dataclass(frozen=True)
-class PostProcessConfig:
+class RigConfig:
     blender: str
     canonical_body: Path
     body_object: str | None = None
@@ -99,13 +107,13 @@ class PostProcessConfig:
         data: dict[str, Any],
         base_dir: Path,
         validate_paths: bool = True,
-    ) -> "PostProcessConfig":
+    ) -> "RigConfig":
         blender = data.get("blender")
         canonical = data.get("canonicalBody")
         if not blender:
-            raise CharacterFactoryError("postProcess.blender is required for wearable jobs")
+            raise CharacterFactoryError("rig.blender is required")
         if not canonical:
-            raise CharacterFactoryError("postProcess.canonicalBody is required for wearable jobs")
+            raise CharacterFactoryError("rig.canonicalBody is required")
 
         canonical_path = Path(canonical)
         if not canonical_path.is_absolute():
@@ -113,7 +121,7 @@ class PostProcessConfig:
         if validate_paths and not canonical_path.is_file():
             raise CharacterFactoryError(f"canonical body does not exist: {canonical_path}")
 
-        return PostProcessConfig(
+        return RigConfig(
             blender=str(blender),
             canonical_body=canonical_path,
             body_object=data.get("bodyObject"),
@@ -123,13 +131,57 @@ class PostProcessConfig:
 
 
 @dataclass(frozen=True)
+class RigidConfig:
+    blender: str
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "RigidConfig":
+        blender = data.get("blender")
+        if not blender:
+            raise CharacterFactoryError("rigid.blender is required")
+        return RigidConfig(blender=str(blender))
+
+
+@dataclass(frozen=True)
+class RuntimePartConfig:
+    slot: str
+    socket_bone_name: str | None
+    socket_local_position: tuple[float, float, float]
+    socket_local_euler_angles: tuple[float, float, float]
+    socket_local_scale: tuple[float, float, float]
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "RuntimePartConfig":
+        slot = str(data.get("slot", "")).strip()
+        if not slot:
+            raise CharacterFactoryError("runtimePart.slot is required")
+
+        def vector3(name: str, default: tuple[float, float, float]) -> tuple[float, float, float]:
+            value = data.get(name, default)
+            if not isinstance(value, (list, tuple)) or len(value) != 3:
+                raise CharacterFactoryError(f"runtimePart.{name} must contain exactly 3 numbers")
+            return (float(value[0]), float(value[1]), float(value[2]))
+
+        socket = str(data.get("socketBoneName", "")).strip() or None
+        return RuntimePartConfig(
+            slot=slot,
+            socket_bone_name=socket,
+            socket_local_position=vector3("socketLocalPosition", (0.0, 0.0, 0.0)),
+            socket_local_euler_angles=vector3("socketLocalEulerAngles", (0.0, 0.0, 0.0)),
+            socket_local_scale=vector3("socketLocalScale", (1.0, 1.0, 1.0)),
+        )
+
+
+@dataclass(frozen=True)
 class BuildSpec:
     asset_id: str
-    asset_type: str
+    asset_type: AssetType
     views: ViewSet
     output_dir: Path
     generator: GeneratorConfig
-    post_process: PostProcessConfig | None
+    rig: RigConfig | None
+    rigid: RigidConfig | None
+    runtime_part: RuntimePartConfig | None
 
     @staticmethod
     def load(path: Path, validate_paths: bool = True) -> "BuildSpec":
@@ -141,27 +193,34 @@ class BuildSpec:
         if not asset_id:
             raise CharacterFactoryError("id is required")
 
-        asset_type = str(data.get("assetType", "")).strip().lower()
-        if asset_type not in {"character-part", "wearable"}:
-            raise CharacterFactoryError(
-                "assetType must be 'character-part' or 'wearable'; "
-                "the factory never bakes clothing into a character"
-            )
+        raw_asset_type = str(data.get("assetType", "")).strip().lower()
+        try:
+            asset_type = AssetType(raw_asset_type)
+        except ValueError as exc:
+            allowed = ", ".join(item.value for item in AssetType)
+            raise CharacterFactoryError(f"assetType must be one of: {allowed}") from exc
 
         output = Path(data.get("outputDir", f"build/{asset_id}"))
         if not output.is_absolute():
             output = (base_dir / output).resolve()
 
-        post_data = data.get("postProcess")
-        post_process = None
-        if asset_type == "wearable":
-            if not isinstance(post_data, dict):
-                raise CharacterFactoryError("wearable jobs require postProcess")
-            post_process = PostProcessConfig.from_dict(
-                post_data,
-                base_dir,
-                validate_paths=validate_paths,
-            )
+        rig_data = data.get("rig")
+        rigid_data = data.get("rigid")
+        runtime_part_data = data.get("runtimePart")
+
+        rig = None
+        if isinstance(rig_data, dict):
+            rig = RigConfig.from_dict(rig_data, base_dir, validate_paths=validate_paths)
+
+        rigid = None
+        if isinstance(rigid_data, dict):
+            rigid = RigidConfig.from_dict(rigid_data)
+
+        runtime_part = None
+        if isinstance(runtime_part_data, dict):
+            runtime_part = RuntimePartConfig.from_dict(runtime_part_data)
+
+        BuildSpec._validate_pipeline_config(asset_type, rig, rigid, runtime_part)
 
         return BuildSpec(
             asset_id=asset_id,
@@ -173,5 +232,34 @@ class BuildSpec:
             ),
             output_dir=output,
             generator=GeneratorConfig.from_dict(data.get("generator", {})),
-            post_process=post_process,
+            rig=rig,
+            rigid=rigid,
+            runtime_part=runtime_part,
         )
+
+    @staticmethod
+    def _validate_pipeline_config(
+        asset_type: AssetType,
+        rig: RigConfig | None,
+        rigid: RigidConfig | None,
+        runtime_part: RuntimePartConfig | None,
+    ) -> None:
+        if asset_type in {AssetType.CHARACTER, AssetType.CLOTHING} and rig is None:
+            raise CharacterFactoryError(f"{asset_type.value} jobs require rig")
+
+        if asset_type in {AssetType.WEAPON, AssetType.ACCESSORY} and rigid is None:
+            raise CharacterFactoryError(f"{asset_type.value} jobs require rigid")
+
+        if asset_type == AssetType.CHARACTER:
+            if runtime_part is not None:
+                raise CharacterFactoryError("character jobs do not use runtimePart")
+            return
+
+        if runtime_part is None:
+            raise CharacterFactoryError(f"{asset_type.value} jobs require runtimePart")
+
+        if asset_type in {AssetType.WEAPON, AssetType.ACCESSORY}:
+            if not runtime_part.socket_bone_name:
+                raise CharacterFactoryError(
+                    f"{asset_type.value} runtimePart.socketBoneName is required"
+                )

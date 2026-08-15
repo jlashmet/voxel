@@ -1,86 +1,105 @@
 # Character Factory
 
-Headless local pipeline for generating **independent character parts and wearables**. It deliberately
-does not generate a dressed character. Unity owns a canonical character skeleton; clothing, hair,
-capes, and equipment are separate assets that can be swapped at runtime through
-`VoxelEngine.Characters.Api`.
+Headless local asset factory for modular characters. Character bodies, clothing, weapons, and
+accessories are deliberately separate products; a dressed character is assembled at runtime rather
+than baked into one generated mesh.
 
-## Architecture
+## Boundary layout
 
-The Unity side follows the engine's subsystem boundary rule:
+The Unity side follows the engine subsystem rule:
 
 ```text
 Assets/VoxelEngine/Characters/
-  Api/       stable equipment slots + ICharacterEquipment
-  Runtime/   catalogue, wearable authoring assets, skeleton rebinding
+  Api/       stable equipment contract
+  Runtime/   catalogue, part authoring assets, skeleton rebinding/socket attachment
 ```
 
-No other subsystem needs to reference `VoxelEngine.Characters.Runtime`. Gameplay code should consume
-`VoxelEngine.Characters.Api`; composition/authoring may wire the Runtime implementation.
+Consumers depend on `VoxelEngine.Characters.Api`; concrete Unity implementation stays in
+`VoxelEngine.Characters.Runtime`.
 
-The offline tool mirrors that separation:
+The offline factory mirrors that separation and now has four explicit pipelines:
 
 ```text
 tools/character-factory/
-  api/       JSON build-spec model
-  runtime/   Hunyuan + Blender process adapters
+  api/                       stable JSON build-spec model
+  runtime/
+    pipeline.py              dispatcher only
+    pipelines/
+      character.py           body mesh -> canonical skeleton -> FBX
+      clothing.py            garment mesh -> canonical weights -> FBX
+      weapon.py              rigid weapon mesh -> FBX + socket metadata
+      accessory.py           rigid accessory mesh -> FBX + socket metadata
 ```
 
-## Current vertical slice
+There is intentionally no generic `wearable` pipeline. The category is part of the build contract so
+we can evolve character fitting, garment fitting, weapon grip/origin processing, and accessory mount
+processing independently.
+
+## Pipeline behavior
+
+All four pipelines share only the low-level multiview mesh-generation adapter. The post-processing
+path is different by asset class:
 
 ```text
-4 reference views
-    -> local Hunyuan3D-2mv Python environment
-    -> raw GLB
-    -> Blender in background mode (wearables only)
-       - import canonical body + armature
-       - transfer canonical skin weights by nearest surface
-       - attach the canonical armature
-       - export independent wearable FBX
-    -> Unity's built-in FBX importer
-    -> WearableAsset / CharacterEquipmentController.TryEquip(partId)
+character
+  4 views -> Hunyuan3D-2mv -> generated body GLB
+          -> Blender character pass
+          -> transfer canonical body weights / canonical armature
+          -> character FBX
+
+clothing
+  4 views -> Hunyuan3D-2mv -> garment GLB
+          -> Blender clothing pass
+          -> transfer canonical body weights / canonical armature
+          -> independent clothing FBX
+
+weapon
+  views -> Hunyuan3D-2mv -> rigid GLB
+        -> Blender rigid weapon pass
+        -> weapon FBX + hand/socket metadata
+
+accessory
+  views -> Hunyuan3D-2mv -> rigid GLB
+        -> Blender rigid accessory pass
+        -> accessory FBX + bone/socket metadata
 ```
 
-Hunyuan is invoked directly from Python; no browser or paid web API is used. The model/environment is
-not vendored into this repository.
+The manifest records the exact pipeline, output FBX, generator/prepare commands, and runtime-part
+metadata. Clothing is marked `SkinnedToCharacterSkeleton`; weapons/accessories are marked
+`BoneSocket`.
 
-The Blender stage currently assumes the generated wearable is already aligned to the canonical body.
-It automates skin-weight transfer and export, but it does **not yet** solve silhouette fitting,
-collision clearance, body-region hiding, cloth simulation, LOD generation, or automatic creation of
-the Unity `WearableAsset`/prefab. Those are explicit follow-up stages so failed automatic fitting
-cannot be mistaken for a production-ready asset.
+## Current limitations
 
-## One-time local setup
+The character and clothing passes currently automate canonical weight transfer, not robust geometric
+fitting. Generated meshes must already be reasonably aligned to the canonical body. Automatic body
+conforming, loose-garment-aware fitting, collision/poke-through correction, body-region hiding, LODs,
+weapon grip inference, accessory mount inference, and automatic Unity prefab/`WearableAsset` creation
+are subsequent stages. Keeping the pipelines separate means those algorithms can be added without
+turning one generic postprocessor into a pile of category conditionals.
 
-1. Install Hunyuan3D-2 in a dedicated local Python environment.
-2. Install Blender for macOS.
-3. Create/export the canonical body + canonical armature GLB once.
-4. Point a build spec at the Hunyuan Python executable and Blender executable.
-
-The generator adapter defaults to `tencent/Hunyuan3D-2mv` /
-`hunyuan3d-dit-v2-mv` and automatically selects CUDA, Apple MPS, then CPU.
+Accessories are currently rigid/socket-mounted. Skinned hair/capes should use the clothing pipeline
+until a dedicated skinned-accessory mode is implemented.
 
 ## Commands
 
-Validate the pipeline shape without requiring the placeholder example files to exist and without
-starting Hunyuan or Blender:
+Dry-run one pipeline without requiring the placeholder example files to exist:
 
 ```bash
 python3 tools/character-factory/character_factory.py build \
+  tools/character-factory/examples/cleric_character.json --dry-run
+
+python3 tools/character-factory/character_factory.py build \
   tools/character-factory/examples/cleric_robe.json --dry-run
+
+python3 tools/character-factory/character_factory.py build \
+  tools/character-factory/examples/cleric_staff.json --dry-run
 ```
 
-Build one asset:
+Run the routing/spec tests:
 
 ```bash
-python3 tools/character-factory/character_factory.py build path/to/cleric_robe.json
+python3 -m unittest discover tools/character-factory/tests -v
 ```
 
-Build a directory of specs sequentially:
-
-```bash
-python3 tools/character-factory/character_factory.py batch path/to/specs
-```
-
-Every build writes a `manifest.json` beside the output so a failed/batch pipeline can later be made
-resumable without changing the Unity API.
+Every build writes a `manifest.json` beside the generated assets so later import/resume stages can be
+added without changing the public factory API.

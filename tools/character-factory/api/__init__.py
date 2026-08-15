@@ -1,3 +1,3 @@
-from .models import BuildSpec, CharacterFactoryError
+from .models import AssetType, BuildSpec, CharacterFactoryError
 
-__all__ = ["BuildSpec", "CharacterFactoryError"]
+__all__ = ["AssetType", "BuildSpec", "CharacterFactoryError"]

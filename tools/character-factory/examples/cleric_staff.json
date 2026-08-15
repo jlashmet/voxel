@@ -1,0 +1,26 @@
+{
+  "id": "cleric_staff_01",
+  "assetType": "weapon",
+  "views": {
+    "front": "views/cleric_staff_front.png",
+    "back": "views/cleric_staff_back.png",
+    "left": "views/cleric_staff_left.png",
+    "right": "views/cleric_staff_right.png"
+  },
+  "outputDir": "../build/cleric_staff_01",
+  "generator": {
+    "python": "/path/to/hunyuan-env/bin/python",
+    "device": "auto",
+    "seed": 12345
+  },
+  "rigid": {
+    "blender": "/Applications/Blender.app/Contents/MacOS/Blender"
+  },
+  "runtimePart": {
+    "slot": "MainHand",
+    "socketBoneName": "RightHand",
+    "socketLocalPosition": [0.0, 0.0, 0.0],
+    "socketLocalEulerAngles": [0.0, 0.0, 0.0],
+    "socketLocalScale": [1.0, 1.0, 1.0]
+  }
+}
