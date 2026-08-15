@@ -1,0 +1,43 @@
+name: Restore finalization Showcase light cleanup
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization]
+    paths: [.github/workflows/restore-finalization-showcase-light.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization
+          fetch-depth: 0
+      - name: Restore light Runtime cleanup without stale rebases
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization
+          git checkout f5037a5fa76e25661a192fd5c8dbd6050a67863d -- \
+            Assets/Scenes/Showcase/ShowcaseWorld.cs \
+            Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef
+
+          if grep -R -n -E 'VoxelEngine\.(Streaming|Terrain|Rendering)\.Runtime|ResidencyManager' Assets/Scenes/Showcase --include='*.cs'; then
+            echo 'Showcase still contains a light Runtime dependency' >&2
+            exit 1
+          fi
+          if grep -E 'VoxelEngine\.(Streaming|Terrain|Rendering)\.Runtime' Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef; then
+            echo 'Showcase asmdef still contains a light Runtime dependency' >&2
+            exit 1
+          fi
+
+          git rm .github/workflows/restore-finalization-showcase-light.yml
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/Scenes/Showcase/ShowcaseWorld.cs Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef
+          git commit -m 'refactor(showcase): restore light Runtime cleanup'
+          git push origin HEAD:refactor/system-boundaries-finalization
