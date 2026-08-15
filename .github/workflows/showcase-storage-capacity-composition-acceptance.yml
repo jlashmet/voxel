@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 872dca6205effc46cd4598cc2872ba0a764f7687
+          ref: ac28c0f2609f150de9ee782fed013e1c3e25e780
           fetch-depth: 1
       - name: Verify physical capacity sizing is Composition-owned
         shell: bash
@@ -30,12 +30,14 @@ jobs:
               raise SystemExit('Composition does not own physical mixed-brick sizing')
           if 'ClampMixedBrickCapacityToBudget' not in bootstrap:
               raise SystemExit('Composition capacity helper missing')
-          forbidden = ['using VoxelEngine.Storage.Runtime;', 'VoxelDimensions.BytesPerMixedBrick']
+          forbidden = ['using VoxelEngine.Storage.Runtime;', 'VoxelDimensions.BytesPerMixedBrick', 'VoxelAccess.']
           for token in forbidden:
               if token in showcase:
                   raise SystemExit('VoxelShowcase retains physical Storage detail: ' + token)
           if 'VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget' not in showcase:
               raise SystemExit('VoxelShowcase is not delegating capacity sizing to Composition')
+          if '_world.SurfaceQuery.TryRead' not in showcase:
+              raise SystemExit('VoxelShowcase tornado read is not routed through Storage.Api')
           if 'StorageCapacityBudgetingKeepsPhysicalLayoutInsideComposition' not in tests:
               raise SystemExit('Composition capacity test missing')
           if 'VoxelEngine.Composition' not in asm.get('references', []):
@@ -48,14 +50,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 872dca6205effc46cd4598cc2872ba0a764f7687
+          ref: ac28c0f2609f150de9ee782fed013e1c3e25e780
           clean: false
           fetch-depth: 1
       - name: Reset pinned capacity candidate
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard 872dca6205effc46cd4598cc2872ba0a764f7687
+          git reset --hard ac28c0f2609f150de9ee782fed013e1c3e25e780
           git clean -ffdx -e Library/
           rm -rf Library/ScriptAssemblies Library/Bee
       - id: unity
@@ -92,7 +94,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: showcase-storage-capacity-composition-872dca62
+          name: showcase-storage-capacity-composition-ac28c0f2
           path: Artifacts/ShowcaseStorageCapacityComposition/
           if-no-files-found: warn
           retention-days: 14
