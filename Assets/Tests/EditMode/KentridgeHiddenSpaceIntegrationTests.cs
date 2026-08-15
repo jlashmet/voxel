@@ -68,12 +68,28 @@ namespace VoxelEngine.Tests.EditMode
             CampaignBlueprint blueprint = game.Build();
             PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
             SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            var projections = new KentridgeArchitectureSiteProjectionProvider(plan);
+            var traversal = new SettlementStreetTraversalFacts(plan, projections);
+            var facts = new SettlementPlanWorldBuilderFacts(
+                plan,
+                new RegionRef("kentridge-region"),
+                new SettlementRef("kentridge"),
+                projections,
+                traversal,
+                projections);
+            SiteResolutionResult siteResolution = SiteRoleResolver.Resolve(graph, facts);
+
+            Assert.That(siteResolution.IsResolved, Is.True,
+                siteResolution.Diagnostics.Count == 0
+                    ? string.Empty
+                    : string.Join("\n", siteResolution.Diagnostics.Select(value => value.ToString())));
             ResolvedSiteId resolvedPub = SettlementPlanSiteCandidateFacts.CandidateId(
                 plan.Id,
                 (int)KentridgeRole.Pub);
-            var siteResolution = new SiteResolutionResult(
-                new[] { new SiteRoleBinding(pub, resolvedPub) },
-                System.Array.Empty<SiteResolutionDiagnostic>());
+            Assert.That(
+                siteResolution.Bindings.Single(value => value.Role.Equals(pub)).Site,
+                Is.EqualTo(resolvedPub),
+                "The pub's measured architecture must advertise its real hidden-space hosting capability.");
 
             var requests = KentridgeHiddenSpaceRequestComposer.Compose(graph, siteResolution, plan);
             Assert.That(requests.Count, Is.EqualTo(1));
