@@ -58,6 +58,40 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void FoundationSkirtsUseCanonicalBoxThenEndEncoding()
+        {
+            FeatureCatalogue catalogue = KentridgeCombinedVoxelCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            try
+            {
+                int expectedLength = ShapeOps.InstructionLength(ShapeOp.EmitBox)
+                                   + ShapeOps.InstructionLength(ShapeOp.End);
+                int found = 0;
+                for (int i = 0; i < catalogue.Definitions.Length; i++)
+                {
+                    FeatureDefinition definition = catalogue.Definitions[i];
+                    if (!definition.Name.ToString().StartsWith("kentridge-foundation-skirt-"))
+                        continue;
+
+                    found++;
+                    Assert.AreEqual(expectedLength, definition.ProgramLength,
+                        $"{definition.Name} must contain exactly one canonical EmitBox and End.");
+                    Assert.AreEqual(ShapeOp.EmitBox,
+                        (ShapeOp)catalogue.Program[definition.ProgramOffset]);
+                    Assert.AreEqual(ShapeOp.End,
+                        (ShapeOp)catalogue.Program[
+                            definition.ProgramOffset + ShapeOps.InstructionLength(ShapeOp.EmitBox)]);
+                }
+
+                Assert.Greater(found, 0, "Expected at least one Kentridge foundation skirt definition.");
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
         public void KentridgeUsesCanonicalEncodingWithoutCompatibilityNormalizer()
         {
             string root = FindRepoRoot();
