@@ -1,4 +1,5 @@
 name: Cutover 13 final Unity acceptance
+# Rerun after correcting the ShowcaseWorld profile read boundary.
 
 on:
   workflow_dispatch:
@@ -74,6 +75,12 @@ jobs:
                   violations.append(path.as_posix())
           if violations:
               raise SystemExit('Showcase concrete Runtime source references: ' + ', '.join(violations))
+
+          showcase_world = Path('Assets/VoxelEngine/Composition/ShowcaseWorld.cs').read_text()
+          if 'public ProfileBlockStore ProfileBlocks' in showcase_world:
+              raise SystemExit('ShowcaseWorld leaks concrete ProfileBlockStore through its public API')
+          if 'public IProfileBlockReadSource ProfileBlocks' not in showcase_world:
+              raise SystemExit('ShowcaseWorld stable profile read boundary is missing')
 
           print('Final Showcase/Composition ownership accepted')
           PY
