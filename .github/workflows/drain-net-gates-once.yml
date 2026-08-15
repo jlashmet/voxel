@@ -1,0 +1,29 @@
+name: Drain stale Net validation jobs
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/drain-net-gates-once.yml]
+permissions:
+  actions: write
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          KEEP_RUN: '31891938705'
+        run: |
+          set -euo pipefail
+          for status in queued in_progress; do
+            json="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/actions/runs?status=$status&per_page=100")"
+            jq -r '.workflow_runs[] | select(((.name // "") | test("net"; "i")) or ((.head_branch // "") | test("net"; "i"))) | .id' <<<"$json" | while read -r id; do
+              if [[ "$id" == "$KEEP_RUN" || "$id" == "$GITHUB_RUN_ID" ]]; then
+                echo "preserving $id"
+              else
+                echo "cancelling $id"
+                curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/actions/runs/$id/cancel" >/dev/null || true
+              fi
+            done
+          done
