@@ -1,0 +1,139 @@
+name: Streaming Api Runtime cutover
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx
+          mkdir -p Assets/VoxelEngine/Streaming/Api Assets/VoxelEngine/Streaming/Runtime
+          for f in MipRefinement Prefetch RegionLoader ResidencyManager; do
+            git mv "Assets/VoxelEngine/Streaming/$f.cs" "Assets/VoxelEngine/Streaming/Runtime/$f.cs"
+            git mv "Assets/VoxelEngine/Streaming/$f.cs.meta" "Assets/VoxelEngine/Streaming/Runtime/$f.cs.meta"
+          done
+          git mv Assets/VoxelEngine/Streaming/VoxelEngine.Streaming.asmdef Assets/VoxelEngine/Streaming/Runtime/VoxelEngine.Streaming.Runtime.asmdef
+          git mv Assets/VoxelEngine/Streaming/VoxelEngine.Streaming.asmdef.meta Assets/VoxelEngine/Streaming/Runtime/VoxelEngine.Streaming.Runtime.asmdef.meta
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, uuid
+
+          def simple_meta(path):
+              Path(path).write_text(f"fileFormatVersion: 2\nguid: {uuid.uuid4().hex}\n")
+
+          def folder_meta(path):
+              Path(path).write_text(
+                  f"fileFormatVersion: 2\nguid: {uuid.uuid4().hex}\nfolderAsset: yes\nDefaultImporter:\n  externalObjects: {{}}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n")
+
+          for folder in ('Api','Runtime'):
+              meta = Path(f'Assets/VoxelEngine/Streaming/{folder}.meta')
+              if not meta.exists(): folder_meta(meta)
+
+          for name in ('MipRefinement','Prefetch','RegionLoader','ResidencyManager'):
+              p = Path(f'Assets/VoxelEngine/Streaming/Runtime/{name}.cs')
+              s = p.read_text()
+              old = 'namespace VoxelEngine.Streaming\n'
+              if old not in s:
+                  raise SystemExit(f'missing namespace in {p}')
+              s = s.replace(old, 'namespace VoxelEngine.Streaming.Runtime\n', 1)
+              p.write_text(s)
+
+          api_asm = {
+              'name':'VoxelEngine.Streaming.Api',
+              'rootNamespace':'VoxelEngine.Streaming.Api',
+              'references':['Unity.Mathematics'],
+              'includePlatforms':[], 'excludePlatforms':[],
+              'allowUnsafeCode':False, 'overrideReferences':False,
+              'precompiledReferences':[], 'autoReferenced':False,
+              'defineConstraints':[], 'versionDefines':[], 'noEngineReferences':False,
+          }
+          Path('Assets/VoxelEngine/Streaming/Api/VoxelEngine.Streaming.Api.asmdef').write_text(json.dumps(api_asm, indent=2)+'\n')
+          simple_meta('Assets/VoxelEngine/Streaming/Api/VoxelEngine.Streaming.Api.asmdef.meta')
+
+          runtime_asm = {
+              'name':'VoxelEngine.Streaming.Runtime',
+              'rootNamespace':'VoxelEngine.Streaming.Runtime',
+              'references':['VoxelEngine.Streaming.Api','VoxelEngine.Storage.Api','VoxelEngine.Tiering.Api','Unity.Burst','Unity.Collections','Unity.Mathematics'],
+              'includePlatforms':[], 'excludePlatforms':[],
+              'allowUnsafeCode':True, 'overrideReferences':False,
+              'precompiledReferences':[], 'autoReferenced':False,
+              'defineConstraints':[], 'versionDefines':[], 'noEngineReferences':False,
+          }
+          Path('Assets/VoxelEngine/Streaming/Runtime/VoxelEngine.Streaming.Runtime.asmdef').write_text(json.dumps(runtime_asm, indent=2)+'\n')
+
+          Path('Assets/VoxelEngine/Streaming/Api/RegionLoadRequest.cs').write_text('''using Unity.Mathematics;\n\nnamespace VoxelEngine.Streaming.Api\n{\n    /// <summary>Stable logical request for asynchronous region residency/loading.</summary>\n    public readonly struct RegionLoadRequest\n    {\n        public readonly int3 RegionCoord;\n        public readonly uint TerrainSeed;\n        public readonly byte RequestedMipLevel;\n\n        public RegionLoadRequest(int3 regionCoord, uint terrainSeed, byte requestedMipLevel = 0)\n        {\n            RegionCoord = regionCoord;\n            TerrainSeed = terrainSeed;\n            RequestedMipLevel = requestedMipLevel;\n        }\n    }\n}\n''')
+          simple_meta('Assets/VoxelEngine/Streaming/Api/RegionLoadRequest.cs.meta')
+
+          Path('Assets/VoxelEngine/Streaming/Api/IRegionStreaming.cs').write_text('''namespace VoxelEngine.Streaming.Api\n{\n    /// <summary>Application-facing orchestration capability for asynchronous region loading.</summary>\n    public interface IRegionStreaming\n    {\n        void QueueLoad(in RegionLoadRequest request);\n        int PublishLoaded(float mainThreadBudgetMs);\n    }\n}\n''')
+          simple_meta('Assets/VoxelEngine/Streaming/Api/IRegionStreaming.cs.meta')
+
+          Path('Assets/VoxelEngine/Streaming/Runtime/RegionStreamingService.cs').write_text('''using System;\nusing VoxelEngine.Storage.Api;\nusing VoxelEngine.Streaming.Api;\n\nnamespace VoxelEngine.Streaming.Runtime\n{\n    /// <summary>Runtime Streaming implementation that hides Storage residency behind Streaming.Api.</summary>\n    public sealed class RegionStreamingService : IRegionStreaming\n    {\n        private readonly IRegionResidencyStore _storage;\n\n        public RegionStreamingService(IRegionResidencyStore storage)\n        {\n            _storage = storage ?? throw new ArgumentNullException(nameof(storage));\n        }\n\n        public void QueueLoad(in RegionLoadRequest request)\n        {\n            RegionLoader.QueueLoad(request.RegionCoord, request.TerrainSeed, request.RequestedMipLevel);\n        }\n\n        public int PublishLoaded(float mainThreadBudgetMs)\n        {\n            return RegionLoader.PublishLoaded(_storage, mainThreadBudgetMs);\n        }\n    }\n}\n''')
+          simple_meta('Assets/VoxelEngine/Streaming/Runtime/RegionStreamingService.cs.meta')
+
+          source_replacements = {
+              'Assets/Scenes/Showcase/ShowcaseWorld.cs': [('using VoxelEngine.Streaming;','using VoxelEngine.Streaming.Runtime;')],
+              'Assets/Tests/PlayMode/DistantAlterationTests.cs': [('using VoxelEngine.Streaming;','using VoxelEngine.Streaming.Runtime;')],
+              'Assets/Tests/PlayMode/MemoryStabilityTests.cs': [('using VoxelEngine.Streaming;','using VoxelEngine.Streaming.Runtime;')],
+              'Assets/Tests/PlayMode/TraversalStreamingTests.cs': [('using VoxelEngine.Streaming;','using VoxelEngine.Streaming.Runtime;')],
+          }
+          for path, reps in source_replacements.items():
+              p=Path(path); s=p.read_text()
+              for old,new in reps:
+                  if old not in s: raise SystemExit(f'missing {old} in {path}')
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+
+          test = Path('Assets/Tests/EditMode/StreamingStorageBoundaryTests.cs')
+          s = test.read_text()
+          if 'using VoxelEngine.Streaming;\n' not in s:
+              raise SystemExit('missing Streaming test using')
+          s = s.replace('using VoxelEngine.Streaming;\n', 'using VoxelEngine.Streaming.Api;\nusing VoxelEngine.Streaming.Runtime;\n', 1)
+          start = s.index('        [Test]\n        public void StreamingAssemblyUsesStorageApiInsteadOfPhysicalCoreStorage()')
+          end = s.index('        [Test]\n        public void PlayModeTestsDoNotUseRemovedPhysicalStreamingSignatures()', start)
+          new_method = '''        [Test]\n        public void StreamingRuntimeUsesApisInsteadOfPhysicalOrNetworkingImplementations()\n        {\n            string root = FindRepoRoot();\n            string streaming = Path.Combine(root, "Assets", "VoxelEngine", "Streaming");\n            string runtime = Path.Combine(streaming, "Runtime");\n            string[] forbidden =\n            {\n                "RegionTable",\n                "BrickPool",\n                "BrickRef",\n                "VoxelAccess",\n                "VoxelDimensions.",\n                "VoxelEngine.Core.Storage",\n            };\n            var violations = new List<string>();\n\n            foreach (string path in Directory.EnumerateFiles(runtime, "*.cs", SearchOption.TopDirectoryOnly))\n            {\n                string source = File.ReadAllText(path);\n                foreach (string token in forbidden)\n                {\n                    if (source.IndexOf(token, StringComparison.Ordinal) >= 0)\n                        violations.Add(Path.GetFileName(path) + " -> " + token);\n                }\n            }\n\n            string asmdefPath = Path.Combine(runtime, "VoxelEngine.Streaming.Runtime.asmdef");\n            string asmdef = File.ReadAllText(asmdefPath);\n            if (asmdef.IndexOf("\\\"VoxelEngine.Core\\\"", StringComparison.Ordinal) >= 0)\n                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> VoxelEngine.Core");\n            if (asmdef.IndexOf("\\\"VoxelEngine.Net\\\"", StringComparison.Ordinal) >= 0)\n                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> VoxelEngine.Net");\n            if (asmdef.IndexOf("\\\"VoxelEngine.Storage.Api\\\"", StringComparison.Ordinal) < 0)\n                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> missing VoxelEngine.Storage.Api");\n            if (asmdef.IndexOf("\\\"VoxelEngine.Streaming.Api\\\"", StringComparison.Ordinal) < 0)\n                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> missing VoxelEngine.Streaming.Api");\n\n            Assert.IsEmpty(violations,\n                "Streaming Runtime must own policy/orchestration while consuming foreign systems only through APIs.\\n\\n" +\n                string.Join("\\n", violations));\n        }\n\n'''
+          s = s[:start] + new_method + s[end:]
+          marker = '        [Test]\n        public void FirstCompletedRegionPublishesThroughResidencyStore()'
+          if marker not in s: raise SystemExit('missing completion test marker')
+          service_test = '''        [Test]\n        public void StreamingServiceCanBeInstantiatedWithoutNetworking()\n        {\n            IRegionStreaming streaming = new RegionStreamingService(new RecordingResidencyStore());\n            Assert.NotNull(streaming);\n        }\n\n'''
+          s = s.replace(marker, service_test + marker, 1)
+          test.write_text(s)
+
+          def update_refs(path, remove=(), add=()):
+              p=Path(path); data=json.loads(p.read_text()); refs=data.get('references',[])
+              refs=[r for r in refs if r not in remove]
+              for r in add:
+                  if r not in refs: refs.append(r)
+              data['references']=refs
+              p.write_text(json.dumps(data,indent=2)+'\n')
+
+          update_refs('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef', remove=('VoxelEngine.Streaming',), add=('VoxelEngine.Streaming.Runtime',))
+          update_refs('Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef', remove=('VoxelEngine.Streaming',), add=('VoxelEngine.Streaming.Api','VoxelEngine.Streaming.Runtime'))
+          update_refs('Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef', remove=('VoxelEngine.Streaming',))
+          update_refs('Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef', remove=('VoxelEngine.Streaming',), add=('VoxelEngine.Streaming.Runtime',))
+          PY
+          git rm .github/workflows/streaming-api-runtime-cutover.yml
+          git diff --check
+          if grep -RIn '"VoxelEngine.Streaming"' Assets Packages --include='*.asmdef'; then
+            echo 'stale broad Streaming asmdef reference remains' >&2; exit 1
+          fi
+          if grep -RInE 'using VoxelEngine\.Streaming;|namespace VoxelEngine\.Streaming$' Assets Packages --include='*.cs'; then
+            echo 'stale broad Streaming namespace remains' >&2; exit 1
+          fi
+          if grep -RIn 'VoxelEngine.Net' Assets/VoxelEngine/Streaming/Runtime --include='*.cs' --include='*.asmdef'; then
+            echo 'Streaming Runtime still depends on Net' >&2; exit 1
+          fi
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Streaming Assets/Scenes/Showcase/ShowcaseWorld.cs Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef Assets/Tests/EditMode/StreamingStorageBoundaryTests.cs Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef Assets/Tests/PlayMode/DistantAlterationTests.cs Assets/Tests/PlayMode/MemoryStabilityTests.cs Assets/Tests/PlayMode/TraversalStreamingTests.cs Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef
+          git commit -m 'Split Streaming into Api and Runtime'
+          git push origin HEAD:${{ github.ref_name }}
