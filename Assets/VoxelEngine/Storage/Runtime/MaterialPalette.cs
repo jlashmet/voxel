@@ -16,7 +16,9 @@ namespace VoxelEngine.Storage.Runtime
     ///   - The type of debris generated on destruction (none, particles, physics bodies)
     ///   - Whether the material spreads fire/chemical reactions to adjacent bricks
     /// </summary>
-    public unsafe struct MaterialPalette : IMaterialAuthoringCatalogue, IMaterialPresentationCatalogue
+    public unsafe struct MaterialPalette : IMaterialAuthoringCatalogue,
+                                           IMaterialPresentationCatalogue,
+                                           IMaterialSimulationCatalogue
     {
         /// <summary>Number of registered materials in the palette.</summary>
         public int Count => _count;
@@ -69,6 +71,7 @@ namespace VoxelEngine.Storage.Runtime
             && (_allowedCoatings[materialIndex] & (1u << coatingId)) != 0;
 
         public MaterialPaletteView PresentationView => MaterialPaletteView.Capture(in this);
+        public MaterialSimulationView SimulationView => MaterialSimulationView.Capture(in this);
 
         public static implicit operator MaterialPaletteView(MaterialPalette source) =>
             MaterialPaletteView.Capture(in source);
