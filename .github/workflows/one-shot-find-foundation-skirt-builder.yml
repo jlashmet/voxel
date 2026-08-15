@@ -1,0 +1,41 @@
+name: One-shot Trace Foundation Skirt Builder
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/one-shot-find-foundation-skirt-builder.yml
+
+permissions:
+  contents: write
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Locate malformed definition and encoding path
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== definition matches ==='
+          grep -R -n -C 12 'kentridge-foundation-skirt-2' Packages/com.mountingforce.worldgen/Runtime/Voxel
+          echo '=== direct program writes in matching files ==='
+          files=$(grep -R -l 'kentridge-foundation-skirt-2' Packages/com.mountingforce.worldgen/Runtime/Voxel)
+          for f in $files; do
+            echo "--- $f ---"
+            grep -n -E -C 5 'Program\[|ProgramBuilder|Emit(Box|Cylinder|Prism|Capsule|Ramp|RoundedBox|Ellipsoid|Frustum|Annulus|ArcWedge)|ShapeOp\.' "$f" || true
+          done
+      - name: Self-clean diagnostic workflow
+        run: |
+          rm .github/workflows/one-shot-find-foundation-skirt-builder.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/one-shot-find-foundation-skirt-builder.yml
+          git commit -m "chore: remove foundation skirt diagnostic"
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
