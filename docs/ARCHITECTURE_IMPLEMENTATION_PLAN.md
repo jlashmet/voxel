@@ -532,7 +532,7 @@ with `VoxelSurfaceQuery` (or the equivalent concrete Api value created above). I
 - [x] Rendering and Collision use readonly native views, not virtual per-voxel services.
 - [x] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`; it consumes `IVoxelSurfaceQuery` and preserves water/cascade exclusion via caller-owned material IDs.
 - [x] Kentridge vegetation surface-query slice accepted by CI at `a47c3b8abff99e27e5c5cbeda0451ad8b963c314`: 382 total / 369 passed / exact 13 known baseline failures.
-- [ ] Net semantic hash/snapshot paths do not depend on physical brick layout.
+- [x] Net semantic hash/snapshot paths do not depend on physical brick layout.
 - [x] Existing storage/read/mutation parity tests pass against the established CI baseline; snapshot/hash final ownership remains tracked by the unchecked item above.
 - [ ] Architecture guard has no Storage.Runtime foreign-reference exception.
 
@@ -1274,14 +1274,21 @@ Unity.Collections / Mathematics as required
 
 No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtime or Rendering reference.
 
+### Implementation progress
+
+- [x] Net.Api/Runtime assemblies exist; transitional Net source is Core-free and references domain APIs only.
+- [x] Server residency delegates to Streaming.Api; semantic convergence/repair uses Storage.Api read/mutation/snapshot capabilities; duplicate structural/edit/storage ownership was removed.
+- [x] Net ownership checkpoint accepted by CI at `da3b6f0b3daf6b6e0e1f30917fd3d88267c1af34`: 384 total / 371 passed / exact 13 known baseline failures.
+- [ ] Client/Interest/Protocol/Server/Transport physical Runtime move, Runtime namespace normalization, and broad Net assembly deletion remain.
+
 ### Gate
 
 - [ ] Net.Runtime references only domain APIs;
 - [x] structural graph is gone from Net;
 - [x] no duplicate deterministic edit applier wrapper;
-- [ ] network residency calls Streaming.Api;
-- [ ] semantic repair/snapshot paths use Storage.Api logical data;
-- [ ] protocol/convergence/late-join/reconciliation tests pass.
+- [x] network residency calls Streaming.Api;
+- [x] semantic repair/snapshot paths use Storage.Api logical data;
+- [x] protocol/convergence/late-join/reconciliation tests pass against the accepted `da3b6f0b` ownership baseline.
 
 ---
 
@@ -1664,11 +1671,11 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 11. Net
 
-- [ ] create Net.Api/Runtime
+- [x] create Net.Api/Runtime
 - [ ] move client/interest/protocol/server/transport implementation
-- [ ] remove structural/storage/residency ownership violations
-- [ ] rename/verify `ReplicationRegionStore`
-- [ ] reference only domain APIs
+- [x] remove structural/storage/residency ownership violations
+- [x] verify no second authoritative Net region store remains; dead physical persistence/compaction scaffolding was deleted
+- [x] reference only domain APIs
 
 ### 12. Rendering
 
