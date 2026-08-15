@@ -84,12 +84,15 @@ namespace VoxelEngine.Showcase
 
         // -- state ---------------------------------------------------------------
 
-        private RegionTable _table;
-        private BrickPool _pool;
-        private readonly RegionReadSource _readSource;
-        private readonly RegionMutationStore _mutationStore;
-        private readonly RegionSnapshotMutationStore _snapshotMutationStore;
-        private readonly RegionResidencyStore _residencyStore;
+        // A single Composition lifetime owns the physical store. Ref-return aliases preserve
+        // direct native hot paths here without duplicating allocation, adapter wiring, or disposal.
+        private readonly VoxelEngineBootstrap.StorageRuntimeLifetime _storage;
+        private ref RegionTable _table => ref _storage.Table;
+        private ref BrickPool _pool => ref _storage.Pool;
+        private RegionReadSource _readSource => _storage.ReadSource;
+        private RegionMutationStore _mutationStore => _storage.MutationStore;
+        private RegionSnapshotMutationStore _snapshotMutationStore => _storage.SnapshotMutationStore;
+        private RegionResidencyStore _residencyStore => _storage.ResidencyStore;
 
         // Borrow one Storage.Api region view across tight collapse/connectivity scans. Reacquire
         // only when the scan crosses a region or the logical storage version changes; this keeps
@@ -100,10 +103,10 @@ namespace VoxelEngine.Showcase
         private bool _hasCachedReadView;
 
         private FeatureCatalogue _catalogue;
-        private MaterialPalette _palette;
+        private ref MaterialPalette _palette => ref _storage.Materials;
         private MaterialSimulationView _materialSimulation;
-        private SurfaceCatalogue _surfaceCatalogue;
-        private CoatingCatalogue _coatingCatalogue;
+        private ref SurfaceCatalogue _surfaceCatalogue => ref _storage.Surfaces;
+        private ref CoatingCatalogue _coatingCatalogue => ref _storage.Coatings;
         private MaterialAdjacencyCatalogue _materialAdjacencyCatalogue;
         private readonly IStructureProfileStore _profileBlocks = StructuresComposition.CreateProfileStore();
         private uint _editCounter;
@@ -164,7 +167,7 @@ namespace VoxelEngine.Showcase
         public const int MaxQueuedDetachedChunks = 256;
         private const int MaxVisualChunksPerCollapse = 192;
 
-        private readonly VoxelChangeJournal _changes = new();
+        private VoxelChangeJournal _changes => _storage.ChangeJournal;
         private readonly List<int3> _pendingLoads = new();
 
         public IRegionReadSource ReadStorage
@@ -266,14 +269,9 @@ namespace VoxelEngine.Showcase
             LoadRadiusRegions = math.max(1, loadRadiusRegions);
             UnloadRadiusRegions = math.max(LoadRadiusRegions + 1, unloadRadiusRegions);
 
-            _table = new RegionTable(64, Allocator.Persistent);
-            _pool = new BrickPool(brickPoolCapacity, Allocator.Persistent);
-            _readSource = new RegionReadSource(in _table, in _pool, _changes);
-            _mutationStore = new RegionMutationStore(in _table, in _pool);
-            _snapshotMutationStore = new RegionSnapshotMutationStore(in _table, in _pool);
-            _residencyStore = new RegionResidencyStore(in _table, in _pool);
+            _storage = new VoxelEngineBootstrap.StorageRuntimeLifetime(
+                64, brickPoolCapacity, 4096);
 
-            _palette = default;
             const uint weatherCoatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
                                         | (1u << Coatings.Soot) | (1u << Coatings.Wet);
             _palette.Register(MatStone, 200, DestructionClass.Crumble,
@@ -318,8 +316,6 @@ namespace VoxelEngine.Showcase
 
             _materialSimulation = _palette.SimulationView;
 
-            _surfaceCatalogue = SurfaceCatalogue.CreateBuiltIns();
-            _coatingCatalogue = CoatingCatalogue.CreateBuiltIns();
             _materialAdjacencyCatalogue = default;
 
             _catalogue = ShowcaseCatalogue.Build(seed, Allocator.Persistent);
@@ -2164,8 +2160,7 @@ namespace VoxelEngine.Showcase
             FinishRegionForced();
             _detachedChunks.Clear();
             if (_catalogue.IsCreated) _catalogue.Dispose();
-            if (_table.IsCreated) _table.Dispose();
-            if (_pool.IsCreated) _pool.Dispose();
+            _storage.Dispose();
         }
     }
 }

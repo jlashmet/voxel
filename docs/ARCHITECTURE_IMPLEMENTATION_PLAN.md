@@ -1607,7 +1607,7 @@ At the end, generate an asmdef dependency report and verify:
 
 - [x] add asmdef boundary guard (`ArchitectureBoundaryGuardTests`); introduced at `fcfea314` and still enforced by the accepted integrated architecture gates
 - [x] convert Constitution determinism scan from Core path to explicit deterministic assembly/path policy; introduced at `9223509c` and now scans Foundation/Storage/Terrain/Edits/StructuralIntegrity explicitly
-- [ ] strengthen Kentridge boundary tests
+- [x] strengthen Kentridge boundary tests; `WorldGenAssemblyBoundaryTests` now guards semantic source, Voxel adapter Runtime refs, and physical Storage leakage from castle vegetation placement
 
 ### 1. Foundation
 

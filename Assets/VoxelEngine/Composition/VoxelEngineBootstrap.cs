@@ -213,7 +213,7 @@ namespace VoxelEngine.Composition
                 changeJournalCapacity);
         }
 
-        private sealed class StorageRuntimeLifetime : IVoxelStorageRuntime
+        internal sealed class StorageRuntimeLifetime : IVoxelStorageRuntime
         {
             private RegionTable _table;
             private BrickPool _pool;
@@ -246,13 +246,65 @@ namespace VoxelEngine.Composition
                 _snapshotMutations = new RegionSnapshotMutationStore(in _table, in _pool);
             }
 
-            public IRegionGenerationStore Generation => _generation;
-            public IRegionReadSource Reads => _reads;
-            public IRegionMutationStore Mutations => _mutations;
-            public IRegionResidencyStore Residency => _residency;
-            public IRegionSnapshotSource Snapshots => _reads;
-            public IRegionSnapshotMutationStore SnapshotMutations => _snapshotMutations;
-            public IVoxelSurfaceQuery SurfaceQuery => _reads;
+            // Composition-owned hot paths may borrow these physical structs by ref, but no
+            // reference escapes this assembly. One lifetime owns allocation, adapter refresh, and disposal.
+            internal ref RegionTable Table => ref _table;
+            internal ref BrickPool Pool => ref _pool;
+            internal ref MaterialPalette Materials => ref _materials;
+            internal ref SurfaceCatalogue Surfaces => ref _surfaces;
+            internal ref CoatingCatalogue Coatings => ref _coatings;
+            internal VoxelChangeJournal ChangeJournal => _changes;
+
+            internal RegionReadSource ReadSource
+            {
+                get
+                {
+                    _reads.Refresh(in _table, in _pool);
+                    return _reads;
+                }
+            }
+
+            internal RegionMutationStore MutationStore
+            {
+                get
+                {
+                    _mutations.Refresh(in _table, in _pool);
+                    return _mutations;
+                }
+            }
+
+            internal RegionResidencyStore ResidencyStore
+            {
+                get
+                {
+                    _residency.Refresh(in _table, in _pool);
+                    return _residency;
+                }
+            }
+
+            internal RegionSnapshotMutationStore SnapshotMutationStore
+            {
+                get
+                {
+                    _snapshotMutations.Refresh(in _table, in _pool);
+                    return _snapshotMutations;
+                }
+            }
+
+            public IRegionGenerationStore Generation
+            {
+                get
+                {
+                    _generation.Refresh(in _table);
+                    return _generation;
+                }
+            }
+            public IRegionReadSource Reads => ReadSource;
+            public IRegionMutationStore Mutations => MutationStore;
+            public IRegionResidencyStore Residency => ResidencyStore;
+            public IRegionSnapshotSource Snapshots => ReadSource;
+            public IRegionSnapshotMutationStore SnapshotMutations => SnapshotMutationStore;
+            public IVoxelSurfaceQuery SurfaceQuery => ReadSource;
             public IVoxelChangeSource Changes => _changes;
 
             public IMaterialAuthoringCatalogue MaterialAuthoring => _materials;
@@ -298,7 +350,7 @@ namespace VoxelEngine.Composition
             public void PublishAllResidentRegions()
             {
                 ThrowIfDisposed();
-                using NativeArray<int3> regions = _reads.GetResidentRegionCoords(Allocator.Temp);
+                using NativeArray<int3> regions = ReadSource.GetResidentRegionCoords(Allocator.Temp);
                 for (int i = 0; i < regions.Length; i++)
                     _changes.PublishRegion(regions[i]);
             }

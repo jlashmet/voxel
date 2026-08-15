@@ -6,7 +6,7 @@ namespace VoxelEngine.Showcase
     /// <summary>
     /// Application-level logical storage bridge for Showcase collaborators. This partial keeps
     /// networking/presentation adapters on Storage.Api vocabulary while the main ShowcaseWorld
-    /// still owns the transitional concrete storage implementation.
+    /// borrows the single Composition-owned storage lifetime used by the world hot paths.
     /// </summary>
     public sealed partial class ShowcaseWorld
     {

@@ -171,6 +171,32 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ShowcaseWorldDoesNotAllocateOrDisposePhysicalStorage()
+        {
+            string path = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");
+            Assert.IsTrue(File.Exists(path), "Missing Composition-owned ShowcaseWorld: " + path);
+
+            string source = File.ReadAllText(path);
+            string[] forbidden =
+            {
+                "new RegionTable(",
+                "new BrickPool(",
+                "_table.Dispose()",
+                "_pool.Dispose()",
+            };
+            var violations = forbidden
+                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                .ToArray();
+
+            Assert.IsEmpty(violations,
+                "ShowcaseWorld may borrow physical storage for Composition-owned hot paths, but allocation " +
+                "and disposal must stay centralized in the shared Composition storage lifetime.\n\n" +
+                string.Join("\n", violations));
+            StringAssert.Contains("VoxelEngineBootstrap.StorageRuntimeLifetime", source);
+        }
+
+        [Test]
         public void DeletedCoreNamespaceDoesNotReappearInProductionSourceOrAsmdefs()
         {
             var violations = new List<string>();
