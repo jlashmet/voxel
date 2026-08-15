@@ -28,7 +28,8 @@ jobs:
           if text.count(old) != 1:
               raise SystemExit('expected exactly one remaining physical far-field call')
           text = text.replace(old, new, 1)
-          if 'FarField.CaptureRegion' in text and 'ref _table, in _pool' in text:
+          if any('FarField.CaptureRegion' in line and ('_table' in line or '_pool' in line)
+                 for line in text.splitlines()):
               raise SystemExit('a physical far-field capture call still remains')
           p.write_text(text)
           PY
@@ -40,3 +41,4 @@ jobs:
           git fetch origin refactor/system-boundaries-foundation-storage
           git rebase origin/refactor/system-boundaries-foundation-storage
           git push origin HEAD:refactor/system-boundaries-foundation-storage
+# one-shot publisher; delete after source commit lands
