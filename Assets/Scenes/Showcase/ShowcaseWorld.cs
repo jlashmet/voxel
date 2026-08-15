@@ -88,6 +88,7 @@ namespace VoxelEngine.Showcase
         private RegionTable _table;
         private BrickPool _pool;
         private readonly RegionReadSource _readSource;
+        private readonly RegionResidencyStore _residencyStore;
         private FeatureCatalogue _catalogue;
         private MaterialPalette _palette;
         private SurfaceCatalogue _surfaceCatalogue;
@@ -219,6 +220,7 @@ namespace VoxelEngine.Showcase
             _table = new RegionTable(64, Allocator.Persistent);
             _pool = new BrickPool(brickPoolCapacity, Allocator.Persistent);
             _readSource = new RegionReadSource(in _table, in _pool, _changes);
+            _residencyStore = new RegionResidencyStore(in _table, in _pool);
 
             _palette = default;
             const uint weatherCoatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
@@ -610,6 +612,7 @@ namespace VoxelEngine.Showcase
 
         private void EvictDistantRegions(int3 centre)
         {
+            _residencyStore.Refresh(in _table, in _pool);
             var resident = _table.GetResidentCoords(Allocator.Temp);
 
             for (int i = 0; i < resident.Length; i++)
@@ -629,7 +632,7 @@ namespace VoxelEngine.Showcase
 
                 // No write-back: the client owns no truth, so eviction discards and the region
                 // regenerates from the seed on return.
-                ResidencyManager.EvictWithoutWriteBack(rc, ref _table, ref _pool);
+                ResidencyManager.EvictWithoutWriteBack(rc, _residencyStore);
                 _generated.Remove(rc);
                 _changes.PublishRegion(rc, VoxelChangeKind.Residency);
                 RegionsEvicted++;
