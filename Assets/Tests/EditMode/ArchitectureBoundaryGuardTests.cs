@@ -259,6 +259,48 @@ namespace VoxelEngine.Tests.EditMode
                 "wiring belongs in Composition.\n\n" + string.Join("\n", violations));
         }
 
+        [Test]
+        public void ShowcaseSceneSourcesDoNotReferenceRuntimeImplementations()
+        {
+            string showcaseRoot = Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase");
+            Assert.IsTrue(Directory.Exists(showcaseRoot), "Missing Showcase source root: " + showcaseRoot);
+
+            string compositionWorld = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");
+            Assert.IsTrue(File.Exists(compositionWorld),
+                "Concrete Showcase world ownership must live under VoxelEngine.Composition.");
+            Assert.IsFalse(Directory.Exists(Path.Combine(showcaseRoot, "CompositionOwned")),
+                "Do not hide Composition-owned runtime source beneath the Showcase scene tree.");
+
+            var runtimeReference = new Regex(
+                @"VoxelEngine\.[A-Za-z0-9_.]+\.Runtime",
+                RegexOptions.Compiled);
+            string[] extensions = { ".cs", ".asmdef", ".asmref" };
+            var violations = new List<string>();
+
+            foreach (string path in Directory.EnumerateFiles(showcaseRoot, "*", SearchOption.AllDirectories))
+            {
+                if (!extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                    continue;
+
+                string source = File.ReadAllText(path);
+                foreach (Match match in runtimeReference.Matches(source))
+                {
+                    string normalized = path.Replace('\\', '/');
+                    string repoRoot = RepoRoot.Replace('\\', '/');
+                    string relative = normalized.StartsWith(repoRoot + "/", StringComparison.Ordinal)
+                        ? normalized.Substring(repoRoot.Length + 1)
+                        : normalized;
+                    violations.Add(relative + " -> " + match.Value);
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Scene/application code must consume subsystem APIs or Composition-owned facades; " +
+                "concrete Runtime ownership belongs in VoxelEngine.Composition.\n\n" +
+                string.Join("\n", violations.Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal)));
+        }
+
         private static IReadOnlyList<Asmdef> EnumerateVoxelEngineAsmdefs()
         {
             string root = Path.Combine(RepoRoot, "Assets", "VoxelEngine");
