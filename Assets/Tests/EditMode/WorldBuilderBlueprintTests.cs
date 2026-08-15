@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Content.Kentridge;
@@ -156,6 +157,13 @@ namespace VoxelEngine.Tests.EditMode
             var npcPlacement = graph.NpcPlacements.Single(p => p.Npc.Equals(npc));
             var stage = graph.CutsceneStages.Single(s => s.Cutscene.Id == "destination-scene");
             var requirement = stage.Requirements.Single();
+            var generatedSite = new ResolvedSiteId("generated:destination");
+            var npcAssignment = NpcPlacementResolver.ResolveSites(
+                graph,
+                new SiteResolutionResult(
+                    new[] { new SiteRoleBinding(destination, generatedSite) },
+                    Array.Empty<SiteResolutionDiagnostic>()))
+                .Single();
 
             Assert.That(destinationScene.Dependencies, Does.Contain("site:destination"));
             Assert.That(destinationScene.Dependencies, Does.Contain("npc:npc"));
@@ -163,6 +171,10 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(blueprint.StoryRules.Single().Conditions.Single(), Is.TypeOf<ObjectiveActiveConditionSpec>());
             Assert.That(npcPlacement.Site, Is.EqualTo(destination));
             Assert.That(npcPlacement.RequiresConversation, Is.True);
+            Assert.That(npcAssignment.Npc, Is.EqualTo(npc));
+            Assert.That(npcAssignment.SiteRole, Is.EqualTo(destination));
+            Assert.That(npcAssignment.Site, Is.EqualTo(generatedSite));
+            Assert.That(npcAssignment.RequiresConversation, Is.True);
             Assert.That(stage.Site, Is.EqualTo(destination));
             Assert.That(requirement.Point, Is.EqualTo(stagePoint));
             Assert.That(requirement.Region, Is.EqualTo(CutsceneStageRegion.InteriorGatheringArea));
