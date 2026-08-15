@@ -27,45 +27,136 @@ jobs:
           git mv Assets/VoxelEngine/Core/Edits/ExplosionExpansion.cs Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs
           git mv Assets/VoxelEngine/Core/Edits/ExplosionExpansion.cs.meta Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs.meta
 
+          cat > Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs <<'CS'
+          using Unity.Collections;
+          using Unity.Mathematics;
+          using VoxelEngine.Edits.Api;
+          using VoxelEngine.Foundation;
+          using VoxelEngine.Storage.Api;
+
+          namespace VoxelEngine.Edits.Runtime
+          {
+              /// <summary>
+              /// Deterministically expands explosion events into occupied logical block coordinates.
+              /// Storage representation stays behind <see cref="IRegionReadSource"/>.
+              /// </summary>
+              public static class ExplosionExpansion
+              {
+                  public static NativeList<int3> Expand(IRegionReadSource storage, in AlterationEvent evt)
+                  {
+                      if (evt.kind != AlterationEvent.KindExplosion)
+                          throw new System.ArgumentException("Expected explosion event kind.", nameof(evt));
+
+                      var result = new NativeList<int3>(256, Allocator.Temp);
+                      int radius = evt.Radius();
+                      if (radius == 0) return result;
+                      if (!storage.TryAcquireRegionContainingBlock(evt.origin, out RegionReadView region))
+                          return result;
+
+                      int3 localOrigin = WorldToBlockLocal(evt.origin, region.RegionCoord);
+                      int radiusInt = radius;
+                      int edge = VoxelReadGrid.BlocksPerRegionEdge;
+
+                      for (int bx = -radiusInt; bx <= radiusInt; bx++)
+                      for (int by = -radiusInt; by <= radiusInt; by++)
+                      for (int bz = -radiusInt; bz <= radiusInt; bz++)
+                      {
+                          int distSq = bx * bx + by * by + bz * bz;
+                          if (distSq > radiusInt * radiusInt) continue;
+
+                          int rx = localOrigin.x + bx;
+                          int ry = localOrigin.y + by;
+                          int rz = localOrigin.z + bz;
+                          if (rx < 0 || ry < 0 || rz < 0 || rx >= edge || ry >= edge || rz >= edge)
+                              continue;
+
+                          int3 worldBlock = evt.origin + new int3(bx, by, bz);
+                          if (region.TryGetWorldBlock(worldBlock, out VoxelReadBlock block) && block.IsSolid)
+                              result.Add(worldBlock);
+                      }
+
+                      return result;
+                  }
+
+                  public static NativeList<int3> ExpandChainReaction(
+                      IRegionReadSource storage, in AlterationEvent evt)
+                  {
+                      var result = new NativeList<int3>(512, Allocator.Temp);
+                      var rng = new DeterministicRandom(evt.seed);
+                      var centers = new NativeList<int3>(4, Allocator.Temp);
+                      centers.Add(evt.origin);
+
+                      int secondaryCount = rng.NextRange(1, 3);
+                      for (int i = 0; i < secondaryCount; i++)
+                      {
+                          int offset = evt.Radius() >> 2;
+                          centers.Add(new int3(
+                              evt.origin.x + rng.NextRange(-offset, offset),
+                              evt.origin.y + rng.NextRange(-offset, offset),
+                              evt.origin.z + rng.NextRange(-offset, offset)));
+                      }
+
+                      foreach (int3 center in centers)
+                      {
+                          using NativeList<int3> expanded = ExpandSingleCenter(storage, in evt, center);
+                          for (int i = 0; i < expanded.Length; i++)
+                              result.Add(expanded[i]);
+                      }
+                      centers.Dispose();
+                      return result;
+                  }
+
+                  private static NativeList<int3> ExpandSingleCenter(
+                      IRegionReadSource storage, in AlterationEvent evt, int3 center)
+                  {
+                      var result = new NativeList<int3>(128, Allocator.Temp);
+                      int radius = evt.Radius();
+                      if (radius == 0) return result;
+                      if (!storage.TryAcquireRegionContainingBlock(center, out RegionReadView region))
+                          return result;
+
+                      int3 localOrigin = WorldToBlockLocal(center, region.RegionCoord);
+                      int radiusInt = radius;
+                      int edge = VoxelReadGrid.BlocksPerRegionEdge;
+
+                      for (int bx = -radiusInt; bx <= radiusInt; bx++)
+                      for (int by = -radiusInt; by <= radiusInt; by++)
+                      {
+                          int innerZ = radiusInt * radiusInt - bx * bx - by * by;
+                          if (innerZ < 0) continue;
+                          int maxBz = IntMath.Isqrt(innerZ);
+
+                          for (int bz = -maxBz; bz <= maxBz; bz++)
+                          {
+                              int rx = localOrigin.x + bx;
+                              int ry = localOrigin.y + by;
+                              int rz = localOrigin.z + bz;
+                              if (rx < 0 || ry < 0 || rz < 0 || rx >= edge || ry >= edge || rz >= edge)
+                                  continue;
+
+                              int3 worldBlock = center + new int3(bx, by, bz);
+                              if (region.TryGetWorldBlock(worldBlock, out VoxelReadBlock block) && block.IsSolid)
+                                  result.Add(worldBlock);
+                          }
+                      }
+                      return result;
+                  }
+
+                  private static int3 WorldToBlockLocal(int3 worldBlock, int3 regionCoord)
+                  {
+                      int edge = VoxelReadGrid.BlocksPerRegionEdge;
+                      return new int3(
+                          (worldBlock.x - regionCoord.x * edge) & (edge - 1),
+                          (worldBlock.y - regionCoord.y * edge) & (edge - 1),
+                          (worldBlock.z - regionCoord.z * edge) & (edge - 1));
+                  }
+              }
+          }
+          CS
+
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path('Assets/VoxelEngine/Edits/Runtime/ExplosionExpansion.cs')
-          text = p.read_text()
-          text = text.replace('using VoxelEngine.Core.Storage;\n', 'using VoxelEngine.Storage.Api;\n')
-          text = text.replace('namespace VoxelEngine.Core.Edits\n', 'namespace VoxelEngine.Edits.Runtime\n', 1)
-
-          old_expand = 'public static NativeList<int3> Expand(in BrickPool pool, in RegionTable table, in AlterationEvent evt)'
-          if text.count(old_expand) != 1:
-              raise SystemExit(f'Expand signature count {text.count(old_expand)}')
-          text = text.replace(old_expand, 'public static NativeList<int3> Expand(IRegionReadSource storage, in AlterationEvent evt)', 1)
-
-          old_lookup = '''                int3 regionCoord = c >> VoxelDimensions.RegionEdgeLog2;\n                int3 local = c & VoxelDimensions.RegionEdgeMask;\n                if (!table.TryGet(regionCoord, out var region)) continue;\n                var br = region.GetBrickRef(local);\n                if (!br.IsEmpty) result.Add(c);'''
-          new_lookup = '''                if (!storage.TryAcquireRegionContainingBlock(c, out RegionReadView region)) continue;\n                if (region.TryGetWorldBlock(c, out VoxelReadBlock block) && block.IsSolid)\n                    result.Add(c);'''
-          if text.count(old_lookup) != 1:
-              raise SystemExit(f'Expand lookup count {text.count(old_lookup)}')
-          text = text.replace(old_lookup, new_lookup, 1)
-
-          old_chain_sig = '''        public static NativeList<int3> ExpandChainReaction(\n            in BrickPool pool,\n            in RegionTable table,\n            in AlterationEvent evt)'''
-          new_chain_sig = '''        public static NativeList<int3> ExpandChainReaction(\n            IRegionReadSource storage,\n            in AlterationEvent evt)'''
-          if text.count(old_chain_sig) != 1:
-              raise SystemExit(f'chain signature count {text.count(old_chain_sig)}')
-          text = text.replace(old_chain_sig, new_chain_sig, 1)
-
-          old_chain_lookup = '''                int3 regionCoord = c >> VoxelDimensions.RegionEdgeLog2;\n                int3 local = c & VoxelDimensions.RegionEdgeMask;\n                if (!table.TryGet(regionCoord, out var region)) continue;\n                var br = region.GetBrickRef(local);\n                if (br.IsEmpty) continue;\n\n                result.Add(c);\n\n                // Check if this brick contains explosive material.\n                byte brickMaterial;\n                if (br.IsUniform)\n                {\n                    brickMaterial = br.UniformMaterialId;\n                }\n                else\n                {\n                    // Sample first non-zero voxel for material classification.\n                    var voxels = pool.GetVoxelArray(br.PoolIndex);\n                    brickMaterial = 0;\n                    for (int vi = 0; vi < voxels.Length; vi++)\n                    {\n                        if (voxels[vi] != 0)\n                        {\n                            brickMaterial = voxels[vi];\n                            break;\n                        }\n                    }\n                }\n\n                if (brickMaterial == MaterialExplosive && secondaryRadius > 0)'''
-          new_chain_lookup = '''                if (!storage.TryAcquireRegionContainingBlock(c, out RegionReadView region)) continue;\n                if (!TryGetFirstSolidMaterial(in region, c, out byte brickMaterial)) continue;\n\n                result.Add(c);\n\n                if (brickMaterial == MaterialExplosive && secondaryRadius > 0)'''
-          if text.count(old_chain_lookup) != 1:
-              raise SystemExit(f'chain lookup count {text.count(old_chain_lookup)}')
-          text = text.replace(old_chain_lookup, new_chain_lookup, 1)
-
-          marker = '        /// <summary>\n        /// Applies an Explosion alteration event by expanding affected bricks and clearing them.\n'
-          if text.count(marker) != 1:
-              raise SystemExit('legacy TryApply marker mismatch')
-          text = text.split(marker, 1)[0].rstrip() + '''\n\n        private static bool TryGetFirstSolidMaterial(\n            in RegionReadView region, int3 worldBlockCoord, out byte material)\n        {\n            material = VoxelGrid.MaterialEmpty;\n            if (!region.TryGetWorldBlock(worldBlockCoord, out VoxelReadBlock block) || !block.IsSolid)\n                return false;\n\n            if (block.Kind == VoxelReadBlockKind.Uniform)\n            {\n                material = block.UniformMaterial;\n                return material != VoxelGrid.MaterialEmpty;\n            }\n\n            int3 localBlock = worldBlockCoord\n                            - (region.RegionCoord << VoxelReadGrid.BlocksPerRegionEdgeLog2);\n            int3 voxelBase = localBlock << VoxelReadGrid.BlockEdgeLog2;\n            for (int z = 0; z < VoxelReadGrid.BlockEdge; z++)\n            for (int y = 0; y < VoxelReadGrid.BlockEdge; y++)\n            for (int x = 0; x < VoxelReadGrid.BlockEdge; x++)\n            {\n                if (!region.TryReadCell(voxelBase + new int3(x, y, z), out VoxelCell cell))\n                    return false;\n                if (cell.BaseMaterialId == VoxelGrid.MaterialEmpty) continue;\n                material = cell.BaseMaterialId;\n                return true;\n            }\n            return false;\n        }\n    }\n}\n'''
-          p.write_text(text)
-
-          # Test adapters own concrete physical Storage construction; the Runtime helper sees only
-          # the read capability.
           p = Path('Assets/Tests/EditMode/ExpansionDeterminismTests.cs')
           text = p.read_text()
           replacements = {
