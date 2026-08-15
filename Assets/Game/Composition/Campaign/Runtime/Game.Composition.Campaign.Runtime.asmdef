@@ -1,0 +1,21 @@
+{
+  "name": "Game.Composition.Campaign.Runtime",
+  "rootNamespace": "Game.Composition.Campaign.Runtime",
+  "references": [
+    "Game.Composition.Campaign",
+    "Game.Cutscenes.Api",
+    "Game.Cutscenes.Runtime",
+    "Game.Story.Api",
+    "Game.Story.Runtime",
+    "Game.WorldBuilder.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
