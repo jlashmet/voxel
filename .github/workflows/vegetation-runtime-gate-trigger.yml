@@ -1,0 +1,11 @@
+name: Vegetation runtime gate trigger
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: read
+jobs:
+  noop:
+    runs-on: self-hosted
+    steps:
+      - run: echo "Trigger normal PR CI for Vegetation runtime split"
