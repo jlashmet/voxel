@@ -41,17 +41,34 @@ OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 FILTER="${1:-}"
 
-# Assemblies built from source here. Their prebuilt copies in Library/ScriptAssemblies are
-# excluded from the reference set so a stale DLL can never shadow the sources under test.
+# Assemblies built from source here. Keep this list in dependency order: APIs/foundation
+# first, then their Runtime implementations, then Composition/Showcase/tooling/tests.
+# Their prebuilt copies in Library/ScriptAssemblies are excluded from the reference set so
+# a stale DLL can never shadow the sources under test.
 ASSEMBLIES=(
-    "VoxelEngine.Core:Assets/VoxelEngine/Core"
-    "VoxelEngine.Vegetation:Assets/VoxelEngine/Vegetation"
-    "VoxelEngine.Tiering:Assets/VoxelEngine/Tiering"
-    "VoxelEngine.Collision:Assets/VoxelEngine/Collision"
-    "VoxelEngine.Structures:Assets/VoxelEngine/Structures"
-    "VoxelEngine.Streaming:Assets/VoxelEngine/Streaming"
-    "VoxelEngine.Rendering:Assets/VoxelEngine/Rendering"
-    "VoxelEngine.Net:Assets/VoxelEngine/Net"
+    "VoxelEngine.Foundation:Assets/VoxelEngine/Foundation"
+    "VoxelEngine.Storage.Api:Assets/VoxelEngine/Storage/Api"
+    "VoxelEngine.Storage.Runtime:Assets/VoxelEngine/Storage/Runtime"
+    "VoxelEngine.Terrain.Api:Assets/VoxelEngine/Terrain/Api"
+    "VoxelEngine.Terrain.Runtime:Assets/VoxelEngine/Terrain/Runtime"
+    "VoxelEngine.Structures.Api:Assets/VoxelEngine/Structures/Api"
+    "VoxelEngine.Structures.Runtime:Assets/VoxelEngine/Structures/Runtime"
+    "VoxelEngine.Edits.Api:Assets/VoxelEngine/Edits/Api"
+    "VoxelEngine.Edits.Runtime:Assets/VoxelEngine/Edits/Runtime"
+    "VoxelEngine.StructuralIntegrity.Api:Assets/VoxelEngine/StructuralIntegrity/Api"
+    "VoxelEngine.StructuralIntegrity.Runtime:Assets/VoxelEngine/StructuralIntegrity/Runtime"
+    "VoxelEngine.Tiering.Api:Assets/VoxelEngine/Tiering/Api"
+    "VoxelEngine.Streaming.Api:Assets/VoxelEngine/Streaming/Api"
+    "VoxelEngine.Streaming.Runtime:Assets/VoxelEngine/Streaming/Runtime"
+    "VoxelEngine.Collision.Api:Assets/VoxelEngine/Collision/Api"
+    "VoxelEngine.Collision.Runtime:Assets/VoxelEngine/Collision/Runtime"
+    "VoxelEngine.Vegetation.Api:Assets/VoxelEngine/Vegetation/Api"
+    "VoxelEngine.Vegetation.Runtime:Assets/VoxelEngine/Vegetation/Runtime"
+    "VoxelEngine.Net.Api:Assets/VoxelEngine/Net/Api"
+    "VoxelEngine.Net.Runtime:Assets/VoxelEngine/Net/Runtime"
+    "VoxelEngine.Rendering.Api:Assets/VoxelEngine/Rendering/Api"
+    "VoxelEngine.Rendering.Runtime:Assets/VoxelEngine/Rendering/Runtime"
+    "VoxelEngine.Composition:Assets/VoxelEngine/Composition"
     "VoxelEngine.Showcase:Assets/Scenes/Showcase"
     "VoxelEngine.CI.Editor:Assets/VoxelEngine/CI/Editor"
     "VoxelEngine.CI.PlayMode:Assets/VoxelEngine/CI/PlayMode"
