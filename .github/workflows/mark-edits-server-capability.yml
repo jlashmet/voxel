@@ -1,0 +1,45 @@
+name: Record Edits server capability
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text=p.read_text()
+          text=text.replace('- [ ] delete `ServerDeterministicAlterationApplier`','- [x] delete `ServerDeterministicAlterationApplier`')
+          text=text.replace('- [ ] server wrapper deleted;','- [x] server wrapper deleted;')
+          marker='- [ ] Edits.Api/Runtime physical move and namespace cutover complete.'
+          progress='- [x] Edits.Api exposes `IAlterationApplier`; authoritative server/session paths receive that capability instead of owning a Net applier abstraction, and the redundant `ServerDeterministicAlterationApplier` wrapper is deleted.\n- [x] Server alteration-capability/wrapper-deletion slice accepted by CI at `b4fbfb180831a588996d398442a66c38949771a3`: 382 total / 369 passed / exact same 13 known baseline failures.\n'
+          if progress.splitlines()[0] not in text:
+              text=text.replace(marker,progress+marker)
+          lines=text.splitlines()
+          for i,line in enumerate(lines):
+              if line.startswith('| 5 — Edits |'):
+                  lines[i]='| 5 — Edits | **In progress — current** | Edits.Api/Runtime created; canonical vocabulary is in Api; expansion helpers are in Runtime; dead `DensityCap` removed; Net protocol is Api-only; Edits.Api `IAlterationApplier` now owns the server application boundary; redundant Net wrapper deleted; parity accepted | inject Edits.Api capability into client application/queue; move `DeterministicAlterationApplier` to Runtime; remove final `VoxelEngine.Core.Edits` |'
+              if line.startswith('- Latest accepted code gate:'):
+                  lines[i]='- Latest accepted code gate: `b4fbfb180831a588996d398442a66c38949771a3` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Edits server capability slice: Edits.Api owns `IAlterationApplier`; server/session code consumes the API capability; `ServerDeterministicAlterationApplier` and the Net-owned applier interface are gone; Net still has no Edits.Runtime reference.'
+          p.write_text('\n'.join(lines)+'\n')
+          PY
+          git rm .github/workflows/mark-edits-server-capability.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'Record accepted Edits server capability'
+          git push origin HEAD:${{ github.ref_name }}
