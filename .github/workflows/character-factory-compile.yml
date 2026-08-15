@@ -88,7 +88,7 @@ jobs:
           echo "TRIPOSR_PY=$TRIPOSR_PY" >> "$GITHUB_ENV"
           echo "TRIPOSR_WEIGHTS=$TRIPOSR_WEIGHTS" >> "$GITHUB_ENV"
 
-      - name: Build and render Sunlit Cleric staff with TripoSR defaults
+      - name: Build and render isolated Sunlit Cleric staff
         timeout-minutes: 10
         shell: bash
         run: |
@@ -97,13 +97,19 @@ jobs:
           rm -rf "$OUT"
           mkdir -p "$OUT"
 
+          INPUT="$OUT/sunlit_cleric_staff_ci.input.png"
+          "$TRIPOSR_PY" tools/character-factory/ci/prepare_staff_fixture.py \
+            --input "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg" \
+            --output "$INPUT"
+          test -s "$INPUT"
+
           SPEC="$RUNNER_TEMP/sunlit-cleric-staff-ci.json"
           cat > "$SPEC" <<JSON
           {
             "id": "sunlit_cleric_staff_ci",
             "assetType": "weapon",
             "views": {
-              "front": "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg"
+              "front": "$INPUT"
             },
             "outputDir": "$OUT",
             "generator": {
@@ -115,7 +121,7 @@ jobs:
               "device": "auto",
               "mcResolution": 256,
               "chunkSize": 8192,
-              "removeBackground": true
+              "removeBackground": false
             },
             "rigid": {
               "blender": "$BLENDER_BIN"
