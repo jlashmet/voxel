@@ -1,0 +1,52 @@
+name: Mark Tiering cutover complete
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          s=p.read_text()
+
+          def replace(old,new):
+              global s
+              if s.count(old)!=1:
+                  raise SystemExit(f'expected exactly one match ({s.count(old)}): {old[:120]}')
+              s=s.replace(old,new,1)
+
+          replace('**Current focus:** Cutover 7 Tiering — Api-only ownership cutover',
+                  '**Current focus:** Cutover 8 Streaming — final Api/Runtime ownership cutover')
+
+          replace('| 7 — Tiering | **Not started — current** | — | full cutover |\n| 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |',
+                  '| 7 — Tiering | **Complete** | `DeviceTier`/`DeviceTierBudget` live under `Tiering/Api` with preserved Unity GUIDs; broad Tiering assembly replaced by dependency-free `VoxelEngine.Tiering.Api`; Streaming, Rendering, Showcase and tests consume Api; no Tiering.Runtime exists; parity accepted | none |\n| 8 — Streaming | **In progress — current** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |')
+
+          replace('- Latest accepted code gate: `c07ef2f318a015f7e5dc1952eeeb82d16fd81612` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted StructuralIntegrity algorithm cutover: `SupportField`, `CollapseDetection`, and `Connectivity` are physically under StructuralIntegrity.Runtime with their Unity GUIDs preserved; all read through Storage.Api logical region views; `Core/Structure` no longer exists; StructuralIntegrity.Runtime has no Net dependency.',
+                  '- Latest accepted code gate: `a0e123454878c81b9a0f2a03db2d2c9f7e1cf89e` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Cutover 7 Tiering: `DeviceTier`/`DeviceTierBudget` are physically under `Tiering/Api` with their Unity GUIDs preserved; `VoxelEngine.Tiering.Api` has no engine references; the broad Tiering assembly is gone; Streaming, Rendering, Showcase and tests reference Tiering.Api; no Tiering.Runtime exists.')
+
+          replace('- [ ] route resulting voxel changes through Edits\n\n### 7. Tiering\n\n- [ ] create Tiering.Api\n- [ ] move DeviceTierBudget\n- [ ] delete old Tiering asmdef',
+                  '- [x] resolve resulting voxel-change routing — no production StructuralIntegrity application path exists today; any future structural mutation application must route through Edits.Api\n\n### 7. Tiering\n\n- [x] create Tiering.Api\n- [x] move DeviceTierBudget\n- [x] delete old Tiering asmdef')
+
+          replace('Update Streaming and Rendering to reference Tiering.Api only.\n\n### Gate\n\n- [ ] only Tiering.Api exists;\n- [ ] no Tiering assembly references Core;\n- [ ] device-tier tests compile/pass.',
+                  'Update Streaming and Rendering to reference Tiering.Api only.\n\n### Implementation progress\n\n- [x] `DeviceTier` and `DeviceTierBudget` moved to `Tiering/Api` with the original script Unity GUID preserved and namespace changed to `VoxelEngine.Tiering.Api`.\n- [x] The broad `VoxelEngine.Tiering` asmdef was replaced by `VoxelEngine.Tiering.Api` with its asmdef Unity GUID preserved, no engine references, `allowUnsafeCode: false`, and `autoReferenced: false`; no Tiering.Runtime was created.\n- [x] Streaming, Rendering, Showcase, EditMode/Parity/PlayMode test assemblies and Tiering source consumers were migrated to Tiering.Api in the same cutover.\n- [x] Tiering Api cutover accepted by CI at `a0e123454878c81b9a0f2a03db2d2c9f7e1cf89e`: 382 total / 369 passed / exact same 13 known baseline failures.\n\n### Gate\n\n- [x] only Tiering.Api exists;\n- [x] no Tiering assembly references Core;\n- [x] device-tier tests compile/pass.')
+
+          p.write_text(s)
+          PY
+          git rm .github/workflows/mark-tiering-complete.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'Mark Tiering cutover complete'
+          git push origin HEAD:${{ github.ref_name }}
