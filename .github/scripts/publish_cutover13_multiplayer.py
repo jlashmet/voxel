@@ -5,10 +5,9 @@ import textwrap
 WORKFLOW = ".github/workflows/cutover13-multiplayer-composition.yml"
 SCRIPT = ".github/scripts/publish_cutover13_multiplayer.py"
 BRANCH = "refactor/system-boundaries-foundation-storage"
-# This commit contains the complete original one-shot generator before the workflow was
-# reduced to a small valid runner. Pinning it makes publication independent of concurrent
-# branch publishers advancing HEAD.
-GENERATOR_COMMIT = "d70406b80c3e4d79e81792594e495050c08930ae"
+# This commit still contains the complete original one-shot generator. Pinning it makes
+# publication independent of concurrent branch publishers advancing HEAD.
+GENERATOR_COMMIT = "efb91aba8aa85b2acdadcbe06e7b4fc029c47d9b"
 
 
 def generator_workflow_text():
