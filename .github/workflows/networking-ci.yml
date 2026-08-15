@@ -19,7 +19,7 @@ on:
       - "ProjectSettings/ProjectVersion.txt"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: networking-ci-${{ github.ref }}
@@ -32,12 +32,10 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout implementation branch
+      - name: Checkout without deleting Unity import cache
         uses: actions/checkout@v4
         with:
           clean: false
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Reset tracked and non-cache files
         shell: bash
@@ -45,61 +43,6 @@ jobs:
           set -euo pipefail
           git reset --hard HEAD
           git clean -ffdx -e Library/
-
-      - name: Publish surgical CastleBuilder storage-boundary patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('Assets/VoxelEngine/Structures/CastleBuilder.cs')
-          s = p.read_text()
-
-          def replace_once(old, new, label):
-              global s
-              count = s.count(old)
-              if count != 1:
-                  raise RuntimeError(f'{label}: expected exactly one match, found {count}')
-              s = s.replace(old, new, 1)
-
-          replace_once(
-              'using VoxelEngine.Core.Storage;\n',
-              'using VoxelEngine.Core.Storage;\nusing VoxelEngine.Storage.Api;\n',
-              'Storage.Api import')
-
-          replace_once(
-              '            var brush = new VoxelBrush(table, pool, in palette);',
-              '''            var reads = new RegionReadSource(in table, in pool);\n            var mutations = new RegionMutationStore(in table, in pool);\n            IMaterialAuthoringCatalogue materials = palette.IsCreated\n                ? (IMaterialAuthoringCatalogue)palette\n                : null;\n            var brush = new VoxelBrush(reads, mutations, materials);''',
-              'VoxelBrush construction')
-
-          early = '''                        RequireBudget(in build.Brush, stage);\n                        table = build.Brush.Table;\n                        pool = build.Brush.Pool;\n                        return false;'''
-          if s.count(early) != 2:
-              raise RuntimeError(f'early copy-back: expected two matches, found {s.count(early)}')
-          s = s.replace(
-              early,
-              '''                        RequireBudget(in build.Brush, stage);\n                        return false;''')
-
-          replace_once(
-              '''            // RegionTable and BrickPool are handle-like structs, but their scalar bookkeeping\n            // (notably BrickPool's high-water mark) is copied by value. Publish the updated\n            // handles back to the owner or later allocations can reuse slots the castle owns.\n            table = build.Brush.Table;\n            pool = build.Brush.Pool;\n            build.Stage++;''',
-              '''            // Storage capability objects share their backing state; allocator/table bookkeeping\n            // stays inside Storage instead of escaping through VoxelBrush.\n            build.Stage++;''',
-              'final copy-back')
-
-          p.write_text(s)
-          PY
-
-          if git diff --quiet -- Assets/VoxelEngine/Structures/CastleBuilder.cs; then
-            echo 'CastleBuilder patch produced no diff' >&2
-            exit 1
-          fi
-          git diff --check -- Assets/VoxelEngine/Structures/CastleBuilder.cs
-          git diff --stat -- Assets/VoxelEngine/Structures/CastleBuilder.cs
-          git diff -- Assets/VoxelEngine/Structures/CastleBuilder.cs
-
-          git config user.name 'architecture-refactor-ci'
-          git config user.email 'architecture-refactor-ci@users.noreply.github.com'
-          git add Assets/VoxelEngine/Structures/CastleBuilder.cs
-          git commit -m 'Construct VoxelBrush through Storage API capabilities'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
       - name: Locate Unity editor
         id: unity
