@@ -1,0 +1,28 @@
+name: Cutover 13 terrain lookdev runtime audit
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-terrain-lookdev-runtime-audit.yml
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2e0fd4718d7c3d3b930201b13caa280cb07a93ec
+
+      - name: Audit TerrainLookdev profile and rendering ownership
+        shell: bash
+        run: |
+          echo '--- _profiles references ---'
+          grep -RIn --include='TerrainLookdev*.cs' '_profiles' Assets/Scenes/Showcase || true
+          echo '--- Runtime imports ---'
+          grep -RIn --include='TerrainLookdev*.cs' '^using VoxelEngine\..*Runtime' Assets/Scenes/Showcase || true
+          echo '--- VoxelRenderBridge references ---'
+          grep -RIn --include='TerrainLookdev*.cs' 'VoxelRenderBridge' Assets/Scenes/Showcase || true
+          echo '--- ProfileBlockStore references ---'
+          grep -RIn --include='TerrainLookdev*.cs' 'ProfileBlockStore' Assets/Scenes/Showcase || true
