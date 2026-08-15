@@ -1712,6 +1712,8 @@ At the end, generate an asmdef dependency report and verify:
 
 - [x] create Composition assembly/bootstrap
 - [x] route `ArchLookdev` rendering/presentation access through `RenderingComposition`; accepted at `8780cffe66a0e3e4ba75b524957d00b481ace971`, run `31907252082` with exact 387/374/13 baseline and zero compiler errors
+- [x] route `ArchLookdev` structure authoring through `StructuresComposition`; accepted at `05de54c3`, run `31907948874` with exact 387/374/13 baseline and zero compiler errors
+- [x] route `ShowcaseMultiplayerSession` through Composition-owned network facades; accepted at `28a3fda2`, run `31908243915` with exact 387/374/13 baseline and zero compiler errors
 - [ ] centralize concrete runtime wiring/disposal
 - [ ] remove scattered scene Runtime coupling where practical
 - [x] update WorldGen.Voxel asmdef to exact Api refs
