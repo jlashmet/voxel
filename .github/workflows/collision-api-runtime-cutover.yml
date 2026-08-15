@@ -1,0 +1,76 @@
+name: Collision Api Runtime cutover
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx
+          mkdir -p Assets/VoxelEngine/Collision/Api Assets/VoxelEngine/Collision/Runtime
+          for f in DdaTraversal HullExport SweptAabb VoxelRaycast; do
+            git mv "Assets/VoxelEngine/Collision/$f.cs" "Assets/VoxelEngine/Collision/Runtime/$f.cs"
+            git mv "Assets/VoxelEngine/Collision/$f.cs.meta" "Assets/VoxelEngine/Collision/Runtime/$f.cs.meta"
+          done
+          git mv Assets/VoxelEngine/Collision/VoxelEngine.Collision.asmdef Assets/VoxelEngine/Collision/Runtime/VoxelEngine.Collision.Runtime.asmdef
+          git mv Assets/VoxelEngine/Collision/VoxelEngine.Collision.asmdef.meta Assets/VoxelEngine/Collision/Runtime/VoxelEngine.Collision.Runtime.asmdef.meta
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, uuid
+
+          def simple_meta(path): Path(path).write_text(f"fileFormatVersion: 2\nguid: {uuid.uuid4().hex}\n")
+          def folder_meta(path): Path(path).write_text(f"fileFormatVersion: 2\nguid: {uuid.uuid4().hex}\nfolderAsset: yes\nDefaultImporter:\n  externalObjects: {{}}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n")
+          for folder in ('Api','Runtime'):
+              meta=Path(f'Assets/VoxelEngine/Collision/{folder}.meta')
+              if not meta.exists(): folder_meta(meta)
+
+          for name in ('DdaTraversal','HullExport','SweptAabb','VoxelRaycast'):
+              p=Path(f'Assets/VoxelEngine/Collision/Runtime/{name}.cs')
+              s=p.read_text()
+              if 'namespace VoxelEngine.Collision\n' not in s: raise SystemExit(f'missing namespace in {p}')
+              p.write_text(s.replace('namespace VoxelEngine.Collision\n','namespace VoxelEngine.Collision.Runtime\n',1))
+
+          api={'name':'VoxelEngine.Collision.Api','rootNamespace':'VoxelEngine.Collision.Api','references':[],'includePlatforms':[],'excludePlatforms':[],'allowUnsafeCode':False,'overrideReferences':False,'precompiledReferences':[],'autoReferenced':False,'defineConstraints':[],'versionDefines':[],'noEngineReferences':False}
+          Path('Assets/VoxelEngine/Collision/Api/VoxelEngine.Collision.Api.asmdef').write_text(json.dumps(api,indent=2)+'\n')
+          simple_meta('Assets/VoxelEngine/Collision/Api/VoxelEngine.Collision.Api.asmdef.meta')
+          runtime={'name':'VoxelEngine.Collision.Runtime','rootNamespace':'VoxelEngine.Collision.Runtime','references':['VoxelEngine.Collision.Api','VoxelEngine.Storage.Api','Unity.Collections','Unity.Mathematics'],'includePlatforms':[],'excludePlatforms':[],'allowUnsafeCode':True,'overrideReferences':False,'precompiledReferences':[],'autoReferenced':False,'defineConstraints':[],'versionDefines':[],'noEngineReferences':False}
+          Path('Assets/VoxelEngine/Collision/Runtime/VoxelEngine.Collision.Runtime.asmdef').write_text(json.dumps(runtime,indent=2)+'\n')
+
+          for path in ('Assets/Scenes/Showcase/VoxelShowcase.cs','Assets/Tests/EditMode/CollisionStorageBoundaryTests.cs','Assets/Tests/PlayMode/VisualCollisionParityTests.cs'):
+              p=Path(path); s=p.read_text()
+              if 'using VoxelEngine.Collision;\n' not in s: raise SystemExit(f'missing Collision using in {path}')
+              p.write_text(s.replace('using VoxelEngine.Collision;\n','using VoxelEngine.Collision.Runtime;\n',1))
+          p=Path('Assets/Scenes/Showcase/CharacterMotor.cs'); s=p.read_text()
+          s=s.replace('<see cref="Collision.SweptAabb"/>','<see cref="VoxelEngine.Collision.Runtime.SweptAabb"/>')
+          p.write_text(s)
+
+          def refs(path, remove=(), add=()):
+              p=Path(path); data=json.loads(p.read_text()); r=[x for x in data.get('references',[]) if x not in remove]
+              for x in add:
+                  if x not in r:r.append(x)
+              data['references']=r; p.write_text(json.dumps(data,indent=2)+'\n')
+          refs('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef',remove=('VoxelEngine.Collision',),add=('VoxelEngine.Collision.Runtime',))
+          refs('Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef',remove=('VoxelEngine.Collision',),add=('VoxelEngine.Collision.Runtime',))
+          refs('Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef',remove=('VoxelEngine.Collision',))
+          refs('Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef',remove=('VoxelEngine.Collision',),add=('VoxelEngine.Collision.Runtime',))
+          PY
+          git rm .github/workflows/collision-api-runtime-cutover.yml
+          git diff --check
+          if grep -RIn '"VoxelEngine.Collision"' Assets Packages --include='*.asmdef'; then echo stale broad Collision assembly reference >&2; exit 1; fi
+          if grep -RInE 'using VoxelEngine\.Collision;|namespace VoxelEngine\.Collision$' Assets Packages --include='*.cs'; then echo stale broad Collision namespace >&2; exit 1; fi
+          if grep -RInE 'VoxelEngine\.(Core|Net|Terrain|Structures|Rendering|Vegetation|Streaming).*Runtime' Assets/VoxelEngine/Collision/Runtime --include='*.cs' --include='*.asmdef'; then echo foreign runtime dependency >&2; exit 1; fi
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Collision Assets/Scenes/Showcase/VoxelShowcase.cs Assets/Scenes/Showcase/CharacterMotor.cs Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef Assets/Tests/EditMode/CollisionStorageBoundaryTests.cs Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef Assets/Tests/PlayMode/VisualCollisionParityTests.cs Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef
+          git commit -m 'Split Collision into Api and Runtime'
+          git push origin HEAD:${{ github.ref_name }}
