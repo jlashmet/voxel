@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 4 Structures — Runtime dependency migration / physical Runtime move  
+**Current focus:** Cutover 5 Edits — final Api/Runtime move and obsolete wrapper cleanup
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -22,8 +22,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 1 — Foundation | **Complete** | `IntMath` clean-moved to `VoxelEngine.Foundation`; consumers and Core bridge reference migrated | none |
 | 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency, mutation, focused surface-query and authoring-validation capabilities; whole-cell block authoring; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
-| 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts live in `VoxelEngine.Structures.Api`; `Structures.Runtime` assembly created with the allowed dependency set; feature VM/generation/rasterizer/Arch/Bonded/emitters plus CastleBuilder/VoxelBrush/MasonryWeathering are physically under `Structures/Runtime` with GUIDs preserved; feature-runtime Storage validation dependencies route through Storage.Api; retained-profile writes route through `Structures.Api.IProfileBlockWriter`; retained-profile reads exposed through Storage.Api `IProfileBlockReadSource` and Rendering consumes that read-only boundary; `VoxelBrush` consumes Storage.Api read/mutation/catalogue capabilities with no physical Storage handle escape; mutable `ProfileBlockStore` is physically under `Structures/Runtime`; stale `VoxelEngine.Core.Features` imports are removed from the WorldGen Voxel adapter; CastleBuilder orchestration consumes Storage.Api read/mutation/material-authoring capabilities and no longer accepts physical Storage handles; semantic `Mat` IDs plus `CastlePlan`/`CastleLayout` landmark geometry live in Structures.Api and WorldGen Voxel no longer references the broad Structures assembly; the empty broad `VoxelEngine.Structures` assembly and all stale asmdef references are removed; canonical ramp direction bits and first directional Kentridge consumers use Structures.Api; retained-profile logical value/read contract extracted to Storage.Api; Kentridge compatibility seam deleted | finish Runtime namespaces |
-| 5 — Edits | **In progress** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |
+| 4 — Structures | **Complete** | `Structures.Api` owns canonical authoring/material/layout contracts; all implementation (feature VM/generation/rasterizer/emitters, retained-profile store, CastleBuilder, VoxelBrush, MasonryWeathering) lives under `Structures/Runtime` with Runtime namespaces and preserved Unity GUIDs; Storage dependencies route through Storage.Api; Rendering uses the retained-profile read boundary; WorldGen Voxel is Api-only; broad Structures assembly, legacy `VoxelEngine.Core.Features` namespace, and Kentridge compatibility seam are gone | none |
+| 5 — Edits | **In progress — current** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |
 | 6 — StructuralIntegrity | **Not started** | — | full cutover |
 | 7 — Tiering | **Not started** | — | full cutover |
 | 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `6209dfd3ffe2210073395ee610c9a5907cf2d767` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate removes the now-empty broad `VoxelEngine.Structures` assembly and its meta file, plus the four stale broad-assembly references from Showcase, EditMode tests, PlayMode tests, and CI Editor; those consumers already reference the explicit Structures.Api/Runtime assemblies they actually use. The preceding accepted gate `b4e6ec2812a33c4efda2cd27488826cfde5b4339` accepted the top-level Structures implementation move at the same 382/369/13 baseline.
+- Latest accepted code gate: `2d35d46a3e74935e224e70ee2038c5b0629322b5` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate completes the Structures cutover: Runtime declarations and implementation consumers now use `VoxelEngine.Structures.Runtime` / `.Emitters`; the last two fully-qualified legacy emitter references were repaired; no live `VoxelEngine.Core.Features` or broad `VoxelEngine.Structures` namespace remains; WorldGen still has no Structures.Runtime dependency. The preceding accepted gate `6209dfd3ffe2210073395ee610c9a5907cf2d767` removed the empty broad Structures assembly at the same 382/369/13 baseline.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -732,16 +732,17 @@ Do **not** add any engine reference to `MountingForce.WorldGen.Core` or `Mountin
 - [x] Mutable `ProfileBlockStore` is physically under `Structures/Runtime` with its original Unity GUID preserved.
 - [x] WorldGen Voxel authoring cleanup removed all stale `using VoxelEngine.Core.Features;` imports exposed by the retained-profile owner move; no compatibility namespace was added.
 - [x] Profile-store Runtime move + WorldGen import cleanup accepted by CI at `00f1ddfc89af4fa52aa03c79c4b922bf5a9dd70d`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [ ] Structures.Api/Runtime physical move and namespace cutover complete.
+- [x] Final Structures Runtime namespace cutover accepted by CI at `2d35d46a3e74935e224e70ee2038c5b0629322b5`: 382 total / 369 passed / exact same 13 known baseline failures.
+- [x] Structures.Api/Runtime physical move and namespace cutover complete.
 
 ### Gate
 
-- [ ] no `VoxelEngine.Core.Features` namespace remains;
+- [x] no `VoxelEngine.Core.Features` namespace remains;
 - [x] Kentridge catalogue builders compile against Structures.Api for extracted authoring contracts;
 - [x] compatibility encoding file deleted;
 - [x] feature parity/generation tests pass;
-- [ ] CastleBuilder is Runtime implementation, not public cross-system vocabulary;
-- [ ] no external package references Structures.Runtime.
+- [x] CastleBuilder is Runtime implementation, not public cross-system vocabulary;
+- [x] no external package references Structures.Runtime.
 
 ---
 
@@ -1558,7 +1559,7 @@ At the end, generate an asmdef dependency report and verify:
 - [x] extract castle layout/material semantics to Structures.Api and remove WorldGen Voxel broad Structures dependency
 - [x] move existing CastleBuilder/etc. under Runtime
 - [x] remove broad Structures assembly and stale asmdef references
-- [ ] normalize Structures Runtime namespaces
+- [x] normalize Structures Runtime namespaces
 - [x] rename `CatalogueLoader` to `FeatureCatalogueBuilder`
 - [x] update Kentridge Voxel catalogue builders
 - [x] delete `KentridgeShapeProgramCompatibility.cs`
