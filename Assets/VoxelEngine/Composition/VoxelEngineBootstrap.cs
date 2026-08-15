@@ -28,6 +28,24 @@ namespace VoxelEngine.Composition
     /// </summary>
     public static class VoxelEngineBootstrap
     {
+        /// <summary>
+        /// Converts an application memory budget into a mixed-brick capacity without exposing
+        /// Storage.Runtime physical byte layout to scene/application code.
+        /// </summary>
+        public static int ClampMixedBrickCapacityToBudget(
+            int requestedCapacity,
+            int budgetBytes,
+            int minimumCapacity = 4096)
+        {
+            if (minimumCapacity <= 0)
+                throw new ArgumentOutOfRangeException(nameof(minimumCapacity));
+
+            int budgetCapacity = Math.Max(
+                minimumCapacity,
+                budgetBytes / VoxelDimensions.BytesPerMixedBrick);
+            return Math.Min(Math.Max(requestedCapacity, minimumCapacity), budgetCapacity);
+        }
+
         public static IVoxelStorageRuntime CreateStorage(
             int expectedResidentRegions,
             int mixedBrickCapacity,
