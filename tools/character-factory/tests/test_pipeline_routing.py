@@ -76,6 +76,29 @@ class PipelineRoutingTests(unittest.TestCase):
         self.assertIsNotNone(spec.rig)
         self.assertIsNone(spec.rigid)
 
+    def test_clothing_null_socket_stays_null(self) -> None:
+        payload = {
+            "id": "robe",
+            "assetType": "clothing",
+            "views": {"front": "front.png"},
+            "generator": {"python": "/tmp/hunyuan/bin/python"},
+            "rig": {
+                "blender": "/Applications/Blender.app/Contents/MacOS/Blender",
+                "canonicalBody": "canonical.glb",
+            },
+            "runtimePart": {
+                "slot": "Torso",
+                "socketBoneName": None,
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            spec_path = Path(directory) / "robe.json"
+            spec_path.write_text(json.dumps(payload), encoding="utf-8")
+            spec = BuildSpec.load(spec_path, validate_paths=False)
+
+        self.assertIsNone(spec.runtime_part.socket_bone_name)
+
     def test_weapon_requires_socket_metadata(self) -> None:
         payload = {
             "id": "sword",
