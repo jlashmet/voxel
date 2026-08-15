@@ -6,6 +6,7 @@ using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Collision.Runtime;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Tiering.Api;
 
 namespace VoxelEngine.Showcase
@@ -617,7 +618,8 @@ namespace VoxelEngine.Showcase
             while (cursor.MoveNext())
             {
                 int3 voxel = cursor.Current;
-                if (!VoxelAccess.IsSolid(ref _world.Table, in _world.Pool, voxel)) continue;
+                if (!_world.SurfaceQuery.TryRead(voxel, out VoxelCell cell) ||
+                    cell.BaseMaterialId == VoxelGrid.MaterialEmpty) continue;
                 hit = voxel;
                 return true;
             }
