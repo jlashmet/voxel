@@ -1,0 +1,31 @@
+name: Net Runtime move inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-runtime-move-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          clean: false
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo '=== Broad Net asmdef consumers ==='
+          grep -RIn '"VoxelEngine.Net"' Assets Packages --include='*.asmdef' | sort || true
+          echo '=== Net namespaces outside Net ==='
+          grep -RInE 'using VoxelEngine\.Net(\.|;)|VoxelEngine\.Net\.' Assets Packages --include='*.cs' | grep -v '^Assets/VoxelEngine/Net/' | sort || true
+          echo '=== Remaining ownership symbols ==='
+          grep -RInE 'RegionStore|ReplicationRegionStore|RegionHasher|ServerRegionResidency' Assets Packages --include='*.cs' | sort || true
+          echo '=== Net physical-storage refs ==='
+          grep -RInE 'BrickPool|BrickRef|RegionTable|VoxelAccess|VoxelEngine\.Core\.Storage|VoxelEngine\.Storage\.Runtime' Assets/VoxelEngine/Net --include='*.cs' --include='*.asmdef' | sort || true
+          echo '=== Net top-level source dirs ==='
+          find Assets/VoxelEngine/Net -maxdepth 2 -type f \( -name '*.cs' -o -name '*.asmdef' \) | sort
