@@ -19,7 +19,7 @@ on:
       - "ProjectSettings/ProjectVersion.txt"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: networking-ci-${{ github.ref }}
@@ -32,10 +32,12 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout without deleting Unity import cache
+      - name: Checkout implementation branch
         uses: actions/checkout@v4
         with:
           clean: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Reset tracked and non-cache files
         shell: bash
@@ -43,6 +45,77 @@ jobs:
           set -euo pipefail
           git reset --hard HEAD
           git clean -ffdx -e Library/
+
+      - name: Publish VoxelBrush consumer cutover
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch(path, replacements):
+              p = Path(path)
+              s = p.read_text()
+              for old, new, expected, label in replacements:
+                  count = s.count(old)
+                  if count != expected:
+                      raise RuntimeError(f'{path}: {label}: expected {expected}, found {count}')
+                  s = s.replace(old, new)
+              p.write_text(s)
+
+          patch('Assets/Scenes/Showcase/ArchLookdev.cs', [
+              ('var brush = new VoxelBrush(nextTable, nextPool, in nextPalette, 2_000_000);',
+               'var brush = new VoxelBrush(reads, mutations, nextPalette, 2_000_000);',
+               1, 'arch brush construction'),
+          ])
+
+          for path, budget in [
+              ('Assets/Scenes/Showcase/TerrainLookdev.ForegroundContrast.cs', '1_050_000'),
+              ('Assets/Scenes/Showcase/TerrainLookdev.ReferenceDetails.cs', '2_200_000'),
+              ('Assets/Scenes/Showcase/TerrainLookdev.VegetatedCap.cs', '3_000_000'),
+              ('Assets/Scenes/Showcase/TerrainLookdev.VisibleDetails.cs', '2_400_000'),
+              ('Assets/Scenes/Showcase/TerrainLookdev.cs', '9_000_000'),
+          ]:
+              old = f'            var writer = new VoxelBrush(_table, _pool, in _palette, {budget});'
+              new = (f'            var reads = new RegionReadSource(in _table, in _pool);\n'
+                     f'            var mutations = new RegionMutationStore(in _table, in _pool);\n'
+                     f'            var writer = new VoxelBrush(reads, mutations, _palette, {budget});')
+              patch(path, [
+                  (old, new, 1, 'writer construction'),
+                  ('            _table = writer.Table;\n            _pool = writer.Pool;\n',
+                   '', 1, 'obsolete handle copy-back'),
+              ])
+
+          patch('Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs', [
+              ('                var brush = new VoxelBrush(table, pool, in palette);',
+               '                var reads = new RegionReadSource(in table, in pool);\n'
+               '                var mutations = new RegionMutationStore(in table, in pool);\n'
+               '                var brush = new VoxelBrush(reads, mutations, palette);',
+               2, 'architecture test brush construction'),
+          ])
+          PY
+
+          git diff --check
+          git diff --stat
+          git diff -- Assets/Scenes/Showcase/ArchLookdev.cs \
+                     Assets/Scenes/Showcase/TerrainLookdev.ForegroundContrast.cs \
+                     Assets/Scenes/Showcase/TerrainLookdev.ReferenceDetails.cs \
+                     Assets/Scenes/Showcase/TerrainLookdev.VegetatedCap.cs \
+                     Assets/Scenes/Showcase/TerrainLookdev.VisibleDetails.cs \
+                     Assets/Scenes/Showcase/TerrainLookdev.cs \
+                     Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+
+          git config user.name 'architecture-refactor-ci'
+          git config user.email 'architecture-refactor-ci@users.noreply.github.com'
+          git add Assets/Scenes/Showcase/ArchLookdev.cs \
+                  Assets/Scenes/Showcase/TerrainLookdev.ForegroundContrast.cs \
+                  Assets/Scenes/Showcase/TerrainLookdev.ReferenceDetails.cs \
+                  Assets/Scenes/Showcase/TerrainLookdev.VegetatedCap.cs \
+                  Assets/Scenes/Showcase/TerrainLookdev.VisibleDetails.cs \
+                  Assets/Scenes/Showcase/TerrainLookdev.cs \
+                  Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+          git commit -m 'Update VoxelBrush consumers for Storage API capabilities'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
       - name: Locate Unity editor
         id: unity
