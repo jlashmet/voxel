@@ -1,23 +1,21 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction
 {
     /// <summary>
     /// Derived raster mesh for authoritative water (material 11) and cascade (material 16) voxels.
-    ///
-    /// Water deliberately does not participate in terrain Transvoxel: joining liquid occupancy to
-    /// the terrain field erases the water/shore boundary and makes transparent shading impossible.
-    /// This cache instead emits only liquid/air faces, greedily merging them within each 8^3 brick.
-    /// The voxel storage remains authoritative; this is presentation-only derived geometry.
+    /// Water remains presentation-only derived geometry; authoritative voxel memory is read through
+    /// Storage.Api and no physical pool/region representation crosses into Rendering.
     /// </summary>
     public sealed class CpuWaterSurfaceChunkCache : IDisposable
     {
-        private const int E = VoxelDimensions.BrickEdge;
+        private const int E = VoxelReadGrid.BlockEdge;
         private const int BricksPerAxis = 16;
         private const int ChunkShift = 4;
         private const int VoxelsPerAxis = BricksPerAxis * E;
@@ -132,7 +130,12 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly Plane[] _frustumPlanes = new Plane[6];
         private readonly List<SmoothSurfaceVertex> _vertices = new(4096);
         private readonly List<uint> _indices = new(6144);
-        private readonly byte[] _brickMaterials = new byte[VoxelDimensions.VoxelsPerBrick];
+        private readonly NativeArray<byte> _brickMaterials =
+            new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
+        private readonly NativeArray<ushort> _surfaceScratch =
+            new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
+        private readonly NativeArray<byte> _boundaryScratch =
+            new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
         private readonly byte[] _mask = new byte[E * E];
         private BuildState _build;
 
@@ -152,17 +155,18 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         }
         public IReadOnlyList<Entry> Visible => _visible;
 
-        public void InvalidateSurfaceBricks(ref RegionTable table, in BrickPool pool,
+        public void InvalidateSurfaceBricks(IRegionReadSource storage,
                                             IReadOnlyList<int3> worldBricks)
         {
-            if (worldBricks == null) return;
+            if (storage == null || worldBricks == null) return;
 
+            RegionReadView cachedRegion = default;
             for (int i = 0; i < worldBricks.Count; i++)
             {
                 int3 worldBrick = worldBricks[i];
                 int3 chunk = WorldBrickChunk(worldBrick);
-                bool containsWater = TryGetBrick(ref table, worldBrick, out BrickRef brick)
-                                  && ContainsWater(in pool, brick);
+                bool containsWater = TryLoadBrickMaterials(storage, worldBrick, ref cachedRegion)
+                                  && LoadedBrickContainsWater();
 
                 if (containsWater)
                 {
@@ -179,8 +183,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                     Invalidate(chunk);
                 }
 
-                // A changed surface brick can expose/hide a face owned by a neighbouring water
-                // chunk. Only touch neighbours at actual 16-brick chunk boundaries.
                 int rx = worldBrick.x & (BricksPerAxis - 1);
                 int ry = worldBrick.y & (BricksPerAxis - 1);
                 int rz = worldBrick.z & (BricksPerAxis - 1);
@@ -210,10 +212,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
         }
 
-        public void Prepare(ref RegionTable table, in BrickPool pool, Camera camera,
+        public void Prepare(IRegionReadSource storage, Camera camera,
                             float voxelSize, double budgetMs = 0.15)
         {
-            DropNoLongerResident(ref table);
+            if (storage == null) return;
+            DropNoLongerResident(storage);
             if (camera == null || (_dirty.Count == 0 && !_build.Active)) return;
 
             double deadline = Time.realtimeSinceStartupAsDouble
@@ -221,7 +224,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             do
             {
                 if (!_build.Active && !BeginNearestBuild(camera.transform.position, voxelSize)) break;
-                if (StepBuild(ref table, in pool, voxelSize)) FinishBuild();
+                if (StepBuild(storage, voxelSize)) FinishBuild();
             }
             while (Time.realtimeSinceStartupAsDouble < deadline);
         }
@@ -287,18 +290,18 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             return false;
         }
 
-        private bool StepBuild(ref RegionTable table, in BrickPool pool, float voxelSize)
+        private bool StepBuild(IRegionReadSource storage, float voxelSize)
         {
             int end = math.min(_buildBricks.Count, _build.Cursor + BricksPerSlice);
+            RegionReadView cachedRegion = default;
             for (int i = _build.Cursor; i < end; i++)
             {
                 int3 worldBrick = _buildBricks[i];
-                if (!TryGetBrick(ref table, worldBrick, out BrickRef brick)
-                    || !ContainsWater(in pool, brick))
+                if (!TryLoadBrickMaterials(storage, worldBrick, ref cachedRegion)
+                    || !LoadedBrickContainsWater())
                     continue;
 
-                LoadBrickMaterials(in pool, brick);
-                EmitBrick(ref table, in pool, worldBrick * E, voxelSize);
+                EmitBrick(storage, worldBrick * E, voxelSize);
             }
 
             _build.Cursor = end;
@@ -335,9 +338,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _indices.Clear();
         }
 
-        private void EmitBrick(ref RegionTable table, in BrickPool pool, int3 brickBaseVoxel,
-                               float voxelSize)
+        private void EmitBrick(IRegionReadSource storage, int3 brickBaseVoxel, float voxelSize)
         {
+            RegionReadView cachedRegion = default;
             for (int axis = 0; axis < 3; axis++)
             {
                 int axisA = (axis + 1) % 3;
@@ -345,15 +348,16 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 for (int sign = -1; sign <= 1; sign += 2)
                 for (int layer = 0; layer < E; layer++)
                 {
-                    BuildMask(ref table, in pool, brickBaseVoxel,
+                    BuildMask(storage, ref cachedRegion, brickBaseVoxel,
                               axis, axisA, axisB, sign, layer);
                     MergeMask(brickBaseVoxel, axis, axisA, axisB, sign, layer, voxelSize);
                 }
             }
         }
 
-        private void BuildMask(ref RegionTable table, in BrickPool pool, int3 brickBaseVoxel,
-                               int axis, int axisA, int axisB, int sign, int layer)
+        private void BuildMask(IRegionReadSource storage, ref RegionReadView cachedRegion,
+                               int3 brickBaseVoxel, int axis, int axisA, int axisB,
+                               int sign, int layer)
         {
             int strideAxis = s_Strides[axis];
             int strideA = s_Strides[axisA];
@@ -384,14 +388,12 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                     local[axis] = neighbourLayer;
                     local[axisA] = a;
                     local[axisB] = b;
-                    neighbourMaterial = VoxelAccess.GetVoxel(ref table, in pool,
-                                                              brickBaseVoxel + local);
+                    neighbourMaterial = TryReadWorldMaterial(
+                        storage, ref cachedRegion, brickBaseVoxel + local, out byte sampled)
+                        ? sampled : VoxelGrid.MaterialEmpty;
                 }
 
-                // Only liquid/air boundaries need a water face. Terrain/structure faces already
-                // own the solid side of a shoreline and drawing a coplanar liquid face there would
-                // create z-fighting.
-                _mask[a + b * E] = neighbourMaterial == VoxelDimensions.MaterialEmpty
+                _mask[a + b * E] = neighbourMaterial == VoxelGrid.MaterialEmpty
                                  ? material : (byte)0;
             }
         }
@@ -475,47 +477,53 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             return v;
         }
 
-        private static bool TryGetBrick(ref RegionTable table, int3 worldBrick, out BrickRef brick)
+        private bool TryLoadBrickMaterials(IRegionReadSource storage, int3 worldBrick,
+                                           ref RegionReadView cachedRegion)
         {
-            int3 regionCoord = new(worldBrick.x >> VoxelDimensions.RegionEdgeLog2,
-                                   worldBrick.y >> VoxelDimensions.RegionEdgeLog2,
-                                   worldBrick.z >> VoxelDimensions.RegionEdgeLog2);
-            if (!table.TryGetRegion(regionCoord, out Region region))
+            if (!cachedRegion.IsCreated || !cachedRegion.ContainsWorldBlock(worldBrick))
             {
-                brick = BrickRef.Empty;
-                return false;
+                if (!storage.TryAcquireRegionContainingBlock(worldBrick, out cachedRegion))
+                {
+                    cachedRegion = default;
+                    return false;
+                }
             }
 
-            int bx = worldBrick.x & VoxelDimensions.RegionEdgeMask;
-            int by = worldBrick.y & VoxelDimensions.RegionEdgeMask;
-            int bz = worldBrick.z & VoxelDimensions.RegionEdgeMask;
-            brick = region.GetBrick(bx, by, bz);
-            return true;
+            return cachedRegion.TryCopyWorldBlock(
+                worldBrick, _brickMaterials, _surfaceScratch, _boundaryScratch, 0);
         }
 
-        private static bool ContainsWater(in BrickPool pool, BrickRef brick)
+        private bool LoadedBrickContainsWater()
         {
-            if (brick.IsEmpty) return false;
-            if (brick.IsUniform) return IsWater(brick.UniformMaterial);
-
-            int offset = pool.VoxelOffset(brick.PoolIndex);
-            for (int i = 0; i < VoxelDimensions.VoxelsPerBrick; i++)
-                if (IsWater(pool.Voxels[offset + i])) return true;
+            for (int i = 0; i < VoxelReadGrid.VoxelsPerBlock; i++)
+                if (IsWater(_brickMaterials[i])) return true;
             return false;
         }
 
-        private void LoadBrickMaterials(in BrickPool pool, BrickRef brick)
+        private static bool TryReadWorldMaterial(IRegionReadSource storage,
+                                                 ref RegionReadView cachedRegion,
+                                                 int3 worldVoxel,
+                                                 out byte material)
         {
-            if (brick.IsUniform)
+            int3 regionCoord = worldVoxel >> VoxelGrid.RegionVoxelEdgeLog2;
+            if (!cachedRegion.IsCreated || math.any(cachedRegion.RegionCoord != regionCoord))
             {
-                for (int i = 0; i < _brickMaterials.Length; i++)
-                    _brickMaterials[i] = brick.UniformMaterial;
-                return;
+                if (!storage.TryAcquireRegion(regionCoord, out cachedRegion))
+                {
+                    cachedRegion = default;
+                    material = VoxelGrid.MaterialEmpty;
+                    return false;
+                }
             }
 
-            int offset = pool.VoxelOffset(brick.PoolIndex);
-            for (int i = 0; i < _brickMaterials.Length; i++)
-                _brickMaterials[i] = pool.Voxels[offset + i];
+            int3 localVoxel = worldVoxel - (regionCoord << VoxelGrid.RegionVoxelEdgeLog2);
+            if (!cachedRegion.TryReadCell(localVoxel, out VoxelCell cell))
+            {
+                material = VoxelGrid.MaterialEmpty;
+                return false;
+            }
+            material = cell.BaseMaterialId;
+            return true;
         }
 
         private static bool IsWater(byte material) => material == 11 || material == 16;
@@ -535,15 +543,15 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             new(worldBrick.x >> ChunkShift, worldBrick.y >> ChunkShift, worldBrick.z >> ChunkShift);
 
         private static int3 ChunkRegion(int3 chunk) =>
-            new(chunk.x >> 2, chunk.y >> 2, chunk.z >> 2);
+            chunk >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 - ChunkShift);
 
-        private void DropNoLongerResident(ref RegionTable table)
+        private void DropNoLongerResident(IRegionReadSource storage)
         {
             if (_waterBricks.Count == 0) return;
             List<int3> gone = null;
             foreach (var pair in _waterBricks)
             {
-                if (table.IsResident(ChunkRegion(pair.Key))) continue;
+                if (storage.IsRegionResident(ChunkRegion(pair.Key))) continue;
                 (gone ??= new List<int3>()).Add(pair.Key);
             }
 
@@ -577,6 +585,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _visible.Clear();
             _vertices.Clear();
             _indices.Clear();
+            if (_brickMaterials.IsCreated) _brickMaterials.Dispose();
+            if (_surfaceScratch.IsCreated) _surfaceScratch.Dispose();
+            if (_boundaryScratch.IsCreated) _boundaryScratch.Dispose();
             _build = default;
         }
     }
