@@ -1,0 +1,102 @@
+name: Tiering Api cutover publisher
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== Tiering consumers before cutover ==='
+          grep -RInE 'VoxelEngine\.Tiering|\b(DeviceTierBudget|DeviceTier)\b' Assets Packages --include='*.cs' --include='*.asmdef' | sort || true
+
+          mkdir -p Assets/VoxelEngine/Tiering/Api
+          git mv Assets/VoxelEngine/Tiering/DeviceTierBudget.cs Assets/VoxelEngine/Tiering/Api/DeviceTierBudget.cs
+          git mv Assets/VoxelEngine/Tiering/DeviceTierBudget.cs.meta Assets/VoxelEngine/Tiering/Api/DeviceTierBudget.cs.meta
+          git mv Assets/VoxelEngine/Tiering/VoxelEngine.Tiering.asmdef Assets/VoxelEngine/Tiering/Api/VoxelEngine.Tiering.Api.asmdef
+          git mv Assets/VoxelEngine/Tiering/VoxelEngine.Tiering.asmdef.meta Assets/VoxelEngine/Tiering/Api/VoxelEngine.Tiering.Api.asmdef.meta
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re, uuid
+
+          api_meta=Path('Assets/VoxelEngine/Tiering/Api.meta')
+          if not api_meta.exists():
+              api_meta.write_text(
+                  'fileFormatVersion: 2\n'
+                  f'guid: {uuid.uuid4().hex}\n'
+                  'folderAsset: yes\n'
+                  'DefaultImporter:\n'
+                  '  externalObjects: {}\n'
+                  '  userData: \n'
+                  '  assetBundleName: \n'
+                  '  assetBundleVariant: \n')
+
+          target=Path('Assets/VoxelEngine/Tiering/Api/DeviceTierBudget.cs')
+          text=target.read_text()
+          if text.count('namespace VoxelEngine.Tiering\n') != 1:
+              raise SystemExit('unexpected DeviceTierBudget namespace')
+          target.write_text(text.replace('namespace VoxelEngine.Tiering\n', 'namespace VoxelEngine.Tiering.Api\n', 1))
+
+          for root in (Path('Assets'), Path('Packages')):
+              for p in root.rglob('*.cs'):
+                  if p == target:
+                      continue
+                  s=p.read_text(errors='ignore')
+                  n=s.replace('using VoxelEngine.Tiering;\n', 'using VoxelEngine.Tiering.Api;\n')
+                  n=re.sub(r'VoxelEngine\.Tiering\.(DeviceTierBudget|DeviceTier)\b', r'VoxelEngine.Tiering.Api.\1', n)
+                  if n != s:
+                      p.write_text(n)
+
+          target_asm=Path('Assets/VoxelEngine/Tiering/Api/VoxelEngine.Tiering.Api.asmdef')
+          asm=json.loads(target_asm.read_text())
+          asm['name']='VoxelEngine.Tiering.Api'
+          asm['rootNamespace']='VoxelEngine.Tiering.Api'
+          asm['references']=[]
+          asm['allowUnsafeCode']=False
+          asm['autoReferenced']=False
+          target_asm.write_text(json.dumps(asm, indent=2)+'\n')
+
+          for root in (Path('Assets'), Path('Packages')):
+              for p in root.rglob('*.asmdef'):
+                  if p == target_asm:
+                      continue
+                  data=json.loads(p.read_text())
+                  refs=data.get('references', [])
+                  changed=False
+                  for i, ref in enumerate(refs):
+                      if ref == 'VoxelEngine.Tiering':
+                          refs[i]='VoxelEngine.Tiering.Api'
+                          changed=True
+                  if changed:
+                      data['references']=refs
+                      p.write_text(json.dumps(data, indent=2)+'\n')
+          PY
+
+          git rm .github/workflows/tiering-api-cutover.yml
+          git diff --check
+          test -f Assets/VoxelEngine/Tiering/Api/DeviceTierBudget.cs
+          test -f Assets/VoxelEngine/Tiering/Api/VoxelEngine.Tiering.Api.asmdef
+          test ! -e Assets/VoxelEngine/Tiering/DeviceTierBudget.cs
+          test ! -e Assets/VoxelEngine/Tiering/VoxelEngine.Tiering.asmdef
+          test ! -d Assets/VoxelEngine/Tiering/Runtime
+          ! grep -RIn 'namespace VoxelEngine.Tiering$' Assets Packages --include='*.cs'
+          ! grep -RIn '"VoxelEngine.Tiering"' Assets Packages --include='*.asmdef'
+          ! grep -RIn 'VoxelEngine.Core' Assets/VoxelEngine/Tiering --include='*.asmdef'
+
+          echo '=== Tiering consumers after cutover ==='
+          grep -RInE 'VoxelEngine\.Tiering|\b(DeviceTierBudget|DeviceTier)\b' Assets Packages --include='*.cs' --include='*.asmdef' | sort || true
+          git status --short
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets Packages
+          git commit -m 'Cut over Tiering to Api assembly'
+          git push origin HEAD:${{ github.ref_name }}
