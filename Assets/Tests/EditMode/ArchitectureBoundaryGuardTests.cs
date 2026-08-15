@@ -8,8 +8,7 @@ using NUnit.Framework;
 namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>
-    /// Enforces the subsystem assembly rules while the architecture migration is in progress.
-    /// New Api/Runtime assemblies become protected as soon as they are added.
+    /// Permanently enforces the engine subsystem assembly boundaries.
     /// </summary>
     public sealed class ArchitectureBoundaryGuardTests
     {
@@ -24,6 +23,10 @@ namespace VoxelEngine.Tests.EditMode
         private static readonly Regex QuotedStringRegex = new Regex(
             "\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
+
+        private static readonly Regex GuidRegex = new Regex(
+            "^guid:\\s*(?<value>[0-9a-fA-F]{32})\\s*$",
+            RegexOptions.Compiled | RegexOptions.Multiline);
 
         private static string RepoRoot
         {
@@ -103,6 +106,67 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void CompositionIsOnlyProductionRuntimeWiringAssembly()
+        {
+            var violations = new List<string>();
+
+            foreach (Asmdef asmdef in EnumerateProjectAsmdefs())
+            {
+                if (!IsProductionAsmdef(asmdef.RelativePath)
+                    || string.Equals(asmdef.Name, "VoxelEngine.Composition", StringComparison.Ordinal))
+                    continue;
+
+                foreach (string reference in asmdef.References)
+                {
+                    if (reference.StartsWith("VoxelEngine.", StringComparison.Ordinal)
+                        && reference.EndsWith(".Runtime", StringComparison.Ordinal))
+                    {
+                        violations.Add(asmdef.Name + " -> " + reference + " (" + asmdef.RelativePath + ")");
+                    }
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Composition is the sole production assembly allowed to wire concrete VoxelEngine Runtime assemblies. " +
+                "Tests and Editor tooling may reference implementations explicitly.\n\n" +
+                string.Join("\n", violations));
+        }
+
+        [Test]
+        public void ProductionSourcesDoNotReferenceVoxelEngineCore()
+        {
+            string[] roots =
+            {
+                Path.Combine(RepoRoot, "Assets"),
+                Path.Combine(RepoRoot, "Packages"),
+            };
+            string[] extensions = { ".cs", ".asmdef", ".asmref", ".json" };
+            var violations = new List<string>();
+
+            foreach (string root in roots)
+            {
+                if (!Directory.Exists(root))
+                    continue;
+
+                foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                {
+                    if (!extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                        continue;
+
+                    string source = File.ReadAllText(path);
+                    if (source.IndexOf("VoxelEngine.Core", StringComparison.Ordinal) < 0)
+                        continue;
+
+                    violations.Add(ToRepoRelativePath(path));
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Production source and assembly metadata may not reference the deleted VoxelEngine.Core namespace or assembly.\n\n" +
+                string.Join("\n", violations));
+        }
+
+        [Test]
         public void RenderingReadPathUsesStorageApiForPhysicalReads()
         {
             string renderingRoot = Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime");
@@ -139,7 +203,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.IsEmpty(violations,
                 "Rendering's authoritative read path must consume Storage through Storage.Api " +
-                "read views, not physical Core storage representation.\n\n" +
+                "read views, not physical storage representation.\n\n" +
                 string.Join("\n", violations));
         }
 
@@ -154,6 +218,32 @@ namespace VoxelEngine.Tests.EditMode
                 .ToArray();
         }
 
+        private static IReadOnlyList<Asmdef> EnumerateProjectAsmdefs()
+        {
+            var paths = new List<string>();
+            string assets = Path.Combine(RepoRoot, "Assets");
+            string packages = Path.Combine(RepoRoot, "Packages");
+
+            if (Directory.Exists(assets))
+                paths.AddRange(Directory.EnumerateFiles(assets, "*.asmdef", SearchOption.AllDirectories));
+            if (Directory.Exists(packages))
+                paths.AddRange(Directory.EnumerateFiles(packages, "*.asmdef", SearchOption.AllDirectories));
+
+            return paths
+                .Select(ParseAsmdef)
+                .OrderBy(a => a.RelativePath, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static bool IsProductionAsmdef(string relativePath)
+        {
+            string normalized = relativePath.Replace('\\', '/');
+            return normalized.IndexOf("/Tests/", StringComparison.OrdinalIgnoreCase) < 0
+                   && normalized.IndexOf("/Test/", StringComparison.OrdinalIgnoreCase) < 0
+                   && normalized.IndexOf("/Editor/", StringComparison.OrdinalIgnoreCase) < 0
+                   && !normalized.StartsWith("Assets/Tests/", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static Asmdef ParseAsmdef(string path)
         {
             string json = File.ReadAllText(path);
@@ -165,22 +255,48 @@ namespace VoxelEngine.Tests.EditMode
             if (block.Success)
             {
                 foreach (Match match in QuotedStringRegex.Matches(block.Groups["value"].Value))
-                {
-                    string reference = match.Groups["value"].Value;
-                    // Target VoxelEngine subsystem asmdefs use named references. Existing GUID
-                    // references are intentionally ignored until their owner is migrated.
-                    if (!reference.StartsWith("GUID:", StringComparison.Ordinal))
-                        references.Add(reference);
-                }
+                    references.Add(ResolveVoxelEngineReference(match.Groups["value"].Value));
             }
 
+            return new Asmdef(nameMatch.Groups["value"].Value, ToRepoRelativePath(path), references);
+        }
+
+        private static string ResolveVoxelEngineReference(string reference)
+        {
+            if (!reference.StartsWith("GUID:", StringComparison.Ordinal))
+                return reference;
+
+            string guid = reference.Substring("GUID:".Length);
+            string root = Path.Combine(RepoRoot, "Assets", "VoxelEngine");
+            if (!Directory.Exists(root))
+                return reference;
+
+            foreach (string metaPath in Directory.EnumerateFiles(root, "*.asmdef.meta", SearchOption.AllDirectories))
+            {
+                Match guidMatch = GuidRegex.Match(File.ReadAllText(metaPath));
+                if (!guidMatch.Success
+                    || !string.Equals(guidMatch.Groups["value"].Value, guid, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string asmdefPath = metaPath.Substring(0, metaPath.Length - ".meta".Length);
+                if (!File.Exists(asmdefPath))
+                    return reference;
+
+                Match nameMatch = NameRegex.Match(File.ReadAllText(asmdefPath));
+                return nameMatch.Success ? nameMatch.Groups["value"].Value : reference;
+            }
+
+            // GUID references to external Unity/package assemblies are outside the engine graph.
+            return reference;
+        }
+
+        private static string ToRepoRelativePath(string path)
+        {
             string normalized = path.Replace('\\', '/');
             string root = RepoRoot.Replace('\\', '/');
-            string relative = normalized.StartsWith(root + "/", StringComparison.Ordinal)
+            return normalized.StartsWith(root + "/", StringComparison.Ordinal)
                 ? normalized.Substring(root.Length + 1)
                 : normalized;
-
-            return new Asmdef(nameMatch.Groups["value"].Value, relative, references);
         }
 
         private sealed class Asmdef
