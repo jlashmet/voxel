@@ -15,10 +15,11 @@ namespace VoxelEngine.Storage.Api
                              out int y, out VoxelCell cell);
 
         /// <summary>
-        /// Finds the highest terrain/structure surface suitable for land placement, excluding
-        /// fluid/cascade presentation materials according to Storage's canonical material rules.
+        /// Finds the highest non-empty voxel while ignoring two caller-supplied material IDs.
+        /// Storage owns the scan; the caller owns domain-specific material classification.
         /// </summary>
-        bool TryFindTopLandSurface(int x, int z, int minY, int maxY,
-                                   out int y, out VoxelCell cell);
+        bool TryFindTopSolidExcluding(int x, int z, int minY, int maxY,
+                                      byte excludedMaterialA, byte excludedMaterialB,
+                                      out int y, out VoxelCell cell);
     }
 }
