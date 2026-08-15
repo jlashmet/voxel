@@ -9,6 +9,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from blender_alignment import align_generated_to_donor
 from blender_common import (
     choose_object,
     clear_scene,
@@ -32,6 +33,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--body-object")
     parser.add_argument("--armature-object")
     parser.add_argument("--max-transfer-distance", type=float, default=0.25)
+    parser.add_argument(
+        "--no-auto-align",
+        action="store_true",
+        help="Skip coarse alignment to the selected canonical garment/body donor.",
+    )
     return parser.parse_args(argv)
 
 
@@ -46,23 +52,26 @@ def main() -> int:
     armature = choose_object(
         canonical_objects, "ARMATURE", args.armature_object, "canonical armature"
     )
-    body = choose_object(
-        canonical_objects, "MESH", args.body_object, "canonical body"
+    donor = choose_object(
+        canonical_objects, "MESH", args.body_object, "canonical clothing donor"
     )
 
     clothing = generated_meshes(
         import_glb(Path(args.input).resolve()),
         "clothing",
     )
+    if not args.no_auto_align:
+        align_generated_to_donor(clothing, donor, label="clothing")
+
     for garment in clothing:
         transfer_weights(
             garment,
-            body,
+            donor,
             armature,
             max_distance=args.max_transfer_distance,
         )
 
-    body.hide_render = True
+    donor.hide_render = True
     export_fbx(output, [armature, *clothing])
     print(output)
     return 0
