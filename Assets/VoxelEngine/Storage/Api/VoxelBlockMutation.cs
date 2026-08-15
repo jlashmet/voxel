@@ -7,8 +7,9 @@ namespace VoxelEngine.Storage.Api
     /// <summary>
     /// Borrowed mutable payload for one logical 8^3 block.
     ///
-    /// Physical allocation identity stays internal to Storage. The public hot path exposes only
-    /// material reads/writes and the semantic metadata-change bit needed by edit orchestration.
+    /// Physical allocation identity stays internal to Storage. The public hot path exposes logical
+    /// cell/material reads and writes plus the semantic metadata-change bit needed by mutation
+    /// orchestration.
     /// </summary>
     public struct VoxelBlockMutation
     {
@@ -75,6 +76,27 @@ namespace VoxelEngine.Storage.Api
             return _materials[_voxelOffset + voxelIndex];
         }
 
+        /// <summary>Reads the complete logical cell stored at one voxel in this block.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public VoxelCell GetCell(int voxelIndex)
+        {
+            if (!IsCreated || (uint)voxelIndex >= VoxelReadGrid.VoxelsPerBlock)
+                return default;
+
+            int offset = _voxelOffset + voxelIndex;
+            byte material = _materials[offset];
+            return new VoxelCell
+            {
+                BaseMaterialId = material,
+                Surface = material == VoxelGrid.MaterialEmpty
+                    ? default
+                    : VoxelSurfaceSemantics.FromStorage(_surfaceSemantics[offset]),
+                // Authored boundary samples may legitimately survive on the empty side of a
+                // surface, so boundary state is independent from occupancy/material.
+                Boundary = new VoxelBoundarySample { Packed = _boundarySamples[offset] }
+            };
+        }
+
         /// <summary>
         /// Writes one material byte and maintains the same occupancy/surface semantics as physical
         /// Storage: destruction clears authored surface/boundary payload; occupied material-only
@@ -97,13 +119,45 @@ namespace VoxelEngine.Storage.Api
                 _boundarySamples[offset] = 0;
             }
 
+            SetOccupancy(voxelIndex, material != VoxelGrid.MaterialEmpty);
+            return true;
+        }
+
+        /// <summary>
+        /// Writes the complete logical cell. Empty cells discard surface presentation state but
+        /// preserve authored boundary distance, matching the authoritative Storage cell contract.
+        /// Returns false when the normalized logical cell is unchanged.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool SetCell(int voxelIndex, in VoxelCell cell)
+        {
+            if (!IsCreated || (uint)voxelIndex >= VoxelReadGrid.VoxelsPerBlock)
+                return false;
+
+            int offset = _voxelOffset + voxelIndex;
+            bool solid = cell.BaseMaterialId != VoxelGrid.MaterialEmpty;
+            ushort surface = solid ? cell.Surface.PackedStorage : (ushort)0;
+            byte boundary = cell.Boundary.Packed;
+
+            if (_materials[offset] == cell.BaseMaterialId
+                && _surfaceSemantics[offset] == surface
+                && _boundarySamples[offset] == boundary)
+                return false;
+
+            _materials[offset] = cell.BaseMaterialId;
+            _surfaceSemantics[offset] = surface;
+            _boundarySamples[offset] = boundary;
+            SetOccupancy(voxelIndex, solid);
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void SetOccupancy(int voxelIndex, bool occupied)
+        {
             int wordIndex = _occupancyOffset + (voxelIndex >> 6);
             ulong mask = 1UL << (voxelIndex & 63);
             ulong word = _occupancy[wordIndex];
-            _occupancy[wordIndex] = material == VoxelGrid.MaterialEmpty
-                ? word & ~mask
-                : word | mask;
-            return true;
+            _occupancy[wordIndex] = occupied ? word | mask : word & ~mask;
         }
     }
 }
