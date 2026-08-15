@@ -29,6 +29,44 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def patch_mps_texture_baker(source: Path) -> None:
+    """Patch the pinned Mac TripoSR fork's CPU-only texture query for MPS.
+
+    Geometry inference already works on MPS. The pinned texture baker creates its
+    sampling positions on CPU and then calls numpy() directly on the renderer
+    result, which breaks once the triplane is on MPS. Keep this small, guarded
+    compatibility patch beside our adapter rather than maintaining a fork.
+    """
+
+    path = source / "tsr" / "bake_texture.py"
+    text = path.read_text(encoding="utf-8")
+
+    old_positions = "positions = torch.tensor(positions_texture.reshape(-1, 4)[:, :-1])"
+    new_positions = (
+        "positions = torch.tensor(positions_texture.reshape(-1, 4)[:, :-1], "
+        "device=scene_code.device, dtype=scene_code.dtype)"
+    )
+    old_numpy = 'rgb_f = queried_grid["color"].numpy().reshape(-1, 3)'
+    new_numpy = 'rgb_f = queried_grid["color"].detach().cpu().numpy().reshape(-1, 3)'
+
+    changed = False
+    if old_positions in text:
+        text = text.replace(old_positions, new_positions, 1)
+        changed = True
+    elif new_positions not in text:
+        raise RuntimeError("pinned TripoSR texture position query changed unexpectedly")
+
+    if old_numpy in text:
+        text = text.replace(old_numpy, new_numpy, 1)
+        changed = True
+    elif new_numpy not in text:
+        raise RuntimeError("pinned TripoSR texture result conversion changed unexpectedly")
+
+    if changed:
+        path.write_text(text, encoding="utf-8")
+        print(f"patched MPS-safe TripoSR texture baker: {path}", flush=True)
+
+
 def single_mesh(path: Path) -> trimesh.Trimesh:
     loaded = trimesh.load(str(path), process=False, maintain_order=True)
     if isinstance(loaded, trimesh.Scene):
@@ -78,6 +116,9 @@ def main() -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
 
     device = "mps" if args.device == "auto" else args.device
+    if bake_texture and device.startswith("mps"):
+        patch_mps_texture_baker(source)
+
     command = [
         __import__("sys").executable,
         str(source / "run.py"),
