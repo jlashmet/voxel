@@ -1,0 +1,93 @@
+name: Cutover 13 publish VoxelShowcase rendering seam
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-publish-voxel-showcase-rendering.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+
+      - name: Route VoxelShowcase rendering through Composition
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/Scenes/Showcase/VoxelShowcase.cs')
+          text = path.read_text()
+          text = text.replace('using VoxelEngine.Rendering.Runtime;\n', '')
+
+          old_enable = '''            // Hand the world to the render feature. URP owns the feature and constructs it, so\n            // the world registers itself rather than being injected.\n            VoxelRenderBridge.ResetSurfacePassDiagnostics("showcase-enabled");\n            VoxelRenderBridge.SurfaceBuildEnabled = false;\n            VoxelRenderBridge.Changes = _world.Changes;\n            VoxelRenderBridge.TerrainSeed = _world.Seed;\n            VoxelRenderBridge.FarBaseHeight = ShowcaseWorld.BaseHeightVoxels;\n            VoxelRenderBridge.FarFieldEnabled = true;'''
+          new_enable = '''            // Hand stable world capabilities to Composition; URP still owns the concrete render\n            // feature, but the showcase no longer reaches into Rendering.Runtime globals.\n            RenderingComposition.ResetSurfacePassDiagnostics("showcase-enabled");\n            RenderingComposition.SetSurfaceBuildEnabled(false);\n            RenderingComposition.SetFarBaseHeight(ShowcaseWorld.BaseHeightVoxels);'''
+          if old_enable not in text:
+              raise SystemExit('showcase renderer enable block not found')
+          text = text.replace(old_enable, new_enable, 1)
+
+          old_source = '''            VoxelRenderBridge.Source = () => new VoxelWorldView\n            {\n                Storage = _world.ReadStorage,\n                Palette = _world.Palette,\n                SurfaceCatalogueView = _world.SurfaceRules,\n                CoatingCatalogueView = _world.CoatingRules,\n                ProfileBlocks = _world.ProfileBlocks,\n            };'''
+          new_source = '''            var renderingWorld = new RenderingWorldBinding(\n                _world.ReadStorage,\n                _world.Palette,\n                _world.SurfaceRules,\n                _world.CoatingRules,\n                _world.ProfileBlocks);\n            RenderingComposition.ConfigureWorld(\n                in renderingWorld, _world.Changes, _world.Seed, farFieldEnabled: true);'''
+          if old_source not in text:
+              raise SystemExit('showcase renderer source block not found')
+          text = text.replace(old_source, new_source, 1)
+
+          old_disable = '''            VoxelRenderBridge.CutawayEnabled = false;\n            VoxelRenderBridge.LocalLights = System.Array.Empty<Vector4>();\n            VoxelRenderBridge.LocalLightColours = System.Array.Empty<Vector4>();\n            VoxelRenderBridge.FlashlightEnabled = false;\n            VoxelRenderBridge.Source = null;\n            VoxelRenderBridge.SurfaceBuildEnabled = true;\n            VoxelRenderBridge.Changes = null;\n            VoxelRenderBridge.FarFieldEnabled = false;'''
+          new_disable = '''            RenderingComposition.ResetTransientPresentation();\n            RenderingComposition.ClearWorld();\n            RenderingComposition.SetSurfaceBuildEnabled(true);'''
+          if old_disable not in text:
+              raise SystemExit('showcase renderer disable block not found')
+          text = text.replace(old_disable, new_disable, 1)
+
+          old_cutaway = '''            VoxelRenderBridge.CutawayMinVoxel = minVoxel;\n            VoxelRenderBridge.CutawayMaxVoxel = maxVoxel;\n            VoxelRenderBridge.CutawayEnabled = enabled;'''
+          if old_cutaway not in text:
+              raise SystemExit('cutaway block not found')
+          text = text.replace(
+              old_cutaway,
+              '            RenderingComposition.SetCutaway(enabled, minVoxel, maxVoxel);', 1)
+
+          old_lights = '''            VoxelRenderBridge.LocalLights = _world.CastlePresentationLights;\n            VoxelRenderBridge.LocalLightColours = _world.CastlePresentationLightColours;'''
+          if old_lights not in text:
+              raise SystemExit('local lights block not found')
+          text = text.replace(
+              old_lights,
+              '            RenderingComposition.SetLocalLights(\n                _world.CastlePresentationLights, _world.CastlePresentationLightColours);', 1)
+
+          old_build = '                if (_world.CastleVoxels > 0) VoxelRenderBridge.SurfaceBuildEnabled = true;'
+          if old_build not in text:
+              raise SystemExit('surface build enable call not found')
+          text = text.replace(
+              old_build,
+              '                if (_world.CastleVoxels > 0) RenderingComposition.SetSurfaceBuildEnabled(true);', 1)
+
+          old_flash = '''            VoxelRenderBridge.FlashlightEnabled = _flashlightEnabled;\n            VoxelRenderBridge.FlashlightPosition = transform.position;\n            VoxelRenderBridge.FlashlightDirection = transform.forward;'''
+          new_flash = '''            RenderingComposition.SetFlashlight(\n                _flashlightEnabled, transform.position, transform.forward);'''
+          if old_flash not in text:
+              raise SystemExit('flashlight block not found')
+          text = text.replace(old_flash, new_flash, 1)
+
+          path.write_text(text)
+          PY
+
+          ! grep -q 'VoxelEngine.Rendering.Runtime' Assets/Scenes/Showcase/VoxelShowcase.cs
+          ! grep -q 'VoxelRenderBridge\|VoxelWorldView' Assets/Scenes/Showcase/VoxelShowcase.cs
+          grep -q 'RenderingComposition.ConfigureWorld' Assets/Scenes/Showcase/VoxelShowcase.cs
+          grep -q 'RenderingComposition.SetFlashlight' Assets/Scenes/Showcase/VoxelShowcase.cs
+          git diff --check
+
+      - name: Commit source cut
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/Scenes/Showcase/VoxelShowcase.cs
+          git commit -m 'refactor(showcase): route presentation through RenderingComposition'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
