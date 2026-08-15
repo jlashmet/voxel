@@ -8,15 +8,15 @@ This package owns semantic world and location generation for MountingForce. It i
 MountingForce.WorldGen.Core
         ^
         |
-MountingForce.WorldGen.Voxel ----> VoxelEngine.Core
+MountingForce.WorldGen.Voxel ----> VoxelEngine Storage/Terrain/Structures/Vegetation Api
         ^
         |
-     Game / Showcase -----------> VoxelEngine.Rendering
+     Game / Composition ----------> VoxelEngine.Composition
 ```
 
 `MountingForce.WorldGen.Core` must not reference `VoxelEngine`, `UnityEngine`, meshes, shaders, GameObjects, or material byte ids. It works in deterministic integer decimetres and semantic material roles.
 
-`MountingForce.WorldGen.Voxel` is an adapter. It translates semantic plans into `VoxelEngine.Core.Features.FeatureCatalogue` data. It may depend on the low-level voxel feature/storage API, but never on `VoxelEngine.Rendering`.
+`MountingForce.WorldGen.Voxel` is an adapter. It translates semantic plans into `VoxelEngine.Structures.Api.FeatureCatalogue` data and uses only the specific Storage, Terrain, Structures, and Vegetation Api assemblies required for realization. It never depends on an engine Runtime assembly or on rendering.
 
 The renderer must not know what Kentridge, an inn, a quest location, or a druid grove is.
 
