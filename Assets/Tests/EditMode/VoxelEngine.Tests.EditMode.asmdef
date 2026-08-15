@@ -12,6 +12,7 @@
     "VoxelEngine.Tiering",
     "VoxelEngine.Structures",
     "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Architecture",
     "MountingForce.WorldGen.Voxel",
