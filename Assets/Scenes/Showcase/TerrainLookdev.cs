@@ -1,8 +1,7 @@
-using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Structures.Api;
@@ -11,7 +10,7 @@ namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Terrain-only look-development scene authored into the normal voxel world. Rendering stays
-    /// entirely on RegionTable/BrickPool -> VoxelRenderBridge -> production surface extraction.
+    /// entirely on Storage.Api read capabilities -> VoxelRenderBridge -> production surface extraction.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
@@ -23,14 +22,8 @@ namespace VoxelEngine.Showcase
         private const int TerrainZMin = -70;
         private const int TerrainZMax = 560;
 
-        private RegionTable _table;
-        private BrickPool _pool;
-        private RegionReadSource _readSource;
-        private MaterialPalette _palette;
-        private SurfaceCatalogue _surfaces;
-        private CoatingCatalogue _coatings;
+        private IVoxelStorageRuntime _storage;
         private ProfileBlockStore _profiles;
-        private VoxelChangeJournal _changes;
         private bool _built;
 
         public Camera SceneCamera => GetComponent<Camera>();
@@ -57,51 +50,44 @@ namespace VoxelEngine.Showcase
             ConfigureEnvironment();
             ApplyReferenceEnvironment();
 
-            _table = new RegionTable(16, Allocator.Persistent);
-            _pool = new BrickPool(220_000, Allocator.Persistent);
-            _palette = default;
+            _storage = VoxelEngineBootstrap.CreateStorage(16, 220_000);
             const uint weather = (1u << Coatings.Moss) | (1u << Coatings.Wet);
 
-            _palette.Register(Mat.Grass, 24, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.Grass, 24, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
-            _palette.Register(Mat.Moss, 24, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.Moss, 24, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
-            _palette.Register(Mat.Sand, 28, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.Sand, 28, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
             // Limestone and pavers deliberately use the production faceted path. Planar styles
             // are emitted as merged faces by CpuTransvoxelChunkCache instead of being melted by
             // continuous rounded reconstruction, which gives the reference's squat cuboid rocks.
-            _palette.Register(Mat.TerrainLimestone, 210, DestructionClass.Crumble,
+            _storage.RegisterMaterial(Mat.TerrainLimestone, 210, DestructionClass.Crumble,
                               SurfaceStyles.Planar, weather);
-            _palette.Register(Mat.TerrainEarth, 32, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.TerrainEarth, 32, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
-            _palette.Register(Mat.TerrainPathStone, 180, DestructionClass.Crumble,
+            _storage.RegisterMaterial(Mat.TerrainPathStone, 180, DestructionClass.Crumble,
                               SurfaceStyles.Planar, weather);
-            _palette.Register(Mat.FlowerWhite, 4, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.FlowerWhite, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
-            _palette.Register(Mat.FlowerYellow, 4, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.FlowerYellow, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
-            _palette.Register(Mat.FlowerPink, 4, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.FlowerPink, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
-            _palette.Register(Mat.FlowerBlue, 4, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.FlowerBlue, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
 
-            _surfaces = SurfaceCatalogue.CreateBuiltIns();
-            _coatings = CoatingCatalogue.CreateBuiltIns();
             _profiles = new ProfileBlockStore();
 
-            var reads = new RegionReadSource(in _table, in _pool);
-            var mutations = new RegionMutationStore(in _table, in _pool);
-            var writer = new VoxelBrush(reads, mutations, _palette, 9_000_000);
+            var writer = new VoxelBrush(
+                _storage.Reads, _storage.Mutations, _storage.MaterialAuthoring, 9_000_000);
             AuthorTerrain(ref writer);
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain lookdev exceeded voxel authoring budget.");
 
-            _changes = new VoxelChangeJournal();
-            using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
-                for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
+            _storage.PublishAllResidentRegions();
 
-            VoxelRenderBridge.Changes = _changes;
+            VoxelRenderBridge.Changes = _storage.Changes;
             VoxelRenderBridge.Source = WorldView;
             VoxelRenderBridge.SolidBuildBudgetMs = 12.0;
             VoxelRenderBridge.WaterBuildBudgetMs = 0.0;
@@ -429,43 +415,27 @@ namespace VoxelEngine.Showcase
             return Mathf.RoundToInt(metres * 10f);
         }
 
-        private VoxelBrush CreateWriter(int budget)
-        {
-            var reads = new RegionReadSource(in _table, in _pool);
-            var mutations = new RegionMutationStore(in _table, in _pool);
-            return new VoxelBrush(reads, mutations, _palette, budget);
-        }
+        private VoxelBrush CreateWriter(int budget) =>
+            new VoxelBrush(_storage.Reads, _storage.Mutations, _storage.MaterialAuthoring, budget);
 
-        private void PublishAllResidentRegions()
-        {
-            using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
-                for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
-        }
+        private void PublishAllResidentRegions() => _storage.PublishAllResidentRegions();
 
-        private VoxelWorldView WorldView()
+        private VoxelWorldView WorldView() => new VoxelWorldView
         {
-            _readSource ??= new RegionReadSource(in _table, in _pool, _changes);
-            _readSource.Refresh(in _table, in _pool);
-            return new VoxelWorldView
-            {
-                Storage = _readSource,
-                Palette = _palette,
-                SurfaceCatalogueView = _surfaces,
-                CoatingCatalogueView = _coatings,
-                ProfileBlocks = _profiles,
-            };
-        }
+            Storage = _storage.Reads,
+            Palette = _storage.MaterialPresentation,
+            SurfaceCatalogueView = _storage.SurfacePresentation,
+            CoatingCatalogueView = _storage.CoatingPresentation,
+            ProfileBlocks = _profiles,
+        };
 
         public void Shutdown()
         {
-            if (!_built && !_table.IsCreated && !_pool.IsCreated) return;
+            if (!_built && _storage == null) return;
             VoxelRenderBridge.Source = null;
             VoxelRenderBridge.Changes = null;
-            if (_table.IsCreated) _table.Dispose();
-            if (_pool.IsCreated) _pool.Dispose();
-            _table = default;
-            _pool = default;
-            _readSource = null;
+            _storage?.Dispose();
+            _storage = null;
             _built = false;
         }
     }
