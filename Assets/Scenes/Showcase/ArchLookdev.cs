@@ -2,11 +2,8 @@ using System;
 using System.Collections;
 using System.Diagnostics;
 using System.IO;
-using Unity.Collections;
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 
@@ -23,7 +20,7 @@ namespace VoxelEngine.Showcase
         private const float PanelWidth = 330f;
 
         private IVoxelStorageRuntime _storage;
-        private ProfileBlockStore _profileBlocks;
+        private IProfileBlockReadSource _profileBlocks;
         private Camera _camera;
         private Vector2 _scroll;
         private bool _panelVisible = true;
@@ -146,52 +143,33 @@ namespace VoxelEngine.Showcase
                 (byte)_mossDropQ4,
                 (byte)_mossSeparation);
 
-            var nextProfiles = new ProfileBlockStore();
-            var arch = new ArchFeatureDefinition
-            {
-                ClearSpan = _clearSpan,
-                PierHeight = _pierHeight,
-                RingThickness = _ringThickness,
-                Depth = _depth,
-                VoussoirCount = _voussoirs,
-                JointRecessDepth = 1,
-                ProfileJointHalfWidthQ4 = (byte)_jointQ4,
-                ProfileBevelQ4 = (byte)_bevelQ4,
-                ProfileProjectionQ4 = (byte)_projectionQ4,
-                ProfileDepthQ4 = (byte)_faceDepthQ4,
-                StoneMaterial = StoneMaterial,
-                PierStyle = SurfaceStyles.MasonryJoint,
-                RingStyle = SurfaceStyles.MasonryJoint,
-            };
-            var bay = new ArchBayFeatureDefinition
-            {
-                Arch = arch, ShoulderWidth = _shoulder, TopMargin = _topMargin,
-                FaceRecess = _faceRecess, PlinthHeight = _plinthHeight,
-                ImpostHeight = _impostHeight,
-                Damage = (ArchRuinDamage)_damage,
-                DamageSeed = 0xA341u + (uint)_seedOffset,
-                DamageScale = (byte)_damageScale,
-            };
-            int3 origin = new(-bay.Width / 2, 0, 0);
-            using (var primitives = new NativeList<Primitive>(bay.Metadata.MaxPrimitives,
-                                                               Allocator.Temp))
-            {
-                if (!bay.Emit(origin, primitives, nextProfiles))
-                    throw new InvalidOperationException("Arch parameters did not emit.");
-                RasterResult result = PrimitiveRasteriser.Rasterise(
-                    primitives.AsArray(), origin, origin + bay.Metadata.Footprint,
-                    nextStorage.Reads, nextStorage.Mutations);
-                if (result.BudgetExceeded)
-                    throw new InvalidOperationException("Arch exceeded the feature budget.");
-            }
-
-            var brush = new VoxelBrush(
-                nextStorage.Reads, nextStorage.Mutations,
-                nextStorage.MaterialAuthoring, 2_000_000);
-            MasonryWeathering.CoatExposedSurfaces(ref brush, origin - 2,
-                bay.Metadata.Footprint + 4, Coatings.Moss,
+            StructuresComposition.AuthorArchBay(
+                nextStorage,
+                _clearSpan,
+                _pierHeight,
+                _ringThickness,
+                _depth,
+                _voussoirs,
+                _shoulder,
+                _topMargin,
+                _faceRecess,
+                _plinthHeight,
+                _impostHeight,
+                _damage,
+                _damageScale,
                 0xA341u + (uint)_seedOffset,
-                (byte)_mossCoverage, dripPasses: 0);
+                _jointQ4,
+                _bevelQ4,
+                _projectionQ4,
+                _faceDepthQ4,
+                StoneMaterial,
+                SurfaceStyles.MasonryJoint,
+                Coatings.Moss,
+                (byte)_mossCoverage,
+                2_000_000,
+                out IProfileBlockReadSource nextProfiles,
+                out int bayWidth,
+                out int bayHeight);
 
             nextStorage.PublishAllResidentRegions();
 
@@ -211,9 +189,9 @@ namespace VoxelEngine.Showcase
             watch.Stop();
             _lastBuildMs = watch.Elapsed.TotalMilliseconds;
             _pendingRebuild = false;
-            _lastBayWidth = bay.Width;
-            _lastBayHeight = bay.Height;
-            if (!_cameraInitialized) FrameCamera(bay.Width, bay.Height);
+            _lastBayWidth = bayWidth;
+            _lastBayHeight = bayHeight;
+            if (!_cameraInitialized) FrameCamera(bayWidth, bayHeight);
             _stateDirty = true;
         }
 
