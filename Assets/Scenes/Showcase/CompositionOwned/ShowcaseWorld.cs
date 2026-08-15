@@ -25,12 +25,10 @@ namespace VoxelEngine.Showcase
     /// 64 bricks on a side — 51.2 m at 10 cm voxels — so flying in a straight line
     /// continuously loads and discards them, which is the thing worth watching in the HUD.
     ///
-    /// Nothing here is engine code; it is a caller of the engine, in its own assembly. Edits
-    /// go through <see cref="VoxelAccess"/> and shapes come from <see cref="BuildBrushes"/>.
-    /// Terrain generation writes brick references directly, which is the only way to fill a
-    /// region at a sane cost: a solid brick below the surface becomes a uniform reference and
-    /// allocates nothing, and only the bricks the surface actually passes through take a pool
-    /// slot. That asymmetry is the whole memory argument, and the HUD makes it visible.
+    /// This application world constructor is compiled into the Composition assembly so concrete
+    /// Runtime storage/edit/structure wiring stays behind the scene boundary. Public collaborators
+    /// still consume Storage/Structures/Edits API contracts; the direct physical operations here are
+    /// implementation details of the composition root and remain available to the hot generation path.
     /// </summary>
     public sealed partial class ShowcaseWorld : IDisposable
     {
@@ -138,7 +136,7 @@ namespace VoxelEngine.Showcase
 
         private sealed class VisualBucket
         {
-            public readonly List<FallingVoxel> Samples = new(GpuDebrisSystem.RenderInstancesPerChunk);
+            public readonly List<FallingVoxel> Samples = new(16);
             public int SourceVoxelCount;
             public uint Priority;
         }
@@ -1886,7 +1884,7 @@ namespace VoxelEngine.Showcase
         private static void AddVisualSample(VisualBucket bucket, FallingVoxel voxel)
         {
             bucket.SourceVoxelCount++;
-            int capacity = GpuDebrisSystem.RenderInstancesPerChunk;
+            int capacity = 16;
             if (bucket.Samples.Count < capacity)
             {
                 bucket.Samples.Add(voxel);
@@ -1945,7 +1943,7 @@ namespace VoxelEngine.Showcase
                 }
 
                 bucket.SourceVoxelCount++;
-                int capacity = GpuDebrisSystem.RenderInstancesPerChunk;
+                int capacity = 16;
                 if (bucket.Samples.Count < capacity)
                     bucket.Samples.Add(voxel);
                 else
