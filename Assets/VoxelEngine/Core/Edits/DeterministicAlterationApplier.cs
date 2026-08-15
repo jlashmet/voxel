@@ -1,14 +1,13 @@
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Occupancy;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Core.Edits
 {
     /// <summary>
     /// Shared authoritative/client application of semantic alteration events.
-    /// Supported mutations are expanded with integer-only geometry and committed once per touched
-    /// brick so server and clients share both semantics and storage transition behavior.
+    /// Geometry and iteration order live in Edits; physical storage transitions are owned by
+    /// Storage through block-granular mutation views.
     /// </summary>
     public static class DeterministicAlterationApplier
     {
@@ -16,26 +15,26 @@ namespace VoxelEngine.Core.Edits
             evt.kind == AlterationEvent.KindExplosion ||
             (evt.kind == AlterationEvent.KindBrush && BrushShapeCodec.Validate(evt.shapeKind, evt.shapeData));
 
-        public static bool HasRequiredResidency(ref RegionTable table, in AlterationEvent evt) =>
-            HasRequiredResidencyInternal(ref table, in evt, false, default);
+        public static bool HasRequiredResidency(IRegionMutationStore storage, in AlterationEvent evt) =>
+            HasRequiredResidencyInternal(storage, in evt, false, default);
 
         public static bool HasRequiredResidencyExcept(
-            ref RegionTable table,
+            IRegionMutationStore storage,
             in AlterationEvent evt,
             int3 excludedRegion) =>
-            HasRequiredResidencyInternal(ref table, in evt, true, excludedRegion);
+            HasRequiredResidencyInternal(storage, in evt, true, excludedRegion);
 
         private static bool HasRequiredResidencyInternal(
-            ref RegionTable table,
+            IRegionMutationStore storage,
             in AlterationEvent evt,
             bool hasExcludedRegion,
             int3 excludedRegion)
         {
-            if (!TryGetVoxelBounds(in evt, out int3 minVoxel, out int3 maxVoxel))
+            if (storage == null || !TryGetVoxelBounds(in evt, out int3 minVoxel, out int3 maxVoxel))
                 return false;
 
-            int3 minRegion = minVoxel >> VoxelDimensions.RegionVoxelEdgeLog2;
-            int3 maxRegion = maxVoxel >> VoxelDimensions.RegionVoxelEdgeLog2;
+            int3 minRegion = minVoxel >> VoxelGrid.RegionVoxelEdgeLog2;
+            int3 maxRegion = maxVoxel >> VoxelGrid.RegionVoxelEdgeLog2;
 
             for (int rz = minRegion.z; rz <= maxRegion.z; rz++)
             for (int ry = minRegion.y; ry <= maxRegion.y; ry++)
@@ -44,7 +43,7 @@ namespace VoxelEngine.Core.Edits
                 int3 regionCoord = new int3(rx, ry, rz);
                 if (hasExcludedRegion && regionCoord.Equals(excludedRegion))
                     continue;
-                if (!table.IsResident(regionCoord))
+                if (!storage.IsRegionResident(regionCoord))
                     return false;
             }
 
@@ -52,17 +51,16 @@ namespace VoxelEngine.Core.Edits
         }
 
         public static bool TryApply(
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore storage,
             in AlterationEvent evt,
             out NativeList<int3> affectedBricks)
         {
             switch (evt.kind)
             {
                 case AlterationEvent.KindExplosion:
-                    return ApplyExplosion(ref table, ref pool, in evt, false, default, out affectedBricks);
+                    return ApplyExplosion(storage, in evt, false, default, out affectedBricks);
                 case AlterationEvent.KindBrush when BrushShapeCodec.Validate(evt.shapeKind, evt.shapeData):
-                    return ApplyCubeBrush(ref table, ref pool, in evt, false, default, out affectedBricks);
+                    return ApplyCubeBrush(storage, in evt, false, default, out affectedBricks);
                 default:
                     affectedBricks = new NativeList<int3>(0, Allocator.Temp);
                     return false;
@@ -70,8 +68,7 @@ namespace VoxelEngine.Core.Edits
         }
 
         public static bool TryApplyExceptRegion(
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore storage,
             in AlterationEvent evt,
             int3 excludedRegion,
             out NativeList<int3> affectedBricks)
@@ -79,9 +76,9 @@ namespace VoxelEngine.Core.Edits
             switch (evt.kind)
             {
                 case AlterationEvent.KindExplosion:
-                    return ApplyExplosion(ref table, ref pool, in evt, true, excludedRegion, out affectedBricks);
+                    return ApplyExplosion(storage, in evt, true, excludedRegion, out affectedBricks);
                 case AlterationEvent.KindBrush when BrushShapeCodec.Validate(evt.shapeKind, evt.shapeData):
-                    return ApplyCubeBrush(ref table, ref pool, in evt, true, excludedRegion, out affectedBricks);
+                    return ApplyCubeBrush(storage, in evt, true, excludedRegion, out affectedBricks);
                 default:
                     affectedBricks = new NativeList<int3>(0, Allocator.Temp);
                     return false;
@@ -89,8 +86,7 @@ namespace VoxelEngine.Core.Edits
         }
 
         private static bool ApplyCubeBrush(
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore storage,
             in AlterationEvent evt,
             bool hasExcludedRegion,
             int3 excludedRegion,
@@ -98,7 +94,7 @@ namespace VoxelEngine.Core.Edits
         {
             affectedBricks = new NativeList<int3>(64, Allocator.Temp);
             if (!BrushShapeCodec.Validate(evt.shapeKind, evt.shapeData) ||
-                !HasRequiredResidencyInternal(ref table, in evt, hasExcludedRegion, excludedRegion))
+                !HasRequiredResidencyInternal(storage, in evt, hasExcludedRegion, excludedRegion))
                 return false;
 
             BrushShapeCodec.GetCubeVoxelBounds(
@@ -107,11 +103,10 @@ namespace VoxelEngine.Core.Edits
                 out int3 minVoxel,
                 out int3 maxVoxel);
 
-            int3 minBrick = minVoxel >> VoxelDimensions.BrickEdgeLog2;
-            int3 maxBrick = maxVoxel >> VoxelDimensions.BrickEdgeLog2;
+            int3 minBrick = minVoxel >> VoxelReadGrid.BlockEdgeLog2;
+            int3 maxBrick = maxVoxel >> VoxelReadGrid.BlockEdgeLog2;
             byte targetMaterial = evt.material;
-            bool markHardSurface = evt.BrushIsHardSurface() &&
-                                   targetMaterial != VoxelDimensions.MaterialEmpty;
+            bool markHardSurface = evt.BrushIsHardSurface() && targetMaterial != VoxelGrid.MaterialEmpty;
             bool anyChanged = false;
 
             for (int bz = minBrick.z; bz <= maxBrick.z; bz++)
@@ -119,43 +114,30 @@ namespace VoxelEngine.Core.Edits
             for (int bx = minBrick.x; bx <= maxBrick.x; bx++)
             {
                 int3 worldBrick = new int3(bx, by, bz);
-                int3 regionCoord = worldBrick >> VoxelDimensions.RegionEdgeLog2;
+                int3 regionCoord = worldBrick >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
                 if (hasExcludedRegion && regionCoord.Equals(excludedRegion))
                     continue;
 
-                if (!table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
-                    return false;
-
-                int localX = bx & VoxelDimensions.RegionEdgeMask;
-                int localY = by & VoxelDimensions.RegionEdgeMask;
-                int localZ = bz & VoxelDimensions.RegionEdgeMask;
-                int brickIndex = Region.BrickIndex(localX, localY, localZ);
-                BrickRef brickRef = region.BrickRefs[brickIndex];
-
-                int3 brickMin = worldBrick << VoxelDimensions.BrickEdgeLog2;
-                int3 brickMax = brickMin + new int3(VoxelDimensions.BrickEdge - 1);
+                int3 brickMin = worldBrick << VoxelReadGrid.BlockEdgeLog2;
+                int3 brickMax = brickMin + new int3(VoxelReadGrid.BlockEdge - 1);
                 int3 writeMin = math.max(minVoxel, brickMin);
                 int3 writeMax = math.min(maxVoxel, brickMax);
                 bool wholeBrick = math.all(writeMin == brickMin) && math.all(writeMax == brickMax);
 
-                bool changed = markHardSurface && region.MarkHardSurfaceBrick(brickIndex);
-                changed |= wholeBrick
-                    ? SetWholeBrick(ref region, brickIndex, brickRef, targetMaterial, ref pool)
+                bool changed = wholeBrick
+                    ? storage.SetWholeBlock(worldBrick, targetMaterial, markHardSurface)
                     : SetPartialBrick(
+                        storage,
+                        worldBrick,
                         writeMin,
                         writeMax,
                         brickMin,
-                        ref region,
-                        brickIndex,
-                        brickRef,
                         targetMaterial,
-                        ref pool);
+                        markHardSurface);
 
                 if (!changed)
                     continue;
 
-                region.Dirty = true;
-                table.CommitRegion(region);
                 affectedBricks.Add(worldBrick);
                 anyChanged = true;
             }
@@ -163,113 +145,61 @@ namespace VoxelEngine.Core.Edits
             return anyChanged;
         }
 
-        private static bool SetWholeBrick(
-            ref Region region,
-            int brickIndex,
-            BrickRef brickRef,
-            byte targetMaterial,
-            ref BrickPool pool)
-        {
-            if (brickRef.IsUniform)
-            {
-                if (brickRef.UniformMaterial == targetMaterial)
-                    return false;
-            }
-            else
-            {
-                pool.Free(brickRef.PoolIndex);
-            }
-
-            region.BrickRefs[brickIndex] = BrickRef.Uniform(targetMaterial);
-            return true;
-        }
-
         private static bool SetPartialBrick(
+            IRegionMutationStore storage,
+            int3 worldBrick,
             int3 writeMin,
             int3 writeMax,
             int3 brickMin,
-            ref Region region,
-            int brickIndex,
-            BrickRef brickRef,
             byte targetMaterial,
-            ref BrickPool pool)
+            bool markHardSurface)
         {
-            int poolIndex;
-            bool materializedUniform = false;
-
-            if (brickRef.IsUniform)
-            {
-                if (brickRef.UniformMaterial == targetMaterial)
-                    return false;
-
-                poolIndex = pool.Allocate();
-                pool.FillBrick(poolIndex, brickRef.UniformMaterial);
-                region.BrickRefs[brickIndex] = BrickRef.FromPoolIndex(poolIndex);
-                materializedUniform = true;
-            }
-            else
-            {
-                poolIndex = brickRef.PoolIndex;
-            }
-
-            bool changed = false;
-            int minX = writeMin.x - brickMin.x;
-            int minY = writeMin.y - brickMin.y;
-            int minZ = writeMin.z - brickMin.z;
-            int maxX = writeMax.x - brickMin.x;
-            int maxY = writeMax.y - brickMin.y;
-            int maxZ = writeMax.z - brickMin.z;
-
-            for (int z = minZ; z <= maxZ; z++)
-            for (int y = minY; y <= maxY; y++)
-            for (int x = minX; x <= maxX; x++)
-            {
-                int voxelIndex = OccupancyMask.VoxelIndex(x, y, z);
-                if (pool.GetVoxel(poolIndex, voxelIndex) == targetMaterial)
-                    continue;
-
-                pool.SetVoxel(poolIndex, voxelIndex, targetMaterial);
-                changed = true;
-            }
-
-            if (!changed)
-            {
-                if (materializedUniform)
-                {
-                    pool.Free(poolIndex);
-                    region.BrickRefs[brickIndex] = brickRef;
-                }
+            if (!storage.TryBeginPartialBlock(
+                    worldBrick, targetMaterial, markHardSurface, out VoxelBlockMutation mutation))
                 return false;
-            }
 
-            if (pool.TryGetUniformMaterial(poolIndex, out byte uniform))
+            bool materialChanged = false;
+            if (mutation.IsCreated)
             {
-                pool.Free(poolIndex);
-                region.BrickRefs[brickIndex] = BrickRef.Uniform(uniform);
+                int minX = writeMin.x - brickMin.x;
+                int minY = writeMin.y - brickMin.y;
+                int minZ = writeMin.z - brickMin.z;
+                int maxX = writeMax.x - brickMin.x;
+                int maxY = writeMax.y - brickMin.y;
+                int maxZ = writeMax.z - brickMin.z;
+
+                for (int z = minZ; z <= maxZ; z++)
+                for (int y = minY; y <= maxY; y++)
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int voxelIndex = x
+                                   | (y << VoxelReadGrid.BlockEdgeLog2)
+                                   | (z << (VoxelReadGrid.BlockEdgeLog2 * 2));
+                    materialChanged |= mutation.SetMaterial(voxelIndex, targetMaterial);
+                }
             }
 
-            return true;
+            return storage.CompletePartialBlock(ref mutation, materialChanged);
         }
 
         private static bool ApplyExplosion(
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore storage,
             in AlterationEvent evt,
             bool hasExcludedRegion,
             int3 excludedRegion,
             out NativeList<int3> affectedBricks)
         {
             affectedBricks = new NativeList<int3>(64, Allocator.Temp);
-            int radiusVoxels = evt.Radius() * VoxelDimensions.BrickEdge;
+            int radiusVoxels = evt.Radius() * VoxelReadGrid.BlockEdge;
             if (radiusVoxels <= 0 ||
-                !HasRequiredResidencyInternal(ref table, in evt, hasExcludedRegion, excludedRegion))
+                !HasRequiredResidencyInternal(storage, in evt, hasExcludedRegion, excludedRegion))
                 return false;
 
             long radiusSq = (long)radiusVoxels * radiusVoxels;
             int3 minVoxel = evt.origin - new int3(radiusVoxels);
             int3 maxVoxel = evt.origin + new int3(radiusVoxels);
-            int3 minBrick = minVoxel >> VoxelDimensions.BrickEdgeLog2;
-            int3 maxBrick = maxVoxel >> VoxelDimensions.BrickEdgeLog2;
+            int3 minBrick = minVoxel >> VoxelReadGrid.BlockEdgeLog2;
+            int3 maxBrick = maxVoxel >> VoxelReadGrid.BlockEdgeLog2;
             bool anyChanged = false;
 
             for (int bz = minBrick.z; bz <= maxBrick.z; bz++)
@@ -277,44 +207,23 @@ namespace VoxelEngine.Core.Edits
             for (int bx = minBrick.x; bx <= maxBrick.x; bx++)
             {
                 int3 worldBrick = new int3(bx, by, bz);
-                int3 brickMinVoxel = worldBrick << VoxelDimensions.BrickEdgeLog2;
-                int3 brickMaxVoxel = brickMinVoxel + new int3(VoxelDimensions.BrickEdge - 1);
+                int3 brickMinVoxel = worldBrick << VoxelReadGrid.BlockEdgeLog2;
+                int3 brickMaxVoxel = brickMinVoxel + new int3(VoxelReadGrid.BlockEdge - 1);
 
                 if (DistanceSqToAabb(evt.origin, brickMinVoxel, brickMaxVoxel) > radiusSq)
                     continue;
 
-                int3 regionCoord = worldBrick >> VoxelDimensions.RegionEdgeLog2;
+                int3 regionCoord = worldBrick >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
                 if (hasExcludedRegion && regionCoord.Equals(excludedRegion))
                     continue;
 
-                if (!table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
-                    return false;
-
-                int localX = bx & VoxelDimensions.RegionEdgeMask;
-                int localY = by & VoxelDimensions.RegionEdgeMask;
-                int localZ = bz & VoxelDimensions.RegionEdgeMask;
-                int brickIndex = Region.BrickIndex(localX, localY, localZ);
-                BrickRef brickRef = region.BrickRefs[brickIndex];
-
-                if (brickRef.IsUniform && brickRef.UniformMaterial == VoxelDimensions.MaterialEmpty)
-                    continue;
-
                 bool changed = FarthestCornerDistanceSq(evt.origin, brickMinVoxel, brickMaxVoxel) <= radiusSq
-                    ? ClearWholeBrick(ref region, brickIndex, brickRef, ref pool)
-                    : ClearPartialBrick(
-                        evt.origin,
-                        radiusSq,
-                        brickMinVoxel,
-                        ref region,
-                        brickIndex,
-                        brickRef,
-                        ref pool);
+                    ? storage.SetWholeBlock(worldBrick, VoxelGrid.MaterialEmpty, false)
+                    : ClearPartialBrick(storage, worldBrick, evt.origin, radiusSq, brickMinVoxel);
 
                 if (!changed)
                     continue;
 
-                region.Dirty = true;
-                table.CommitRegion(region);
                 affectedBricks.Add(worldBrick);
                 anyChanged = true;
             }
@@ -322,95 +231,47 @@ namespace VoxelEngine.Core.Edits
             return anyChanged;
         }
 
-        private static bool ClearWholeBrick(
-            ref Region region,
-            int brickIndex,
-            BrickRef brickRef,
-            ref BrickPool pool)
-        {
-            if (brickRef.IsUniform)
-            {
-                if (brickRef.UniformMaterial == VoxelDimensions.MaterialEmpty)
-                    return false;
-            }
-            else
-            {
-                pool.Free(brickRef.PoolIndex);
-            }
-
-            region.BrickRefs[brickIndex] = BrickRef.Empty;
-            return true;
-        }
-
         private static bool ClearPartialBrick(
+            IRegionMutationStore storage,
+            int3 worldBrick,
             int3 center,
             long radiusSq,
-            int3 brickMinVoxel,
-            ref Region region,
-            int brickIndex,
-            BrickRef brickRef,
-            ref BrickPool pool)
+            int3 brickMinVoxel)
         {
-            int poolIndex;
-            if (brickRef.IsUniform)
-            {
-                if (brickRef.UniformMaterial == VoxelDimensions.MaterialEmpty)
-                    return false;
+            if (!storage.TryBeginPartialBlock(
+                    worldBrick, VoxelGrid.MaterialEmpty, false, out VoxelBlockMutation mutation))
+                return false;
 
-                poolIndex = pool.Allocate();
-                pool.FillBrick(poolIndex, brickRef.UniformMaterial);
-                region.BrickRefs[brickIndex] = BrickRef.FromPoolIndex(poolIndex);
-            }
-            else
+            bool materialChanged = false;
+            if (mutation.IsCreated)
             {
-                poolIndex = brickRef.PoolIndex;
-            }
-
-            bool changed = false;
-            for (int z = 0; z < VoxelDimensions.BrickEdge; z++)
-            {
-                long dz = (long)brickMinVoxel.z + z - center.z;
-                long dzSq = dz * dz;
-                for (int y = 0; y < VoxelDimensions.BrickEdge; y++)
+                for (int z = 0; z < VoxelReadGrid.BlockEdge; z++)
                 {
-                    long dy = (long)brickMinVoxel.y + y - center.y;
-                    long yzSq = dy * dy + dzSq;
-                    if (yzSq > radiusSq)
-                        continue;
-
-                    for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
+                    long dz = (long)brickMinVoxel.z + z - center.z;
+                    long dzSq = dz * dz;
+                    for (int y = 0; y < VoxelReadGrid.BlockEdge; y++)
                     {
-                        long dx = (long)brickMinVoxel.x + x - center.x;
-                        if (dx * dx + yzSq > radiusSq)
+                        long dy = (long)brickMinVoxel.y + y - center.y;
+                        long yzSq = dy * dy + dzSq;
+                        if (yzSq > radiusSq)
                             continue;
 
-                        int voxelIndex = OccupancyMask.VoxelIndex(x, y, z);
-                        if (pool.GetVoxel(poolIndex, voxelIndex) == VoxelDimensions.MaterialEmpty)
-                            continue;
+                        for (int x = 0; x < VoxelReadGrid.BlockEdge; x++)
+                        {
+                            long dx = (long)brickMinVoxel.x + x - center.x;
+                            if (dx * dx + yzSq > radiusSq)
+                                continue;
 
-                        pool.SetVoxel(poolIndex, voxelIndex, VoxelDimensions.MaterialEmpty);
-                        changed = true;
+                            int voxelIndex = x
+                                           | (y << VoxelReadGrid.BlockEdgeLog2)
+                                           | (z << (VoxelReadGrid.BlockEdgeLog2 * 2));
+                            materialChanged |= mutation.SetMaterial(voxelIndex, VoxelGrid.MaterialEmpty);
+                        }
                     }
                 }
             }
 
-            if (!changed)
-            {
-                if (brickRef.IsUniform)
-                {
-                    pool.Free(poolIndex);
-                    region.BrickRefs[brickIndex] = brickRef;
-                }
-                return false;
-            }
-
-            if (pool.TryGetUniformMaterial(poolIndex, out byte uniform))
-            {
-                pool.Free(poolIndex);
-                region.BrickRefs[brickIndex] = BrickRef.Uniform(uniform);
-            }
-
-            return true;
+            return storage.CompletePartialBlock(ref mutation, materialChanged);
         }
 
         private static bool TryGetVoxelBounds(in AlterationEvent evt, out int3 minVoxel, out int3 maxVoxel)
@@ -419,7 +280,7 @@ namespace VoxelEngine.Core.Edits
             {
                 case AlterationEvent.KindExplosion:
                 {
-                    int radiusVoxels = evt.Radius() * VoxelDimensions.BrickEdge;
+                    int radiusVoxels = evt.Radius() * VoxelReadGrid.BlockEdge;
                     if (radiusVoxels <= 0)
                     {
                         minVoxel = default;
