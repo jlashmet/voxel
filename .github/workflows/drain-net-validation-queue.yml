@@ -1,0 +1,47 @@
+name: Drain obsolete Net validation queue
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/drain-net-validation-queue.yml]
+permissions:
+  actions: write
+  contents: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          KEEP_RUN: "31892240716"
+        run: |
+          set -euo pipefail
+          page=1
+          while :; do
+            json="$(curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              "https://api.github.com/repos/$REPO/actions/runs?status=queued&per_page=100&page=$page")"
+            count="$(printf '%s' "$json" | jq '.workflow_runs | length')"
+            [ "$count" -gt 0 ] || break
+            printf '%s' "$json" | jq -r --arg keep "$KEEP_RUN" '.workflow_runs[] | select((.id|tostring) != $keep) | select((.name | test("Net|Networking CI"))) | .id' | while read -r id; do
+              [ -n "$id" ] || continue
+              echo "cancelling queued Net run $id"
+              curl -fsSL -X POST \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H 'Accept: application/vnd.github+json' \
+                "https://api.github.com/repos/$REPO/actions/runs/$id/cancel" >/dev/null || true
+            done
+            [ "$count" -eq 100 ] || break
+            page=$((page+1))
+          done
+          git rm .github/workflows/drain-net-validation-queue.yml
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git commit -m 'chore(ci): remove Net queue drain helper'
+          git push origin HEAD:${GITHUB_REF_NAME}
