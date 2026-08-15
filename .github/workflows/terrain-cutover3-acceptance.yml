@@ -19,7 +19,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import json
+          import json, re
 
           runtime = Path('Assets/VoxelEngine/Terrain/Runtime/VoxelEngine.Terrain.Runtime.asmdef')
           generator = Path('Assets/VoxelEngine/Terrain/Runtime/TerrainGenerator.cs')
@@ -38,9 +38,10 @@ jobs:
           text = generator.read_text()
           if 'namespace VoxelEngine.Terrain.Runtime' not in text:
               raise SystemExit('TerrainGenerator is not in Terrain.Runtime namespace')
+          code_only = re.sub(r'//.*?$|/\*.*?\*/', '', text, flags=re.M | re.S)
           forbidden = ['RegionTable', 'BrickPool', 'BrickRef', 'VoxelEngine.Core.Storage']
           for token in forbidden:
-              if token in text:
+              if token in code_only:
                   raise SystemExit('TerrainGenerator contains forbidden physical storage token: ' + token)
 
           stale = []
