@@ -22,14 +22,15 @@ jobs:
       - name: Locate malformed definition and encoding path
         shell: bash
         run: |
-          set -euo pipefail
-          echo '=== definition matches ==='
-          grep -R -n -C 12 'kentridge-foundation-skirt-2' Packages/com.mountingforce.worldgen/Runtime/Voxel
-          echo '=== direct program writes in matching files ==='
-          files=$(grep -R -l 'kentridge-foundation-skirt-2' Packages/com.mountingforce.worldgen/Runtime/Voxel)
+          set -u
+          root='Packages/com.mountingforce.worldgen/Runtime/Voxel'
+          echo '=== skirt/foundation matches ==='
+          grep -R -n -i -C 10 -E 'skirt|foundation' "$root" --include='*.cs' || true
+          echo '=== encoding-related code in matching files ==='
+          files=$(grep -R -l -i -E 'skirt|foundation' "$root" --include='*.cs' || true)
           for f in $files; do
             echo "--- $f ---"
-            grep -n -E -C 5 'Program\[|ProgramBuilder|Emit(Box|Cylinder|Prism|Capsule|Ramp|RoundedBox|Ellipsoid|Frustum|Annulus|ArcWedge)|ShapeOp\.' "$f" || true
+            grep -n -E -C 6 'Program\[|ProgramBuilder|ShapeOp\.|Op\(|WriteProgram|CopyProgram' "$f" || true
           done
       - name: Self-clean diagnostic workflow
         run: |
