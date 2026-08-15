@@ -56,6 +56,27 @@ namespace VoxelEngine.Tests.EditMode
                 string.Join("\n", violations));
         }
 
+        [Test]
+        public void CastleVegetationPlannerReadsVoxelStateThroughStorageApi()
+        {
+            string path = Path.Combine(
+                RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel",
+                "CastleVegetationPlanner.cs");
+            Assert.IsTrue(File.Exists(path), "Missing Castle vegetation planner: " + path);
+
+            string source = File.ReadAllText(path);
+            string[] forbidden = { "RegionTable", "BrickPool", "BrickRef", "VoxelAccess" };
+            var violations = forbidden
+                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                .ToArray();
+
+            Assert.IsEmpty(violations,
+                "Worldgen voxel realization may query authoritative voxel state through Storage.Api, " +
+                "but must not depend on Core's physical storage representation.\n" +
+                string.Join("\n", violations));
+            StringAssert.Contains("VoxelEngine.Storage.Api", source);
+        }
+
         private static IReadOnlyList<string> ReadReferences(string relativeAsmdef)
         {
             string path = Path.Combine(
