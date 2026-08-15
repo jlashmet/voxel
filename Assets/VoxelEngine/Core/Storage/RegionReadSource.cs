@@ -90,17 +90,21 @@ namespace VoxelEngine.Core.Storage
         public bool TryFindTopSolid(int x, int z, int minY, int maxY,
                                     out int y, out VoxelCell cell)
         {
-            return TryFindTop(x, z, minY, maxY, landOnly: false, out y, out cell);
+            return TryFindTop(x, z, minY, maxY, 0, 0, false, out y, out cell);
         }
 
-        public bool TryFindTopLandSurface(int x, int z, int minY, int maxY,
-                                          out int y, out VoxelCell cell)
+        public bool TryFindTopSolidExcluding(int x, int z, int minY, int maxY,
+                                             byte excludedMaterialA, byte excludedMaterialB,
+                                             out int y, out VoxelCell cell)
         {
-            return TryFindTop(x, z, minY, maxY, landOnly: true, out y, out cell);
+            return TryFindTop(x, z, minY, maxY,
+                              excludedMaterialA, excludedMaterialB, true,
+                              out y, out cell);
         }
 
-        private bool TryFindTop(int x, int z, int minY, int maxY, bool landOnly,
-                                out int y, out VoxelCell cell)
+        private bool TryFindTop(int x, int z, int minY, int maxY,
+                                byte excludedMaterialA, byte excludedMaterialB,
+                                bool hasExclusions, out int y, out VoxelCell cell)
         {
             if (maxY < minY)
             {
@@ -117,8 +121,8 @@ namespace VoxelEngine.Core.Storage
 
                 VoxelCell candidate = VoxelAccess.GetCell(ref _table, in _pool, worldVoxel);
                 if (!candidate.IsSolid) continue;
-                if (landOnly && (candidate.BaseMaterialId == Mat.Water
-                              || candidate.BaseMaterialId == Mat.Cascade)) continue;
+                if (hasExclusions && (candidate.BaseMaterialId == excludedMaterialA
+                                   || candidate.BaseMaterialId == excludedMaterialB)) continue;
 
                 y = candidateY;
                 cell = candidate;
