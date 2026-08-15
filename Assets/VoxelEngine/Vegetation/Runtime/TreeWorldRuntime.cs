@@ -20,16 +20,16 @@ namespace VoxelEngine.Vegetation.Runtime
         }
 
         public static bool RemoveBranch(int treeIndex, int branchIndex,
-                                        Unity.Mathematics.float3 cutMetres,
-                                        Unity.Mathematics.float3 impulse)
+                                        Unity.Mathematics.float3 cutMetres = default,
+                                        Unity.Mathematics.float3 impulse = default)
         {
             return TreeWorldState.RemoveBranch(treeIndex, branchIndex, cutMetres, impulse);
         }
 
         public static void SetDamage(int treeIndex, float foliageHealth, bool severed,
-                                     Unity.Mathematics.float3 impactMetres,
-                                     Unity.Mathematics.float3 impulse,
-                                     int branchIndex)
+                                     Unity.Mathematics.float3 impactMetres = default,
+                                     Unity.Mathematics.float3 impulse = default,
+                                     int branchIndex = -1)
         {
             TreeWorldState.SetDamage(treeIndex, foliageHealth, severed,
                                      impactMetres, impulse, branchIndex);
