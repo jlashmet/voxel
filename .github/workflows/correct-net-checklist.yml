@@ -1,0 +1,50 @@
+name: Correct premature Net checklist acceptance
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/correct-net-checklist.yml]
+permissions:
+  contents: write
+jobs:
+  correct:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          s=p.read_text()
+          def repl(old,new):
+              global s
+              if old not in s:
+                  raise SystemExit('missing expected text: '+old[:120])
+              s=s.replace(old,new,1)
+          repl('| 11 — Net | **In progress — current** | Net.Api/Runtime assemblies exist; edit vocabulary/application is Api-only; structural graph/wrapper violations are gone; residency policy calls Streaming.Api; semantic convergence/repair uses Storage.Api read/snapshot/mutation capabilities; residual Core.Storage/Core.Occupancy imports and dead physical helpers were removed; transitional broad Net assembly now references only domain APIs | physically move Client/Interest/Protocol/Server/Transport under Net/Runtime, normalize Runtime namespaces, delete broad Net assembly, and run final Net parity gate |',
+               '| 11 — Net | **In progress — current** | accepted earlier cutovers removed the structural graph and duplicate edit-applier wrapper; Edits.Api is the canonical edit dependency | Net ownership cleanup and the physical Runtime move are code-landed but require baseline revalidation; normalize Runtime namespaces and complete the final Net gate |')
+          repl('- Latest accepted code gate: `da3b6f0b3daf6b6e0e1f30917fd3d88267c1af34` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Net ownership checkpoint: server residency now delegates to Streaming.Api; authoritative validation/session/client repair paths consume Storage.Api read/mutation/snapshot capabilities; semantic convergence uses `IRegionSnapshotSource`; Net has no live `VoxelEngine.Core.*` source imports; `RegionHasher` is limited to network-payload hashing; dead physical persistence/compaction scaffolding was removed. The final physical Net Runtime move remains unchecked.',
+               '- Latest accepted code gate: `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Net ownership/decomposition work after this gate is code-landed but remains unaccepted until a full compile/test run returns to this baseline; the Net-specific artifacts inspected during revalidation stopped at compilation and did not produce `results.xml`.')
+          repl('- [x] Net.Api/Runtime assemblies exist; transitional Net source is Core-free and references domain APIs only.', '- [ ] Net.Api/Runtime assemblies exist and the source has been decomposed physically; acceptance is pending a baseline-clean compile/test gate.')
+          repl('- [x] Server residency delegates to Streaming.Api; semantic convergence/repair uses Storage.Api read/mutation/snapshot capabilities; duplicate structural/edit/storage ownership was removed.', '- [ ] Server residency delegates to Streaming.Api and semantic convergence/repair uses Storage.Api capabilities in the current code; acceptance is pending revalidation.')
+          repl('- [x] Net ownership checkpoint accepted by CI at `da3b6f0b3daf6b6e0e1f30917fd3d88267c1af34`: 384 total / 371 passed / exact 13 known baseline failures.', '- [ ] Net ownership checkpoint must be re-earned; the previously cited `da3b6f0b` acceptance could not be tied to a completed baseline artifact, and ownership-specific artifacts inspected during revalidation were compile-only failures.')
+          repl('- [ ] Client/Interest/Protocol/Server/Transport physical Runtime move, Runtime namespace normalization, and broad Net assembly deletion remain.', '- [ ] Client/Interest/Protocol/Server/Transport physical Runtime move and broad Net assembly deletion are code-complete; Runtime namespace normalization and baseline acceptance remain.')
+          repl('- [x] network residency calls Streaming.Api;', '- [ ] network residency calls Streaming.Api;')
+          repl('- [x] semantic repair/snapshot paths use Storage.Api logical data;', '- [ ] semantic repair/snapshot paths use Storage.Api logical data;')
+          repl('- [x] protocol/convergence/late-join/reconciliation tests pass against the accepted `da3b6f0b` ownership baseline.', '- [ ] protocol/convergence/late-join/reconciliation tests pass against the accepted baseline.')
+          # Execution checklist may have been advanced by the invalid gate.
+          s=s.replace('### 11. Net\n\n- [x] create Net.Api/Runtime\n- [x] move client/interest/protocol/server/transport implementation\n- [x] remove structural/storage/residency ownership violations\n- [x] delete dead RegionStore / verify no second authoritative world store\n- [x] reference only domain APIs',
+                      '### 11. Net\n\n- [ ] create Net.Api/Runtime\n- [ ] move client/interest/protocol/server/transport implementation\n- [ ] remove structural/storage/residency ownership violations\n- [ ] delete dead RegionStore / verify no second authoritative world store\n- [ ] reference only domain APIs')
+          p.write_text(s)
+          PY
+          git rm .github/workflows/correct-net-checklist.yml
+          git diff --check
+          git config user.name architecture-refactor-checklist
+          git config user.email architecture-refactor-checklist@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'docs: revert premature Net acceptance marks'
+          git push origin HEAD:${{ github.ref_name }}
