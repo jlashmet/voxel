@@ -27,9 +27,7 @@ namespace VoxelEngine.Tests.EditMode
 
             KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
                 definition,
-                (scene, roles) => scene.Bind(
-                    speaker,
-                    CutsceneActorTarget.Npc(roles.DestinationNpc)));
+                (scene, roles) => scene.Bind(speaker, roles.DestinationNpc));
 
             CampaignBlueprint blueprint = content.Blueprint;
             CutsceneSpec destination = blueprint.Cutscenes

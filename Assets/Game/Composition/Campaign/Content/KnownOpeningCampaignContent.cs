@@ -6,32 +6,32 @@ using Game.WorldBuilder.Api;
 namespace Game.Composition.Campaign.Content
 {
     /// <summary>
-    /// Stable semantic roles already known to participate in the opening. Destination cutscene content
-    /// can use these refs to bind its own actor ids without moving choreography into campaign authoring.
+    /// Stable semantic roles already known to participate in the opening. Designer-facing relationships
+    /// use unforgeable WorldBuilder handles; compiled/runtime consumers continue to receive stable refs.
     /// </summary>
     public readonly struct KnownOpeningCampaignRoles
     {
-        public SiteRef StartingPub { get; }
-        public SiteRef FirstDestination { get; }
-        public NpcRef Madeline { get; }
-        public NpcRef Steven { get; }
-        public NpcRef Logan { get; }
-        public NpcRef DestinationNpc { get; }
+        public SiteHandle StartingPub { get; }
+        public SiteHandle FirstDestination { get; }
+        public NpcHandle Madeline { get; }
+        public NpcHandle Steven { get; }
+        public NpcHandle Logan { get; }
+        public NpcHandle DestinationNpc { get; }
 
         internal KnownOpeningCampaignRoles(
-            SiteRef startingPub,
-            SiteRef firstDestination,
-            NpcRef madeline,
-            NpcRef steven,
-            NpcRef logan,
-            NpcRef destinationNpc)
+            SiteHandle startingPub,
+            SiteHandle firstDestination,
+            NpcHandle madeline,
+            NpcHandle steven,
+            NpcHandle logan,
+            NpcHandle destinationNpc)
         {
-            StartingPub = startingPub;
-            FirstDestination = firstDestination;
-            Madeline = madeline;
-            Steven = steven;
-            Logan = logan;
-            DestinationNpc = destinationNpc;
+            StartingPub = startingPub ?? throw new ArgumentNullException(nameof(startingPub));
+            FirstDestination = firstDestination ?? throw new ArgumentNullException(nameof(firstDestination));
+            Madeline = madeline ?? throw new ArgumentNullException(nameof(madeline));
+            Steven = steven ?? throw new ArgumentNullException(nameof(steven));
+            Logan = logan ?? throw new ArgumentNullException(nameof(logan));
+            DestinationNpc = destinationNpc ?? throw new ArgumentNullException(nameof(destinationNpc));
         }
     }
 
@@ -45,12 +45,12 @@ namespace Game.Composition.Campaign.Content
     {
         public CampaignBlueprint Blueprint { get; }
         public KnownOpeningCampaignRoles Roles { get; }
-        public SiteRef StartingPub => Roles.StartingPub;
-        public SiteRef FirstDestination => Roles.FirstDestination;
-        public NpcRef Madeline => Roles.Madeline;
-        public NpcRef Steven => Roles.Steven;
-        public NpcRef Logan => Roles.Logan;
-        public NpcRef DestinationNpc => Roles.DestinationNpc;
+        public SiteRef StartingPub => Roles.StartingPub.Ref;
+        public SiteRef FirstDestination => Roles.FirstDestination.Ref;
+        public NpcRef Madeline => Roles.Madeline.Ref;
+        public NpcRef Steven => Roles.Steven.Ref;
+        public NpcRef Logan => Roles.Logan.Ref;
+        public NpcRef DestinationNpc => Roles.DestinationNpc.Ref;
         public ObjectiveRef TravelObjective { get; }
         public CutsceneRef IntroCutscene { get; }
         public CutsceneRef DestinationCutscene { get; }
@@ -71,7 +71,7 @@ namespace Game.Composition.Campaign.Content
 
         public static KnownOpeningCampaignContent Build(
             CutsceneDefinition destinationCutsceneDefinition,
-            Action<CutsceneBuilder, KnownOpeningCampaignRoles> configureDestinationCutscene = null)
+            Action<CutsceneAuthoringBuilder, KnownOpeningCampaignRoles> configureDestinationCutscene = null)
         {
             if (destinationCutsceneDefinition == null)
                 throw new ArgumentNullException(nameof(destinationCutsceneDefinition));
@@ -85,28 +85,29 @@ namespace Game.Composition.Campaign.Content
 
             var game = Game.WorldBuilder.Api.Campaign.Create("main-campaign");
 
-            RegionRef kentridgeRegion = game.World.RequireRegion("kentridge-region", _ => { });
-            SettlementRef kentridge = game.World.RequireSettlement("kentridge", settlement => settlement
-                .InRegion(kentridgeRegion)
-                .Archetype(SettlementArchetype.Town));
+            RegionHandle kentridgeRegion = game.World.Region("kentridge-region");
+            SettlementHandle kentridge = kentridgeRegion.Town("kentridge");
 
-            SiteRef startingPub = game.World.RequireSite("starting-pub", kentridge, site => site
-                .Archetype(SiteArchetype.Pub)
-                .RequireCapability(SiteCapability.PlayerSpawn(4)));
+            SiteHandle startingPub = kentridge.Pub(
+                "starting-pub",
+                site => site.RequireCapability(SiteCapability.PlayerSpawn(4)));
 
             // The known story says only that the party goes somewhere else in the surrounding region.
             // The generator remains free to choose the concrete site as long as the hard
             // traversal/content needs are met; it is not forced into the starting settlement.
-            SiteRef firstDestination = game.World.RequireSite("first-destination", kentridgeRegion, site => site
-                .DifferentSiteFrom(startingPub)
-                .ReachableFrom(startingPub, TraversalProfile.NormalParty));
+            SiteHandle firstDestination = kentridgeRegion.Site(
+                "first-destination",
+                site => site
+                    .DifferentSiteFrom(startingPub)
+                    .ReachableFrom(startingPub, TraversalProfile.NormalParty));
 
-            NpcRef madeline = game.World.RequireNpc("madeline", npc => npc.PlaceAt(startingPub));
-            NpcRef steven = game.World.RequireNpc("steven", npc => npc.PlaceAt(startingPub));
-            NpcRef logan = game.World.RequireNpc("logan", npc => npc.PlaceAt(startingPub));
-            NpcRef destinationNpc = game.World.RequireNpc("destination-npc", npc => npc
-                .PlaceAt(firstDestination)
-                .RequireConversation());
+            NpcHandle madeline = startingPub.Npc("madeline");
+            NpcHandle steven = startingPub.Npc("steven");
+            NpcHandle logan = startingPub.Npc("logan");
+            NpcHandle destinationNpc = firstDestination.Npc(
+                "destination-npc",
+                npc => npc.RequireConversation());
+
             var roles = new KnownOpeningCampaignRoles(
                 startingPub,
                 firstDestination,
@@ -115,27 +116,21 @@ namespace Game.Composition.Campaign.Content
                 logan,
                 destinationNpc);
 
-            ObjectiveRef travelObjective = game.Story.Objective(
+            ObjectiveHandle travelObjective = firstDestination.Objective(
                 "travel-to-first-destination",
-                objective => objective
-                    .Target(firstDestination)
-                    .CompleteWhen(ObjectiveCompletion.InteractWith(destinationNpc)));
+                objective => objective.CompleteWhen(ObjectiveCompletion.InteractWith(destinationNpc)));
 
-            CutsceneRef destinationCutscene = game.Story.Cutscene(
+            CutsceneHandle destinationCutscene = firstDestination.Cutscene(
                 destinationCutsceneDefinition,
-                scene =>
-                {
-                    scene.At(firstDestination);
-                    configureDestinationCutscene?.Invoke(scene, roles);
-                });
-            CutsceneRef introCutscene = game.Story.Cutscene(
+                scene => configureDestinationCutscene?.Invoke(scene, roles));
+
+            CutsceneHandle introCutscene = startingPub.Cutscene(
                 KentridgeOpeningCutscene.Definition,
                 scene => scene
-                    .At(startingPub)
-                    .Bind(KentridgeOpeningCutscene.Lead, CutsceneActorTarget.Player(0))
-                    .Bind(KentridgeOpeningCutscene.Madeline, CutsceneActorTarget.Npc(madeline))
-                    .Bind(KentridgeOpeningCutscene.Steven, CutsceneActorTarget.Npc(steven))
-                    .Bind(KentridgeOpeningCutscene.Logan, CutsceneActorTarget.Npc(logan)));
+                    .Bind(KentridgeOpeningCutscene.Lead, PlayerSlot.First)
+                    .Bind(KentridgeOpeningCutscene.Madeline, madeline)
+                    .Bind(KentridgeOpeningCutscene.Steven, steven)
+                    .Bind(KentridgeOpeningCutscene.Logan, logan));
 
             game.Story.Rule("start-intro", rule => rule
                 .When(StoryTrigger.NewGame())
