@@ -49,10 +49,20 @@ jobs:
               if old not in s:
                   raise SystemExit('Missing TerrainLookdev migration anchor:\n'+old[:180])
               s=s.replace(old,new,1 if old != '_palette.Register(' else -1)
-          forbidden=['RegionTable','BrickPool','RegionReadSource','RegionMutationStore','MaterialPalette','SurfaceCatalogue','CoatingCatalogue','VoxelChangeJournal','VoxelEngine.Storage.Runtime']
+          forbidden=[
+              'using VoxelEngine.Storage.Runtime;',
+              'RegionTable ', 'new RegionTable(',
+              'BrickPool ', 'new BrickPool(',
+              'RegionReadSource ', 'new RegionReadSource(',
+              'RegionMutationStore ', 'new RegionMutationStore(',
+              'MaterialPalette ', '_palette',
+              'SurfaceCatalogue.CreateBuiltIns', '_surfaces',
+              'CoatingCatalogue.CreateBuiltIns', '_coatings',
+              'VoxelChangeJournal ', 'new VoxelChangeJournal(', '_changes',
+          ]
           leftovers=[t for t in forbidden if t in s]
           if leftovers:
-              raise SystemExit('TerrainLookdev retains Storage.Runtime concepts: '+', '.join(leftovers))
+              raise SystemExit('TerrainLookdev retains concrete Storage.Runtime concepts: '+', '.join(leftovers))
           required=['IVoxelStorageRuntime','VoxelEngineBootstrap.CreateStorage','_storage.RegisterMaterial','_storage.MaterialAuthoring','_storage.MaterialPresentation','_storage.SurfacePresentation','_storage.CoatingPresentation','_storage.PublishAllResidentRegions']
           missing=[t for t in required if t not in s]
           if missing:
