@@ -6,6 +6,8 @@ using VoxelEngine.Rendering.Api;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Composition
 {
@@ -112,6 +114,26 @@ namespace VoxelEngine.Composition
                 metrics.FacetedMergeTiming.P95Ms,
                 metrics.UploadTiming.P95Ms,
                 metrics.QueueLatencyTiming.P95Ms);
+        }
+
+        /// <summary>
+        /// Creates a Structures.Api authoring session while keeping the concrete VoxelBrush and
+        /// its Runtime adapter behind the Composition boundary.
+        /// </summary>
+        public static IStructureAuthoringSession CreateStructureAuthoring(
+            IVoxelStorageRuntime storage,
+            int writeBudget)
+        {
+            if (storage == null)
+                throw new ArgumentNullException(nameof(storage));
+            if (writeBudget <= 0)
+                throw new ArgumentOutOfRangeException(nameof(writeBudget));
+
+            return new StructureAuthoringSession(
+                storage.Reads,
+                storage.Mutations,
+                storage.MaterialAuthoring,
+                writeBudget);
         }
 
         public static IVoxelStorageRuntime CreateStorage(
