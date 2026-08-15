@@ -1,7 +1,7 @@
 using System;
 using Unity.Collections;
 using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Client
@@ -40,8 +40,7 @@ namespace VoxelEngine.Net.Client
         /// <summary>Decode and apply one compact packet to authoritative client voxel state.</summary>
         public static bool TryApply(
             ReadOnlySpan<byte> payload,
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore storage,
             out bool anyChanged)
         {
             anyChanged = false;
@@ -50,7 +49,7 @@ namespace VoxelEngine.Net.Client
 
             try
             {
-                anyChanged = EventApplication.ApplyWithArbitration(ref table, ref pool, in events);
+                anyChanged = EventApplication.ApplyWithArbitration(storage, in events);
                 return true;
             }
             finally
