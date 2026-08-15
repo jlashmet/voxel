@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 11 Net — final Api/Runtime decomposition and ownership cleanup
+**Current focus:** Cutover 11 Net — Api/Runtime decomposition and ownership cleanup
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -28,9 +28,9 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 7 — Tiering | **Complete** | `DeviceTier`/`DeviceTierBudget` live under `Tiering/Api` with preserved Unity GUIDs; broad Tiering assembly replaced by dependency-free `VoxelEngine.Tiering.Api`; Streaming, Rendering, Showcase and tests consume Api; no Tiering.Runtime exists; parity accepted | none |
 | 8 — Streaming | **Complete** | `Streaming.Api` exposes the real `RegionLoadRequest`/`IRegionStreaming` orchestration contract; all four implementation files live under `Streaming/Runtime` with preserved Unity GUIDs; `RegionStreamingService` hides Storage residency behind the Api; Runtime depends only on Streaming.Api, Storage.Api and Tiering.Api; broad Streaming/Net coupling is gone | none |
 | 9 — Collision | **Complete** | `Collision.Api`/`Collision.Runtime` replace the broad assembly; DDA/raycast/sweep/hull implementation lives in Runtime with preserved Unity GUIDs; Runtime consumes Storage.Api only; final caller inventory found no production subsystem consumer, so Api remains intentionally empty instead of inventing DTOs | none |
-| 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable tree placement/species/profile plus immutable skeleton/damage/read contracts; mutable state, skeleton generation and damage live in `Vegetation.Runtime`; Rendering and WorldGen consume Api only; broad/Core Vegetation ownership is gone | none |
-| 11 — Net | **In progress — current** | authoritative edit application callers consume Edits.Api/Storage mutation capabilities; StructuralGraph and the redundant edit wrapper are already gone | final Net.Api/Runtime decomposition, residency/store ownership cleanup, and semantic snapshot/repair boundary |
-| 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; parity accepted | final Rendering.Api/Runtime move and Vegetation.Api-only dependency |
+| 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
+| 11 — Net | **In progress — current** | authoritative edit application callers consume domain/Storage Api capabilities | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |
+| 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; vegetation presentation consumes Vegetation.Api only; parity accepted | final Rendering.Api/Runtime move |
 | 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
 
 ### Checklist discipline
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Accepted final Vegetation cutover: stable placement/presentation/read contracts live in Vegetation.Api; mutable tree state, skeleton generation and damage live in Vegetation.Runtime; Rendering and WorldGen consume Vegetation.Api only. The two additional passing tests are Vegetation boundary coverage; no existing failure changed.
+- Latest accepted code gate: `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Final Vegetation cutover: immutable presentation/damage/topology contracts live in Vegetation.Api; mutable world state, skeleton generation and damage implementation live in Vegetation.Runtime; Rendering and WorldGen are Vegetation.Api-only consumers.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
