@@ -170,9 +170,7 @@ namespace VoxelEngine.Storage.Api
                 Surface = material == VoxelGrid.MaterialEmpty
                     ? default
                     : VoxelSurfaceSemantics.FromStorage(_mixedSurfaceSemantics[offset]),
-                Boundary = material == VoxelGrid.MaterialEmpty
-                    ? default
-                    : new VoxelBoundarySample { Packed = _mixedBoundarySamples[offset] },
+                Boundary = new VoxelBoundarySample { Packed = _mixedBoundarySamples[offset] },
             };
             return true;
         }
