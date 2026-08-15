@@ -68,17 +68,6 @@ namespace Game.WorldBuilder.Runtime
 
             ValidateHierarchy(blueprint, regions, routes, settlements, sites, diagnostics);
 
-            for (var i = 0; i < blueprint.Sites.Count; i++)
-            {
-                var site = blueprint.Sites[i];
-                if (site.Archetype == SiteArchetype.Unspecified)
-                {
-                    diagnostics.Add(new BlueprintDiagnostic(
-                        "WB1001", BlueprintDiagnosticSeverity.Warning,
-                        $"Site '{site.Ref}' has no concrete archetype yet. It can participate in story constraints, but cannot be physically realized until a site archetype or selector is supplied."));
-                }
-            }
-
             for (var i = 0; i < blueprint.Npcs.Count; i++)
             {
                 var npc = blueprint.Npcs[i];
@@ -258,19 +247,28 @@ namespace Game.WorldBuilder.Runtime
             {
                 var site = blueprint.Sites[i];
                 if (!site.Ref.Equals(siteRef)) continue;
-                for (var j = 0; j < site.Capabilities.Count; j++) if (site.Capabilities[j].Kind == capability) return true;
+                for (var j = 0; j < site.Capabilities.Count; j++)
+                    if (site.Capabilities[j].Kind == capability) return true;
                 return false;
             }
             return false;
         }
 
-        private static HashSet<string> CollectIds<T>(IReadOnlyList<T> items, Func<T, string> selectId, string label, List<BlueprintDiagnostic> diagnostics)
+        private static HashSet<string> CollectIds<T>(
+            IReadOnlyList<T> items,
+            Func<T, string> selectId,
+            string label,
+            List<BlueprintDiagnostic> diagnostics)
         {
             var ids = new HashSet<string>(StringComparer.Ordinal);
             for (var i = 0; i < items.Count; i++)
             {
                 var id = selectId(items[i]);
-                if (!ids.Add(id)) diagnostics.Add(new BlueprintDiagnostic("WB0001", BlueprintDiagnosticSeverity.Error, $"Duplicate {label} id '{id}'."));
+                if (!ids.Add(id))
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB0001",
+                        BlueprintDiagnosticSeverity.Error,
+                        $"Duplicate {label} id '{id}'."));
             }
             return ids;
         }
@@ -314,9 +312,15 @@ namespace Game.WorldBuilder.Runtime
                 RequireExists(cutscenes, play.Cutscene.Id, "WB2506", $"Story rule '{rule}' plays unknown cutscene '{play.Cutscene}'.", diagnostics);
         }
 
-        private static void RequireExists(HashSet<string> ids, string id, string code, string message, List<BlueprintDiagnostic> diagnostics)
+        private static void RequireExists(
+            HashSet<string> ids,
+            string id,
+            string code,
+            string message,
+            List<BlueprintDiagnostic> diagnostics)
         {
-            if (!ids.Contains(id)) diagnostics.Add(new BlueprintDiagnostic(code, BlueprintDiagnosticSeverity.Error, message));
+            if (!ids.Contains(id))
+                diagnostics.Add(new BlueprintDiagnostic(code, BlueprintDiagnosticSeverity.Error, message));
         }
     }
 }
