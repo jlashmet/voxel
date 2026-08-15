@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Net.Protocol
 {
@@ -78,7 +78,7 @@ namespace VoxelEngine.Net.Protocol
             if (dst.Length < required)
                 return false;
 
-            int3 regionVoxelOrigin = regionCoord << VoxelDimensions.RegionVoxelEdgeLog2;
+            int3 regionVoxelOrigin = regionCoord << VoxelGrid.RegionVoxelEdgeLog2;
 
             // Validate the entire batch before writing anything. A caller can safely fall back
             // to another batch/message without accidentally sending a partially encoded payload.
@@ -160,7 +160,7 @@ namespace VoxelEngine.Net.Protocol
                 return false;
 
             int offset = HeaderSize + index * EntrySize;
-            int3 regionVoxelOrigin = batch.regionCoord << VoxelDimensions.RegionVoxelEdgeLog2;
+            int3 regionVoxelOrigin = batch.regionCoord << VoxelGrid.RegionVoxelEdgeLog2;
             int3 local = new int3(
                 ReadInt16(src, offset + 2),
                 ReadInt16(src, offset + 4),
