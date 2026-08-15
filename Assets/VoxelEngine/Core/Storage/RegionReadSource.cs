@@ -25,6 +25,16 @@ namespace VoxelEngine.Core.Storage
             _changes = changes;
         }
 
+        /// <summary>
+        /// Refreshes borrowed owner handles without allocating a new source object. This is used
+        /// by transitional composition/render wiring until Storage.Runtime owns construction.
+        /// </summary>
+        public void Refresh(in RegionTable table, in BrickPool pool)
+        {
+            _table = table;
+            _pool = pool;
+        }
+
         public ulong Version => _changes?.CurrentVersion ?? 0UL;
 
         public bool IsRegionResident(int3 regionCoord) => _table.IsResident(regionCoord);
