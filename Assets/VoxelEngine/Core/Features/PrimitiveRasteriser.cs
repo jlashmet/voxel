@@ -1,7 +1,6 @@
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features.Emitters;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Core.Features
@@ -45,8 +44,8 @@ namespace VoxelEngine.Core.Features
             NativeArray<Primitive> primitives,
             int3 subVolumeMin,
             int3 subVolumeMax,
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
             bool markHardSurface = false)
         {
             var result = new RasterResult();
@@ -79,14 +78,57 @@ namespace VoxelEngine.Core.Features
                         x0, x1, z0, z1,
                         min.y, max.y,
                         subVolumeMin.y, subVolumeMax.y,
-                        ref table, ref pool, ref result);
+                        reads, mutations, ref result);
                     result.PrimitivesRasterised++;
                     continue;
                 }
 
-                for (int z = z0; z <= z1; z++)
-                for (int y = y0; y <= y1; y++)
-                for (int x = x0; x <= x1; x++)
+                RasterisePrimitiveBlocks(
+                    in primitive, x0, x1, y0, y1, z0, z1,
+                    reads, mutations, markHardSurface, ref result);
+
+                if (primitive.Mode != PrimitiveMode.SurfaceDetail)
+                    RasteriseBoundaryHalo(in primitive, subVolumeMin, subVolumeMax,
+                                          reads, mutations, ref result);
+
+                result.PrimitivesRasterised++;
+            }
+
+            return result;
+        }
+
+        private static void RasterisePrimitiveBlocks(
+            in Primitive primitive,
+            int x0, int x1, int y0, int y1, int z0, int z1,
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            bool markHardSurface,
+            ref RasterResult result)
+        {
+            int3 blockMin = new int3(x0, y0, z0) >> VoxelReadGrid.BlockEdgeLog2;
+            int3 blockMax = new int3(x1, y1, z1) >> VoxelReadGrid.BlockEdgeLog2;
+            var read = new WorldReadCursor(reads);
+
+            for (int bz = blockMin.z; bz <= blockMax.z; bz++)
+            for (int by = blockMin.y; by <= blockMax.y; by++)
+            for (int bx = blockMin.x; bx <= blockMax.x; bx++)
+            {
+                int3 worldBlock = new(bx, by, bz);
+                int3 blockVoxelMin = worldBlock << VoxelReadGrid.BlockEdgeLog2;
+                int bx0 = math.max(x0, blockVoxelMin.x);
+                int bx1 = math.min(x1, blockVoxelMin.x + VoxelReadGrid.BlockEdgeMask);
+                int by0 = math.max(y0, blockVoxelMin.y);
+                int by1 = math.min(y1, blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask);
+                int bz0 = math.max(z0, blockVoxelMin.z);
+                int bz1 = math.min(z1, blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask);
+
+                VoxelBlockMutation mutation = default;
+                bool mutationOpen = false;
+                bool payloadChanged = false;
+
+                for (int z = bz0; z <= bz1; z++)
+                for (int y = by0; y <= by1; y++)
+                for (int x = bx0; x <= bx1; x++)
                 {
                     var voxel = new int3(x, y, z);
                     bool contains = primitive.Mode == PrimitiveMode.SurfaceDetail
@@ -95,43 +137,41 @@ namespace VoxelEngine.Core.Features
                         : Contains(in primitive, voxel);
                     if (!contains) continue;
 
-                    if (primitive.Mode == PrimitiveMode.FillIfEmpty
-                        && VoxelAccess.IsSolid(ref table, in pool, voxel))
+                    int voxelIndex = VoxelIndex(voxel);
+                    VoxelCell current = mutationOpen
+                        ? mutation.GetCell(voxelIndex)
+                        : read.ReadCell(voxel);
+
+                    if (primitive.Mode == PrimitiveMode.FillIfEmpty && current.IsSolid)
+                        continue;
+                    if (primitive.Mode == PrimitiveMode.PaintSolid && !current.IsSolid)
                         continue;
 
-                    if (primitive.Mode == PrimitiveMode.PaintSolid
-                        && !VoxelAccess.IsSolid(ref table, in pool, voxel))
-                        continue;
-
+                    VoxelCell next;
                     if (primitive.Mode == PrimitiveMode.SurfaceDetail)
                     {
-                        VoxelCell current = VoxelAccess.GetCell(ref table, in pool, voxel);
                         if (!current.IsSolid) continue;
+                        next = current;
                         if (primitive.SurfaceStyle != SurfaceStyles.MaterialDefault)
-                            current.Surface.StyleId = primitive.SurfaceStyle;
-                        current.Surface.Detail = (byte)math.min(31, primitive.SurfaceDetail);
-                        current.Surface.Flags |= primitive.SurfaceFlags;
-                        if (VoxelAccess.SetCell(ref table, ref pool, voxel, in current))
-                            result.VoxelsWritten++;
-                        continue;
+                            next.Surface.StyleId = primitive.SurfaceStyle;
+                        next.Surface.Detail = (byte)math.min(31, primitive.SurfaceDetail);
+                        next.Surface.Flags |= primitive.SurfaceFlags;
                     }
-
-                    VoxelCell cell;
-                    if (primitive.Mode == PrimitiveMode.Carve)
+                    else if (primitive.Mode == PrimitiveMode.Carve)
                     {
-                        cell = default;
+                        next = default;
                     }
                     else if (primitive.Mode == PrimitiveMode.PaintSolid)
                     {
-                        cell = VoxelAccess.GetCell(ref table, in pool, voxel);
-                        cell.BaseMaterialId = primitive.Material;
+                        next = current;
+                        next.BaseMaterialId = primitive.Material;
                     }
                     else
                     {
                         ushort style = primitive.SurfaceStyle;
                         if (markHardSurface && style == SurfaceStyles.MaterialDefault)
                             style = SurfaceStyles.Planar;
-                        cell = new VoxelCell
+                        next = new VoxelCell
                         {
                             BaseMaterialId = primitive.Material,
                             Surface = new VoxelSurfaceSemantics
@@ -144,18 +184,51 @@ namespace VoxelEngine.Core.Features
                         };
                     }
 
-                    if (VoxelAccess.SetCell(ref table, ref pool, voxel, in cell))
+                    if (current.Equals(next)) continue;
+
+                    if (!mutationOpen)
+                    {
+                        // markHardSurface historically controls authored cell styling here. The
+                        // region-level hard-surface bit is not added as part of this architecture
+                        // cutover because that would change authoritative output.
+                        if (!mutations.TryBeginCellBlock(worldBlock, false, out mutation))
+                            continue;
+                        mutationOpen = true;
+
+                        // Re-read from the borrowed mutation payload so this remains correct if a
+                        // preceding block operation changed the physical representation.
+                        current = mutation.GetCell(voxelIndex);
+                        if (primitive.Mode == PrimitiveMode.FillIfEmpty && current.IsSolid)
+                            continue;
+                        if (primitive.Mode == PrimitiveMode.PaintSolid && !current.IsSolid)
+                            continue;
+
+                        if (primitive.Mode == PrimitiveMode.SurfaceDetail)
+                        {
+                            if (!current.IsSolid) continue;
+                            next = current;
+                            if (primitive.SurfaceStyle != SurfaceStyles.MaterialDefault)
+                                next.Surface.StyleId = primitive.SurfaceStyle;
+                            next.Surface.Detail = (byte)math.min(31, primitive.SurfaceDetail);
+                            next.Surface.Flags |= primitive.SurfaceFlags;
+                        }
+                        else if (primitive.Mode == PrimitiveMode.PaintSolid)
+                        {
+                            next = current;
+                            next.BaseMaterialId = primitive.Material;
+                        }
+                    }
+
+                    if (mutation.SetCell(voxelIndex, in next))
+                    {
+                        payloadChanged = true;
                         result.VoxelsWritten++;
+                    }
                 }
 
-                if (primitive.Mode != PrimitiveMode.SurfaceDetail)
-                    RasteriseBoundaryHalo(in primitive, subVolumeMin, subVolumeMax,
-                                          ref table, ref pool, ref result);
-
-                result.PrimitivesRasterised++;
+                if (mutationOpen)
+                    mutations.CompletePartialBlock(ref mutation, payloadChanged);
             }
-
-            return result;
         }
 
         private static void RasteriseSurfacePaint(
@@ -163,9 +236,13 @@ namespace VoxelEngine.Core.Features
             int x0, int x1, int z0, int z1,
             int primitiveMinY, int primitiveMaxY,
             int subVolumeMinY, int subVolumeMaxY,
-            ref RegionTable table, ref BrickPool pool,
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
             ref RasterResult result)
         {
+            var read = new WorldReadCursor(reads);
+            var writes = new MaterialMutationCursor(mutations);
+
             for (int z = z0; z <= z1; z++)
             for (int x = x0; x <= x1; x++)
             {
@@ -177,7 +254,7 @@ namespace VoxelEngine.Core.Features
                 {
                     var top = new int3(x, y, z);
                     if (!Contains(in primitive, top)) continue;
-                    if (!VoxelAccess.IsSolid(ref table, in pool, top)) continue;
+                    if (!read.ReadCell(top).IsSolid) continue;
 
                     for (int depth = 0; depth < SurfacePaintDepth; depth++)
                     {
@@ -186,22 +263,23 @@ namespace VoxelEngine.Core.Features
 
                         var voxel = new int3(x, paintY, z);
                         if (!Contains(in primitive, voxel)) break;
-                        if (!VoxelAccess.IsSolid(ref table, in pool, voxel)) break;
+                        if (!read.ReadCell(voxel).IsSolid) break;
 
                         if (paintY < subVolumeMinY || paintY >= subVolumeMaxY) continue;
-                        if (VoxelAccess.SetVoxel(ref table, ref pool, voxel,
-                                                 primitive.Material))
+                        if (writes.SetMaterial(voxel, primitive.Material))
                             result.VoxelsWritten++;
                     }
 
                     break;
                 }
             }
+
+            writes.Flush();
         }
 
         private static void RasteriseBoundaryHalo(
             in Primitive primitive, int3 subVolumeMin, int3 subVolumeMax,
-            ref RegionTable table, ref BrickPool pool, ref RasterResult result)
+            IRegionReadSource reads, IRegionMutationStore mutations, ref RasterResult result)
         {
             if (!CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
                     in primitive, primitive.A, out _)) return;
@@ -209,50 +287,186 @@ namespace VoxelEngine.Core.Features
             primitive.Bounds(out int3 boundsMin, out int3 boundsMax);
             int3 min = math.max(boundsMin - 2, subVolumeMin);
             int3 max = math.min(boundsMax + 2, subVolumeMax - 1);
-            for (int z = min.z; z <= max.z; z++)
-            for (int y = min.y; y <= max.y; y++)
-            for (int x = min.x; x <= max.x; x++)
+            int3 blockMin = min >> VoxelReadGrid.BlockEdgeLog2;
+            int3 blockMax = max >> VoxelReadGrid.BlockEdgeLog2;
+            var read = new WorldReadCursor(reads);
+
+            for (int bz = blockMin.z; bz <= blockMax.z; bz++)
+            for (int by = blockMin.y; by <= blockMax.y; by++)
+            for (int bx = blockMin.x; bx <= blockMax.x; bx++)
             {
-                int3 voxel = new(x, y, z);
-                if (!CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
-                        in primitive, voxel, out int shapeDistanceQ4)) continue;
-                if (math.abs(shapeDistanceQ4) > 32) continue;
+                int3 worldBlock = new(bx, by, bz);
+                int3 blockVoxelMin = worldBlock << VoxelReadGrid.BlockEdgeLog2;
+                int bx0 = math.max(min.x, blockVoxelMin.x);
+                int bx1 = math.min(max.x, blockVoxelMin.x + VoxelReadGrid.BlockEdgeMask);
+                int by0 = math.max(min.y, blockVoxelMin.y);
+                int by1 = math.min(max.y, blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask);
+                int bz0 = math.max(min.z, blockVoxelMin.z);
+                int bz1 = math.min(max.z, blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask);
 
-                // A carve inverts the primitive field: inside the carved volume is outside solid.
-                int solidDistanceQ4 = primitive.Mode == PrimitiveMode.Carve
-                    ? -shapeDistanceQ4 : shapeDistanceQ4;
-                VoxelCell current = VoxelAccess.GetCell(ref table, in pool, voxel);
-                bool signMatchesOccupancy = current.IsSolid
-                    ? solidDistanceQ4 >= 0 : solidDistanceQ4 <= 0;
-                if (!signMatchesOccupancy) continue;
+                VoxelBlockMutation mutation = default;
+                bool mutationOpen = false;
+                bool payloadChanged = false;
 
-                // Fill constraints belong only to cells written with the primitive's material.
-                // This prevents an overlapping decorative primitive from reshaping foreign solids.
-                if (primitive.Mode != PrimitiveMode.Carve && current.IsSolid
-                    && current.BaseMaterialId != primitive.Material) continue;
-
-                if (solidDistanceQ4 == 0)
-                    solidDistanceQ4 = current.IsSolid ? 1 : -1;
-
-                int extrusionAxis = primitive.Shape == PrimitiveShape.Annulus
-                    || primitive.Shape == PrimitiveShape.ArcWedge
-                    || primitive.Shape == PrimitiveShape.Frustum
-                    || primitive.Shape == PrimitiveShape.RoundedBox && primitive.Axis <= 2
-                    ? primitive.Axis : 3;
-                VoxelBoundarySample boundary =
-                    VoxelBoundarySample.FromSignedQ4(solidDistanceQ4, extrusionAxis);
-                if (current.Boundary.IsAuthored)
+                for (int z = bz0; z <= bz1; z++)
+                for (int y = by0; y <= by1; y++)
+                for (int x = bx0; x <= bx1; x++)
                 {
-                    int existingDistanceQ4 = current.Boundary.SignedQ4;
-                    bool candidateWins = primitive.Mode == PrimitiveMode.Carve
-                        ? solidDistanceQ4 < existingDistanceQ4
-                        : solidDistanceQ4 > existingDistanceQ4;
-                    if (!candidateWins) continue;
+                    int3 voxel = new(x, y, z);
+                    if (!CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
+                            in primitive, voxel, out int shapeDistanceQ4)) continue;
+                    if (math.abs(shapeDistanceQ4) > 32) continue;
+
+                    int solidDistanceQ4 = primitive.Mode == PrimitiveMode.Carve
+                        ? -shapeDistanceQ4 : shapeDistanceQ4;
+                    int voxelIndex = VoxelIndex(voxel);
+                    VoxelCell current = mutationOpen
+                        ? mutation.GetCell(voxelIndex)
+                        : read.ReadCell(voxel);
+                    bool signMatchesOccupancy = current.IsSolid
+                        ? solidDistanceQ4 >= 0 : solidDistanceQ4 <= 0;
+                    if (!signMatchesOccupancy) continue;
+
+                    if (primitive.Mode != PrimitiveMode.Carve && current.IsSolid
+                        && current.BaseMaterialId != primitive.Material) continue;
+
+                    if (solidDistanceQ4 == 0)
+                        solidDistanceQ4 = current.IsSolid ? 1 : -1;
+
+                    int extrusionAxis = primitive.Shape == PrimitiveShape.Annulus
+                        || primitive.Shape == PrimitiveShape.ArcWedge
+                        || primitive.Shape == PrimitiveShape.Frustum
+                        || primitive.Shape == PrimitiveShape.RoundedBox && primitive.Axis <= 2
+                        ? primitive.Axis : 3;
+                    VoxelBoundarySample boundary =
+                        VoxelBoundarySample.FromSignedQ4(solidDistanceQ4, extrusionAxis);
+                    if (current.Boundary.IsAuthored)
+                    {
+                        int existingDistanceQ4 = current.Boundary.SignedQ4;
+                        bool candidateWins = primitive.Mode == PrimitiveMode.Carve
+                            ? solidDistanceQ4 < existingDistanceQ4
+                            : solidDistanceQ4 > existingDistanceQ4;
+                        if (!candidateWins) continue;
+                    }
+                    if (current.Boundary.Equals(boundary)) continue;
+
+                    if (!mutationOpen)
+                    {
+                        if (!mutations.TryBeginCellBlock(worldBlock, false, out mutation))
+                            continue;
+                        mutationOpen = true;
+                        current = mutation.GetCell(voxelIndex);
+
+                        bool recheckSign = current.IsSolid
+                            ? solidDistanceQ4 >= 0 : solidDistanceQ4 <= 0;
+                        if (!recheckSign) continue;
+                        if (primitive.Mode != PrimitiveMode.Carve && current.IsSolid
+                            && current.BaseMaterialId != primitive.Material) continue;
+                        if (current.Boundary.IsAuthored)
+                        {
+                            int existingDistanceQ4 = current.Boundary.SignedQ4;
+                            bool candidateWins = primitive.Mode == PrimitiveMode.Carve
+                                ? solidDistanceQ4 < existingDistanceQ4
+                                : solidDistanceQ4 > existingDistanceQ4;
+                            if (!candidateWins) continue;
+                        }
+                        if (current.Boundary.Equals(boundary)) continue;
+                    }
+
+                    current.Boundary = boundary;
+                    if (mutation.SetCell(voxelIndex, in current))
+                    {
+                        payloadChanged = true;
+                        result.VoxelsWritten++;
+                    }
                 }
-                if (current.Boundary.Equals(boundary)) continue;
-                current.Boundary = boundary;
-                if (VoxelAccess.SetCell(ref table, ref pool, voxel, in current))
-                    result.VoxelsWritten++;
+
+                if (mutationOpen)
+                    mutations.CompletePartialBlock(ref mutation, payloadChanged);
+            }
+        }
+
+        private static int VoxelIndex(int3 worldVoxel)
+        {
+            int3 inner = worldVoxel & VoxelReadGrid.BlockEdgeMask;
+            return inner.x
+                | (inner.y << VoxelReadGrid.BlockEdgeLog2)
+                | (inner.z << (VoxelReadGrid.BlockEdgeLog2 * 2));
+        }
+
+        private struct WorldReadCursor
+        {
+            private readonly IRegionReadSource _source;
+            private RegionReadView _view;
+            private int3 _regionCoord;
+            private bool _hasView;
+
+            public WorldReadCursor(IRegionReadSource source)
+            {
+                _source = source;
+                _view = default;
+                _regionCoord = default;
+                _hasView = false;
+            }
+
+            public VoxelCell ReadCell(int3 worldVoxel)
+            {
+                int3 regionCoord = worldVoxel >> VoxelGrid.RegionVoxelEdgeLog2;
+                if (!_hasView || math.any(regionCoord != _regionCoord))
+                {
+                    _regionCoord = regionCoord;
+                    _hasView = _source != null && _source.TryAcquireRegion(regionCoord, out _view);
+                }
+
+                if (!_hasView) return default;
+                int3 localVoxel = worldVoxel - (regionCoord << VoxelGrid.RegionVoxelEdgeLog2);
+                return _view.TryReadCell(localVoxel, out VoxelCell cell) ? cell : default;
+            }
+        }
+
+        private struct MaterialMutationCursor
+        {
+            private readonly IRegionMutationStore _store;
+            private int3 _worldBlock;
+            private VoxelBlockMutation _mutation;
+            private bool _hasBlock;
+            private bool _payloadChanged;
+
+            public MaterialMutationCursor(IRegionMutationStore store)
+            {
+                _store = store;
+                _worldBlock = default;
+                _mutation = default;
+                _hasBlock = false;
+                _payloadChanged = false;
+            }
+
+            public bool SetMaterial(int3 worldVoxel, byte material)
+            {
+                int3 worldBlock = worldVoxel >> VoxelReadGrid.BlockEdgeLog2;
+                if (!_hasBlock || math.any(worldBlock != _worldBlock))
+                {
+                    Flush();
+                    if (_store == null
+                        || !_store.TryBeginPartialBlock(worldBlock, material, false, out _mutation))
+                        return false;
+                    _worldBlock = worldBlock;
+                    _hasBlock = true;
+                    _payloadChanged = false;
+                }
+
+                if (!_mutation.IsCreated) return false;
+                bool changed = _mutation.SetMaterial(VoxelIndex(worldVoxel), material);
+                _payloadChanged |= changed;
+                return changed;
+            }
+
+            public void Flush()
+            {
+                if (!_hasBlock) return;
+                _store.CompletePartialBlock(ref _mutation, _payloadChanged);
+                _hasBlock = false;
+                _payloadChanged = false;
             }
         }
 
