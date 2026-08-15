@@ -3,6 +3,7 @@ using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
+using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 
 namespace VoxelEngine.Tests.EditMode
@@ -48,6 +49,7 @@ namespace VoxelEngine.Tests.EditMode
             // envelope: (123-10,52), then translated by the world origin.
             Assert.AreEqual(213, geometry.PublicEntranceDm.X);
             Assert.AreEqual(252, geometry.PublicEntranceDm.Y);
+            Assert.AreEqual(7, geometry.PublicEntranceHeightDm);
             Assert.AreEqual(FrontageDirection.West, geometry.PublicEntranceFacing);
 
             StructureInteriorEnvelope interior;
@@ -66,6 +68,7 @@ namespace VoxelEngine.Tests.EditMode
                 envelope: 196,
                 expectedDoorX: 94,
                 expectedDoorZ: 18,
+                expectedDoorHeight: 8,
                 expectedHalfWidth: 74,
                 expectedDepth: 137);
             AssertBespoke(
@@ -74,6 +77,7 @@ namespace VoxelEngine.Tests.EditMode
                 envelope: 268,
                 expectedDoorX: 131,
                 expectedDoorZ: 26,
+                expectedDoorHeight: 9,
                 expectedHalfWidth: 100,
                 expectedDepth: 183);
             AssertBespoke(
@@ -82,6 +86,7 @@ namespace VoxelEngine.Tests.EditMode
                 envelope: 164,
                 expectedDoorX: 82,
                 expectedDoorZ: 18,
+                expectedDoorHeight: 8,
                 expectedHalfWidth: 10,
                 expectedDepth: 42);
         }
@@ -149,12 +154,37 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(1, excluded);
         }
 
+        [Test]
+        public void ArchitectureProjectionMatchesExactVoxelEntranceAtDefaultScale()
+        {
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            var projections = new KentridgeArchitectureSiteProjectionProvider(plan);
+            var realization = new KentridgeVoxelSiteRealizationFacts(plan, 1);
+
+            for (var i = 0; i < plan.Sites.Count; i++)
+            {
+                PlannedSite site = plan.Sites[i];
+                SettlementSiteProjection projection;
+                RealizedWorldPoint entrance;
+                bool projected = projections.TryProject(site, out projection);
+                bool realized = realization.TryGetPublicEntrance(site.RoleId, out entrance);
+
+                Assert.AreEqual(projected, realized, "Role " + site.RoleId + " disagrees about public entrance availability.");
+                if (!projected) continue;
+
+                Assert.AreEqual(1, entrance.UnitsPerDecimetre);
+                Assert.AreEqual(projection.PublicEntranceDm.X, entrance.Position.X, "Role " + site.RoleId + " entrance X drifted between Architecture and Voxel.");
+                Assert.AreEqual(projection.PublicEntranceDm.Y, entrance.Position.Z, "Role " + site.RoleId + " entrance Z drifted between Architecture and Voxel.");
+            }
+        }
+
         private static void AssertBespoke(
             int roleId,
             StructureArchetype archetype,
             int envelope,
             int expectedDoorX,
             int expectedDoorZ,
+            int expectedDoorHeight,
             int expectedHalfWidth,
             int expectedDepth)
         {
@@ -173,6 +203,7 @@ namespace VoxelEngine.Tests.EditMode
                 intent, KentridgeDefinition.Theme, form, out geometry));
             Assert.AreEqual(100 + expectedDoorX, geometry.PublicEntranceDm.X);
             Assert.AreEqual(200 + expectedDoorZ, geometry.PublicEntranceDm.Y);
+            Assert.AreEqual(expectedDoorHeight, geometry.PublicEntranceHeightDm);
 
             StructureInteriorEnvelope interior;
             Assert.IsTrue(StructureSiteGeometryResolver.TryResolveInterior(
