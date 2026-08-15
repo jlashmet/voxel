@@ -3,7 +3,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Runtime;
 
 namespace VoxelEngine.Tests.Parity
 {

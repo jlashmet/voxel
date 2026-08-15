@@ -1,0 +1,19 @@
+{
+  "name": "VoxelEngine.Terrain.Runtime",
+  "rootNamespace": "VoxelEngine.Terrain.Runtime",
+  "references": [
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Foundation",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

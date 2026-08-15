@@ -5,7 +5,7 @@ using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Tests.Parity;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Runtime;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -107,9 +107,9 @@ namespace VoxelEngine.Tests.Parity
             var regionB = new Region(int3.zero, Allocator.Temp);
 
             // Materialise terrain in both.
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in regionA), regionA.Coord, TerrainSeed);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in regionB), regionB.Coord, TerrainSeed);
 
             var tableA = new RegionTable(1, Allocator.Persistent);

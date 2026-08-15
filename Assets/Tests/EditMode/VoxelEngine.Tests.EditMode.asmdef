@@ -26,7 +26,8 @@
     "VoxelEngine.Edits.Runtime",
     "VoxelEngine.Streaming.Api",
     "VoxelEngine.Streaming.Runtime",
-    "VoxelEngine.Collision.Runtime"
+    "VoxelEngine.Collision.Runtime",
+    "VoxelEngine.Terrain.Runtime"
   ],
   "includePlatforms": [
     "Editor"

@@ -6,7 +6,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -17,7 +17,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             string root = FindRepoRoot();
             string path = Path.Combine(
-                root, "Assets", "VoxelEngine", "Core", "Terrain", "TerrainGenerator.cs");
+                root, "Assets", "VoxelEngine", "Terrain", "Runtime", "TerrainGenerator.cs");
             string source = File.ReadAllText(path);
             string codeOnly = Regex.Replace(source,
                 @"//.*?$|/\*.*?\*/",

@@ -17,7 +17,8 @@
     "UnityEditor.TestRunner",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",
-    "VoxelEngine.StructuralIntegrity.Runtime"
+    "VoxelEngine.StructuralIntegrity.Runtime",
+    "VoxelEngine.Terrain.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

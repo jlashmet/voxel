@@ -14,7 +14,8 @@
     "Unity.Mathematics",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Vegetation.Api",
-    "VoxelEngine.Vegetation.Runtime"
+    "VoxelEngine.Vegetation.Runtime",
+    "VoxelEngine.Terrain.Runtime"
   ],
   "includePlatforms": [
     "Editor"

@@ -5,7 +5,7 @@ using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Runtime;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -64,9 +64,9 @@ namespace VoxelEngine.Tests.Parity
             var generationA = new RegionGenerationStore(in _tableA);
             var generationB = new RegionGenerationStore(in _tableB);
 
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 generationA, regionA.Coord, terrainSeed);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 generationB, regionB.Coord, terrainSeed);
 
             // Materialise both.

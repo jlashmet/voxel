@@ -5,7 +5,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Runtime;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -42,9 +42,9 @@ namespace VoxelEngine.Tests.Parity
             var regionA = new Region(int3.zero, Allocator.Temp);
             var regionB = new Region(int3.zero, Allocator.Temp);
 
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in regionA), regionA.Coord, terrainSeed);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in regionB), regionB.Coord, terrainSeed);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
@@ -89,9 +89,9 @@ namespace VoxelEngine.Tests.Parity
             var regionA = new Region(int3.zero, Allocator.Temp);
             var regionB = new Region(int3.zero, Allocator.Temp);
 
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
@@ -131,9 +131,9 @@ namespace VoxelEngine.Tests.Parity
             var regionA = new Region(int3.zero, Allocator.Temp);
             var regionB = new Region(int3.zero, Allocator.Temp);
 
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u);
 
             const int eventCount = 1000;

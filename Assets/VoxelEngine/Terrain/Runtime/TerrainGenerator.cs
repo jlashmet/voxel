@@ -3,7 +3,7 @@ using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Terrain.Api;
 
-namespace VoxelEngine.Core.Terrain
+namespace VoxelEngine.Terrain.Runtime
 {
     /// <summary>
     /// Fills a resident region with deterministic empty/uniform terrain blocks.
