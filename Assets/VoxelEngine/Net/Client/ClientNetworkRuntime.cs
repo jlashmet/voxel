@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Transport;
 
@@ -166,13 +166,21 @@ namespace VoxelEngine.Net.Client
             return applied;
         }
 
+        /// <summary>
+        /// Applies authoritative world state through Storage.Api only. Composition owns the concrete
+        /// storage adapters; networking never receives RegionTable, BrickPool, Region, or allocator
+        /// representation.
+        /// </summary>
         public int ApplyReadyAuthoritativeEvents(
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore mutations,
+            IRegionSnapshotSource snapshots,
+            IRegionSnapshotMutationStore snapshotMutations,
             out int appliedEvents)
         {
             ThrowIfDisposed();
-            var snapshotMutations = new RegionSnapshotMutationStore(in table, in pool);
+            if (mutations == null) throw new ArgumentNullException(nameof(mutations));
+            if (snapshots == null) throw new ArgumentNullException(nameof(snapshots));
+            if (snapshotMutations == null) throw new ArgumentNullException(nameof(snapshotMutations));
 
             if (_fullState.TryDequeue(out var full))
             {
@@ -229,8 +237,8 @@ namespace VoxelEngine.Net.Client
             }
 
             return _events.DrainReady(
-                ref table,
-                ref pool,
+                mutations,
+                snapshots,
                 out appliedEvents,
                 this,
                 out _);
