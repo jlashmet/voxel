@@ -178,6 +178,19 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void CompositionShowcaseWorldExposesProfileBlocksThroughStorageApi()
+        {
+            string path = Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");
+            Assert.IsTrue(File.Exists(path), "Missing Composition-owned ShowcaseWorld: " + path);
+
+            string source = File.ReadAllText(path);
+            StringAssert.Contains("public IProfileBlockReadSource ProfileBlocks => _profileBlocks;", source,
+                "ShowcaseWorld must expose retained profile blocks through the Storage.Api read contract.");
+            StringAssert.DoesNotContain("public ProfileBlockStore ProfileBlocks", source,
+                "A public Composition surface may not force scene assemblies to reference Structures.Runtime.");
+        }
+
+        [Test]
         public void RenderingReadPathUsesStorageApiForPhysicalReads()
         {
             string renderingRoot = Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime");
