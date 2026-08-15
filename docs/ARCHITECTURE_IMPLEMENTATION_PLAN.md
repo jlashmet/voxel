@@ -20,8 +20,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 |---|---|---|---|
 | 0 — Guardrails | **Complete** | asmdef boundary guard, split-safe determinism roots, WorldGen boundary guards | final no-Core assertions tighten automatically as final assemblies land |
 | 1 — Foundation | **Complete** | `IntMath` clean-moved to `VoxelEngine.Foundation`; consumers and Core bridge reference migrated | none |
-| 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency, mutation, focused surface-query and authoring-validation capabilities; whole-cell block authoring; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
-| 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
+| 2 — Storage | **In progress** | `Storage.Api` contracts/read views/generation/mutation/snapshot/hash boundaries complete; physical representation and occupancy now live under `Storage.Runtime`; Core storage ownership and Core assembly are deleted; full 384/371/13 baseline accepted | remove remaining direct Storage.Runtime consumers outside Composition/tests/tooling and finish final architecture gate |
+| 3 — Terrain | **Complete** | `Terrain.Api` owns deterministic query/generation contracts; `TerrainGenerator` lives in `Terrain.Runtime`; Runtime references only Terrain.Api/Storage.Api/Foundation; WorldGen/Structures remain Api-only; exact 384/371/13 baseline accepted | none |
 | 4 — Structures | **Complete** | `Structures.Api` owns canonical authoring/material/layout contracts; all implementation (feature VM/generation/rasterizer/emitters, retained-profile store, CastleBuilder, VoxelBrush, MasonryWeathering) lives under `Structures/Runtime` with Runtime namespaces and preserved Unity GUIDs; Storage dependencies route through Storage.Api; Rendering uses the retained-profile read boundary; WorldGen Voxel is Api-only; broad Structures assembly, legacy `VoxelEngine.Core.Features` namespace, and Kentridge compatibility seam are gone | none |
 | 5 — Edits | **Complete** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; all edit implementation lives under `Edits/Runtime` with Runtime namespace and preserved Unity GUIDs; Net protocol/client/server/validation consume Api only; dead `DensityCap`, redundant Net wrapper, and `VoxelEngine.Core.Edits` are gone; Storage boundaries/parity accepted | none |
 | 6 — StructuralIntegrity | **Complete** | dead Net `StructuralGraph` removed; StructuralIntegrity.Api/Runtime assemblies created; `SupportField`, `CollapseDetection`, and `Connectivity` all live in Runtime with preserved Unity GUIDs and Storage.Api-only reads; `Core/Structure` is gone; final inventory found no production/network structural consumer, so Api remains intentionally empty rather than inventing DTOs; parity accepted | none |
@@ -31,7 +31,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
 | 11 — Net | **Complete** | Net.Api/Runtime physical decomposition and Runtime namespaces are complete; Runtime references only approved domain APIs; residency delegates Streaming.Api; semantic repair/snapshots use Storage.Api logical capabilities; structural graph and duplicate edit wrapper are gone; final 384/371/13 behavioral baseline accepted | none |
 | 12 — Rendering | **Complete** | Rendering Api/Runtime physical + namespace + asmdef cutover complete; Runtime consumes Storage.Api/Tiering.Api/Vegetation.Api only; presentation catalogues/change feed use Storage.Api read views; retained profiles use Storage.Api; tree presentation uses Vegetation.Api; dead physical leaks removed; static and 384/371/13 behavioral parity accepted | none |
-| 13 — Composition/Core deletion | **In progress — current** | final inventory complete; semantic WorldGen engine-free and Voxel adapter Api-only accepted | composition root, move remaining Storage/Terrain ownership out of Core, migrate app/tool consumers, delete Core |
+| 13 — Composition/Core deletion | **In progress — current** | final inventory complete; WorldGen dependency direction accepted; Terrain and Storage physical ownership extracted; `Assets/VoxelEngine/Core` and `VoxelEngine.Core` assembly deleted with exact 384/371/13 baseline | create Composition root, migrate Showcase/Tools concrete Runtime wiring, remove residual Core guard literals, final dependency report |
 
 ### Checklist discipline
 
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `f5e0b646102a50305424850a0508d190bae3e44d` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Rendering Cutover 12 run `31894170304` produced a complete `results.xml`; this accepts the final Rendering Api/Runtime, namespace, Storage.Api presentation/change-feed boundary, consumer/tooling migrations, and behavioral parity.
+- Latest accepted code gate: `c6089e18e1774dcedb6145f0b6977147ffba3d0d` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Cutover 13 Terrain/Core/Storage run `31895124610` accepts the final Terrain Runtime move, deterministic guard relocation, Storage.Runtime physical-owner move, occupancy namespace repair, and physical deletion of `Assets/VoxelEngine/Core` / `VoxelEngine.Core`.
 - Latest accepted Rendering static gate: source `f5e0b646102a50305424850a0508d190bae3e44d`, run `31894268246` — physical Api/Runtime layout, Runtime namespaces, dependency direction, reverse simulation dependency, and explicit/manual lookdev status all passed. Behavioral parity is still pending and is not implied by this static gate.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
@@ -528,7 +528,7 @@ with `VoxelSurfaceQuery` (or the equivalent concrete Api value created above). I
 
 ## 7.6 Storage acceptance gates
 
-- [ ] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are internal/runtime-only.
+- [x] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are owned by `Storage.Runtime`; physical move + Core deletion accepted by static gate `31894801235` and exact behavioral gate `31895124610`.
 - [ ] No source outside `Storage/Runtime` imports their namespaces.
 - [x] Rendering and Collision use readonly native views, not virtual per-voxel services.
 - [x] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`; it consumes `IVoxelSurfaceQuery` and preserves water/cascade exclusion via caller-owned material IDs.
@@ -593,13 +593,14 @@ The Voxel worldgen package references `VoxelEngine.Terrain.Api`, never Terrain.R
 - [x] Terrain query extraction accepted by CI at `1233cc3d29a56f7a37cc979d0bd897f4f716db8a`: 382 total / 369 passed / exact 13 known baseline failures.
 - [x] `TerrainGenerator` no longer receives or writes `BrickPool`; generation goes through Storage.Api bulk generation views.
 - [x] Table-backed and standalone generation writers have parity coverage.
-- [ ] Terrain.Api/Runtime physical move and namespace cutover complete.
+- [x] Terrain.Api/Runtime physical move and namespace cutover complete at `4a46df0f39299535f6d036fd0641964eefd3a516`; static Terrain gate `31894703756` passed and final post-Core exact baseline is `31895124610`.
+- [x] Final Terrain Cutover 3 behavioral acceptance: source `c6089e18e1774dcedb6145f0b6977147ffba3d0d`, isolated run `31895124610`, 384 total / 371 passed / exact same 13 failed-test names as the accepted baseline.
 
 ### Gate
 
-- [ ] no `VoxelEngine.Core.Terrain` references remain;
-- [ ] Terrain.Runtime references only Terrain.Api + Storage.Api + Foundation;
-- [ ] Structures/worldgen cannot call a Terrain.Runtime type;
+- [x] no `VoxelEngine.Core.Terrain` references remain; static Terrain gate `31894703756` passed;
+- [x] Terrain.Runtime references only Terrain.Api + Storage.Api + Foundation; static Terrain gate `31894703756` passed;
+- [x] Structures/worldgen cannot call a Terrain.Runtime type; static Terrain gate `31894703756` verifies WorldGen remains Terrain.Api-only and no Structures.Runtime reference exists;
 - [x] deterministic terrain parity tests remain byte/value identical unless a deliberate behavior change is separately approved.
 
 ---
@@ -1420,6 +1421,7 @@ Only include an Api reference if current source uses it after refactor. No `Voxe
 
 - [x] `MountingForce.WorldGen.Core` and `MountingForce.WorldGen.Architecture` remain engine-free.
 - [x] `MountingForce.WorldGen.Voxel` broad `VoxelEngine.Core` reference removed at `4599efb83f1ccd95382711be4f229ae2bb344163`; hosted gate `31894519041` verifies its engine references are exactly Storage.Api, Terrain.Api, Structures.Api and Vegetation.Api.
+- [x] Physical Core deletion accepted: Storage/Occupancy moved to `Storage.Runtime`, Terrain moved to `Terrain.Runtime`, and no `VoxelEngine.Core` assembly or source namespace remains. Static gate `31894801235`; final exact behavioral gate `31895124610`.
 
 ## 18.2 Delete Core
 
@@ -1449,8 +1451,8 @@ Do not retain Core as a forwarding facade.
 
 ### Gate
 
-- [ ] Core folder and asmdef deleted;
-- [ ] no source namespace begins `VoxelEngine.Core`;
+- [x] Core folder and asmdef deleted at `0027e6a64f137763b994d304eac9621071e1ea3d`; static Core/Storage gate `31894801235` and exact behavioral gate `31895124610` accept the deletion with no forwarding facade;
+- [x] no source namespace begins `VoxelEngine.Core`; static Core/Storage gate `31894801235` verifies this after physical deletion;
 - [ ] all production asmdefs satisfy dependency guard;
 - [x] semantic WorldGen assemblies still have no VoxelEngine refs; hosted Cutover 13 WorldGen gate `31894519041` verified Core/Architecture remain engine-free after source `4599efb83f1ccd95382711be4f229ae2bb344163`;
 - [ ] Composition is the only runtime-wiring exception.
@@ -1581,8 +1583,8 @@ At the end, generate an asmdef dependency report and verify:
 [x] WorldGen.Core references no VoxelEngine assembly
 [x] WorldGen.Architecture references no VoxelEngine assembly
 [x] WorldGen.Voxel references only VoxelEngine Api assemblies
-[ ] no VoxelEngine.Core assembly remains
-[ ] no VoxelEngine.Core namespace remains
+[x] no VoxelEngine.Core assembly remains
+[x] no VoxelEngine.Core namespace remains
 [ ] no compatibility/legacy adapter was introduced to preserve the old architecture
 ```
 
@@ -1604,24 +1606,24 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 2. Storage
 
-- [ ] create Storage.Api/Runtime asmdefs
-- [ ] move `VoxelCell` logical value types to Api
-- [ ] split public grid constants from private brick layout
-- [ ] create region/read/generation/mutation/surface-query/snapshot contracts
-- [ ] move BrickPool/BrickRef/Region/RegionTable/VoxelAccess to Runtime
-- [ ] move Occupancy implementation to Storage.Runtime
-- [ ] move semantic hash/snapshot implementation to Runtime
+- [x] create Storage.Api/Runtime asmdefs
+- [x] move `VoxelCell` logical value types to Api
+- [x] split public grid constants from private brick layout
+- [x] create region/read/generation/mutation/surface-query/snapshot contracts
+- [x] move BrickPool/BrickRef/Region/RegionTable/VoxelAccess to Runtime
+- [x] move Occupancy implementation to Storage.Runtime
+- [x] move semantic hash/snapshot implementation to Runtime
 - [ ] update all existing consumers to Storage.Api
 - [x] move Kentridge vegetation top-surface reads to Storage.Api
 - [ ] remove every foreign Storage.Runtime reference
 
 ### 3. Terrain
 
-- [ ] create Terrain.Api/Runtime
+- [x] create Terrain.Api/Runtime
 - [x] move deterministic query contract to Api
-- [ ] move TerrainGenerator/Sampler implementation to Runtime
+- [x] move TerrainGenerator/Sampler implementation to Runtime
 - [x] generate through Storage.Api writer
-- [ ] update Structures/Streaming/WorldGen callers
+- [x] update Structures/Streaming/WorldGen callers
 
 ### 4. Structures
 
