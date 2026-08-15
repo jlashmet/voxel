@@ -1,7 +1,7 @@
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features.Emitters;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -26,7 +26,7 @@ namespace VoxelEngine.Core.Features
     ///
     /// The evaluator never touches voxels and cannot read the brickmap. It has exactly one window
     /// onto the world — <see cref="ShapeOp.SampleGround"/>, which reads
-    /// <see cref="TerrainSampler"/>, a pure function of position. That restriction is what keeps
+    /// <see cref="TerrainQuery"/>, a pure function of position. That restriction is what keeps
     /// generation region-local: a program that could inspect what was already there would produce
     /// different results depending on which region generated first.
     ///
@@ -126,9 +126,6 @@ namespace VoxelEngine.Core.Features
 
                 if (op == ShapeOp.End) return EvaluationResult.Ok;
 
-                // Operands are resolved into locals rather than through a closure: a local
-                // function capturing state, or a delegate handed to the emitter, allocates per
-                // instruction and does not survive Burst compilation.
                 int o0 = Resolve(program, registers, operandBase, mask, 0, operandCount);
                 int o1 = Resolve(program, registers, operandBase, mask, 1, operandCount);
                 int o2 = Resolve(program, registers, operandBase, mask, 2, operandCount);
@@ -205,8 +202,6 @@ namespace VoxelEngine.Core.Features
                         int bodyLength = MeasureInstructions(catalogue, bodyStart, end, bodyInstructions);
                         if (bodyLength < 0) return EvaluationResult.MalformedProgram;
 
-                        // Bounded by construction: a negative or absurd count is a catalogue
-                        // defect, and clamping keeps a malformed program from spinning.
                         if (count < 0) count = 0;
                         if (count > FeatureBudget.MaxPrimitivesPerInstance)
                             count = FeatureBudget.MaxPrimitivesPerInstance;
@@ -267,7 +262,7 @@ namespace VoxelEngine.Core.Features
                         int worldZ = origin.z + stack[stackDepth].Offset.z + o2;
 
                         if ((uint)destination < (uint)ShapeOps.RegisterCount)
-                            registers[destination] = TerrainSampler.HeightAt(worldX, worldZ, terrainSeed);
+                            registers[destination] = TerrainQuery.HeightAt(worldX, worldZ, terrainSeed);
 
                         break;
                     }
@@ -335,8 +330,6 @@ namespace VoxelEngine.Core.Features
                     }
 
                     case ShapeOp.CallSlot:
-                        // Composition arrives with US4 (T067). Ignored rather than failing, so a
-                        // catalogue authored ahead of the implementation still loads.
                         break;
                 }
 
@@ -346,7 +339,6 @@ namespace VoxelEngine.Core.Features
             return EvaluationResult.Ok;
         }
 
-        /// <summary>Length in ints of the next <paramref name="count"/> instructions.</summary>
         private static int MeasureInstructions(in FeatureCatalogue catalogue, int start, int end, int count)
         {
             var program = catalogue.Program;
@@ -362,8 +354,6 @@ namespace VoxelEngine.Core.Features
 
                 pc += length;
 
-                // A Repeat or IfRange body sits inline after its instruction, so measuring must
-                // skip it too or the outer walk lands mid-instruction.
                 if (op == ShapeOp.Repeat || op == ShapeOp.IfRange)
                 {
                     int nested = program[pc - 1];
@@ -459,15 +449,6 @@ namespace VoxelEngine.Core.Features
             }
         }
 
-        // -- orientation ---------------------------------------------------------
-
-        /// <summary>
-        /// Rotates a primitive by quarter-turns about Y, within the definition's footprint.
-        ///
-        /// Rotating about the footprint rather than the origin keeps every orientation inside the
-        /// same box, which is what lets placement treat footprint as orientation-independent — and
-        /// therefore lets a region decide what overlaps it without evaluating anything.
-        /// </summary>
         private static Primitive Orient(Primitive p, int3 footprint, byte orientation)
         {
             if ((orientation & 3) == 0) return p;
@@ -483,7 +464,6 @@ namespace VoxelEngine.Core.Features
             if (p.Shape >= PrimitiveShape.Ellipsoid)
                 p.C = RotatePoint(p.C, footprint, orientation);
 
-            // A quarter-turn swaps the x and z axes; a half-turn leaves them alone.
             if ((orientation & 1) != 0)
             {
                 if (p.Axis == 0) p.Axis = 2;
@@ -510,16 +490,12 @@ namespace VoxelEngine.Core.Features
                 p.Direction = (sbyte)(profileVector[profileAxis] < 0 ? -1 : 1);
             }
 
-
             if (p.Shape == PrimitiveShape.ArcWedge)
             {
                 int2 start = RotateRadialDirection(p.StartDirection, originalAxis,
                                                    p.Axis, orientation, out int axisSign);
                 int2 end = RotateRadialDirection(p.EndDirection, originalAxis,
                                                  p.Axis, orientation, out _);
-                // Rotating an extrusion axis onto its negative cardinal direction reverses the
-                // radial basis used by ArcWedgeContains. Swap the boundaries to retain the same
-                // counter-clockwise interior after canonicalising the unsigned axis field.
                 if (axisSign < 0)
                 {
                     p.StartDirection = end;
@@ -593,15 +569,6 @@ namespace VoxelEngine.Core.Features
             return (Facing)(((int)facing + orientation) & 3);
         }
 
-        // -- terrain adaptation --------------------------------------------------
-
-        /// <summary>
-        /// The altitude an instance sits at.
-        ///
-        /// Sampled over the whole footprint even when only a sliver is being generated. That
-        /// redundancy is deliberate: a base plane derived from the local slice would differ
-        /// between the regions an instance spans, and the structure would step at the border.
-        /// </summary>
         private static int BasePlane(in FeatureDefinition definition, int3 origin, uint terrainSeed)
         {
             if (definition.BasePlane == BasePlaneRule.FixedAltitude)
@@ -619,7 +586,7 @@ namespace VoxelEngine.Core.Features
                 int x = origin.x + (definition.Footprint.x - 1) * ix / (samplesPerAxis - 1);
                 int z = origin.z + (definition.Footprint.z - 1) * iz / (samplesPerAxis - 1);
 
-                int h = TerrainSampler.HeightAt(x, z, terrainSeed);
+                int h = TerrainQuery.HeightAt(x, z, terrainSeed);
 
                 if (h < lowest) lowest = h;
                 if (h > highest) highest = h;
