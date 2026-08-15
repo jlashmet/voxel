@@ -20,9 +20,9 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 |---|---|---|---|
 | 0 — Guardrails | **Complete** | asmdef boundary guard, split-safe determinism roots, WorldGen boundary guards | final no-Core assertions tighten automatically as final assemblies land |
 | 1 — Foundation | **Complete** | `IntMath` clean-moved to `VoxelEngine.Foundation`; consumers and Core bridge reference migrated | none |
-| 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency, mutation and focused surface-query capabilities; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
+| 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency, mutation, focused surface-query and authoring-validation capabilities; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
-| 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts live in `VoxelEngine.Structures.Api`; Kentridge compatibility seam deleted and all Kentridge definitions validated against canonical encoding | migrate Runtime dependencies, then move Structures.Runtime and delete the old broad Structures assembly |
+| 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts live in `VoxelEngine.Structures.Api`; `Structures.Runtime` assembly created with the allowed dependency set; feature-runtime Storage validation dependencies now route through Storage.Api; Kentridge compatibility seam deleted | move feature VM/emitters/arch implementations into Structures.Runtime; move CastleBuilder/top-level implementation; remove broad Structures assembly |
 | 5 — Edits | **In progress** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |
 | 6 — StructuralIntegrity | **Not started** | — | full cutover |
 | 7 — Tiering | **Not started** | — | full cutover |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `a47c3b8abff99e27e5c5cbeda0451ad8b963c314` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate accepts the Storage.Api focused voxel-surface query and Kentridge vegetation migration away from `RegionTable`/`BrickPool`/`VoxelAccess`. The prior Terrain.Api query extraction remains accepted. The baseline previously shrank from 15 to 13 because canonical `EmitBox` encoding fixed `KentridgeUpperSkybridgeTests.SkybridgeCatalogueCreatesOneOpenHardUpperStreetWithoutRoadPiers` and `KentridgeVerticalFrontageTests.VerticalFrontagesEmbedIntoTerraceAndEndOnAuthoredDownhillEdge`; no new failures were introduced.
+- Latest accepted code gate: `0c2b0cdd7148e3d14f6ab3a14348a5fc993dfcac` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate accepts the `Structures.Runtime` assembly creation, Core.Storage cleanup in `ProfileBlockStore`, `BondedBlockVeneer` and `CurvedPrimitiveEmitter`, and the Storage.Api authoring-validation capabilities used by `ArchFeature` instead of concrete mutable Storage catalogue types. The prior Kentridge surface-query and Terrain.Api query slices remain accepted. The baseline previously shrank from 15 to 13 because canonical `EmitBox` encoding fixed `KentridgeUpperSkybridgeTests.SkybridgeCatalogueCreatesOneOpenHardUpperStreetWithoutRoadPiers` and `KentridgeVerticalFrontageTests.VerticalFrontagesEmbedIntoTerraceAndEndOnAuthoredDownhillEdge`; no new failures were introduced.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -711,6 +711,9 @@ Do **not** add any engine reference to `MountingForce.WorldGen.Core` or `Mountin
 - [x] Structures.Api extraction accepted by CI: 379 total / 364 passed / exact 15 baseline failures.
 - [x] Kentridge compatibility encoding seam deleted; catalogue/program builders now emit canonical Structures.Api instruction widths directly.
 - [x] Canonical shape encoding slice accepted by CI at `a9d684e612485728320597577680e60a8075f075`: 382 total / 369 passed / exact 13 known baseline failures; all `KentridgeShapeProgramEncodingTests` pass and no new failures were introduced.
+- [x] `Structures.Runtime` assembly created with only Structures.Api + Storage.Api + Terrain.Api + Foundation engine references.
+- [x] Runtime-candidate Storage dependencies cleaned: `ProfileBlockStore` and `BondedBlockVeneer` use `VoxelGrid.MaterialEmpty`, `CurvedPrimitiveEmitter` has no Core.Storage import, and `ArchFeature` validates through Storage.Api authoring catalogue capabilities rather than concrete mutable Storage types.
+- [x] Structures Runtime dependency-cleanup slice accepted by CI at `0c2b0cdd7148e3d14f6ab3a14348a5fc993dfcac`: 382 total / 369 passed / exact 13 known baseline failures.
 - [ ] Structures.Api/Runtime physical move and namespace cutover complete.
 
 ### Gate
@@ -1522,7 +1525,7 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 4. Structures
 
-- [ ] create Structures.Api/Runtime
+- [x] create Structures.Api/Runtime
 - [x] move compiled feature authoring format to Api
 - [ ] move feature VM/generation/rasterization to Runtime
 - [ ] move existing CastleBuilder/etc. under Runtime
