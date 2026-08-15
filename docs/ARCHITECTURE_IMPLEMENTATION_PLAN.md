@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 12 Rendering — behavioral parity acceptance
+**Current focus:** Cutover 13 Composition/Core deletion — final wiring and Core removal
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -30,8 +30,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 9 — Collision | **Complete** | `Collision.Api`/`Collision.Runtime` replace the broad assembly; DDA/raycast/sweep/hull implementation lives in Runtime with preserved Unity GUIDs; Runtime consumes Storage.Api only; final caller inventory found no production subsystem consumer, so Api remains intentionally empty instead of inventing DTOs | none |
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
 | 11 — Net | **Complete** | Net.Api/Runtime physical decomposition and Runtime namespaces are complete; Runtime references only approved domain APIs; residency delegates Streaming.Api; semantic repair/snapshots use Storage.Api logical capabilities; structural graph and duplicate edit wrapper are gone; final 384/371/13 behavioral baseline accepted | none |
-| 12 — Rendering | **In progress — current** | render bridge/surface extraction use Storage.Api read views; retained profiles use Storage.Api; vegetation presentation uses Vegetation.Api; dead physical leaks removed; Rendering Api/Runtime physical + namespace + asmdef cutover accepted by static gate | final 384/371/13 behavioral parity gate |
-| 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
+| 12 — Rendering | **Complete** | Rendering Api/Runtime physical + namespace + asmdef cutover complete; Runtime consumes Storage.Api/Tiering.Api/Vegetation.Api only; presentation catalogues/change feed use Storage.Api read views; retained profiles use Storage.Api; tree presentation uses Vegetation.Api; dead physical leaks removed; static and 384/371/13 behavioral parity accepted | none |
+| 13 — Composition/Core deletion | **In progress — current** | read-only final-cut inventory may proceed after Rendering acceptance | composition root, final wiring, delete Core |
 
 ### Checklist discipline
 
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `de24d20ce48e9665f4ab7ab78343e7354601eab0` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Rendering cleanup run `31892956307` produced a complete `results.xml`; its failed-name set matches the accepted 384-test baseline exactly. This gate accepts removal of the unused/physical-storage-leaking `ProbeCache` and `VoxelGpuBuffers` implementations before the Rendering Api/Runtime split.
+- Latest accepted code gate: `f5e0b646102a50305424850a0508d190bae3e44d` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Rendering Cutover 12 run `31894170304` produced a complete `results.xml`; this accepts the final Rendering Api/Runtime, namespace, Storage.Api presentation/change-feed boundary, consumer/tooling migrations, and behavioral parity.
 - Latest accepted Rendering static gate: source `f5e0b646102a50305424850a0508d190bae3e44d`, run `31894268246` — physical Api/Runtime layout, Runtime namespaces, dependency direction, reverse simulation dependency, and explicit/manual lookdev status all passed. Behavioral parity is still pending and is not implied by this static gate.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
@@ -1351,13 +1351,14 @@ Rewrite `SurfaceExtraction/VoxelSurfaceScheduler.cs` and related caches/jobs so 
 - [x] Rendering dead-leak cleanup accepted at `de24d20ce48e9665f4ab7ab78343e7354601eab0`: 384 total / 371 passed / exact 13 known baseline failures.
 - [x] Rendering.Api/Runtime physical move and Runtime namespace cutover complete; broad root assembly/namespace is gone. Static acceptance run `31894268246` passed against source `f5e0b646102a50305424850a0508d190bae3e44d`.
 - [x] Rendering catalogue/change-feed consumers and tooling use Storage.Api read-facing views; Rendering.Runtime no longer references `VoxelEngine.Core`.
+- [x] Rendering behavioral parity accepted at `f5e0b646102a50305424850a0508d190bae3e44d`, isolated run `31894170304`: 384 total / 371 passed / exact 13 known baseline failures.
 
 ### Gate
 
 - [x] Rendering.Runtime has no Storage.Runtime/Vegetation.Runtime ref; static acceptance run `31894268246` verified the Runtime asmdef consumes only Storage.Api, Tiering.Api, Vegetation.Api plus Unity packages;
 - [x] surface extraction works from versioned readonly views;
 - [x] renderer is not referenced by simulation Runtime assemblies; dedicated reverse-dependency scan passed in static acceptance run `31894268246`;
-- [ ] targeted GPU/CPU surface and rendering parity tests pass;
+- [x] targeted GPU/CPU surface and rendering parity tests pass; isolated EditMode acceptance run `31894170304` against source `f5e0b646102a50305424850a0508d190bae3e44d` produced 384 total / 371 passed / exact 13 known baseline failures;
 - [x] artifact/lookdev tests remain explicit/manual unless separately changed; static acceptance run `31894268246` verifies the Showcase GPU/lookdev test remains `[Explicit]`.
 
 ---
@@ -1684,10 +1685,10 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 12. Rendering
 
-- [ ] create Rendering.Api/Runtime
-- [ ] move all extraction/render/tree presentation implementation to Runtime
-- [ ] consume Storage/Tiering/Vegetation Api only
-- [ ] keep Rendering.Api minimal
+- [x] create Rendering.Api/Runtime
+- [x] move all extraction/render/tree presentation implementation to Runtime
+- [x] consume Storage/Tiering/Vegetation Api only
+- [x] keep Rendering.Api minimal
 
 ### 13. Composition and final cleanup
 
