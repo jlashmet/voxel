@@ -1,6 +1,6 @@
 # Final Architecture Dependency Report
 
-This is the repository-persisted copy of the final static dependency report accepted for source `2c451f2759f4c04649eeab3dba88edc56efd2c46` by GitHub Actions run `31910012496` (`Final architecture static acceptance`). The permanent generator/acceptance gate is `.github/workflows/final-architecture-static.yml`.
+This is the repository-persisted copy of the final static dependency review. The full final checklist was accepted for source `4feee4f28926be4abcb3cf87c5d8e4ee355500bf` by GitHub Actions run `31910148411` (`Final architecture static acceptance`). The permanent generator/acceptance gate is `.github/workflows/final-architecture-static.yml`.
 
 ## VoxelEngine assembly edges
 
@@ -43,9 +43,13 @@ This is the repository-persisted copy of the final static dependency report acce
 
 ## Final boundary assertions
 
+- Every exposed engine subsystem has exactly one Api assembly under an `Api/` directory.
 - Api assemblies reference no Runtime assemblies.
 - Runtime assemblies reference no foreign Runtime assemblies.
 - Composition is the only production assembly that wires concrete Runtime assemblies.
+- Streaming has no Net reference.
+- Net consumes `Streaming.Api` and not `Streaming.Runtime`.
+- Rendering consumes exactly `Storage.Api`, `Tiering.Api`, and `Vegetation.Api` from VoxelEngine.
 - Production `Assets/` and `Packages/` contain no `VoxelEngine.Core` references.
 - Production architecture contains no `Legacy*` or `*Compatibility*` adapter source files.
 - WorldGen Core/Architecture are engine-independent; WorldGen.Voxel references engine Api assemblies only.
