@@ -14,15 +14,6 @@ namespace VoxelEngine.Core.Features.Emitters
     /// </summary>
     public static class BoxEmitter
     {
-        /// <summary>
-        /// High bit on a ramp axis means the wedge rises toward the negative end of that axis.
-        /// The low seven bits retain the existing 0=x, 1=y, 2=z axis encoding, so ordinary ramps
-        /// remain byte-for-byte compatible while authored features can express a downhill-to-uphill
-        /// direction without relying on a later bounding-box rotation to preserve slope semantics.
-        /// </summary>
-        public const byte ReverseRampBit = 0x80;
-        public const byte RampAxisMask = 0x7F;
-
         public static Primitive Box(int3 min, int3 size, byte material, PrimitiveMode mode, int order,
                                     ushort surfaceStyle = 0, byte coating = 0)
         {
@@ -41,7 +32,7 @@ namespace VoxelEngine.Core.Features.Emitters
 
         /// <summary>
         /// A wedge rising along <paramref name="axis"/>. Stairs, terrain skirts, buttresses.
-        /// OR <see cref="ReverseRampBit"/> into the axis to make it rise toward the negative end.
+        /// OR <see cref="ShapeOps.ReverseRampBit"/> into the axis to make it rise toward the negative end.
         /// </summary>
         public static Primitive Ramp(int3 min, int3 size, byte axis, byte material,
                                      PrimitiveMode mode, int order,
@@ -54,8 +45,8 @@ namespace VoxelEngine.Core.Features.Emitters
                 Material = material,
                 SurfaceStyle = surfaceStyle,
                 Coating = coating,
-                Axis = (byte)(axis & RampAxisMask),
-                Direction = (sbyte)((axis & ReverseRampBit) != 0 ? -1 : 1),
+                Axis = (byte)(axis & ShapeOps.RampAxisMask),
+                Direction = (sbyte)((axis & ShapeOps.ReverseRampBit) != 0 ? -1 : 1),
                 Order = order,
                 A = min,
                 B = min + math.max(size, new int3(1, 1, 1)) - 1,
@@ -78,7 +69,7 @@ namespace VoxelEngine.Core.Features.Emitters
         {
             if (!BoxContains(in p, voxel)) return false;
 
-            int axis = p.Axis & RampAxisMask;
+            int axis = p.Axis & ShapeOps.RampAxisMask;
 
             int along = axis == 0 ? voxel.x - p.A.x
                       : axis == 2 ? voxel.z - p.A.z
