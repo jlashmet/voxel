@@ -12,9 +12,12 @@
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Showcase",
     "Unity.Collections",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "VoxelEngine.Terrain.Api"
   ],
-  "includePlatforms": ["Editor"],
+  "includePlatforms": [
+    "Editor"
+  ],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,

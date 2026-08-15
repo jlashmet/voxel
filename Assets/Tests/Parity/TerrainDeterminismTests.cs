@@ -1,7 +1,7 @@
 using Unity.Mathematics;
 using NUnit.Framework;
 using Unity.Collections;
-using VoxelEngine.Core.Terrain;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Terrain.Api;
 

@@ -1,6 +1,6 @@
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Terrain;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures

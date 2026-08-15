@@ -12,7 +12,7 @@ using UnityEngine.Rendering;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Core.Terrain;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Rendering.SurfaceExtraction;
 
 using VoxelEngine.Structures.Api;
