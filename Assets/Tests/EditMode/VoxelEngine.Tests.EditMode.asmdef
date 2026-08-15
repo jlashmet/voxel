@@ -17,6 +17,8 @@
     "Game.Cutscenes.Content",
     "Game.WorldBuilder.Api",
     "Game.WorldBuilder.Runtime",
+    "Game.Story.Api",
+    "Game.Story.Runtime",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
