@@ -200,7 +200,7 @@ jobs:
           p.write_text(s)
           PY
 
-          test ! grep -q 'using VoxelEngine.Structures.Runtime;' Assets/Scenes/Showcase/ArchLookdev.cs
+          ! grep -q 'using VoxelEngine.Structures.Runtime;' Assets/Scenes/Showcase/ArchLookdev.cs
           grep -q 'StructuresComposition.AuthorArchBay' Assets/Scenes/Showcase/ArchLookdev.cs
           grep -q 'ArchBayAuthoringPipeline.Author' Assets/VoxelEngine/Composition/StructuresComposition.cs
           grep -q 'class ArchBayAuthoringPipeline' Assets/VoxelEngine/Structures/Runtime/ArchBayAuthoringPipeline.cs
