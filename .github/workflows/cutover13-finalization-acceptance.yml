@@ -14,35 +14,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: f5037a5fa76e25661a192fd5c8dbd6050a67863d
           fetch-depth: 1
-      - name: Verify Showcase light Runtime boundary
+      - name: Verify final Showcase Composition ownership
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json
           from pathlib import Path
-          root = Path('Assets/Scenes/Showcase')
-          forbidden = (
-              'VoxelEngine.Streaming.Runtime',
-              'VoxelEngine.Terrain.Runtime',
-              'VoxelEngine.Rendering.Runtime',
-              'ResidencyManager',
+
+          scene = Path('Assets/Scenes/Showcase')
+          composition = Path('Assets/VoxelEngine/Composition/Showcase')
+          moved = (
+              'ShowcaseWorld.cs',
+              'ShowcaseWorld.StorageBridge.cs',
+              'ShowcaseCatalogue.cs',
+              'ShowcaseHeightJob.cs',
+              'ArchLookdev.cs',
           )
+          missing = [name for name in moved if not (composition / name).is_file()]
+          stale = [name for name in moved if (scene / name).exists()]
+          if missing:
+              raise SystemExit('Composition-owned Showcase files missing: ' + ', '.join(missing))
+          if stale:
+              raise SystemExit('Showcase still owns concrete runtime files: ' + ', '.join(stale))
+
           violations = []
-          for path in root.rglob('*.cs'):
+          for path in scene.rglob('*.cs'):
               text = path.read_text()
-              for token in forbidden:
-                  if token in text:
-                      violations.append(f'{path}: {token}')
-          asmdef = json.loads((root / 'VoxelEngine.Showcase.asmdef').read_text())
-          for token in forbidden[:3]:
-              if token in asmdef.get('references', []):
-                  violations.append(f'asmdef: {token}')
+              if '.Runtime' in text and 'VoxelEngine.' in text:
+                  violations.append(f'{path}: concrete Runtime namespace reference')
+          asmdef = json.loads((scene / 'VoxelEngine.Showcase.asmdef').read_text())
+          bad_refs = [
+              ref for ref in asmdef.get('references', [])
+              if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime')
+          ]
+          if bad_refs:
+              violations.append('Showcase asmdef Runtime references: ' + ', '.join(bad_refs))
           if violations:
               raise SystemExit('\n'.join(violations))
-          print('Showcase light Runtime boundary accepted')
+
+          world = (composition / 'ShowcaseWorld.cs').read_text()
+          if 'GpuDebrisSystem' in world:
+              raise SystemExit('Composition-owned ShowcaseWorld still reaches scene presentation internals')
+          if 'RenderSamplesPerDetachedChunk' not in world:
+              raise SystemExit('Composition-owned detached-chunk presentation capacity is missing')
+          print('Final Showcase Composition ownership accepted')
           PY
 
   editmode:
@@ -51,17 +68,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: f5037a5fa76e25661a192fd5c8dbd6050a67863d
           clean: false
           fetch-depth: 1
-      - name: Reset pinned candidate while preserving Unity cache
+      - name: Reset exact candidate while preserving Unity cache
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard f5037a5fa76e25661a192fd5c8dbd6050a67863d
+          git reset --hard "$GITHUB_SHA"
           git clean -ffdx -e Library/
           rm -rf Library/ScriptAssemblies Library/Bee
       - id: unity
+        name: Locate Unity editor
         shell: bash
         run: |
           set -euo pipefail
@@ -75,10 +92,13 @@ jobs:
           set -euo pipefail
           deadline=$((SECONDS + 600))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
-            if (( SECONDS >= deadline )); then exit 1; fi
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
             sleep 5
           done
-      - name: Run EditMode acceptance
+      - name: Run and verify exact EditMode baseline
         shell: bash
         run: |
           set -uo pipefail
@@ -91,11 +111,46 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || true
           test -s "$ROOT/results.xml"
+          if grep -E 'error CS[0-9]+' "$ROOT/unity.log"; then
+            echo 'Compiler errors detected' >&2
+            exit 1
+          fi
+          python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          expected = {
+              'VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.CurrentCascadeLabBootsWithEnemyAIStack',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.BattleResetClearsSharedPlanHistoryAndGhostBackToStart',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.PlannerBootsWithGhostBoardAndVisualLayer',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.SharedPlanExecutionRequiresEveryLivingPlayerReady',
+              'VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.CascadeLabControllerBootsFourPlayerBattle',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.CommittingApprovedPlanPreservesReadyForEnemyHandoff',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.EditingAnApprovedPlanRevokesEveryReadyApproval',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.ControllerBootsPlayableBattlePresentation',
+              'VoxelEngine.Tests.EditMode.KentridgeAnchorUndercroftTests.AnchorUndercroftsOccupyPubAndWarehouseSupportFacesWithoutAddingGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DistrictTerracesCreateNeighbourhoodScaleShelves',
+              'VoxelEngine.Tests.EditMode.KentridgeInfrastructureTests.UrbanInfrastructureStaysSeparateFromStableGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeUrbanFabricTests.UrbanFabricCatalogueRealizesAllEightBlocksAsIndividualBuildings',
+              'VoxelEngine.Tests.EditMode.SurfaceRingBandTests.RingsDoNotReachBeyondTheStreamingRadius',
+          }
+          root = ET.parse(sys.argv[1]).getroot()
+          failed = {
+              tc.get('fullname') or tc.get('name')
+              for tc in root.iter('test-case')
+              if (tc.get('result') or '').lower() in ('failed', 'failure')
+          }
+          if failed != expected:
+              print('Unexpected failures:', sorted(failed - expected))
+              print('Missing baseline failures:', sorted(expected - failed))
+              raise SystemExit(1)
+          if root.get('total') != '387' or root.get('passed') != '374' or root.get('failed') != '13':
+              raise SystemExit(f"Unexpected totals: total={root.get('total')} passed={root.get('passed')} failed={root.get('failed')}")
+          print('Exact accepted 387/374/13 baseline matched')
+          PY
       - name: Upload acceptance artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cutover13-finalization-f5037a5f
+          name: cutover13-finalization-${{ github.sha }}
           path: Artifacts/Cutover13Finalization/
           if-no-files-found: warn
           retention-days: 14
