@@ -91,9 +91,10 @@ jobs:
           git diff --stat
           git config user.name 'architecture-refactor-ci'
           git config user.email 'architecture-refactor-ci@users.noreply.github.com'
-          mapfile -t changed_cs < <(git diff --name-only -- '*.cs')
-          if (( ${#changed_cs[@]} > 0 )); then
-            git add -- "${changed_cs[@]}"
-          fi
+          git diff --name-only -- '*.cs' | while IFS= read -r path; do
+            if [[ -n "$path" ]]; then
+              git add -- "$path"
+            fi
+          done
           git commit -m 'Normalize Structures Runtime namespaces'
           git push origin HEAD:${{ github.ref_name }}
