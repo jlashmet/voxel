@@ -22,6 +22,7 @@ namespace Game.WorldBuilder.Runtime
 
             var nodes = new List<PlanningNode>();
             var stagePlans = new List<CutsceneStagePlan>();
+            var secretCandidatePlans = new List<SecretCandidatePlan>();
 
             for (var i = 0; i < blueprint.Hierarchy.Regions.Count; i++)
             {
@@ -91,10 +92,36 @@ namespace Game.WorldBuilder.Runtime
             for (var i = 0; i < blueprint.SecretPolicies.Count; i++)
             {
                 SecretPolicySpec policy = blueprint.SecretPolicies[i];
+                var dependencies = new List<string>
+                {
+                    NodeId("loot", policy.Reward.Id)
+                };
+
+                for (var j = 0; j < blueprint.Sites.Count; j++)
+                {
+                    SiteSpec site = blueprint.Sites[j];
+                    if (!HasCapability(site, SiteCapabilityKind.SecretCandidateHost))
+                        continue;
+
+                    AddUnique(dependencies, NodeId("site", site.Ref.Id));
+
+                    var entrances = new SecretEntranceType[policy.EntranceTypes.Count];
+                    for (var k = 0; k < entrances.Length; k++)
+                        entrances[k] = policy.EntranceTypes[k];
+
+                    secretCandidatePlans.Add(new SecretCandidatePlan(
+                        policy.Ref,
+                        site.Ref,
+                        policy.RequiresHiddenSpace,
+                        policy.Distribution.MinimumPerEligibleSite,
+                        policy.Distribution.MaximumPerEligibleSite,
+                        entrances));
+                }
+
                 nodes.Add(new PlanningNode(
                     NodeId("secret-policy", policy.Ref.Id),
                     PlanningNodeKind.SecretPolicy,
-                    new[] { NodeId("loot", policy.Reward.Id) }));
+                    dependencies.ToArray()));
             }
 
             for (var i = 0; i < blueprint.Objectives.Count; i++)
@@ -143,7 +170,18 @@ namespace Game.WorldBuilder.Runtime
                 }
             }
 
-            return new PlanningGraph(nodes.ToArray(), stagePlans.ToArray());
+            return new PlanningGraph(
+                nodes.ToArray(),
+                stagePlans.ToArray(),
+                secretCandidatePlans.ToArray());
+        }
+
+        private static bool HasCapability(SiteSpec site, SiteCapabilityKind kind)
+        {
+            for (var i = 0; i < site.Capabilities.Count; i++)
+                if (site.Capabilities[i].Kind == kind)
+                    return true;
+            return false;
         }
 
         private static void AddSiteOwnerDependency(
