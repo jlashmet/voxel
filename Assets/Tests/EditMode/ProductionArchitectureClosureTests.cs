@@ -145,6 +145,32 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ShowcaseWorldDoesNotOwnStructuresRuntimeDetails()
+        {
+            string path = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");
+            Assert.IsTrue(File.Exists(path), "Missing Composition-owned ShowcaseWorld.cs");
+
+            string source = File.ReadAllText(path);
+            string[] forbidden =
+            {
+                "using VoxelEngine.Structures.Runtime;",
+                "CastleBuilder.",
+                "ArchFeatureDefinition",
+                "PrimitiveRasteriser",
+                "ProfileBlockStore",
+                "RasterResult",
+            };
+            var violations = forbidden.Where(token =>
+                source.IndexOf(token, StringComparison.Ordinal) >= 0).ToArray();
+
+            Assert.IsEmpty(violations,
+                "ShowcaseWorld may orchestrate Structures through Structures.Api/Composition contracts, " +
+                "but concrete Structures.Runtime authoring state and algorithms must stay behind the " +
+                "Composition Structures boundary.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
         public void DeletedCoreNamespaceDoesNotReappearInProductionSourceOrAsmdefs()
         {
             var violations = new List<string>();
