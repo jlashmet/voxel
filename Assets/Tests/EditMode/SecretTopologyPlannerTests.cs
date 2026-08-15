@@ -177,6 +177,12 @@ namespace VoxelEngine.Tests.EditMode
 
             CampaignBlueprint blueprint = game.Build();
             PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
+            var sites = new SiteResolutionResult(
+                new[]
+                {
+                    new SiteRoleBinding(dungeon, new ResolvedSiteId("generated/dungeon"))
+                },
+                Array.Empty<SiteResolutionDiagnostic>());
             var provider = new Provider(
                 ValidCandidate("best", dungeon, 10000),
                 ValidCandidate("second", dungeon, 9000),
@@ -185,6 +191,7 @@ namespace VoxelEngine.Tests.EditMode
             IReadOnlyList<ResolvedSecretPlan> resolved = SecretPlanner.ResolveCampaign(
                 blueprint,
                 graph,
+                sites,
                 provider,
                 worldSeed: 99);
 
@@ -196,6 +203,49 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(resolved[1].RequiredSecret.Id, Is.EqualTo("required-b"));
             Assert.That(resolved[2].SourceKind, Is.EqualTo(SecretResolutionSourceKind.Policy));
             Assert.That(resolved[2].Policy.Id, Is.EqualTo("scattered"));
+        }
+
+        [Test]
+        public void CampaignPolicyRunsOnceWhenTwoAuthoredRolesAliasOnePhysicalSite()
+        {
+            var game = Campaign.Create("aliased-policy-site");
+            SiteRef roleA = game.World.RequireSite("role-a", site => site
+                .Archetype(SiteArchetype.Pub)
+                .RequireCapability(SiteCapability.SecretCandidateHost));
+            SiteRef roleB = game.World.RequireSite("role-b", site => site
+                .Archetype(SiteArchetype.Pub)
+                .RequireCapability(SiteCapability.SecretCandidateHost));
+            LootTableRef treasure = game.Loot.Table("treasure", loot => loot
+                .RollCount(1, 1)
+                .Guaranteed(LootCategory.Currency));
+            game.World.Secrets.Policy("scattered", secret => secret
+                .Entrance(SecretEntranceType.DestroyableFalseWall)
+                .Distribution(new SecretDistribution(1, 1, 10000))
+                .RequireHiddenSpace()
+                .RewardWith(treasure));
+
+            CampaignBlueprint blueprint = game.Build();
+            PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
+            var physical = new ResolvedSiteId("generated/shared-pub");
+            var sites = new SiteResolutionResult(
+                new[]
+                {
+                    new SiteRoleBinding(roleA, physical),
+                    new SiteRoleBinding(roleB, physical)
+                },
+                Array.Empty<SiteResolutionDiagnostic>());
+
+            IReadOnlyList<ResolvedSecretPlan> resolved = SecretPlanner.ResolveCampaign(
+                blueprint,
+                graph,
+                sites,
+                new Provider(ValidCandidate("shared-candidate", roleA, 9000)),
+                worldSeed: 17);
+
+            Assert.That(resolved.Count, Is.EqualTo(1));
+            Assert.That(resolved[0].SourceKind, Is.EqualTo(SecretResolutionSourceKind.Policy));
+            Assert.That(resolved[0].Site, Is.EqualTo(roleA),
+                "Stable policy/site sorting chooses one canonical authored alias for the physical result.");
         }
 
         private static SecretCandidate ValidCandidate(string id, SiteRef site, int quality) =>
