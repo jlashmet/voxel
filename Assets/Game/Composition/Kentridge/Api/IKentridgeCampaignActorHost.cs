@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Game.Composition.Campaign;
 using Game.Composition.WorldBuilderWorldGen;
 
@@ -11,9 +12,9 @@ namespace Game.Composition.Kentridge.Api
     public interface IKentridgeCampaignActorHost : IWorldBoundCutsceneActorProvider
     {
         /// <summary>
-        /// Materialize or reposition one authoritative NPC at its resolved generated-world location.
-        /// After this returns, TryResolveNpc for the same NpcRef must succeed.
+        /// Atomically materialize or reposition the campaign NPC set at its resolved generated-world
+        /// locations. After this returns, TryResolveNpc must succeed for every supplied NpcRef.
         /// </summary>
-        void PrepareNpc(ResolvedNpcWorldPlacement placement);
+        void PrepareNpcs(IReadOnlyList<ResolvedNpcWorldPlacement> placements);
     }
 }
