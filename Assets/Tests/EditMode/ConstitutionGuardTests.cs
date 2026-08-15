@@ -16,7 +16,6 @@ namespace VoxelEngine.Tests.EditMode
     {
         private static readonly string[] DeterministicSourceRoots =
         {
-            // Deterministic architecture roots. Non-existent roots are ignored during migration.
             "Foundation",
             "Storage",
             "Terrain",
@@ -38,16 +37,26 @@ namespace VoxelEngine.Tests.EditMode
 
         private static string VoxelEngineDir => Path.Combine(RepoRoot, "Assets", "VoxelEngine");
 
+        private static IEnumerable<string> DeterministicSourceDirectories
+        {
+            get
+            {
+                foreach (string root in DeterministicSourceRoots)
+                {
+                    string path = Path.Combine(VoxelEngineDir, root);
+                    Assert.IsTrue(Directory.Exists(path),
+                        "Missing deterministic architecture root after final cutover: " + path);
+                    yield return path;
+                }
+            }
+        }
+
         private static IEnumerable<string> DeterministicSourceFiles =>
-            DeterministicSourceRoots
-                .Select(root => Path.Combine(VoxelEngineDir, root))
-                .Where(Directory.Exists)
+            DeterministicSourceDirectories
                 .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories));
 
         private static IEnumerable<string> DeterministicAsmdefs =>
-            DeterministicSourceRoots
-                .Select(root => Path.Combine(VoxelEngineDir, root))
-                .Where(Directory.Exists)
+            DeterministicSourceDirectories
                 .SelectMany(root => Directory.EnumerateFiles(root, "*.asmdef", SearchOption.AllDirectories));
 
         private static string StripCommentsAndStrings(string source)
@@ -154,8 +163,8 @@ namespace VoxelEngine.Tests.EditMode
                 .SelectMany(SafeGetTypes)
                 .FirstOrDefault(t => t.Name == "DeviceTierBudget");
 
-            if (budgetType == null)
-                Assert.Ignore("DeviceTierBudget not yet implemented (T077). Guard activates with it.");
+            Assert.NotNull(budgetType,
+                "DeviceTierBudget must exist after the completed Tiering cutover.");
 
             var forbidden = new[]
             {
