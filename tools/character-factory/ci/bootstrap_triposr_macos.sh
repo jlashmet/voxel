@@ -9,7 +9,7 @@ SOURCE_DIR="$CACHE_ROOT/TripoSR-$TRIPOSR_REV"
 VENV_DIR="$CACHE_ROOT/triposr-$TRIPOSR_REV-py312-venv"
 MODEL_DIR="$CACHE_ROOT/models/triposr"
 DINO_DIR="$CACHE_ROOT/models/dino-vitb16"
-STAMP="$VENV_DIR/.voxel-ready-v2"
+STAMP="$VENV_DIR/.voxel-ready-v3"
 
 resolve_python312() {
   if [ -n "${PYTHON_BIN:-}" ]; then
@@ -62,7 +62,23 @@ fi
 if [ ! -f "$STAMP" ]; then
   "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
   "$VENV_DIR/bin/python" -m pip install torch torchvision
-  "$VENV_DIR/bin/python" -m pip install -r "$SOURCE_DIR/requirements.txt"
+
+  # The upstream requirements include Gradio, which is only needed for its UI,
+  # and xatlas==0.0.9, which has no CPython 3.12 Apple-Silicon wheel and fails
+  # against current CMake. The smoke CLI never opens Gradio or bakes textures,
+  # but run.py imports xatlas at module load. Use the compatible wheel release
+  # and install the remaining runtime requirements without the UI dependency.
+  SMOKE_REQUIREMENTS="$VENV_DIR/triposr-smoke-requirements.txt"
+  grep -Ev '^[[:space:]]*(gradio([[:space:]]|$)|xatlas==)' "$SOURCE_DIR/requirements.txt" > "$SMOKE_REQUIREMENTS"
+  "$VENV_DIR/bin/python" -m pip install 'xatlas==0.0.11'
+  "$VENV_DIR/bin/python" -m pip install -r "$SMOKE_REQUIREMENTS"
+
+  "$VENV_DIR/bin/python" - <<'PY'
+import importlib
+for module in ("torch", "torchvision", "omegaconf", "PIL", "einops", "transformers", "trimesh", "rembg", "xatlas", "moderngl"):
+    importlib.import_module(module)
+print("TripoSR smoke runtime imports ready")
+PY
   touch "$STAMP"
 fi
 
@@ -80,7 +96,7 @@ model_dir = cache_root / "models/triposr"
 dino_dir = cache_root / "models/dino-vitb16"
 
 if not (model_dir / "model.ckpt").is_file():
-    print("downloading TripoSR 1.68 GB checkpoint", flush=True)
+    print("downloading TripoSR checkpoint", flush=True)
     snapshot_download(
         repo_id="stabilityai/TripoSR",
         allow_patterns=["config.yaml", "model.ckpt"],
