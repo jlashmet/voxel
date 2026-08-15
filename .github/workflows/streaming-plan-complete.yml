@@ -1,0 +1,52 @@
+name: Mark Streaming cutover complete
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  update-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          s=p.read_text()
+          reps={
+            '**Current focus:** Cutover 8 Streaming — final Api/Runtime ownership cutover':
+            '**Current focus:** Cutover 9 Collision — final Api/Runtime ownership cutover',
+            '| 8 — Streaming | **In progress — current** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core or Net | final Streaming.Api/Runtime move and orchestration API |':
+            '| 8 — Streaming | **Complete** | `Streaming.Api` exposes the real `RegionLoadRequest`/`IRegionStreaming` orchestration contract; all four implementation files live under `Streaming/Runtime` with preserved Unity GUIDs; `RegionStreamingService` hides Storage residency behind the Api; Runtime depends only on Streaming.Api, Storage.Api and Tiering.Api; broad Streaming/Net coupling is gone | none |',
+            '| 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |':
+            '| 9 — Collision | **In progress — current** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |',
+            '- Latest accepted code gate: `ea092bc0358043cea458fceeb5054210ed6781ca` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Streaming dependency slice: the broad Streaming assembly no longer references Net, matching the source inventory that found no legitimate Streaming networking dependency.':
+            '- Latest accepted code gate: `9a3702d4a7e5127a3573a5aaa185c9fced344e63` — 383 tests, 370 passed, exactly the same 13 known baseline failures. Accepted Cutover 8 Streaming: `Streaming.Api`/`Streaming.Runtime` replace the broad assembly; all four implementation files moved with Unity GUIDs preserved; `RegionLoadRequest` + `IRegionStreaming` are the real application contract; `RegionStreamingService` hides Storage residency; Runtime has no Net or foreign Runtime reference. The additional passing test is the new no-network instantiation guard.',
+            'Create:\n\n```text\nStreaming/Api/RegionLoadRequest.cs\nStreaming/Api/RegionResidencyRequest.cs\nStreaming/Api/RegionResidencyState.cs\nStreaming/Api/RegionLoadPriority.cs\nStreaming/Api/IRegionStreaming.cs\n```\n\n`IRegionStreaming` is orchestration-level and is appropriate here; streaming operations are not inner-loop Burst voxel reads.':
+            'Final caller inventory showed only two real public orchestration concepts today:\n\n```text\nStreaming/Api/RegionLoadRequest.cs\nStreaming/Api/IRegionStreaming.cs\n```\n\n`RegionResidencyRequest`, `RegionResidencyState`, and `RegionLoadPriority` were not created because no live consumer or behavior requires them. `IRegionStreaming` is implemented by Runtime `RegionStreamingService`, which owns the Storage residency dependency internally.',
+            '- [x] Streaming -> Net dependency-removal slice accepted by CI at `ea092bc0358043cea458fceeb5054210ed6781ca`: 382 total / 369 passed / exact same 13 known baseline failures.\n- [ ] Streaming.Api/Runtime physical move complete.':
+            '- [x] Streaming -> Net dependency-removal slice accepted by CI at `ea092bc0358043cea458fceeb5054210ed6781ca`: 382 total / 369 passed / exact same 13 known baseline failures.\n- [x] `Streaming.Api`/`Streaming.Runtime` created; `MipRefinement`, `Prefetch`, `RegionLoader`, and `ResidencyManager` moved under Runtime with their original Unity GUIDs, and the broad Streaming assembly is gone.\n- [x] `RegionLoadRequest` + `IRegionStreaming` are the real Api contract; `RegionStreamingService` injects `IRegionResidencyStore` and delegates queue/publish orchestration without exposing Storage to Api callers.\n- [x] Final Net-interest inventory found no live Streaming caller in Net; no speculative Net dependency was added. Any future Net interest integration must consume `Streaming.Api`, never Runtime.\n- [x] Streaming Api/Runtime cutover accepted by CI at `9a3702d4a7e5127a3573a5aaa185c9fced344e63`: 383 total / 370 passed / exact same 13 known baseline failures; the additional passing test is `StreamingServiceCanBeInstantiatedWithoutNetworking`.\n- [x] Streaming.Api/Runtime physical move complete.',
+            '- [ ] Streaming.Runtime has no Net reference;\n- [ ] RegionLoader has no Storage.Runtime/Terrain.Runtime/Structures.Runtime compile reference;\n- [ ] streaming can be instantiated without Net;\n- [ ] residency/prefetch/mip refinement tests pass.':
+            '- [x] Streaming.Runtime has no Net reference;\n- [x] RegionLoader has no Storage.Runtime/Terrain.Runtime/Structures.Runtime compile reference;\n- [x] streaming can be instantiated without Net;\n- [x] residency/prefetch/mip refinement tests pass.',
+            '- [ ] create Streaming.Api/Runtime\n- [ ] move four implementation files\n- [ ] rewrite RegionLoader as API-driven orchestration\n- [x] remove Streaming -> Net\n- [ ] make Net interest call Streaming.Api':
+            '- [x] create Streaming.Api/Runtime\n- [x] move four implementation files\n- [x] expose RegionLoader queue/publish behavior through `IRegionStreaming` + Runtime `RegionStreamingService`\n- [x] remove Streaming -> Net\n- [x] resolve Net interest -> Streaming.Api coupling — no live caller exists today; future integration must target Api',
+          }
+          for old,new in reps.items():
+              if old not in s:
+                  raise SystemExit('missing expected plan text:\n'+old)
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          git rm .github/workflows/streaming-plan-complete.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'Mark Streaming cutover complete'
+          git push origin HEAD:${{ github.ref_name }}
