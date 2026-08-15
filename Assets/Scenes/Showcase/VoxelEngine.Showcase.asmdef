@@ -3,30 +3,29 @@
   "rootNamespace": "VoxelEngine.Showcase",
   "references": [
     "VoxelEngine.Storage.Api",
-    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Composition",
     "VoxelEngine.Terrain.Api",
-    "VoxelEngine.Terrain.Runtime",
     "VoxelEngine.Rendering.Api",
     "VoxelEngine.Structures.Api",
-    "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Tiering.Api",
     "MountingForce.WorldGen.Voxel",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
     "VoxelEngine.Edits.Api",
-    "VoxelEngine.Edits.Runtime",
     "VoxelEngine.Vegetation.Api",
-    "VoxelEngine.Collision.Api"
+    "VoxelEngine.Collision.Api",
+    "VoxelEngine.Edits.Runtime",
+    "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Structures.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": true,
-  "noEngineReferences": false,
   "overrideReferences": false,
   "precompiledReferences": [],
-  "autoReferenced": true,
+  "autoReferenced": false,
   "defineConstraints": [],
-  "versionDefines": []
+  "versionDefines": [],
+  "noEngineReferences": false
 }
