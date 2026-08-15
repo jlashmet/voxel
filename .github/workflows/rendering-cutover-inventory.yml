@@ -7,18 +7,15 @@ permissions:
   contents: read
 jobs:
   inventory:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
-          clean: false
+          clean: true
           fetch-depth: 1
       - shell: bash
         run: |
           set -euo pipefail
-          git reset --hard HEAD
-          git clean -ffdx -e Library/
           echo '=== RENDERING FILES ==='
           find Assets/VoxelEngine/Rendering -type f \( -name '*.cs' -o -name '*.asmdef' -o -name '*.shader' -o -name '*.compute' \) | sort
           echo '=== CORE REFERENCES INSIDE RENDERING ==='
