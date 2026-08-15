@@ -1,0 +1,32 @@
+name: Final Edits cutover inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo '=== Core/Edits remaining ==='
+          find Assets/VoxelEngine/Core/Edits -maxdepth 1 -type f | sort || true
+          echo '=== Core.Edits imports/references ==='
+          grep -RIn 'VoxelEngine.Core.Edits' Assets Packages --include='*.cs' --include='*.asmdef' | sort || true
+          echo '=== DensityCap consumers ==='
+          grep -RInE '\bDensityCap\.(ComputeCapacity|DefaultCapacity|IsUnderCap|DensityPermille|CanAllocate|IsWithinVoxelCap)\b|new[[:space:]]+DensityCap\b' Assets Packages --include='*.cs' | grep -v 'Core/Edits/DensityCap.cs' | sort || true
+          echo '=== DeterministicAlterationApplier consumers ==='
+          grep -RIn '\bDeterministicAlterationApplier\b' Assets Packages --include='*.cs' | grep -v 'Core/Edits/DeterministicAlterationApplier.cs' | sort || true
+          echo '=== wrapper/interface consumers ==='
+          grep -RInE '\b(ServerDeterministicAlterationApplier|IAuthoritativeAlterationApplier)\b' Assets Packages --include='*.cs' | sort || true
+          echo '=== asmdefs mentioning Edits ==='
+          grep -RIl 'VoxelEngine.Edits' Assets Packages --include='*.asmdef' | sort | while read f; do echo ---$f; cat "$f"; done
