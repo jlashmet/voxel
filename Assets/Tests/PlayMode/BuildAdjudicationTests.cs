@@ -23,7 +23,8 @@ namespace VoxelEngine.Tests.PlayMode
             var table = new RegionTable(16, Allocator.Temp);
             var pool = new BrickPool(64, Allocator.Temp);
             table.LoadRegion(int3.zero);
-            overlay.ConfirmTick(1, ref table, ref pool);
+            var storage = new RegionMutationStore(in table, in pool);
+            overlay.ConfirmTick(1, storage);
 
             Assert.That(overlay.HasPending, Is.False);
             Assert.That(table.TryGetRegion(int3.zero, out var confirmedRegion), Is.True);
