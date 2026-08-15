@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Cutscenes.Api;
 using Game.WorldBuilder.Api;
 
 namespace Game.WorldBuilder.Runtime
@@ -97,8 +98,18 @@ namespace Game.WorldBuilder.Runtime
             for (var i = 0; i < blueprint.Cutscenes.Count; i++)
             {
                 var cutscene = blueprint.Cutscenes[i];
+                var siteExists = sites.Contains(cutscene.Site.Id);
                 RequireExists(sites, cutscene.Site.Id, "WB2201", $"Cutscene '{cutscene.Ref}' is bound to unknown site '{cutscene.Site}'.", diagnostics);
 
+                if (siteExists && cutscene.StageRequirements.Count > 0 && !SiteHasCapability(blueprint, cutscene.Site, SiteCapabilityKind.CutsceneStage))
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB2207",
+                        BlueprintDiagnosticSeverity.Error,
+                        $"Cutscene '{cutscene.Ref}' requires {cutscene.StageRequirements.Count} semantic stage point(s), but site '{cutscene.Site}' does not declare CutsceneStage capability."));
+                }
+
+                ValidateActorBindings(cutscene, npcs, diagnostics);
                 ValidateTrigger(cutscene.Ref, cutscene.Trigger, npcs, diagnostics);
 
                 for (var j = 0; j < cutscene.Conditions.Count; j++)
@@ -123,6 +134,69 @@ namespace Game.WorldBuilder.Runtime
             }
 
             return new BlueprintValidationResult(diagnostics.ToArray());
+        }
+
+        private static void ValidateActorBindings(
+            CutsceneSpec cutscene,
+            HashSet<string> npcs,
+            List<BlueprintDiagnostic> diagnostics)
+        {
+            var required = new HashSet<CutsceneActorId>(cutscene.Definition.RequiredActors);
+            var bound = new HashSet<CutsceneActorId>();
+
+            for (var i = 0; i < cutscene.ActorBindings.Count; i++)
+            {
+                var binding = cutscene.ActorBindings[i];
+                if (!bound.Add(binding.Actor))
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB2208",
+                        BlueprintDiagnosticSeverity.Error,
+                        $"Cutscene '{cutscene.Ref}' binds actor '{binding.Actor}' more than once."));
+                }
+
+                if (!required.Contains(binding.Actor))
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB2209",
+                        BlueprintDiagnosticSeverity.Error,
+                        $"Cutscene '{cutscene.Ref}' binds actor '{binding.Actor}', but that actor is not used by the cutscene definition."));
+                }
+
+                if (binding.Target.Kind == CutsceneActorTargetKind.Npc)
+                {
+                    RequireExists(
+                        npcs,
+                        binding.Target.Npc.Id,
+                        "WB2210",
+                        $"Cutscene '{cutscene.Ref}' binds actor '{binding.Actor}' to unknown NPC '{binding.Target.Npc}'.",
+                        diagnostics);
+                }
+            }
+
+            foreach (CutsceneActorId actor in required)
+            {
+                if (!bound.Contains(actor))
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB2211",
+                        BlueprintDiagnosticSeverity.Error,
+                        $"Cutscene '{cutscene.Ref}' requires actor '{actor}', but WorldBuilder has no actor binding for it."));
+                }
+            }
+        }
+
+        private static bool SiteHasCapability(CampaignBlueprint blueprint, SiteRef siteRef, SiteCapabilityKind capability)
+        {
+            for (var i = 0; i < blueprint.Sites.Count; i++)
+            {
+                var site = blueprint.Sites[i];
+                if (!site.Ref.Equals(siteRef)) continue;
+                for (var j = 0; j < site.Capabilities.Count; j++)
+                    if (site.Capabilities[j].Kind == capability) return true;
+                return false;
+            }
+            return false;
         }
 
         private static HashSet<string> CollectIds<T>(

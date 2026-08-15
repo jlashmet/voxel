@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Cutscenes.Api;
 
 namespace Game.WorldBuilder.Api
 {
@@ -159,10 +160,11 @@ namespace Game.WorldBuilder.Api
             return objectiveRef;
         }
 
-        public CutsceneRef Cutscene(string id, Action<CutsceneBuilder> configure)
+        public CutsceneRef Cutscene(CutsceneDefinition definition, Action<CutsceneBuilder> configure)
         {
-            var cutsceneRef = new CutsceneRef(id);
-            var builder = new CutsceneBuilder(cutsceneRef);
+            if (definition == null) throw new ArgumentNullException(nameof(definition));
+            var cutsceneRef = new CutsceneRef(definition.Id);
+            var builder = new CutsceneBuilder(cutsceneRef, definition);
             configure?.Invoke(builder);
             _campaign.Cutscenes.Add(builder.Build());
             return cutsceneRef;
@@ -204,6 +206,8 @@ namespace Game.WorldBuilder.Api
     public sealed class CutsceneBuilder
     {
         private readonly CutsceneRef _ref;
+        private readonly CutsceneDefinition _definition;
+        private readonly List<CutsceneActorBindingSpec> _actorBindings = new List<CutsceneActorBindingSpec>();
         private SiteRef _site;
         private bool _hasSite;
         private IStoryTriggerSpec _trigger;
@@ -211,13 +215,24 @@ namespace Game.WorldBuilder.Api
         private readonly List<IStoryEffectSpec> _effects = new List<IStoryEffectSpec>();
 
         public CutsceneRef Ref => _ref;
+        public CutsceneDefinition Definition => _definition;
 
-        internal CutsceneBuilder(CutsceneRef @ref) => _ref = @ref;
+        internal CutsceneBuilder(CutsceneRef @ref, CutsceneDefinition definition)
+        {
+            _ref = @ref;
+            _definition = definition ?? throw new ArgumentNullException(nameof(definition));
+        }
 
         public CutsceneBuilder At(SiteRef site)
         {
             _site = site;
             _hasSite = true;
+            return this;
+        }
+
+        public CutsceneBuilder Bind(CutsceneActorId actor, CutsceneActorTargetSpec target)
+        {
+            _actorBindings.Add(new CutsceneActorBindingSpec(actor, target));
             return this;
         }
 
@@ -245,7 +260,14 @@ namespace Game.WorldBuilder.Api
                 throw new InvalidOperationException($"Cutscene '{_ref}' requires a site.");
             if (_trigger == null)
                 throw new InvalidOperationException($"Cutscene '{_ref}' requires a trigger.");
-            return new CutsceneSpec(_ref, _site, _trigger, _conditions.ToArray(), _effects.ToArray());
+            return new CutsceneSpec(
+                _ref,
+                _definition,
+                _site,
+                _actorBindings.ToArray(),
+                _trigger,
+                _conditions.ToArray(),
+                _effects.ToArray());
         }
     }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Cutscenes.Api;
 
 namespace Game.WorldBuilder.Api
 {
@@ -66,23 +67,79 @@ namespace Game.WorldBuilder.Api
         public static IObjectiveCompletionSpec InteractWith(NpcRef npc) => new InteractWithNpcTriggerSpec(npc);
     }
 
+    public enum CutsceneActorTargetKind
+    {
+        Npc = 0,
+        PlayerSlot = 1
+    }
+
+    public readonly struct CutsceneActorTargetSpec
+    {
+        public CutsceneActorTargetKind Kind { get; }
+        public NpcRef Npc { get; }
+        public int PlayerSlot { get; }
+
+        private CutsceneActorTargetSpec(CutsceneActorTargetKind kind, NpcRef npc, int playerSlot)
+        {
+            Kind = kind;
+            Npc = npc;
+            PlayerSlot = playerSlot;
+        }
+
+        internal static CutsceneActorTargetSpec ForNpc(NpcRef npc) =>
+            new CutsceneActorTargetSpec(CutsceneActorTargetKind.Npc, npc, -1);
+
+        internal static CutsceneActorTargetSpec ForPlayer(int playerSlot)
+        {
+            if (playerSlot < 0) throw new ArgumentOutOfRangeException(nameof(playerSlot));
+            return new CutsceneActorTargetSpec(CutsceneActorTargetKind.PlayerSlot, default, playerSlot);
+        }
+    }
+
+    public static class CutsceneActorTarget
+    {
+        public static CutsceneActorTargetSpec Npc(NpcRef npc) => CutsceneActorTargetSpec.ForNpc(npc);
+        public static CutsceneActorTargetSpec Player(int playerSlot) => CutsceneActorTargetSpec.ForPlayer(playerSlot);
+    }
+
+    public readonly struct CutsceneActorBindingSpec
+    {
+        public CutsceneActorId Actor { get; }
+        public CutsceneActorTargetSpec Target { get; }
+
+        public CutsceneActorBindingSpec(CutsceneActorId actor, CutsceneActorTargetSpec target)
+        {
+            if (string.IsNullOrWhiteSpace(actor.Value))
+                throw new ArgumentException("Cutscene actor binding requires an actor id.", nameof(actor));
+            Actor = actor;
+            Target = target;
+        }
+    }
+
     public sealed class CutsceneSpec
     {
         public CutsceneRef Ref { get; }
+        public CutsceneDefinition Definition { get; }
         public SiteRef Site { get; }
+        public IReadOnlyList<CutsceneActorBindingSpec> ActorBindings { get; }
+        public IReadOnlyList<CutsceneStagePointId> StageRequirements => Definition.RequiredStagePoints;
         public IStoryTriggerSpec Trigger { get; }
         public IReadOnlyList<IStoryConditionSpec> Conditions { get; }
         public IReadOnlyList<IStoryEffectSpec> Effects { get; }
 
         internal CutsceneSpec(
             CutsceneRef @ref,
+            CutsceneDefinition definition,
             SiteRef site,
+            CutsceneActorBindingSpec[] actorBindings,
             IStoryTriggerSpec trigger,
             IStoryConditionSpec[] conditions,
             IStoryEffectSpec[] effects)
         {
             Ref = @ref;
+            Definition = definition ?? throw new ArgumentNullException(nameof(definition));
             Site = site;
+            ActorBindings = actorBindings ?? Array.Empty<CutsceneActorBindingSpec>();
             Trigger = trigger;
             Conditions = conditions ?? Array.Empty<IStoryConditionSpec>();
             Effects = effects ?? Array.Empty<IStoryEffectSpec>();
