@@ -1,0 +1,46 @@
+name: Record Edits protocol cleanup
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text=p.read_text()
+          text=text.replace('| `Core/Edits/DensityCap.cs` | `Edits/Runtime/DensityCap.cs` |','| `Core/Edits/DensityCap.cs` | delete — final inventory found no live consumers |')
+          text=text.replace('- [ ] update Net protocol to Edits.Api','- [x] update Net protocol to Edits.Api')
+          text=text.replace('- [ ] Net protocol depends on Edits.Api, not Edits.Runtime;','- [x] Net protocol depends on Edits.Api, not Edits.Runtime;')
+          marker='- [ ] Edits.Api/Runtime physical move and namespace cutover complete.'
+          progress='- [x] Dead legacy `Core.Edits.DensityCap` removed after final caller inventory found zero consumers; stale `VoxelEngine.Core.Edits` imports were removed from protocol and non-applier callers.\n- [x] Net protocol cleanup accepted by CI at `17d7fbce749439608d99b7cbe27e7388f1c3fc94`: 382 total / 369 passed / exact same 13 known baseline failures; Net/Protocol consumes Edits.Api and has no Edits.Runtime dependency.\n'
+          if progress.splitlines()[0] not in text:
+              text=text.replace(marker,progress+marker)
+          lines=text.splitlines()
+          for i,line in enumerate(lines):
+              if line.startswith('| 5 — Edits |'):
+                  lines[i]='| 5 — Edits | **In progress — current** | Edits.Api/Runtime created; canonical edit/wire vocabulary is in Api; expansion helpers are in Runtime; dead `DensityCap` removed; Net protocol is Edits.Api-only; explosion reads and authoritative mutation route through Storage.Api; parity accepted | move `DeterministicAlterationApplier` to Runtime behind an Api capability; remove final `VoxelEngine.Core.Edits`; delete server wrapper |'
+              if line.startswith('- Latest accepted code gate:'):
+                  lines[i]='- Latest accepted code gate: `17d7fbce749439608d99b7cbe27e7388f1c3fc94` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Edits protocol/Core cleanup: dead `Core.Edits.DensityCap` is deleted; stale Core.Edits imports are gone from non-applier consumers; Net/Protocol consumes Edits.Api only and the Net assembly has no Edits.Runtime reference.'
+          p.write_text('\n'.join(lines)+'\n')
+          PY
+          git rm .github/workflows/mark-edits-protocol-cleanup.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'Record accepted Edits protocol cleanup'
+          git push origin HEAD:${{ github.ref_name }}
