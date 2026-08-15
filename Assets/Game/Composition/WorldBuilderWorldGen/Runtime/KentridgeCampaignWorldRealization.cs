@@ -70,28 +70,30 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
     }
 
     /// <summary>
-    /// Composition-owned pre-generation pipeline for a Kentridge settlement. WorldBuilder owns
+    /// Composition-owned pre-generation pipeline for one Kentridge settlement. WorldBuilder owns
     /// compilation/constraint solving; WorldGen owns the settlement, traversal, architecture, and hidden
     /// geometry; Composition is the only layer allowed to invoke both runtimes and join their results.
+    /// The semantic region/settlement owner comes from the compiled campaign hierarchy rather than a
+    /// second set of bootstrap arguments.
     /// </summary>
     public static class KentridgeCampaignWorldPlanner
     {
         public static KentridgeCampaignGenerationPlan Plan(
             CampaignBlueprint blueprint,
-            SettlementPlan settlement,
-            RegionRef region,
-            SettlementRef settlementRef)
+            SettlementPlan settlement)
         {
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
             if (settlement == null) throw new ArgumentNullException(nameof(settlement));
 
             PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
+            WorldSettlementPlan semanticSettlement = ResolveSemanticSettlement(graph.HierarchyPlan);
+
             var projections = new KentridgeArchitectureSiteProjectionProvider(settlement);
             var traversal = new SettlementStreetTraversalFacts(settlement, projections);
             var facts = new SettlementPlanWorldBuilderFacts(
                 settlement,
-                region,
-                settlementRef,
+                semanticSettlement.Region,
+                semanticSettlement.Settlement,
                 projections,
                 traversal,
                 projections);
@@ -126,6 +128,17 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
                 npcAssignments,
                 hiddenSpaces,
                 secrets);
+        }
+
+        private static WorldSettlementPlan ResolveSemanticSettlement(WorldHierarchyPlan hierarchy)
+        {
+            if (hierarchy == null)
+                throw new ArgumentNullException(nameof(hierarchy));
+            if (hierarchy.Settlements.Count != 1)
+                throw new InvalidOperationException(
+                    "Kentridge single-settlement planning requires exactly one authored settlement " +
+                    "in the compiled campaign hierarchy, but found " + hierarchy.Settlements.Count + ".");
+            return hierarchy.Settlements[0];
         }
 
         private static string FormatSiteResolutionFailure(SiteResolutionResult sites)
