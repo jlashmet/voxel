@@ -93,9 +93,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             VisibilityTiming = default;
             SnapshotTiming = solids.SnapshotTiming;
             DensityJobTurnaroundTiming = solids.DensityTurnaroundTiming;
-            TopologyJobTurnaroundTiming = solids.TopologyTurnaroundTiming;
+            TopologyJobTurnaroundTiming = solids.TopologyJobTurnaroundTiming;
             TopologyCompactTiming = solids.TopologyCompactTiming;
-            FacetedJobTurnaroundTiming = solids.FacetedTurnaroundTiming;
+            FacetedJobTurnaroundTiming = solids.FacetedJobTurnaroundTiming;
             FacetedMergeTiming = solids.FacetedMergeTiming;
             ProfileEmitTiming = solids.ProfileEmitTiming;
             UploadTiming = solids.UploadTiming;
@@ -193,11 +193,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 DensityJobTurnaroundTiming = VoxelTimingSummary.WorstOf(
                     DensityJobTurnaroundTiming, worker.DensityTurnaroundTiming);
                 TopologyJobTurnaroundTiming = VoxelTimingSummary.WorstOf(
-                    TopologyJobTurnaroundTiming, worker.TopologyTurnaroundTiming);
+                    TopologyJobTurnaroundTiming, worker.TopologyJobTurnaroundTiming);
                 TopologyCompactTiming = VoxelTimingSummary.WorstOf(
                     TopologyCompactTiming, worker.TopologyCompactTiming);
                 FacetedJobTurnaroundTiming = VoxelTimingSummary.WorstOf(
-                    FacetedJobTurnaroundTiming, worker.FacetedTurnaroundTiming);
+                    FacetedJobTurnaroundTiming, worker.FacetedJobTurnaroundTiming);
                 FacetedMergeTiming = VoxelTimingSummary.WorstOf(
                     FacetedMergeTiming, worker.FacetedMergeTiming);
                 ProfileEmitTiming = VoxelTimingSummary.WorstOf(
