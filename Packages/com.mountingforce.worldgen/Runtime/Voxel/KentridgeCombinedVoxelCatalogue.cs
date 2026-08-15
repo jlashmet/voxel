@@ -31,15 +31,16 @@ namespace MountingForce.WorldGen.Voxel
 
         /// <summary>
         /// Emits the exact architecture-realized hidden spaces selected during campaign planning.
-        /// No WorldBuilder types cross this boundary; Voxel consumes only WorldGen Architecture data.
+        /// The concrete SettlementPlan is required so geometry cannot accidentally be emitted against a
+        /// different seed/layout. No WorldBuilder types cross this boundary.
         /// </summary>
         public static FeatureCatalogue Build(
-            uint seed,
+            SettlementPlan plan,
             VoxelWorldGenSettings settings,
             IReadOnlyList<KentridgeHiddenSpaceGeometry> hiddenSpaces,
             Allocator allocator) =>
             KentridgeCombinedVoxelCatalogueCanonical.BuildWithHiddenSpaceGeometry(
-                seed,
+                plan,
                 settings,
                 hiddenSpaces,
                 allocator);
