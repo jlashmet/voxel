@@ -1,0 +1,49 @@
+name: Repair Net semantic hash tests
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-hash-test-repair.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs')
+          s = p.read_text()
+          old1 = '''                Assert.True(aTable.TryGetRegion(int3.zero, out Region aRegion));\n                Assert.True(bTable.TryGetRegion(int3.zero, out Region bRegion));\n                Assert.AreNotEqual(RegionHasher.HashRegion(in aRegion, in aPool),\n                                   RegionHasher.HashRegion(in bRegion, in bPool));\n'''
+          new1 = '''                Assert.AreNotEqual(SemanticHash(ref aTable, in aPool),\n                                   SemanticHash(ref bTable, in bPool));\n'''
+          if s.count(old1) != 1:
+              raise SystemExit(f'expected first RegionHasher seam once, got {s.count(old1)}')
+          s = s.replace(old1, new1, 1)
+          old2 = '''                Assert.AreEqual(RegionHasher.HashRegion(in aRegion, in aPool),\n                                RegionHasher.HashRegion(in bRegion, in bPool));\n'''
+          new2 = '''                Assert.AreEqual(SemanticHash(ref aTable, in aPool),\n                                SemanticHash(ref bTable, in bPool));\n'''
+          if s.count(old2) != 1:
+              raise SystemExit(f'expected second RegionHasher seam once, got {s.count(old2)}')
+          s = s.replace(old2, new2, 1)
+          marker = '''        private static RasterResult Rasterise(\n'''
+          helper = '''        private static uint SemanticHash(ref RegionTable table, in BrickPool pool)\n        {\n            var source = new RegionReadSource(in table, in pool);\n            Assert.AreEqual(\n                RegionSnapshotCaptureResult.Ok,\n                source.CaptureSemanticSnapshot(\n                    int3.zero,\n                    RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,\n                    out RegionSemanticSnapshot snapshot));\n            return snapshot.SemanticHash;\n        }\n\n'''
+          if s.count(marker) != 1:
+              raise SystemExit(f'expected Rasterise marker once, got {s.count(marker)}')
+          s = s.replace(marker, helper + marker, 1)
+          p.write_text(s)
+          PY
+          git diff --check
+          ! grep -q 'RegionHasher.HashRegion' Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+          grep -q 'CaptureSemanticSnapshot' Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+          git rm .github/workflows/net-hash-test-repair.yml
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+          git add -u .github/workflows
+          git commit -m 'test: use Storage semantic snapshots for region hashes'
+          git push origin HEAD:${{ github.ref_name }}
