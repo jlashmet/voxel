@@ -33,9 +33,12 @@ namespace VoxelEngine.Storage.Api
             out VoxelBlockMutation mutation);
 
         /// <summary>
-        /// Begins a complete logical-cell mutation for one block. Uniform storage is materialised
-        /// so the caller may author material, surface semantics and boundary samples directly.
-        /// Unused materialisation is rolled back by <see cref="CompletePartialBlock"/>.
+        /// Begins a complete logical-cell authoring mutation for one block. Unlike gameplay-style
+        /// partial mutation, authoring may create the containing region when it is not resident;
+        /// this preserves generation/rasterisation semantics where the first authored cell makes
+        /// its region exist. Uniform storage is materialised so the caller may author material,
+        /// surface semantics and boundary samples directly. Unused materialisation is rolled back
+        /// by <see cref="CompletePartialBlock"/>.
         /// </summary>
         bool TryBeginCellBlock(
             int3 worldBlock,
