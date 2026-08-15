@@ -1,6 +1,6 @@
 using System;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Client
@@ -30,7 +30,7 @@ namespace VoxelEngine.Net.Client
         {
             if (!RegionRepairChunkPacket.TryDecode(packet, out var header, out ReadOnlySpan<byte> chunk))
                 return false;
-            if (header.TotalLength > SemanticRegionSnapshotCodec.DefaultMaxSnapshotBytes)
+            if (header.TotalLength > RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes)
                 return false;
 
             if (_snapshot == null)
@@ -61,36 +61,26 @@ namespace VoxelEngine.Net.Client
         }
 
         /// <summary>
-        /// Apply only when queue metadata matches and the encoded snapshot itself hashes to the
-        /// advertised semantic hash. Bad state is rejected before any target bricks are released.
+        /// Apply only when queue metadata matches. Storage validates the encoded snapshot against
+        /// the advertised semantic hash before replacement and verifies the resulting region after
+        /// application, so physical region/pool details never enter networking.
         /// </summary>
         public bool TryApplyCompleted(
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionSnapshotMutationStore snapshots,
             ClientAuthoritativeEventQueue authorityQueue)
         {
-            if (!_complete || authorityQueue == null || !authorityQueue.RepairPending ||
+            if (!_complete || snapshots == null || authorityQueue == null ||
+                !authorityQueue.RepairPending ||
                 !authorityQueue.RepairRegion.Equals(_regionCoord) ||
                 authorityQueue.RepairTick != _snapshotTick ||
                 authorityQueue.RepairHash != _semanticHash)
                 return false;
 
-            if (!SemanticRegionSnapshotCodec.TryComputeSemanticHash(
+            if (!snapshots.TryApplySemanticSnapshot(
                     _regionCoord,
                     _snapshot,
-                    out uint encodedHash) ||
-                encodedHash != _semanticHash)
-                return false;
-
-            if (!SemanticRegionSnapshotCodec.TryApply(
-                    ref table,
-                    ref pool,
-                    _regionCoord,
-                    _snapshot))
-                return false;
-
-            if (!table.TryGetRegion(_regionCoord, out Region region) ||
-                SemanticRegionHasher.HashRegion(in region, in pool) != _semanticHash ||
+                    _semanticHash,
+                    createIfMissing: false) ||
                 !authorityQueue.CompleteRepair(_regionCoord, _snapshotTick, _semanticHash))
                 return false;
 
