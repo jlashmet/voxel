@@ -16,7 +16,7 @@ namespace VoxelEngine.Showcase
     {
         public const int MaxChunks = 256;
         public const int MaxVoxelsPerChunk = 16;
-        public const int RenderInstancesPerChunk = 16;
+        public const int RenderInstancesPerChunk = ShowcaseWorld.DetachedVoxelSamplesPerChunk;
         public const int MaxSubmissionsPerFrame = 192;
 
         [StructLayout(LayoutKind.Sequential)]

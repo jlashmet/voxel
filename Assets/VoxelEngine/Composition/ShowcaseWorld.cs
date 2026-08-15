@@ -138,7 +138,7 @@ namespace VoxelEngine.Showcase
 
         private sealed class VisualBucket
         {
-            public readonly List<FallingVoxel> Samples = new(GpuDebrisSystem.RenderInstancesPerChunk);
+            public readonly List<FallingVoxel> Samples = new(DetachedVoxelSamplesPerChunk);
             public int SourceVoxelCount;
             public uint Priority;
         }
@@ -152,6 +152,7 @@ namespace VoxelEngine.Showcase
         private const int MaxCollapseComponentVoxels = 1_048_576;
         private const int FallingChunkEdge = 8;
         public const int MaxQueuedDetachedChunks = 256;
+        public const int DetachedVoxelSamplesPerChunk = 16;
         private const int MaxVisualChunksPerCollapse = 192;
 
         private readonly VoxelChangeJournal _changes = new();
@@ -1886,7 +1887,7 @@ namespace VoxelEngine.Showcase
         private static void AddVisualSample(VisualBucket bucket, FallingVoxel voxel)
         {
             bucket.SourceVoxelCount++;
-            int capacity = GpuDebrisSystem.RenderInstancesPerChunk;
+            int capacity = DetachedVoxelSamplesPerChunk;
             if (bucket.Samples.Count < capacity)
             {
                 bucket.Samples.Add(voxel);
@@ -1945,7 +1946,7 @@ namespace VoxelEngine.Showcase
                 }
 
                 bucket.SourceVoxelCount++;
-                int capacity = GpuDebrisSystem.RenderInstancesPerChunk;
+                int capacity = DetachedVoxelSamplesPerChunk;
                 if (bucket.Samples.Count < capacity)
                     bucket.Samples.Add(voxel);
                 else
