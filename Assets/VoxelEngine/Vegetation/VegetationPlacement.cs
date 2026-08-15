@@ -9,16 +9,6 @@ namespace VoxelEngine.Core.Vegetation
     /// </summary>
     public static class VegetationPlacement
     {
-        private static readonly VegetationKind[] Kinds =
-        {
-            VegetationKind.Grass,
-            VegetationKind.Flower,
-            VegetationKind.Fern,
-            VegetationKind.Bush,
-            VegetationKind.Moss,
-            VegetationKind.Vine,
-        };
-
         public static void Generate(
             IReadOnlyList<VegetationSurfaceSample> samples,
             in VegetationPlacementSettings settings,
@@ -72,9 +62,10 @@ namespace VoxelEngine.Core.Vegetation
         {
             float total = 0f;
             float strongest = 0f;
-            for (int i = 0; i < Kinds.Length; i++)
+            for (int i = 0; i < VegetationCatalogue.Count; i++)
             {
-                float score = Score(sample, normal, VegetationProfiles.Get(Kinds[i]), settings);
+                VegetationProfile profile = VegetationCatalogue.Get(VegetationCatalogue.KindAt(i));
+                float score = Score(sample, normal, profile, settings);
                 total += score;
                 strongest = math.max(strongest, score);
             }
@@ -87,9 +78,9 @@ namespace VoxelEngine.Core.Vegetation
 
             float target = Random01(seed ^ 0x9E3779B9u) * total;
             float cumulative = 0f;
-            for (int i = 0; i < Kinds.Length; i++)
+            for (int i = 0; i < VegetationCatalogue.Count; i++)
             {
-                VegetationProfile profile = VegetationProfiles.Get(Kinds[i]);
+                VegetationProfile profile = VegetationCatalogue.Get(VegetationCatalogue.KindAt(i));
                 cumulative += Score(sample, normal, profile, settings);
                 if (target <= cumulative)
                 {
@@ -99,7 +90,7 @@ namespace VoxelEngine.Core.Vegetation
             }
 
             suitability = strongest;
-            return Kinds[Kinds.Length - 1];
+            return VegetationCatalogue.KindAt(VegetationCatalogue.Count - 1);
         }
 
         private static float Score(
@@ -108,8 +99,14 @@ namespace VoxelEngine.Core.Vegetation
             in VegetationProfile profile,
             in VegetationPlacementSettings settings)
         {
-            float surfaceWeight = VegetationProfiles.SurfaceWeight(profile, sample.Surface);
+            float surfaceWeight = VegetationCatalogue.SurfaceWeight(profile, sample.Surface);
             if (surfaceWeight <= 0f)
+            {
+                return 0f;
+            }
+
+            float arcane = math.saturate(sample.ArcaneSaturation);
+            if (arcane < profile.MinArcaneSaturation)
             {
                 return 0f;
             }
@@ -127,22 +124,51 @@ namespace VoxelEngine.Core.Vegetation
             float shade = math.saturate(sample.Shade);
             float environment = 1f
                 + (moisture - 0.5f) * profile.MoistureAffinity * (1f + settings.MoistureBias)
-                + (shade - 0.5f) * profile.ShadeAffinity * (1f + settings.ShadeBias);
+                + (shade - 0.5f) * profile.ShadeAffinity * (1f + settings.ShadeBias)
+                + arcane * profile.ArcaneAffinity * (1f + settings.ArcaneBias);
 
-            // Vines should originate from near-vertical support surfaces, not floors.
-            if (profile.Kind == VegetationKind.Vine)
-            {
-                float verticality = 1f - math.abs(normal.y);
-                environment *= math.smoothstep(0.45f, 0.90f, verticality);
-            }
-
-            // Flowers, grass, ferns and bushes are upright growth forms.
-            if (profile.Kind != VegetationKind.Moss && profile.Kind != VegetationKind.Vine)
-            {
-                environment *= math.smoothstep(0.25f, 0.75f, math.max(0f, normal.y));
-            }
-
+            environment *= GrowthFormFactor(profile.GrowthForm, sample.Surface, normal);
             return math.max(0f, surfaceWeight * slopeFactor * environment);
+        }
+
+        private static float GrowthFormFactor(
+            VegetationGrowthForm form,
+            VegetationSurface surface,
+            float3 normal)
+        {
+            float upFacing = math.max(0f, normal.y);
+            float verticality = 1f - math.abs(normal.y);
+
+            switch (form)
+            {
+                case VegetationGrowthForm.Climber:
+                    // Climbing vegetation originates on walls, trunks, and cliff faces.
+                    return math.smoothstep(0.35f, 0.90f, verticality);
+
+                case VegetationGrowthForm.Hanger:
+                    // Hanging growth can start on a vertical face or underside/overhang.
+                    float underside = math.max(0f, -normal.y);
+                    return math.max(
+                        math.smoothstep(0.35f, 0.90f, verticality),
+                        math.smoothstep(0.15f, 0.75f, underside));
+
+                case VegetationGrowthForm.Aquatic:
+                    return surface == VegetationSurface.Water ? 1f : 0.20f * upFacing;
+
+                case VegetationGrowthForm.Tuft:
+                case VegetationGrowthForm.Shrub:
+                case VegetationGrowthForm.Root:
+                case VegetationGrowthForm.Debris:
+                    return math.smoothstep(0.25f, 0.75f, upFacing);
+
+                // Fronds include wall ferns/epiphytes, fungi can grow on trunks, and creepers
+                // intentionally conform to arbitrary support surfaces.
+                case VegetationGrowthForm.Frond:
+                case VegetationGrowthForm.Creeper:
+                case VegetationGrowthForm.Fungus:
+                default:
+                    return 1f;
+            }
         }
 
         private static uint QuantizedHash(float3 position)
