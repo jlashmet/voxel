@@ -44,7 +44,7 @@ namespace VoxelEngine.Tests.EditMode
         public void FeatureRasterisingUsesStorageApiInsteadOfPhysicalStorage()
         {
             string root = FindRepoRoot();
-            string features = Path.Combine(root, "Assets", "VoxelEngine", "Core", "Features");
+            string runtime = Path.Combine(root, "Assets", "VoxelEngine", "Structures", "Runtime");
             string[] files = { "PrimitiveRasteriser.cs", "FeatureGeneration.cs" };
             string[] forbidden =
             {
@@ -59,7 +59,7 @@ namespace VoxelEngine.Tests.EditMode
 
             foreach (string file in files)
             {
-                string source = File.ReadAllText(Path.Combine(features, file));
+                string source = File.ReadAllText(Path.Combine(runtime, file));
                 foreach (string token in forbidden)
                 {
                     if (source.IndexOf(token, StringComparison.Ordinal) >= 0)
