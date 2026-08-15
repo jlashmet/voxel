@@ -74,6 +74,44 @@ namespace VoxelEngine.Composition
             s_world = default;
             VoxelRenderBridge.Source = null;
             VoxelRenderBridge.Changes = null;
+            VoxelRenderBridge.FarFieldEnabled = false;
+        }
+
+        public static void ResetSurfacePassDiagnostics(string reason) =>
+            VoxelRenderBridge.ResetSurfacePassDiagnostics(reason);
+
+        public static void SetSurfaceBuildEnabled(bool enabled) =>
+            VoxelRenderBridge.SurfaceBuildEnabled = enabled;
+
+        public static void SetFarBaseHeight(int baseHeight) =>
+            VoxelRenderBridge.FarBaseHeight = baseHeight;
+
+        public static void SetLocalLights(Vector4[] lights, Vector4[] colours)
+        {
+            VoxelRenderBridge.LocalLights = lights ?? Array.Empty<Vector4>();
+            VoxelRenderBridge.LocalLightColours = colours ?? Array.Empty<Vector4>();
+        }
+
+        public static void SetFlashlight(bool enabled, Vector3 position, Vector3 direction)
+        {
+            VoxelRenderBridge.FlashlightEnabled = enabled;
+            VoxelRenderBridge.FlashlightPosition = position;
+            VoxelRenderBridge.FlashlightDirection = direction;
+        }
+
+        public static void SetCutaway(bool enabled, Vector3 minVoxel, Vector3 maxVoxel)
+        {
+            VoxelRenderBridge.CutawayMinVoxel = minVoxel;
+            VoxelRenderBridge.CutawayMaxVoxel = maxVoxel;
+            VoxelRenderBridge.CutawayEnabled = enabled;
+        }
+
+        public static void ResetTransientPresentation()
+        {
+            VoxelRenderBridge.CutawayEnabled = false;
+            VoxelRenderBridge.LocalLights = Array.Empty<Vector4>();
+            VoxelRenderBridge.LocalLightColours = Array.Empty<Vector4>();
+            VoxelRenderBridge.FlashlightEnabled = false;
         }
 
         /// <summary>
