@@ -87,6 +87,7 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
 
             PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
             WorldSettlementPlan semanticSettlement = ResolveSemanticSettlement(graph.HierarchyPlan);
+            ValidateSupportedHierarchy(graph.HierarchyPlan, semanticSettlement);
 
             var projections = new KentridgeArchitectureSiteProjectionProvider(settlement);
             var traversal = new SettlementStreetTraversalFacts(settlement, projections);
@@ -139,6 +140,60 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
                     "Kentridge single-settlement planning requires exactly one authored settlement " +
                     "in the compiled campaign hierarchy, but found " + hierarchy.Settlements.Count + ".");
             return hierarchy.Settlements[0];
+        }
+
+        private static void ValidateSupportedHierarchy(
+            WorldHierarchyPlan hierarchy,
+            WorldSettlementPlan settlement)
+        {
+            if (hierarchy.Regions.Count != 1)
+                throw new InvalidOperationException(
+                    "Kentridge single-region planning requires exactly one authored region, but found " +
+                    hierarchy.Regions.Count + ". A multi-region generator must consume WorldHierarchyPlan directly.");
+
+            WorldRegionPlan region = null;
+            for (var i = 0; i < hierarchy.Regions.Count; i++)
+            {
+                if (hierarchy.Regions[i].Region.Equals(settlement.Region))
+                {
+                    region = hierarchy.Regions[i];
+                    break;
+                }
+            }
+
+            if (region == null)
+                throw new InvalidOperationException(
+                    "Kentridge authored settlement '" + settlement.Settlement +
+                    "' has no compiled owning region.");
+
+            if (region.Biome != BiomeFamily.Unspecified)
+                throw new InvalidOperationException(
+                    "Kentridge WorldGen does not yet expose biome realization facts, so authored biome '" +
+                    region.Biome + "' cannot be proven satisfied. Leave the biome unspecified or use a hierarchy-aware world generator.");
+
+            if (hierarchy.Routes.Count > 0)
+                throw new InvalidOperationException(
+                    "Kentridge WorldGen currently plans settlement streets but not outer WorldBuilder routes. " +
+                    "The campaign requires " + hierarchy.Routes.Count +
+                    " route(s); use a hierarchy-aware world generator instead of silently ignoring them.");
+
+            if (settlement.Archetype != SettlementArchetype.Unspecified
+                && settlement.Archetype != SettlementArchetype.Town)
+                throw new InvalidOperationException(
+                    "Kentridge WorldGen realizes a town, but campaign settlement '" + settlement.Settlement +
+                    "' requires archetype '" + settlement.Archetype + "'.");
+
+            if (settlement.HasPopulationRange)
+                throw new InvalidOperationException(
+                    "Kentridge WorldGen does not yet expose population realization facts, so campaign settlement '" +
+                    settlement.Settlement + "' population requirement " + settlement.Population.Minimum + ".." +
+                    settlement.Population.Maximum + " cannot be proven satisfied.");
+
+            if (settlement.RouteAccess.Count > 0)
+                throw new InvalidOperationException(
+                    "Kentridge WorldGen does not yet realize WorldBuilder settlement-to-route connectors; " +
+                    "campaign settlement '" + settlement.Settlement + "' requires " +
+                    settlement.RouteAccess.Count + " connector(s).");
         }
 
         private static string FormatSiteResolutionFailure(SiteResolutionResult sites)
