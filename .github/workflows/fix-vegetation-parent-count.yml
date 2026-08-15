@@ -1,0 +1,37 @@
+name: Fix Vegetation parent count
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths:
+      - .github/workflows/fix-vegetation-parent-count.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs')
+          s = p.read_text()
+          old = 'parents.Length'
+          if s.count(old) != 1:
+              raise SystemExit(f'expected exactly one {old}, found {s.count(old)}')
+          p.write_text(s.replace(old, 'parents.Count', 1))
+          PY
+          git rm .github/workflows/fix-vegetation-parent-count.yml
+          git diff --check
+          git diff -- Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs
+          git add -u .github/workflows
+          git commit -m 'fix: finish Vegetation readonly parent migration'
+          git push origin HEAD:${{ github.ref_name }}
