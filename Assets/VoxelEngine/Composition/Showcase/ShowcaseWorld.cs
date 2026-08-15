@@ -27,7 +27,7 @@ namespace VoxelEngine.Showcase
     /// 64 bricks on a side — 51.2 m at 10 cm voxels — so flying in a straight line
     /// continuously loads and discards them, which is the thing worth watching in the HUD.
     ///
-    /// Nothing here is engine code; it is a caller of the engine, in its own assembly. Edits
+    /// This application-level world orchestration lives in Composition, the sole assembly allowed to own concrete subsystem runtimes. Edits
     /// go through <see cref="VoxelAccess"/> and shapes come from <see cref="BuildBrushes"/>.
     /// Terrain generation writes brick references directly, which is the only way to fill a
     /// region at a sane cost: a solid brick below the surface becomes a uniform reference and
@@ -140,7 +140,7 @@ namespace VoxelEngine.Showcase
 
         private sealed class VisualBucket
         {
-            public readonly List<FallingVoxel> Samples = new(GpuDebrisSystem.RenderInstancesPerChunk);
+            public readonly List<FallingVoxel> Samples = new(RenderSamplesPerDetachedChunk);
             public int SourceVoxelCount;
             public uint Priority;
         }
@@ -152,6 +152,7 @@ namespace VoxelEngine.Showcase
         }
 
         private const int MaxCollapseComponentVoxels = 1_048_576;
+        private const int RenderSamplesPerDetachedChunk = 16;
         private const int FallingChunkEdge = 8;
         public const int MaxQueuedDetachedChunks = 256;
         private const int MaxVisualChunksPerCollapse = 192;
@@ -1881,7 +1882,7 @@ namespace VoxelEngine.Showcase
         private static void AddVisualSample(VisualBucket bucket, FallingVoxel voxel)
         {
             bucket.SourceVoxelCount++;
-            int capacity = GpuDebrisSystem.RenderInstancesPerChunk;
+            int capacity = RenderSamplesPerDetachedChunk;
             if (bucket.Samples.Count < capacity)
             {
                 bucket.Samples.Add(voxel);
@@ -1940,7 +1941,7 @@ namespace VoxelEngine.Showcase
                 }
 
                 bucket.SourceVoxelCount++;
-                int capacity = GpuDebrisSystem.RenderInstancesPerChunk;
+                int capacity = RenderSamplesPerDetachedChunk;
                 if (bucket.Samples.Count < capacity)
                     bucket.Samples.Add(voxel);
                 else

@@ -14,13 +14,7 @@
     "Unity.Mathematics",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Vegetation.Api",
-    "VoxelEngine.Collision.Api",
-    "VoxelEngine.Rendering.Runtime",
-    "VoxelEngine.Streaming.Runtime",
-    "VoxelEngine.Edits.Runtime",
-    "VoxelEngine.Storage.Runtime",
-    "VoxelEngine.Terrain.Runtime",
-    "VoxelEngine.Structures.Runtime"
+    "VoxelEngine.Collision.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
