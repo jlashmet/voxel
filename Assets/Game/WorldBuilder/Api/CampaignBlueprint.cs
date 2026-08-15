@@ -32,15 +32,64 @@ namespace Game.WorldBuilder.Api
         {
             Id = WorldIdRules.Require(id, nameof(id));
             Hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
-            Sites = sites ?? Array.Empty<SiteSpec>();
+            Cutscenes = cutscenes ?? Array.Empty<CutsceneSpec>();
+            Sites = DeriveSiteCapabilities(sites ?? Array.Empty<SiteSpec>(), Cutscenes);
             Npcs = npcs ?? Array.Empty<NpcSpec>();
             SpatialConstraints = spatialConstraints ?? Array.Empty<SpatialConstraintSpec>();
-            Cutscenes = cutscenes ?? Array.Empty<CutsceneSpec>();
             StoryRules = storyRules ?? Array.Empty<StoryRuleSpec>();
             Objectives = objectives ?? Array.Empty<ObjectiveSpec>();
             SecretPolicies = secretPolicies ?? Array.Empty<SecretPolicySpec>();
             RequiredSecrets = requiredSecrets ?? Array.Empty<RequiredSecretSpec>();
             LootTables = lootTables ?? Array.Empty<LootTableSpec>();
+        }
+
+        /// <summary>
+        /// Normalizes capabilities implied by authored content. A cutscene with physical stage points
+        /// is itself proof that its host must support cutscene staging; authors should not repeat the
+        /// same fact with RequireCapability(CutsceneStage). The detailed CutsceneStagePlan remains the
+        /// actual geometry requirement consumed by generation.
+        /// </summary>
+        private static SiteSpec[] DeriveSiteCapabilities(
+            SiteSpec[] sites,
+            IReadOnlyList<CutsceneSpec> cutscenes)
+        {
+            var result = new SiteSpec[sites.Length];
+            for (var i = 0; i < sites.Length; i++)
+            {
+                SiteSpec site = sites[i];
+                bool requiresCutsceneStage = false;
+                for (var j = 0; j < cutscenes.Count; j++)
+                {
+                    CutsceneSpec cutscene = cutscenes[j];
+                    if (cutscene.Site.Equals(site.Ref)
+                        && cutscene.Definition.StageRequirements.Count > 0)
+                    {
+                        requiresCutsceneStage = true;
+                        break;
+                    }
+                }
+
+                if (!requiresCutsceneStage || HasCapability(site, SiteCapabilityKind.CutsceneStage))
+                {
+                    result[i] = site;
+                    continue;
+                }
+
+                var capabilities = new SiteCapabilityRequirement[site.Capabilities.Count + 1];
+                for (var j = 0; j < site.Capabilities.Count; j++)
+                    capabilities[j] = site.Capabilities[j];
+                capabilities[capabilities.Length - 1] = SiteCapability.CutsceneStage;
+                result[i] = new SiteSpec(site.Ref, site.Archetype, capabilities);
+            }
+            return result;
+        }
+
+        private static bool HasCapability(SiteSpec site, SiteCapabilityKind kind)
+        {
+            for (var i = 0; i < site.Capabilities.Count; i++)
+                if (site.Capabilities[i].Kind == kind)
+                    return true;
+            return false;
         }
     }
 
