@@ -30,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
       - name: Verify final production dependency graph
         shell: bash
@@ -118,13 +119,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           clean: false
           fetch-depth: 1
       - name: Reset exact candidate while preserving Unity cache
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard "$GITHUB_SHA"
+          CANDIDATE_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          git reset --hard "$CANDIDATE_SHA"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           git clean -ffdx -e Library/
           rm -rf Library/ScriptAssemblies Library/Bee
       - id: unity
@@ -200,7 +204,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: stable-final-architecture-${{ github.sha }}
+          name: stable-final-architecture-${{ github.event.pull_request.head.sha || github.sha }}
           path: Artifacts/StableFinalArchitecture/
           if-no-files-found: warn
           retention-days: 14
