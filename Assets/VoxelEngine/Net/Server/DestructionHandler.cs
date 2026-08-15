@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Interest;
 using VoxelEngine.Net.Protocol;
 
@@ -13,7 +14,7 @@ namespace VoxelEngine.Net.Server
     ///
     /// The canonical network path is ServerCommandInbox -> ServerCommandProcessor. This type no
     /// longer constructs authority from client payload fields: callers must supply the authenticated
-    /// player session, authoritative tick/sequence/seed, and the world applier explicitly.
+    /// player session, authoritative tick/sequence/seed, mutation capability, and world applier.
     /// </summary>
     public static class DestructionHandler
     {
@@ -26,12 +27,15 @@ namespace VoxelEngine.Net.Server
             uint authoritativeTick,
             ushort authoritativeSequence,
             uint authoritativeSeed,
+            IRegionMutationStore mutationStorage,
             ref RegionTable table,
             ref BrickPool pool,
             Validation.DensityCap densityCap,
             IAuthoritativeAlterationApplier applier,
             in ProtectedZones zones = default)
         {
+            if (mutationStorage == null)
+                throw new ArgumentNullException(nameof(mutationStorage));
             if (applier == null)
                 throw new ArgumentNullException(nameof(applier));
 
@@ -45,6 +49,7 @@ namespace VoxelEngine.Net.Server
                 in evt,
                 in player,
                 players,
+                mutationStorage,
                 ref table,
                 in pool,
                 densityCap,
@@ -53,7 +58,7 @@ namespace VoxelEngine.Net.Server
             if (validation != Validation.ValidationResult.Success)
                 return AdjudicationResult.Reject(authoritativeTick, player.PlayerId, ToReason(validation));
 
-            if (!applier.TryApplyAlteration(ref table, ref pool, in evt))
+            if (!applier.TryApplyAlteration(mutationStorage, in evt))
                 return AdjudicationResult.Reject(
                     authoritativeTick,
                     player.PlayerId,
