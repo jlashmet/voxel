@@ -162,11 +162,12 @@ namespace VoxelEngine.CI
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
 
+                var readSource = new RegionReadSource(in table, in pool);
                 int previousDirty = int.MaxValue;
                 int stalled = 0;
                 for (int iteration = 0; iteration < 65536 && smoothCache.DirtyCount > 0; iteration++)
                 {
-                    smoothCache.Prepare(ref table, in pool, in materialPalette,
+                    smoothCache.Prepare(readSource, in materialPalette,
                         in surfaces, in coatings, null, camera, VoxelSize,
                         frame: 1, budgetMs: 100.0);
                     int dirty = smoothCache.DirtyCount;

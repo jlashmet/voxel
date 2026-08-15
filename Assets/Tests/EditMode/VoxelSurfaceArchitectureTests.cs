@@ -858,7 +858,7 @@ namespace VoxelEngine.Tests.EditMode
                                  SurfaceStyles.MasonryJoint, uint.MaxValue);
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
-                cache.Prepare(ref table, in pool, in palette, in surfaces, in coatings, store,
+                cache.Prepare(new RegionReadSource(in table, in pool), in palette, in surfaces, in coatings, store,
                               cameraObject.AddComponent<UnityEngine.Camera>(), 0.1f, 0, 0.0);
                 Assert.AreEqual(1, cache.IndexedProfileBlockCount(int3.zero));
                 Assert.AreEqual(0, cache.IndexedProfileBlockCount(new int3(8, 0, 0)));
@@ -891,7 +891,7 @@ namespace VoxelEngine.Tests.EditMode
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
                 Assert.AreNotEqual(cache.ActiveSurfaceCatalogueHash, custom.CatalogueHash);
 
-                cache.Prepare(ref table, in pool, in palette, in custom, in coatings, null,
+                cache.Prepare(new RegionReadSource(in table, in pool), in palette, in custom, in coatings, null,
                               cameraObject.AddComponent<UnityEngine.Camera>(), 0.1f, 0, 0.0);
 
                 Assert.AreEqual(custom.CatalogueHash, cache.ActiveSurfaceCatalogueHash);

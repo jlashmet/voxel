@@ -146,11 +146,12 @@ namespace VoxelEngine.CI
                 };
                 cache.InvalidateSurfaceBricks(SurfaceChunkSeeds(minX, maxX, minZ, maxZ));
 
+                var readSource = new RegionReadSource(in table, in pool);
                 int previousDirty = int.MaxValue;
                 int stalled = 0;
                 for (int iteration = 0; iteration < 65536 && cache.DirtyCount > 0; iteration++)
                 {
-                    cache.Prepare(ref table, in pool, in materials,
+                    cache.Prepare(readSource, in materials,
                         in surfaces, in coatings, null, camera, VoxelSize,
                         frame: 1, budgetMs: 100.0);
 
