@@ -1,0 +1,92 @@
+name: Refactor accepted static checklist sync
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-clean]
+    paths: [.github/workflows/refactor-sync-static-plan.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-clean
+          fetch-depth: 0
+      - name: Record accepted static architecture tasks
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization-clean
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = path.read_text()
+
+          text = re.sub(
+              r'^\*\*Implementation branch:\*\* `[^`]+`\s*$',
+              '**Implementation branch:** `refactor/system-boundaries-finalization-clean`',
+              text,
+              count=1,
+              flags=re.MULTILINE)
+          text = re.sub(
+              r'^\*\*Current focus:\*\* .+$',
+              '**Current focus:** Cutover 13 — static architecture closure accepted; final Unity/EditMode parity pending',
+              text,
+              count=1,
+              flags=re.MULTILINE)
+
+          lines = text.splitlines()
+          for i, line in enumerate(lines):
+              if line.startswith('| 0 — Guardrails |'):
+                  lines[i] = '| 0 — Guardrails | **Complete** | asmdef boundary enforcement, deterministic-root policy, Kentridge/WorldGen direction guards, permanent production Runtime/Core closure | none |'
+              elif line.startswith('| 2 — Storage |'):
+                  lines[i] = '| 2 — Storage | **Complete** | `Storage.Api` contracts/read views/generation/mutation/snapshot/hash boundaries complete; physical representation and occupancy live under `Storage.Runtime`; Core storage ownership and Core assembly are deleted; production consumers outside Composition are Api-only; final static closure accepted | none |'
+              elif line.startswith('| 13 — Composition/Core deletion |'):
+                  lines[i] = '| 13 — Composition/Core deletion | **In progress — final Unity parity pending** | concrete Runtime wiring is centralized in Composition; scene Showcase is Runtime-free; production Runtime/Core/legacy-adapter closure and WorldGen direction pass the permanent static gate `31910012496` at `2c451f2759f4c04649eeab3dba88edc56efd2c46` | Unity compile plus exact 387/374/13 EditMode parity; then close remaining Unity-dependent checklist items |'
+          text = '\n'.join(lines) + ('\n' if text.endswith('\n') else '')
+
+          replacements = {
+              '[ ] no Api references Runtime': '[x] no Api references Runtime',
+              '[ ] no Runtime references another subsystem Runtime': '[x] no Runtime references another subsystem Runtime',
+              '[ ] Composition is the only production Runtime-wiring exception': '[x] Composition is the only production Runtime-wiring exception',
+              '[ ] no compatibility/legacy adapter was introduced to preserve the old architecture': '[x] no compatibility/legacy adapter was introduced to preserve the old architecture',
+              '- [ ] add `VoxelEngineAssemblyBoundaryTests`': '- [x] add `VoxelEngineAssemblyBoundaryTests`',
+              '- [ ] convert Constitution determinism scan from Core path to explicit deterministic assembly/path policy': '- [x] convert Constitution determinism scan from Core path to explicit deterministic assembly/path policy',
+              '- [ ] strengthen Kentridge boundary tests': '- [x] strengthen Kentridge boundary tests',
+              '- [ ] update all existing consumers to Storage.Api': '- [x] update all existing consumers to Storage.Api',
+              '- [ ] remove every foreign Storage.Runtime reference': '- [x] remove every foreign Storage.Runtime reference',
+              '- [ ] centralize concrete runtime wiring/disposal': '- [x] centralize concrete runtime wiring/disposal',
+              '- [ ] remove scattered scene Runtime coupling where practical': '- [x] remove scattered scene Runtime coupling where practical',
+              '- [ ] repository-wide zero-match check for `VoxelEngine.Core`': '- [x] repository-wide zero-match check for `VoxelEngine.Core`',
+          }
+          for old, new in replacements.items():
+              if old in text:
+                  text = text.replace(old, new, 1)
+              elif new not in text:
+                  raise SystemExit(f'Checklist item missing: {old}')
+
+          marker = '- Latest accepted code gate:'
+          note = '- Latest accepted final static closure: source `2c451f2759f4c04649eeab3dba88edc56efd2c46`, run `31910012496` — GUID-resolved asmdef scanning accepts Api/Runtime direction, Composition-only concrete Runtime wiring, production `VoxelEngine.Core` zero-match, no legacy/compatibility adapter source, and WorldGen Core/Architecture/Voxel dependency direction. Final Unity/EditMode parity remains pending.\n'
+          if note not in text:
+              pos = text.find(marker)
+              if pos < 0:
+                  raise SystemExit('Accepted-gate marker not found')
+              end = text.find('\n', pos)
+              text = text[:end+1] + note + text[end+1:]
+
+          path.write_text(text)
+          PY
+          rm .github/workflows/refactor-sync-static-plan.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'docs(architecture): record accepted static closure'
+          git push origin HEAD:refactor/system-boundaries-finalization-clean
