@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 4 Structures — `PrimitiveRasteriser` / `FeatureGeneration` Storage write boundary  
+**Current focus:** Cutover 4 Structures — physical Api/Runtime split and canonical Kentridge shape encoding  
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance currently means no new compiler/test regression and the failed-test-name set remains exactly the known 15-test baseline.
-- Latest accepted code gate before this status update: `4d45a795b725220f89caad8b950e3b450d5255d9` — 374 tests, 359 passed, exactly 15 known baseline failures.
+- Latest accepted code gate: `f63d5be6e92d6b91862b9ac4cf539ecfdde85b18` — 377 tests, 362 passed, exactly 15 known baseline failures.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -699,8 +699,9 @@ Do **not** add any engine reference to `MountingForce.WorldGen.Core` or `Mountin
 - [x] Storage.Api full-cell block mutation matches authoritative `VoxelCell` semantics.
 - [x] Storage read views preserve authored boundary samples on empty mixed cells.
 - [x] Full-cell mutation/read parity slice accepted by CI: 374 total / 359 passed / exact 15 baseline failures.
-- [ ] `PrimitiveRasteriser` consumes Storage.Api only and preserves primitive ordering/surface/boundary semantics.
-- [ ] `FeatureGeneration` consumes the Storage.Api authoring capability rather than `RegionTable`/`BrickPool`.
+- [x] Feature rasterisation/generation Storage.Api boundary accepted by CI: 377 total / 362 passed / exact 15 baseline failures.
+- [x] `PrimitiveRasteriser` consumes Storage.Api only and preserves primitive ordering/surface/boundary semantics.
+- [x] `FeatureGeneration` consumes the Storage.Api authoring capability rather than `RegionTable`/`BrickPool`.
 - [ ] Structures.Api/Runtime physical move and namespace cutover complete.
 
 ### Gate
@@ -708,7 +709,7 @@ Do **not** add any engine reference to `MountingForce.WorldGen.Core` or `Mountin
 - [ ] no `VoxelEngine.Core.Features` namespace remains;
 - [ ] Kentridge catalogue builders compile against Structures.Api only;
 - [ ] compatibility encoding file deleted;
-- [ ] feature parity/generation tests pass;
+- [x] feature parity/generation tests pass;
 - [ ] CastleBuilder is Runtime implementation, not public cross-system vocabulary;
 - [ ] no external package references Structures.Runtime.
 
