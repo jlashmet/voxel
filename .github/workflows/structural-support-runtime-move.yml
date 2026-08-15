@@ -1,0 +1,323 @@
+name: StructuralIntegrity support Runtime move
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+
+          mkdir -p Assets/VoxelEngine/StructuralIntegrity/Api Assets/VoxelEngine/StructuralIntegrity/Runtime
+          git mv Assets/VoxelEngine/Core/Structure/SupportField.cs Assets/VoxelEngine/StructuralIntegrity/Runtime/SupportField.cs
+          git mv Assets/VoxelEngine/Core/Structure/SupportField.cs.meta Assets/VoxelEngine/StructuralIntegrity/Runtime/SupportField.cs.meta
+          git mv Assets/VoxelEngine/Core/Structure/CollapseDetection.cs Assets/VoxelEngine/StructuralIntegrity/Runtime/CollapseDetection.cs
+          git mv Assets/VoxelEngine/Core/Structure/CollapseDetection.cs.meta Assets/VoxelEngine/StructuralIntegrity/Runtime/CollapseDetection.cs.meta
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, uuid
+
+          def meta(path, folder=False):
+              guid=uuid.uuid4().hex
+              if folder:
+                  Path(path).write_text(f'''fileFormatVersion: 2\nguid: {guid}\nfolderAsset: yes\nDefaultImporter:\n  externalObjects: {{}}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n''')
+              else:
+                  Path(path).write_text(f'fileFormatVersion: 2\nguid: {guid}\n')
+
+          # New subsystem assembly roots. Api is intentionally empty until an actual cross-system
+          # result/request consumer exists; we do not invent speculative domain payloads.
+          if not Path('Assets/VoxelEngine/StructuralIntegrity.meta').exists(): meta('Assets/VoxelEngine/StructuralIntegrity.meta', True)
+          meta('Assets/VoxelEngine/StructuralIntegrity/Api.meta', True)
+          meta('Assets/VoxelEngine/StructuralIntegrity/Runtime.meta', True)
+          api_asm={
+              'name':'VoxelEngine.StructuralIntegrity.Api',
+              'rootNamespace':'VoxelEngine.StructuralIntegrity.Api',
+              'references':[],
+              'includePlatforms':[], 'excludePlatforms':[],
+              'allowUnsafeCode':False, 'overrideReferences':False,
+              'precompiledReferences':[], 'autoReferenced':False,
+              'defineConstraints':[], 'versionDefines':[], 'noEngineReferences':False,
+          }
+          runtime_asm={
+              'name':'VoxelEngine.StructuralIntegrity.Runtime',
+              'rootNamespace':'VoxelEngine.StructuralIntegrity.Runtime',
+              'references':['VoxelEngine.StructuralIntegrity.Api','VoxelEngine.Storage.Api','Unity.Collections','Unity.Mathematics'],
+              'includePlatforms':[], 'excludePlatforms':[],
+              'allowUnsafeCode':True, 'overrideReferences':False,
+              'precompiledReferences':[], 'autoReferenced':False,
+              'defineConstraints':[], 'versionDefines':[], 'noEngineReferences':False,
+          }
+          Path('Assets/VoxelEngine/StructuralIntegrity/Api/VoxelEngine.StructuralIntegrity.Api.asmdef').write_text(json.dumps(api_asm,indent=2)+'\n')
+          meta('Assets/VoxelEngine/StructuralIntegrity/Api/VoxelEngine.StructuralIntegrity.Api.asmdef.meta')
+          Path('Assets/VoxelEngine/StructuralIntegrity/Runtime/VoxelEngine.StructuralIntegrity.Runtime.asmdef').write_text(json.dumps(runtime_asm,indent=2)+'\n')
+          meta('Assets/VoxelEngine/StructuralIntegrity/Runtime/VoxelEngine.StructuralIntegrity.Runtime.asmdef.meta')
+
+          # Preserve support semantics while replacing physical BrickRef/BrickPool ownership with
+          # the logical Storage.Api read contract.
+          Path('Assets/VoxelEngine/StructuralIntegrity/Runtime/SupportField.cs').write_text(r'''using System;
+using System.Runtime.CompilerServices;
+using Unity.Collections;
+using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
+
+namespace VoxelEngine.StructuralIntegrity.Runtime
+{
+    /// <summary>
+    /// Deterministic support propagation over logical Storage read blocks. Physical voxel storage
+    /// stays owned by Storage; this algorithm only asks whether logical blocks are occupied.
+    /// </summary>
+    public static class SupportField
+    {
+        public const byte NBrickReach = 128;
+        private const int BlocksPerRegion = VoxelReadGrid.BlocksPerRegionEdge
+                                          * VoxelReadGrid.BlocksPerRegionEdge
+                                          * VoxelReadGrid.BlocksPerRegionEdge;
+
+        public static void ComputeSupport(
+            IRegionReadSource storage,
+            int3 regionCoord,
+            NativeArray<byte> supportValues,
+            Allocator allocator)
+        {
+            if (supportValues.Length != BlocksPerRegion)
+                throw new ArgumentException(
+                    $"supportValues must have length {BlocksPerRegion}.", nameof(supportValues));
+            if (storage == null || !storage.TryAcquireRegion(regionCoord, out RegionReadView region))
+                return;
+
+            for (int i = 0; i < BlocksPerRegion; i++) supportValues[i] = 0;
+
+            var visited = new NativeBitArray(BlocksPerRegion, Allocator.Temp);
+            var bfsQueue = new NativeList<int>(BlocksPerRegion >> 2, allocator);
+            var bfsSupport = new NativeList<byte>(BlocksPerRegion >> 2, allocator);
+
+            // Preserve the existing algorithm exactly: ground blocks are distance-zero anchors,
+            // while every occupied region-border block is a conservative maximum-strength anchor.
+            if (regionCoord.y == 0)
+            {
+                for (int x = 0; x < VoxelReadGrid.BlocksPerRegionEdge; x++)
+                for (int z = 0; z < VoxelReadGrid.BlocksPerRegionEdge; z++)
+                {
+                    int idx = BlockIndex(x, 0, z);
+                    if (visited.IsSet(idx) || !region.IsBlockOccupied(new int3(x, 0, z))) continue;
+                    visited.Set(idx, true);
+                    supportValues[idx] = 0;
+                    bfsQueue.Add(idx);
+                    bfsSupport.Add(0);
+                }
+            }
+
+            for (int axis = 0; axis < 3; axis++)
+            for (int dir = -1; dir <= 1; dir += 2)
+            for (int i = 0; i < BlocksPerRegion; i++)
+            {
+                if (visited.IsSet(i) || !BlockTouchesBorder(i, axis, dir)) continue;
+                int3 block = BlockCoords(i);
+                if (!region.IsBlockOccupied(block)) continue;
+                visited.Set(i, true);
+                supportValues[i] = NBrickReach;
+                bfsQueue.Add(i);
+                bfsSupport.Add(NBrickReach);
+            }
+
+            int head = 0;
+            while (head < bfsQueue.Length)
+            {
+                int curIdx = bfsQueue[head];
+                byte curSupport = bfsSupport[head];
+                head++;
+                if (curSupport == 0) continue;
+
+                int3 c = BlockCoords(curIdx);
+                byte next = (byte)(curSupport - 1);
+                if (c.x < VoxelReadGrid.BlocksPerRegionEdgeMask) Push(curIdx + 1, next);
+                if (c.x > 0) Push(curIdx - 1, next);
+                int yStride = VoxelReadGrid.BlocksPerRegionEdge;
+                if (c.y < VoxelReadGrid.BlocksPerRegionEdgeMask) Push(curIdx + yStride, next);
+                if (c.y > 0) Push(curIdx - yStride, next);
+                int zStride = VoxelReadGrid.BlocksPerRegionEdge << VoxelReadGrid.BlocksPerRegionEdgeLog2;
+                if (c.z < VoxelReadGrid.BlocksPerRegionEdgeMask) Push(curIdx + zStride, next);
+                if (c.z > 0) Push(curIdx - zStride, next);
+            }
+
+            visited.Dispose();
+            bfsQueue.Dispose();
+            bfsSupport.Dispose();
+
+            void Push(int index, byte value)
+            {
+                if (visited.IsSet(index) || !region.IsBlockOccupied(BlockCoords(index))) return;
+                visited.Set(index, true);
+                supportValues[index] = value;
+                bfsQueue.Add(index);
+                bfsSupport.Add(value);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte MinBrickSupport(int blockIndex, in NativeArray<byte> supportValues) =>
+            supportValues[blockIndex];
+
+        public static bool HasUnsupportedBricks(
+            int regionCoordX, int regionCoordY, int regionCoordZ,
+            in NativeArray<byte> supportValues,
+            byte threshold)
+        {
+            if (supportValues.Length != BlocksPerRegion) return false;
+            for (int i = 0; i < BlocksPerRegion; i++)
+                if (supportValues[i] <= threshold) return true;
+            return false;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int BlockIndex(int x, int y, int z) =>
+            x | (y << VoxelReadGrid.BlocksPerRegionEdgeLog2)
+              | (z << (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int3 BlockCoords(int index) => new int3(
+            index & VoxelReadGrid.BlocksPerRegionEdgeMask,
+            (index >> VoxelReadGrid.BlocksPerRegionEdgeLog2) & VoxelReadGrid.BlocksPerRegionEdgeMask,
+            (index >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2)) & VoxelReadGrid.BlocksPerRegionEdgeMask);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool BlockTouchesBorder(int index, int axis, int dir)
+        {
+            int3 c = BlockCoords(index);
+            switch (axis)
+            {
+                case 0: return dir > 0 ? c.x == VoxelReadGrid.BlocksPerRegionEdgeMask : c.x == 0;
+                case 1: return dir > 0 ? c.y == VoxelReadGrid.BlocksPerRegionEdgeMask : c.y == 0;
+                case 2: return dir > 0 ? c.z == VoxelReadGrid.BlocksPerRegionEdgeMask : c.z == 0;
+                default: return false;
+            }
+        }
+    }
+}
+''')
+
+          # CollapseDetection is evaluation only. The old ApplyCollapse method directly mutated
+          # BrickPool/RegionTable, had no callers, and violates the documented Edits-owned mutation flow.
+          Path('Assets/VoxelEngine/StructuralIntegrity/Runtime/CollapseDetection.cs').write_text(r'''using System;
+using System.Runtime.CompilerServices;
+using Unity.Collections;
+using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
+
+namespace VoxelEngine.StructuralIntegrity.Runtime
+{
+    /// <summary>Identifies unsupported logical blocks; applying resulting mutations belongs to Edits.</summary>
+    public static class CollapseDetection
+    {
+        public const byte DefaultThreshold = 2;
+        private const int BlocksPerRegion = VoxelReadGrid.BlocksPerRegionEdge
+                                          * VoxelReadGrid.BlocksPerRegionEdge
+                                          * VoxelReadGrid.BlocksPerRegionEdge;
+
+        public static NativeList<int3> FindCollapseTargets(
+            IRegionReadSource storage,
+            int3 regionCoord,
+            in NativeArray<byte> supportValues,
+            byte threshold)
+        {
+            if (supportValues.Length != BlocksPerRegion)
+                throw new ArgumentException(
+                    $"supportValues must have length {BlocksPerRegion}.", nameof(supportValues));
+
+            var result = new NativeList<int3>(64, Allocator.Temp);
+            if (storage == null || !storage.TryAcquireRegion(regionCoord, out RegionReadView region))
+                return result;
+
+            for (int i = 0; i < BlocksPerRegion; i++)
+            {
+                int3 blockCoord = BlockCoords(i);
+                if (!region.TryGetBlock(blockCoord, out VoxelReadBlock block)
+                    || block.Kind != VoxelReadBlockKind.Mixed
+                    || supportValues[i] > threshold)
+                    continue;
+                result.Add(blockCoord);
+            }
+            return result;
+        }
+
+        public static NativeList<int3> FindUnsupportedBuilds(
+            IRegionReadSource storage,
+            int3 regionCoord,
+            in NativeArray<byte> supportValues) =>
+            FindCollapseTargets(storage, regionCoord, in supportValues, 1);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int3 BlockCoords(int index) => new int3(
+            index & VoxelReadGrid.BlocksPerRegionEdgeMask,
+            (index >> VoxelReadGrid.BlocksPerRegionEdgeLog2) & VoxelReadGrid.BlocksPerRegionEdgeMask,
+            (index >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2)) & VoxelReadGrid.BlocksPerRegionEdgeMask);
+    }
+}
+''')
+
+          # Parity test owns construction of the transitional physical Storage adapter.
+          p=Path('Assets/Tests/Parity/CollapseAgreementTests.cs')
+          text=p.read_text().replace('using VoxelEngine.Core.Structure;\n','using VoxelEngine.StructuralIntegrity.Runtime;\n')
+          replacements={
+              'SupportField.ComputeSupport(in tableA, in poolA, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportA, Allocator.Temp);':
+                  'SupportField.ComputeSupport(new RegionReadSource(in tableA, in poolA), GetRegion(origin.x, origin.y, origin.z), supportA, Allocator.Temp);',
+              'SupportField.ComputeSupport(in tableB, in poolB, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportB, Allocator.Temp);':
+                  'SupportField.ComputeSupport(new RegionReadSource(in tableB, in poolB), GetRegion(origin.x, origin.y, origin.z), supportB, Allocator.Temp);',
+              'SupportField.ComputeSupport(in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);':
+                  'SupportField.ComputeSupport(new RegionReadSource(in table, in pool), regionCoord, support, Allocator.Temp);',
+              'var targets = CollapseDetection.FindUnsupportedBuilds(in region.BrickRefs, in pool, in support);':
+                  'var targets = CollapseDetection.FindUnsupportedBuilds(new RegionReadSource(in table, in pool), regionCoord, in support);',
+              '''            SupportField.ComputeSupport(
+                in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);
+
+            var targets = CollapseDetection.FindCollapseTargets(
+                in region.BrickRefs, in pool, in support, threshold);''':
+                  '''            var readSource = new RegionReadSource(in table, in pool);
+            SupportField.ComputeSupport(readSource, regionCoord, support, Allocator.Temp);
+
+            var targets = CollapseDetection.FindCollapseTargets(
+                readSource, regionCoord, in support, threshold);''',
+          }
+          for old,new in replacements.items():
+              if text.count(old)!=1:
+                  raise SystemExit(f'CollapseAgreement replacement count {text.count(old)}: {old[:80]}')
+              text=text.replace(old,new,1)
+          p.write_text(text)
+
+          p=Path('Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef')
+          data=json.loads(p.read_text())
+          if 'VoxelEngine.StructuralIntegrity.Runtime' not in data['references']:
+              data['references'].append('VoxelEngine.StructuralIntegrity.Runtime')
+          p.write_text(json.dumps(data,indent=2)+'\n')
+          PY
+
+          git rm .github/workflows/structural-support-move-inventory.yml .github/workflows/structural-support-runtime-move.yml
+          git diff --check
+          test -f Assets/VoxelEngine/StructuralIntegrity/Runtime/SupportField.cs
+          test -f Assets/VoxelEngine/StructuralIntegrity/Runtime/CollapseDetection.cs
+          test ! -e Assets/VoxelEngine/Core/Structure/SupportField.cs
+          test ! -e Assets/VoxelEngine/Core/Structure/CollapseDetection.cs
+          if grep -RInE 'VoxelEngine\.Core\.Storage|\b(RegionTable|BrickPool|BrickRef|VoxelDimensions|VoxelAccess)\b' Assets/VoxelEngine/StructuralIntegrity --include='*.cs'; then
+            echo 'StructuralIntegrity Runtime leaks physical Storage' >&2; exit 1
+          fi
+          if grep -RIn 'VoxelEngine.Net' Assets/VoxelEngine/StructuralIntegrity --include='*.cs' --include='*.asmdef'; then
+            echo 'StructuralIntegrity depends on Net' >&2; exit 1
+          fi
+          git status --short
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/StructuralIntegrity Assets/Tests/Parity/CollapseAgreementTests.cs Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef
+          git commit -m 'Move structural support evaluation behind Storage API'
+          git push origin HEAD:${{ github.ref_name }}
