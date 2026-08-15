@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 ROOT = Path('Packages/com.mountingforce.worldgen/Runtime/Voxel')
 OPERANDS = {
@@ -47,14 +48,10 @@ def split_top_level(content):
 
 
 def find_direct_emit_calls(text):
-    needle = 'Emit(ShapeOp.Emit'
-    at = 0
+    pattern = re.compile(r'\bEmit\s*\(\s*ShapeOp\.Emit[A-Za-z]+')
     calls = []
-    while True:
-        start = text.find(needle, at)
-        if start < 0:
-            return calls
-        open_paren = text.find('(', start)
+    for match in pattern.finditer(text):
+        open_paren = text.find('(', match.start())
         depth = 0
         in_string = False
         escape = False
@@ -78,9 +75,9 @@ def find_direct_emit_calls(text):
                 if depth == 0:
                     close = i
                     break
-        assert close is not None, f'unterminated direct Emit call at {start}'
+        assert close is not None, f'unterminated direct Emit call at {match.start()}'
         calls.append((open_paren, close))
-        at = close + 1
+    return calls
 
 changed = []
 patched_one_short = 0
@@ -123,7 +120,6 @@ for path in sorted(ROOT.rglob('*.cs')):
 
 assert patched_one_short + patched_two_short > 0, 'Expected at least one noncanonical direct Emit call.'
 
-# Every direct builder call must now be canonical.
 for path in sorted(ROOT.rglob('*.cs')):
     text = path.read_text()
     for open_paren, close in find_direct_emit_calls(text):
