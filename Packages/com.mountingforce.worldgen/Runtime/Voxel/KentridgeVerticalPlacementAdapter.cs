@@ -3,7 +3,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -119,7 +119,7 @@ namespace MountingForce.WorldGen.Voxel
                 seed, settings, allocator);
             int scale = settings.VoxelsPerDecimetre;
             Int2 centre = KentridgeDefinition.TownCentreDm;
-            int natural = TerrainSampler.HeightAt(centre.X * scale, centre.Y * scale, seed);
+            int natural = TerrainQuery.HeightAt(centre.X * scale, centre.Y * scale, seed);
             int target = KentridgeVerticalProfile.SurfaceYAtDm(centre.X, centre.Y, seed, scale);
             int delta = target - natural;
 
