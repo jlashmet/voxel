@@ -12,6 +12,7 @@ using VoxelEngine.Storage.Runtime.Occupancy;
 using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+using VoxelEngine.Terrain.Runtime;
 
 using VoxelEngine.Structures.Api;
 

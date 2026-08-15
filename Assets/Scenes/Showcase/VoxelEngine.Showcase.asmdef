@@ -14,19 +14,15 @@
     "Unity.Mathematics",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Vegetation.Api",
-    "VoxelEngine.Collision.Api",
-    "VoxelEngine.Rendering.Runtime",
-    "VoxelEngine.Edits.Runtime",
-    "VoxelEngine.Storage.Runtime",
-    "VoxelEngine.Structures.Runtime"
+    "VoxelEngine.Collision.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": true,
+  "noEngineReferences": false,
   "overrideReferences": false,
   "precompiledReferences": [],
-  "autoReferenced": false,
+  "autoReferenced": true,
   "defineConstraints": [],
-  "versionDefines": [],
-  "noEngineReferences": false
+  "versionDefines": []
 }

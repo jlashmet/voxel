@@ -421,13 +421,13 @@ namespace VoxelEngine.Composition
     /// <summary>Composition entry point for the concrete Net.Runtime implementation.</summary>
     public static class NetworkingComposition
     {
-        public static uint AuthoritativeTickRateHz => AuthoritativeTickConfig.TickRateHz;
+        public static int AuthoritativeTickRateHz => AuthoritativeTickConfig.TickRateHz;
 
         public static NetworkServerFacade CreateServer(uint serverSeed, int maxConnections = 64)
         {
             var runtime = new AuthoritativeServerSession(
                 serverSeed,
-                new Validation.DensityCap(1f, (int)VoxelReadGrid.BlocksPerRegion),
+                new Validation.DensityCap(1f, VoxelReadGrid.BlocksPerRegion),
                 EditsComposition.CreateAlterationApplier(),
                 maxConnections);
             return new NetworkServerFacade(runtime);

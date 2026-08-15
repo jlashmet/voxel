@@ -2,11 +2,8 @@ using System;
 using System.Collections;
 using System.Diagnostics;
 using System.IO;
-using Unity.Collections;
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 
@@ -23,7 +20,7 @@ namespace VoxelEngine.Showcase
         private const float PanelWidth = 330f;
 
         private IVoxelStorageRuntime _storage;
-        private ProfileBlockStore _profileBlocks;
+        private IProfileBlockReadSource _profileBlocks;
         private Camera _camera;
         private Vector2 _scroll;
         private bool _panelVisible = true;
@@ -131,91 +128,70 @@ namespace VoxelEngine.Showcase
         }
 
         private void Rebuild()
-        {
-            var watch = Stopwatch.StartNew();
-            IVoxelStorageRuntime nextStorage = VoxelEngineBootstrap.CreateStorage(8, 24_000);
-            const uint coatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
-                                | (1u << Coatings.Soot) | (1u << Coatings.Wet);
-            nextStorage.RegisterMaterial(StoneMaterial, 210, DestructionClass.Crumble,
-                                         SurfaceStyles.MasonryJoint, coatings);
-            nextStorage.ConfigureCoatingDecoration(
-                Coatings.Moss,
-                (byte)_mossDensity,
-                (byte)_mossRadiusQ4,
-                (byte)_mossHeightQ4,
-                (byte)_mossDropQ4,
-                (byte)_mossSeparation);
+{
+    var watch = Stopwatch.StartNew();
+    IVoxelStorageRuntime nextStorage = VoxelEngineBootstrap.CreateStorage(8, 24_000);
+    const uint coatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
+                        | (1u << Coatings.Soot) | (1u << Coatings.Wet);
+    nextStorage.RegisterMaterial(StoneMaterial, 210, DestructionClass.Crumble,
+                                 SurfaceStyles.MasonryJoint, coatings);
+    nextStorage.ConfigureCoatingDecoration(
+        Coatings.Moss,
+        (byte)_mossDensity,
+        (byte)_mossRadiusQ4,
+        (byte)_mossHeightQ4,
+        (byte)_mossDropQ4,
+        (byte)_mossSeparation);
 
-            var nextProfiles = new ProfileBlockStore();
-            var arch = new ArchFeatureDefinition
-            {
-                ClearSpan = _clearSpan,
-                PierHeight = _pierHeight,
-                RingThickness = _ringThickness,
-                Depth = _depth,
-                VoussoirCount = _voussoirs,
-                JointRecessDepth = 1,
-                ProfileJointHalfWidthQ4 = (byte)_jointQ4,
-                ProfileBevelQ4 = (byte)_bevelQ4,
-                ProfileProjectionQ4 = (byte)_projectionQ4,
-                ProfileDepthQ4 = (byte)_faceDepthQ4,
-                StoneMaterial = StoneMaterial,
-                PierStyle = SurfaceStyles.MasonryJoint,
-                RingStyle = SurfaceStyles.MasonryJoint,
-            };
-            var bay = new ArchBayFeatureDefinition
-            {
-                Arch = arch, ShoulderWidth = _shoulder, TopMargin = _topMargin,
-                FaceRecess = _faceRecess, PlinthHeight = _plinthHeight,
-                ImpostHeight = _impostHeight,
-                Damage = (ArchRuinDamage)_damage,
-                DamageSeed = 0xA341u + (uint)_seedOffset,
-                DamageScale = (byte)_damageScale,
-            };
-            int3 origin = new(-bay.Width / 2, 0, 0);
-            using (var primitives = new NativeList<Primitive>(bay.Metadata.MaxPrimitives,
-                                                               Allocator.Temp))
-            {
-                if (!bay.Emit(origin, primitives, nextProfiles))
-                    throw new InvalidOperationException("Arch parameters did not emit.");
-                RasterResult result = PrimitiveRasteriser.Rasterise(
-                    primitives.AsArray(), origin, origin + bay.Metadata.Footprint,
-                    nextStorage.Reads, nextStorage.Mutations);
-                if (result.BudgetExceeded)
-                    throw new InvalidOperationException("Arch exceeded the feature budget.");
-            }
+    var request = new ArchLookdevBuildRequest
+    {
+        ClearSpan = _clearSpan,
+        PierHeight = _pierHeight,
+        RingThickness = _ringThickness,
+        Depth = _depth,
+        VoussoirCount = _voussoirs,
+        ShoulderWidth = _shoulder,
+        TopMargin = _topMargin,
+        FaceRecess = _faceRecess,
+        PlinthHeight = _plinthHeight,
+        ImpostHeight = _impostHeight,
+        Damage = _damage,
+        DamageSeed = 0xA341u + (uint)_seedOffset,
+        DamageScale = _damageScale,
+        ProfileJointHalfWidthQ4 = _jointQ4,
+        ProfileBevelQ4 = _bevelQ4,
+        ProfileProjectionQ4 = _projectionQ4,
+        ProfileDepthQ4 = _faceDepthQ4,
+        StoneMaterial = StoneMaterial,
+        SurfaceStyle = SurfaceStyles.MasonryJoint,
+        Coating = Coatings.Moss,
+        CoatingCoverage = _mossCoverage,
+        BrushBudget = 2_000_000,
+    };
+    ArchLookdevBuildResult build = StructuresComposition.BuildArchLookdev(
+        nextStorage, in request);
 
-            var brush = new VoxelBrush(
-                nextStorage.Reads, nextStorage.Mutations,
-                nextStorage.MaterialAuthoring, 2_000_000);
-            MasonryWeathering.CoatExposedSurfaces(ref brush, origin - 2,
-                bay.Metadata.Footprint + 4, Coatings.Moss,
-                0xA341u + (uint)_seedOffset,
-                (byte)_mossCoverage, dripPasses: 0);
+    IVoxelStorageRuntime oldStorage = _storage;
+    _storage = nextStorage;
+    _profileBlocks = build.ProfileBlocks;
+    var world = new RenderingWorldBinding(
+        _storage.Reads,
+        _storage.MaterialPresentation,
+        _storage.SurfacePresentation,
+        _storage.CoatingPresentation,
+        _profileBlocks);
+    RenderingComposition.ConfigureWorld(
+        in world, _storage.Changes, 0, _buildBudgetMs, 0, farFieldEnabled: false);
+    oldStorage?.Dispose();
 
-            nextStorage.PublishAllResidentRegions();
-
-            IVoxelStorageRuntime oldStorage = _storage;
-            _storage = nextStorage;
-            _profileBlocks = nextProfiles;
-            var world = new RenderingWorldBinding(
-                _storage.Reads,
-                _storage.MaterialPresentation,
-                _storage.SurfacePresentation,
-                _storage.CoatingPresentation,
-                _profileBlocks);
-            RenderingComposition.ConfigureWorld(
-                in world, _storage.Changes, 0, _buildBudgetMs, 0, farFieldEnabled: false);
-            oldStorage?.Dispose();
-
-            watch.Stop();
-            _lastBuildMs = watch.Elapsed.TotalMilliseconds;
-            _pendingRebuild = false;
-            _lastBayWidth = bay.Width;
-            _lastBayHeight = bay.Height;
-            if (!_cameraInitialized) FrameCamera(bay.Width, bay.Height);
-            _stateDirty = true;
-        }
+    watch.Stop();
+    _lastBuildMs = watch.Elapsed.TotalMilliseconds;
+    _pendingRebuild = false;
+    _lastBayWidth = build.Width;
+    _lastBayHeight = build.Height;
+    if (!_cameraInitialized) FrameCamera(build.Width, build.Height);
+    _stateDirty = true;
+}
 
         private void DisposeWorld()
         {
