@@ -1,0 +1,101 @@
+name: Cutover 13 finalization acceptance
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization]
+    paths: [.github/workflows/cutover13-finalization-acceptance.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  static-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: f5037a5fa76e25661a192fd5c8dbd6050a67863d
+          fetch-depth: 1
+      - name: Verify Showcase light Runtime boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('Assets/Scenes/Showcase')
+          forbidden = (
+              'VoxelEngine.Streaming.Runtime',
+              'VoxelEngine.Terrain.Runtime',
+              'VoxelEngine.Rendering.Runtime',
+              'ResidencyManager',
+          )
+          violations = []
+          for path in root.rglob('*.cs'):
+              text = path.read_text()
+              for token in forbidden:
+                  if token in text:
+                      violations.append(f'{path}: {token}')
+          asmdef = json.loads((root / 'VoxelEngine.Showcase.asmdef').read_text())
+          for token in forbidden[:3]:
+              if token in asmdef.get('references', []):
+                  violations.append(f'asmdef: {token}')
+          if violations:
+              raise SystemExit('\n'.join(violations))
+          print('Showcase light Runtime boundary accepted')
+          PY
+
+  editmode:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: f5037a5fa76e25661a192fd5c8dbd6050a67863d
+          clean: false
+          fetch-depth: 1
+      - name: Reset pinned candidate while preserving Unity cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard f5037a5fa76e25661a192fd5c8dbd6050a67863d
+          git clean -ffdx -e Library/
+          rm -rf Library/ScriptAssemblies Library/Bee
+      - id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then exit 1; fi
+            sleep 5
+          done
+      - name: Run EditMode acceptance
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/Cutover13Finalization"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || true
+          test -s "$ROOT/results.xml"
+      - name: Upload acceptance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover13-finalization-f5037a5f
+          path: Artifacts/Cutover13Finalization/
+          if-no-files-found: warn
+          retention-days: 14
