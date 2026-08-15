@@ -1,0 +1,78 @@
+name: Final Storage checklist sync
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths:
+      - ".github/workflows/final-storage-checklist-sync.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-stable
+          fetch-depth: 0
+      - name: Record accepted Storage boundary and self-delete
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for attempt in $(seq 1 12); do
+            git fetch origin refactor/system-boundaries-finalization-stable
+            git checkout -B storage-checklist-sync origin/refactor/system-boundaries-finalization-stable
+
+            python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = path.read_text()
+          replacements = {
+              '- [ ] No source outside `Storage/Runtime` imports their namespaces.':
+                  '- [x] No production source outside `Storage/Runtime` or the single `Composition` wiring root names `VoxelEngine.Storage.Runtime`; accepted by exact-head static gate at source `337fa479187736c6f960453e331b549b2e0c4f57`, run `31910444579`, static job `95074580171`.',
+              '- [ ] Architecture guard has no Storage.Runtime foreign-reference exception.':
+                  '- [x] Architecture guard has no Storage.Runtime foreign-reference exception; the permanent final gate rejects foreign production Runtime wiring and separately enforces Storage.Runtime source ownership, accepted at source `337fa479187736c6f960453e331b549b2e0c4f57`, run `31910444579`, static job `95074580171`.',
+          }
+          changed = False
+          for old, new in replacements.items():
+              if old in text:
+                  text = text.replace(old, new, 1)
+                  changed = True
+              elif new not in text:
+                  raise SystemExit(f'neither unchecked nor accepted task found: {old}')
+
+          marker = '- Latest accepted stable static gate:'
+          evidence = '- Final Storage source-boundary gate: source `337fa479187736c6f960453e331b549b2e0c4f57`, run `31910444579`, static job `95074580171` — production may name `VoxelEngine.Storage.Runtime` only inside `Storage/Runtime` or the single Composition wiring root; the general architecture guard carries no Storage-specific foreign-Runtime exception.\n'
+          if evidence not in text:
+              idx = text.find(marker)
+              if idx < 0:
+                  raise SystemExit('missing static-gate evidence section')
+              text = text[:idx] + evidence + text[idx:]
+              changed = True
+
+          if changed:
+              path.write_text(text)
+          PY
+
+            git rm -f --ignore-unmatch .github/workflows/final-storage-checklist-sync.yml
+            git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md .github/workflows/final-storage-checklist-sync.yml
+            if git diff --cached --quiet; then
+              echo "Storage checklist already synchronized"
+              exit 0
+            fi
+            git commit -m "docs(architecture): accept final Storage source boundary"
+            if git push origin HEAD:refactor/system-boundaries-finalization-stable; then
+              exit 0
+            fi
+            echo "Branch advanced during checklist sync; retrying ($attempt/12)"
+            sleep 1
+          done
+
+          echo "Unable to publish Storage checklist after retries" >&2
+          exit 1
