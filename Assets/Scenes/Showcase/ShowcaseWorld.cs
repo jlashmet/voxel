@@ -34,7 +34,7 @@ namespace VoxelEngine.Showcase
     /// allocates nothing, and only the bricks the surface actually passes through take a pool
     /// slot. That asymmetry is the whole memory argument, and the HUD makes it visible.
     /// </summary>
-    public sealed class ShowcaseWorld : IDisposable
+    public sealed partial class ShowcaseWorld : IDisposable
     {
         private static readonly ProfilerMarker s_StreamingMarker =
             new("Voxel.Streaming.ShowcaseStep");
