@@ -161,6 +161,7 @@ namespace Game.WorldBuilder.Api
         public IReadOnlyList<PlanningNode> Nodes { get; }
         public IReadOnlyList<SiteRolePlan> SiteRoles { get; }
         public WorldHierarchyBlueprint Hierarchy { get; }
+        public WorldHierarchyPlan HierarchyPlan { get; }
         public IReadOnlyList<SpatialConstraintSpec> SpatialConstraints { get; }
         public IReadOnlyList<NpcPlacementPlan> NpcPlacements { get; }
         public IReadOnlyList<CutsceneStagePlan> CutsceneStages { get; }
@@ -241,11 +242,13 @@ namespace Game.WorldBuilder.Api
             NpcPlacementPlan[] npcPlacements,
             CutsceneStagePlan[] cutsceneStages,
             SecretCandidatePlan[] secretCandidates,
-            RequiredSecretCandidatePlan[] requiredSecrets)
+            RequiredSecretCandidatePlan[] requiredSecrets,
+            WorldHierarchyPlan hierarchyPlan = null)
         {
             Nodes = nodes ?? Array.Empty<PlanningNode>();
             SiteRoles = siteRoles ?? Array.Empty<SiteRolePlan>();
             Hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
+            HierarchyPlan = hierarchyPlan ?? WorldHierarchyPlan.Empty;
             SpatialConstraints = spatialConstraints ?? Array.Empty<SpatialConstraintSpec>();
             NpcPlacements = npcPlacements ?? Array.Empty<NpcPlacementPlan>();
             CutsceneStages = cutsceneStages ?? Array.Empty<CutsceneStagePlan>();
