@@ -12,14 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: d37aa1b3689f68851459200f386be10657e566e2
+          ref: dd0cfc68723624503da20f63cd88b3280eaf09b5
           clean: false
           fetch-depth: 1
       - name: Reset pinned Rendering candidate
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard d37aa1b3689f68851459200f386be10657e566e2
+          git reset --hard dd0cfc68723624503da20f63cd88b3280eaf09b5
           git clean -ffdx -e Library/
           rm -rf Library/ScriptAssemblies Library/Bee
       - id: unity
@@ -56,7 +56,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rendering-cutover12-d37aa1b
+          name: rendering-cutover12-dd0cfc68
           path: Artifacts/RenderingCutover12/
           if-no-files-found: warn
           retention-days: 14
