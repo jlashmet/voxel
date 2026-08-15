@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Core.Terrain;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Terrain.Api;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -29,21 +30,18 @@ namespace VoxelEngine.Tests.Parity
             TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in regionB), regionB.Coord, seed);
 
-            // Compare brick pointer arrays — if seeds match, every BrickRef must match.
             for (int i = 0; i < VoxelDimensions.BricksPerRegion; i++)
             {
                 Assert.AreEqual(regionA.BrickRefs[i].Value, regionB.BrickRefs[i].Value,
                     $"Brick[{i}] differs: A={regionA.BrickRefs[i]}, B={regionB.BrickRefs[i]}");
             }
 
-            // Compare pool voxel data for any mixed bricks.
             var mixedCountA = CountMixed(poolA);
             var mixedCountB = CountMixed(poolB);
             Assert.AreEqual(mixedCountA, mixedCountB, "Mixed brick count must match.");
 
             for (int p = 0; p < mixedCountA && p < poolA.Voxels.Length; p++)
             {
-                // Only compare actual voxel data (pool sizes may differ in allocation).
                 if (p < poolB.Voxels.Length)
                     Assert.AreEqual(poolA.Voxels[p], poolB.Voxels[p], $"Pool[{p}] differs.");
             }
@@ -64,7 +62,6 @@ namespace VoxelEngine.Tests.Parity
             TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in r2), r2.Coord, 1u);
 
-            // With different region coordinates the terrain surface height will differ.
             bool foundDifference = false;
             for (int i = 0; i < VoxelDimensions.BricksPerRegion && !foundDifference; i++)
             {
@@ -88,16 +85,11 @@ namespace VoxelEngine.Tests.Parity
             TerrainGenerator.Generate(
                 new StandaloneRegionGenerationStore(in region), region.Coord, seed);
 
-            // Find the surface rather than assuming where it is. The previous version of this
-            // test scanned bricks from the region's vertical centre *upward* while claiming to
-            // check below the surface, and passed only because the old generator happened to put
-            // its base height at exactly that centre. It was asserting the surface's altitude,
-            // not that ground is solid.
             const int column = 32;
             int worldX = column * VoxelDimensions.BrickEdge + (VoxelDimensions.BrickEdge >> 1);
             int worldZ = worldX;
 
-            int surfaceVoxel = TerrainSampler.HeightAt(worldX, worldZ, seed);
+            int surfaceVoxel = TerrainQuery.HeightAt(worldX, worldZ, seed);
             int surfaceBrick = surfaceVoxel >> VoxelDimensions.BrickEdgeLog2;
 
             Assert.Greater(surfaceBrick, 1, "the surface is too low to have ground beneath it");
@@ -143,7 +135,6 @@ namespace VoxelEngine.Tests.Parity
                 if (VoxelEngine.Core.Occupancy.OccupancyMask.IsEmpty(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick) == false
                     || !VoxelEngine.Core.Occupancy.OccupancyMask.IsFull(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick))
                 {
-                    // Simplified: if not uniform, count it.
                     count++;
                 }
             }
