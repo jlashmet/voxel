@@ -15,7 +15,9 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _referenceDetailsApplied) return;
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 2_200_000);
+            var reads = new RegionReadSource(in _table, in _pool);
+            var mutations = new RegionMutationStore(in _table, in _pool);
+            var writer = new VoxelBrush(reads, mutations, _palette, 2_200_000);
             RestyleBaseStoneRounded(ref writer);
             BuildReferenceTufts(ref writer);
             BuildReferenceFlowers(ref writer);
@@ -24,8 +26,6 @@ namespace VoxelEngine.Showcase
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain reference detail pass exceeded voxel authoring budget.");
 
-            _table = writer.Table;
-            _pool = writer.Pool;
             using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
                 for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
             _referenceDetailsApplied = true;

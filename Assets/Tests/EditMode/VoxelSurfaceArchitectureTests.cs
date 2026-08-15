@@ -332,7 +332,9 @@ namespace VoxelEngine.Tests.EditMode
                 MaterialPalette palette = default;
                 palette.Register(6, 200, DestructionClass.Crumble,
                                  SurfaceStyles.Rounded, 1u << Coatings.Moss);
-                var brush = new VoxelBrush(table, pool, in palette);
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                var brush = new VoxelBrush(reads, mutations, palette);
                 brush.SetStyled(1, 1, 1, 6, SurfaceStyles.Rounded, Coatings.Moss);
                 brush.Coat(1, 1, 1, Coatings.Snow);
 
@@ -358,7 +360,9 @@ namespace VoxelEngine.Tests.EditMode
                 MaterialPalette palette = default;
                 palette.Register(6, 210, DestructionClass.Crumble,
                                  SurfaceStyles.Rounded, 1u << Coatings.Moss);
-                var brush = new VoxelBrush(table, pool, in palette);
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                var brush = new VoxelBrush(reads, mutations, palette);
                 brush.SetStyled(2, 2, 2, 6, SurfaceStyles.Rounded);
 
                 int coated = MasonryWeathering.CoatExposedSurfaces(

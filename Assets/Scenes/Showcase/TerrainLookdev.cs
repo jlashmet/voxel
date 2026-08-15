@@ -90,12 +90,12 @@ namespace VoxelEngine.Showcase
             _coatings = CoatingCatalogue.CreateBuiltIns();
             _profiles = new ProfileBlockStore();
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 9_000_000);
+            var reads = new RegionReadSource(in _table, in _pool);
+            var mutations = new RegionMutationStore(in _table, in _pool);
+            var writer = new VoxelBrush(reads, mutations, _palette, 9_000_000);
             AuthorTerrain(ref writer);
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain lookdev exceeded voxel authoring budget.");
-            _table = writer.Table;
-            _pool = writer.Pool;
 
             _changes = new VoxelChangeJournal();
             using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
