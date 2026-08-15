@@ -1,0 +1,143 @@
+name: Cutover 13 Showcase Structures runtime
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-showcase-structures-runtime.yml
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Route Showcase Structures runtime through Composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_one(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}: {old[:120]!r}")
+              p.write_text(s.replace(old, new, 1))
+
+          # Structures.Runtime: retain the allocation-free generic validation path while adding
+          # an orchestration-friendly interface overload for Composition-owned authoring.
+          arch_path = Path('Assets/VoxelEngine/Structures/Runtime/Features/ArchFeature.cs')
+          arch = arch_path.read_text()
+          if 'public ArchValidationError Validate(\n            IMaterialAuthoringCatalogue palette' not in arch:
+              marker = '''            return errors;\n        }\n\n        public FeatureDefinition Metadata => new()'''
+              overload = '''            return errors;\n        }\n\n        /// <summary>\n        /// Orchestration overload for callers that only hold Storage.Api authoring capabilities.\n        /// The generic overload above remains the no-boxing path for concrete Runtime owners.\n        /// </summary>\n        public ArchValidationError Validate(\n            IMaterialAuthoringCatalogue palette,\n            ISurfaceStyleAuthoringCatalogue surfaces,\n            ICoatingAuthoringCatalogue coatings)\n        {\n            if (palette == null) throw new System.ArgumentNullException(nameof(palette));\n            if (surfaces == null) throw new System.ArgumentNullException(nameof(surfaces));\n            if (coatings == null) throw new System.ArgumentNullException(nameof(coatings));\n\n            ArchValidationError errors = ArchValidationError.None;\n            if (ClearSpan < 4 || (ClearSpan & 1) != 0)\n                errors |= ArchValidationError.InvalidClearSpan;\n            if (PierHeight <= 0) errors |= ArchValidationError.InvalidPierHeight;\n            if (RingThickness <= 0) errors |= ArchValidationError.InvalidRingThickness;\n            if (Depth <= 0) errors |= ArchValidationError.InvalidDepth;\n            if (JointRecessDepth < 0 || JointRecessDepth >= Depth)\n                errors |= ArchValidationError.InvalidJointRecessDepth;\n            if (VoussoirCount < 1 || VoussoirCount > 32)\n                errors |= ArchValidationError.InvalidVoussoirCount;\n            if (PrimitiveCount > FeatureBudget.MaxPrimitivesPerInstance)\n                errors |= ArchValidationError.PrimitiveBudgetExceeded;\n            if (!palette.IsRegistered(StoneMaterial))\n                errors |= ArchValidationError.UnknownStoneMaterial;\n            if (!surfaces.IsRegistered(PierStyle))\n                errors |= ArchValidationError.UnknownPierStyle;\n            if (!surfaces.IsRegistered(RingStyle))\n                errors |= ArchValidationError.UnknownRingStyle;\n            if (!coatings.IsRegistered(Coating))\n                errors |= ArchValidationError.UnknownCoating;\n            if (Coating != Coatings.None && palette.IsRegistered(StoneMaterial)\n                && (!palette.AllowsCoating(StoneMaterial, Coating)\n                    || !coatings.Allows(Coating, StoneMaterial)))\n                errors |= ArchValidationError.DisallowedCoating;\n            return errors;\n        }\n\n        public FeatureDefinition Metadata => new()'''
+              if arch.count(marker) != 1:
+                  raise SystemExit('ArchFeature.cs: validation insertion marker drifted')
+              arch_path.write_text(arch.replace(marker, overload, 1))
+
+          # Composition: opaque stable handles hide CastleBuilder.IncrementalBuild and
+          # ProfileBlockStore while preserving their lifetime/state semantics.
+          comp_path = Path('Assets/VoxelEngine/Composition/StructuresComposition.cs')
+          comp = comp_path.read_text()
+          if 'public interface ICastleBuildSession' in comp:
+              raise SystemExit('StructuresComposition.cs: castle session already exists; refusing duplicate cutover')
+          if 'using Unity.Collections;' not in comp:
+              comp = comp.replace('using System;\nusing Unity.Mathematics;',
+                                  'using System;\nusing Unity.Collections;\nusing Unity.Mathematics;', 1)
+          type_marker = '    /// <summary>Application wiring for structure planning and authoring.</summary>\n    public static class StructuresComposition'
+          type_block = '''    /// <summary>\n    /// Composition-owned incremental castle authoring session. Scene code can schedule stages\n    /// without receiving Structures.Runtime state or allocator-bearing implementation values.\n    /// </summary>\n    public interface ICastleBuildSession\n    {\n        bool IsComplete { get; }\n        int StageNumber { get; }\n        long TotalVoxelsWritten { get; }\n        bool Step();\n    }\n\n    /// <summary>\n    /// Stable retained-profile handle whose mutable implementation remains private to Composition.\n    /// The same read-source instance can be bound to Rendering before structures are authored.\n    /// </summary>\n    public interface IStructureProfileStore : IProfileBlockReadSource\n    {\n    }\n\n    /// <summary>Stable result of the built-in reference-arch authoring pass.</summary>\n    public readonly struct ReferenceArchBuildResult\n    {\n        public readonly int3 Min;\n        public readonly int3 Max;\n        public readonly int VoxelsWritten;\n\n        public ReferenceArchBuildResult(int3 min, int3 max, int voxelsWritten)\n        {\n            Min = min;\n            Max = max;\n            VoxelsWritten = voxelsWritten;\n        }\n    }\n\n'''
+          if comp.count(type_marker) != 1:
+              raise SystemExit('StructuresComposition.cs: type insertion marker drifted')
+          comp = comp.replace(type_marker, type_block + type_marker, 1)
+          close = '\n    }\n}\n'
+          idx = comp.rfind(close)
+          if idx < 0:
+              raise SystemExit('StructuresComposition.cs: class closing marker drifted')
+          methods = '''\n        /// <summary>Creates the stable retained-profile owner used by scene and renderer bindings.</summary>\n        public static IStructureProfileStore CreateProfileStore() => new StructureProfileStore();\n\n        /// <summary>\n        /// Starts the existing incremental CastleBuilder behind an opaque Composition session.\n        /// Storage capabilities remain Api contracts; concrete structure state never crosses out.\n        /// </summary>\n        public static ICastleBuildSession BeginCastleBuild(\n            IRegionReadSource reads,\n            IRegionMutationStore mutations,\n            in CastlePlan plan,\n            uint terrainSeed,\n            IMaterialAuthoringCatalogue materials)\n        {\n            if (reads == null) throw new ArgumentNullException(nameof(reads));\n            if (mutations == null) throw new ArgumentNullException(nameof(mutations));\n            return new CastleBuildSession(reads, mutations, in plan, terrainSeed, materials);\n        }\n\n        /// <summary>\n        /// Authors the showcase reference arch using the same concrete feature/rasterizer path as\n        /// before, while keeping every Structures.Runtime type inside Composition.\n        /// </summary>\n        public static ReferenceArchBuildResult BuildReferenceArch(\n            IRegionReadSource reads,\n            IRegionMutationStore mutations,\n            IMaterialAuthoringCatalogue materials,\n            ISurfaceStyleAuthoringCatalogue surfaces,\n            ICoatingAuthoringCatalogue coatings,\n            IStructureProfileStore profiles,\n            int3 origin,\n            byte stoneMaterial,\n            ushort pierStyle,\n            ushort ringStyle,\n            byte coating)\n        {\n            if (reads == null) throw new ArgumentNullException(nameof(reads));\n            if (mutations == null) throw new ArgumentNullException(nameof(mutations));\n            if (materials == null) throw new ArgumentNullException(nameof(materials));\n            if (surfaces == null) throw new ArgumentNullException(nameof(surfaces));\n            if (coatings == null) throw new ArgumentNullException(nameof(coatings));\n            if (!(profiles is StructureProfileStore profileStore))\n                throw new ArgumentException(\n                    "Reference-arch profiles must be created by StructuresComposition.",\n                    nameof(profiles));\n\n            var arch = new ArchFeatureDefinition\n            {\n                ClearSpan = 64,\n                PierHeight = 48,\n                RingThickness = 10,\n                Depth = 12,\n                VoussoirCount = 13,\n                StoneMaterial = stoneMaterial,\n                PierStyle = pierStyle,\n                RingStyle = ringStyle,\n                Coating = coating\n            };\n\n            var primitives = new NativeList<Primitive>(arch.Metadata.MaxPrimitives, Allocator.Temp);\n            try\n            {\n                ArchValidationError validation = arch.Validate(materials, surfaces, coatings);\n                if (validation != ArchValidationError.None\n                    || !arch.Emit(origin, primitives, profileStore.Runtime))\n                    throw new InvalidOperationException(\n                        $"The built-in reference arch is invalid: {validation}.");\n\n                int3 max = origin + arch.Metadata.Footprint;\n                RasterResult result = PrimitiveRasteriser.Rasterise(\n                    primitives.AsArray(), origin, max, reads, mutations);\n                return new ReferenceArchBuildResult(origin, max, result.VoxelsWritten);\n            }\n            finally\n            {\n                primitives.Dispose();\n            }\n        }\n\n        private sealed class CastleBuildSession : ICastleBuildSession\n        {\n            private CastleBuilder.IncrementalBuild _build;\n\n            public CastleBuildSession(\n                IRegionReadSource reads,\n                IRegionMutationStore mutations,\n                in CastlePlan plan,\n                uint terrainSeed,\n                IMaterialAuthoringCatalogue materials)\n            {\n                _build = CastleBuilder.BeginBuild(\n                    reads, mutations, in plan, terrainSeed, materials);\n            }\n\n            public bool IsComplete => _build.IsComplete;\n            public int StageNumber => _build.StageNumber;\n            public long TotalVoxelsWritten => _build.TotalVoxelsWritten;\n            public bool Step() => CastleBuilder.StepBuild(ref _build);\n        }\n\n        private sealed class StructureProfileStore : IStructureProfileStore\n        {\n            internal ProfileBlockStore Runtime { get; } = new ProfileBlockStore();\n            public uint Version => Runtime.Version;\n            public int Count => Runtime.Count;\n            public ProfileBlock[] Snapshot() => Runtime.Snapshot();\n        }\n'''
+          comp = comp[:idx] + methods + comp[idx:]
+          comp_path.write_text(comp)
+
+          # Showcase: consume only Structures.Api + Composition contracts.
+          world = 'Assets/Scenes/Showcase/ShowcaseWorld.cs'
+          replace_one(world,
+              'using VoxelEngine.Edits.Runtime;\nusing VoxelEngine.Structures.Runtime;\nusing VoxelEngine.Storage.Runtime.Occupancy;',
+              'using VoxelEngine.Edits.Runtime;\nusing VoxelEngine.Composition;\nusing VoxelEngine.Storage.Runtime.Occupancy;')
+          replace_one(world,
+              '        private readonly ProfileBlockStore _profileBlocks = new();',
+              '        private readonly IStructureProfileStore _profileBlocks = StructuresComposition.CreateProfileStore();')
+          replace_one(world,
+              '        private CastleBuilder.IncrementalBuild _castleBuild;',
+              '        private ICastleBuildSession _castleBuild;')
+          replace_one(world,
+              '        public int CastleBuildStage => _castleBuild.IsCreated ? _castleBuild.StageNumber : 0;',
+              '        public int CastleBuildStage => _castleBuild != null ? _castleBuild.StageNumber : 0;')
+          replace_one(world,
+              '            // IncrementalBuild holds handle-like RegionTable/BrickPool snapshots whose scalar\n            // allocator bookkeeping is published after each stage. No other world writer may\n            // allocate between those stages. Give the castle exclusive mutation ownership until\n            // its atomic commit, one semantic stage per frame.\n            if (_castleBuild.IsCreated && !_castleBuild.IsComplete)',
+              '            // The Composition-owned castle session retains the handle-like storage snapshots\n            // whose scalar allocator bookkeeping is published after each stage. No other world\n            // writer may allocate between those stages. Give the castle exclusive mutation\n            // ownership until its atomic commit, one semantic stage per frame.\n            if (_castleBuild != null && !_castleBuild.IsComplete)')
+          replace_one(world,
+              '                    while (_castleBuild.IsCreated && !_castleBuild.IsComplete\n                           && Time.realtimeSinceStartupAsDouble < deadline);',
+              '                    while (_castleBuild != null && !_castleBuild.IsComplete\n                           && Time.realtimeSinceStartupAsDouble < deadline);')
+          replace_one(world,
+              '            var plan = CastleBuilder.Plan(new int3(cx, ground, cz), Seed);',
+              '            var plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), Seed);')
+          old_step = '''            double stageStart = Time.realtimeSinceStartupAsDouble;\n            int stage = _castleBuild.IsCreated ? _castleBuild.StageNumber : 1;\n\n            if (!_castleBuild.IsCreated)\n            {\n                var reads = new RegionReadSource(in _table, in _pool);\n                var mutations = new RegionMutationStore(in _table, in _pool);\n                IMaterialAuthoringCatalogue materials = _palette.IsCreated\n                    ? (IMaterialAuthoringCatalogue)_palette\n                    : null;\n                _castleBuild = CastleBuilder.BeginBuild(\n                    reads, mutations, in _pendingCastlePlan, Seed, materials);\n            }\n            bool castleComplete;\n            using (s_CastleMarker.Auto())\n                castleComplete = CastleBuilder.StepBuild(ref _castleBuild);'''
+          new_step = '''            double stageStart = Time.realtimeSinceStartupAsDouble;\n            int stage = _castleBuild != null ? _castleBuild.StageNumber : 1;\n\n            if (_castleBuild == null)\n            {\n                _readSource.Refresh(in _table, in _pool);\n                _mutationStore.Refresh(in _table, in _pool);\n                IMaterialAuthoringCatalogue materials = _palette.IsCreated\n                    ? (IMaterialAuthoringCatalogue)_palette\n                    : null;\n                _castleBuild = StructuresComposition.BeginCastleBuild(\n                    _readSource, _mutationStore, in _pendingCastlePlan, Seed, materials);\n            }\n            bool castleComplete;\n            using (s_CastleMarker.Auto())\n                castleComplete = _castleBuild.Step();'''
+          replace_one(world, old_step, new_step)
+          old_arch = '''        private int BuildReferenceArch(int3 horizontalOrigin)\n        {\n            int ground = SurfaceHeight(horizontalOrigin.x, horizontalOrigin.z);\n            int3 origin = new(horizontalOrigin.x, ground + 1, horizontalOrigin.z);\n            var arch = new ArchFeatureDefinition\n            {\n                ClearSpan = 64,\n                PierHeight = 48,\n                RingThickness = 10,\n                Depth = 12,\n                VoussoirCount = 13,\n                StoneMaterial = Mat.DarkStone,\n                PierStyle = SurfaceStyles.Rounded,\n                RingStyle = SurfaceStyles.MasonryJoint,\n                Coating = Coatings.Moss\n            };\n\n            var primitives = new NativeList<Primitive>(arch.Metadata.MaxPrimitives, Allocator.Temp);\n            try\n            {\n                ArchValidationError validation = arch.Validate(\n                    in _palette, in _surfaceCatalogue, in _coatingCatalogue);\n                if (validation != ArchValidationError.None\n                    || !arch.Emit(origin, primitives, _profileBlocks))\n                    throw new InvalidOperationException(\n                        $"The built-in reference arch is invalid: {validation}.");\n                int3 max = origin + arch.Metadata.Footprint;\n                _readSource.Refresh(in _table, in _pool);\n                _mutationStore.Refresh(in _table, in _pool);\n                RasterResult result = PrimitiveRasteriser.Rasterise(\n                    primitives.AsArray(), origin, max, _readSource, _mutationStore);\n                ReferenceArchMin = origin;\n                ReferenceArchMax = max;\n                return result.VoxelsWritten;\n            }\n            finally\n            {\n                primitives.Dispose();\n            }\n        }'''
+          new_arch = '''        private int BuildReferenceArch(int3 horizontalOrigin)\n        {\n            int ground = SurfaceHeight(horizontalOrigin.x, horizontalOrigin.z);\n            int3 origin = new(horizontalOrigin.x, ground + 1, horizontalOrigin.z);\n            _readSource.Refresh(in _table, in _pool);\n            _mutationStore.Refresh(in _table, in _pool);\n\n            ReferenceArchBuildResult result = StructuresComposition.BuildReferenceArch(\n                _readSource,\n                _mutationStore,\n                _palette,\n                _surfaceCatalogue,\n                _coatingCatalogue,\n                _profileBlocks,\n                origin,\n                Mat.DarkStone,\n                SurfaceStyles.Rounded,\n                SurfaceStyles.MasonryJoint,\n                Coatings.Moss);\n            ReferenceArchMin = result.Min;\n            ReferenceArchMax = result.Max;\n            return result.VoxelsWritten;\n        }'''
+          replace_one(world, old_arch, new_arch)
+          replace_one(world,
+              '        public ProfileBlockStore ProfileBlocks => _profileBlocks;',
+              '        public IProfileBlockReadSource ProfileBlocks => _profileBlocks;')
+
+          # Showcase assembly no longer needs Structures.Runtime after the source cutover.
+          asmdef = Path('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef')
+          asm = asmdef.read_text()
+          token = '    "VoxelEngine.Structures.Runtime",\n'
+          if asm.count(token) != 1:
+              raise SystemExit(f'Showcase asmdef: expected one Structures.Runtime ref, found {asm.count(token)}')
+          asmdef.write_text(asm.replace(token, '', 1))
+
+          # Permanent source/asmdef guard for this accepted slice.
+          guard = Path('Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs')
+          g = guard.read_text()
+          if 'ShowcaseWorldDoesNotReachIntoStructuresRuntime' not in g:
+              marker = '''        [Test]\n        public void ShowcaseMultiplayerDoesNotReachIntoNetworkingRuntime()'''
+              test = '''        [Test]\n        public void ShowcaseWorldDoesNotReachIntoStructuresRuntime()\n        {\n            string sourcePath = Path.Combine(\n                RepoRoot, "Assets", "Scenes", "Showcase", "ShowcaseWorld.cs");\n            Assert.IsTrue(File.Exists(sourcePath), "Missing ShowcaseWorld source: " + sourcePath);\n\n            string source = File.ReadAllText(sourcePath);\n            string[] forbiddenSourceTokens =\n            {\n                "VoxelEngine.Structures.Runtime",\n                "CastleBuilder.",\n                "CastleBuilder.IncrementalBuild",\n                "ProfileBlockStore",\n                "ArchFeatureDefinition",\n                "PrimitiveRasteriser",\n            };\n            var violations = forbiddenSourceTokens\n                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)\n                .Select(token => "ShowcaseWorld.cs -> " + token)\n                .ToList();\n\n            string asmdefPath = Path.Combine(\n                RepoRoot, "Assets", "Scenes", "Showcase", "VoxelEngine.Showcase.asmdef");\n            string asmdef = File.ReadAllText(asmdefPath);\n            if (asmdef.IndexOf("\\\"VoxelEngine.Structures.Runtime\\\"", StringComparison.Ordinal) >= 0)\n                violations.Add("VoxelEngine.Showcase.asmdef -> VoxelEngine.Structures.Runtime");\n\n            Assert.IsEmpty(violations,\n                "ShowcaseWorld must consume Structures.Api/Composition contracts; concrete " +\n                "Structures runtime state belongs in Composition.\\n\\n" + string.Join("\\n", violations));\n        }\n\n'''
+              if g.count(marker) != 1:
+                  raise SystemExit('ArchitectureBoundaryGuardTests.cs: insertion marker drifted')
+              guard.write_text(g.replace(marker, test + marker, 1))
+
+          # Static proof before publishing the source commit.
+          world_text = Path(world).read_text()
+          forbidden = [
+              'VoxelEngine.Structures.Runtime', 'CastleBuilder.', 'CastleBuilder.IncrementalBuild',
+              'ProfileBlockStore', 'ArchFeatureDefinition', 'PrimitiveRasteriser'
+          ]
+          leaks = [token for token in forbidden if token in world_text]
+          if leaks:
+              raise SystemExit(f'ShowcaseWorld still contains Structures runtime tokens: {leaks}')
+          if '"VoxelEngine.Structures.Runtime"' in asmdef.read_text():
+              raise SystemExit('Showcase asmdef still references Structures.Runtime')
+          PY
+
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git rm .github/workflows/cutover13-showcase-structures-runtime.yml
+          git add \
+            Assets/VoxelEngine/Structures/Runtime/Features/ArchFeature.cs \
+            Assets/VoxelEngine/Composition/StructuresComposition.cs \
+            Assets/Scenes/Showcase/ShowcaseWorld.cs \
+            Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef \
+            Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs
+          git commit -m 'refactor(showcase): route structures runtime through composition'
+          git fetch origin refactor/system-boundaries-foundation-storage
+          git rebase origin/refactor/system-boundaries-foundation-storage
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
