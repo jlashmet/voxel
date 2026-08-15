@@ -24,8 +24,10 @@ namespace VoxelEngine.Tests.Parity
             var regionA = new Region(int3.zero, Allocator.Temp);
             var regionB = new Region(int3.zero, Allocator.Temp);
 
-            TerrainGenerator.Generate(regionA, seed, in poolA);
-            TerrainGenerator.Generate(regionB, seed, in poolB);
+            TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, seed);
+            TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, seed);
 
             // Compare brick pointer arrays — if seeds match, every BrickRef must match.
             for (int i = 0; i < VoxelDimensions.BricksPerRegion; i++)
@@ -57,8 +59,10 @@ namespace VoxelEngine.Tests.Parity
             var r1 = new Region(int3.zero, Allocator.Temp);
             var r2 = new Region(new int3(1, 1, 1), Allocator.Temp);
 
-            TerrainGenerator.Generate(r1, 0u, in pool);
-            TerrainGenerator.Generate(r2, 1u, in pool);
+            TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in r1), r1.Coord, 0u);
+            TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in r2), r2.Coord, 1u);
 
             // With different region coordinates the terrain surface height will differ.
             bool foundDifference = false;
@@ -81,7 +85,8 @@ namespace VoxelEngine.Tests.Parity
             var region = new Region(int3.zero, Allocator.Temp);
 
             const uint seed = 99u;
-            TerrainGenerator.Generate(region, seed, in pool);
+            TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in region), region.Coord, seed);
 
             // Find the surface rather than assuming where it is. The previous version of this
             // test scanned bricks from the region's vertical centre *upward* while claiming to
@@ -118,7 +123,8 @@ namespace VoxelEngine.Tests.Parity
             var region = new Region(int3.zero, Allocator.Temp);
 
             const uint seed = 99u;
-            TerrainGenerator.Generate(region, seed, in pool);
+            TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in region), region.Coord, seed);
 
             var deep = region.GetBrick(32, 0, 32);
 

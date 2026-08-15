@@ -75,7 +75,7 @@ namespace VoxelEngine.CI
                 TownBounds(plan, out int minX, out int maxX, out int minZ, out int maxZ);
                 table = new RegionTable(96, Allocator.Persistent);
                 pool = new BrickPool(262144, Allocator.Persistent);
-                LoadTerrain(minX, maxX, minZ, maxZ, ref table, in pool);
+                LoadTerrain(minX, maxX, minZ, maxZ, ref table);
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(Seed, BuildSettings(), Allocator.Persistent);
 
                 int instances = 0;

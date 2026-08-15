@@ -38,18 +38,18 @@ namespace VoxelEngine.CI
         }
 
         private static void LoadTerrain(int minX, int maxX, int minZ, int maxZ,
-                                        ref RegionTable table, in BrickPool pool)
+                                        ref RegionTable table)
         {
             int minRX = (minX >> VoxelDimensions.RegionVoxelEdgeLog2) - 1;
             int maxRX = (maxX >> VoxelDimensions.RegionVoxelEdgeLog2) + 1;
             int minRZ = (minZ >> VoxelDimensions.RegionVoxelEdgeLog2) - 1;
             int maxRZ = (maxZ >> VoxelDimensions.RegionVoxelEdgeLog2) + 1;
+            var generation = new RegionGenerationStore(in table);
             for (int rz = minRZ; rz <= maxRZ; rz++)
             for (int rx = minRX; rx <= maxRX; rx++)
             {
-                Region region = table.LoadRegion(new int3(rx, 0, rz));
-                TerrainGenerator.Generate(in region, Seed, in pool);
-                table.CommitRegion(in region);
+                int3 regionCoord = new int3(rx, 0, rz);
+                TerrainGenerator.Generate(generation, regionCoord, Seed);
             }
         }
 

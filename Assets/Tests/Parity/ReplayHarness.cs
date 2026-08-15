@@ -59,9 +59,13 @@ namespace VoxelEngine.Tests.Parity
             // Generate identical terrain in both.
             var regionA = _tableA.LoadRegion(int3.zero);
             var regionB = _tableB.LoadRegion(int3.zero);
+            var generationA = new RegionGenerationStore(in _tableA);
+            var generationB = new RegionGenerationStore(in _tableB);
 
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionA, terrainSeed, in _poolA);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionB, terrainSeed, in _poolB);
+            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+                generationA, regionA.Coord, terrainSeed);
+            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(
+                generationB, regionB.Coord, terrainSeed);
 
             // Materialise both.
             _tableA.CommitRegion(regionA);

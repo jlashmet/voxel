@@ -51,7 +51,8 @@ namespace VoxelEngine.Tests.Parity
                 var pool = new BrickPool(poolCapacity, Allocator.Temp);
                 var region = new Region(coord, Allocator.Temp);
 
-                TerrainGenerator.Generate(region, seed, in pool);
+                TerrainGenerator.Generate(
+                    new StandaloneRegionGenerationStore(in region), region.Coord, seed);
 
                 fingerprints[linear] = FingerprintRegion(in region, coord);
 

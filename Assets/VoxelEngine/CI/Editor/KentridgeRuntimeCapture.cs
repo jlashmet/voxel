@@ -91,7 +91,7 @@ namespace VoxelEngine.CI
 
                 table = new RegionTable(96, Allocator.Persistent);
                 pool = new BrickPool(65536, Allocator.Persistent);
-                LoadTerrain(minX, maxX, minZ, maxZ, ref table, in pool);
+                LoadTerrain(minX, maxX, minZ, maxZ, ref table);
 
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(
                     Seed, BuildSettings(), Allocator.Persistent);
@@ -268,19 +268,19 @@ namespace VoxelEngine.CI
         }
 
         private static void LoadTerrain(int minX, int maxX, int minZ, int maxZ,
-                                        ref RegionTable table, in BrickPool pool)
+                                        ref RegionTable table)
         {
             int minRegionX = (minX >> VoxelDimensions.RegionVoxelEdgeLog2) - 1;
             int maxRegionX = (maxX >> VoxelDimensions.RegionVoxelEdgeLog2) + 1;
             int minRegionZ = (minZ >> VoxelDimensions.RegionVoxelEdgeLog2) - 1;
             int maxRegionZ = (maxZ >> VoxelDimensions.RegionVoxelEdgeLog2) + 1;
+            var generation = new RegionGenerationStore(in table);
 
             for (int rz = minRegionZ; rz <= maxRegionZ; rz++)
             for (int rx = minRegionX; rx <= maxRegionX; rx++)
             {
-                Region region = table.LoadRegion(new int3(rx, 0, rz));
-                TerrainGenerator.Generate(in region, Seed, in pool);
-                table.CommitRegion(in region);
+                int3 regionCoord = new int3(rx, 0, rz);
+                TerrainGenerator.Generate(generation, regionCoord, Seed);
             }
         }
 
