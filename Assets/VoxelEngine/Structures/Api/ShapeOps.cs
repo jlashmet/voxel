@@ -126,6 +126,13 @@ namespace VoxelEngine.Structures.Api
         /// <summary>Deepest nesting of <see cref="ShapeOp.PushTransform"/>.</summary>
         public const int MaxTransformDepth = 8;
 
+        /// <summary>
+        /// Low bits of the EmitRamp axis operand encode 0=x, 1=y, 2=z. The high bit is a
+        /// canonical bytecode flag that reverses the direction of rise along that axis.
+        /// </summary>
+        public const byte RampAxisMask = 0x7F;
+        public const byte ReverseRampBit = 0x80;
+
         /// <summary>Operand count per opcode. Indexed by <see cref="ShapeOp"/>.</summary>
         private static readonly int[] Operands =
         {
