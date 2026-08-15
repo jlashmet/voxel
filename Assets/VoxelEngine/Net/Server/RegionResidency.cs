@@ -2,6 +2,7 @@ using System;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Streaming.Api;
 
 namespace VoxelEngine.Net.Server
 {
@@ -9,8 +10,9 @@ namespace VoxelEngine.Net.Server
     /// Network-side region interest policy: hot when an active player is nearby, warm while the
     /// rollback/interest tail is retained, and cold once the region is outside network interest.
     ///
-    /// This type deliberately does not load, mutate, write back, or evict world storage. Physical
-    /// region lifetime belongs to Streaming/Storage; Net only computes the desired interest state.
+    /// This type deliberately does not load, mutate, write back, or evict world storage directly.
+    /// Physical region lifetime belongs to Streaming/Storage; Net computes desired interest state
+    /// and forwards residency intent through <see cref="IRegionStreaming"/>.
     /// </summary>
     public static class ServerRegionResidency
     {
@@ -67,6 +69,35 @@ namespace VoxelEngine.Net.Server
                 regionStates[coord] = state;
             }
 
+            keys.Dispose();
+        }
+
+        /// <summary>
+        /// Reconcile Net's desired residency state through Streaming.Api.
+        /// Net never manipulates Storage-owned Region/BrickPool state.
+        /// </summary>
+        public static void SynchronizeStreaming(
+            ref NativeHashMap<int3, ServerRegionState> regionStates,
+            IRegionStreaming streaming,
+            uint terrainSeed,
+            byte requestedMipLevel = 0)
+        {
+            if (streaming == null) throw new ArgumentNullException(nameof(streaming));
+
+            var keys = regionStates.GetKeyArray(Allocator.Temp);
+            foreach (var coord in keys)
+            {
+                if (!regionStates.TryGetValue(coord, out var state)) continue;
+
+                if (state.State == State.Cold)
+                {
+                    streaming.Evict(coord);
+                }
+                else if (!streaming.IsResident(coord))
+                {
+                    streaming.QueueLoad(new RegionLoadRequest(coord, terrainSeed, requestedMipLevel));
+                }
+            }
             keys.Dispose();
         }
 
