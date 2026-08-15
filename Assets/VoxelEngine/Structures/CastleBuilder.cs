@@ -1,5 +1,4 @@
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using Random = Unity.Mathematics.Random;
@@ -232,12 +231,14 @@ namespace VoxelEngine.Structures
         /// The refusal is the point. A plan that would write more than the brush's budget is a
         /// mistake in the plan, and finding out by running it costs an afternoon and a reboot.
         /// </summary>
-        public static VoxelBrush Build(ref RegionTable table, ref BrickPool pool,
+        public static VoxelBrush Build(IRegionReadSource reads,
+                                       IRegionMutationStore mutations,
                                        in CastlePlan plan, uint terrainSeed,
-                                       in MaterialPalette palette)
+                                       IMaterialAuthoringCatalogue materials)
         {
-            IncrementalBuild build = BeginBuild(table, pool, in plan, terrainSeed, in palette);
-            while (!build.IsComplete) StepBuild(ref build, ref table, ref pool);
+            IncrementalBuild build = BeginBuild(
+                reads, mutations, in plan, terrainSeed, materials);
+            while (!build.IsComplete) StepBuild(ref build);
             return build.Brush;
         }
 
@@ -246,15 +247,11 @@ namespace VoxelEngine.Structures
         /// stage boundaries so a runtime caller does not execute the entire landmark in one
         /// scene-load callback.
         /// </summary>
-        public static IncrementalBuild BeginBuild(RegionTable table, BrickPool pool,
+        public static IncrementalBuild BeginBuild(IRegionReadSource reads,
+                                                  IRegionMutationStore mutations,
                                                   in CastlePlan plan, uint terrainSeed,
-                                                  in MaterialPalette palette)
+                                                  IMaterialAuthoringCatalogue materials)
         {
-            var reads = new RegionReadSource(in table, in pool);
-            var mutations = new RegionMutationStore(in table, in pool);
-            IMaterialAuthoringCatalogue materials = palette.IsCreated
-                ? (IMaterialAuthoringCatalogue)palette
-                : null;
             var brush = new VoxelBrush(reads, mutations, materials);
 
             long estimate = EstimateWrites(in plan);
@@ -275,9 +272,8 @@ namespace VoxelEngine.Structures
             };
         }
 
-        /// <summary>Executes one bounded semantic stage and publishes allocator bookkeeping.</summary>
-        public static bool StepBuild(ref IncrementalBuild build,
-                                     ref RegionTable table, ref BrickPool pool)
+        /// <summary>Executes one bounded semantic stage.</summary>
+        public static bool StepBuild(ref IncrementalBuild build)
         {
             if (!build.IsCreated || build.IsComplete) return true;
 

@@ -952,12 +952,17 @@ namespace VoxelEngine.Showcase
 
             if (!_castleBuild.IsCreated)
             {
+                var reads = new RegionReadSource(in _table, in _pool);
+                var mutations = new RegionMutationStore(in _table, in _pool);
+                IMaterialAuthoringCatalogue materials = _palette.IsCreated
+                    ? (IMaterialAuthoringCatalogue)_palette
+                    : null;
                 _castleBuild = CastleBuilder.BeginBuild(
-                    _table, _pool, in _pendingCastlePlan, Seed, in _palette);
+                    reads, mutations, in _pendingCastlePlan, Seed, materials);
             }
             bool castleComplete;
             using (s_CastleMarker.Auto())
-                castleComplete = CastleBuilder.StepBuild(ref _castleBuild, ref _table, ref _pool);
+                castleComplete = CastleBuilder.StepBuild(ref _castleBuild);
             if (!castleComplete)
             {
                 RecordCastleStage(stage, stageStart);
