@@ -94,5 +94,21 @@ namespace VoxelEngine.Tests.EditMode
                 if (pool.IsCreated) pool.Dispose();
             }
         }
+
+        [Test]
+        public void ReadGridStrideMappingMatchesLegacyMipGeometry()
+        {
+            Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(1));
+            Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(2));
+            Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(4));
+            Assert.AreEqual(0, VoxelReadGrid.LevelForStride(8));
+            Assert.AreEqual(1, VoxelReadGrid.LevelForStride(16));
+            Assert.AreEqual(2, VoxelReadGrid.LevelForStride(32));
+            Assert.AreEqual(3, VoxelReadGrid.LevelForStride(64));
+
+            Assert.AreEqual(8, VoxelReadGrid.VoxelsPerCell(0));
+            Assert.AreEqual(16, VoxelReadGrid.VoxelsPerCell(1));
+            Assert.AreEqual(32, VoxelReadGrid.VoxelsPerCell(2));
+        }
     }
 }
