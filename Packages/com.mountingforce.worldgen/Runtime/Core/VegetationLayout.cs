@@ -76,160 +76,183 @@ namespace MountingForce.WorldGen
         public readonly int CentreX;
         public readonly int CentreZ;
         public readonly int TopY;
-        public readonly int RoadDirectionX;
-        public readonly int RoadDirectionZ;
-        public readonly int RoadWidth;
-        public readonly int WallThickness;
-        public readonly int WallHeight;
-        public readonly int GateWidth;
-        public readonly int GateHeight;
-        public readonly int CourtyardRadius;
-        public readonly int TowerCount;
-        public readonly int KeepWidth;
-        public readonly int KeepDepth;
-        public readonly int KeepHeight;
+        public readonly int GateZ;
+        public readonly int PlateauRadius;
+        public readonly int BaileyHalfX;
+        public readonly int BaileyHalfZ;
+        public readonly int TowerRadius;
+        public readonly int WaterfallStreamX;
+        public readonly int WaterfallLipZ;
+        public readonly int LowerRiverZ;
 
-        public CastleVegetationContext(
-            uint planSeed,
-            int centreX,
-            int centreZ,
-            int topY,
-            int roadDirectionX,
-            int roadDirectionZ,
-            int roadWidth,
-            int wallThickness,
-            int wallHeight,
-            int gateWidth,
-            int gateHeight,
-            int courtyardRadius,
-            int towerCount,
-            int keepWidth,
-            int keepDepth,
-            int keepHeight)
+        public CastleVegetationContext(uint planSeed,
+                                       int centreX, int centreZ, int topY, int gateZ,
+                                       int plateauRadius, int baileyHalfX, int baileyHalfZ,
+                                       int towerRadius, int waterfallStreamX,
+                                       int waterfallLipZ, int lowerRiverZ)
         {
             PlanSeed = planSeed;
             CentreX = centreX;
             CentreZ = centreZ;
             TopY = topY;
-            RoadDirectionX = roadDirectionX;
-            RoadDirectionZ = roadDirectionZ;
-            RoadWidth = roadWidth;
-            WallThickness = wallThickness;
-            WallHeight = wallHeight;
-            GateWidth = gateWidth;
-            GateHeight = gateHeight;
-            CourtyardRadius = courtyardRadius;
-            TowerCount = towerCount;
-            KeepWidth = keepWidth;
-            KeepDepth = keepDepth;
-            KeepHeight = keepHeight;
+            GateZ = gateZ;
+            PlateauRadius = plateauRadius;
+            BaileyHalfX = baileyHalfX;
+            BaileyHalfZ = baileyHalfZ;
+            TowerRadius = towerRadius;
+            WaterfallStreamX = waterfallStreamX;
+            WaterfallLipZ = waterfallLipZ;
+            LowerRiverZ = lowerRiverZ;
         }
     }
 
-    public static class CastleVegetationLayout
+    /// <summary>
+    /// Pure deterministic placement grammar. It knows nothing about voxels, Unity, rendering, or
+    /// gameplay state; callers receive semantic candidates and decide how/where to realize them.
+    /// </summary>
+    public static class CastleVegetationLayoutPlanner
     {
-        private const int MinimumHeightUnits = 80;
-        private const int MaximumHeightUnits = 260;
-
-        public static void Build(
-            in CastleVegetationContext context,
-            ICollection<VegetationCandidate> output)
+        public static List<VegetationCandidate> Build(in CastleVegetationContext context)
         {
-            if (output == null) throw new ArgumentNullException(nameof(output));
-
-            int spacing = Math.Max(5, context.WallThickness + 3);
-            int ring = Math.Max(context.CourtyardRadius + 3,
-                                Math.Max(context.KeepWidth, context.KeepDepth) / 2 + 4);
+            var result = new List<VegetationCandidate>(40);
             int ordinal = 0;
+            AddTreeBelt(in context, result, ref ordinal);
+            AddApproachTrees(in context, result, ref ordinal);
+            AddForegroundCopse(in context, result, ref ordinal);
+            AddWaterfallTrees(in context, result, ref ordinal);
+            return result;
+        }
 
-            int[][] directions =
+        private static void AddTreeBelt(in CastleVegetationContext c,
+                                        List<VegetationCandidate> result, ref int ordinal)
+        {
+            var rng = new StableRandom(c.PlanSeed ^ 0x7EE5u);
+            int built = 0;
+            for (int attempt = 0; attempt < 96 && built < 22; attempt++)
             {
-                new[] { 1, 0 }, new[] { -1, 0 }, new[] { 0, 1 }, new[] { 0, -1 },
-                new[] { 1, 1 }, new[] { 1, -1 }, new[] { -1, 1 }, new[] { -1, -1 },
+                double angle = rng.NextDouble() * Math.PI * 2.0;
+                double radius = Lerp(c.PlateauRadius * 0.74,
+                                     c.PlateauRadius - 26.0, rng.NextDouble());
+                int ox = (int)Math.Round(Math.Cos(angle) * radius);
+                int oz = (int)Math.Round(Math.Sin(angle) * radius);
+
+                bool outsideWalls = Math.Abs(ox) > c.BaileyHalfX + c.TowerRadius + 16
+                                 || Math.Abs(oz) > c.BaileyHalfZ + c.TowerRadius + 16;
+                bool blocksGate = oz < -c.BaileyHalfZ && Math.Abs(ox) < 105;
+                int waterfallOffsetX = c.WaterfallStreamX - c.CentreX;
+                int waterfallOffsetZ = c.WaterfallLipZ - c.CentreZ;
+                bool nearWaterfall = Math.Abs(ox - waterfallOffsetX) < 125
+                                  && Math.Abs(oz - waterfallOffsetZ) < 165;
+                if (!outsideWalls || blocksGate || nearWaterfall) continue;
+
+                int height = rng.NextInt(34, 58);
+                result.Add(VegetationCandidate.Fixed(
+                    c.CentreX + ox, c.TopY + 1, c.CentreZ + oz,
+                    height, BroadleafSpecies(built), ordinal++));
+                built++;
+            }
+        }
+
+        private static void AddApproachTrees(in CastleVegetationContext c,
+                                             List<VegetationCandidate> result, ref int ordinal)
+        {
+            (int x, int z)[] offsets =
+            {
+                (-178, -92), (168, -78), (-235, -105), (235, -110),
+                (-154, 42), (184, 62),
             };
 
-            foreach (int[] direction in directions)
+            for (int i = 0; i < offsets.Length; i++)
             {
-                int x = context.CentreX + direction[0] * ring;
-                int z = context.CentreZ + direction[1] * ring;
-                if (NearRoad(in context, x, z, spacing)) continue;
-
-                uint h = Hash(context.PlanSeed, x, z, ordinal);
-                SemanticTreeSpecies species = (h & 3u) switch
-                {
-                    0 => SemanticTreeSpecies.Oak,
-                    1 => SemanticTreeSpecies.Pine,
-                    2 => SemanticTreeSpecies.Birch,
-                    _ => SemanticTreeSpecies.Maple,
-                };
-                int height = MinimumHeightUnits
-                           + (int)((h >> 8) % (MaximumHeightUnits - MinimumHeightUnits + 1));
-                output.Add(VegetationCandidate.Surface(
-                    x, z, height, species,
-                    context.TopY + context.KeepHeight,
-                    context.TopY - context.WallHeight,
-                    ordinal++));
-            }
-
-            int flank = Math.Max(context.RoadWidth + context.WallThickness + 4, spacing);
-            for (int step = 1; step <= 3; step++)
-            {
-                int forwardX = context.CentreX + context.RoadDirectionX * (ring + step * spacing);
-                int forwardZ = context.CentreZ + context.RoadDirectionZ * (ring + step * spacing);
-                int lateralX = -context.RoadDirectionZ * flank;
-                int lateralZ = context.RoadDirectionX * flank;
-
-                AddRoadside(in context, forwardX + lateralX, forwardZ + lateralZ,
-                            ordinal++, output);
-                AddRoadside(in context, forwardX - lateralX, forwardZ - lateralZ,
-                            ordinal++, output);
+                int x = c.CentreX + offsets[i].x;
+                int z = c.GateZ + offsets[i].z;
+                SemanticTreeSpecies species = (i & 1) == 0
+                    ? SemanticTreeSpecies.Pine : BroadleafSpecies(i + 3);
+                int height = (i & 1) == 0 ? 58 + (i % 3) * 8 : 44 + (i % 3) * 6;
+                result.Add(VegetationCandidate.Surface(
+                    x, z, height, species, c.TopY + 20, c.TopY - 170, ordinal++));
             }
         }
 
-        private static void AddRoadside(
-            in CastleVegetationContext context,
-            int x,
-            int z,
-            int ordinal,
-            ICollection<VegetationCandidate> output)
+        private static void AddForegroundCopse(in CastleVegetationContext c,
+                                               List<VegetationCandidate> result, ref int ordinal)
         {
-            uint h = Hash(context.PlanSeed ^ 0x4f1bbcdcu, x, z, ordinal);
-            int height = MinimumHeightUnits + (int)((h >> 7) % 121u);
-            SemanticTreeSpecies species = (h & 1u) == 0
-                ? SemanticTreeSpecies.Oak
-                : SemanticTreeSpecies.Pine;
-            output.Add(VegetationCandidate.Surface(
-                x, z, height, species,
-                context.TopY + context.KeepHeight,
-                context.TopY - context.WallHeight,
-                ordinal));
+            (int x, int z)[] offsets =
+            {
+                (-260, -82), (-282, -48), (266, -62), (292, -30),
+            };
+
+            for (int i = 0; i < offsets.Length; i++)
+            {
+                result.Add(VegetationCandidate.Surface(
+                    c.CentreX + offsets[i].x,
+                    c.GateZ + offsets[i].z,
+                    44 + i * 5,
+                    SemanticTreeSpecies.Pine,
+                    c.TopY + 18, c.TopY - 120, ordinal++));
+            }
         }
 
-        private static bool NearRoad(
-            in CastleVegetationContext context,
-            int x,
-            int z,
-            int margin)
+        private static void AddWaterfallTrees(in CastleVegetationContext c,
+                                              List<VegetationCandidate> result, ref int ordinal)
         {
-            int dx = x - context.CentreX;
-            int dz = z - context.CentreZ;
-            int cross = Math.Abs(dx * context.RoadDirectionZ - dz * context.RoadDirectionX);
-            return cross <= context.RoadWidth + margin;
+            int poolX = c.WaterfallStreamX;
+            int poolZ = c.LowerRiverZ + 27;
+            (int x, int z)[] offsets = { (-88, 58), (92, 72), (-105, -28), (108, -18) };
+
+            for (int i = 0; i < offsets.Length; i++)
+            {
+                SemanticTreeSpecies species = (i & 1) == 0
+                    ? (i == 0 ? SemanticTreeSpecies.Sakura : SemanticTreeSpecies.Willow)
+                    : SemanticTreeSpecies.Pine;
+                int height = (i & 1) == 0 ? 40 + i * 3 : 45 + i * 3;
+                result.Add(VegetationCandidate.Surface(
+                    poolX + offsets[i].x, poolZ + offsets[i].z,
+                    height, species, c.TopY + 24, c.TopY - 180, ordinal++));
+            }
         }
 
-        private static uint Hash(uint seed, int x, int z, int ordinal)
+        private static SemanticTreeSpecies BroadleafSpecies(int index)
         {
-            uint h = seed ^ 0x9e3779b9u;
-            h ^= unchecked((uint)x) * 0x85ebca6bu;
-            h = (h << 13) | (h >> 19);
-            h ^= unchecked((uint)z) * 0xc2b2ae35u;
-            h ^= unchecked((uint)ordinal) * 0x27d4eb2du;
-            h ^= h >> 16;
-            h *= 0x7feb352du;
-            h ^= h >> 15;
-            h *= 0x846ca68bu;
-            h ^= h >> 16;
-            return h;
+            switch (index & 7)
+            {
+                case 0: return SemanticTreeSpecies.Oak;
+                case 1: return SemanticTreeSpecies.Sakura;
+                case 2: return SemanticTreeSpecies.Birch;
+                case 3: return SemanticTreeSpecies.Maple;
+                case 4: return SemanticTreeSpecies.Willow;
+                case 5: return SemanticTreeSpecies.Oak;
+                case 6: return SemanticTreeSpecies.Sakura;
+                default: return SemanticTreeSpecies.Dead;
+            }
+        }
+
+        private static double Lerp(double a, double b, double t) => a + (b - a) * t;
+
+        private struct StableRandom
+        {
+            private uint _state;
+
+            public StableRandom(uint seed) => _state = seed == 0 ? 0xA341316Cu : seed;
+
+            private uint NextUInt()
+            {
+                uint x = _state;
+                x ^= x << 13;
+                x ^= x >> 17;
+                x ^= x << 5;
+                _state = x == 0 ? 0xA341316Cu : x;
+                return _state;
+            }
+
+            public double NextDouble() => (NextUInt() >> 8) * (1.0 / 16777216.0);
+
+            public int NextInt(int minInclusive, int maxExclusive)
+            {
+                if (maxExclusive <= minInclusive) return minInclusive;
+                uint span = (uint)(maxExclusive - minInclusive);
+                return minInclusive + (int)(NextUInt() % span);
+            }
         }
     }
 }
