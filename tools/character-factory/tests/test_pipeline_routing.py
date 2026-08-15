@@ -25,7 +25,9 @@ class PipelineRoutingTests(unittest.TestCase):
         self.assertEqual(4, len(set(names.values())))
 
     def test_smoke_generator_preset_is_fast_turbo(self) -> None:
-        config = GeneratorConfig.from_dict({"python": "/tmp/hunyuan/bin/python"})
+        config = GeneratorConfig.from_dict(
+            {"python": "/tmp/hunyuan/bin/python"}, TOOL_ROOT, validate_paths=False
+        )
         self.assertEqual("smoke", config.preset)
         self.assertEqual("tencent/Hunyuan3D-2mini", config.model)
         self.assertEqual("hunyuan3d-dit-v2-mini-turbo", config.subfolder)
@@ -35,7 +37,9 @@ class PipelineRoutingTests(unittest.TestCase):
 
     def test_quality_generator_preset_can_be_selected_without_pipeline_changes(self) -> None:
         config = GeneratorConfig.from_dict(
-            {"python": "/tmp/hunyuan/bin/python", "preset": "quality"}
+            {"python": "/tmp/hunyuan/bin/python", "preset": "quality"},
+            TOOL_ROOT,
+            validate_paths=False,
         )
         self.assertEqual("tencent/Hunyuan3D-2mv", config.model)
         self.assertEqual("hunyuan3d-dit-v2-mv", config.subfolder)
@@ -45,7 +49,9 @@ class PipelineRoutingTests(unittest.TestCase):
     def test_unknown_generator_preset_is_rejected(self) -> None:
         with self.assertRaises(CharacterFactoryError):
             GeneratorConfig.from_dict(
-                {"python": "/tmp/hunyuan/bin/python", "preset": "unknown"}
+                {"python": "/tmp/hunyuan/bin/python", "preset": "unknown"},
+                TOOL_ROOT,
+                validate_paths=False,
             )
 
     def test_clothing_spec_is_not_a_generic_wearable(self) -> None:
