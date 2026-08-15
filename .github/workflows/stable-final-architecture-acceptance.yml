@@ -1,0 +1,203 @@
+name: Stable final architecture acceptance
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths:
+      - ".github/workflows/stable-final-architecture-acceptance.yml"
+      - "Assets/VoxelEngine/**"
+      - "Assets/Scenes/Showcase/**"
+      - "Assets/Tests/EditMode/**"
+      - "Packages/com.mountingforce.worldgen/**"
+  pull_request:
+    branches: [master]
+    paths:
+      - "Assets/VoxelEngine/**"
+      - "Assets/Scenes/Showcase/**"
+      - "Assets/Tests/EditMode/**"
+      - "Packages/com.mountingforce.worldgen/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-final-architecture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Verify final production dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          roots = [
+              Path('Assets/VoxelEngine'),
+              Path('Assets/Scenes/Showcase'),
+              Path('Packages/com.mountingforce.worldgen/Runtime'),
+          ]
+
+          def production(path: Path) -> bool:
+              p = '/' + path.as_posix().lower().strip('/') + '/'
+              return (
+                  '/tests/' not in p
+                  and '/test/' not in p
+                  and '/editor/' not in p
+                  and '/voxelengine/ci/' not in p
+              )
+
+          asmdefs = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob('*.asmdef'):
+                  if not production(path):
+                      continue
+                  data = json.loads(path.read_text())
+                  asmdefs.append((path, data.get('name', ''), data.get('references', [])))
+
+          violations = []
+          for path, name, refs in asmdefs:
+              if name.endswith('.Api'):
+                  bad = [r for r in refs if r.startswith('VoxelEngine.') and r.endswith('.Runtime')]
+                  violations.extend(f'{path}: Api -> Runtime {r}' for r in bad)
+
+              runtime_refs = [r for r in refs if r.startswith('VoxelEngine.') and r.endswith('.Runtime')]
+              if name == 'VoxelEngine.Composition':
+                  continue
+              for ref in runtime_refs:
+                  if name.endswith('.Runtime') and ref == name:
+                      continue
+                  violations.append(f'{path}: production concrete Runtime reference {ref}')
+
+          allowed_ext = {'.cs', '.asmdef', '.asmref', '.json'}
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob('*'):
+                  if not path.is_file() or path.suffix.lower() not in allowed_ext or not production(path):
+                      continue
+                  if 'VoxelEngine.Core' in path.read_text(errors='ignore'):
+                      violations.append(f'{path}: VoxelEngine.Core literal')
+
+          scene_asm = Path('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef')
+          scene_data = json.loads(scene_asm.read_text())
+          scene_runtime_refs = [
+              r for r in scene_data.get('references', [])
+              if r.startswith('VoxelEngine.') and r.endswith('.Runtime')
+          ]
+          if scene_runtime_refs:
+              violations.append('Showcase Runtime refs: ' + ', '.join(scene_runtime_refs))
+
+          worldgen_core = json.loads(Path('Packages/com.mountingforce.worldgen/Runtime/Core/MountingForce.WorldGen.Core.asmdef').read_text())
+          worldgen_arch = json.loads(Path('Packages/com.mountingforce.worldgen/Runtime/Architecture/MountingForce.WorldGen.Architecture.asmdef').read_text())
+          for label, data in [('WorldGen.Core', worldgen_core), ('WorldGen.Architecture', worldgen_arch)]:
+              bad = [r for r in data.get('references', []) if r.startswith('VoxelEngine.')]
+              if bad:
+                  violations.append(f'{label} engine refs: {bad}')
+
+          if violations:
+              raise SystemExit('\n'.join(violations))
+          print('Final production dependency graph accepted')
+          PY
+
+  editmode:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 1
+      - name: Reset exact candidate while preserving Unity cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard "$GITHUB_SHA"
+          git clean -ffdx -e Library/
+          rm -rf Library/ScriptAssemblies Library/Bee
+      - id: unity
+        name: Locate Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+      - name: Run and verify exact EditMode baseline
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/StableFinalArchitecture"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || true
+          test -s "$ROOT/results.xml"
+          if grep -E 'error CS[0-9]+' "$ROOT/unity.log"; then
+            echo 'Compiler errors detected' >&2
+            exit 1
+          fi
+          python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          expected = {
+              'VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.CurrentCascadeLabBootsWithEnemyAIStack',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.BattleResetClearsSharedPlanHistoryAndGhostBackToStart',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.PlannerBootsWithGhostBoardAndVisualLayer',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.SharedPlanExecutionRequiresEveryLivingPlayerReady',
+              'VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.CascadeLabControllerBootsFourPlayerBattle',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.CommittingApprovedPlanPreservesReadyForEnemyHandoff',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.EditingAnApprovedPlanRevokesEveryReadyApproval',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.ControllerBootsPlayableBattlePresentation',
+              'VoxelEngine.Tests.EditMode.KentridgeAnchorUndercroftTests.AnchorUndercroftsOccupyPubAndWarehouseSupportFacesWithoutAddingGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DistrictTerracesCreateNeighbourhoodScaleShelves',
+              'VoxelEngine.Tests.EditMode.KentridgeInfrastructureTests.UrbanInfrastructureStaysSeparateFromStableGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeUrbanFabricTests.UrbanFabricCatalogueRealizesAllEightBlocksAsIndividualBuildings',
+              'VoxelEngine.Tests.EditMode.SurfaceRingBandTests.RingsDoNotReachBeyondTheStreamingRadius',
+          }
+          root = ET.parse(sys.argv[1]).getroot()
+          failed = {
+              tc.get('fullname') or tc.get('name')
+              for tc in root.iter('test-case')
+              if (tc.get('result') or '').lower() in ('failed', 'failure')
+          }
+          if failed != expected:
+              print('Unexpected failures:', sorted(failed - expected))
+              print('Missing baseline failures:', sorted(expected - failed))
+              raise SystemExit(1)
+          if root.get('total') != '387' or root.get('passed') != '374' or root.get('failed') != '13':
+              raise SystemExit(f"Unexpected totals: total={root.get('total')} passed={root.get('passed')} failed={root.get('failed')}")
+          print('Exact accepted 387/374/13 baseline matched')
+          PY
+      - name: Upload acceptance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stable-final-architecture-${{ github.sha }}
+          path: Artifacts/StableFinalArchitecture/
+          if-no-files-found: warn
+          retention-days: 14
