@@ -54,18 +54,21 @@ namespace VoxelEngine.Composition
             double waterBuildBudgetMs,
             bool farFieldEnabled)
         {
-            if (world.Storage == null)
-                throw new ArgumentException("Rendering requires a storage read source.", nameof(world));
-
-            s_world = world;
-            s_hasWorld = true;
-            VoxelRenderBridge.Source = ResolveWorld;
-            VoxelRenderBridge.Changes = changes;
+            BindWorld(in world, changes, terrainSeed, farFieldEnabled);
             VoxelRenderBridge.SolidBuildBudgetMs = solidBuildBudgetMs;
             VoxelRenderBridge.WaterBuildBudgetMs = waterBuildBudgetMs;
-            VoxelRenderBridge.FarFieldEnabled = farFieldEnabled;
-            VoxelRenderBridge.TerrainSeed = terrainSeed;
         }
+
+        /// <summary>
+        /// Registers a world without changing renderer budget defaults owned by the active
+        /// rendering configuration.
+        /// </summary>
+        public static void ConfigureWorld(
+            in RenderingWorldBinding world,
+            IVoxelChangeSource changes,
+            uint terrainSeed,
+            bool farFieldEnabled) =>
+            BindWorld(in world, changes, terrainSeed, farFieldEnabled);
 
         /// <summary>Disconnects the application world from Rendering.Runtime.</summary>
         public static void ClearWorld()
@@ -137,6 +140,23 @@ namespace VoxelEngine.Composition
         /// </summary>
         public static Vector4 GetMaterialAlbedo(byte material) =>
             VoxelPresentationCatalogue.MaterialAlbedo[material];
+
+        private static void BindWorld(
+            in RenderingWorldBinding world,
+            IVoxelChangeSource changes,
+            uint terrainSeed,
+            bool farFieldEnabled)
+        {
+            if (world.Storage == null)
+                throw new ArgumentException("Rendering requires a storage read source.", nameof(world));
+
+            s_world = world;
+            s_hasWorld = true;
+            VoxelRenderBridge.Source = ResolveWorld;
+            VoxelRenderBridge.Changes = changes;
+            VoxelRenderBridge.FarFieldEnabled = farFieldEnabled;
+            VoxelRenderBridge.TerrainSeed = terrainSeed;
+        }
 
         private static VoxelWorldView ResolveWorld()
         {
