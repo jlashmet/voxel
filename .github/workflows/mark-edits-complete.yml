@@ -1,0 +1,63 @@
+name: Mark Edits cutover complete
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = p.read_text()
+
+          replacements = {
+              '**Current focus:** Cutover 5 Edits — final Api/Runtime move and obsolete wrapper cleanup':
+                  '**Current focus:** Cutover 6 StructuralIntegrity — full Api/Runtime ownership cutover',
+              '| 5 — Edits | **In progress — current** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; expansion helpers are in Runtime; Net protocol/client/server/validation consume Api only; dead `DensityCap` and redundant server wrapper are gone; Storage boundaries/parity accepted | move `DeterministicAlterationApplier` to Runtime; remove final `VoxelEngine.Core.Edits`; finish namespace cutover |':
+                  '| 5 — Edits | **Complete** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; all edit implementation lives under `Edits/Runtime` with Runtime namespace and preserved Unity GUIDs; Net protocol/client/server/validation consume Api only; dead `DensityCap`, redundant Net wrapper, and `VoxelEngine.Core.Edits` are gone; Storage boundaries/parity accepted | none |',
+              '| 6 — StructuralIntegrity | **Not started** | — | full cutover |':
+                  '| 6 — StructuralIntegrity | **Not started — current** | — | full cutover |',
+              '- Latest accepted code gate: `62af284179b38c01adc07e3d40f8627bac8174a6` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Edits client capability slice: all Net edit validation/residency/application flows consume Edits.Api `IAlterationApplier`; Net contains no `VoxelEngine.Core.Edits` import or deterministic implementation reference; Net still has no Edits.Runtime dependency.':
+                  '- Latest accepted code gate: `4477d1cf2b552d84bcf44ccf5bf33b645a32cb70` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate completes Cutover 5 Edits: `DeterministicAlterationApplier` is physically under `Edits/Runtime` with its Unity GUID preserved; all composition/test imports use `VoxelEngine.Edits.Runtime`; no live `VoxelEngine.Core.Edits` namespace remains; Net remains Edits.Api-only.',
+              '- [ ] move expansion/apply implementation to Runtime':
+                  '- [x] move expansion/apply implementation to Runtime',
+              '- [ ] Edits.Api/Runtime physical move and namespace cutover complete.':
+                  '- [x] Edits.Api/Runtime physical move and namespace cutover complete.',
+              '- [ ] no `VoxelEngine.Core.Edits` namespace remains;':
+                  '- [x] no `VoxelEngine.Core.Edits` namespace remains;',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one plan marker, found {text.count(old)}: {old}')
+              text = text.replace(old, new, 1)
+
+          marker = '- [x] Client/validation alteration-capability slice accepted by CI at `62af284179b38c01adc07e3d40f8627bac8174a6`: 382 total / 369 passed / exact same 13 known baseline failures.\n'
+          addition = '- [x] Final `DeterministicAlterationApplier` move/namespace cutover accepted by CI at `4477d1cf2b552d84bcf44ccf5bf33b645a32cb70`: 382 total / 369 passed / exact same 13 known baseline failures; source/meta GUID identity is preserved, the old Core.Edits namespace is gone, and Net has no Edits.Runtime dependency.\n'
+          if text.count(marker) != 1:
+              raise SystemExit('Final Edits progress insertion marker mismatch')
+          if addition not in text:
+              text = text.replace(marker, marker + addition, 1)
+
+          p.write_text(text)
+          PY
+          git rm .github/workflows/mark-edits-complete.yml
+          git diff --check
+          grep -nE 'Current focus|5 — Edits|6 — StructuralIntegrity|4477d1cf|no `VoxelEngine.Core.Edits`|Edits.Api/Runtime physical' docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'Mark Edits cutover complete'
+          git push origin HEAD:${{ github.ref_name }}
