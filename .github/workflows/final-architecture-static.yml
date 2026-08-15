@@ -1,0 +1,198 @@
+name: Final architecture static acceptance
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths:
+      - ".github/workflows/**"
+      - "Assets/**"
+      - "Packages/**"
+      - "docs/**"
+      - "specs/**"
+      - "tools/**"
+      - "Artifacts/**"
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/**"
+      - "Assets/**"
+      - "Packages/**"
+      - "docs/**"
+      - "specs/**"
+      - "tools/**"
+      - "Artifacts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify final dependency graph, source ownership, legacy-literal classification, and emit report
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p Artifacts/FinalArchitecture
+          python3 - <<'PY'
+          import json, re, subprocess
+          from pathlib import Path
+
+          root = Path('.')
+          engine = root / 'Assets' / 'VoxelEngine'
+          search_roots = [root / 'Assets', root / 'Packages']
+
+          guid_to_name = {}
+          for asmdef in engine.rglob('*.asmdef'):
+              meta = Path(str(asmdef) + '.meta')
+              if not meta.exists():
+                  continue
+              m = re.search(r'^guid:\s*([0-9a-fA-F]{32})\s*$', meta.read_text(), re.M)
+              if m:
+                  guid_to_name[m.group(1).lower()] = json.loads(asmdef.read_text())['name']
+
+          def resolve(ref):
+              if not ref.startswith('GUID:'):
+                  return ref
+              return guid_to_name.get(ref[5:].lower(), ref)
+
+          asmdefs = []
+          for base in search_roots:
+              if not base.exists():
+                  continue
+              for path in base.rglob('*.asmdef'):
+                  data = json.loads(path.read_text())
+                  asmdefs.append((path.as_posix(), data['name'], [resolve(r) for r in data.get('references', [])]))
+
+          def production(path):
+              p = '/' + path.lower().replace('\\', '/') + '/'
+              return '/tests/' not in p and '/test/' not in p and '/editor/' not in p and '/voxelengine/ci/' not in p
+
+          violations = []
+          for path, name, refs in asmdefs:
+              if name.endswith('.Api'):
+                  for ref in refs:
+                      if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime'):
+                          violations.append(f'Api->Runtime: {name} -> {ref} ({path})')
+              if name.endswith('.Runtime'):
+                  for ref in refs:
+                      if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime') and ref != name:
+                          violations.append(f'Runtime->foreign Runtime: {name} -> {ref} ({path})')
+              if production(path) and name != 'VoxelEngine.Composition':
+                  for ref in refs:
+                      if ref.startswith('VoxelEngine.') and ref.endswith('.Runtime'):
+                          violations.append(f'production Runtime wiring outside Composition: {name} -> {ref} ({path})')
+
+          core_hits = []
+          compatibility_hits = []
+          storage_runtime_source_hits = []
+          allowed_ext = {'.cs', '.asmdef', '.asmref', '.json'}
+          for base in search_roots:
+              if not base.exists():
+                  continue
+              for path in base.rglob('*'):
+                  if not path.is_file() or not production(path.as_posix()):
+                      continue
+
+                  if path.suffix.lower() == '.cs':
+                      lowered_name = path.name.lower()
+                      if 'compatibility' in lowered_name or 'legacy' in lowered_name:
+                          compatibility_hits.append(path.as_posix())
+
+                      source = path.read_text(errors='ignore')
+                      if 'VoxelEngine.Storage.Runtime' in source:
+                          relative = path.as_posix()
+                          storage_owner = relative.startswith('Assets/VoxelEngine/Storage/Runtime/')
+                          composition_owner = relative.startswith('Assets/VoxelEngine/Composition/')
+                          if not storage_owner and not composition_owner:
+                              storage_runtime_source_hits.append(relative)
+
+                  if path.suffix.lower() not in allowed_ext:
+                      continue
+                  if 'VoxelEngine.Core' in path.read_text(errors='ignore'):
+                      core_hits.append(path.as_posix())
+
+          if core_hits:
+              violations.extend(f'VoxelEngine.Core production reference: {p}' for p in core_hits)
+          if compatibility_hits:
+              violations.extend(f'legacy/compatibility adapter source: {p}' for p in compatibility_hits)
+          if storage_runtime_source_hits:
+              violations.extend(
+                  f'Storage.Runtime source reference outside Storage owner/Composition: {p}'
+                  for p in storage_runtime_source_hits)
+
+          intentional_core_literal_paths = {
+              '.github/workflows/final-architecture-static.yml',
+              '.github/workflows/stable-final-architecture-acceptance.yml',
+              'Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs',
+              'docs/ARCHITECTURE_DEPENDENCY_REPORT.md',
+              'docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md',
+              'docs/ARCHITECTURE_LEGACY_LITERAL_CLASSIFICATION.md',
+              'docs/ARCHITECTURE_MIGRATION_PLAN.md',
+              'specs/001-destructible-voxel-engine/tasks.md',
+              'specs/002-world-feature-authoring/tasks.md',
+          }
+          literal_ext = {
+              '.cs', '.asmdef', '.asmref', '.json', '.md', '.yml', '.yaml',
+              '.sh', '.txt', '.log',
+          }
+          tracked = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          repository_core_hits = []
+          for name in tracked:
+              if not name:
+                  continue
+              path = Path(name)
+              if path.suffix.lower() not in literal_ext:
+                  continue
+              if 'VoxelEngine.Core' in path.read_text(errors='ignore'):
+                  repository_core_hits.append(name)
+
+          unclassified = sorted(set(repository_core_hits) - intentional_core_literal_paths)
+          missing_intentional = sorted(intentional_core_literal_paths - set(repository_core_hits))
+          if unclassified:
+              violations.extend(f'unclassified repository VoxelEngine.Core literal: {p}' for p in unclassified)
+          if missing_intentional:
+              violations.extend(f'stale VoxelEngine.Core allowlist entry: {p}' for p in missing_intentional)
+
+          report = []
+          report.append('# Final Architecture Dependency Report')
+          report.append('')
+          report.append('Generated by `.github/workflows/final-architecture-static.yml`.')
+          report.append('')
+          report.append('## VoxelEngine assembly edges')
+          report.append('')
+          for path, name, refs in sorted(asmdefs, key=lambda x: (x[1], x[0])):
+              if not name.startswith('VoxelEngine.'):
+                  continue
+              engine_refs = sorted(r for r in refs if r.startswith('VoxelEngine.'))
+              report.append(f'- `{name}` (`{path}`): ' + (', '.join(f'`{r}`' for r in engine_refs) if engine_refs else 'no VoxelEngine references'))
+          report.append('')
+          report.append('## Final boundary assertions')
+          report.append('')
+          report.append('- Api assemblies reference no Runtime assemblies.')
+          report.append('- Runtime assemblies reference no foreign Runtime assemblies.')
+          report.append('- Composition is the only production assembly that wires concrete Runtime assemblies.')
+          report.append('- Production source names Storage.Runtime only inside Storage/Runtime or the Composition wiring root.')
+          report.append('- Production Assets/Packages contain no `VoxelEngine.Core` references.')
+          report.append('- Production architecture contains no `Legacy*` or `*Compatibility*` adapter source files.')
+          report.append('- Repository-wide legacy Core literals exist only in the explicitly classified history/enforcement allowlist.')
+          report.append('')
+          report.append('## Intentional historical/enforcement Core literals')
+          report.append('')
+          for path in sorted(repository_core_hits):
+              report.append(f'- `{path}`')
+          Path('Artifacts/FinalArchitecture/dependency-report.md').write_text('\n'.join(report) + '\n')
+
+          if violations:
+              raise SystemExit('\n'.join(violations))
+          print(f'Final architecture static boundary accepted; {len(repository_core_hits)} intentional repository Core-literal files classified')
+          PY
+      - name: Upload dependency report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-architecture-dependency-report-${{ github.sha }}
+          path: Artifacts/FinalArchitecture/
+          if-no-files-found: error
+          retention-days: 14
