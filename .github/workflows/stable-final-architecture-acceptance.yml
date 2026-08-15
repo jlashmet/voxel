@@ -12,6 +12,7 @@ on:
   pull_request:
     branches: [master]
     paths:
+      - ".github/workflows/stable-final-architecture-acceptance.yml"
       - "Assets/VoxelEngine/**"
       - "Assets/Scenes/Showcase/**"
       - "Assets/Tests/EditMode/**"
@@ -87,8 +88,23 @@ jobs:
               for path in root.rglob('*'):
                   if not path.is_file() or path.suffix.lower() not in allowed_ext or not production(path):
                       continue
-                  if 'VoxelEngine.Core' in path.read_text(errors='ignore'):
+
+                  source = path.read_text(errors='ignore')
+                  if 'VoxelEngine.Core' in source:
                       violations.append(f'{path}: VoxelEngine.Core literal')
+
+                  if path.suffix.lower() == '.cs':
+                      lowered_name = path.name.lower()
+                      if 'compatibility' in lowered_name or 'legacy' in lowered_name:
+                          violations.append(f'{path}: legacy/compatibility adapter source')
+
+                      if 'VoxelEngine.Storage.Runtime' in source:
+                          relative = path.as_posix()
+                          storage_owner = relative.startswith('Assets/VoxelEngine/Storage/Runtime/')
+                          composition_owner = relative.startswith('Assets/VoxelEngine/Composition/')
+                          if not storage_owner and not composition_owner:
+                              violations.append(
+                                  f'{path}: Storage.Runtime source reference outside Storage owner/Composition')
 
           scene_asm = Path('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef')
           scene_data = json.loads(scene_asm.read_text())
@@ -111,6 +127,8 @@ jobs:
           if violations:
               raise SystemExit('\n'.join(violations))
           print('Final production dependency graph accepted')
+          print('Storage.Runtime source ownership accepted: Storage/Runtime + Composition only')
+          print('Legacy/compatibility adapter source guard accepted')
           PY
 
   editmode:
