@@ -71,4 +71,15 @@ namespace Game.WorldBuilder.Api
         public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Id ?? string.Empty);
         public override string ToString() => Id ?? string.Empty;
     }
+
+    /// <summary>Stable authored identity for one required secret, distinct from a procedural secret policy.</summary>
+    public readonly struct SecretRef : IEquatable<SecretRef>
+    {
+        public string Id { get; }
+        public SecretRef(string id) => Id = WorldIdRules.Require(id, nameof(id));
+        public bool Equals(SecretRef other) => string.Equals(Id, other.Id, StringComparison.Ordinal);
+        public override bool Equals(object obj) => obj is SecretRef other && Equals(other);
+        public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Id ?? string.Empty);
+        public override string ToString() => Id ?? string.Empty;
+    }
 }
