@@ -6,6 +6,9 @@ using Unity.Mathematics;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Runtime.Emitters;
 using VoxelEngine.Core.Storage;
+using CoreSurfaceCompatibility = VoxelEngine.Core.Storage.SurfaceCompatibility;
+using CoreSurfaceReconstruction = VoxelEngine.Core.Storage.SurfaceReconstruction;
+using CoreSurfaceDecorationShape = VoxelEngine.Core.Storage.SurfaceDecorationShape;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Runtime.Server;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
@@ -26,10 +29,10 @@ namespace VoxelEngine.Tests.EditMode
             SurfaceJoinRule ab = catalogue.GetJoin(1, 2);
             SurfaceJoinRule ba = catalogue.GetJoin(2, 1);
             Assert.True(ab.Equals(ba));
-            Assert.AreEqual(SurfaceCompatibility.Seam, ab.Compatibility);
+            Assert.AreEqual(CoreSurfaceCompatibility.Seam, ab.Compatibility);
             Assert.True(ab.PreserveSharpFeature);
             SurfaceStyleDefinition missing = catalogue.Get(31);
-            Assert.AreEqual(SurfaceReconstruction.Sharp, missing.Reconstruction);
+            Assert.AreEqual(CoreSurfaceReconstruction.Sharp, missing.Reconstruction);
             Assert.True(missing.PreserveSharpFeatures);
         }
 
@@ -39,7 +42,7 @@ namespace VoxelEngine.Tests.EditMode
             SurfaceCatalogue catalogue = SurfaceCatalogue.CreateBuiltIns();
             SurfaceStyleDefinition masonry = catalogue.Get(SurfaceStyles.MasonryJoint);
 
-            Assert.AreEqual(SurfaceReconstruction.Planar, masonry.Reconstruction);
+            Assert.AreEqual(CoreSurfaceReconstruction.Planar, masonry.Reconstruction);
             Assert.AreEqual(0, masonry.Curvature);
             Assert.True(masonry.PreserveSharpFeatures);
         }
@@ -49,12 +52,12 @@ namespace VoxelEngine.Tests.EditMode
         {
             var smooth = new SurfaceStyleDefinition
             {
-                StableId = 1, Reconstruction = SurfaceReconstruction.Smooth,
+                StableId = 1, Reconstruction = CoreSurfaceReconstruction.Smooth,
                 Curvature = 255, JoinGroup = 1
             };
             var planar = new SurfaceStyleDefinition
             {
-                StableId = 2, Reconstruction = SurfaceReconstruction.Planar,
+                StableId = 2, Reconstruction = CoreSurfaceReconstruction.Planar,
                 JoinGroup = 2, PreserveSharpFeatures = true
             };
             SurfaceCatalogue a = default;
@@ -154,7 +157,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(0, original.Get(Coatings.Moss).Displacement,
                 "raised moss mats provide relief without changing the base solid topology");
             CoatingDefinition builtInMoss = original.Get(Coatings.Moss);
-            Assert.AreEqual(SurfaceDecorationShape.Clump, builtInMoss.DecorationShape);
+            Assert.AreEqual(CoreSurfaceDecorationShape.Clump, builtInMoss.DecorationShape);
             Assert.Greater(builtInMoss.DecorationDensity, 0);
             Assert.Greater(builtInMoss.DecorationRadiusQ4, 0);
             Assert.Greater(builtInMoss.DecorationHeightQ4, 0);
@@ -861,7 +864,10 @@ namespace VoxelEngine.Tests.EditMode
                                  SurfaceStyles.MasonryJoint, uint.MaxValue);
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
-                cache.Prepare(new RegionReadSource(in table, in pool), in palette, in surfaces, in coatings, store,
+                MaterialPaletteView paletteView = palette;
+                SurfaceCatalogueView surfaceView = surfaces;
+                CoatingCatalogueView coatingView = coatings;
+                cache.Prepare(new RegionReadSource(in table, in pool), in paletteView, in surfaceView, in coatingView, store,
                               cameraObject.AddComponent<UnityEngine.Camera>(), 0.1f, 0, 0.0);
                 Assert.AreEqual(1, cache.IndexedProfileBlockCount(int3.zero));
                 Assert.AreEqual(0, cache.IndexedProfileBlockCount(new int3(8, 0, 0)));
@@ -893,8 +899,11 @@ namespace VoxelEngine.Tests.EditMode
                 custom.Seal(41, custom.ComputeHash());
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
                 Assert.AreNotEqual(cache.ActiveSurfaceCatalogueHash, custom.CatalogueHash);
+                MaterialPaletteView paletteView = palette;
+                SurfaceCatalogueView surfaceView = custom;
+                CoatingCatalogueView coatingView = coatings;
 
-                cache.Prepare(new RegionReadSource(in table, in pool), in palette, in custom, in coatings, null,
+                cache.Prepare(new RegionReadSource(in table, in pool), in paletteView, in surfaceView, in coatingView, null,
                               cameraObject.AddComponent<UnityEngine.Camera>(), 0.1f, 0, 0.0);
 
                 Assert.AreEqual(custom.CatalogueHash, cache.ActiveSurfaceCatalogueHash);
