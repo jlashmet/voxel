@@ -54,12 +54,17 @@ namespace Game.WorldBuilder.Runtime
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
 
             var diagnostics = new List<BlueprintDiagnostic>();
+            var regions = CollectIds(blueprint.Hierarchy.Regions, spec => spec.Ref.Id, "region", diagnostics);
+            var routes = CollectIds(blueprint.Hierarchy.Routes, spec => spec.Ref.Id, "route", diagnostics);
+            var settlements = CollectIds(blueprint.Hierarchy.Settlements, spec => spec.Ref.Id, "settlement", diagnostics);
             var sites = CollectIds(blueprint.Sites, spec => spec.Ref.Id, "site", diagnostics);
             var npcs = CollectIds(blueprint.Npcs, spec => spec.Ref.Id, "NPC", diagnostics);
             var objectives = CollectIds(blueprint.Objectives, spec => spec.Ref.Id, "objective", diagnostics);
             var cutscenes = CollectIds(blueprint.Cutscenes, spec => spec.Ref.Id, "cutscene", diagnostics);
             var lootTables = CollectIds(blueprint.LootTables, spec => spec.Ref.Id, "loot table", diagnostics);
             CollectIds(blueprint.SecretPolicies, spec => spec.Ref.Id, "secret policy", diagnostics);
+
+            ValidateHierarchy(blueprint, regions, routes, settlements, sites, diagnostics);
 
             for (var i = 0; i < blueprint.Sites.Count; i++)
             {
@@ -134,6 +139,95 @@ namespace Game.WorldBuilder.Runtime
             }
 
             return new BlueprintValidationResult(diagnostics.ToArray());
+        }
+
+        private static void ValidateHierarchy(
+            CampaignBlueprint blueprint,
+            HashSet<string> regions,
+            HashSet<string> routes,
+            HashSet<string> settlements,
+            HashSet<string> sites,
+            List<BlueprintDiagnostic> diagnostics)
+        {
+            var routeRegions = new Dictionary<string, string>(StringComparer.Ordinal);
+            for (var i = 0; i < blueprint.Hierarchy.Routes.Count; i++)
+            {
+                RouteSpec route = blueprint.Hierarchy.Routes[i];
+                RequireExists(regions, route.Region.Id, "WB2401", $"Route '{route.Ref}' belongs to unknown region '{route.Region}'.", diagnostics);
+                routeRegions[route.Ref.Id] = route.Region.Id;
+            }
+
+            var settlementRegions = new Dictionary<string, string>(StringComparer.Ordinal);
+            for (var i = 0; i < blueprint.Hierarchy.Settlements.Count; i++)
+            {
+                SettlementSpec settlement = blueprint.Hierarchy.Settlements[i];
+                RequireExists(regions, settlement.Region.Id, "WB2402", $"Settlement '{settlement.Ref}' belongs to unknown region '{settlement.Region}'.", diagnostics);
+                settlementRegions[settlement.Ref.Id] = settlement.Region.Id;
+
+                if (settlement.Archetype == SettlementArchetype.Unspecified)
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB1401",
+                        BlueprintDiagnosticSeverity.Warning,
+                        $"Settlement '{settlement.Ref}' has no archetype. Placement can be planned, but settlement generation does not yet know what class of settlement to build."));
+                }
+            }
+
+            var accessKeys = new HashSet<string>(StringComparer.Ordinal);
+            for (var i = 0; i < blueprint.Hierarchy.RouteAccess.Count; i++)
+            {
+                SettlementRouteAccessSpec access = blueprint.Hierarchy.RouteAccess[i];
+                RequireExists(settlements, access.Settlement.Id, "WB2403", $"Route access references unknown settlement '{access.Settlement}'.", diagnostics);
+                RequireExists(routes, access.Route.Id, "WB2404", $"Route access references unknown route '{access.Route}'.", diagnostics);
+
+                string key = access.Settlement.Id + "->" + access.Route.Id;
+                if (!accessKeys.Add(key))
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB2405",
+                        BlueprintDiagnosticSeverity.Error,
+                        $"Settlement '{access.Settlement}' declares route access to '{access.Route}' more than once."));
+                }
+
+                if (settlementRegions.TryGetValue(access.Settlement.Id, out string settlementRegion)
+                    && routeRegions.TryGetValue(access.Route.Id, out string routeRegion)
+                    && !string.Equals(settlementRegion, routeRegion, StringComparison.Ordinal))
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB2406",
+                        BlueprintDiagnosticSeverity.Error,
+                        $"Settlement '{access.Settlement}' and connected route '{access.Route}' belong to different regions."));
+                }
+            }
+
+            var placedSites = new HashSet<string>(StringComparer.Ordinal);
+            for (var i = 0; i < blueprint.Hierarchy.SitePlacements.Count; i++)
+            {
+                SitePlacementSpec placement = blueprint.Hierarchy.SitePlacements[i];
+                RequireExists(sites, placement.Site.Id, "WB2410", $"Site placement references unknown site '{placement.Site}'.", diagnostics);
+
+                if (!placedSites.Add(placement.Site.Id))
+                {
+                    diagnostics.Add(new BlueprintDiagnostic(
+                        "WB2411",
+                        BlueprintDiagnosticSeverity.Error,
+                        $"Site '{placement.Site}' has more than one spatial owner."));
+                }
+
+                if (placement.Kind == SitePlacementKind.Region)
+                    RequireExists(regions, placement.Region.Id, "WB2412", $"Site '{placement.Site}' is assigned to unknown region '{placement.Region}'.", diagnostics);
+                else if (placement.Kind == SitePlacementKind.Settlement)
+                    RequireExists(settlements, placement.Settlement.Id, "WB2413", $"Site '{placement.Site}' is assigned to unknown settlement '{placement.Settlement}'.", diagnostics);
+            }
+
+            for (var i = 0; i < blueprint.Sites.Count; i++)
+            {
+                if (placedSites.Contains(blueprint.Sites[i].Ref.Id)) continue;
+                diagnostics.Add(new BlueprintDiagnostic(
+                    "WB1402",
+                    BlueprintDiagnosticSeverity.Warning,
+                    $"Site '{blueprint.Sites[i].Ref}' has no region or settlement owner. This is allowed during migration but cannot be spatially placed by the hierarchical planner."));
+            }
         }
 
         private static void ValidateActorBindings(
