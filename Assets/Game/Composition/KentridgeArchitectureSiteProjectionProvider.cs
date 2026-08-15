@@ -8,10 +8,10 @@ using MountingForce.WorldGen.Content.Kentridge;
 namespace Game.Composition.WorldBuilderWorldGen
 {
     /// <summary>
-    /// First concrete WorldGen projection for WorldBuilder. It consumes Kentridge's semantic plots and
-    /// the public Architecture handoff, never Voxel realization internals. Generated structures are
-    /// projected with exact envelope/door geometry; bespoke structures fail closed until Architecture
-    /// exposes equivalent facts for them.
+    /// Concrete Kentridge WorldGen projection for WorldBuilder. It consumes semantic plots and the
+    /// public Architecture handoff, never Voxel realization internals. Sites without a real public
+    /// entrance (currently the Well) fail closed instead of coercing an interaction anchor into the
+    /// entrance/distance contract.
     /// </summary>
     public sealed class KentridgeArchitectureSiteProjectionProvider :
         ISettlementSiteProjectionProvider,
@@ -41,8 +41,10 @@ namespace Game.Composition.WorldBuilderWorldGen
 
         public bool TryProject(PlannedSite site, out SettlementSiteProjection projection)
         {
+            StructureIntent intent;
+            StructureForm form;
             StructureSiteGeometry geometry;
-            if (!TryResolveGeometry(site, out geometry))
+            if (!TryResolveSite(site, out intent, out form, out geometry))
             {
                 projection = default(SettlementSiteProjection);
                 return false;
@@ -52,9 +54,26 @@ namespace Game.Composition.WorldBuilderWorldGen
                 ? SiteArchetype.Pub
                 : SiteArchetype.Unspecified;
 
-            // ConversationSpace means the generated site guarantees a reachable open interior where
-            // a conversation can occur. CutsceneStage means it publishes a stage envelope; the actual
-            // authored cutscene is checked against that envelope by SiteRoleResolver before binding.
+            StructureInteriorEnvelope interior;
+            bool hasInterior = StructureSiteGeometryResolver.TryResolveInterior(
+                intent,
+                _plan.Theme,
+                form,
+                out interior);
+
+            SiteCapabilityOffer[] capabilities = hasInterior
+                ? new[]
+                {
+                    new SiteCapabilityOffer(SiteCapabilityKind.Interior),
+                    new SiteCapabilityOffer(SiteCapabilityKind.PublicExit),
+                    new SiteCapabilityOffer(SiteCapabilityKind.ConversationSpace),
+                    new SiteCapabilityOffer(SiteCapabilityKind.CutsceneStage),
+                }
+                : new[]
+                {
+                    new SiteCapabilityOffer(SiteCapabilityKind.PublicExit),
+                };
+
             projection = new SettlementSiteProjection(
                 archetype,
                 new SiteFootprintBoundsDm(
@@ -63,10 +82,7 @@ namespace Game.Composition.WorldBuilderWorldGen
                     geometry.FootprintMaxDm.X,
                     geometry.FootprintMaxDm.Y),
                 geometry.PublicEntranceDm,
-                new SiteCapabilityOffer(SiteCapabilityKind.Interior),
-                new SiteCapabilityOffer(SiteCapabilityKind.PublicExit),
-                new SiteCapabilityOffer(SiteCapabilityKind.ConversationSpace),
-                new SiteCapabilityOffer(SiteCapabilityKind.CutsceneStage));
+                capabilities);
             return true;
         }
 
@@ -74,32 +90,49 @@ namespace Game.Composition.WorldBuilderWorldGen
             PlannedSite site,
             out CutsceneStageEnvelope envelope)
         {
+            StructureIntent intent;
+            StructureForm form;
             StructureSiteGeometry geometry;
-            if (!TryResolveGeometry(site, out geometry))
+            if (!TryResolveSite(site, out intent, out form, out geometry))
+            {
+                envelope = default(CutsceneStageEnvelope);
+                return false;
+            }
+
+            StructureInteriorEnvelope interior;
+            if (!StructureSiteGeometryResolver.TryResolveInterior(
+                    intent,
+                    _plan.Theme,
+                    form,
+                    out interior))
             {
                 envelope = default(CutsceneStageEnvelope);
                 return false;
             }
 
             envelope = new CutsceneStageEnvelope(
-                geometry.InteriorHalfWidthDm,
-                geometry.InteriorDepthDm);
+                interior.HalfWidthDm,
+                interior.DepthDm);
             return true;
         }
 
-        private bool TryResolveGeometry(
+        private bool TryResolveSite(
             PlannedSite site,
+            out StructureIntent intent,
+            out StructureForm form,
             out StructureSiteGeometry geometry)
         {
             BuildingPlot plot;
             if (!_plots.TryGetValue(site.RoleId, out plot) || !Matches(site, plot))
             {
+                intent = default(StructureIntent);
+                form = default(StructureForm);
                 geometry = default(StructureSiteGeometry);
                 return false;
             }
 
-            StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
-            StructureForm form = ArchitectureCompiler.Resolve(intent, _plan.Theme, _plan.Seed);
+            intent = KentridgeDefinition.StructureIntent(plot);
+            form = ArchitectureCompiler.Resolve(intent, _plan.Theme, _plan.Seed);
             return StructureSiteGeometryResolver.TryResolve(
                 intent,
                 _plan.Theme,

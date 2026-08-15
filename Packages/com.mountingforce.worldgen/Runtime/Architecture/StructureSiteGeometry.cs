@@ -1,14 +1,13 @@
 using System;
+using MountingForce.WorldGen.Content.Kentridge;
 
 namespace MountingForce.WorldGen.Architecture
 {
     /// <summary>
-    /// Renderer-independent horizontal realization facts for a generated structure. Bounds describe
-    /// the structure intent's fixed placement envelope in world decimetres; the public entrance is
-    /// the architecture-resolved door anchor after the authored frontage rotation is applied.
-    /// Interior dimensions describe the guaranteed clear rectangle of the main ground-floor shell,
-    /// measured from the public door centreline into the building. Wings/upper floors are deliberately
-    /// not counted, so gameplay staging never depends on optional silhouette geometry.
+    /// Renderer-independent horizontal realization facts for a structure site. Bounds describe the
+    /// fixed placement envelope in world decimetres; PublicEntranceDm is the actual authored/generated
+    /// door anchor after frontage rotation. Non-building interaction anchors (for example Kentridge's
+    /// well) are intentionally not coerced into this contract.
     /// </summary>
     public readonly struct StructureSiteGeometry
     {
@@ -16,39 +15,49 @@ namespace MountingForce.WorldGen.Architecture
         public readonly Int2 FootprintMaxDm;
         public readonly Int2 PublicEntranceDm;
         public readonly FrontageDirection PublicEntranceFacing;
-        public readonly int InteriorHalfWidthDm;
-        public readonly int InteriorDepthDm;
 
         public StructureSiteGeometry(
             Int2 footprintMinDm,
             Int2 footprintMaxDm,
             Int2 publicEntranceDm,
-            FrontageDirection publicEntranceFacing,
-            int interiorHalfWidthDm,
-            int interiorDepthDm)
+            FrontageDirection publicEntranceFacing)
         {
             if (footprintMaxDm.X <= footprintMinDm.X)
                 throw new ArgumentOutOfRangeException(nameof(footprintMaxDm));
             if (footprintMaxDm.Y <= footprintMinDm.Y)
                 throw new ArgumentOutOfRangeException(nameof(footprintMaxDm));
-            if (interiorHalfWidthDm <= 0)
-                throw new ArgumentOutOfRangeException(nameof(interiorHalfWidthDm));
-            if (interiorDepthDm <= 0)
-                throw new ArgumentOutOfRangeException(nameof(interiorDepthDm));
 
             FootprintMinDm = footprintMinDm;
             FootprintMaxDm = footprintMaxDm;
             PublicEntranceDm = publicEntranceDm;
             PublicEntranceFacing = publicEntranceFacing;
-            InteriorHalfWidthDm = interiorHalfWidthDm;
-            InteriorDepthDm = interiorDepthDm;
         }
     }
 
     /// <summary>
-    /// Resolves gameplay-facing site geometry from the same architectural form consumed by rendering
-    /// backends. Bespoke forms intentionally fail closed until their footprint/entrance/interior facts
-    /// are promoted into the Architecture handoff as well.
+    /// Guaranteed entrance-connected open rectangle for gameplay that needs usable interior space.
+    /// It is deliberately separate from site geometry so outdoor/non-interior sites remain representable
+    /// without inventing room dimensions.
+    /// </summary>
+    public readonly struct StructureInteriorEnvelope
+    {
+        public readonly int HalfWidthDm;
+        public readonly int DepthDm;
+
+        public StructureInteriorEnvelope(int halfWidthDm, int depthDm)
+        {
+            if (halfWidthDm <= 0) throw new ArgumentOutOfRangeException(nameof(halfWidthDm));
+            if (depthDm <= 0) throw new ArgumentOutOfRangeException(nameof(depthDm));
+            HalfWidthDm = halfWidthDm;
+            DepthDm = depthDm;
+        }
+    }
+
+    /// <summary>
+    /// Resolves gameplay-facing geometry from the same Architecture handoff consumed by realization
+    /// backends. Generated forms use their resolved dimensions. Kentridge's legacy bespoke buildings
+    /// publish their authored shell/door facts here so Composition no longer has to reach into Voxel.
+    /// Unsupported bespoke content fails closed.
     /// </summary>
     public static class StructureSiteGeometryResolver
     {
@@ -63,22 +72,103 @@ namespace MountingForce.WorldGen.Architecture
             StructureForm form,
             out StructureSiteGeometry geometry)
         {
-            if (!form.IsGenerated)
+            ValidateIdentity(intent, form);
+
+            Int2 localEntrance;
+            if (form.IsGenerated)
+            {
+                ArchitectureCompiler.ValidateGenerated(intent, theme, form);
+                localEntrance = ResolveGeneratedLocalEntrance(intent, form);
+            }
+            else if (!TryResolveKentridgeBespokeLocalEntrance(intent, out localEntrance))
             {
                 geometry = default(StructureSiteGeometry);
                 return false;
             }
 
-            ArchitectureCompiler.ValidateGenerated(intent, theme, form);
+            Int2 rotatedEntrance = RotatePoint(
+                localEntrance,
+                intent.EnvelopeDm.X,
+                intent.EnvelopeDm.Z,
+                (byte)intent.Frontage);
 
+            geometry = new StructureSiteGeometry(
+                intent.PositionDm,
+                new Int2(
+                    intent.PositionDm.X + intent.EnvelopeDm.X,
+                    intent.PositionDm.Y + intent.EnvelopeDm.Z),
+                new Int2(
+                    intent.PositionDm.X + rotatedEntrance.X,
+                    intent.PositionDm.Y + rotatedEntrance.Y),
+                intent.Frontage);
+            return true;
+        }
+
+        public static bool TryResolveInterior(
+            StructureIntent intent,
+            ArchitectureTheme theme,
+            StructureForm form,
+            out StructureInteriorEnvelope interior)
+        {
+            ValidateIdentity(intent, form);
+
+            if (form.IsGenerated)
+            {
+                ArchitectureCompiler.ValidateGenerated(intent, theme, form);
+                if (theme.WallThicknessDm <= 0)
+                    throw new ArgumentException(
+                        "Architecture theme must provide positive wall thickness.",
+                        nameof(theme));
+
+                int x0 = (intent.EnvelopeDm.X - form.WidthDm) / 2;
+                int doorCentreX = ResolveGeneratedLocalEntrance(intent, form).X;
+                int interiorMinX = x0 + theme.WallThicknessDm;
+                int interiorMaxX = x0 + form.WidthDm - theme.WallThicknessDm;
+                int halfWidth = Math.Min(
+                    doorCentreX - interiorMinX,
+                    interiorMaxX - doorCentreX);
+                int depth = form.DepthDm - theme.WallThicknessDm;
+                if (halfWidth <= 0 || depth <= 0)
+                    throw new InvalidOperationException(
+                        "Generated architecture has no usable main-floor interior behind its public entrance.");
+
+                interior = new StructureInteriorEnvelope(halfWidth, depth);
+                return true;
+            }
+
+            if (string.Equals(intent.StyleId, KentridgeDefinition.Id, StringComparison.Ordinal))
+            {
+                switch (intent.Archetype)
+                {
+                    case StructureArchetype.Warehouse:
+                        // Legacy voxel program: shell x=15..173, z=18..160, t=5, door centre x=94.
+                        interior = new StructureInteriorEnvelope(74, 137);
+                        return true;
+                    case StructureArchetype.Mansion:
+                        // Legacy voxel program: shell x=26..236, z=26..214, t=5, door centre x=131.
+                        interior = new StructureInteriorEnvelope(100, 183);
+                        return true;
+                    case StructureArchetype.Church:
+                        // The bell tower overlays the front of the nave. The guaranteed entrance-connected
+                        // corridor is therefore conservatively bounded by the 20dm front door and the
+                        // tower's rear wall, rather than claiming the whole nave is one unobstructed room.
+                        interior = new StructureInteriorEnvelope(10, 42);
+                        return true;
+                }
+            }
+
+            interior = default(StructureInteriorEnvelope);
+            return false;
+        }
+
+        private static Int2 ResolveGeneratedLocalEntrance(
+            StructureIntent intent,
+            StructureForm form)
+        {
             if (intent.EnvelopeDm.X <= 0 || intent.EnvelopeDm.Z <= 0)
                 throw new ArgumentException(
                     "Structure intent must provide a positive horizontal envelope.",
                     nameof(intent));
-            if (theme.WallThicknessDm <= 0)
-                throw new ArgumentException(
-                    "Architecture theme must provide positive wall thickness.",
-                    nameof(theme));
 
             int x0 = (intent.EnvelopeDm.X - form.WidthDm) / 2;
             int doorWidth = form.IsShop ? ShopDoorWidthDm : ResidentialDoorWidthDm;
@@ -90,41 +180,44 @@ namespace MountingForce.WorldGen.Architecture
                 doorX,
                 x0 + DoorSideClearanceDm,
                 x0 + form.WidthDm - doorWidth - DoorSideClearanceDm);
+            return new Int2(doorX + doorWidth / 2, FrontInsetDm);
+        }
 
-            int doorCentreX = doorX + doorWidth / 2;
-            var localEntrance = new Int2(doorCentreX, FrontInsetDm);
-            Int2 rotatedEntrance = RotatePoint(
-                localEntrance,
-                intent.EnvelopeDm.X,
-                intent.EnvelopeDm.Z,
-                (byte)intent.Frontage);
+        private static bool TryResolveKentridgeBespokeLocalEntrance(
+            StructureIntent intent,
+            out Int2 entrance)
+        {
+            if (!string.Equals(intent.StyleId, KentridgeDefinition.Id, StringComparison.Ordinal))
+            {
+                entrance = default(Int2);
+                return false;
+            }
 
-            int interiorMinX = x0 + theme.WallThicknessDm;
-            int interiorMaxX = x0 + form.WidthDm - theme.WallThicknessDm;
-            int interiorHalfWidth = Math.Min(
-                doorCentreX - interiorMinX,
-                interiorMaxX - doorCentreX);
-            int interiorDepth = form.DepthDm - theme.WallThicknessDm;
-            if (interiorHalfWidth <= 0 || interiorDepth <= 0)
+            switch (intent.Archetype)
+            {
+                case StructureArchetype.Warehouse:
+                    entrance = new Int2(94, 18);
+                    return true;
+                case StructureArchetype.Mansion:
+                    entrance = new Int2(131, 26);
+                    return true;
+                case StructureArchetype.Church:
+                    entrance = new Int2(82, 18);
+                    return true;
+                default:
+                    // Well's canonical anchor is an interaction point at (28,28), not a public entrance.
+                    entrance = default(Int2);
+                    return false;
+            }
+        }
+
+        private static void ValidateIdentity(StructureIntent intent, StructureForm form)
+        {
+            if (form.RoleId != intent.RoleId
+                || form.Archetype != intent.Archetype
+                || form.District != intent.District)
                 throw new InvalidOperationException(
-                    "Generated architecture has no usable main-floor interior behind its public entrance.");
-
-            var min = intent.PositionDm;
-            var max = new Int2(
-                intent.PositionDm.X + intent.EnvelopeDm.X,
-                intent.PositionDm.Y + intent.EnvelopeDm.Z);
-            var entrance = new Int2(
-                intent.PositionDm.X + rotatedEntrance.X,
-                intent.PositionDm.Y + rotatedEntrance.Y);
-
-            geometry = new StructureSiteGeometry(
-                min,
-                max,
-                entrance,
-                intent.Frontage,
-                interiorHalfWidth,
-                interiorDepth);
-            return true;
+                    "Architecture form does not describe the supplied structure intent identity.");
         }
 
         private static int Clamp(int value, int minimum, int maximum)
@@ -137,7 +230,6 @@ namespace MountingForce.WorldGen.Architecture
         }
 
         // Mirrors VoxelEngine ShapeProgram.RotatePoint without taking a VoxelEngine dependency.
-        // FrontageDirection values intentionally equal the quarter-turn orientation values.
         private static Int2 RotatePoint(Int2 point, int footprintX, int footprintZ, byte orientation)
         {
             int maxX = footprintX - 1;

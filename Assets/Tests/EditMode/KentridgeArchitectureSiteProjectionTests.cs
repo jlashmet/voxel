@@ -50,43 +50,65 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(252, geometry.PublicEntranceDm.Y);
             Assert.AreEqual(FrontageDirection.West, geometry.PublicEntranceFacing);
 
-            // Main body spans x=15..109 with four-decimetre walls. The offset door centre x=52
-            // therefore guarantees 33dm laterally to the nearer interior wall. From the door plane
-            // to the inner face of the rear wall there are 70-4 = 66dm of usable depth.
-            Assert.AreEqual(33, geometry.InteriorHalfWidthDm);
-            Assert.AreEqual(66, geometry.InteriorDepthDm);
+            StructureInteriorEnvelope interior;
+            Assert.IsTrue(StructureSiteGeometryResolver.TryResolveInterior(
+                intent, KentridgeDefinition.Theme, form, out interior));
+            Assert.AreEqual(33, interior.HalfWidthDm);
+            Assert.AreEqual(66, interior.DepthDm);
         }
 
         [Test]
-        public void BespokeArchitectureFailsClosedUntilItPublishesGeometry()
+        public void BespokeBuildingGeometryIsOwnedByArchitectureInsteadOfVoxel()
+        {
+            AssertBespoke(
+                roleId: (int)KentridgeRole.Warehouse,
+                archetype: StructureArchetype.Warehouse,
+                envelope: 196,
+                expectedDoorX: 94,
+                expectedDoorZ: 18,
+                expectedHalfWidth: 74,
+                expectedDepth: 137);
+            AssertBespoke(
+                roleId: (int)KentridgeRole.RadcliffeMansion,
+                archetype: StructureArchetype.Mansion,
+                envelope: 268,
+                expectedDoorX: 131,
+                expectedDoorZ: 26,
+                expectedHalfWidth: 100,
+                expectedDepth: 183);
+            AssertBespoke(
+                roleId: (int)KentridgeRole.Church,
+                archetype: StructureArchetype.Church,
+                envelope: 164,
+                expectedDoorX: 82,
+                expectedDoorZ: 18,
+                expectedHalfWidth: 10,
+                expectedDepth: 42);
+        }
+
+        [Test]
+        public void WellInteractionAnchorIsNotMisrepresentedAsPublicEntrance()
         {
             var intent = new StructureIntent(
-                2,
+                (int)KentridgeRole.Well,
                 KentridgeDefinition.Id,
-                StructureArchetype.Church,
+                StructureArchetype.Well,
                 DistrictKind.Civic,
-                new Int2(0, 0),
+                new Int2(100, 200),
                 FrontageDirection.South,
-                new Int3(164, 180, 164));
-            var form = new StructureForm(
-                2,
-                StructureArchetype.Church,
-                DistrictKind.Civic,
-                StructureGenerationMode.Bespoke,
-                FootprintForm.Rectangle,
-                RoofForm.Gable,
-                FrontageRhythm.TwoBay,
-                WindowTreatment.Glass,
-                0, 0, 0, 0, 0, 0, 0, 0,
-                false, false);
+                new Int3(56, 60, 56));
+            StructureForm form = BespokeForm(intent);
 
             StructureSiteGeometry geometry;
+            StructureInteriorEnvelope interior;
             Assert.IsFalse(StructureSiteGeometryResolver.TryResolve(
                 intent, KentridgeDefinition.Theme, form, out geometry));
+            Assert.IsFalse(StructureSiteGeometryResolver.TryResolveInterior(
+                intent, KentridgeDefinition.Theme, form, out interior));
         }
 
         [Test]
-        public void KentridgeProjectionExposesGeneratedInteriorAndStageEnvelopeOnly()
+        public void KentridgeProjectionExposesSixteenDoorAccessibleSitesAndExcludesWell()
         {
             SettlementPlan plan = KentridgeDefinition.Build(Seed);
             var provider = new KentridgeArchitectureSiteProjectionProvider(plan);
@@ -100,6 +122,7 @@ namespace VoxelEngine.Tests.EditMode
                 if (!provider.TryProject(site, out projection))
                 {
                     excluded++;
+                    Assert.AreEqual((int)KentridgeRole.Well, site.RoleId);
                     CutsceneStageEnvelope excludedEnvelope;
                     Assert.IsFalse(provider.TryGetCutsceneStageEnvelope(site, out excludedEnvelope));
                     continue;
@@ -122,9 +145,54 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(expectedArchetype, projection.Archetype);
             }
 
-            Assert.AreEqual(13, projected);
-            Assert.AreEqual(4, excluded);
+            Assert.AreEqual(16, projected);
+            Assert.AreEqual(1, excluded);
         }
+
+        private static void AssertBespoke(
+            int roleId,
+            StructureArchetype archetype,
+            int envelope,
+            int expectedDoorX,
+            int expectedDoorZ,
+            int expectedHalfWidth,
+            int expectedDepth)
+        {
+            var intent = new StructureIntent(
+                roleId,
+                KentridgeDefinition.Id,
+                archetype,
+                DistrictKind.Civic,
+                new Int2(100, 200),
+                FrontageDirection.South,
+                new Int3(envelope, 200, envelope));
+            StructureForm form = BespokeForm(intent);
+
+            StructureSiteGeometry geometry;
+            Assert.IsTrue(StructureSiteGeometryResolver.TryResolve(
+                intent, KentridgeDefinition.Theme, form, out geometry));
+            Assert.AreEqual(100 + expectedDoorX, geometry.PublicEntranceDm.X);
+            Assert.AreEqual(200 + expectedDoorZ, geometry.PublicEntranceDm.Y);
+
+            StructureInteriorEnvelope interior;
+            Assert.IsTrue(StructureSiteGeometryResolver.TryResolveInterior(
+                intent, KentridgeDefinition.Theme, form, out interior));
+            Assert.AreEqual(expectedHalfWidth, interior.HalfWidthDm);
+            Assert.AreEqual(expectedDepth, interior.DepthDm);
+        }
+
+        private static StructureForm BespokeForm(StructureIntent intent) =>
+            new StructureForm(
+                intent.RoleId,
+                intent.Archetype,
+                intent.District,
+                StructureGenerationMode.Bespoke,
+                FootprintForm.Rectangle,
+                RoofForm.Gable,
+                FrontageRhythm.TwoBay,
+                WindowTreatment.Glass,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                false, false);
 
         private static bool HasCapability(
             SettlementSiteProjection projection,
