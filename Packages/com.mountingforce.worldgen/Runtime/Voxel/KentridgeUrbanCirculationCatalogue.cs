@@ -5,7 +5,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Features.Emitters;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -107,8 +107,6 @@ namespace MountingForce.WorldGen.Voxel
                     FixedAltitude = 0,
                     Footprint = build.Footprint,
                     MaxSlope = 32,
-                    // Contours belong with roads; stair streets must sit above smooth terrain and
-                    // anonymous fabric but remain below the more specialised access/gallery layers.
                     Precedence = stairStreet ? (byte)89 : (byte)23,
                     ParameterOffset = 0,
                     ParameterCount = 0,
@@ -211,11 +209,11 @@ namespace MountingForce.WorldGen.Voxel
             Int2 middle = new Int2(
                 (minPoint.X + maxPoint.X) / 2,
                 (minPoint.Y + maxPoint.Y) / 2);
-            int naturalMinEnd = TerrainSampler.HeightAt(
+            int naturalMinEnd = TerrainQuery.HeightAt(
                 minPoint.X * scale, minPoint.Y * scale, seed);
-            int naturalMid = TerrainSampler.HeightAt(
+            int naturalMid = TerrainQuery.HeightAt(
                 middle.X * scale, middle.Y * scale, seed);
-            int naturalMaxEnd = TerrainSampler.HeightAt(
+            int naturalMaxEnd = TerrainQuery.HeightAt(
                 maxPoint.X * scale, maxPoint.Y * scale, seed);
             int minNatural = Math.Min(naturalMinEnd, Math.Min(naturalMid, naturalMaxEnd));
             int maxNatural = Math.Max(naturalMinEnd, Math.Max(naturalMid, naturalMaxEnd));
