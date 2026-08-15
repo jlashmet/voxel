@@ -1,0 +1,36 @@
+name: Net session snapshot call repair
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-session-snapshot-call-repair.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('Assets/VoxelEngine/Net/Server/AuthoritativeServerSession.cs')
+          s=p.read_text()
+          old='''            _network.FlushReplication();\n            _convergence.EmitHashes(\n                serverTick,\n                ref table,\n                in pool,\n                _network.Replication.Subscriptions,\n                _network);\n\n            var storageReadSource = new RegionReadSource(in table, in pool);\n            _bulkRegionState.ProcessRequests(\n'''
+          new='''            _network.FlushReplication();\n            var storageReadSource = new RegionReadSource(in table, in pool);\n            _convergence.EmitHashes(\n                serverTick,\n                storageReadSource,\n                storageReadSource,\n                _network.Replication.Subscriptions,\n                _network);\n\n            _bulkRegionState.ProcessRequests(\n'''
+          if s.count(old)!=1:
+              raise SystemExit(f'expected one call block, got {s.count(old)}')
+          p.write_text(s.replace(old,new,1))
+          PY
+          git rm .github/workflows/net-session-snapshot-call-repair.yml
+          git diff --check
+          git diff -- Assets/VoxelEngine/Net/Server/AuthoritativeServerSession.cs
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Net/Server/AuthoritativeServerSession.cs
+          git commit -m 'net: wire convergence through Storage snapshot source'
+          git push origin HEAD:${{ github.ref_name }}
