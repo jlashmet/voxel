@@ -1,0 +1,61 @@
+name: Stable final static doc sync
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths: [.github/workflows/stable-final-doc-sync.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-stable
+          fetch-depth: 0
+      - name: Synchronize accepted static architecture status
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then
+            echo "stale doc sync; current=$(git rev-parse HEAD) event=$GITHUB_SHA"
+            exit 0
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          lines = path.read_text().splitlines()
+
+          for i, line in enumerate(lines):
+              if line.startswith('**Current focus:**'):
+                  lines[i] = '**Current focus:** Cutover 13 — all static architecture tasks accepted; final Unity/EditMode parity pending'
+              elif line.startswith('| 0 — Guardrails |'):
+                  lines[i] = '| 0 — Guardrails | **Complete** | GUID-aware asmdef boundary guard, deterministic-root policy, WorldGen boundary guards, no-Core and no-legacy-adapter enforcement | none |'
+              elif line.startswith('| 13 — Composition/Core deletion |'):
+                  lines[i] = '| 13 — Composition/Core deletion | **In progress — final Unity parity pending** | all concrete Showcase runtime ownership is under `Composition`; `VoxelEngine.Showcase` is Runtime-free; permanent dependency/Core/legacy-adapter guards and the final dependency report are accepted; repository-wide Core-literal inventory confirms residual non-production mentions are historical docs/tests/tooling rather than live architecture | exact EditMode 387/374/13 acceptance for the final Composition move and final validation closeout |'
+              elif line.strip() == '[ ] no compatibility/legacy adapter was introduced to preserve the old architecture':
+                  lines[i] = '[x] no compatibility/legacy adapter was introduced to preserve the old architecture'
+
+          note = '- Latest accepted stable no-legacy static gate: source `68c872b805bcf49794355bc249af3bfcabaa1f75`, run `31910007277`, job `95073540254` — the final dependency scan also rejects production `Legacy*` / `*Compatibility*` adapter source. All static architecture checklist items are accepted; final Unity/EditMode parity remains pending.'
+          if note not in lines:
+              insert_at = next((i + 1 for i, line in enumerate(lines) if line.startswith('- Latest accepted stable static gate:')), None)
+              if insert_at is None:
+                  raise SystemExit('stable static gate note not found')
+              lines.insert(insert_at, note)
+
+          if '[x] no compatibility/legacy adapter was introduced to preserve the old architecture' not in lines:
+              raise SystemExit('compatibility/legacy final checklist item was not updated')
+
+          path.write_text('\n'.join(lines) + '\n')
+          PY
+          git rm .github/workflows/stable-final-doc-sync.yml
+          git diff --check -- docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'docs(architecture): record final static closure'
+          git push origin HEAD:refactor/system-boundaries-finalization-stable
