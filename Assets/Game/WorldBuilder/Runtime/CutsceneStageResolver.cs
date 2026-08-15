@@ -6,80 +6,8 @@ using Game.WorldBuilder.Api;
 namespace Game.WorldBuilder.Runtime
 {
     /// <summary>
-    /// Backend-neutral realized geometry needed to stage a cutscene inside a site.
-    /// Positions and dimensions are integer decimetres. EntrancePosition is the public threshold;
-    /// Inward and Right are orthogonal horizontal unit axes in world space.
-    /// </summary>
-    public readonly struct CutsceneSiteGeometry
-    {
-        public CutsceneInt3 EntrancePosition { get; }
-        public CutsceneInt3 Inward { get; }
-        public CutsceneInt3 Right { get; }
-        public int InteriorHalfWidthDecimetres { get; }
-        public int InteriorDepthDecimetres { get; }
-
-        public CutsceneSiteGeometry(
-            CutsceneInt3 entrancePosition,
-            CutsceneInt3 inward,
-            CutsceneInt3 right,
-            int interiorHalfWidthDecimetres,
-            int interiorDepthDecimetres)
-        {
-            if (!IsHorizontalUnit(inward))
-                throw new ArgumentException("Cutscene site inward axis must be a horizontal cardinal unit vector.", nameof(inward));
-            if (!IsHorizontalUnit(right))
-                throw new ArgumentException("Cutscene site right axis must be a horizontal cardinal unit vector.", nameof(right));
-            if (Dot(inward, right) != 0)
-                throw new ArgumentException("Cutscene site inward and right axes must be orthogonal.", nameof(right));
-            if (interiorHalfWidthDecimetres <= 0)
-                throw new ArgumentOutOfRangeException(nameof(interiorHalfWidthDecimetres));
-            if (interiorDepthDecimetres <= 0)
-                throw new ArgumentOutOfRangeException(nameof(interiorDepthDecimetres));
-
-            EntrancePosition = entrancePosition;
-            Inward = inward;
-            Right = right;
-            InteriorHalfWidthDecimetres = interiorHalfWidthDecimetres;
-            InteriorDepthDecimetres = interiorDepthDecimetres;
-        }
-
-        private static bool IsHorizontalUnit(CutsceneInt3 value) =>
-            value.Y == 0 && Math.Abs(value.X) + Math.Abs(value.Z) == 1;
-
-        private static int Dot(CutsceneInt3 a, CutsceneInt3 b) =>
-            a.X * b.X + a.Y * b.Y + a.Z * b.Z;
-    }
-
-    /// <summary>
-    /// Supplied by composition/realization code after a site has concrete geometry. WorldBuilder
-    /// deliberately does not know whether that geometry came from voxels, a room grammar, or an
-    /// authored scene.
-    /// </summary>
-    public interface ICutsceneSiteGeometryProvider
-    {
-        bool TryResolve(SiteRef site, out CutsceneSiteGeometry geometry);
-    }
-
-    public sealed class CutsceneStageRealization
-    {
-        public CutsceneRef Cutscene { get; }
-        public SiteRef Site { get; }
-        public CutsceneStageBinding Binding { get; }
-
-        internal CutsceneStageRealization(
-            CutsceneRef cutscene,
-            SiteRef site,
-            CutsceneStageBinding binding)
-        {
-            Cutscene = cutscene;
-            Site = site;
-            Binding = binding ?? throw new ArgumentNullException(nameof(binding));
-        }
-    }
-
-    /// <summary>
     /// Resolves semantic stage-region requirements into deterministic positions. It never contains
-    /// cutscene-specific point names or Kentridge-specific offsets.
+    /// cutscene-specific point names or site-specific offsets.
     /// </summary>
     public static class ProceduralCutsceneStageResolver
     {
@@ -204,7 +132,6 @@ namespace Game.WorldBuilder.Runtime
                     "Cutscene stage region cannot fit " + count +
                     " occupied points with the requested clearance.");
 
-            // Twice-the-coordinate arithmetic keeps odd/even groups centered without floats.
             return ((2 * index - (count - 1)) * separation) / 2;
         }
 
