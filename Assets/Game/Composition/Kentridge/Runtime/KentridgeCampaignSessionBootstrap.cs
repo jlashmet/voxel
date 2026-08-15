@@ -11,8 +11,8 @@ namespace Game.Composition.Kentridge.Runtime
 {
     /// <summary>
     /// Fully realized campaign session after generated-world placement and authoritative gameplay
-    /// actors have been connected. The bootstrap does not own authored content, character runtime,
-    /// or voxel runtime.
+    /// actors/secrets have been connected. The bootstrap does not own authored content, character
+    /// runtime, voxel runtime, or secret interaction implementation.
     /// </summary>
     public sealed class KentridgeCampaignSession
     {
@@ -40,7 +40,7 @@ namespace Game.Composition.Kentridge.Runtime
     /// Concrete application-level Kentridge bootstrap. Plan is called before voxel emission so the
     /// backend can include Generation.HiddenSpaces. CreateSession is called after the backend has
     /// exact site/hidden-space realization facts. Authored content only needs to supply a
-    /// CampaignBlueprint; character creation and presentation stay behind narrow adapters.
+    /// CampaignBlueprint; character, presentation, and secret interaction stay behind narrow adapters.
     /// </summary>
     public static class KentridgeCampaignSessionBootstrap
     {
@@ -66,7 +66,8 @@ namespace Game.Composition.Kentridge.Runtime
             ISettlementSiteRealizationFacts siteFacts,
             IKentridgeCampaignActorHost actors,
             ICutscenePresentation presentation,
-            IHiddenSpaceRealizationFacts hiddenSpaceFacts = null)
+            IHiddenSpaceRealizationFacts hiddenSpaceFacts = null,
+            IKentridgeCampaignSecretHost secretHost = null)
         {
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
             if (generation == null) throw new ArgumentNullException(nameof(generation));
@@ -82,6 +83,18 @@ namespace Game.Composition.Kentridge.Runtime
                     generation,
                     siteFacts,
                     hiddenSpaceFacts);
+
+            // A selected secret is not gameplay-ready until its exact generated room/entrance/container
+            // geometry is registered by the authoritative interaction host. Require that handoff before
+            // touching character state so incomplete session wiring fails cleanly.
+            if (world.Secrets.Count > 0)
+            {
+                if (secretHost == null)
+                    throw new ArgumentNullException(
+                        nameof(secretHost),
+                        "Campaign selected physical secrets but no gameplay secret host was supplied.");
+                secretHost.PrepareSecrets(world.Secrets);
+            }
 
             // Player actors are session-owned and must already exist. Check them before preparing any
             // NPCs so a missing local/network player cannot leave the actor host partially mutated.
