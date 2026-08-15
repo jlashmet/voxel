@@ -13,14 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ed126903cd18dcd62324fab41942d41fdaa37532
+          ref: 4a8fa6a98967872337f3e945b2663b8c6c8dd5ef
           clean: false
           fetch-depth: 1
-      - name: Reset tracked and non-cache files
+      - name: Reset pinned source while preserving Unity cache
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard ed126903cd18dcd62324fab41942d41fdaa37532
+          git reset --hard 4a8fa6a98967872337f3e945b2663b8c6c8dd5ef
           git clean -ffdx -e Library/
       - id: unity
         shell: bash
@@ -36,10 +36,13 @@ jobs:
           set -euo pipefail
           deadline=$((SECONDS + 600))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
-            if (( SECONDS >= deadline )); then exit 1; fi
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
             sleep 5
           done
-      - name: Run clean EditMode acceptance suite
+      - name: Run pinned EditMode acceptance suite
         shell: bash
         run: |
           set -uo pipefail
@@ -50,14 +53,23 @@ jobs:
           UNITY_MAX_RSS_MB=8192 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" \
           tools/unity-run.sh \
-            -batchmode -nographics -job-worker-count 1 \
+            -batchmode \
+            -nographics \
+            -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" \
-            -runTests -testPlatform EditMode \
+            -runTests \
+            -testPlatform EditMode \
             -testResults "$ROOT/results.xml" \
             -logFile "$ROOT/unity.log"
           status=$?
-          if [[ $status -ne 0 ]]; then exit $status; fi
           test -s "$ROOT/results.xml"
+          exit $status
+      - name: Show Unity log tail
+        if: always()
+        shell: bash
+        run: |
+          LOG="$GITHUB_WORKSPACE/Artifacts/NetworkingCI/unity.log"
+          if [[ -f "$LOG" ]]; then tail -n 250 "$LOG"; fi
       - if: always()
         uses: actions/upload-artifact@v4
         with:
