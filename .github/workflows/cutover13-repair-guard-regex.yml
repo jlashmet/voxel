@@ -1,0 +1,48 @@
+name: Cutover 13 repair guard regex
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-repair-guard-regex.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+
+      - name: Restore C# regex escaping
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs')
+          text = path.read_text()
+          text = text.replace(r'\s', r'\\s')
+          text = text.replace(r'\[', r'\\[')
+          text = text.replace(r'\]', r'\\]')
+          path.write_text(text)
+          PY
+          grep -n 'Regex = new Regex' -A2 Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs
+          git diff --check
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'No repair needed.'
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs
+          git commit -m 'test(architecture): repair guard regex escaping'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
