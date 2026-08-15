@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Collision.Runtime;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering;

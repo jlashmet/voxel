@@ -1,6 +1,6 @@
 using Unity.Mathematics;
 
-namespace VoxelEngine.Core.Vegetation
+namespace VoxelEngine.Vegetation.Api
 {
     public enum TreeSpecies : byte
     {

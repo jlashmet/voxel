@@ -10,7 +10,8 @@
     "Unity.Mathematics",
     "VoxelEngine.Tiering.Api",
     "Unity.RenderPipelines.Universal.Runtime",
-    "Unity.RenderPipelines.Core.Runtime"
+    "Unity.RenderPipelines.Core.Runtime",
+    "VoxelEngine.Vegetation.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -4,10 +4,11 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Rendering;
 using VoxelEngine.Rendering.Vegetation;
 using VoxelEngine.Showcase;
-using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
+using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
 namespace VoxelEngine.CI
 {

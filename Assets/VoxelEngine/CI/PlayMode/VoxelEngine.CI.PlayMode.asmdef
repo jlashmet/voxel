@@ -6,7 +6,8 @@
     "VoxelEngine.Vegetation",
     "VoxelEngine.Rendering",
     "VoxelEngine.Showcase",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "VoxelEngine.Vegetation.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using Random = Unity.Mathematics.Random;
+using VoxelEngine.Vegetation.Api;
 
 namespace VoxelEngine.Core.Vegetation
 {

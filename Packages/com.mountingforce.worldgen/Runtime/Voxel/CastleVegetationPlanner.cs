@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using MountingForce.WorldGen;
 using Unity.Mathematics;
-using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Storage.Api;
-using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
+using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel

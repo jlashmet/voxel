@@ -3,6 +3,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Api;
 
 namespace VoxelEngine.Rendering.Vegetation
 {

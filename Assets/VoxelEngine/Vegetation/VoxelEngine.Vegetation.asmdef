@@ -1,7 +1,10 @@
 {
   "name": "VoxelEngine.Vegetation",
   "rootNamespace": "VoxelEngine.Core.Vegetation",
-  "references": ["Unity.Mathematics"],
+  "references": [
+    "Unity.Mathematics",
+    "VoxelEngine.Vegetation.Api"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

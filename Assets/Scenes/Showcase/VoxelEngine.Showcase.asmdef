@@ -19,7 +19,8 @@
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",
     "VoxelEngine.Streaming.Runtime",
-    "VoxelEngine.Collision.Runtime"
+    "VoxelEngine.Collision.Runtime",
+    "VoxelEngine.Vegetation.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

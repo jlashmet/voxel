@@ -13,7 +13,8 @@
     "VoxelEngine.Showcase",
     "Unity.Collections",
     "Unity.Mathematics",
-    "VoxelEngine.Terrain.Api"
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Vegetation.Api"
   ],
   "includePlatforms": [
     "Editor"
