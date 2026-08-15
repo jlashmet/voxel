@@ -11,9 +11,9 @@ namespace VoxelEngine.Storage.Api
     /// exactly what Terrain generation emits today and keeps physical pool allocation out of the
     /// Terrain boundary. Mixed voxel mutation belongs to the Edits/write API, not this fast path.
     /// </summary>
-    public readonly struct RegionGenerationWriteView
+    public struct RegionGenerationWriteView
     {
-        private readonly NativeArray<int> _encodedBlockRefs;
+        private NativeArray<int> _encodedBlockRefs;
 
         public int3 RegionCoord { get; }
         public bool IsCreated => _encodedBlockRefs.IsCreated;
