@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
 
 using VoxelEngine.Structures.Api;
 
@@ -161,7 +159,7 @@ namespace MountingForce.WorldGen.Voxel
                     width,
                     rise,
                     length,
-                    (byte)(2 | BoxEmitter.ReverseRampBit),
+                    (byte)(2 | ShapeOps.ReverseRampBit),
                     paving);
             }
 

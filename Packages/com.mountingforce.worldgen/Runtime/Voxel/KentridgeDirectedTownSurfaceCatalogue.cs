@@ -1,7 +1,5 @@
 using System;
 using Unity.Collections;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
 
 using VoxelEngine.Structures.Api;
 
@@ -91,15 +89,15 @@ namespace MountingForce.WorldGen.Voxel
                 {
                     int axisIndex = pc + 2 + RampAxisOperand;
                     int axis = catalogue.Program[axisIndex];
-                    int baseAxis = axis & BoxEmitter.RampAxisMask;
+                    int baseAxis = axis & ShapeOps.RampAxisMask;
                     if (baseAxis != 0 && baseAxis != 2)
                         throw new InvalidOperationException(
                             "Kentridge public road ramp used an unsupported axis: " + axis);
-                    if ((axis & BoxEmitter.ReverseRampBit) != 0)
+                    if ((axis & ShapeOps.ReverseRampBit) != 0)
                         throw new InvalidOperationException(
                             "Kentridge ramp was already marked reversed before direction adaptation.");
 
-                    catalogue.Program[axisIndex] = axis | BoxEmitter.ReverseRampBit;
+                    catalogue.Program[axisIndex] = axis | ShapeOps.ReverseRampBit;
                     found = true;
                 }
 

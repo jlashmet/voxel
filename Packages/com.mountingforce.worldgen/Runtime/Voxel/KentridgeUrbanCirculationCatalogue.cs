@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
 using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
@@ -204,7 +202,7 @@ namespace MountingForce.WorldGen.Voxel
             int lowTarget = Math.Min(targetMin, targetMax);
             int delta = Math.Abs(targetMax - targetMin);
             if (targetMin > targetMax)
-                axis = (byte)(axis | BoxEmitter.ReverseRampBit);
+                axis = (byte)(axis | ShapeOps.ReverseRampBit);
 
             Int2 middle = new Int2(
                 (minPoint.X + maxPoint.X) / 2,
@@ -305,7 +303,7 @@ namespace MountingForce.WorldGen.Voxel
             int nominalRise = Math.Max(1, StairRiseDm * scale);
             int stepCount = Math.Max(2, (build.HeightDelta + nominalRise - 1) / nominalRise);
             stepCount = Math.Min(stepCount, 48);
-            bool highAtMin = (build.RampAxis & BoxEmitter.ReverseRampBit) != 0;
+            bool highAtMin = (build.RampAxis & ShapeOps.ReverseRampBit) != 0;
 
             for (int step = 0; step < stepCount; step++)
             {
