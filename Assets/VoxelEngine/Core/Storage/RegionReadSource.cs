@@ -5,13 +5,14 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Core.Storage
 {
     /// <summary>
-    /// Current Storage implementation of the public region-read and focused world-surface boundaries.
+    /// Current Storage implementation of the public region-read, semantic-snapshot and focused
+    /// world-surface boundaries.
     ///
     /// This type moves to Storage.Runtime when the physical storage files leave Core. It owns
     /// no memory: RegionTable/BrickPool native containers are borrowed and remain owned by the
     /// existing world-storage lifecycle.
     /// </summary>
-    public sealed class RegionReadSource : IRegionReadSource, IVoxelSurfaceQuery
+    public sealed class RegionReadSource : IRegionReadSource, IVoxelSurfaceQuery, IRegionSnapshotSource
     {
         private RegionTable _table;
         private BrickPool _pool;
@@ -71,6 +72,23 @@ namespace VoxelEngine.Core.Storage
                 _pool.SurfaceSemantics,
                 _pool.BoundarySamples,
                 _pool.Occupancy);
+            return true;
+        }
+
+        public bool TryCaptureSemanticSnapshot(
+            int3 regionCoord,
+            int maxBytes,
+            out RegionSemanticSnapshot snapshot)
+        {
+            snapshot = default;
+            if (!_table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
+                return false;
+
+            if (!SemanticRegionSnapshotCodec.TryEncode(in region, in _pool, maxBytes, out byte[] bytes))
+                return false;
+
+            uint semanticHash = SemanticRegionHasher.HashRegion(in region, in _pool);
+            snapshot = new RegionSemanticSnapshot(regionCoord, semanticHash, bytes);
             return true;
         }
 
