@@ -1,0 +1,112 @@
+name: Rendering physical Api Runtime split
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/rendering-physical-split.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          clean: true
+      - shell: bash
+        run: |
+          set -euo pipefail
+          test -f Assets/VoxelEngine/Rendering/VoxelEngine.Rendering.asmdef
+          test ! -e Assets/VoxelEngine/Rendering/Runtime
+          test ! -e Assets/VoxelEngine/Rendering/Api
+          mkdir -p Assets/VoxelEngine/Rendering/Runtime Assets/VoxelEngine/Rendering/Api
+          for name in Irradiance RenderFeature Shaders SurfaceExtraction Vegetation; do
+            git mv "Assets/VoxelEngine/Rendering/$name" "Assets/VoxelEngine/Rendering/Runtime/$name"
+            git mv "Assets/VoxelEngine/Rendering/$name.meta" "Assets/VoxelEngine/Rendering/Runtime/$name.meta"
+          done
+          git mv Assets/VoxelEngine/Rendering/AssemblyInfo.cs Assets/VoxelEngine/Rendering/Runtime/AssemblyInfo.cs
+          git mv Assets/VoxelEngine/Rendering/AssemblyInfo.cs.meta Assets/VoxelEngine/Rendering/Runtime/AssemblyInfo.cs.meta
+          git mv Assets/VoxelEngine/Rendering/VoxelEngine.Rendering.asmdef Assets/VoxelEngine/Rendering/Runtime/VoxelEngine.Rendering.Runtime.asmdef
+          git mv Assets/VoxelEngine/Rendering/VoxelEngine.Rendering.asmdef.meta Assets/VoxelEngine/Rendering/Runtime/VoxelEngine.Rendering.Runtime.asmdef.meta
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, uuid
+          runtime = Path('Assets/VoxelEngine/Rendering/Runtime/VoxelEngine.Rendering.Runtime.asmdef')
+          data = json.loads(runtime.read_text())
+          data['name'] = 'VoxelEngine.Rendering.Runtime'
+          data['rootNamespace'] = 'VoxelEngine.Rendering.Runtime'
+          data['autoReferenced'] = False
+          runtime.write_text(json.dumps(data, indent=2) + '\n')
+
+          api = {
+            'name':'VoxelEngine.Rendering.Api',
+            'rootNamespace':'VoxelEngine.Rendering.Api',
+            'references':[],
+            'includePlatforms':[],
+            'excludePlatforms':[],
+            'allowUnsafeCode':False,
+            'overrideReferences':False,
+            'precompiledReferences':[],
+            'autoReferenced':False,
+            'defineConstraints':[],
+            'versionDefines':[],
+            'noEngineReferences':False,
+          }
+          Path('Assets/VoxelEngine/Rendering/Api/VoxelEngine.Rendering.Api.asmdef').write_text(json.dumps(api, indent=2) + '\n')
+
+          def folder_meta(path):
+              Path(path).write_text(
+                  'fileFormatVersion: 2\n'
+                  f'guid: {uuid.uuid4().hex}\n'
+                  'folderAsset: yes\n'
+                  'DefaultImporter:\n'
+                  '  externalObjects: {}\n'
+                  '  userData: \n'
+                  '  assetBundleName: \n'
+                  '  assetBundleVariant: \n')
+          def file_meta(path):
+              Path(path).write_text(f'fileFormatVersion: 2\nguid: {uuid.uuid4().hex}\n')
+          folder_meta('Assets/VoxelEngine/Rendering/Runtime.meta')
+          folder_meta('Assets/VoxelEngine/Rendering/Api.meta')
+          file_meta('Assets/VoxelEngine/Rendering/Api/VoxelEngine.Rendering.Api.asmdef.meta')
+
+          expected = [
+              Path('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef'),
+              Path('Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef'),
+              Path('Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef'),
+              Path('Assets/VoxelEngine/CI/Editor/VoxelEngine.CI.Editor.asmdef'),
+              Path('Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef'),
+          ]
+          for p in expected:
+              obj = json.loads(p.read_text())
+              refs = obj.get('references', [])
+              if refs.count('VoxelEngine.Rendering') != 1:
+                  raise SystemExit(f'{p}: expected exactly one broad Rendering reference')
+              refs = ['VoxelEngine.Rendering.Runtime' if r == 'VoxelEngine.Rendering' else r for r in refs]
+              obj['references'] = refs
+              p.write_text(json.dumps(obj, indent=2) + '\n')
+
+          guard = Path('Assets/Tests/EditMode/VegetationAssemblyBoundaryTests.cs')
+          text = guard.read_text()
+          old = 'Path.Combine(root, "Assets", "VoxelEngine", "Rendering", "VoxelEngine.Rendering.asmdef")'
+          new = 'Path.Combine(root, "Assets", "VoxelEngine", "Rendering", "Runtime", "VoxelEngine.Rendering.Runtime.asmdef")'
+          if text.count(old) != 1:
+              raise SystemExit('expected one Rendering asmdef guard path')
+          guard.write_text(text.replace(old, new, 1))
+          PY
+          git rm .github/workflows/rendering-physical-split.yml .github/workflows/rendering-cutover-inventory.yml
+          test ! -e Assets/VoxelEngine/Rendering/VoxelEngine.Rendering.asmdef
+          test -f Assets/VoxelEngine/Rendering/Runtime/VoxelEngine.Rendering.Runtime.asmdef
+          test -f Assets/VoxelEngine/Rendering/Api/VoxelEngine.Rendering.Api.asmdef
+          count=$(grep -RIl '"VoxelEngine.Rendering.Runtime"' Assets Packages --include='*.asmdef' | wc -l | tr -d ' ')
+          test "$count" = 5
+          ! grep -RIn '"VoxelEngine.Rendering"' Assets Packages --include='*.asmdef'
+          git diff --check
+          git status --short
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Rendering Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef Assets/Tests/EditMode/VegetationAssemblyBoundaryTests.cs Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef Assets/VoxelEngine/CI/Editor/VoxelEngine.CI.Editor.asmdef Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef
+          git add -u .github/workflows
+          git commit -m 'refactor: split Rendering into Api and Runtime assemblies'
+          git push origin HEAD:${{ github.ref_name }}
