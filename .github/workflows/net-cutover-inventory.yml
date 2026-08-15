@@ -1,0 +1,35 @@
+name: Net cutover inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo '=== RepairDispatch refs ==='
+          grep -RIn 'RepairDispatch' Assets Packages --include='*.cs' | sort || true
+          echo '=== ServerRegionResidency refs ==='
+          grep -RIn 'ServerRegionResidency' Assets Packages --include='*.cs' | sort || true
+          echo '=== RegionHasher refs ==='
+          grep -RIn 'RegionHasher' Assets Packages --include='*.cs' | sort || true
+          echo '=== Snapshot source refs ==='
+          grep -RIn 'IRegionSnapshotSource\|CaptureSemanticSnapshot\|RegionSemanticSnapshot' Assets/VoxelEngine/Net Assets/Tests --include='*.cs' | sort || true
+          echo '=== RegionStore refs/files ==='
+          find Assets/VoxelEngine/Net -iname '*RegionStore*' -o -iname '*Storage*' | sort || true
+          grep -RIn 'RegionStore\|ReplicationRegionStore' Assets Packages --include='*.cs' | sort || true
+          echo '=== Physical storage refs in Net ==='
+          grep -RInE 'BrickPool|BrickRef|RegionTable|VoxelAccess|VoxelEngine\.Core\.Storage|VoxelEngine\.Storage\.Runtime' Assets/VoxelEngine/Net --include='*.cs' --include='*.asmdef' | sort || true
+          echo '=== Foreign Runtime refs in Net asmdefs ==='
+          grep -RIn 'VoxelEngine\..*\.Runtime' Assets/VoxelEngine/Net --include='*.asmdef' | sort || true
