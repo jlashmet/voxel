@@ -34,41 +34,46 @@ namespace Game.WorldBuilder.Api
             Hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
             Cutscenes = cutscenes ?? Array.Empty<CutsceneSpec>();
             Npcs = npcs ?? Array.Empty<NpcSpec>();
+            RequiredSecrets = requiredSecrets ?? Array.Empty<RequiredSecretSpec>();
             Sites = DeriveSiteCapabilities(
                 sites ?? Array.Empty<SiteSpec>(),
                 Cutscenes,
-                Npcs);
+                Npcs,
+                RequiredSecrets);
             SpatialConstraints = spatialConstraints ?? Array.Empty<SpatialConstraintSpec>();
             StoryRules = storyRules ?? Array.Empty<StoryRuleSpec>();
             Objectives = objectives ?? Array.Empty<ObjectiveSpec>();
             SecretPolicies = secretPolicies ?? Array.Empty<SecretPolicySpec>();
-            RequiredSecrets = requiredSecrets ?? Array.Empty<RequiredSecretSpec>();
             LootTables = lootTables ?? Array.Empty<LootTableSpec>();
         }
 
         /// <summary>
-        /// Normalizes capabilities implied directly by authored content. The detailed generation
-        /// plans remain authoritative; these capabilities let generic site selection/generation see
-        /// the same requirements without forcing authors to restate them manually.
+        /// Normalizes capabilities implied directly by authored content. Derived capabilities carry
+        /// provenance so systems can distinguish a hard requirement from an explicit policy opt-in.
+        /// Detailed generation plans remain authoritative.
         /// </summary>
         private static SiteSpec[] DeriveSiteCapabilities(
             SiteSpec[] sites,
             IReadOnlyList<CutsceneSpec> cutscenes,
-            IReadOnlyList<NpcSpec> npcs)
+            IReadOnlyList<NpcSpec> npcs,
+            IReadOnlyList<RequiredSecretSpec> requiredSecrets)
         {
             var result = new SiteSpec[sites.Length];
             for (var i = 0; i < sites.Length; i++)
             {
                 SiteSpec site = sites[i];
-                var capabilities = new List<SiteCapabilityRequirement>(site.Capabilities.Count + 2);
+                var capabilities = new List<SiteCapabilityRequirement>(site.Capabilities.Count + 3);
                 for (var j = 0; j < site.Capabilities.Count; j++)
                     capabilities.Add(site.Capabilities[j]);
 
                 if (RequiresCutsceneStage(site.Ref, cutscenes))
-                    AddCapabilityIfMissing(capabilities, SiteCapability.CutsceneStage);
+                    AddDerivedCapabilityIfMissing(capabilities, SiteCapability.CutsceneStage);
 
                 if (RequiresConversationSpace(site.Ref, npcs))
-                    AddCapabilityIfMissing(capabilities, SiteCapability.ConversationSpace);
+                    AddDerivedCapabilityIfMissing(capabilities, SiteCapability.ConversationSpace);
+
+                if (RequiresSecretCandidateHost(site.Ref, requiredSecrets))
+                    AddDerivedCapabilityIfMissing(capabilities, SiteCapability.SecretCandidateHost);
 
                 if (capabilities.Count == site.Capabilities.Count)
                 {
@@ -105,14 +110,24 @@ namespace Game.WorldBuilder.Api
             return false;
         }
 
-        private static void AddCapabilityIfMissing(
+        private static bool RequiresSecretCandidateHost(
+            SiteRef site,
+            IReadOnlyList<RequiredSecretSpec> requiredSecrets)
+        {
+            for (var i = 0; i < requiredSecrets.Count; i++)
+                if (requiredSecrets[i].Site.Equals(site))
+                    return true;
+            return false;
+        }
+
+        private static void AddDerivedCapabilityIfMissing(
             List<SiteCapabilityRequirement> capabilities,
             SiteCapabilityRequirement capability)
         {
             for (var i = 0; i < capabilities.Count; i++)
                 if (capabilities[i].Kind == capability.Kind)
                     return;
-            capabilities.Add(capability);
+            capabilities.Add(capability.AsDerived());
         }
     }
 
