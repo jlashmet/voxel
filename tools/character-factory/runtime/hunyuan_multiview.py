@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Local Hunyuan3D-2mv mesh generator")
+    parser = argparse.ArgumentParser(description="Local Hunyuan3D image/multiview mesh generator")
     parser.add_argument("--front", required=True)
     parser.add_argument("--back")
     parser.add_argument("--left")
@@ -54,6 +54,17 @@ def main() -> int:
             image = remover(image)
         images[name] = image
 
+    # Hunyuan's single-view models expect one PIL image while Hunyuan3D-2mv
+    # expects the keyed view dictionary. Supporting both keeps the production
+    # multiview path while allowing CI to use the much smaller mini model for a
+    # real, fast end-to-end generation smoke test.
+    image_input = images["front"] if len(images) == 1 else images
+
+    print(
+        f"loading model={args.model} subfolder={args.subfolder} device={device} "
+        f"views={','.join(images.keys())}",
+        flush=True,
+    )
     pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
         args.model,
         subfolder=args.subfolder,
@@ -61,8 +72,12 @@ def main() -> int:
         device=device,
     )
 
+    print(
+        f"generating steps={args.steps} octree={args.octree_resolution} chunks={args.num_chunks}",
+        flush=True,
+    )
     mesh = pipeline(
-        image=images,
+        image=image_input,
         num_inference_steps=args.steps,
         octree_resolution=args.octree_resolution,
         num_chunks=args.num_chunks,
@@ -73,7 +88,7 @@ def main() -> int:
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     mesh.export(str(output))
-    print(output)
+    print(output, flush=True)
     return 0
 
 

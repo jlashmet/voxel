@@ -52,10 +52,11 @@ jobs:
   pipeline-smoke:
     needs: compile
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 90
+    timeout-minutes: 45
     env:
       HF_HOME: ${{ github.workspace }}/../character-factory-hf-cache
       PYTORCH_ENABLE_MPS_FALLBACK: '1'
+      PYTHONUNBUFFERED: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,6 +88,7 @@ jobs:
           echo "HUNYUAN_PY=$HUNYUAN_PY" >> "$GITHUB_ENV"
 
       - name: Build Sunlit Cleric staff through real weapon pipeline
+        timeout-minutes: 30
         shell: bash
         run: |
           set -euo pipefail
@@ -100,20 +102,18 @@ jobs:
             "id": "sunlit_cleric_staff_ci",
             "assetType": "weapon",
             "views": {
-              "front": "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg",
-              "left": "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg",
-              "back": "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg"
+              "front": "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg"
             },
             "outputDir": "$OUT",
             "generator": {
               "python": "$HUNYUAN_PY",
-              "model": "tencent/Hunyuan3D-2mv",
-              "subfolder": "hunyuan3d-dit-v2-mv",
+              "model": "tencent/Hunyuan3D-2mini",
+              "subfolder": "hunyuan3d-dit-v2-mini",
               "device": "auto",
               "seed": 12345,
-              "steps": 3,
+              "steps": 2,
               "octreeResolution": 128,
-              "numChunks": 4000,
+              "numChunks": 2000,
               "removeBackground": false
             },
             "rigid": {
