@@ -1,0 +1,33 @@
+name: Structures namespace cutover inventory
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - name: Inventory namespace cutover
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo '=== Core.Features occurrences ==='
+          grep -RInF 'VoxelEngine.Core.Features' Assets Packages --include='*.cs' | sort || true
+          echo '=== broad Structures imports ==='
+          grep -RInF 'using VoxelEngine.Structures;' Assets Packages --include='*.cs' | sort || true
+          echo '=== external package Runtime references ==='
+          grep -RInF 'VoxelEngine.Structures.Runtime' Packages/com.mountingforce.worldgen --include='*.cs' --include='*.asmdef' | sort || true
+          echo '=== CastleBuilder references outside Runtime/Showcase/CI/tests ==='
+          grep -RInE '\bCastleBuilder\b' Assets Packages --include='*.cs' | grep -v 'Assets/VoxelEngine/Structures/Runtime/' | grep -v 'Assets/Scenes/Showcase/' | grep -v 'Assets/VoxelEngine/CI/' | grep -v 'Assets/Tests/' | sort || true
