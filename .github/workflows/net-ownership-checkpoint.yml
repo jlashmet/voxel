@@ -1,0 +1,75 @@
+name: Net ownership checkpoint
+
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-ownership-checkpoint.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  unity-editmode:
+    name: Unity EditMode pinned Net ownership checkpoint
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout pinned candidate
+        uses: actions/checkout@v4
+        with:
+          ref: fcd3792648786a2d80ddec7eafc4f88c5fe7998e
+          clean: false
+          fetch-depth: 1
+      - name: Reset candidate without deleting Unity import cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard fcd3792648786a2d80ddec7eafc4f88c5fe7998e
+          git clean -ffdx -e Library/
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+      - name: Run EditMode tests
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/NetOwnershipCheckpoint"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log"
+          status=$?
+          test -s "$ROOT/results.xml" || exit $status
+          exit $status
+      - name: Upload checkpoint artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: net-ownership-checkpoint-fcd37926
+          path: Artifacts/NetOwnershipCheckpoint/
+          if-no-files-found: warn
+          retention-days: 14
