@@ -1,0 +1,50 @@
+name: Vegetation readonly caller repair
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+
+          damage = Path('Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs')
+          text = damage.read_text()
+          old = '''            int[] parents = skeleton.BranchParents;\n            if (parents == null || parents.Length != skeleton.Branches.Count) return 1;'''
+          new = '''            IReadOnlyList<int> parents = skeleton.BranchParents;\n            if (parents == null || parents.Count != skeleton.Branches.Count) return 1;'''
+          assert text.count(old) == 1, text.count(old)
+          text = text.replace(old, new)
+          old2 = '                    if ((uint)current >= (uint)parents.Length) break;'
+          new2 = '                    if ((uint)current >= (uint)parents.Count) break;'
+          assert text.count(old2) == 1, text.count(old2)
+          damage.write_text(text.replace(old2, new2))
+
+          presenter = Path('Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs')
+          text = presenter.read_text()
+          old = '''            int[] parents = skeleton.BranchParents;\n            if (parents != null)\n            {\n                for (int i = cut.BranchIndex + 1; i < parents.Length; i++)'''
+          new = '''            IReadOnlyList<int> parents = skeleton.BranchParents;\n            if (parents != null)\n            {\n                for (int i = cut.BranchIndex + 1; i < parents.Count; i++)'''
+          assert text.count(old) == 1, text.count(old)
+          presenter.write_text(text.replace(old, new))
+          PY
+          git diff --check
+          git diff -- Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git rm .github/workflows/vegetation-readonly-repair.yml
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git add -u .github/workflows
+          git commit -m 'Fix Vegetation readonly parent-list consumers'
+          git push origin HEAD:${{ github.ref_name }}
