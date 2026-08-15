@@ -154,6 +154,7 @@ jobs:
           # The deleted Core name may survive only as explicit historical evidence or as a
           # forbidden-token guard. New paths fail this classification immediately.
           allowed_core_literal_paths = {
+              '.github/workflows/final-architecture-static.yml',
               '.github/workflows/stable-final-architecture-acceptance.yml',
               'Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs',
               'docs/ARCHITECTURE_DEPENDENCY_REPORT.md',
