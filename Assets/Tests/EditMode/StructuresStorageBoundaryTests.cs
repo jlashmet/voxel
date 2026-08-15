@@ -13,6 +13,34 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class StructuresStorageBoundaryTests
     {
         [Test]
+        public void StructuresApiContainsNoCoreOrRuntimeDependency()
+        {
+            string root = FindRepoRoot();
+            string api = Path.Combine(root, "Assets", "VoxelEngine", "Structures", "Api");
+            string asmdef = File.ReadAllText(Path.Combine(api, "VoxelEngine.Structures.Api.asmdef"));
+
+            StringAssert.DoesNotContain("VoxelEngine.Core", asmdef);
+            StringAssert.DoesNotContain(".Runtime", asmdef);
+            Assert.False(File.Exists(Path.Combine(
+                root, "Assets", "VoxelEngine", "Core", "Features", "CatalogueLoader.cs")),
+                "CatalogueLoader must be clean-renamed rather than retained as a compatibility alias.");
+            Assert.True(File.Exists(Path.Combine(api, "FeatureCatalogueBuilder.cs")));
+
+            var violations = new List<string>();
+            foreach (string path in Directory.EnumerateFiles(api, "*.cs", SearchOption.AllDirectories))
+            {
+                string source = File.ReadAllText(path);
+                if (source.Contains("VoxelEngine.Core.Features"))
+                    violations.Add(Path.GetFileName(path) + " -> old Core.Features namespace");
+                if (source.Contains("class CatalogueLoader"))
+                    violations.Add(Path.GetFileName(path) + " -> compatibility CatalogueLoader type");
+            }
+            Assert.IsEmpty(violations,
+                "Structures.Api must be a clean authoring/encoding boundary.\n\n" +
+                string.Join("\n", violations));
+        }
+
+        [Test]
         public void FeatureRasterisingUsesStorageApiInsteadOfPhysicalStorage()
         {
             string root = FindRepoRoot();
