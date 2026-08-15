@@ -10,7 +10,6 @@
     "VoxelEngine.Collision",
     "VoxelEngine.Streaming",
     "VoxelEngine.Tiering",
-    "VoxelEngine.Structures",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "MountingForce.WorldGen.Core",

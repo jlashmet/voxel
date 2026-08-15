@@ -8,7 +8,6 @@
     "VoxelEngine.Rendering",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Voxel",
-    "VoxelEngine.Structures",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Showcase",

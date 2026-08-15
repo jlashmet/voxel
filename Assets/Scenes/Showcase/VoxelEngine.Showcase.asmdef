@@ -9,7 +9,6 @@
     "VoxelEngine.Collision",
     "VoxelEngine.Net",
     "VoxelEngine.Rendering",
-    "VoxelEngine.Structures",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Streaming",
