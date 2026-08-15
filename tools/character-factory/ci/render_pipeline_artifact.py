@@ -42,6 +42,21 @@ def main():
     if not meshes:
         raise RuntimeError('FBX contains no mesh objects')
 
+    # CI is evaluating geometry rather than authored materials. Assign one neutral
+    # material to every imported mesh so silhouettes, holes and surface curvature
+    # remain visible instead of blowing out to white under the studio lights.
+    material = bpy.data.materials.new('CI Geometry')
+    material.diffuse_color = (0.34, 0.38, 0.44, 1.0)
+    material.use_nodes = True
+    principled = material.node_tree.nodes.get('Principled BSDF')
+    if principled is not None:
+        principled.inputs['Base Color'].default_value = (0.34, 0.38, 0.44, 1.0)
+        principled.inputs['Roughness'].default_value = 0.62
+        principled.inputs['Metallic'].default_value = 0.0
+    for obj in meshes:
+        obj.data.materials.clear()
+        obj.data.materials.append(material)
+
     lo, hi = scene_bounds(meshes)
     center = (lo + hi) * 0.5
     size = hi - lo
@@ -49,13 +64,11 @@ def main():
     if radius <= 0:
         radius = 1.0
 
-    # Neutral studio setup. This renders the actual generated FBX; it does not
-    # generate or repaint the asset.
     world = bpy.data.worlds.new('World')
     world.use_nodes = True
     bg = world.node_tree.nodes.get('Background')
-    bg.inputs['Color'].default_value = (0.055, 0.055, 0.055, 1.0)
-    bg.inputs['Strength'].default_value = 0.65
+    bg.inputs['Color'].default_value = (0.035, 0.035, 0.035, 1.0)
+    bg.inputs['Strength'].default_value = 0.45
     bpy.context.scene.world = world
 
     camera_data = bpy.data.cameras.new('Camera')
@@ -76,9 +89,9 @@ def main():
         light.location = location
         look_at(light, center)
 
-    add_area('Key', center + Vector((radius * 2.0, -radius * 1.5, radius * 2.2)), 1200, radius * 1.4)
-    add_area('Fill', center + Vector((-radius * 1.5, -radius * 0.7, radius * 1.0)), 650, radius * 1.8)
-    add_area('Rim', center + Vector((0, radius * 2.0, radius * 1.8)), 900, radius * 1.2)
+    add_area('Key', center + Vector((radius * 2.0, -radius * 1.5, radius * 2.2)), 650, radius * 1.4)
+    add_area('Fill', center + Vector((-radius * 1.5, -radius * 0.7, radius * 1.0)), 280, radius * 1.8)
+    add_area('Rim', center + Vector((0, radius * 2.0, radius * 1.8)), 420, radius * 1.2)
 
     scene = bpy.context.scene
     scene.render.engine = 'BLENDER_EEVEE'
