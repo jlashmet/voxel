@@ -1,0 +1,43 @@
+name: Rendering world-view consumer repair
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/rendering-worldview-consumer-repair.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          clean: true
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('Assets/Scenes/Showcase/VoxelShowcase.cs'),
+              Path('Assets/Scenes/Showcase/ArchLookdev.cs'),
+              Path('Assets/Scenes/Showcase/TerrainLookdev.cs'),
+          ]
+          for p in paths:
+              s = p.read_text()
+              if s.count('SurfaceCatalogue =') != 1 or s.count('CoatingCatalogue =') != 1:
+                  raise SystemExit(f'{p}: expected exactly one legacy world-view catalogue assignment')
+              s = s.replace('SurfaceCatalogue =', 'SurfaceCatalogueView =', 1)
+              s = s.replace('CoatingCatalogue =', 'CoatingCatalogueView =', 1)
+              p.write_text(s)
+          PY
+          git rm .github/workflows/rendering-worldview-consumer-repair.yml
+          ! grep -RInE '^[[:space:]]*(SurfaceCatalogue|CoatingCatalogue)[[:space:]]*=' Assets/Scenes/Showcase --include='*.cs'
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/Scenes/Showcase/VoxelShowcase.cs Assets/Scenes/Showcase/ArchLookdev.cs Assets/Scenes/Showcase/TerrainLookdev.cs
+          git add -u .github/workflows
+          git commit -m 'Migrate Showcase world views to Rendering catalogue views'
+          git push origin HEAD:${{ github.ref_name }}
