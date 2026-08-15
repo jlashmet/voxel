@@ -35,12 +35,12 @@ namespace VoxelEngine.Tests.EditMode
                 projections,
                 new FakeTraversalFacts());
 
-            Assert.That(facts.Candidates, Has.Count.EqualTo(1));
+            Assert.That(facts.Candidates.Count, Is.EqualTo(1));
             SiteCandidate candidate = facts.Candidates[0];
             Assert.That(candidate.Id, Is.EqualTo(
                 SettlementPlanSiteCandidateFacts.CandidateId("test-town", 10)));
             Assert.That(candidate.Archetype, Is.EqualTo(SiteArchetype.Pub));
-            Assert.That(candidate.Capabilities, Has.Count.EqualTo(2));
+            Assert.That(candidate.Capabilities.Count, Is.EqualTo(2));
             Assert.That(facts.IsInRegion(candidate.Id, new RegionRef("region-a")), Is.True);
             Assert.That(facts.IsInRegion(candidate.Id, new RegionRef("region-b")), Is.False);
             Assert.That(facts.IsInSettlement(candidate.Id, new SettlementRef("settlement-a")), Is.True);
