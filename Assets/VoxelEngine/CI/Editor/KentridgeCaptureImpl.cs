@@ -82,6 +82,8 @@ namespace VoxelEngine.CI
                 table = new RegionTable(64, Allocator.Persistent);
                 pool = new BrickPool(262144, Allocator.Persistent);
 
+                var featureReads = new RegionReadSource(in table, in pool);
+                var featureMutations = new RegionMutationStore(in table, in pool);
                 int featureInstances = 0;
                 int featureVoxels = 0;
                 int minRX = minX >> VoxelDimensions.RegionVoxelEdgeLog2;
@@ -91,8 +93,10 @@ namespace VoxelEngine.CI
                 for (int rz = minRZ; rz <= maxRZ; rz++)
                 for (int rx = minRX; rx <= maxRX; rx++)
                 {
+                    featureReads.Refresh(in table, in pool);
+                    featureMutations.Refresh(in table, in pool);
                     FeatureGenerationReport report = FeatureGeneration.GenerateRegion(
-                        in catalogue, Seed, new int3(rx, 0, rz), ref table, ref pool);
+                        in catalogue, Seed, new int3(rx, 0, rz), featureReads, featureMutations);
                     if (report.BudgetExceeded)
                         throw new InvalidOperationException($"Kentridge feature budget exceeded in {rx},{rz}.");
                     featureInstances += report.InstancesRasterised;

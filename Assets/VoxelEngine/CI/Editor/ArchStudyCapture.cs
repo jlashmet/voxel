@@ -167,8 +167,10 @@ namespace VoxelEngine.CI
                         if (!bay.Emit(origin, primitives, profileBlocks))
                             throw new InvalidOperationException($"Arch variant {i} did not emit.");
                         int3 max = origin + bay.Metadata.Footprint;
+                        var reads = new RegionReadSource(in table, in pool);
+                        var mutations = new RegionMutationStore(in table, in pool);
                         RasterResult result = PrimitiveRasteriser.Rasterise(
-                            primitives.AsArray(), origin, max, ref table, ref pool);
+                            primitives.AsArray(), origin, max, reads, mutations);
                         if (result.BudgetExceeded)
                             throw new InvalidOperationException($"Arch variant {i} exceeded budget.");
                         totalVoxels += result.VoxelsWritten;

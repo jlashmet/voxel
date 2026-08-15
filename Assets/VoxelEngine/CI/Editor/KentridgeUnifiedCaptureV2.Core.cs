@@ -78,6 +78,8 @@ namespace VoxelEngine.CI
                 LoadTerrain(minX, maxX, minZ, maxZ, ref table);
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(Seed, BuildSettings(), Allocator.Persistent);
 
+                var featureReads = new RegionReadSource(in table, in pool);
+                var featureMutations = new RegionMutationStore(in table, in pool);
                 int instances = 0;
                 int voxels = 0;
                 int minRX = minX >> VoxelDimensions.RegionVoxelEdgeLog2;
@@ -87,8 +89,10 @@ namespace VoxelEngine.CI
                 for (int rz = minRZ; rz <= maxRZ; rz++)
                 for (int rx = minRX; rx <= maxRX; rx++)
                 {
+                    featureReads.Refresh(in table, in pool);
+                    featureMutations.Refresh(in table, in pool);
                     FeatureGenerationReport report = FeatureGeneration.GenerateRegion(
-                        in catalogue, Seed, new int3(rx, 0, rz), ref table, ref pool);
+                        in catalogue, Seed, new int3(rx, 0, rz), featureReads, featureMutations);
                     if (report.BudgetExceeded)
                         throw new InvalidOperationException($"Kentridge generation limit exceeded in {rx},{rz}.");
                     instances += report.InstancesRasterised;
