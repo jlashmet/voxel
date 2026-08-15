@@ -3,8 +3,9 @@
 **Verified branch:** `refactor/system-boundaries-finalization-stable`  
 **Latest accepted static code SHA:** `ecd0d0d32c5e5cfe7308171318312fe0702a2e9f`  
 **Static acceptance:** `Stable final architecture acceptance` run `31910684890`, static job `95075151820` — passed  
+**Settled guard-cleanup SHA before final rerun:** `914d32b23e1cb218ba7bc244caced2147619d645` — retired one-shot workflows are removed and the deleted static-guard allowlist entry is gone from both permanent guard surfaces.  
 **Generated report precursor:** `Final architecture static acceptance` run `31909432576` at `02a6bff15f8d034ac62e91a84219d7b5d42b07e7` — passed  
-**Final behavioral acceptance:** pending on draft PR #48 after cleanup of the retired static-guard allowlist; do not mark the final implementation-plan task complete until an exact-head Unity/EditMode run reports zero C# compiler errors and exactly 387 total / 374 passed / the same 13 documented failures.
+**Final behavioral acceptance:** pending on draft PR #48; do not mark the final implementation-plan task complete until an exact-head Unity/EditMode run reports zero C# compiler errors and exactly 387 total / 374 passed / the same 13 documented failures.
 
 This report records the final production assembly dependency graph for the architecture cutover. The generated precursor report was rechecked against the final Composition wiring and permanent static rules. Test, CI, and Editor assemblies are intentionally outside the production Runtime-wiring rule because they must be able to exercise concrete implementations.
 
