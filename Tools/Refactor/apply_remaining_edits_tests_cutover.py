@@ -21,7 +21,13 @@ for path in (BRUSH, APPLIER, VALID):
 # Canonical brush: explicit store per table/pool lifetime, including helper.
 replace_exact(BRUSH,
     '                table.LoadRegion(int3.zero);\n                var evt = AlterationEvent.CreateCubeBrush(',
-    '                table.LoadRegion(int3.zero);\n                var storage = new RegionMutationStore(in table, in pool);\n                var evt = AlterationEvent.CreateCubeBrush(', expected=2)
+    '                table.LoadRegion(int3.zero);\n                var storage = new RegionMutationStore(in table, in pool);\n                var evt = AlterationEvent.CreateCubeBrush(')
+replace_exact(BRUSH,
+    '                table.LoadRegion(int3.zero);\n                var materialBrush = AlterationEvent.CreateCubeBrush(',
+    '                table.LoadRegion(int3.zero);\n                var storage = new RegionMutationStore(in table, in pool);\n                var materialBrush = AlterationEvent.CreateCubeBrush(')
+replace_exact(BRUSH,
+    '                table.LoadRegion(int3.zero);\n                int3 sentinel = new int3(508, 4, 4);',
+    '                table.LoadRegion(int3.zero);\n                var storage = new RegionMutationStore(in table, in pool);\n                int3 sentinel = new int3(508, 4, 4);')
 replace_exact(BRUSH,
     '                Assert.That(DeterministicAlterationApplier.TryApply(\n                    ref table,\n                    ref pool,\n                    in evt,',
     '                Assert.That(DeterministicAlterationApplier.TryApply(\n                    storage,\n                    in evt,')
