@@ -57,11 +57,25 @@ def transfer_weights(
 ) -> None:
     mesh.vertex_groups.clear()
 
+    # Blender's Data Transfer modifier intentionally does not create destination
+    # data layers. Mirror the canonical donor's group layout first, then transfer
+    # every source group by name. Without this step the modifier can apply cleanly
+    # while transferring zero weights to a newly generated mesh.
+    donor_groups = [group.name for group in donor_body.vertex_groups]
+    if not donor_groups:
+        raise RuntimeError(
+            f"Canonical donor body '{donor_body.name}' contains no vertex groups"
+        )
+    for name in donor_groups:
+        mesh.vertex_groups.new(name=name)
+
     modifier = mesh.modifiers.new(name="CanonicalWeightTransfer", type="DATA_TRANSFER")
     modifier.object = donor_body
     modifier.use_vert_data = True
     modifier.data_types_verts = {"VGROUP_WEIGHTS"}
     modifier.vert_mapping = "POLYINTERP_NEAREST"
+    modifier.layers_vgroup_select_src = "ALL"
+    modifier.layers_vgroup_select_dst = "NAME"
     modifier.use_max_distance = True
     modifier.max_distance = max_distance
 
@@ -71,14 +85,21 @@ def transfer_weights(
     bpy.ops.object.modifier_apply(modifier=modifier.name)
     mesh.select_set(False)
 
+    weighted_vertices = sum(1 for vertex in mesh.data.vertices if vertex.groups)
+    if weighted_vertices == 0:
+        raise RuntimeError(
+            f"Weight transfer assigned no vertices for mesh '{mesh.name}'"
+        )
+
     armature_modifier = mesh.modifiers.new(name="CanonicalArmature", type="ARMATURE")
     armature_modifier.object = armature
     mesh.parent = armature
 
-    if not mesh.vertex_groups:
-        raise RuntimeError(
-            f"Weight transfer produced no vertex groups for mesh '{mesh.name}'"
-        )
+    print(
+        f"canonical weights: mesh={mesh.name} groups={len(mesh.vertex_groups)} "
+        f"weightedVertices={weighted_vertices}/{len(mesh.data.vertices)}",
+        flush=True,
+    )
 
 
 def apply_mesh_transforms(meshes: list[bpy.types.Object]) -> None:
