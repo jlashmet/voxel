@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Server;
 
@@ -183,7 +184,7 @@ namespace VoxelEngine.Tests.EditMode
         private sealed class RecordingApplier : IAuthoritativeAlterationApplier
         {
             public int ApplyCount { get; private set; }
-            public bool TryApplyAlteration(ref RegionTable table, ref BrickPool pool, in AlterationEvent evt)
+            public bool TryApplyAlteration(IRegionMutationStore storage, in AlterationEvent evt)
             {
                 ApplyCount++;
                 return true;

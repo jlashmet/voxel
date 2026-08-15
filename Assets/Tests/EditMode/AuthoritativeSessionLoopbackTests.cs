@@ -6,6 +6,7 @@ using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Server;
 using VoxelEngine.Net.Transport;
@@ -164,7 +165,7 @@ namespace VoxelEngine.Tests.EditMode
         private sealed class AcceptingApplier : IAuthoritativeAlterationApplier
         {
             public int Count { get; private set; }
-            public bool TryApplyAlteration(ref RegionTable table, ref BrickPool pool, in AlterationEvent evt)
+            public bool TryApplyAlteration(IRegionMutationStore storage, in AlterationEvent evt)
             {
                 Count++;
                 return true;
