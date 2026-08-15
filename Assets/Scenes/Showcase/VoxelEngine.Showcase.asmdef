@@ -18,7 +18,6 @@
     "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Edits.Runtime",
     "VoxelEngine.Storage.Runtime",
-    "VoxelEngine.Terrain.Runtime",
     "VoxelEngine.Structures.Runtime"
   ],
   "includePlatforms": [],
