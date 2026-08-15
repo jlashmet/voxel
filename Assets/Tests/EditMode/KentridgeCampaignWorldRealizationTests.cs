@@ -6,6 +6,7 @@ using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
+using Unity.Collections;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -60,6 +61,31 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(generation.Secrets.Count, Is.EqualTo(1));
             Assert.That(generation.Secrets[0].RequiredSecret.Id, Is.EqualTo("pub-cache"));
 
+            VoxelWorldGenSettings settings = Settings();
+            var catalogue = KentridgeCombinedVoxelCatalogue.Build(
+                Seed,
+                settings,
+                generation.HiddenSpaces,
+                Allocator.Temp);
+            try
+            {
+                bool foundHiddenStructure = false;
+                for (var i = 0; i < catalogue.Definitions.Length; i++)
+                {
+                    if (catalogue.Definitions[i].Name.ToString().StartsWith("kentridge-hidden-"))
+                    {
+                        foundHiddenStructure = true;
+                        break;
+                    }
+                }
+                Assert.That(foundHiddenStructure, Is.True,
+                    "The exact hidden-space geometry selected during campaign planning must be emitted into the combined voxel catalogue.");
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+
             var siteFacts = new KentridgeVoxelSiteRealizationFacts(settlement, 1);
             var hiddenFacts = new KentridgeHiddenSpaceVoxelRealizationFacts(
                 settlement,
@@ -92,5 +118,22 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(realized.Secrets[0].ContainerFloorPoint.Position.Y,
                 Is.EqualTo(realized.Secrets[0].HiddenSpaceBounds.MinInclusive.Y));
         }
+
+        private static VoxelWorldGenSettings Settings() =>
+            new VoxelWorldGenSettings(
+                1,
+                new VoxelMaterialMap(
+                    foundationStone: 1,
+                    masonry: 2,
+                    darkMasonry: 3,
+                    timber: 4,
+                    glass: 5,
+                    warmWindow: 6,
+                    roofTile: 7,
+                    slate: 8,
+                    cloth: 9,
+                    moss: 10,
+                    water: 11,
+                    roadSurface: 12));
     }
 }
