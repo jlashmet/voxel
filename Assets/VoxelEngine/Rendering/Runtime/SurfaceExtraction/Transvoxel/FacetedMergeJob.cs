@@ -4,7 +4,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>Greedy-merges exact face masks into a compact mesh off the render thread.</summary>
     [BurstCompile]

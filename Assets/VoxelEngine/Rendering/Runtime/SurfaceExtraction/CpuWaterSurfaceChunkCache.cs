@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
     /// Derived raster mesh for authoritative water (material 11) and cascade (material 16) voxels.

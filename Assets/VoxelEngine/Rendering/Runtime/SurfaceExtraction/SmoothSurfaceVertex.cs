@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using UnityEngine;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>Shared vertex contract produced by the unified solid surface extractor.</summary>
     [StructLayout(LayoutKind.Sequential)]

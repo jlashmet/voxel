@@ -5,8 +5,8 @@ using UnityEditor;
 using UnityEngine;
 using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
-using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.Vegetation;
+using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.Vegetation;
 using VoxelEngine.Showcase;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 

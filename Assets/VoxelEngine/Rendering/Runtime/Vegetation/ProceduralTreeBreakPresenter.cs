@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 using VoxelEngine.Vegetation.Api;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
-namespace VoxelEngine.Rendering.Vegetation
+namespace VoxelEngine.Rendering.Runtime.Vegetation
 {
     /// <summary>Small presentation-only splinter cap emitted when semantic tree state is severed.</summary>
     public sealed class ProceduralTreeBreakPresenter : MonoBehaviour

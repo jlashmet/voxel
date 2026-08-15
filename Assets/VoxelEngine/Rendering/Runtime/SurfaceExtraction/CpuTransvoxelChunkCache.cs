@@ -7,9 +7,9 @@ using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
     /// CPU-authored feature-aware mesh cache for all solid voxel geometry.

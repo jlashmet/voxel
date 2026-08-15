@@ -2,7 +2,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>Compacts deterministic per-cell topology lanes away from the render thread.</summary>
     [BurstCompile]

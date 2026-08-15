@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace VoxelEngine.Rendering.Vegetation
+namespace VoxelEngine.Rendering.Runtime.Vegetation
 {
     /// <summary>Shared presentation resources for standing trees and detached tree debris.</summary>
     public static class ProceduralTreeMaterials

@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.CI
 {

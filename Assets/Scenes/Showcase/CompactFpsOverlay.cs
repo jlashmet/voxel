@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Showcase
 {

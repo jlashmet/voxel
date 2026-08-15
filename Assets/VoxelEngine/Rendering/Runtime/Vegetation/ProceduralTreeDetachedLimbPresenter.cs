@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 using VoxelEngine.Vegetation.Api;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
-namespace VoxelEngine.Rendering.Vegetation
+namespace VoxelEngine.Rendering.Runtime.Vegetation
 {
     /// <summary>
     /// Presentation subscriber for branch-cut domain events. It derives only the newly disconnected

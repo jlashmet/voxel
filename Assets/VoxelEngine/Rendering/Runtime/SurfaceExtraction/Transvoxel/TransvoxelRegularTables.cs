@@ -3,7 +3,7 @@
 // The accompanying LICENSE.bbQsauce5.txt contains the upstream license.
 using Unity.Mathematics;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     internal readonly struct RegularCellData
     {

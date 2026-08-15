@@ -5,8 +5,8 @@ using Unity.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace VoxelEngine.Tests.PlayMode

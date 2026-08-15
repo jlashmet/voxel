@@ -4,7 +4,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
     /// Evaluates the smooth-field lattice for one coarse-ring chunk from a mip snapshot.

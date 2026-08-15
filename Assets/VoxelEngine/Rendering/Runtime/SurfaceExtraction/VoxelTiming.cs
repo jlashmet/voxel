@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>A fixed-window timing snapshot. Values are wall-clock milliseconds.</summary>
     public readonly struct VoxelTimingSummary

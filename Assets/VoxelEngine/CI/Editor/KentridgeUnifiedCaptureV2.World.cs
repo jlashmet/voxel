@@ -8,7 +8,7 @@ using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Core.Terrain;
 
 namespace VoxelEngine.CI

@@ -9,8 +9,8 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode

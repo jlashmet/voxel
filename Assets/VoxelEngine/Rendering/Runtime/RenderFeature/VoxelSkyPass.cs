@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
-namespace VoxelEngine.Rendering
+namespace VoxelEngine.Rendering.Runtime
 {
     /// <summary>
     /// Replaces URP's normal skybox pixels with the authored voxel-world panorama.

@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace VoxelEngine.Rendering
+namespace VoxelEngine.Rendering.Runtime
 {
     /// <summary>Projection used by a material row. The shader interprets the value generically.</summary>
     public enum VoxelTextureProjection : byte

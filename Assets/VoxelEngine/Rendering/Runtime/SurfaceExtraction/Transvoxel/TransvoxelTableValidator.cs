@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
     /// Fails immediately if the vendored lookup data was truncated or corrupted. These tables are

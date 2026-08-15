@@ -3,7 +3,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
-using VoxelEngine.Rendering;
+using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Structures.Runtime;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Structures.Api;

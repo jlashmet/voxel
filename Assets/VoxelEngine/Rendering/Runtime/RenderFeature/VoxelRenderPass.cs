@@ -7,9 +7,9 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
-namespace VoxelEngine.Rendering
+namespace VoxelEngine.Rendering.Runtime
 {
     /// <summary>
     /// Draws voxel geometry as derived meshes through one raster architecture.

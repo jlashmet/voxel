@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
     /// Parallel continuous-cell polygonisation over an immutable density snapshot.

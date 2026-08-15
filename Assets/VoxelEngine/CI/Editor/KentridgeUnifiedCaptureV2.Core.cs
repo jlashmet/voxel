@@ -11,7 +11,7 @@ using UnityEditor;
 using UnityEngine;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 using VoxelEngine.Structures.Api;
 

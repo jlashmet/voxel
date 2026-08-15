@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 using VoxelEngine.Vegetation.Api;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
-namespace VoxelEngine.Rendering.Vegetation
+namespace VoxelEngine.Rendering.Runtime.Vegetation
 {
     /// <summary>
     /// Runtime presentation of semantic tree state. Healthy trees are data-only records whose

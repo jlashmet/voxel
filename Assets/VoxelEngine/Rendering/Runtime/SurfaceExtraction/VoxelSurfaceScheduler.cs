@@ -7,7 +7,7 @@ using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     public readonly struct VoxelSurfaceMetrics
     {

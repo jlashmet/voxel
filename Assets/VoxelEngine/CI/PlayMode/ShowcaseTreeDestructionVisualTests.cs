@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
-using VoxelEngine.Rendering.Vegetation;
+using VoxelEngine.Rendering.Runtime.Vegetation;
 using VoxelEngine.Showcase;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 

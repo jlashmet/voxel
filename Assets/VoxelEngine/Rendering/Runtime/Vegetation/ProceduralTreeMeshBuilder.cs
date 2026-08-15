@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Vegetation.Api;
 
-namespace VoxelEngine.Rendering.Vegetation
+namespace VoxelEngine.Rendering.Runtime.Vegetation
 {
     /// <summary>
     /// Presentation-only conversion from a render-independent procedural tree skeleton to Unity

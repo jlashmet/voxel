@@ -3,7 +3,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.EditMode
 {

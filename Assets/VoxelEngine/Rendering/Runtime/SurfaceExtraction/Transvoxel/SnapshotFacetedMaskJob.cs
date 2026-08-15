@@ -5,7 +5,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
     /// Builds all six exact planar face masks in one pass over a compact immutable brick snapshot.

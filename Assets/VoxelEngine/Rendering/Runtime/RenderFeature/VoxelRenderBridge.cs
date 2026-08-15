@@ -1,8 +1,8 @@
 using UnityEngine;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Rendering
+namespace VoxelEngine.Rendering.Runtime
 {
     /// <summary>
     /// A read-only snapshot of the world for the render pass.

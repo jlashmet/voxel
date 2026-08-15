@@ -4,8 +4,8 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Rendering.SurfaceExtraction;
-using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 
 namespace VoxelEngine.Tests.EditMode
 {

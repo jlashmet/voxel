@@ -4,7 +4,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
     /// Classifies logical Storage read blocks in parallel. Output is one byte per block so

@@ -5,7 +5,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
     /// Builds all six exact exposed-face masks in one parallel pass over the chunk's cells.

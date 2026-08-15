@@ -11,7 +11,7 @@ using UnityEngine.Profiling;
 using UnityEngine.TestTools;
 using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
-using VoxelEngine.Rendering.Vegetation;
+using VoxelEngine.Rendering.Runtime.Vegetation;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 using Object = UnityEngine.Object;
 

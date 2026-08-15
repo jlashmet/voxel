@@ -1,9 +1,9 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
-namespace VoxelEngine.Rendering
+namespace VoxelEngine.Rendering.Runtime
 {
     /// <summary>
     /// URP renderer feature for the derived voxel-world presentation.

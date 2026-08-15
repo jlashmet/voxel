@@ -10,7 +10,7 @@
 // so TransvoxelTransitionTableTests pins their shape and internal consistency.
 using Unity.Mathematics;
 
-namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
+namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     internal static class TransvoxelTransitionTables
     {
