@@ -6,6 +6,8 @@ This document defines the runtime boundary between the WorldBuilder work and the
 
 WorldBuilder owns semantic authoring and planning:
 
+- region, route, settlement, and site ownership hierarchy;
+- route-access and connector-length requirements;
 - site roles and spatial constraints;
 - NPC semantic identity and target site;
 - cutscene/site/actor bindings;
@@ -14,7 +16,7 @@ WorldBuilder owns semantic authoring and planning:
 
 WorldGen owns generated physical facts:
 
-- concrete settlement/site selection candidates;
+- concrete region/settlement/site geometry and selection candidates;
 - structure footprint, entrance, interior envelope, and traversal topology;
 - hidden-space topology and false-wall geometry;
 - exact terrain-relative world placement.
@@ -22,6 +24,20 @@ WorldGen owns generated physical facts:
 Cutscenes owns choreography and playback. Story owns runtime story-state evaluation.
 
 `Game.Composition.*` is the only layer that joins these runtimes. Do not add WorldBuilder -> Character Runtime, WorldBuilder -> Edits Runtime, or WorldBuilder -> Voxel Runtime dependencies.
+
+## Compiled hierarchy contract
+
+`CampaignBlueprint.Hierarchy` is authored semantic intent. `BlueprintCompiler` converts it into `PlanningGraph.HierarchyPlan`, the generator-facing hierarchy snapshot.
+
+`WorldHierarchyPlan` groups the information a generator actually consumes:
+
+- each region's biome, routes, settlements, and directly region-owned sites;
+- each route's region, kind, importance, and settlement-access requirements;
+- each settlement's region, archetype, population range, route access, and owned sites;
+- exact route-to-settlement connector-length ranges;
+- explicit region-vs-settlement site ownership.
+
+Downstream generation must consume `HierarchyPlan` rather than re-parsing authoring objects or recovering semantics from dependency-node strings. The dependency graph still controls ordering; the typed hierarchy plan carries physical-generation requirements.
 
 ## Kentridge application flow
 
@@ -31,8 +47,15 @@ The current Kentridge integration is deliberately two-phase because story/site c
 CampaignBlueprint
     |
     v
-KentridgeCampaignSessionBootstrap.Plan(...)
+BlueprintCompiler
     |
+    +--> PlanningGraph.HierarchyPlan
+    +--> site-role / NPC / cutscene / secret plans
+    |
+    v
+KentridgeCampaignSessionBootstrap.Plan(blueprint, settlement)
+    |
+    +--> derive the authored Kentridge region/settlement owner from HierarchyPlan
     +--> site-role resolution
     +--> NPC -> ResolvedSiteId assignments
     +--> physical hidden-space architecture
@@ -59,6 +82,8 @@ CampaignRuntime
 ```
 
 The generated hidden-space geometry used for gameplay selection is the same geometry passed into voxel emission. Do not run a second hidden-space planning pass in the voxel backend.
+
+The current Kentridge composition is explicitly a single-settlement planner. It requires exactly one authored settlement in `HierarchyPlan` and derives that settlement's region from the same plan. Do not pass duplicate `RegionRef`/`SettlementRef` values through bootstrap configuration. A future multi-settlement composition should select a typed settlement plan explicitly rather than reintroducing string/ID duplication.
 
 ## Character runtime contract
 
@@ -143,14 +168,16 @@ Production authoring lives in `Game.Composition.Campaign.Content.KnownOpeningCam
 
 Known facts remain deliberately limited to recovered/established content:
 
+- `kentridge-region` contains the known Kentridge starting settlement;
+- `kentridge` owns the starting pub;
 - starting pub;
 - Madeline, Steven, Logan;
 - recovered Kentridge opening cutscene;
-- a different reachable first-destination site selected by constraints;
+- a different reachable first-destination site owned only by the surrounding region and selected by constraints;
 - a semantic destination NPC at that generated site;
 - travel objective and known story transitions.
 
-The destination cutscene definition remains injected because its dialogue/choreography has not been recovered. Do not invent a destination archetype, NPC name, dialogue, or choreography to make the bootstrap more concrete.
+The first destination remains `ConstraintMatch` with `SiteArchetype.Unspecified`; region ownership does not invent its type. The destination cutscene definition remains injected because its dialogue/choreography has not been recovered. Do not invent a destination archetype, NPC name, dialogue, or choreography to make the bootstrap more concrete.
 
 ## Integration rules
 
@@ -158,6 +185,7 @@ The destination cutscene definition remains injected because its dialogue/choreo
 - Keep WorldGen Core/Architecture independent of VoxelEngine.
 - Keep ordinary Runtime assemblies from referencing foreign Runtime assemblies.
 - Put cross-runtime application wiring in `Game.Composition.*` only.
+- Consume compiled typed plans instead of reconstructing authoring semantics downstream.
 - Prefer exact generated facts over archetype-derived assumptions.
 - Fail closed when a requested capability cannot be physically realized.
 - Do not merge the divergent Character/architecture branches wholesale into `worldbuilder`; port/adapt through stable APIs after their cutovers land.
