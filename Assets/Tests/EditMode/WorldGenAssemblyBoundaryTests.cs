@@ -43,6 +43,34 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SemanticWorldGenSourceDoesNotImportVoxelEngine()
+        {
+            string packageRoot = Path.Combine(
+                RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime");
+            string[] semanticRoots =
+            {
+                Path.Combine(packageRoot, "Core"),
+                Path.Combine(packageRoot, "Architecture"),
+            };
+            var violations = new List<string>();
+
+            foreach (string root in semanticRoots)
+            {
+                Assert.IsTrue(Directory.Exists(root), "Missing semantic worldgen source root: " + root);
+                foreach (string path in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+                {
+                    string source = File.ReadAllText(path);
+                    if (source.IndexOf("VoxelEngine.", StringComparison.Ordinal) >= 0)
+                        violations.Add(Path.GetRelativePath(packageRoot, path));
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Semantic WorldGen source must stay engine-independent, not merely rely on an asmdef " +
+                "that happens not to reference VoxelEngine.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
         public void VoxelAdapterDoesNotReferenceEngineRuntimeAssemblies()
         {
             const string asmdef = "Runtime/Voxel/MountingForce.WorldGen.Voxel.asmdef";
