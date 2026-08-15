@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Collision.Api;
 using VoxelEngine.Composition;
@@ -502,7 +501,7 @@ namespace VoxelEngine.Showcase
                     if (!networked && (semanticTreeHit || changed > 0))
                     {
                         float3 impactMetres = (float3)hit * ShowcaseWorld.VoxelSize;
-                        ProceduralTreeDamageService.ApplyBlast(
+                        VegetationComposition.TreeDamage.ApplyBlast(
                             impactMetres, shot.ImpactRadius * ShowcaseWorld.VoxelSize,
                             (float3)shot.Direction);
                     }
@@ -570,7 +569,7 @@ namespace VoxelEngine.Showcase
                                 ref found, ref nearestDistance, ref hit);
             ConsiderTornadoLine(from, to, (-right - up) * diagonal,
                                 ref found, ref nearestDistance, ref hit);
-            if (ProceduralTreeDamageService.TrySweepImpact(
+            if (VegetationComposition.TreeDamage.TrySweepImpact(
                     (float3)from, (float3)to, sweepRadius,
                     out float3 treeHitMetres, out _))
             {

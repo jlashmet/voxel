@@ -21,7 +21,6 @@
     "VoxelEngine.Edits.Runtime",
     "VoxelEngine.Streaming.Runtime",
     "VoxelEngine.Vegetation.Api",
-    "VoxelEngine.Vegetation.Runtime",
     "VoxelEngine.Terrain.Runtime",
     "VoxelEngine.Collision.Api"
   ],

@@ -8,7 +8,9 @@
     "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
-    "Unity.Collections"
+    "Unity.Collections",
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.Vegetation.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
