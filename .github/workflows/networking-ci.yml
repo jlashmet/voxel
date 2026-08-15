@@ -75,6 +75,7 @@ jobs:
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
 
+          unity_status=0
           UNITY_MAX_RSS_MB=8192 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" \
           tools/unity-run.sh \
@@ -85,8 +86,8 @@ jobs:
             -runTests \
             -testPlatform EditMode \
             -testResults "$ROOT/results.xml" \
-            -logFile "$ROOT/unity.log"
-          unity_status=$?
+            -logFile "$ROOT/unity.log" \
+            || unity_status=$?
 
           if [[ $unity_status -ne 0 && $unity_status -ne 2 ]]; then
             echo "Unity exited unexpectedly with status $unity_status" >&2
