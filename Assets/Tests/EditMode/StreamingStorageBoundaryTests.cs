@@ -1,0 +1,120 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using NUnit.Framework;
+using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Streaming;
+
+namespace VoxelEngine.Tests.EditMode
+{
+    public sealed class StreamingStorageBoundaryTests
+    {
+        [Test]
+        public void StreamingAssemblyUsesStorageApiInsteadOfPhysicalCoreStorage()
+        {
+            string root = FindRepoRoot();
+            string streaming = Path.Combine(root, "Assets", "VoxelEngine", "Streaming");
+            string[] forbidden =
+            {
+                "RegionTable",
+                "BrickPool",
+                "BrickRef",
+                "VoxelAccess",
+                "VoxelDimensions.",
+                "VoxelEngine.Core.Storage",
+            };
+            var violations = new List<string>();
+
+            foreach (string path in Directory.EnumerateFiles(streaming, "*.cs", SearchOption.TopDirectoryOnly))
+            {
+                string source = File.ReadAllText(path);
+                foreach (string token in forbidden)
+                {
+                    if (source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                        violations.Add(Path.GetFileName(path) + " -> " + token);
+                }
+            }
+
+            string asmdefPath = Path.Combine(streaming, "VoxelEngine.Streaming.asmdef");
+            string asmdef = File.ReadAllText(asmdefPath);
+            if (asmdef.IndexOf("\"VoxelEngine.Core\"", StringComparison.Ordinal) >= 0)
+                violations.Add("VoxelEngine.Streaming.asmdef -> VoxelEngine.Core");
+            if (asmdef.IndexOf("\"VoxelEngine.Storage.Api\"", StringComparison.Ordinal) < 0)
+                violations.Add("VoxelEngine.Streaming.asmdef -> missing VoxelEngine.Storage.Api");
+
+            Assert.IsEmpty(violations,
+                "Streaming must own residency policy while consuming Storage only through " +
+                "Storage.Api.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
+        public void FirstCompletedRegionPublishesThroughResidencyStore()
+        {
+            Type loader = typeof(RegionLoader);
+            Type completionType = loader.GetNestedType("CompletedRegion", BindingFlags.NonPublic);
+            Assert.NotNull(completionType);
+
+            FieldInfo completionsField = loader.GetField("_completions",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            FieldInfo countField = loader.GetField("_completionCount",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            MethodInfo pushMethod = loader.GetMethod("PushCompletion",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(completionsField);
+            Assert.NotNull(countField);
+            Assert.NotNull(pushMethod);
+
+            object previousCompletions = completionsField.GetValue(null);
+            object previousCount = countField.GetValue(null);
+            try
+            {
+                completionsField.SetValue(null, Array.CreateInstance(completionType, 64));
+                countField.SetValue(null, 0);
+
+                int3 expected = new int3(4, -2, 7);
+                object completion = Activator.CreateInstance(completionType);
+                completionType.GetField("RegionCoord",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                    .SetValue(completion, expected);
+                completionType.GetField("MipLevel",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                    .SetValue(completion, (byte)2);
+
+                pushMethod.Invoke(null, new[] { completion });
+
+                var store = new RecordingResidencyStore();
+                int published = RegionLoader.PublishLoaded(store, 1000f);
+                Assert.AreEqual(1, published);
+                Assert.AreEqual(1, store.Ensured.Count);
+                Assert.AreEqual(expected, store.Ensured[0],
+                    "The first completion must be read from the same zero-based slot it was written to.");
+            }
+            finally
+            {
+                completionsField.SetValue(null, previousCompletions);
+                countField.SetValue(null, previousCount);
+            }
+        }
+
+        private static string FindRepoRoot()
+        {
+            DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Assets")))
+                directory = directory.Parent;
+            Assert.NotNull(directory, "Could not locate project root containing Assets/.");
+            return directory.FullName;
+        }
+
+        private sealed class RecordingResidencyStore : IRegionResidencyStore
+        {
+            public readonly List<int3> Ensured = new List<int3>();
+
+            public StoragePressure Pressure => default;
+            public bool IsRegionResident(int3 regionCoord) => Ensured.Contains(regionCoord);
+            public void EnsureRegionResident(int3 regionCoord) => Ensured.Add(regionCoord);
+            public bool EvictRegion(int3 regionCoord) => false;
+        }
+    }
+}
