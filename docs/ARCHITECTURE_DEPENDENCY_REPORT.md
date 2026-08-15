@@ -1,11 +1,12 @@
 # Final Architecture Dependency Report
 
 **Verified branch:** `refactor/system-boundaries-finalization-stable`  
-**Verified code SHA:** `c09dc595211d492f8bb934292367dfd5b4215b4e`  
-**Static acceptance:** `Stable final architecture acceptance` run `31909666042`, static job `95073061962` — passed  
-**Generated report precursor:** `Final architecture static acceptance` run `31909432576` at `02a6bff15f8d034ac62e91a84219d7b5d42b07e7` — passed
+**Latest accepted static code SHA:** `ecd0d0d32c5e5cfe7308171318312fe0702a2e9f`  
+**Static acceptance:** `Stable final architecture acceptance` run `31910684890`, static job `95075151820` — passed  
+**Generated report precursor:** `Final architecture static acceptance` run `31909432576` at `02a6bff15f8d034ac62e91a84219d7b5d42b07e7` — passed  
+**Final behavioral acceptance:** pending on draft PR #48 after cleanup of the retired static-guard allowlist; do not mark the final implementation-plan task complete until an exact-head Unity/EditMode run reports zero C# compiler errors and exactly 387 total / 374 passed / the same 13 documented failures.
 
-This report records the final production assembly dependency graph for the architecture cutover. The generated precursor report was rechecked against the current code head after Composition restored its required Vegetation wiring. Test, CI, and Editor assemblies are intentionally outside the production Runtime-wiring rule because they must be able to exercise concrete implementations.
+This report records the final production assembly dependency graph for the architecture cutover. The generated precursor report was rechecked against the final Composition wiring and permanent static rules. Test, CI, and Editor assemblies are intentionally outside the production Runtime-wiring rule because they must be able to exercise concrete implementations.
 
 ## Production assembly edges
 
@@ -38,7 +39,7 @@ This report records the final production assembly dependency graph for the archi
 
 ## Enforced assertions
 
-The current-head static acceptance passed all of these rules:
+The accepted static gate passed all of these rules:
 
 - Engine `*.Api` assemblies reference no engine `*.Runtime` assemblies.
 - Engine `*.Runtime` assemblies reference no foreign subsystem `*.Runtime` assemblies.
