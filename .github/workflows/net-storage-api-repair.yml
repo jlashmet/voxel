@@ -1,0 +1,172 @@
+name: Net storage API repair
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: true
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p=Path(path); s=p.read_text()
+              actual=s.count(old)
+              if actual != count:
+                  raise SystemExit(f'{path}: expected {count} matches, found {actual}: {old[:80]!r}')
+              p.write_text(s.replace(old,new))
+
+          p='Assets/VoxelEngine/Net/Server/ServerCommandProcessor.cs'
+          replace(p, '        private RegionMutationStore _mutationStorage;\n', '')
+          replace(p,
+'''        public void ProcessTick(
+            uint serverTick,
+            ref RegionTable table,
+            ref BrickPool pool,
+            in ProtectedZones zones,
+''',
+'''        public void ProcessTick(
+            uint serverTick,
+            IRegionReadSource readStorage,
+            IRegionMutationStore mutationStorage,
+            in ProtectedZones zones,
+''')
+          replace(p,
+'''            if (inputSink == null) throw new ArgumentNullException(nameof(inputSink));
+            if (applier == null) throw new ArgumentNullException(nameof(applier));
+''',
+'''            if (readStorage == null) throw new ArgumentNullException(nameof(readStorage));
+            if (mutationStorage == null) throw new ArgumentNullException(nameof(mutationStorage));
+            if (inputSink == null) throw new ArgumentNullException(nameof(inputSink));
+            if (applier == null) throw new ArgumentNullException(nameof(applier));
+''')
+          replace(p,
+'''            _mutationStorage ??= new RegionMutationStore(in table, in pool);
+            _mutationStorage.Refresh(in table, in pool);
+
+            DrainAndResolve(serverTick);
+            ProcessInputs(serverTick, inputSink);
+            ProcessAlterations(
+                serverTick, ref table, ref pool, _mutationStorage, in zones,
+                applier, publisher, rejectionSink);
+''',
+'''            DrainAndResolve(serverTick);
+            ProcessInputs(serverTick, inputSink);
+            ProcessAlterations(
+                serverTick, readStorage, mutationStorage, in zones,
+                applier, publisher, rejectionSink);
+''')
+          replace(p,
+'''        private void ProcessAlterations(
+            uint serverTick,
+            ref RegionTable table,
+            ref BrickPool pool,
+            IRegionMutationStore mutationStorage,
+''',
+'''        private void ProcessAlterations(
+            uint serverTick,
+            IRegionReadSource readStorage,
+            IRegionMutationStore mutationStorage,
+''')
+          replace(p,
+'''                        _players,
+                        mutationStorage,
+                        applier,
+                        ref table,
+                        in pool,
+                        _densityCap,
+''',
+'''                        _players,
+                        readStorage,
+                        mutationStorage,
+                        applier,
+                        _densityCap,
+''')
+
+          p='Assets/VoxelEngine/Net/Server/DestructionHandler.cs'
+          replace(p,
+'''            uint authoritativeSeed,
+            IRegionMutationStore mutationStorage,
+            ref RegionTable table,
+            ref BrickPool pool,
+            Validation.DensityCap densityCap,
+''',
+'''            uint authoritativeSeed,
+            IRegionReadSource readStorage,
+            IRegionMutationStore mutationStorage,
+            Validation.DensityCap densityCap,
+''')
+          replace(p,
+'''            if (mutationStorage == null)
+                throw new ArgumentNullException(nameof(mutationStorage));
+''',
+'''            if (readStorage == null)
+                throw new ArgumentNullException(nameof(readStorage));
+            if (mutationStorage == null)
+                throw new ArgumentNullException(nameof(mutationStorage));
+''')
+          replace(p,
+'''                players,
+                mutationStorage,
+                applier,
+                ref table,
+                in pool,
+                densityCap,
+''',
+'''                players,
+                readStorage,
+                mutationStorage,
+                applier,
+                densityCap,
+''')
+          replace(p,
+'''            var broadcast = new S_AlterationEvent(
+                authoritativeTick,
+                table.GetRegionCoordFor(evt.origin));
+''',
+'''            var broadcast = new S_AlterationEvent(
+                authoritativeTick,
+                evt.origin >> VoxelGrid.RegionVoxelEdgeLog2);
+''')
+          start='''        /// <summary>\n        /// The pre-authentication overload is deliberately fail-closed.'''
+          end='''        private static S_AlterationRejected.Reason ToReason'''
+          s=Path(p).read_text(); a=s.find(start); b=s.find(end)
+          if a < 0 or b < 0 or b <= a: raise SystemExit('legacy destruction overload markers not found')
+          s=s[:a]+s[b:]
+          marker='''\n    public static class RegionTableExtensions\n'''
+          a=s.find(marker)
+          if a < 0: raise SystemExit('RegionTableExtensions marker not found')
+          b=s.find('''\n    public struct AdjudicationResult\n''', a)
+          if b < 0: raise SystemExit('AdjudicationResult marker not found')
+          s=s[:a]+s[b:]
+          Path(p).write_text(s)
+
+          # Net is no longer allowed to reference Core. Remove stale imports now; any genuine
+          # remaining dependency will surface as a concrete compiler error in the pinned gate.
+          for p in Path('Assets/VoxelEngine/Net').rglob('*.cs'):
+              lines=p.read_text().splitlines(True)
+              cleaned=[line for line in lines if not line.startswith('using VoxelEngine.Core.')]
+              if cleaned != lines:
+                  p.write_text(''.join(cleaned))
+          PY
+          git rm .github/workflows/net-storage-api-repair.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Net
+          git add -u .github/workflows
+          git status --short
+          git commit -m 'Route Net alteration validation through Storage API'
+          git push origin HEAD:${{ github.ref_name }}
