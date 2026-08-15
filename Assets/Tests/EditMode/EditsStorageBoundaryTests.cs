@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
@@ -37,6 +38,40 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("VoxelEngine.Storage.Api", source);
             StringAssert.Contains("IRegionMutationStore", source);
             StringAssert.Contains("VoxelBlockMutation", source);
+        }
+
+        [Test]
+        public void LegacyPhysicalMutationSignaturesAreGoneFromNetAndTests()
+        {
+            string root = FindRepoRoot();
+            string[] roots =
+            {
+                Path.Combine(root, "Assets", "VoxelEngine", "Net"),
+                Path.Combine(root, "Assets", "Tests"),
+            };
+            string[] forbidden =
+            {
+                "DeterministicAlterationApplier.TryApply(ref table",
+                "DeterministicAlterationApplier.HasRequiredResidency(ref table",
+                "TryApplyAlteration(ref RegionTable table, ref BrickPool pool",
+                "EventApplication.Apply(ref table",
+                "EventApplication.Apply(ref tableA",
+                "EventApplication.Apply(ref tableB",
+            };
+            var violations = new List<string>();
+
+            foreach (string scanRoot in roots)
+            foreach (string path in Directory.EnumerateFiles(scanRoot, "*.cs", SearchOption.AllDirectories))
+            {
+                string source = StripComments(File.ReadAllText(path));
+                foreach (string token in forbidden)
+                    if (source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                        violations.Add(Path.GetRelativePath(root, path) + " -> " + token);
+            }
+
+            Assert.IsEmpty(violations,
+                "Callers must use IRegionMutationStore rather than the removed physical mutation signatures.\n\n" +
+                string.Join("\n", violations));
         }
 
         [Test]
