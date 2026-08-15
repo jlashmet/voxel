@@ -20,8 +20,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 |---|---|---|---|
 | 0 — Guardrails | **Complete** | asmdef boundary guard, split-safe determinism roots, WorldGen boundary guards | final no-Core assertions tighten automatically as final assemblies land |
 | 1 — Foundation | **Complete** | `IntMath` clean-moved to `VoxelEngine.Foundation`; consumers and Core bridge reference migrated | none |
-| 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency and mutation capabilities; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
-| 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; byte/value parity accepted | final Terrain.Api/Runtime move and public terrain query contract |
+| 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency and mutation capabilities; shared BrickPool allocator state; Rendering/Collision read boundaries | migrate Kentridge vegetation off `RegionTable`/`BrickPool`; move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
+| 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
 | 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts live in `VoxelEngine.Structures.Api`; Kentridge compatibility seam deleted and all Kentridge definitions validated against canonical encoding | migrate Runtime dependencies, then move Structures.Runtime and delete the old broad Structures assembly |
 | 5 — Edits | **In progress** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |
 | 6 — StructuralIntegrity | **Not started** | — | full cutover |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `a9d684e612485728320597577680e60a8075f075` — 382 tests, 369 passed, exactly 13 known baseline failures. The baseline intentionally shrank from 15 to 13 because canonical `EmitBox` encoding fixed `KentridgeUpperSkybridgeTests.SkybridgeCatalogueCreatesOneOpenHardUpperStreetWithoutRoadPiers` and `KentridgeVerticalFrontageTests.VerticalFrontagesEmbedIntoTerraceAndEndOnAuthoredDownhillEdge`; no new failures were introduced.
+- Latest accepted code gate: `1233cc3d29a56f7a37cc979d0bd897f4f716db8a` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate accepts the Terrain.Api query extraction and repository-wide sampling-consumer migration. The baseline previously shrank from 15 to 13 because canonical `EmitBox` encoding fixed `KentridgeUpperSkybridgeTests.SkybridgeCatalogueCreatesOneOpenHardUpperStreetWithoutRoadPiers` and `KentridgeVerticalFrontageTests.VerticalFrontagesEmbedIntoTerraceAndEndOnAuthoredDownhillEdge`; no new failures were introduced.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -530,7 +530,7 @@ with `VoxelSurfaceQuery` (or the equivalent concrete Api value created above). I
 - [ ] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are internal/runtime-only.
 - [ ] No source outside `Storage/Runtime` imports their namespaces.
 - [x] Rendering and Collision use readonly native views, not virtual per-voxel services.
-- [x] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`.
+- [ ] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`. **Reopened:** `KentridgeVegetationPlanner` still receives physical Storage types and calls `VoxelAccess`; this must move to the Storage.Api surface/read capability before Storage can close.
 - [ ] Net semantic hash/snapshot paths do not depend on physical brick layout.
 - [x] Existing storage/read/mutation parity tests pass against the established CI baseline; snapshot/hash final ownership remains tracked by the unchecked item above.
 - [ ] Architecture guard has no Storage.Runtime foreign-reference exception.
@@ -586,6 +586,9 @@ The Voxel worldgen package references `VoxelEngine.Terrain.Api`, never Terrain.R
 
 ### Implementation progress
 
+- [x] Deterministic height/slope/mountain-mask sampling extracted to `Terrain.Api/TerrainQuery.cs`; the old `Core/Terrain/TerrainSampler.cs` compatibility surface is deleted.
+- [x] Structures, WorldGen Voxel, Showcase, CI/editor capture, and terrain tests consume `Terrain.Api` for direct terrain sampling.
+- [x] Terrain query extraction accepted by CI at `1233cc3d29a56f7a37cc979d0bd897f4f716db8a`: 382 total / 369 passed / exact 13 known baseline failures.
 - [x] `TerrainGenerator` no longer receives or writes `BrickPool`; generation goes through Storage.Api bulk generation views.
 - [x] Table-backed and standalone generation writers have parity coverage.
 - [ ] Terrain.Api/Runtime physical move and namespace cutover complete.
@@ -1510,9 +1513,9 @@ At the end, generate an asmdef dependency report and verify:
 ### 3. Terrain
 
 - [ ] create Terrain.Api/Runtime
-- [ ] move deterministic query contract to Api
+- [x] move deterministic query contract to Api
 - [ ] move TerrainGenerator/Sampler implementation to Runtime
-- [ ] generate through Storage.Api writer
+- [x] generate through Storage.Api writer
 - [ ] update Structures/Streaming/WorldGen callers
 
 ### 4. Structures
