@@ -86,7 +86,7 @@ namespace VoxelEngine.Composition
         public static void SetSurfaceBuildEnabled(bool enabled) =>
             VoxelRenderBridge.SurfaceBuildEnabled = enabled;
 
-        public static void SetFarBaseHeight(int baseHeight) =>
+        public static void SetFarBaseHeight(uint baseHeight) =>
             VoxelRenderBridge.FarBaseHeight = baseHeight;
 
         public static void SetLocalLights(Vector4[] lights, Vector4[] colours)
