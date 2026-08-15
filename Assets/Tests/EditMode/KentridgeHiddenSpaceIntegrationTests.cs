@@ -192,6 +192,51 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void AliasedSiteRolesRunScatteredPolicyOncePerPhysicalSite()
+        {
+            var game = Campaign.Create("aliased-secret-policy");
+            SiteRef pubA = game.World.RequireSite("pub-role-a", site => site
+                .Archetype(SiteArchetype.Pub)
+                .RequireCapability(SiteCapability.SecretCandidateHost));
+            SiteRef pubB = game.World.RequireSite("pub-role-b", site => site
+                .Archetype(SiteArchetype.Pub)
+                .RequireCapability(SiteCapability.SecretCandidateHost));
+            LootTableRef loot = game.Loot.Table("secret-loot", table => table
+                .RollCount(1, 1)
+                .Guaranteed(LootCategory.Currency));
+            game.World.Secrets.Policy("scattered", secret => secret
+                .Entrance(SecretEntranceType.DestroyableFalseWall)
+                .Distribution(new SecretDistribution(1, 1, 10000))
+                .RequireHiddenSpace()
+                .RewardWith(loot));
+
+            PlanningGraph graph = BlueprintCompiler.Compile(game.Build());
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            var projections = new KentridgeArchitectureSiteProjectionProvider(plan);
+            var traversal = new SettlementStreetTraversalFacts(plan, projections);
+            var facts = new SettlementPlanWorldBuilderFacts(
+                plan,
+                new RegionRef("kentridge-region"),
+                new SettlementRef("kentridge"),
+                projections,
+                traversal,
+                projections);
+            SiteResolutionResult sites = SiteRoleResolver.Resolve(graph, facts);
+
+            Assert.That(sites.IsResolved, Is.True);
+            ResolvedSiteId a = sites.Bindings.Single(value => value.Role.Equals(pubA)).Site;
+            ResolvedSiteId b = sites.Bindings.Single(value => value.Role.Equals(pubB)).Site;
+            Assert.That(a, Is.EqualTo(b));
+
+            var requests = KentridgeHiddenSpaceRequestComposer.Compose(graph, sites, plan);
+            Assert.That(requests.Count, Is.EqualTo(1));
+            Assert.That(requests[0].RoleId, Is.EqualTo((int)KentridgeRole.Pub));
+            Assert.That(requests[0].MinimumCount, Is.EqualTo(1),
+                "A scattered policy is per physical eligible site, not per authored alias.");
+            Assert.That(requests[0].TargetCount, Is.EqualTo(1));
+        }
+
+        [Test]
         public void HiddenSpaceVoxelCatalogueEmitsSealedRoomAndFalseWallProgram()
         {
             SettlementPlan plan = KentridgeDefinition.Build(Seed);
