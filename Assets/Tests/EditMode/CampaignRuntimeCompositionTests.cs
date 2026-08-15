@@ -18,7 +18,7 @@ namespace VoxelEngine.Tests.EditMode
             var game = Campaign.Create("runtime-opening");
             SiteRef startingPub = game.World.RequireSite("starting-pub", site => site
                 .Archetype(SiteArchetype.Pub));
-            SiteRef destination = game.World.RequireSite("first-destination");
+            SiteRef destination = game.World.RequireSite("first-destination", null);
 
             NpcRef madeline = game.World.RequireNpc("madeline", npc => npc.PlaceAt(startingPub));
             NpcRef steven = game.World.RequireNpc("steven", npc => npc.PlaceAt(startingPub));
