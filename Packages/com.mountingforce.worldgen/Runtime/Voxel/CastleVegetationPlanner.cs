@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using MountingForce.WorldGen;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures;
 using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
 
@@ -17,17 +17,32 @@ namespace MountingForce.WorldGen.Voxel
     {
         private const float VoxelSize = 0.1f;
 
+        private struct RegionCursor
+        {
+            public bool HasLookup;
+            public bool Resident;
+            public int3 RegionCoord;
+            public RegionReadView View;
+        }
+
         public static bool TryBuild(in CastlePlan plan,
-                                    ref RegionTable table, in BrickPool pool,
+                                    IRegionReadSource storage,
                                     uint worldSeed, out List<TreeInstance> instances)
         {
+            if (storage == null)
+            {
+                instances = null;
+                return false;
+            }
+
             int top = plan.Centre.y + plan.PlateauHeight;
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
             int streamX = CastleBuilder.WaterfallStreamX(in plan);
             int3 gateProbe = CastleBuilder.FrontGateMinimum(in plan)
                            + new int3(-plan.WallThickness, 0, 0);
+            RegionCursor cursor = default;
 
-            if (FindSurface(ref table, in pool, gateProbe.x, gateProbe.z,
+            if (FindSurface(storage, ref cursor, gateProbe.x, gateProbe.z,
                             top + plan.WallHeight + 16, top - 24) == int.MinValue)
             {
                 instances = null;
@@ -57,7 +72,7 @@ namespace MountingForce.WorldGen.Voxel
                 }
                 else
                 {
-                    int surface = FindSurface(ref table, in pool,
+                    int surface = FindSurface(storage, ref cursor,
                                               candidate.X, candidate.Z,
                                               candidate.SurfaceMaxY, candidate.SurfaceMinY);
                     if (surface == int.MinValue) continue;
@@ -90,16 +105,38 @@ namespace MountingForce.WorldGen.Voxel
             });
         }
 
-        private static int FindSurface(ref RegionTable table, in BrickPool pool,
+        private static int FindSurface(IRegionReadSource storage, ref RegionCursor cursor,
                                        int x, int z, int maxY, int minY)
         {
             for (int y = maxY; y >= minY; y--)
             {
-                byte material = VoxelAccess.GetVoxel(ref table, in pool, new int3(x, y, z));
+                int3 voxel = new int3(x, y, z);
+                int3 regionCoord = new int3(
+                    FloorDiv(x, VoxelGrid.RegionVoxelEdge),
+                    FloorDiv(y, VoxelGrid.RegionVoxelEdge),
+                    FloorDiv(z, VoxelGrid.RegionVoxelEdge));
+                if (!cursor.HasLookup || math.any(cursor.RegionCoord != regionCoord))
+                {
+                    cursor.HasLookup = true;
+                    cursor.RegionCoord = regionCoord;
+                    cursor.Resident = storage.TryAcquireRegion(regionCoord, out cursor.View);
+                }
+                if (!cursor.Resident) continue;
+
+                int3 localVoxel = voxel - regionCoord * VoxelGrid.RegionVoxelEdge;
+                if (!cursor.View.TryReadCell(localVoxel, out VoxelCell cell)) continue;
+                byte material = cell.BaseMaterialId;
                 if (material != Mat.Empty && material != Mat.Water && material != Mat.Cascade)
                     return y;
             }
             return int.MinValue;
+        }
+
+        private static int FloorDiv(int value, int divisor)
+        {
+            int quotient = value / divisor;
+            int remainder = value % divisor;
+            return remainder < 0 ? quotient - 1 : quotient;
         }
 
         private static TreeSpecies ToRuntimeSpecies(SemanticTreeSpecies species) => species switch
