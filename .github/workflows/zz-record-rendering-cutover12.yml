@@ -1,0 +1,59 @@
+name: Record accepted Rendering cutover
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/zz-record-rendering-cutover12.yml]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          s=p.read_text()
+          replacements={
+            '**Current focus:** Cutover 12 Rendering — behavioral parity acceptance':'**Current focus:** Cutover 13 Composition/Core deletion — final wiring and Core removal',
+            '| 12 — Rendering | **In progress — current** | render bridge/surface extraction use Storage.Api read views; retained profiles use Storage.Api; vegetation presentation uses Vegetation.Api; dead physical leaks removed; Rendering Api/Runtime physical + namespace + asmdef cutover accepted by static gate | final 384/371/13 behavioral parity gate |':'| 12 — Rendering | **Complete** | Rendering Api/Runtime physical + namespace + asmdef cutover complete; Runtime consumes Storage.Api/Tiering.Api/Vegetation.Api only; presentation catalogues/change feed use Storage.Api read views; retained profiles use Storage.Api; tree presentation uses Vegetation.Api; dead physical leaks removed; static and 384/371/13 behavioral parity accepted | none |',
+            '| 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |':'| 13 — Composition/Core deletion | **In progress — current** | read-only final-cut inventory may proceed after Rendering acceptance | composition root, final wiring, delete Core |',
+            '- [ ] targeted GPU/CPU surface and rendering parity tests pass;':'- [x] targeted GPU/CPU surface and rendering parity tests pass; isolated EditMode acceptance run `31894170304` against source `f5e0b646102a50305424850a0508d190bae3e44d` produced 384 total / 371 passed / exact 13 known baseline failures;',
+            '- [ ] create Rendering.Api/Runtime':'- [x] create Rendering.Api/Runtime',
+            '- [ ] move all extraction/render/tree presentation implementation to Runtime':'- [x] move all extraction/render/tree presentation implementation to Runtime',
+            '- [ ] consume Storage/Tiering/Vegetation Api only':'- [x] consume Storage/Tiering/Vegetation Api only',
+            '- [ ] keep Rendering.Api minimal':'- [x] keep Rendering.Api minimal',
+          }
+          for old,new in replacements.items():
+              if old not in s:
+                  raise SystemExit('expected checklist seam missing: '+old[:100])
+              s=s.replace(old,new,1)
+          anchor='- [x] Rendering catalogue/change-feed consumers and tooling use Storage.Api read-facing views; Rendering.Runtime no longer references `VoxelEngine.Core`.\n'
+          extra='- [x] Rendering behavioral parity accepted at `f5e0b646102a50305424850a0508d190bae3e44d`, isolated run `31894170304`: 384 total / 371 passed / exact 13 known baseline failures.\n'
+          if extra not in s:
+              if anchor not in s: raise SystemExit('Rendering implementation-progress anchor missing')
+              s=s.replace(anchor,anchor+extra,1)
+          latest='- Latest accepted code gate:'
+          lines=s.splitlines()
+          for i,line in enumerate(lines):
+              if line.startswith(latest):
+                  lines[i]='- Latest accepted code gate: `f5e0b646102a50305424850a0508d190bae3e44d` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Rendering Cutover 12 run `31894170304` produced a complete `results.xml`; this accepts the final Rendering Api/Runtime, namespace, Storage.Api presentation/change-feed boundary, consumer/tooling migrations, and behavioral parity.'
+                  break
+          else: raise SystemExit('latest accepted code gate line missing')
+          s='\n'.join(lines)+'\n'
+          p.write_text(s)
+          PY
+          git rm .github/workflows/zz-record-rendering-cutover12.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git add -u .github/workflows
+          git commit -m 'docs: mark Rendering cutover complete'
+          git push origin HEAD:${{ github.ref_name }}
