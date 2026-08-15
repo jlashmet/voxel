@@ -1,0 +1,412 @@
+name: Fix Storage public contract once
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths: [.github/workflows/fix-storage-public-contract-once.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-stable
+          fetch-depth: 0
+      - name: Make Storage.Runtime consume only public Storage.Api construction contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization-stable
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # RegionGenerationWriteView: keep construction API-owned and public without friend access.
+          p = Path('Assets/VoxelEngine/Storage/Api/RegionGenerationWriteView.cs')
+          s = p.read_text()
+          old = '''        internal RegionGenerationWriteView(int3 regionCoord, NativeArray<int> encodedBlockRefs)
+        {
+            RegionCoord = regionCoord;
+            _encodedBlockRefs = encodedBlockRefs;
+        }
+'''
+          new = '''        private RegionGenerationWriteView(int3 regionCoord, NativeArray<int> encodedBlockRefs)
+        {
+            RegionCoord = regionCoord;
+            _encodedBlockRefs = encodedBlockRefs;
+        }
+
+        /// <summary>
+        /// Creates a borrowed generation view over Storage-owned backing memory. The backing channel
+        /// is an API-owned logical block-state transport; callers normally obtain this view through
+        /// <see cref="IRegionGenerationStore"/> rather than constructing one directly.
+        /// </summary>
+        public static RegionGenerationWriteView CreateBorrowed(
+            int3 regionCoord,
+            NativeArray<int> blockStates) =>
+            new RegionGenerationWriteView(regionCoord, blockStates);
+'''
+          if old not in s:
+              raise SystemExit('RegionGenerationWriteView constructor block changed unexpectedly')
+          p.write_text(s.replace(old, new, 1))
+
+          # RegionReadView: same pattern for the zero-copy read channels.
+          p = Path('Assets/VoxelEngine/Storage/Api/RegionReadView.cs')
+          s = p.read_text()
+          s = s.replace('        internal RegionReadView(\n', '        private RegionReadView(\n', 1)
+          needle = '''            _mixedBoundarySamples = mixedBoundarySamples;
+            _mixedOccupancy = mixedOccupancy;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool ContainsWorldBlock'''
+          replacement = '''            _mixedBoundarySamples = mixedBoundarySamples;
+            _mixedOccupancy = mixedOccupancy;
+        }
+
+        /// <summary>
+        /// Creates a borrowed region view over Storage-owned native channels. The channel layout is
+        /// owned by Storage.Api so implementation assemblies need no friend access; consumers should
+        /// acquire views through <see cref="IRegionReadSource"/>.
+        /// </summary>
+        public static RegionReadView CreateBorrowed(
+            int3 regionCoord,
+            ulong version,
+            NativeArray<int> blockStates,
+            NativeArray<ulong> hardSurfaceWords,
+            NativeArray<ulong> occupancyMips,
+            NativeArray<byte> materialMips,
+            int mipLevelCount,
+            NativeArray<byte> mixedMaterials,
+            NativeArray<ushort> mixedSurfaceSemantics,
+            NativeArray<byte> mixedBoundarySamples,
+            NativeArray<ulong> mixedOccupancy) =>
+            new RegionReadView(
+                regionCoord,
+                version,
+                blockStates,
+                hardSurfaceWords,
+                occupancyMips,
+                materialMips,
+                mipLevelCount,
+                mixedMaterials,
+                mixedSurfaceSemantics,
+                mixedBoundarySamples,
+                mixedOccupancy);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool ContainsWorldBlock'''
+          if needle not in s:
+              raise SystemExit('RegionReadView constructor tail changed unexpectedly')
+          p.write_text(s.replace(needle, replacement, 1))
+
+          # VoxelBlockMutation: keep logical borrowed channels in Api; move physical completion state
+          # back into Storage.Runtime behind an opaque lease identifier.
+          p = Path('Assets/VoxelEngine/Storage/Api/VoxelBlockMutation.cs')
+          s = p.read_text()
+          start = s.index('    /// <summary>\n    /// Borrowed mutable payload for one logical 8^3 block.')
+          methods = s.index('        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n        public byte GetMaterial', start)
+          prefix = s[:start]
+          suffix = s[methods:]
+          header = '''    /// <summary>
+    /// Opaque identifier for a Storage-owned mutation completion record. The identifier carries no
+    /// region, pool or allocator meaning across the API boundary; only the originating Storage
+    /// implementation interprets it.
+    /// </summary>
+    public readonly struct VoxelMutationLease
+    {
+        private readonly int _value;
+
+        public VoxelMutationLease(int value) => _value = value;
+        public bool IsValid => _value != 0;
+        public int Value => _value;
+    }
+
+    /// <summary>
+    /// Borrowed mutable payload for one logical 8^3 block.
+    ///
+    /// Physical allocation identity stays inside Storage.Runtime. The public hot path contains only
+    /// logical cell/material channels plus an opaque completion lease, so callers can mutate the
+    /// borrowed block without per-voxel interface dispatch or knowledge of pool/table representation.
+    /// </summary>
+    public struct VoxelBlockMutation
+    {
+        private NativeArray<byte> _materials;
+        private NativeArray<ushort> _surfaceSemantics;
+        private NativeArray<byte> _boundarySamples;
+        private NativeArray<ulong> _occupancy;
+        private int _voxelOffset;
+        private int _occupancyOffset;
+        private bool _metadataChanged;
+
+        public VoxelMutationLease CompletionLease { get; private set; }
+        public bool IsCreated => _materials.IsCreated;
+        public bool MetadataChanged => _metadataChanged;
+
+        private VoxelBlockMutation(
+            NativeArray<byte> materials,
+            NativeArray<ushort> surfaceSemantics,
+            NativeArray<byte> boundarySamples,
+            NativeArray<ulong> occupancy,
+            int voxelOffset,
+            int occupancyOffset,
+            VoxelMutationLease completionLease,
+            bool metadataChanged)
+        {
+            _materials = materials;
+            _surfaceSemantics = surfaceSemantics;
+            _boundarySamples = boundarySamples;
+            _occupancy = occupancy;
+            _voxelOffset = voxelOffset;
+            _occupancyOffset = occupancyOffset;
+            CompletionLease = completionLease;
+            _metadataChanged = metadataChanged;
+        }
+
+        /// <summary>
+        /// Creates the borrowed logical payload view used by a Storage implementation. Backing
+        /// arrays remain Storage-owned and the completion lease is opaque to callers.
+        /// </summary>
+        public static VoxelBlockMutation CreateBorrowed(
+            NativeArray<byte> materials,
+            NativeArray<ushort> surfaceSemantics,
+            NativeArray<byte> boundarySamples,
+            NativeArray<ulong> occupancy,
+            int voxelOffset,
+            int occupancyOffset,
+            VoxelMutationLease completionLease,
+            bool metadataChanged) => new VoxelBlockMutation(
+                materials,
+                surfaceSemantics,
+                boundarySamples,
+                occupancy,
+                voxelOffset,
+                occupancyOffset,
+                completionLease,
+                metadataChanged);
+
+        /// <summary>
+        /// Creates a valid completion-only mutation when semantic metadata changed but no mutable
+        /// cell payload needs to be materialised.
+        /// </summary>
+        public static VoxelBlockMutation CreateMetadataOnly(
+            VoxelMutationLease completionLease,
+            bool metadataChanged) => new VoxelBlockMutation(
+                default, default, default, default,
+                0, 0,
+                completionLease,
+                metadataChanged);
+
+'''
+          p.write_text(prefix + header + suffix)
+
+          # Generation implementations consume the public API factory.
+          for path in [
+              Path('Assets/VoxelEngine/Storage/Runtime/RegionGenerationStore.cs'),
+              Path('Assets/VoxelEngine/Storage/Runtime/StandaloneRegionGenerationStore.cs'),
+          ]:
+              s = path.read_text()
+              old = 'return new RegionGenerationWriteView(\n'
+              if old not in s:
+                  raise SystemExit(f'{path}: generation view construction changed unexpectedly')
+              path.write_text(s.replace(old, 'return RegionGenerationWriteView.CreateBorrowed(\n', 1))
+
+          # Read implementation consumes the public API factory.
+          p = Path('Assets/VoxelEngine/Storage/Runtime/RegionReadSource.cs')
+          s = p.read_text()
+          old = '            view = new RegionReadView(\n'
+          if old not in s:
+              raise SystemExit('RegionReadSource construction changed unexpectedly')
+          p.write_text(s.replace(old, '            view = RegionReadView.CreateBorrowed(\n', 1))
+
+          # Mutation implementation owns all physical transaction state behind an opaque lease.
+          p = Path('Assets/VoxelEngine/Storage/Runtime/RegionMutationStore.cs')
+          s = p.read_text()
+          s = s.replace('using Unity.Mathematics;\n', 'using System.Collections.Generic;\nusing Unity.Mathematics;\n', 1)
+          s = s.replace(
+              '        private BrickPool _pool;\n',
+              '        private BrickPool _pool;\n        private readonly Dictionary<int, MutationCompletionState> _pending =\n            new Dictionary<int, MutationCompletionState>(64);\n        private int _nextMutationLease = 1;\n',
+              1)
+          old = '''            if (original.IsUniform && original.UniformMaterial == targetMaterial)
+            {
+                mutation = VoxelBlockMutation.MetadataOnly(
+                    regionCoord, blockIndex, original.Value, metadataChanged);
+                return true;
+            }
+'''
+          new = '''            if (original.IsUniform && original.UniformMaterial == targetMaterial)
+            {
+                int leaseId = RegisterMutation(new MutationCompletionState(
+                    regionCoord, blockIndex, original.Value, -1, false, metadataChanged));
+                mutation = VoxelBlockMutation.CreateMetadataOnly(
+                    new VoxelMutationLease(leaseId), metadataChanged);
+                return true;
+            }
+'''
+          if old not in s:
+              raise SystemExit('Metadata-only mutation block changed unexpectedly')
+          s = s.replace(old, new, 1)
+
+          complete_start = s.index('        public bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool payloadChanged)')
+          materialize_start = s.index('        private VoxelBlockMutation MaterializeBlock(', complete_start)
+          complete = '''        public bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool payloadChanged)
+        {
+            if (!TryTakeMutation(mutation.CompletionLease, out MutationCompletionState state))
+            {
+                mutation = default;
+                return false;
+            }
+
+            if (!_table.TryGetRegion(state.RegionCoord, out Region region) || !region.BrickRefs.IsCreated)
+            {
+                // A temporary mixed block created from a uniform source is owned only by this
+                // mutation. If the region disappeared before completion, release that temporary
+                // allocation rather than leaking it.
+                if (state.MaterializedUniform && state.PoolIndex >= 0)
+                    _pool.Free(state.PoolIndex);
+                mutation = default;
+                return false;
+            }
+
+            bool changed = state.MetadataChanged || payloadChanged;
+
+            if (!payloadChanged)
+            {
+                if (state.MaterializedUniform)
+                {
+                    _pool.Free(state.PoolIndex);
+                    region.BrickRefs[state.BlockIndex] =
+                        BrickRef.Uniform(DecodeUniformMaterial(state.OriginalEncodedRef));
+                }
+            }
+            else if (mutation.IsCreated &&
+                     _pool.TryGetUniformMaterial(state.PoolIndex, out byte uniform))
+            {
+                _pool.Free(state.PoolIndex);
+                region.BrickRefs[state.BlockIndex] = BrickRef.Uniform(uniform);
+            }
+
+            if (changed)
+            {
+                region.Dirty = true;
+                _table.CommitRegion(in region);
+            }
+
+            mutation = default;
+            return changed;
+        }
+
+'''
+          s = s[:complete_start] + complete + s[materialize_start:]
+
+          old_return = '''            return new VoxelBlockMutation(
+                _pool.Voxels,
+                _pool.SurfaceSemantics,
+                _pool.BoundarySamples,
+                _pool.Occupancy,
+                _pool.VoxelOffset(poolIndex),
+                _pool.OccupancyOffset(poolIndex),
+                regionCoord,
+                blockIndex,
+                original.Value,
+                poolIndex,
+                materializedUniform,
+                metadataChanged);
+        }
+
+        private static byte DecodeUniformMaterial'''
+          new_return = '''            int leaseId = RegisterMutation(new MutationCompletionState(
+                regionCoord,
+                blockIndex,
+                original.Value,
+                poolIndex,
+                materializedUniform,
+                metadataChanged));
+
+            return VoxelBlockMutation.CreateBorrowed(
+                _pool.Voxels,
+                _pool.SurfaceSemantics,
+                _pool.BoundarySamples,
+                _pool.Occupancy,
+                _pool.VoxelOffset(poolIndex),
+                _pool.OccupancyOffset(poolIndex),
+                new VoxelMutationLease(leaseId),
+                metadataChanged);
+        }
+
+        private int RegisterMutation(MutationCompletionState state)
+        {
+            int candidate = _nextMutationLease;
+            while (candidate == 0 || _pending.ContainsKey(candidate))
+                candidate = candidate == int.MaxValue ? 1 : candidate + 1;
+
+            _nextMutationLease = candidate == int.MaxValue ? 1 : candidate + 1;
+            _pending.Add(candidate, state);
+            return candidate;
+        }
+
+        private bool TryTakeMutation(
+            VoxelMutationLease lease,
+            out MutationCompletionState state)
+        {
+            if (!lease.IsValid || !_pending.TryGetValue(lease.Value, out state))
+                return false;
+
+            _pending.Remove(lease.Value);
+            return true;
+        }
+
+        private readonly struct MutationCompletionState
+        {
+            public readonly int3 RegionCoord;
+            public readonly int BlockIndex;
+            public readonly int OriginalEncodedRef;
+            public readonly int PoolIndex;
+            public readonly bool MaterializedUniform;
+            public readonly bool MetadataChanged;
+
+            public MutationCompletionState(
+                int3 regionCoord,
+                int blockIndex,
+                int originalEncodedRef,
+                int poolIndex,
+                bool materializedUniform,
+                bool metadataChanged)
+            {
+                RegionCoord = regionCoord;
+                BlockIndex = blockIndex;
+                OriginalEncodedRef = originalEncodedRef;
+                PoolIndex = poolIndex;
+                MaterializedUniform = materializedUniform;
+                MetadataChanged = metadataChanged;
+            }
+        }
+
+        private static byte DecodeUniformMaterial'''
+          if old_return not in s:
+              raise SystemExit('MaterializeBlock return changed unexpectedly')
+          p.write_text(s.replace(old_return, new_return, 1))
+          PY
+
+          # Guard the intended architectural result before publishing the source commit.
+          ! grep -R -n 'InternalsVisibleTo("VoxelEngine.Storage.Runtime")' Assets/VoxelEngine/Storage/Api
+          ! grep -R -n -E 'internal (RegionReadView|RegionGenerationWriteView|VoxelBlockMutation)|internal (int3 RegionCoord|int BlockIndex|int PoolIndex|bool MaterializedUniform)' Assets/VoxelEngine/Storage/Api
+          grep -q 'VoxelMutationLease' Assets/VoxelEngine/Storage/Api/VoxelBlockMutation.cs
+          grep -q 'Dictionary<int, MutationCompletionState>' Assets/VoxelEngine/Storage/Runtime/RegionMutationStore.cs
+          git diff --check
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/VoxelEngine/Storage/Api/RegionGenerationWriteView.cs \
+                  Assets/VoxelEngine/Storage/Api/RegionReadView.cs \
+                  Assets/VoxelEngine/Storage/Api/VoxelBlockMutation.cs \
+                  Assets/VoxelEngine/Storage/Runtime/RegionGenerationStore.cs \
+                  Assets/VoxelEngine/Storage/Runtime/StandaloneRegionGenerationStore.cs \
+                  Assets/VoxelEngine/Storage/Runtime/RegionReadSource.cs \
+                  Assets/VoxelEngine/Storage/Runtime/RegionMutationStore.cs
+          git commit -m 'fix(storage): make runtime consume public API contract'
+          git push origin HEAD:refactor/system-boundaries-finalization-stable
