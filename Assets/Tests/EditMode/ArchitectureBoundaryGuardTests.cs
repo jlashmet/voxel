@@ -14,11 +14,11 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class ArchitectureBoundaryGuardTests
     {
         private static readonly Regex NameRegex = new Regex(
-            "\"name\"\s*:\s*\"(?<value>[^\"]+)\"",
+            "\"name\"\\s*:\\s*\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
 
         private static readonly Regex ReferencesRegex = new Regex(
-            "\"references\"\s*:\s*\[(?<value>.*?)\]",
+            "\"references\"\\s*:\\s*\\[(?<value>.*?)\\]",
             RegexOptions.Compiled | RegexOptions.Singleline);
 
         private static readonly Regex QuotedStringRegex = new Regex(
