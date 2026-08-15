@@ -25,23 +25,42 @@ jobs:
           python3 - <<'PY'
           import json
           import re
+          from collections import defaultdict
           from pathlib import Path
 
-          root = Path('Assets/Scenes/Showcase')
-          pattern = re.compile(r'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime')
-          coupled = []
-          for path in sorted(root.rglob('*.cs')):
+          showcase = Path('Assets/Scenes/Showcase')
+          runtime_namespace = re.compile(r'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime')
+          declaration = re.compile(r'\b(?:public|internal|private|protected|static|sealed|readonly|abstract|partial|unsafe|ref|new|\s)*\b(class|struct|interface|enum)\s+([A-Za-z_][A-Za-z0-9_]*)')
+
+          runtime_types = defaultdict(list)
+          for path in sorted(Path('Assets/VoxelEngine').glob('*/Runtime/**/*.cs')):
               text = path.read_text()
-              matches = sorted(set(pattern.findall(text)))
-              if matches:
-                  coupled.append((str(path), matches))
-                  print(f'RUNTIME_SOURCE {path}: {", ".join(matches)}')
-                  for i, line in enumerate(text.splitlines(), 1):
-                      if pattern.search(line):
-                          print(f'  L{i}: {line.strip()}')
+              for _, name in declaration.findall(text):
+                  runtime_types[name].append(str(path))
+
+          coupled = []
+          for path in sorted(showcase.rglob('*.cs')):
+              text = path.read_text()
+              imports = sorted(set(runtime_namespace.findall(text)))
+              if not imports:
+                  continue
+              coupled.append(str(path))
+              print(f'RUNTIME_SOURCE {path}: {", ".join(imports)}')
+              used = []
+              for name, owners in sorted(runtime_types.items()):
+                  if re.search(rf'\b{re.escape(name)}\b', text):
+                      used.append(name)
+                      print(f'  RUNTIME_TYPE {name}: {", ".join(owners)}')
+                      hits = []
+                      for i, line in enumerate(text.splitlines(), 1):
+                          if re.search(rf'\b{re.escape(name)}\b', line):
+                              hits.append(f'L{i}: {line.strip()}')
+                      for hit in hits[:12]:
+                          print('    ' + hit)
+              print(f'  RUNTIME_TYPE_COUNT {len(used)}')
           print(f'RUNTIME_SOURCE_COUNT {len(coupled)}')
 
-          asmdef = json.loads((root / 'VoxelEngine.Showcase.asmdef').read_text())
+          asmdef = json.loads((showcase / 'VoxelEngine.Showcase.asmdef').read_text())
           runtime_refs = [r for r in asmdef.get('references', []) if r.endswith('.Runtime')]
           print('RUNTIME_ASMDEF_REFS ' + ', '.join(runtime_refs))
           PY
