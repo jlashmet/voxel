@@ -1,0 +1,182 @@
+name: Edits API split publisher
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - name: Split canonical Edits API and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('Assets/VoxelEngine/Edits')
+          api = root / 'Api'
+          runtime = root / 'Runtime'
+          api.mkdir(parents=True, exist_ok=True)
+          runtime.mkdir(parents=True, exist_ok=True)
+
+          # New Unity folder/assembly identities. Existing moved source .meta files are preserved.
+          metas = {
+              Path('Assets/VoxelEngine/Edits.meta'): 'fileFormatVersion: 2\nguid: 2c3b6ccdecb04f69839115bf458b49d3\nfolderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n',
+              root / 'Api.meta': 'fileFormatVersion: 2\nguid: 13d174eeac0f4c948d65df43ee6fc6d1\nfolderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n',
+              root / 'Runtime.meta': 'fileFormatVersion: 2\nguid: 041c08b0fb1b46b6b4b6cbf0a84b8422\nfolderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n',
+              api / 'VoxelEngine.Edits.Api.asmdef.meta': 'fileFormatVersion: 2\nguid: bd2b0f8d40804ac999a49b753fb97043\n',
+              runtime / 'VoxelEngine.Edits.Runtime.asmdef.meta': 'fileFormatVersion: 2\nguid: 817084f51874406ca4fe2366180e6405\n',
+              api / 'AlterationEventKind.cs.meta': 'fileFormatVersion: 2\nguid: 3114cd037e714a8794eb1d789cc737a2\n',
+          }
+          for path, content in metas.items():
+              path.write_text(content)
+
+          api_asmdef = {
+              'name': 'VoxelEngine.Edits.Api',
+              'rootNamespace': 'VoxelEngine.Edits.Api',
+              'references': ['VoxelEngine.Storage.Api', 'Unity.Mathematics'],
+              'includePlatforms': [], 'excludePlatforms': [],
+              'allowUnsafeCode': False, 'overrideReferences': False,
+              'precompiledReferences': [], 'autoReferenced': False,
+              'defineConstraints': [], 'versionDefines': [],
+              'noEngineReferences': False,
+          }
+          runtime_asmdef = {
+              'name': 'VoxelEngine.Edits.Runtime',
+              'rootNamespace': 'VoxelEngine.Edits.Runtime',
+              'references': [
+                  'VoxelEngine.Foundation', 'VoxelEngine.Storage.Api', 'VoxelEngine.Edits.Api',
+                  'Unity.Collections', 'Unity.Mathematics'
+              ],
+              'includePlatforms': [], 'excludePlatforms': [],
+              'allowUnsafeCode': True, 'overrideReferences': False,
+              'precompiledReferences': [], 'autoReferenced': False,
+              'defineConstraints': [], 'versionDefines': [],
+              'noEngineReferences': False,
+          }
+          (api / 'VoxelEngine.Edits.Api.asmdef').write_text(json.dumps(api_asmdef, indent=2) + '\n')
+          (runtime / 'VoxelEngine.Edits.Runtime.asmdef').write_text(json.dumps(runtime_asmdef, indent=2) + '\n')
+
+          # Move canonical/wire vocabulary while preserving the two existing source GUIDs.
+          moves = [
+              ('AlterationEvent.cs', api / 'AlterationEvent.cs'),
+              ('AlterationEvent.cs.meta', api / 'AlterationEvent.cs.meta'),
+              ('BrushShapeCodec.cs', api / 'BrushShapeCodec.cs'),
+              ('BrushShapeCodec.cs.meta', api / 'BrushShapeCodec.cs.meta'),
+          ]
+          old_dir = Path('Assets/VoxelEngine/Core/Edits')
+          for name, dst in moves:
+              src = old_dir / name
+              if not src.exists():
+                  raise SystemExit(f'Missing expected Edits source {src}')
+              src.rename(dst)
+
+          event_path = api / 'AlterationEvent.cs'
+          event = event_path.read_text()
+          old_ns = 'namespace VoxelEngine.Core.Edits\n'
+          if event.count(old_ns) != 1:
+              raise SystemExit(f'AlterationEvent namespace count {event.count(old_ns)}')
+          event = event.replace(old_ns, 'namespace VoxelEngine.Edits.Api\n', 1)
+          if 'using VoxelEngine.Storage.Api;\n' not in event:
+              event = event.replace('using Unity.Mathematics;\n', 'using Unity.Mathematics;\nusing VoxelEngine.Storage.Api;\n', 1)
+          event = event.replace(
+              'VoxelEngine.Core.Storage.VoxelDimensions.RegionEdge',
+              'VoxelReadGrid.BlocksPerRegionEdge')
+          event = event.replace(
+              'same deterministic Core implementation',
+              'same deterministic Edits.Runtime implementation')
+          enum_block = '''\n    public enum AlterationEventKind : byte\n    {\n        None = 0,\n        Explosion = AlterationEvent.KindExplosion,\n        Brush = AlterationEvent.KindBrush,\n        RawBatch = AlterationEvent.KindRawBatch,\n    }\n'''
+          if event.count(enum_block) != 1:
+              raise SystemExit(f'AlterationEventKind block count {event.count(enum_block)}')
+          event = event.replace(enum_block, '', 1)
+          event_path.write_text(event)
+          (api / 'AlterationEventKind.cs').write_text('''namespace VoxelEngine.Edits.Api\n{\n    public enum AlterationEventKind : byte\n    {\n        None = 0,\n        Explosion = AlterationEvent.KindExplosion,\n        Brush = AlterationEvent.KindBrush,\n        RawBatch = AlterationEvent.KindRawBatch,\n    }\n}\n''')
+
+          codec_path = api / 'BrushShapeCodec.cs'
+          codec = codec_path.read_text()
+          if codec.count(old_ns) != 1:
+              raise SystemExit(f'BrushShapeCodec namespace count {codec.count(old_ns)}')
+          codec = codec.replace(old_ns, 'namespace VoxelEngine.Edits.Api\n', 1)
+          codec = codec.replace('using VoxelEngine.Core.Storage;\n', 'using VoxelEngine.Storage.Api;\n')
+          codec = codec.replace('VoxelDimensions.RegionEdge', 'VoxelReadGrid.BlocksPerRegionEdge')
+          codec = codec.replace('VoxelDimensions.BrickEdge', 'VoxelReadGrid.BlockEdge')
+          codec_path.write_text(codec)
+
+          # Remaining Core Edits implementation now imports the canonical API explicitly.
+          for path in old_dir.glob('*.cs'):
+              text = path.read_text()
+              if 'using VoxelEngine.Edits.Api;\n' not in text:
+                  lines = text.splitlines(True)
+                  insert = 0
+                  while insert < len(lines) and lines[insert].startswith('using '):
+                      insert += 1
+                  lines.insert(insert, 'using VoxelEngine.Edits.Api;\n')
+                  path.write_text(''.join(lines))
+
+          # Existing source consumers may still need Core.Edits implementation during this staged
+          # slice; add the API import alongside it. The final Runtime move removes Core.Edits.
+          for base in (Path('Assets'), Path('Packages')):
+              for path in base.rglob('*.cs'):
+                  if path.is_relative_to(old_dir) or path.is_relative_to(api):
+                      continue
+                  text = path.read_text()
+                  original = text
+                  old_using = 'using VoxelEngine.Core.Edits;\n'
+                  if old_using in text and 'using VoxelEngine.Edits.Api;\n' not in text:
+                      text = text.replace(old_using, 'using VoxelEngine.Edits.Api;\n' + old_using, 1)
+                  text = text.replace(
+                      'VoxelEngine.Core.Edits.AlterationEventKind',
+                      'VoxelEngine.Edits.Api.AlterationEventKind')
+                  if text != original:
+                      path.write_text(text)
+
+          # Explicit assembly consumers of canonical edit vocabulary.
+          asmdefs = [
+              Path('Assets/VoxelEngine/Core/VoxelEngine.Core.asmdef'),
+              Path('Assets/VoxelEngine/Net/VoxelEngine.Net.asmdef'),
+              Path('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef'),
+              Path('Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef'),
+              Path('Assets/Tests/Features/VoxelEngine.Tests.Features.asmdef'),
+              Path('Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef'),
+              Path('Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef'),
+          ]
+          for path in asmdefs:
+              data = json.loads(path.read_text())
+              refs = data.setdefault('references', [])
+              if 'VoxelEngine.Edits.Api' not in refs:
+                  refs.append('VoxelEngine.Edits.Api')
+              path.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+
+          git rm .github/workflows/edits-api-split.yml
+          git diff --check
+          echo '=== verify canonical files left Core/Edits ==='
+          test ! -e Assets/VoxelEngine/Core/Edits/AlterationEvent.cs
+          test ! -e Assets/VoxelEngine/Core/Edits/BrushShapeCodec.cs
+          grep -RInF 'namespace VoxelEngine.Edits.Api' Assets/VoxelEngine/Edits/Api --include='*.cs'
+          if grep -RInF 'VoxelEngine.Core.Storage' Assets/VoxelEngine/Edits/Api --include='*.cs'; then
+            echo 'Edits.Api leaked Core.Storage' >&2
+            exit 1
+          fi
+          echo '=== changed files ==='
+          git status --short
+          git diff --stat
+          git config user.name 'architecture-refactor-ci'
+          git config user.email 'architecture-refactor-ci@users.noreply.github.com'
+          git diff --name-only -z | xargs -0 git add --
+          git commit -m 'Extract canonical Edits API'
+          git push origin HEAD:${{ github.ref_name }}
