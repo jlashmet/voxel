@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import argparse
-from itertools import permutations
-import math
 from pathlib import Path
 import sys
 
@@ -22,10 +20,10 @@ from blender_common import (
     import_glb,
     transfer_weights,
 )
+from character_alignment import infer_axis_alignment
 
 
 ALIGN_TO_CANONICAL_BLEND = 0.78
-AXIS_RANK_PENALTY = 0.35
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,55 +66,9 @@ def stats(points: list[Vector]) -> tuple[Vector, Vector, Vector]:
     return lo, hi, mean
 
 
-def extent_ranks(extent: Vector) -> dict[int, int]:
-    ordered = sorted(range(3), key=lambda axis: extent[axis], reverse=True)
-    return {axis: rank for rank, axis in enumerate(ordered)}
-
-
-def infer_axis_mapping(
-    generated_points: list[Vector],
-    canonical_points: list[Vector],
-) -> tuple[tuple[int, int, int], tuple[bool, bool, bool], float]:
-    g_lo, g_hi, g_mean = stats(generated_points)
-    c_lo, c_hi, c_mean = stats(canonical_points)
-    g_extent = g_hi - g_lo
-    c_extent = c_hi - c_lo
-
-    if min(g_extent) <= 1e-6 or min(c_extent) <= 1e-6:
-        raise RuntimeError("character alignment requires non-degenerate 3D bounds")
-
-    generated_rank = extent_ranks(g_extent)
-    canonical_rank = extent_ranks(c_extent)
-
-    best_perm: tuple[int, int, int] | None = None
-    best_scale = 1.0
-    best_error = float("inf")
-    for perm in permutations((0, 1, 2)):
-        ratios = [c_extent[target] / g_extent[perm[target]] for target in range(3)]
-        scale = math.exp(sum(math.log(max(value, 1e-8)) for value in ratios) / 3.0)
-        error = 0.0
-        for target in range(3):
-            predicted = g_extent[perm[target]] * scale
-            error += abs(math.log(max(predicted, 1e-8) / c_extent[target]))
-            error += AXIS_RANK_PENALTY * abs(
-                canonical_rank[target] - generated_rank[perm[target]]
-            )
-        if error < best_error:
-            best_error = error
-            best_perm = perm
-            best_scale = scale
-
-    assert best_perm is not None
-
-    flips: list[bool] = []
-    for target, source in enumerate(best_perm):
-        canonical_fraction = (c_mean[target] - c_lo[target]) / c_extent[target]
-        generated_fraction = (g_mean[source] - g_lo[source]) / g_extent[source]
-        normal_error = abs(generated_fraction - canonical_fraction)
-        flipped_error = abs((1.0 - generated_fraction) - canonical_fraction)
-        flips.append(flipped_error + 1e-5 < normal_error)
-
-    return best_perm, (flips[0], flips[1], flips[2]), best_scale
+def mean_fractions(lo: Vector, hi: Vector, mean: Vector) -> tuple[float, float, float]:
+    extent = hi - lo
+    return tuple((mean[axis] - lo[axis]) / extent[axis] for axis in range(3))
 
 
 def align_generated_to_canonical(
@@ -125,17 +77,22 @@ def align_generated_to_canonical(
 ) -> None:
     generated_points = world_points(generated)
     canonical_points = world_points([donor_body])
-    g_lo, g_hi, _ = stats(generated_points)
-    c_lo, c_hi, _ = stats(canonical_points)
+    g_lo, g_hi, g_mean = stats(generated_points)
+    c_lo, c_hi, c_mean = stats(canonical_points)
     g_extent = g_hi - g_lo
     c_extent = c_hi - c_lo
     g_center = (g_lo + g_hi) * 0.5
     c_center = (c_lo + c_hi) * 0.5
 
-    mapping, flips, uniform_scale = infer_axis_mapping(
-        generated_points,
-        canonical_points,
+    alignment = infer_axis_alignment(
+        tuple(g_extent),
+        tuple(c_extent),
+        mean_fractions(g_lo, g_hi, g_mean),
+        mean_fractions(c_lo, c_hi, c_mean),
     )
+    mapping = alignment.mapping
+    flips = alignment.flips
+    uniform_scale = alignment.uniform_scale
 
     for mesh in generated:
         inverse = mesh.matrix_world.inverted()
@@ -170,7 +127,8 @@ def align_generated_to_canonical(
     print(
         "character auto-align: "
         f"mapping={mapping} flips={tuple(int(value) for value in flips)} "
-        f"uniformScale={uniform_scale:.4f} boundsError={relative_error:.4f}",
+        f"uniformScale={uniform_scale:.4f} boundsError={relative_error:.4f} "
+        f"score={alignment.score:.4f}",
         flush=True,
     )
 
