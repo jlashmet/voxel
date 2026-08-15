@@ -2,6 +2,7 @@
   "name": "VoxelEngine.Net",
   "rootNamespace": "VoxelEngine.Net",
   "references": [
+    "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Streaming.Api",
     "Unity.Burst",
