@@ -1,0 +1,26 @@
+name: Net Runtime direct inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-runtime-direct-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== NET ASMDEF REFERENCES ==='
+          grep -RIn '"VoxelEngine.Net"' Assets Packages --include='*.asmdef' | sort || true
+          echo '=== NET SOURCE USING NAMESPACES ==='
+          grep -RInE '^using VoxelEngine\.Net(\.|;)' Assets Packages --include='*.cs' | grep -v '^Assets/VoxelEngine/Net/' | sort || true
+          echo '=== NET SOURCE DECLARATIONS ==='
+          grep -RInE '^namespace VoxelEngine\.Net' Assets/VoxelEngine/Net --include='*.cs' | sort || true
+          echo '=== NET TREE ==='
+          find Assets/VoxelEngine/Net -maxdepth 3 -type f | sort
