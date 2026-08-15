@@ -166,6 +166,7 @@ namespace MountingForce.WorldGen.Voxel
                 0, 0, 0,
                 width, height, depth,
                 material,
+                0, 0,
                 (int)PrimitiveMode.Fill,
                 (int)ShapeOp.End,
                 0,

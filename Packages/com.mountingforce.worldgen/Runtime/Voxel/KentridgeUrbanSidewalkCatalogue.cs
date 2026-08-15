@@ -225,6 +225,7 @@ namespace MountingForce.WorldGen.Voxel
                 0, 0, 0,
                 width, VerticalSearchVoxels, depth,
                 material,
+                0, 0,
                 (int)PrimitiveMode.PaintSurface,
                 (int)ShapeOp.End,
                 0,
