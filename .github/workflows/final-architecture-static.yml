@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify final dependency graph, legacy-literal classification, and emit report
+      - name: Verify final dependency graph, source ownership, legacy-literal classification, and emit report
         shell: bash
         run: |
           set -euo pipefail
@@ -86,6 +86,7 @@ jobs:
 
           core_hits = []
           compatibility_hits = []
+          storage_runtime_source_hits = []
           allowed_ext = {'.cs', '.asmdef', '.asmref', '.json'}
           for base in search_roots:
               if not base.exists():
@@ -99,6 +100,14 @@ jobs:
                       if 'compatibility' in lowered_name or 'legacy' in lowered_name:
                           compatibility_hits.append(path.as_posix())
 
+                      source = path.read_text(errors='ignore')
+                      if 'VoxelEngine.Storage.Runtime' in source:
+                          relative = path.as_posix()
+                          storage_owner = relative.startswith('Assets/VoxelEngine/Storage/Runtime/')
+                          composition_owner = relative.startswith('Assets/VoxelEngine/Composition/')
+                          if not storage_owner and not composition_owner:
+                              storage_runtime_source_hits.append(relative)
+
                   if path.suffix.lower() not in allowed_ext:
                       continue
                   if 'VoxelEngine.Core' in path.read_text(errors='ignore'):
@@ -108,6 +117,10 @@ jobs:
               violations.extend(f'VoxelEngine.Core production reference: {p}' for p in core_hits)
           if compatibility_hits:
               violations.extend(f'legacy/compatibility adapter source: {p}' for p in compatibility_hits)
+          if storage_runtime_source_hits:
+              violations.extend(
+                  f'Storage.Runtime source reference outside Storage owner/Composition: {p}'
+                  for p in storage_runtime_source_hits)
 
           intentional_core_literal_paths = {
               '.github/workflows/final-architecture-static.yml',
@@ -160,6 +173,7 @@ jobs:
           report.append('- Api assemblies reference no Runtime assemblies.')
           report.append('- Runtime assemblies reference no foreign Runtime assemblies.')
           report.append('- Composition is the only production assembly that wires concrete Runtime assemblies.')
+          report.append('- Production source names Storage.Runtime only inside Storage/Runtime or the Composition wiring root.')
           report.append('- Production Assets/Packages contain no `VoxelEngine.Core` references.')
           report.append('- Production architecture contains no `Legacy*` or `*Compatibility*` adapter source files.')
           report.append('- Repository-wide legacy Core literals exist only in the explicitly classified history/enforcement allowlist.')
