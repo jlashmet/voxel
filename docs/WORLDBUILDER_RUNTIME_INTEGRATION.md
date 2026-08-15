@@ -56,6 +56,15 @@ Do not duplicate derived topology requirements in campaign content just to make 
 
 Downstream generation must consume `HierarchyPlan` rather than re-parsing authoring objects or recovering semantics from dependency-node strings. The dependency graph still controls ordering; the typed hierarchy plan carries physical-generation requirements.
 
+### Hierarchy cutover checklist
+
+- [x] Compile authored region/route/settlement/site ownership into `PlanningGraph.HierarchyPlan`.
+- [x] Derive Kentridge's semantic region/settlement owner from the compiled hierarchy plan.
+- [x] Fail closed when Kentridge cannot prove an authored hierarchy requirement.
+- [x] Filter generated site candidates from compiled `WorldSitePlacementPlan` ownership instead of re-scanning raw `WorldHierarchyBlueprint` authoring.
+- [ ] Add typed settlement-plan selection when a multi-settlement WorldGen backend exists.
+- [ ] Remove Kentridge-specific hierarchy gates incrementally as WorldGen exposes biome, outer-route, population, and connector realization facts.
+
 ## Kentridge application flow
 
 The current Kentridge integration is deliberately two-phase because story/site constraints must influence generation before exact terrain-relative coordinates exist.

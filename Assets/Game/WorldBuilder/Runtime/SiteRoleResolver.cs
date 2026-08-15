@@ -113,8 +113,8 @@ namespace Game.WorldBuilder.Runtime
                 return false;
             }
 
-            SitePlacementSpec placement;
-            if (TryFindPlacement(graph.Hierarchy, role.Role, out placement))
+            WorldSitePlacementPlan placement;
+            if (TryFindPlacement(graph.HierarchyPlan, role.Role, out placement))
             {
                 var hierarchyMatches = new List<SiteCandidate>(stage.Count);
                 for (var i = 0; i < stage.Count; i++)
@@ -383,9 +383,9 @@ namespace Game.WorldBuilder.Runtime
         }
 
         private static bool TryFindPlacement(
-            WorldHierarchyBlueprint hierarchy,
+            WorldHierarchyPlan hierarchy,
             SiteRef role,
-            out SitePlacementSpec placement)
+            out WorldSitePlacementPlan placement)
         {
             for (var i = 0; i < hierarchy.SitePlacements.Count; i++)
             {
@@ -396,7 +396,7 @@ namespace Game.WorldBuilder.Runtime
                 }
             }
 
-            placement = default;
+            placement = null;
             return false;
         }
 
