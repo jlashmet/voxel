@@ -82,7 +82,10 @@ def main():
     world.use_nodes = True
     bg = world.node_tree.nodes.get('Background')
     bg.inputs['Color'].default_value = (0.035, 0.035, 0.035, 1.0)
-    bg.inputs['Strength'].default_value = 0.45
+    # Geometry-only smoke wants aggressive illumination so silhouette defects are
+    # obvious. Material smoke needs a much more neutral exposure or dark brown and
+    # gold base colors clip to cream/white and hide texture quality regressions.
+    bg.inputs['Strength'].default_value = 0.18 if args.preserve_materials else 0.45
     bpy.context.scene.world = world
 
     camera_data = bpy.data.cameras.new('Camera')
@@ -103,9 +106,14 @@ def main():
         light.location = location
         look_at(light, center)
 
-    add_area('Key', center + Vector((radius * 2.0, -radius * 1.5, radius * 2.2)), 650, radius * 1.4)
-    add_area('Fill', center + Vector((-radius * 1.5, -radius * 0.7, radius * 1.0)), 280, radius * 1.8)
-    add_area('Rim', center + Vector((0, radius * 2.0, radius * 1.8)), 420, radius * 1.2)
+    if args.preserve_materials:
+        key_energy, fill_energy, rim_energy = 145, 55, 85
+    else:
+        key_energy, fill_energy, rim_energy = 650, 280, 420
+
+    add_area('Key', center + Vector((radius * 2.0, -radius * 1.5, radius * 2.2)), key_energy, radius * 1.4)
+    add_area('Fill', center + Vector((-radius * 1.5, -radius * 0.7, radius * 1.0)), fill_energy, radius * 1.8)
+    add_area('Rim', center + Vector((0, radius * 2.0, radius * 1.8)), rim_energy, radius * 1.2)
 
     scene = bpy.context.scene
     scene.render.engine = 'BLENDER_EEVEE'
