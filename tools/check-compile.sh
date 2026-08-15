@@ -28,6 +28,7 @@ MANAGED="$UNITY_ROOT/Unity.app/Contents/Resources/Scripting/Managed/UnityEngine"
 DOTNET="$UNITY_ROOT/Unity.app/Contents/Resources/Scripting/DotNetSdk/dotnet"
 CSC="$(ls "$UNITY_ROOT"/Unity.app/Contents/Resources/Scripting/DotNetSdk/sdk/*/Roslyn/bincore/csc.dll 2>/dev/null | head -1)"
 NUNIT="$(ls "$PROJECT"/Library/PackageCache/com.unity.ext.nunit@*/net472/unity-custom/nunit.framework.dll 2>/dev/null | head -1)"
+EDITOR_CORE="$(find "$UNITY_ROOT/Unity.app/Contents" -type f -name 'UnityEditor.CoreModule.dll' 2>/dev/null | head -1)"
 
 for required in "$DOTNET" "$CSC" "$MANAGED" "$BCL"; do
     if [ ! -e "$required" ]; then
@@ -43,7 +44,7 @@ FILTER="${1:-}"
 
 # Assemblies built from source here. Their prebuilt copies in Library/ScriptAssemblies are
 # excluded from the reference set so a stale DLL can never shadow the sources under test.
-# Keep Api assemblies before their Runtime implementations so filtered subsystem checks can
+# Keep Api assemblies before their Runtime/Editor implementations so filtered subsystem checks can
 # compile without relying on stale Unity-generated DLLs.
 ASSEMBLIES=(
     "VoxelEngine.Foundation:Assets/VoxelEngine/Foundation"
@@ -51,6 +52,7 @@ ASSEMBLIES=(
     "VoxelEngine.Storage.Runtime:Assets/VoxelEngine/Storage/Runtime"
     "VoxelEngine.Characters.Api:Assets/VoxelEngine/Characters/Api"
     "VoxelEngine.Characters.Runtime:Assets/VoxelEngine/Characters/Runtime"
+    "VoxelEngine.Characters.Editor:Assets/VoxelEngine/Characters/Editor"
     "VoxelEngine.Core:Assets/VoxelEngine/Core"
     "VoxelEngine.Vegetation:Assets/VoxelEngine/Vegetation"
     "VoxelEngine.Tiering:Assets/VoxelEngine/Tiering"
@@ -86,9 +88,12 @@ for entry in "${ASSEMBLIES[@]}"; do
                    "$BCL"/Facades/netstandard.dll; do
             echo "-r:$dll"
         done
-        # UnityEngine and UnityEditor modules. Referencing the monolithic UnityEditor.dll
-        # alongside these duplicates every editor type, so it is deliberately left out.
         for dll in "$MANAGED"/*.dll; do echo "-r:$dll"; done
+        # Editor assemblies need the modular UnityEditor reference. Do not also reference
+        # the legacy monolithic UnityEditor.dll; doing both duplicates editor types.
+        if [[ "$name" == *.Editor ]] && [ -n "$EDITOR_CORE" ]; then
+            echo "-r:$EDITOR_CORE"
+        fi
         [ -n "$NUNIT" ] && echo "-r:$NUNIT"
 
         for dll in Library/ScriptAssemblies/*.dll; do
