@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 4 Structures — canonical Kentridge shape encoding / compatibility seam deletion  
+**Current focus:** Cutover 4 Structures — Runtime dependency migration / physical Runtime move  
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -22,7 +22,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 1 — Foundation | **Complete** | `IntMath` clean-moved to `VoxelEngine.Foundation`; consumers and Core bridge reference migrated | none |
 | 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency and mutation capabilities; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; byte/value parity accepted | final Terrain.Api/Runtime move and public terrain query contract |
-| 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts now live in `VoxelEngine.Structures.Api` | delete Kentridge compatibility encoding, migrate Runtime dependencies, then move Structures.Runtime |
+| 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts live in `VoxelEngine.Structures.Api`; Kentridge compatibility seam deleted and all Kentridge definitions validated against canonical encoding | migrate Runtime dependencies, then move Structures.Runtime and delete the old broad Structures assembly |
 | 5 — Edits | **In progress** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |
 | 6 — StructuralIntegrity | **Not started** | — | full cutover |
 | 7 — Tiering | **Not started** | — | full cutover |
@@ -38,8 +38,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Check a task off only after its code is committed **and** the relevant CI acceptance gate passes.
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
-- CI acceptance currently means no new compiler/test regression and the failed-test-name set remains exactly the known 15-test baseline.
-- Latest accepted code gate: `d040d3182ef636016578321bbd90870680f817ac` — 379 tests, 364 passed, exactly 15 known baseline failures.
+- CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
+- Latest accepted code gate: `a9d684e612485728320597577680e60a8075f075` — 382 tests, 369 passed, exactly 13 known baseline failures. The baseline intentionally shrank from 15 to 13 because canonical `EmitBox` encoding fixed `KentridgeUpperSkybridgeTests.SkybridgeCatalogueCreatesOneOpenHardUpperStreetWithoutRoadPiers` and `KentridgeVerticalFrontageTests.VerticalFrontagesEmbedIntoTerraceAndEndOnAuthoredDownhillEdge`; no new failures were introduced.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -705,13 +705,15 @@ Do **not** add any engine reference to `MountingForce.WorldGen.Core` or `Mountin
 - [x] Structures.Api extracted with canonical `VoxelEngine.Structures.Api` namespace; authoring contracts moved with Unity GUIDs preserved.
 - [x] `CatalogueLoader` clean-renamed to `FeatureCatalogueBuilder`; no compatibility alias remains.
 - [x] Structures.Api extraction accepted by CI: 379 total / 364 passed / exact 15 baseline failures.
+- [x] Kentridge compatibility encoding seam deleted; catalogue/program builders now emit canonical Structures.Api instruction widths directly.
+- [x] Canonical shape encoding slice accepted by CI at `a9d684e612485728320597577680e60a8075f075`: 382 total / 369 passed / exact 13 known baseline failures; all `KentridgeShapeProgramEncodingTests` pass and no new failures were introduced.
 - [ ] Structures.Api/Runtime physical move and namespace cutover complete.
 
 ### Gate
 
 - [ ] no `VoxelEngine.Core.Features` namespace remains;
 - [x] Kentridge catalogue builders compile against Structures.Api for extracted authoring contracts;
-- [ ] compatibility encoding file deleted;
+- [x] compatibility encoding file deleted;
 - [x] feature parity/generation tests pass;
 - [ ] CastleBuilder is Runtime implementation, not public cross-system vocabulary;
 - [ ] no external package references Structures.Runtime.
@@ -1516,13 +1518,13 @@ At the end, generate an asmdef dependency report and verify:
 ### 4. Structures
 
 - [ ] create Structures.Api/Runtime
-- [ ] move compiled feature authoring format to Api
+- [x] move compiled feature authoring format to Api
 - [ ] move feature VM/generation/rasterization to Runtime
 - [ ] move existing CastleBuilder/etc. under Runtime
-- [ ] rename `CatalogueLoader` to `FeatureCatalogueBuilder`
-- [ ] update Kentridge Voxel catalogue builders
-- [ ] delete `KentridgeShapeProgramCompatibility.cs`
-- [ ] verify canonical shape encoding tests
+- [x] rename `CatalogueLoader` to `FeatureCatalogueBuilder`
+- [x] update Kentridge Voxel catalogue builders
+- [x] delete `KentridgeShapeProgramCompatibility.cs`
+- [x] verify canonical shape encoding tests
 
 ### 5. Edits
 
