@@ -1,0 +1,39 @@
+name: One-shot Structures Caller Migration
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/one-shot-structures-callers.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+
+      - name: Apply caller migration
+        run: python .github/scripts/one_shot_structures_callers.py
+
+      - name: Verify scope
+        run: |
+          git diff --stat
+          test "$(git diff --name-only | sort | tr '\n' ' ')" = "Assets/Scenes/Showcase/ShowcaseWorld.cs Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs Assets/Tests/Features/ShapeProgramTests.cs "
+
+      - name: Commit and remove one-shot tooling
+        run: |
+          rm .github/scripts/one_shot_structures_callers.py
+          rm .github/workflows/one-shot-structures-callers.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Assets/Scenes/Showcase/ShowcaseWorld.cs Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs Assets/Tests/Features/ShapeProgramTests.cs .github/scripts/one_shot_structures_callers.py .github/workflows/one-shot-structures-callers.yml
+          git commit -m "refactor: migrate structures storage callers"
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
