@@ -1,7 +1,6 @@
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features.Emitters;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 using VoxelEngine.Structures.Api;
@@ -34,7 +33,7 @@ namespace VoxelEngine.Core.Features
         public bool IsValid => math.all(Size > 0) && CoursePitch >= 2
             && NominalBlockWidth >= 3 && JointWidth >= 1
             && JointWidth < math.min(CoursePitch, NominalBlockWidth)
-            && Depth > 0 && Material != VoxelDimensions.MaterialEmpty;
+            && Depth > 0 && Material != VoxelGrid.MaterialEmpty;
 
         public bool Emit(int3 origin, NativeList<Primitive> output)
         {
