@@ -13,7 +13,9 @@
     "VoxelEngine.Vegetation.Api",
     "VoxelEngine.Vegetation.Runtime",
     "VoxelEngine.Edits.Api",
-    "VoxelEngine.Edits.Runtime"
+    "VoxelEngine.Edits.Runtime",
+    "VoxelEngine.Net.Runtime",
+    "Unity.Networking.Transport"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

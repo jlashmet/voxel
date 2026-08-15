@@ -17,7 +17,6 @@
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
-    "Unity.Networking.Transport",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",
     "VoxelEngine.Vegetation.Api",
