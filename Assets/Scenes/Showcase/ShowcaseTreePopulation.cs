@@ -1,10 +1,7 @@
 using MountingForce.WorldGen.Voxel;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Vegetation.Runtime;
-using VoxelEngine.Vegetation.Api;
-using VoxelEngine.Rendering.Runtime;
-using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Composition;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Structures.Api;
 
@@ -13,7 +10,7 @@ namespace VoxelEngine.Showcase
     /// <summary>
     /// Scene lifecycle adapter only. Deterministic vegetation placement belongs to the worldgen
     /// package; this component waits for the Showcase world, realizes that plan against the resident
-    /// terrain surface, then publishes one semantic tree snapshot into Core runtime state.
+    /// terrain surface, then publishes one semantic tree snapshot through application composition.
     /// </summary>
     [DefaultExecutionOrder(350)]
     public sealed class ShowcaseTreePopulation : MonoBehaviour
@@ -38,19 +35,18 @@ namespace VoxelEngine.Showcase
         private void Update()
         {
             if (_done) return;
-            if (!VoxelRenderBridge.TryGetWorld(out VoxelWorldView view)) return;
+            if (!RenderingComposition.TryGetWorld(out RenderingWorldBinding world, out uint worldSeed)) return;
 
-            uint worldSeed = VoxelRenderBridge.TerrainSeed;
             int cx = ShowcaseWorld.RegionVoxelEdge / 2;
             int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = TerrainSampler.HeightAt(cx, cz, worldSeed);
-            CastlePlan plan = CastleBuilder.Plan(new int3(cx, ground, cz), worldSeed);
+            CastlePlan plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), worldSeed);
 
             if (!CastleVegetationPlanner.TryBuild(
-                    in plan, view.Storage, worldSeed, out var instances))
+                    in plan, world.Storage, worldSeed, out var instances))
                 return;
 
-            TreeWorldRuntime.Replace(instances);
+            VegetationComposition.ReplaceTreeWorld(instances);
             _done = true;
             Completed = true;
             enabled = false;

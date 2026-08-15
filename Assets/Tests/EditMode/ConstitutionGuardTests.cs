@@ -16,7 +16,6 @@ namespace VoxelEngine.Tests.EditMode
     {
         private static readonly string[] DeterministicSourceRoots =
         {
-            // Deterministic architecture roots. Non-existent roots are ignored during migration.
             "Foundation",
             "Storage",
             "Terrain",
@@ -40,15 +39,21 @@ namespace VoxelEngine.Tests.EditMode
 
         private static IEnumerable<string> DeterministicSourceFiles =>
             DeterministicSourceRoots
-                .Select(root => Path.Combine(VoxelEngineDir, root))
-                .Where(Directory.Exists)
+                .Select(RequireDeterministicRoot)
                 .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories));
 
         private static IEnumerable<string> DeterministicAsmdefs =>
             DeterministicSourceRoots
-                .Select(root => Path.Combine(VoxelEngineDir, root))
-                .Where(Directory.Exists)
+                .Select(RequireDeterministicRoot)
                 .SelectMany(root => Directory.EnumerateFiles(root, "*.asmdef", SearchOption.AllDirectories));
+
+        private static string RequireDeterministicRoot(string rootName)
+        {
+            string root = Path.Combine(VoxelEngineDir, rootName);
+            Assert.IsTrue(Directory.Exists(root),
+                "Constitution deterministic source root is required after the architecture cutover: " + rootName);
+            return root;
+        }
 
         private static string StripCommentsAndStrings(string source)
         {
@@ -154,8 +159,8 @@ namespace VoxelEngine.Tests.EditMode
                 .SelectMany(SafeGetTypes)
                 .FirstOrDefault(t => t.Name == "DeviceTierBudget");
 
-            if (budgetType == null)
-                Assert.Ignore("DeviceTierBudget not yet implemented (T077). Guard activates with it.");
+            Assert.NotNull(budgetType,
+                "DeviceTierBudget is required after the Tiering architecture cutover.");
 
             var forbidden = new[]
             {

@@ -1,17 +1,14 @@
-using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Terrain-only look-development scene authored into the normal voxel world. Rendering stays
-    /// entirely on RegionTable/BrickPool -> VoxelRenderBridge -> production surface extraction.
+    /// entirely on Storage.Api read capabilities -> Composition -> production surface extraction.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
@@ -23,14 +20,7 @@ namespace VoxelEngine.Showcase
         private const int TerrainZMin = -70;
         private const int TerrainZMax = 560;
 
-        private RegionTable _table;
-        private BrickPool _pool;
-        private RegionReadSource _readSource;
-        private MaterialPalette _palette;
-        private SurfaceCatalogue _surfaces;
-        private CoatingCatalogue _coatings;
-        private ProfileBlockStore _profiles;
-        private VoxelChangeJournal _changes;
+        private IVoxelStorageRuntime _storage;
         private bool _built;
 
         public Camera SceneCamera => GetComponent<Camera>();
@@ -57,56 +47,48 @@ namespace VoxelEngine.Showcase
             ConfigureEnvironment();
             ApplyReferenceEnvironment();
 
-            _table = new RegionTable(16, Allocator.Persistent);
-            _pool = new BrickPool(220_000, Allocator.Persistent);
-            _palette = default;
+            _storage = VoxelEngineBootstrap.CreateStorage(16, 220_000);
             const uint weather = (1u << Coatings.Moss) | (1u << Coatings.Wet);
 
-            _palette.Register(Mat.Grass, 24, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.Grass, 24, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
-            _palette.Register(Mat.Moss, 24, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.Moss, 24, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
-            _palette.Register(Mat.Sand, 28, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.Sand, 28, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
             // Limestone and pavers deliberately use the production faceted path. Planar styles
             // are emitted as merged faces by CpuTransvoxelChunkCache instead of being melted by
             // continuous rounded reconstruction, which gives the reference's squat cuboid rocks.
-            _palette.Register(Mat.TerrainLimestone, 210, DestructionClass.Crumble,
+            _storage.RegisterMaterial(Mat.TerrainLimestone, 210, DestructionClass.Crumble,
                               SurfaceStyles.Planar, weather);
-            _palette.Register(Mat.TerrainEarth, 32, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.TerrainEarth, 32, DestructionClass.Powder,
                               SurfaceStyles.Smooth, weather);
-            _palette.Register(Mat.TerrainPathStone, 180, DestructionClass.Crumble,
+            _storage.RegisterMaterial(Mat.TerrainPathStone, 180, DestructionClass.Crumble,
                               SurfaceStyles.Planar, weather);
-            _palette.Register(Mat.FlowerWhite, 4, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.FlowerWhite, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
-            _palette.Register(Mat.FlowerYellow, 4, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.FlowerYellow, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
-            _palette.Register(Mat.FlowerPink, 4, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.FlowerPink, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
-            _palette.Register(Mat.FlowerBlue, 4, DestructionClass.Powder,
+            _storage.RegisterMaterial(Mat.FlowerBlue, 4, DestructionClass.Powder,
                               SurfaceStyles.Rounded, 0u);
 
-            _surfaces = SurfaceCatalogue.CreateBuiltIns();
-            _coatings = CoatingCatalogue.CreateBuiltIns();
-            _profiles = new ProfileBlockStore();
-
-            var reads = new RegionReadSource(in _table, in _pool);
-            var mutations = new RegionMutationStore(in _table, in _pool);
-            var writer = new VoxelBrush(reads, mutations, _palette, 9_000_000);
-            AuthorTerrain(ref writer);
+            var writer = VoxelEngineBootstrap.CreateStructureAuthoring(_storage, 9_000_000);
+            AuthorTerrain(writer);
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain lookdev exceeded voxel authoring budget.");
 
-            _changes = new VoxelChangeJournal();
-            using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
-                for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
+            _storage.PublishAllResidentRegions();
 
-            VoxelRenderBridge.Changes = _changes;
-            VoxelRenderBridge.Source = WorldView;
-            VoxelRenderBridge.SolidBuildBudgetMs = 12.0;
-            VoxelRenderBridge.WaterBuildBudgetMs = 0.0;
-            VoxelRenderBridge.FarFieldEnabled = false;
-            VoxelRenderBridge.TerrainSeed = Seed;
+            var renderingWorld = new RenderingWorldBinding(
+                _storage.Reads,
+                _storage.MaterialPresentation,
+                _storage.SurfacePresentation,
+                _storage.CoatingPresentation);
+            RenderingComposition.ConfigureWorld(
+                in renderingWorld, _storage.Changes, Seed,
+                solidBuildBudgetMs: 12.0, waterBuildBudgetMs: 0.0, farFieldEnabled: false);
             _built = true;
         }
 
@@ -119,22 +101,23 @@ namespace VoxelEngine.Showcase
             camera.transform.position = new Vector3(-0.60f, 23.0f, -20.0f);
             camera.transform.LookAt(new Vector3(0.10f, 2.0f, 12.0f));
 
-            VoxelRenderBridge.SurfaceDebugTint = Color.white;
-            VoxelRenderBridge.SunDirection = new Vector3(-0.43f, 0.87f, -0.24f).normalized;
-            VoxelRenderBridge.SkyHorizon = new Color(0.94f, 0.87f, 0.49f, 1f);
-            VoxelRenderBridge.SkyZenith = new Color(0.82f, 0.80f, 0.46f, 1f);
+            RenderingComposition.ConfigureEnvironment(
+                Color.white,
+                new Vector3(-0.43f, 0.87f, -0.24f).normalized,
+                new Color(0.94f, 0.87f, 0.49f, 1f),
+                new Color(0.82f, 0.80f, 0.46f, 1f));
         }
 
-        private void AuthorTerrain(ref VoxelBrush writer)
+        private void AuthorTerrain(IStructureAuthoringSession writer)
         {
-            BuildValley(ref writer);
-            BuildRockFields(ref writer);
-            BuildTurfCushions(ref writer);
-            BuildPath(ref writer);
-            BuildFlowers(ref writer);
+            BuildValley(writer);
+            BuildRockFields(writer);
+            BuildTurfCushions(writer);
+            BuildPath(writer);
+            BuildFlowers(writer);
         }
 
-        private static void BuildValley(ref VoxelBrush writer)
+        private static void BuildValley(IStructureAuthoringSession writer)
         {
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
@@ -163,7 +146,7 @@ namespace VoxelEngine.Showcase
             return (h & 0x00FFFFFFu) * (1f / 16777216f);
         }
 
-        private static void BuildPath(ref VoxelBrush writer)
+        private static void BuildPath(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x2231u);
             int z = -60;
@@ -183,7 +166,7 @@ namespace VoxelEngine.Showcase
                     int py = HeightVoxel(px, pz);
                     // One-voxel-thick pavers overlap the terrain surface so they read as embedded
                     // cobbles, not a heap of beige rubble sitting on top of the path.
-                    StampRoundedBox(ref writer, new int3(px, py + 1, pz),
+                    StampRoundedBox(writer, new int3(px, py + 1, pz),
                         new int3(hx, 1, hz), 1, Mat.TerrainPathStone,
                         SurfaceStyles.Planar, false);
                 }
@@ -191,7 +174,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private static void BuildRockFields(ref VoxelBrush writer)
+        private static void BuildRockFields(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed);
 
@@ -223,7 +206,7 @@ namespace VoxelEngine.Showcase
                     int hz = rng.NextInt(2, maxHalf + 1);
                     int hy = rng.NextInt(1, z < 170 ? 4 : 3);
                     int y = HeightVoxel(x, zz) + hy;
-                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.58f);
 
@@ -231,7 +214,7 @@ namespace VoxelEngine.Showcase
                     {
                         int upperHx = math.max(2, hx - 1);
                         int upperHz = math.max(2, hz - 1);
-                        StampRoundedBox(ref writer,
+                        StampRoundedBox(writer,
                             new int3(x + rng.NextInt(-2, 3), y + hy + 1, zz + rng.NextInt(-2, 3)),
                             new int3(upperHx, 1, upperHz), 1,
                             Mat.TerrainLimestone, SurfaceStyles.Planar,
@@ -255,18 +238,18 @@ namespace VoxelEngine.Showcase
                 int hz = rng.NextInt(2, maxHalf + 1);
                 int hy = rng.NextInt(1, z > 300 ? 3 : 4);
                 int y = HeightVoxel(x, z) + hy;
-                StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
+                StampRoundedBox(writer, new int3(x, y, z), new int3(hx, hy, hz),
                     1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                     rng.NextFloat() < 0.42f);
             }
 
-            BuildForegroundOutcrop(ref writer, new int3(-106, 0, -46), 15, ref rng);
-            BuildForegroundOutcrop(ref writer, new int3(104, 0, -38), 14, ref rng);
-            BuildForegroundOutcrop(ref writer, new int3(-130, 0, 32), 11, ref rng);
-            BuildForegroundOutcrop(ref writer, new int3(125, 0, 66), 10, ref rng);
+            BuildForegroundOutcrop(writer, new int3(-106, 0, -46), 15, ref rng);
+            BuildForegroundOutcrop(writer, new int3(104, 0, -38), 14, ref rng);
+            BuildForegroundOutcrop(writer, new int3(-130, 0, 32), 11, ref rng);
+            BuildForegroundOutcrop(writer, new int3(125, 0, 66), 10, ref rng);
         }
 
-        private static void BuildForegroundOutcrop(ref VoxelBrush writer, int3 centre, int scale,
+        private static void BuildForegroundOutcrop(IStructureAuthoringSession writer, int3 centre, int scale,
             ref Unity.Mathematics.Random rng)
         {
             for (int layer = 0; layer < 3; layer++)
@@ -282,14 +265,14 @@ namespace VoxelEngine.Showcase
                     // Keep foreground stones above the terrain rather than slicing them through a
                     // slope. Stacking still gives the chunky ruins/outcrop silhouette in the target.
                     int y = HeightVoxel(x, z) + layer * 2 + hy;
-                    StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, z), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.68f);
                 }
             }
         }
 
-        private static void BuildTurfCushions(ref VoxelBrush writer)
+        private static void BuildTurfCushions(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x7B19u);
 
@@ -301,7 +284,7 @@ namespace VoxelEngine.Showcase
                 int rx = rng.NextInt(2, 6);
                 int rz = rng.NextInt(2, 7);
                 int ry = rng.NextFloat() < 0.30f ? 2 : 1;
-                StampEllipsoid(ref writer, new int3(x, HeightVoxel(x, z) + ry, z),
+                StampEllipsoid(writer, new int3(x, HeightVoxel(x, z) + ry, z),
                     new int3(rx, ry, rz), TurfMaterial(x, z), SurfaceStyles.Smooth);
             }
 
@@ -313,12 +296,12 @@ namespace VoxelEngine.Showcase
                 int rx = rng.NextInt(5, 10);
                 int rz = rng.NextInt(4, 9);
                 int ry = rng.NextInt(1, 3);
-                StampEllipsoid(ref writer, new int3(x, HeightVoxel(x, z) + ry, z),
+                StampEllipsoid(writer, new int3(x, HeightVoxel(x, z) + ry, z),
                     new int3(rx, ry, rz), TurfMaterial(x, z), SurfaceStyles.Smooth);
             }
         }
 
-        private static void BuildFlowers(ref VoxelBrush writer)
+        private static void BuildFlowers(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xD451u);
             for (int i = 0; i < 1750; i++)
@@ -338,7 +321,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private static void StampEllipsoid(ref VoxelBrush writer, int3 centre, int3 radius,
+        private static void StampEllipsoid(IStructureAuthoringSession writer, int3 centre, int3 radius,
             byte material, ushort style)
         {
             float3 inv = 1f / math.max((float3)radius, 1f);
@@ -352,7 +335,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private static void StampRoundedBox(ref VoxelBrush writer, int3 centre, int3 half,
+        private static void StampRoundedBox(IStructureAuthoringSession writer, int3 centre, int3 half,
             int radius, byte material, ushort style, bool mossTop)
         {
             radius = math.max(1, radius);
@@ -429,30 +412,18 @@ namespace VoxelEngine.Showcase
             return Mathf.RoundToInt(metres * 10f);
         }
 
-        private VoxelWorldView WorldView()
-        {
-            _readSource ??= new RegionReadSource(in _table, in _pool, _changes);
-            _readSource.Refresh(in _table, in _pool);
-            return new VoxelWorldView
-            {
-                Storage = _readSource,
-                Palette = _palette,
-                SurfaceCatalogueView = _surfaces,
-                CoatingCatalogueView = _coatings,
-                ProfileBlocks = _profiles,
-            };
-        }
+        private IStructureAuthoringSession CreateWriter(int budget) =>
+            VoxelEngineBootstrap.CreateStructureAuthoring(_storage, budget);
+
+        private void PublishAllResidentRegions() => _storage.PublishAllResidentRegions();
+
 
         public void Shutdown()
         {
-            if (!_built && !_table.IsCreated && !_pool.IsCreated) return;
-            VoxelRenderBridge.Source = null;
-            VoxelRenderBridge.Changes = null;
-            if (_table.IsCreated) _table.Dispose();
-            if (_pool.IsCreated) _pool.Dispose();
-            _table = default;
-            _pool = default;
-            _readSource = null;
+            if (!_built && _storage == null) return;
+            RenderingComposition.ClearWorld();
+            _storage?.Dispose();
+            _storage = null;
             _built = false;
         }
     }

@@ -1,0 +1,17 @@
+{
+  "name": "Game.Story.Runtime",
+  "rootNamespace": "Game.Story.Runtime",
+  "references": [
+    "Game.Story.Api",
+    "Game.WorldBuilder.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

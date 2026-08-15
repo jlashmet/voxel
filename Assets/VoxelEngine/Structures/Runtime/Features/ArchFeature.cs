@@ -129,6 +129,34 @@ namespace VoxelEngine.Structures.Runtime
             return errors;
         }
 
+        public ArchValidationError Validate(
+            IMaterialAuthoringCatalogue palette,
+            ISurfaceStyleAuthoringCatalogue surfaces,
+            ICoatingAuthoringCatalogue coatings)
+        {
+            if (palette == null) throw new System.ArgumentNullException(nameof(palette));
+            if (surfaces == null) throw new System.ArgumentNullException(nameof(surfaces));
+            if (coatings == null) throw new System.ArgumentNullException(nameof(coatings));
+
+            ArchValidationError errors = ArchValidationError.None;
+            if (ClearSpan < 4 || (ClearSpan & 1) != 0) errors |= ArchValidationError.InvalidClearSpan;
+            if (PierHeight <= 0) errors |= ArchValidationError.InvalidPierHeight;
+            if (RingThickness <= 0) errors |= ArchValidationError.InvalidRingThickness;
+            if (Depth <= 0) errors |= ArchValidationError.InvalidDepth;
+            if (JointRecessDepth < 0 || JointRecessDepth >= Depth) errors |= ArchValidationError.InvalidJointRecessDepth;
+            if (VoussoirCount < 1 || VoussoirCount > 32) errors |= ArchValidationError.InvalidVoussoirCount;
+            if (PrimitiveCount > FeatureBudget.MaxPrimitivesPerInstance) errors |= ArchValidationError.PrimitiveBudgetExceeded;
+            if (!palette.IsRegistered(StoneMaterial)) errors |= ArchValidationError.UnknownStoneMaterial;
+            if (!surfaces.IsRegistered(PierStyle)) errors |= ArchValidationError.UnknownPierStyle;
+            if (!surfaces.IsRegistered(RingStyle)) errors |= ArchValidationError.UnknownRingStyle;
+            if (!coatings.IsRegistered(Coating)) errors |= ArchValidationError.UnknownCoating;
+            if (Coating != Coatings.None && palette.IsRegistered(StoneMaterial)
+                && (!palette.AllowsCoating(StoneMaterial, Coating)
+                    || !coatings.Allows(Coating, StoneMaterial)))
+                errors |= ArchValidationError.DisallowedCoating;
+            return errors;
+        }
+
         public FeatureDefinition Metadata => new()
         {
             Name = "architectural-arch",

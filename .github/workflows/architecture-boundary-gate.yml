@@ -1,0 +1,143 @@
+name: Architecture Boundary Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - refactor/system-boundaries-foundation-storage
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: architecture-boundary-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  architecture-boundary:
+    name: Architecture boundary gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate module dependency graph
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          repo = Path.cwd()
+          engine_root = repo / "Assets" / "VoxelEngine"
+          showcase_root = repo / "Assets" / "Scenes" / "Showcase"
+          worldgen_root = repo / "Packages" / "com.mountingforce.worldgen" / "Runtime"
+          violations = []
+
+          def load_asmdef(path):
+              try:
+                  data = json.loads(path.read_text())
+              except Exception as exc:
+                  violations.append(f"{path.relative_to(repo)}: invalid asmdef JSON: {exc}")
+                  return None
+              return {
+                  "path": path,
+                  "name": data.get("name", ""),
+                  "references": list(data.get("references", [])),
+              }
+
+          all_asmdefs = []
+          for root in (engine_root, showcase_root, worldgen_root):
+              if root.exists():
+                  all_asmdefs.extend(filter(None, (load_asmdef(p) for p in root.rglob("*.asmdef"))))
+
+          guid_to_name = {}
+          for asmdef in all_asmdefs:
+              meta = Path(str(asmdef["path"]) + ".meta")
+              if not meta.exists():
+                  continue
+              match = re.search(r"^guid:\s*([0-9a-fA-F]{32})\s*$", meta.read_text(), re.MULTILINE)
+              if match:
+                  guid_to_name[match.group(1).lower()] = asmdef["name"]
+
+          def resolve(reference):
+              if isinstance(reference, str) and reference.startswith("GUID:"):
+                  return guid_to_name.get(reference[5:].lower(), reference)
+              return reference
+
+          engine_asmdefs = [a for a in all_asmdefs if engine_root in a["path"].parents]
+
+          for asmdef in engine_asmdefs:
+              if not asmdef["name"].endswith(".Api"):
+                  continue
+              for raw_ref in asmdef["references"]:
+                  ref = resolve(raw_ref)
+                  if isinstance(ref, str) and ref.endswith(".Runtime"):
+                      violations.append(
+                          f'{asmdef["name"]} -> {ref}: Api assemblies may not reference Runtime'
+                      )
+
+          for asmdef in engine_asmdefs:
+              name = asmdef["name"]
+              if not name.endswith(".Runtime"):
+                  continue
+              for raw_ref in asmdef["references"]:
+                  ref = resolve(raw_ref)
+                  if not isinstance(ref, str):
+                      continue
+                  if ref.startswith("VoxelEngine.") and ref.endswith(".Runtime") and ref != name:
+                      violations.append(
+                          f"{name} -> {ref}: foreign Runtime dependency is forbidden; use {ref[:-8]}.Api"
+                      )
+
+          owners = {}
+          for asmdef in engine_asmdefs:
+              name = asmdef["name"]
+              if not (name.endswith(".Api") or name.endswith(".Runtime")):
+                  continue
+              owners.setdefault(name, []).append(asmdef["path"].relative_to(repo))
+          for name, paths in owners.items():
+              if len(paths) > 1:
+                  violations.append(f"{name}: duplicate owners: {', '.join(map(str, paths))}")
+
+          runtime_token = re.compile(r"VoxelEngine\.[A-Za-z0-9_.]+\.Runtime")
+          if showcase_root.exists():
+              for path in showcase_root.rglob("*"):
+                  if not path.is_file() or path.suffix.lower() not in {".cs", ".asmdef", ".asmref"}:
+                      continue
+                  text = path.read_text(errors="replace")
+                  for match in sorted(set(runtime_token.findall(text))):
+                      violations.append(
+                          f"{path.relative_to(repo)} -> {match}: Showcase may not reference Runtime implementations"
+                      )
+
+          for root in (engine_root, showcase_root, worldgen_root):
+              if not root.exists():
+                  continue
+              for path in root.rglob("*"):
+                  if not path.is_file() or path.suffix.lower() not in {".cs", ".asmdef", ".asmref", ".json"}:
+                      continue
+                  if "VoxelEngine.Core" in path.read_text(errors="replace"):
+                      violations.append(
+                          f"{path.relative_to(repo)}: deleted VoxelEngine.Core dependency reintroduced"
+                      )
+
+          if violations:
+              print("Architecture boundary violations:", file=sys.stderr)
+              for violation in sorted(set(violations)):
+                  print(f"  - {violation}", file=sys.stderr)
+              raise SystemExit(1)
+
+          print(
+              f"Architecture dependency graph valid: {len(engine_asmdefs)} VoxelEngine asmdefs checked; "
+              "Api->Runtime and foreign Runtime->Runtime edges are forbidden."
+          )
+          PY

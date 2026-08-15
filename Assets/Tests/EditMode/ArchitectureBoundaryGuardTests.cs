@@ -14,16 +14,20 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class ArchitectureBoundaryGuardTests
     {
         private static readonly Regex NameRegex = new Regex(
-            "\\\"name\\\"\\s*:\\s*\\\"(?<value>[^\\\"]+)\\\"",
+            "\"name\"\\s*:\\s*\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
 
         private static readonly Regex ReferencesRegex = new Regex(
-            "\\\"references\\\"\\s*:\\s*\\[(?<value>.*?)\\]",
+            "\"references\"\\s*:\\s*\\[(?<value>.*?)\\]",
             RegexOptions.Compiled | RegexOptions.Singleline);
 
         private static readonly Regex QuotedStringRegex = new Regex(
-            "\\\"(?<value>[^\\\"]+)\\\"",
+            "\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
+
+        private static readonly Regex GuidRegex = new Regex(
+            "^guid:\\s*(?<value>[0-9a-fA-F]{32})\\s*$",
+            RegexOptions.Compiled | RegexOptions.Multiline);
 
         private static string RepoRoot
         {
@@ -70,10 +74,6 @@ namespace VoxelEngine.Tests.EditMode
                 if (!asmdef.Name.EndsWith(".Runtime", StringComparison.Ordinal))
                     continue;
 
-                // Composition is the deliberate wiring root and is the only runtime-to-runtime exception.
-                if (string.Equals(asmdef.Name, "VoxelEngine.Composition.Runtime", StringComparison.Ordinal))
-                    continue;
-
                 foreach (string reference in asmdef.References)
                 {
                     if (!reference.StartsWith("VoxelEngine.", StringComparison.Ordinal)
@@ -104,6 +104,44 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsEmpty(duplicates,
                 "Each Api/Runtime assembly name must have exactly one owning subsystem.\n\n" +
                 string.Join("\n", duplicates));
+        }
+
+        [Test]
+        public void ProductionSourcesDoNotReferenceVoxelEngineCore()
+        {
+            string[] roots =
+            {
+                Path.Combine(RepoRoot, "Assets", "VoxelEngine"),
+                Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase"),
+                Path.Combine(RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime"),
+            };
+            string[] extensions = { ".cs", ".asmdef", ".asmref", ".json" };
+            var violations = new List<string>();
+
+            foreach (string root in roots)
+            {
+                if (!Directory.Exists(root)) continue;
+
+                foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                {
+                    if (!extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                        continue;
+
+                    string source = File.ReadAllText(path);
+                    if (source.IndexOf("VoxelEngine.Core", StringComparison.Ordinal) < 0)
+                        continue;
+
+                    string normalized = path.Replace('\\', '/');
+                    string repoRoot = RepoRoot.Replace('\\', '/');
+                    violations.Add(normalized.StartsWith(repoRoot + "/", StringComparison.Ordinal)
+                        ? normalized.Substring(repoRoot.Length + 1)
+                        : normalized);
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Production source and assembly metadata may not reference the deleted " +
+                "VoxelEngine.Core namespace or assembly.\n\n" + string.Join("\n", violations));
         }
 
         [Test]
@@ -147,6 +185,122 @@ namespace VoxelEngine.Tests.EditMode
                 string.Join("\n", violations));
         }
 
+        [Test]
+        public void ArchLookdevDoesNotReachIntoStructuresRuntime()
+        {
+            string path = Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase", "ArchLookdev.cs");
+            Assert.IsTrue(File.Exists(path), "Missing ArchLookdev source: " + path);
+
+            string source = File.ReadAllText(path);
+            string[] forbiddenTokens =
+            {
+                "VoxelEngine.Structures.Runtime",
+                "ProfileBlockStore",
+                "ArchFeatureDefinition",
+                "ArchBayFeatureDefinition",
+                "ArchRuinDamage",
+                "PrimitiveRasteriser",
+                "VoxelBrush",
+                "MasonryWeathering",
+                "NativeList<Primitive>",
+            };
+            var violations = forbiddenTokens
+                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                .ToList();
+
+            Assert.IsEmpty(violations,
+                "ArchLookdev must consume stable Api/Composition contracts and must not reach into " +
+                "Structures.Runtime implementation details.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
+        public void ShowcaseMultiplayerDoesNotReachIntoNetworkingRuntime()
+        {
+            string sourcePath = Path.Combine(
+                RepoRoot, "Assets", "Scenes", "Showcase", "ShowcaseMultiplayerSession.cs");
+            Assert.IsTrue(File.Exists(sourcePath),
+                "Missing Showcase multiplayer source: " + sourcePath);
+
+            string source = File.ReadAllText(sourcePath);
+            string[] forbiddenSourceTokens =
+            {
+                "VoxelEngine.Net.Runtime",
+                "VoxelEngine.Edits.Runtime",
+                "Unity.Networking.Transport",
+                "AuthoritativeServerSession",
+                "ClientNetworkRuntime",
+                "C_PlayerInput",
+                "S_PlayerState",
+            };
+            var violations = forbiddenSourceTokens
+                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                .Select(token => "ShowcaseMultiplayerSession.cs -> " + token)
+                .ToList();
+
+            string showcaseAsmdefPath = Path.Combine(
+                RepoRoot, "Assets", "Scenes", "Showcase", "VoxelEngine.Showcase.asmdef");
+            string showcaseAsmdef = File.ReadAllText(showcaseAsmdefPath);
+            if (showcaseAsmdef.IndexOf(
+                    "\"VoxelEngine.Net.Runtime\"", StringComparison.Ordinal) >= 0)
+                violations.Add("VoxelEngine.Showcase.asmdef -> VoxelEngine.Net.Runtime");
+            if (showcaseAsmdef.IndexOf(
+                    "\"Unity.Networking.Transport\"", StringComparison.Ordinal) >= 0)
+                violations.Add("VoxelEngine.Showcase.asmdef -> Unity.Networking.Transport");
+
+            string compositionAsmdefPath = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "VoxelEngine.Composition.asmdef");
+            string compositionAsmdef = File.ReadAllText(compositionAsmdefPath);
+            if (compositionAsmdef.IndexOf(
+                    "\"VoxelEngine.Net.Runtime\"", StringComparison.Ordinal) < 0)
+                violations.Add("VoxelEngine.Composition.asmdef must own VoxelEngine.Net.Runtime wiring");
+
+            Assert.IsEmpty(violations,
+                "Showcase multiplayer must consume stable Composition contracts; concrete Net/UTP " +
+                "wiring belongs in Composition.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
+        public void ShowcaseSceneSourcesDoNotReferenceRuntimeImplementations()
+        {
+            string showcaseRoot = Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase");
+            Assert.IsTrue(Directory.Exists(showcaseRoot), "Missing Showcase source root: " + showcaseRoot);
+
+            string compositionWorld = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");
+            Assert.IsTrue(File.Exists(compositionWorld),
+                "Concrete Showcase world ownership must live under VoxelEngine.Composition.");
+            Assert.IsFalse(Directory.Exists(Path.Combine(showcaseRoot, "CompositionOwned")),
+                "Do not hide Composition-owned runtime source beneath the Showcase scene tree.");
+
+            var runtimeReference = new Regex(
+                @"VoxelEngine\.[A-Za-z0-9_.]+\.Runtime",
+                RegexOptions.Compiled);
+            string[] extensions = { ".cs", ".asmdef", ".asmref" };
+            var violations = new List<string>();
+
+            foreach (string path in Directory.EnumerateFiles(showcaseRoot, "*", SearchOption.AllDirectories))
+            {
+                if (!extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                    continue;
+
+                string source = File.ReadAllText(path);
+                foreach (Match match in runtimeReference.Matches(source))
+                {
+                    string normalized = path.Replace('\\', '/');
+                    string repoRoot = RepoRoot.Replace('\\', '/');
+                    string relative = normalized.StartsWith(repoRoot + "/", StringComparison.Ordinal)
+                        ? normalized.Substring(repoRoot.Length + 1)
+                        : normalized;
+                    violations.Add(relative + " -> " + match.Value);
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Scene/application code must consume subsystem APIs or Composition-owned facades; " +
+                "concrete Runtime ownership belongs in VoxelEngine.Composition.\n\n" +
+                string.Join("\n", violations.Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal)));
+        }
+
         private static IReadOnlyList<Asmdef> EnumerateVoxelEngineAsmdefs()
         {
             string root = Path.Combine(RepoRoot, "Assets", "VoxelEngine");
@@ -169,13 +323,7 @@ namespace VoxelEngine.Tests.EditMode
             if (block.Success)
             {
                 foreach (Match match in QuotedStringRegex.Matches(block.Groups["value"].Value))
-                {
-                    string reference = match.Groups["value"].Value;
-                    // Target VoxelEngine subsystem asmdefs use named references. Existing GUID
-                    // references are intentionally ignored until their owner is migrated.
-                    if (!reference.StartsWith("GUID:", StringComparison.Ordinal))
-                        references.Add(reference);
-                }
+                    references.Add(ResolveVoxelEngineReference(match.Groups["value"].Value));
             }
 
             string normalized = path.Replace('\\', '/');
@@ -185,6 +333,31 @@ namespace VoxelEngine.Tests.EditMode
                 : normalized;
 
             return new Asmdef(nameMatch.Groups["value"].Value, relative, references);
+        }
+
+        private static string ResolveVoxelEngineReference(string reference)
+        {
+            if (!reference.StartsWith("GUID:", StringComparison.Ordinal)) return reference;
+
+            string guid = reference.Substring("GUID:".Length);
+            string root = Path.Combine(RepoRoot, "Assets", "VoxelEngine");
+            foreach (string metaPath in Directory.EnumerateFiles(
+                         root, "*.asmdef.meta", SearchOption.AllDirectories))
+            {
+                Match guidMatch = GuidRegex.Match(File.ReadAllText(metaPath));
+                if (!guidMatch.Success
+                    || !string.Equals(guidMatch.Groups["value"].Value, guid,
+                                      StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string asmdefPath = metaPath.Substring(0, metaPath.Length - ".meta".Length);
+                if (!File.Exists(asmdefPath)) return reference;
+                Match nameMatch = NameRegex.Match(File.ReadAllText(asmdefPath));
+                return nameMatch.Success ? nameMatch.Groups["value"].Value : reference;
+            }
+
+            // GUID references to external Unity/package assemblies are outside the engine graph.
+            return reference;
         }
 
         private sealed class Asmdef

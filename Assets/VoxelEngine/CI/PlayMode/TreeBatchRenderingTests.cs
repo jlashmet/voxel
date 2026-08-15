@@ -68,8 +68,8 @@ namespace VoxelEngine.CI
                             "Healthy batch construction must release streamed skeletons.");
                 Assert.That(renderer.PeakResidentSkeletonCountDuringLastRebuild,
                             Is.LessThanOrEqualTo(1));
-                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(6));
-                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(8));
+                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(8));
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(10));
                 Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(4));
 
                 for (int i = 0; i < instances.Length; i++)
@@ -84,14 +84,14 @@ namespace VoxelEngine.CI
                 Assert.That(untouchedBatch, Is.Not.Null);
 
                 MeshFilter[] touchedFilters = touchedBatch.GetComponentsInChildren<MeshFilter>(true);
-                Assert.That(touchedFilters.Length, Is.EqualTo(3));
-                var touchedMeshes = new Mesh[3];
+                Assert.That(touchedFilters.Length, Is.EqualTo(4));
+                var touchedMeshes = new Mesh[4];
                 int touchedVertices = 0;
                 for (int i = 0; i < touchedFilters.Length; i++)
                 {
                     touchedMeshes[i] = touchedFilters[i].sharedMesh;
                     Assert.That(touchedMeshes[i], Is.Not.Null);
-                    Assert.That(touchedMeshes[i].subMeshCount, Is.EqualTo(2));
+                    Assert.That(touchedMeshes[i].subMeshCount, Is.EqualTo(i < 3 ? 2 : 1));
                     touchedVertices += touchedMeshes[i].vertexCount;
                 }
                 Assert.That(touchedVertices, Is.GreaterThan(0),
@@ -125,14 +125,14 @@ namespace VoxelEngine.CI
                             "Damage touched an unrelated spatial batch.");
 
                 MeshFilter[] afterFilters = preservedTouchedBatch.GetComponentsInChildren<MeshFilter>(true);
-                Assert.That(afterFilters.Length, Is.EqualTo(3));
+                Assert.That(afterFilters.Length, Is.EqualTo(4));
                 for (int i = 0; i < afterFilters.Length; i++)
                     Assert.That(object.ReferenceEquals(afterFilters[i].sharedMesh, touchedMeshes[i]), Is.True,
                                 $"Damage rebuilt batch LOD{i} instead of retaining its Mesh buffer.");
 
                 Assert.That(renderer.TryGetDynamicPresentationRoot(0, out Transform damagedRoot), Is.True);
                 Assert.That(damagedRoot, Is.Not.Null);
-                Assert.That(damagedRoot.GetComponentsInChildren<MeshRenderer>(true).Length, Is.EqualTo(3));
+                Assert.That(damagedRoot.GetComponentsInChildren<MeshRenderer>(true).Length, Is.EqualTo(4));
                 for (int i = 1; i < instances.Length; i++)
                     Assert.That(renderer.TryGetDynamicPresentationRoot(i, out _), Is.False,
                                 $"Healthy neighbour {i} was unnecessarily materialized.");

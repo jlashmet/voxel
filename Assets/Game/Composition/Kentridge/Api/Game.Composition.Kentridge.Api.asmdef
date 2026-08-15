@@ -1,0 +1,17 @@
+{
+  "name": "Game.Composition.Kentridge.Api",
+  "rootNamespace": "Game.Composition.Kentridge.Api",
+  "references": [
+    "Game.Composition.Campaign",
+    "Game.Composition.WorldBuilderWorldGen"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

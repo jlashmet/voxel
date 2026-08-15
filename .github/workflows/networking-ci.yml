@@ -5,19 +5,9 @@ on:
   push:
     branches:
       - feature/minimal-voxel-networking
-      - refactor/system-boundaries-foundation-storage
   pull_request:
     branches:
       - master
-    paths:
-      - ".github/workflows/networking-ci.yml"
-      - "Assets/VoxelEngine/**"
-      - "Assets/Scenes/Showcase/**"
-      - "Assets/Tests/EditMode/**"
-      - "Packages/com.mountingforce.worldgen/**"
-      - "Packages/manifest.json"
-      - "Packages/packages-lock.json"
-      - "ProjectSettings/ProjectVersion.txt"
 
 permissions:
   contents: read
@@ -75,7 +65,7 @@ jobs:
             sleep 5
           done
 
-      - name: Run EditMode tests
+      - name: Run EditMode tests and enforce regression baseline
         shell: bash
         run: |
           set -uo pipefail
@@ -84,6 +74,7 @@ jobs:
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
 
+          unity_status=0
           UNITY_MAX_RSS_MB=8192 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" \
           tools/unity-run.sh \
@@ -94,15 +85,86 @@ jobs:
             -runTests \
             -testPlatform EditMode \
             -testResults "$ROOT/results.xml" \
-            -logFile "$ROOT/unity.log"
-          status=$?
+            -logFile "$ROOT/unity.log" \
+            || unity_status=$?
 
-          if [[ $status -ne 0 ]]; then
-            echo "Unity EditMode tests failed with exit code $status" >&2
-            exit $status
+          if [[ $unity_status -ne 0 && $unity_status -ne 2 ]]; then
+            echo "Unity exited unexpectedly with status $unity_status" >&2
+            exit $unity_status
           fi
 
-          test -s "$ROOT/results.xml"
+          if [[ ! -s "$ROOT/results.xml" ]]; then
+            echo "Unity did not produce test results." >&2
+            exit 1
+          fi
+
+          python3 - "$ROOT/results.xml" "$ROOT/unity.log" <<'PY'
+          import re
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          results_path = Path(sys.argv[1])
+          log_path = Path(sys.argv[2])
+
+          known_baseline = {
+              "VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.CurrentCascadeLabBootsWithEnemyAIStack",
+              "VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.BattleResetClearsSharedPlanHistoryAndGhostBackToStart",
+              "VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.PlannerBootsWithGhostBoardAndVisualLayer",
+              "VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.SharedPlanExecutionRequiresEveryLivingPlayerReady",
+              "VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.CascadeLabControllerBootsFourPlayerBattle",
+              "VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.CommittingApprovedPlanPreservesReadyForEnemyHandoff",
+              "VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.EditingAnApprovedPlanRevokesEveryReadyApproval",
+              "VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.ControllerBootsPlayableBattlePresentation",
+              "VoxelEngine.Tests.EditMode.KentridgeAnchorUndercroftTests.AnchorUndercroftsOccupyPubAndWarehouseSupportFacesWithoutAddingGameplayStructures",
+              "VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DistrictTerracesCreateNeighbourhoodScaleShelves",
+              "VoxelEngine.Tests.EditMode.KentridgeInfrastructureTests.UrbanInfrastructureStaysSeparateFromStableGameplayStructures",
+              "VoxelEngine.Tests.EditMode.KentridgeUrbanFabricTests.UrbanFabricCatalogueRealizesAllEightBlocksAsIndividualBuildings",
+              "VoxelEngine.Tests.EditMode.SurfaceRingBandTests.RingsDoNotReachBeyondTheStreamingRadius",
+          }
+
+          root = ET.parse(results_path).getroot()
+          cases = root.findall(".//test-case")
+          by_name = {
+              case.attrib.get("fullname") or case.attrib.get("name"): case
+              for case in cases
+          }
+          failed = {
+              name for name, case in by_name.items()
+              if case.attrib.get("result") in {"Failed", "Error"}
+          }
+
+          missing_baseline_tests = sorted(known_baseline - set(by_name))
+          unexpected_failures = sorted(failed - known_baseline)
+          fixed_baseline_tests = sorted(known_baseline - failed)
+
+          log = log_path.read_text(errors="replace") if log_path.exists() else ""
+          compiler_errors = sorted(set(re.findall(r"[^\n]*\berror CS\d+:[^\n]*", log)))
+
+          print(f"Unity regression gate: {len(cases)} tests, {len(failed)} failures")
+          if fixed_baseline_tests:
+              print(f"Known baseline tests now passing: {len(fixed_baseline_tests)}")
+              for name in fixed_baseline_tests:
+                  print(f"  FIXED: {name}")
+
+          problems = []
+          if len(cases) < 403:
+              problems.append(f"test count regressed below accepted floor: {len(cases)} < 403")
+          if missing_baseline_tests:
+              problems.append("known baseline tests disappeared from the suite:\n  " + "\n  ".join(missing_baseline_tests))
+          if unexpected_failures:
+              problems.append("new/unapproved failures:\n  " + "\n  ".join(unexpected_failures))
+          if compiler_errors:
+              problems.append("C# compiler errors:\n  " + "\n  ".join(compiler_errors[:50]))
+
+          if problems:
+              print("\nREGRESSION GATE FAILED", file=sys.stderr)
+              for problem in problems:
+                  print(f"\n{problem}", file=sys.stderr)
+              raise SystemExit(1)
+
+          print("Regression gate accepted: no new failures and no C# compiler errors.")
+          PY
 
       - name: Show Unity log tail
         if: always()

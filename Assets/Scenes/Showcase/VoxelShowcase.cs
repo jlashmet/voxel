@@ -1,11 +1,10 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
-using VoxelEngine.Collision.Runtime;
-using VoxelEngine.Storage.Runtime;
-using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Collision.Api;
+using VoxelEngine.Composition;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Tiering.Api;
 
 namespace VoxelEngine.Showcase
@@ -125,22 +124,19 @@ namespace VoxelEngine.Showcase
             // Clamp by bytes, not an obsolete slot count. Sidecars change per-slot cost; tier
             // budgets remain the authority and cannot silently be exceeded by an inspector value.
             int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
-            int tierSlots = Mathf.Max(4096, tierBytes / VoxelDimensions.BytesPerMixedBrick);
-            int capacity = Mathf.Clamp(m_BrickPoolCapacity, 4096, tierSlots);
+            int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
+                m_BrickPoolCapacity, tierBytes);
 
             _world = new ShowcaseWorld(m_Seed, capacity,
                                        m_LoadRadiusRegions, m_UnloadRadiusRegions);
             _gpuDebris = new GpuDebrisSystem();
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
 
-            // Hand the world to the render feature. URP owns the feature and constructs it, so
-            // the world registers itself rather than being injected.
-            VoxelRenderBridge.ResetSurfacePassDiagnostics("showcase-enabled");
-            VoxelRenderBridge.SurfaceBuildEnabled = false;
-            VoxelRenderBridge.Changes = _world.Changes;
-            VoxelRenderBridge.TerrainSeed = _world.Seed;
-            VoxelRenderBridge.FarBaseHeight = ShowcaseWorld.BaseHeightVoxels;
-            VoxelRenderBridge.FarFieldEnabled = true;
+            // Hand stable world capabilities to Composition; URP still owns the concrete render
+            // feature, but the showcase no longer reaches into Rendering.Runtime globals.
+            RenderingComposition.ResetSurfacePassDiagnostics("showcase-enabled");
+            RenderingComposition.SetSurfaceBuildEnabled(false);
+            RenderingComposition.SetFarBaseHeight(ShowcaseWorld.BaseHeightVoxels);
 
             // Terrain past the streaming radius. The voxel world only makes a few hundred
             // metres resident, so without this the mountains simply are not in the scene to be
@@ -150,14 +146,14 @@ namespace VoxelEngine.Showcase
             _farTerrain = VoxelFarTerrain.Create(transform, m_Seed,
                                                  streamedMetres * 0.85f, 12000f);
             _farTerrain.Structures = _world.FarField;
-            VoxelRenderBridge.Source = () => new VoxelWorldView
-            {
-                Storage = _world.ReadStorage,
-                Palette = _world.Palette,
-                SurfaceCatalogueView = _world.SurfaceRules,
-                CoatingCatalogueView = _world.CoatingRules,
-                ProfileBlocks = _world.ProfileBlocks,
-            };
+            var renderingWorld = new RenderingWorldBinding(
+                _world.ReadStorage,
+                _world.Palette,
+                _world.SurfaceRules,
+                _world.CoatingRules,
+                _world.ProfileBlocks);
+            RenderingComposition.ConfigureWorld(
+                in renderingWorld, _world.Changes, _world.Seed, farFieldEnabled: true);
             _spawned = false;
 
             Spawn();
@@ -168,14 +164,9 @@ namespace VoxelEngine.Showcase
 
         private void OnDisable()
         {
-            VoxelRenderBridge.CutawayEnabled = false;
-            VoxelRenderBridge.LocalLights = System.Array.Empty<Vector4>();
-            VoxelRenderBridge.LocalLightColours = System.Array.Empty<Vector4>();
-            VoxelRenderBridge.FlashlightEnabled = false;
-            VoxelRenderBridge.Source = null;
-            VoxelRenderBridge.SurfaceBuildEnabled = true;
-            VoxelRenderBridge.Changes = null;
-            VoxelRenderBridge.FarFieldEnabled = false;
+            RenderingComposition.ResetTransientPresentation();
+            RenderingComposition.ClearWorld();
+            RenderingComposition.SetSurfaceBuildEnabled(true);
 
             _multiplayer?.Dispose();
             _multiplayer = null;
@@ -197,9 +188,7 @@ namespace VoxelEngine.Showcase
         public void SetCutawayPresentation(bool enabled, Vector3 minVoxel = default,
                                            Vector3 maxVoxel = default)
         {
-            VoxelRenderBridge.CutawayMinVoxel = minVoxel;
-            VoxelRenderBridge.CutawayMaxVoxel = maxVoxel;
-            VoxelRenderBridge.CutawayEnabled = enabled;
+            RenderingComposition.SetCutaway(enabled, minVoxel, maxVoxel);
         }
 
         /// <summary>
@@ -219,8 +208,8 @@ namespace VoxelEngine.Showcase
             _world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(spawn));
             _motor.SnapToGround(_world, spawn);
 
-            VoxelRenderBridge.LocalLights = _world.CastlePresentationLights;
-            VoxelRenderBridge.LocalLightColours = _world.CastlePresentationLightColours;
+            RenderingComposition.SetLocalLights(
+                _world.CastlePresentationLights, _world.CastlePresentationLightColours);
 
             transform.position = _motor.EyePosition;
             var castleTarget = new Vector3(ShowcaseWorld.RegionVoxelEdge * 0.5f * 0.1f,
@@ -254,7 +243,7 @@ namespace VoxelEngine.Showcase
                 double streamingBudget = _world.CastleVoxels == 0
                     ? Mathf.Max(m_GenerateBudgetMs, 12f) : m_GenerateBudgetMs;
                 _world.StepStreaming(transform.position, streamingBudget);
-                if (_world.CastleVoxels > 0) VoxelRenderBridge.SurfaceBuildEnabled = true;
+                if (_world.CastleVoxels > 0) RenderingComposition.SetSurfaceBuildEnabled(true);
 
                 // The far field's hole has to follow what streaming has actually finished, not
                 // the radius it was configured with. Set after StepStreaming so a region that
@@ -413,9 +402,8 @@ namespace VoxelEngine.Showcase
 
         private void UpdateFlashlight()
         {
-            VoxelRenderBridge.FlashlightEnabled = _flashlightEnabled;
-            VoxelRenderBridge.FlashlightPosition = transform.position;
-            VoxelRenderBridge.FlashlightDirection = transform.forward;
+            RenderingComposition.SetFlashlight(
+                _flashlightEnabled, transform.position, transform.forward);
         }
 
         /// <summary>Launches a visible corkscrew projectile; impact remains world-authoritative.</summary>
@@ -513,7 +501,7 @@ namespace VoxelEngine.Showcase
                     if (!networked && (semanticTreeHit || changed > 0))
                     {
                         float3 impactMetres = (float3)hit * ShowcaseWorld.VoxelSize;
-                        ProceduralTreeDamageService.ApplyBlast(
+                        VegetationComposition.TreeDamage.ApplyBlast(
                             impactMetres, shot.ImpactRadius * ShowcaseWorld.VoxelSize,
                             (float3)shot.Direction);
                     }
@@ -581,7 +569,7 @@ namespace VoxelEngine.Showcase
                                 ref found, ref nearestDistance, ref hit);
             ConsiderTornadoLine(from, to, (-right - up) * diagonal,
                                 ref found, ref nearestDistance, ref hit);
-            if (ProceduralTreeDamageService.TrySweepImpact(
+            if (VegetationComposition.TreeDamage.TrySweepImpact(
                     (float3)from, (float3)to, sweepRadius,
                     out float3 treeHitMetres, out _))
             {
@@ -617,7 +605,8 @@ namespace VoxelEngine.Showcase
             while (cursor.MoveNext())
             {
                 int3 voxel = cursor.Current;
-                if (!VoxelAccess.IsSolid(ref _world.Table, in _world.Pool, voxel)) continue;
+                if (!_world.SurfaceQuery.TryRead(voxel, out VoxelCell cell) ||
+                    cell.BaseMaterialId == VoxelGrid.MaterialEmpty) continue;
                 hit = voxel;
                 return true;
             }

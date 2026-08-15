@@ -1,14 +1,13 @@
 using Unity.Mathematics;
-using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Presentation bridge for Core mutations applied by networking. The shared deterministic
-    /// applier marks authoritative regions dirty, while showcase rendering consumes the logical
-    /// <see cref="VoxelChangeJournal"/>. Keep that translation here instead of teaching Net about
-    /// a particular renderer or demo harness.
+    /// Presentation bridge for authoritative mutations applied by networking. The shared
+    /// deterministic applier marks authoritative regions dirty, while showcase rendering consumes
+    /// the logical voxel-change feed. Keep that translation here instead of teaching Net about a
+    /// particular renderer or demo harness.
     /// </summary>
     internal static class ShowcaseNetworkWorldBridge
     {
@@ -19,7 +18,7 @@ namespace VoxelEngine.Showcase
             VoxelChangeKind.Coating;
 
         /// <summary>
-        /// Publishes resident regions that Core marked dirty after one or more authoritative
+        /// Publishes resident regions that storage marked dirty after one or more authoritative
         /// events were drained. Network interest and showcase streaming are both centred on the
         /// player, so scanning the resident showcase disc is bounded and avoids a second mutation
         /// side channel inside networking.
@@ -45,18 +44,17 @@ namespace VoxelEngine.Showcase
 
         /// <summary>
         /// Publishes one authoritative replacement (repair or full-state recovery). Those paths
-        /// can change Core storage without draining an alteration batch, so they notify this
-        /// adapter explicitly through ClientNetworkRuntime's replacement events.
+        /// can change storage without draining an alteration batch, so they notify this adapter
+        /// explicitly through ClientNetworkRuntime's replacement events.
         /// </summary>
         public static bool PublishRegion(ShowcaseWorld world, int3 regionCoord)
         {
             if (world == null ||
                 !world.IsGenerated(regionCoord) ||
-                !world.Table.TryGetRegion(regionCoord, out Region region) ||
-                !region.Dirty)
+                !world.IsRegionDirty(regionCoord))
                 return false;
 
-            world.Changes.PublishRegion(regionCoord, NetworkEditKinds);
+            world.PublishRegionChange(regionCoord, NetworkEditKinds);
             return true;
         }
     }

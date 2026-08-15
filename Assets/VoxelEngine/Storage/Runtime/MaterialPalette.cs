@@ -16,7 +16,9 @@ namespace VoxelEngine.Storage.Runtime
     ///   - The type of debris generated on destruction (none, particles, physics bodies)
     ///   - Whether the material spreads fire/chemical reactions to adjacent bricks
     /// </summary>
-    public unsafe struct MaterialPalette : IMaterialAuthoringCatalogue, IMaterialPresentationCatalogue
+    public unsafe struct MaterialPalette : IMaterialAuthoringCatalogue,
+                                           IMaterialPresentationCatalogue,
+                                           IMaterialSimulationCatalogue
     {
         /// <summary>Number of registered materials in the palette.</summary>
         public int Count => _count;
@@ -69,6 +71,7 @@ namespace VoxelEngine.Storage.Runtime
             && (_allowedCoatings[materialIndex] & (1u << coatingId)) != 0;
 
         public MaterialPaletteView PresentationView => MaterialPaletteView.Capture(in this);
+        public MaterialSimulationView SimulationView => MaterialSimulationView.Capture(in this);
 
         public static implicit operator MaterialPaletteView(MaterialPalette source) =>
             MaterialPaletteView.Capture(in source);
@@ -99,30 +102,5 @@ namespace VoxelEngine.Storage.Runtime
 
         /// <summary>Maximum palette entries. Sufficient for any session — materials don't change mid-game.</summary>
         private const int MaxMaterials = 32;
-    }
-
-    /// <summary>
-    /// Destruction behaviour class for a material. Determines what happens when a voxel of
-    /// this material is targeted by a destruction event.
-    /// </summary>
-    public enum DestructionClass : byte
-    {
-        /// <summary>Indestructible — bedrock, terrain boundaries, protected zones.</summary>
-        None = 0,
-
-        /// <summary>Crumbles into static geometry debris (falling blocks that settle).</summary>
-        Crumble = 1,
-
-        /// <summary>Splinters into physics-driven debris bodies (splintering wood, etc.).</summary>
-        Splinter = 2,
-
-        /// <summary>Explodes into particles and dust — no physics debris.</summary>
-        Powder = 3,
-
-        /// <summary>Liquid — spreads to adjacent bricks on destruction.</summary>
-        Spreading = 4,
-
-        /// <summary>Flammable — ignites adjacent bricks on destruction.</summary>
-        Flammable = 5,
     }
 }

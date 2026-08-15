@@ -2,6 +2,8 @@ using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
+using VoxelEngine.Collision.Api;
+
 namespace VoxelEngine.Collision.Runtime
 {
     /// <summary>Result of an authoritative voxel raycast.</summary>

@@ -1,0 +1,16 @@
+{
+  "name": "Game.Cutscenes.Content",
+  "rootNamespace": "Game.Cutscenes.Content",
+  "references": [
+    "Game.Cutscenes.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

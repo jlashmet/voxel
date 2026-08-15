@@ -1,16 +1,13 @@
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Rendering.Runtime;
-using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
 {
     public sealed partial class TerrainLookdev
     {
-        private static void AddTerraceBands(ref VoxelBrush writer)
+        private static void AddTerraceBands(IStructureAuthoringSession writer)
         {
             int[] centres = { 258, 224, 194, 164, 134, 104, 76, 50 };
             for (int band = 0; band < centres.Length; band++)
@@ -26,29 +23,29 @@ namespace VoxelEngine.Showcase
                     int y = HeightVoxel(x, z);
                     if (((x / step) + band) % 3 == 0)
                     {
-                        StampEllipsoid(ref writer, new int3(x, y + 2, z),
+                        StampEllipsoid(writer, new int3(x, y + 2, z),
                             new int3(band < 3 ? 8 : 10, 2, band < 3 ? 4 : 5),
                             band < 6 ? TerrainTurfMid : TerrainTurfNear,
                             SurfaceStyles.Smooth);
                     }
                     else
                     {
-                        StampRoundedBox(ref writer, new int3(x, y + 2, z),
+                        StampRoundedBox(writer, new int3(x, y + 2, z),
                             new int3(band < 3 ? 4 : 5, 2, band < 3 ? 3 : 4),
                             2, Mat.TerrainLimestone, SurfaceStyles.Rounded, true);
                     }
                 }
             }
 
-            AddTerraceBank(ref writer, -105, 12, 27, 18);
-            AddTerraceBank(ref writer, 104, 16, 27, 18);
-            AddTerraceBank(ref writer, -125, 42, 22, 15);
-            AddTerraceBank(ref writer, 122, 48, 22, 15);
+            AddTerraceBank(writer, -105, 12, 27, 18);
+            AddTerraceBank(writer, 104, 16, 27, 18);
+            AddTerraceBank(writer, -125, 42, 22, 15);
+            AddTerraceBank(writer, 122, 48, 22, 15);
         }
 
-        private static void AddTerraceBank(ref VoxelBrush writer, int x, int z, int rx, int rz)
+        private static void AddTerraceBank(IStructureAuthoringSession writer, int x, int z, int rx, int rz)
         {
-            StampEllipsoid(ref writer, new int3(x, HeightVoxel(x, z) + 3, z),
+            StampEllipsoid(writer, new int3(x, HeightVoxel(x, z) + 3, z),
                 new int3(rx, 3, rz), TerrainTurfNear, SurfaceStyles.Smooth);
         }
     }

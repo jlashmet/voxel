@@ -1,5 +1,5 @@
 using UnityEngine;
-using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Composition;
 
 namespace VoxelEngine.Showcase
 {
@@ -24,10 +24,11 @@ namespace VoxelEngine.Showcase
 
             // Keep the production material colours intact. The earlier non-white debug tint
             // exaggerated channels into a neon false-colour look and is not presentation lighting.
-            VoxelRenderBridge.SurfaceDebugTint = Color.white;
-            VoxelRenderBridge.SunDirection = new Vector3(-0.58f, 0.74f, -0.34f).normalized;
-            VoxelRenderBridge.SkyHorizon = new Color(0.78f, 0.77f, 0.47f, 1f);
-            VoxelRenderBridge.SkyZenith = new Color(0.68f, 0.72f, 0.42f, 1f);
+            VoxelEngineBootstrap.ConfigureRenderingEnvironment(
+                Color.white,
+                new Vector3(-0.58f, 0.74f, -0.34f).normalized,
+                new Color(0.78f, 0.77f, 0.47f, 1f),
+                new Color(0.68f, 0.72f, 0.42f, 1f));
         }
     }
 }

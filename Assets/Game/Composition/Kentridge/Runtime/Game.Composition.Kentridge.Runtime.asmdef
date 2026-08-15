@@ -1,0 +1,24 @@
+{
+  "name": "Game.Composition.Kentridge.Runtime",
+  "rootNamespace": "Game.Composition.Kentridge.Runtime",
+  "references": [
+    "Game.Composition.Kentridge.Api",
+    "Game.Composition.Campaign",
+    "Game.Composition.Campaign.Runtime",
+    "Game.Composition.WorldBuilderWorldGen",
+    "Game.Composition.WorldBuilderWorldGen.Runtime",
+    "Game.Cutscenes.Api",
+    "Game.WorldBuilder.Api",
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Architecture"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

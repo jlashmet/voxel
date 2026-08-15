@@ -6,6 +6,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Api;
@@ -60,8 +61,9 @@ namespace VoxelEngine.Tests.PlayMode
                             world.CastlePresentationLightColours.Length,
                 "every GPU light position needs a colour/intensity record");
 
-            Debug.Log($"### CASTLE voxels={world.CastleVoxels:N0} bricks={world.Pool.AllocatedCount:N0}" +
-                      $" of {world.Pool.Capacity:N0}");
+            StoragePressure castlePressure = world.StoragePressure;
+            Debug.Log($"### CASTLE voxels={world.CastleVoxels:N0} storage={castlePressure.UsedBytes:N0}" +
+                      $" of {castlePressure.CapacityBytes:N0} bytes");
 
             // Free the camera from the character so it can be placed anywhere.
             typeof(VoxelShowcase).GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
@@ -237,12 +239,12 @@ namespace VoxelEngine.Tests.PlayMode
                 int settleFrames = view.name == "26_reference_arch" ? 24 : 2;
                 for (int frame = 0; frame < settleFrames; frame++) yield return null;
 
-                int allocatedBeforeCapture = world.Pool.AllocatedCount;
+                long usedBytesBeforeCapture = world.StoragePressure.UsedBytes;
                 Capture(cam, Path.Combine(OutputDirectory, view.name + ".png"));
                 if (cutaway)
                 {
-                    Assert.AreEqual(allocatedBeforeCapture, world.Pool.AllocatedCount,
-                        "Rendering a cutaway must not allocate, free, or carve authoritative bricks.");
+                    Assert.AreEqual(usedBytesBeforeCapture, world.StoragePressure.UsedBytes,
+                        "Rendering a cutaway must not allocate, free, or carve authoritative storage.");
                 }
                 Debug.Log($"### SHOT {view.name} from {view.position}");
             }

@@ -27,6 +27,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             public MeshFilter[] LodFilters;
             public MeshRenderer[] LodRenderers;
             public Mesh[] LodMeshes;
+            public Mesh ImpostorMesh;
             public int[][] BaseBarkIndices;
             public int[][] BaseLeafIndices;
             public int[][] BarkIndexOwners;
@@ -42,6 +43,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             public readonly int[] BarkCount = new int[3];
             public readonly int[] LeafStart = new int[3];
             public readonly int[] LeafCount = new int[3];
+            public int ImpostorStart;
+            public int ImpostorCount;
         }
 
         private sealed class BatchPresentation
@@ -49,6 +52,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             public Vector2Int Key;
             public GameObject Root;
             public Mesh[] LodMeshes;
+            public Mesh ImpostorMesh;
             public readonly List<int> TreeIndices = new();
             public readonly Dictionary<int, BatchTreeRanges> TreeRanges = new();
             public readonly HashSet<int> HiddenTreeIndices = new();
@@ -63,6 +67,17 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             public readonly List<Vector2> Uv1 = new(8192);
             public readonly List<int> BarkIndices = new(12288);
             public readonly List<int> LeafIndices = new(12288);
+        }
+
+
+        private sealed class ImpostorMeshBuffers
+        {
+            public readonly List<Vector3> Vertices = new(2048);
+            public readonly List<Vector3> Normals = new(2048);
+            public readonly List<Color> Colours = new(2048);
+            public readonly List<Vector2> Uv0 = new(2048);
+            public readonly List<Vector2> Uv1 = new(2048);
+            public readonly List<int> Indices = new(3072);
         }
 
         private readonly struct PendingDynamicLod
@@ -99,13 +114,13 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         public int LastDamageBatchReleaseCount { get; private set; }
         public int PresentationCount => _trees.Count;
         public int DynamicPresentationCount { get; private set; }
-        public int DynamicMeshCount => DynamicPresentationCount * 3;
+        public int DynamicMeshCount => DynamicPresentationCount * 4;
         public int BatchCount => _batches.Count;
         public int BatchedTreeCount { get; private set; }
-        public int BatchMeshCount => _batches.Count * 3;
+        public int BatchMeshCount => _batches.Count * 4;
         public int GeneratedMeshCount => DynamicMeshCount + BatchMeshCount;
         public long TotalTriangleCountAllLods { get; private set; }
-        public int ResidentRenderObjectCount => (DynamicPresentationCount + BatchCount) * 4;
+        public int ResidentRenderObjectCount => (DynamicPresentationCount + BatchCount) * 5;
         public int EstimatedVisibleDrawCount => (DynamicPresentationCount + BatchCount) * 2;
         public int PeakResidentSkeletonCountDuringLastRebuild { get; private set; }
         public int ResidentSkeletonCount
@@ -308,12 +323,25 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             new LOD(0.34f, new Renderer[] { renderers[0] }),
             new LOD(0.13f, new Renderer[] { renderers[1] }),
             new LOD(0.025f, new Renderer[] { renderers[2] }),
+            // Ultra-far crossed-card impostor. Unity culls the group below this final threshold;
+            // with the existing LOD scale this lands near the old branch's ~1.4 km horizon.
+            new LOD(0.005f, new Renderer[] { renderers[3] }),
         };
 
         private static void ConfigureRenderer(MeshRenderer renderer)
         {
             renderer.sharedMaterials = ProceduralTreeMaterials.Shared;
             renderer.shadowCastingMode = ShadowCastingMode.On;
+            renderer.receiveShadows = true;
+            renderer.lightProbeUsage = LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        }
+
+
+        private static void ConfigureImpostorRenderer(MeshRenderer renderer)
+        {
+            renderer.sharedMaterial = ProceduralTreeMaterials.Impostor;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = true;
             renderer.lightProbeUsage = LightProbeUsage.Off;
             renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
@@ -326,6 +354,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 Mathf.FloorToInt(position.x / BatchSizeMetres),
                 Mathf.FloorToInt(position.z / BatchSizeMetres));
         }
+
 
         private void EnsureDynamicPresentation(TreePresentation tree)
         {
@@ -344,8 +373,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             root.transform.localRotation = Quaternion.identity;
 
             tree.Root = root;
-            tree.LodFilters = new MeshFilter[3];
-            tree.LodRenderers = new MeshRenderer[3];
+            tree.LodFilters = new MeshFilter[4];
+            tree.LodRenderers = new MeshRenderer[4];
             tree.LodMeshes = new Mesh[3];
             tree.BaseBarkIndices = new int[3][];
             tree.BaseLeafIndices = new int[3][];
@@ -363,17 +392,22 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 tree.LodRenderers[lod] = renderer;
             }
 
+            var impostorChild = new GameObject("LOD3") { hideFlags = HideFlags.DontSave };
+            impostorChild.transform.SetParent(root.transform, false);
+            tree.LodFilters[3] = impostorChild.AddComponent<MeshFilter>();
+            tree.LodRenderers[3] = impostorChild.AddComponent<MeshRenderer>();
+            ConfigureImpostorRenderer(tree.LodRenderers[3]);
+
             var group = root.AddComponent<LODGroup>();
             group.fadeMode = LODFadeMode.None;
             group.SetLODs(CreateLods(tree.LodRenderers));
 
-            // Only the close LOD is generated on the damage frame. Use it temporarily for the two
-            // farther slots and stream their cheaper meshes one per later frame.
             BuildDynamicTreeLod(tree, 0);
             tree.LodFilters[1].sharedMesh = tree.LodMeshes[0];
             tree.LodFilters[2].sharedMesh = tree.LodMeshes[0];
             _pendingDynamicLods.Enqueue(new PendingDynamicLod(tree, 1));
             _pendingDynamicLods.Enqueue(new PendingDynamicLod(tree, 2));
+            RebuildDynamicImpostor(tree);
 
             if (tree.ResolvedRemovedBranches.Count > 0)
                 ApplyRemovedGeometryLod(tree, 0);
@@ -398,6 +432,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             }
         }
 
+
         private void DestroyDynamicPresentation(TreePresentation tree)
         {
             if (tree.Root == null) return;
@@ -407,11 +442,13 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 for (int lod = 0; lod < tree.LodMeshes.Length; lod++)
                     if (tree.LodMeshes[lod] != null) Destroy(tree.LodMeshes[lod]);
             }
+            if (tree.ImpostorMesh != null) Destroy(tree.ImpostorMesh);
             Destroy(tree.Root);
             tree.Root = null;
             tree.LodFilters = null;
             tree.LodRenderers = null;
             tree.LodMeshes = null;
+            tree.ImpostorMesh = null;
             tree.BaseBarkIndices = null;
             tree.BaseLeafIndices = null;
             tree.BarkIndexOwners = null;
@@ -509,6 +546,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             return damageAmount <= HealthyDamageEpsilon;
         }
 
+
         private void BuildBatch(Vector2Int key, List<int> treeIndices)
         {
             Vector3 origin = new Vector3(key.x * BatchSizeMetres, 0f, key.y * BatchSizeMetres);
@@ -526,7 +564,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             batch.LodMeshes = meshes;
             batch.TreeIndices.AddRange(treeIndices);
 
-            var lodRenderers = new MeshRenderer[3];
+            var lodRenderers = new MeshRenderer[4];
             for (int lod = 0; lod < 3; lod++)
             {
                 var child = new GameObject($"LOD{lod}") { hideFlags = HideFlags.DontSave };
@@ -537,6 +575,14 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 filter.sharedMesh = meshes[lod];
                 lodRenderers[lod] = renderer;
             }
+
+            var impostorChild = new GameObject("LOD3") { hideFlags = HideFlags.DontSave };
+            impostorChild.transform.SetParent(root.transform, false);
+            var impostorFilter = impostorChild.AddComponent<MeshFilter>();
+            var impostorRenderer = impostorChild.AddComponent<MeshRenderer>();
+            ConfigureImpostorRenderer(impostorRenderer);
+            impostorFilter.sharedMesh = batch.ImpostorMesh;
+            lodRenderers[3] = impostorRenderer;
 
             var group = root.AddComponent<LODGroup>();
             group.fadeMode = LODFadeMode.None;
@@ -550,6 +596,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             _batchByKey[key] = batch;
         }
 
+
         private Mesh[] BuildCombinedBatchMeshes(List<int> treeIndices,
                                                 Vector3 batchOrigin, Vector2Int key,
                                                 BatchPresentation batch)
@@ -560,6 +607,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 new BatchMeshBuffers(),
                 new BatchMeshBuffers(),
             };
+            var impostor = new ImpostorMeshBuffers();
 
             for (int i = 0; i < treeIndices.Count; i++)
             {
@@ -584,6 +632,10 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                     ranges.BarkCount[lod] = destination.BarkIndices.Count - ranges.BarkStart[lod];
                     ranges.LeafCount[lod] = destination.LeafIndices.Count - ranges.LeafStart[lod];
                 }
+
+                ranges.ImpostorStart = impostor.Indices.Count;
+                AppendTreeImpostor(skeleton, null, offset, impostor);
+                ranges.ImpostorCount = impostor.Indices.Count - ranges.ImpostorStart;
                 batch.TreeRanges[tree.Index] = ranges;
 
                 if (tree.Root == null)
@@ -593,6 +645,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             var meshes = new Mesh[3];
             for (int lod = 0; lod < 3; lod++)
                 meshes[lod] = CreateBatchMesh(buffers[lod], key, lod);
+            batch.ImpostorMesh = CreateImpostorMesh(impostor, $"TreeBatch_{key.x}_{key.y}_LOD3");
             return meshes;
         }
 
@@ -616,6 +669,168 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             return combined;
         }
 
+
+        private static Mesh CreateImpostorMesh(ImpostorMeshBuffers data, string name)
+        {
+            var mesh = new Mesh
+            {
+                name = name,
+                indexFormat = data.Vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16,
+                hideFlags = HideFlags.DontSave,
+            };
+            mesh.SetVertices(data.Vertices);
+            mesh.SetNormals(data.Normals);
+            mesh.SetColors(data.Colours);
+            mesh.SetUVs(0, data.Uv0);
+            mesh.SetUVs(1, data.Uv1);
+            mesh.SetTriangles(data.Indices, 0, false);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private void RebuildDynamicImpostor(TreePresentation tree)
+        {
+            if (tree == null || tree.Root == null || tree.LodFilters == null || tree.LodFilters.Length < 4)
+                return;
+            EnsureSkeleton(tree);
+            if (tree.Skeleton == null) return;
+            if (tree.ImpostorMesh != null) Destroy(tree.ImpostorMesh);
+            var data = new ImpostorMeshBuffers();
+            AppendTreeImpostor(tree.Skeleton, tree.ResolvedRemovedBranches, Vector3.zero, data);
+            tree.ImpostorMesh = CreateImpostorMesh(
+                data, $"{tree.Instance.Species}_{tree.Instance.Seed}_LOD3");
+            tree.LodFilters[3].sharedMesh = tree.ImpostorMesh;
+        }
+
+        private static void AppendTreeImpostor(TreeSkeletonSnapshot skeleton,
+                                               HashSet<int> removedBranches,
+                                               Vector3 offset,
+                                               ImpostorMeshBuffers destination)
+        {
+            if (!TryCalculateLocalTreeBounds(skeleton, removedBranches, out Bounds bounds)) return;
+            float width = Mathf.Max(0.35f, Mathf.Max(bounds.size.x, bounds.size.z) * 0.96f);
+            float height = Mathf.Max(0.6f, bounds.size.y);
+            Vector3 centre = bounds.center + offset;
+            float halfW = width * 0.5f;
+            float halfH = height * 0.5f;
+            Color colour = AverageLeafColour(skeleton, removedBranches);
+            AppendImpostorPlane(centre, Vector3.right, halfW, halfH, colour, destination);
+            AppendImpostorPlane(centre, Vector3.forward, halfW, halfH, colour, destination);
+        }
+
+        private static void AppendImpostorPlane(Vector3 centre, Vector3 horizontal,
+                                                float halfW, float halfH, Color colour,
+                                                ImpostorMeshBuffers destination)
+        {
+            int start = destination.Vertices.Count;
+            Vector3 vertical = Vector3.up * halfH;
+            Vector3 side = horizontal * halfW;
+            Vector3 normal = Vector3.Cross(horizontal, Vector3.up).normalized;
+            destination.Vertices.Add(centre - side - vertical);
+            destination.Vertices.Add(centre + side - vertical);
+            destination.Vertices.Add(centre + side + vertical);
+            destination.Vertices.Add(centre - side + vertical);
+            for (int i = 0; i < 4; i++)
+            {
+                destination.Normals.Add(normal);
+                destination.Colours.Add(colour);
+                destination.Uv1.Add(Vector2.zero);
+            }
+            destination.Uv0.Add(new Vector2(0f, 0f));
+            destination.Uv0.Add(new Vector2(1f, 0f));
+            destination.Uv0.Add(new Vector2(1f, 1f));
+            destination.Uv0.Add(new Vector2(0f, 1f));
+            destination.Indices.Add(start);
+            destination.Indices.Add(start + 1);
+            destination.Indices.Add(start + 2);
+            destination.Indices.Add(start);
+            destination.Indices.Add(start + 2);
+            destination.Indices.Add(start + 3);
+            destination.Indices.Add(start + 2);
+            destination.Indices.Add(start + 1);
+            destination.Indices.Add(start);
+            destination.Indices.Add(start + 3);
+            destination.Indices.Add(start + 2);
+            destination.Indices.Add(start);
+        }
+
+        private static Color AverageLeafColour(TreeSkeletonSnapshot skeleton,
+                                               HashSet<int> removedBranches)
+        {
+            Vector4 sum = Vector4.zero;
+            int count = 0;
+            for (int i = 0; i < skeleton.Leaves.Count; i++)
+            {
+                int parent = skeleton.LeafParents != null && i < skeleton.LeafParents.Count
+                    ? skeleton.LeafParents[i] : -1;
+                if (parent >= 0 && removedBranches != null && removedBranches.Contains(parent)) continue;
+                TreeLeafAnchor leaf = skeleton.Leaves[i];
+                sum += new Vector4(leaf.Colour.x, leaf.Colour.y, leaf.Colour.z, leaf.Colour.w);
+                count++;
+            }
+            if (count == 0) return new Color(0.22f, 0.42f, 0.14f, 1f);
+            Vector4 average = sum / count;
+            return new Color(average.x, average.y, average.z, average.w);
+        }
+
+        private static bool TryCalculateLocalTreeBounds(TreeSkeletonSnapshot skeleton,
+                                                        HashSet<int> removedBranches,
+                                                        out Bounds bounds)
+        {
+            bool hasPoint = false;
+            Vector3 min = Vector3.zero;
+            Vector3 max = Vector3.zero;
+            for (int i = 0; i < skeleton.Branches.Count; i++)
+            {
+                if (removedBranches != null && removedBranches.Contains(i)) continue;
+                TreeBranchSegment branch = skeleton.Branches[i];
+                float radius = Mathf.Max(branch.RadiusStart, branch.RadiusEnd);
+                Vector3 r = Vector3.one * radius;
+                Vector3 a = (Vector3)branch.Start;
+                Vector3 b = (Vector3)branch.End;
+                Vector3 branchMin = Vector3.Min(a, b) - r;
+                Vector3 branchMax = Vector3.Max(a, b) + r;
+                if (!hasPoint)
+                {
+                    min = branchMin;
+                    max = branchMax;
+                    hasPoint = true;
+                }
+                else
+                {
+                    min = Vector3.Min(min, branchMin);
+                    max = Vector3.Max(max, branchMax);
+                }
+            }
+            for (int i = 0; i < skeleton.Leaves.Count; i++)
+            {
+                int parent = skeleton.LeafParents != null && i < skeleton.LeafParents.Count
+                    ? skeleton.LeafParents[i] : -1;
+                if (parent >= 0 && removedBranches != null && removedBranches.Contains(parent)) continue;
+                TreeLeafAnchor leaf = skeleton.Leaves[i];
+                Vector3 p = (Vector3)leaf.Position;
+                Vector3 r = Vector3.one * Mathf.Max(0.05f, leaf.Size);
+                if (!hasPoint)
+                {
+                    min = p - r;
+                    max = p + r;
+                    hasPoint = true;
+                }
+                else
+                {
+                    min = Vector3.Min(min, p - r);
+                    max = Vector3.Max(max, p + r);
+                }
+            }
+            if (!hasPoint)
+            {
+                bounds = new Bounds(Vector3.zero, Vector3.one * 0.1f);
+                return false;
+            }
+            bounds = new Bounds((min + max) * 0.5f, max - min);
+            return true;
+        }
+
         private bool ReleaseTreeFromBatch(TreePresentation tree)
         {
             if (!tree.IsBatched) return false;
@@ -628,6 +843,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             return true;
         }
 
+
         private bool HideTreeInBatch(BatchPresentation batch, int treeIndex)
         {
             if (batch == null || !batch.HiddenTreeIndices.Add(treeIndex)) return false;
@@ -639,6 +855,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 HideIndexRange(mesh, 0, ranges.BarkStart[lod], ranges.BarkCount[lod]);
                 HideIndexRange(mesh, 1, ranges.LeafStart[lod], ranges.LeafCount[lod]);
             }
+            HideIndexRange(batch.ImpostorMesh, 0, ranges.ImpostorStart, ranges.ImpostorCount);
             return true;
         }
 
@@ -673,9 +890,10 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             _zeroIndices32 = new uint[Mathf.NextPowerOfTwo(count)];
         }
 
+
         private static long EstimateTriangleCountAllLods(TreeSkeletonSnapshot skeleton)
         {
-            long total = 0;
+            long total = 8;
             for (int lod = 0; lod < 3; lod++)
             {
                 int radialSides = lod == 0 ? 8 : lod == 1 ? 5 : 3;
@@ -735,11 +953,15 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             return owners;
         }
 
+
         private void ApplyRemovedGeometry(TreePresentation tree)
         {
-            if (tree.LodMeshes == null) return;
-            for (int lod = 0; lod < tree.LodMeshes.Length; lod++)
-                ApplyRemovedGeometryLod(tree, lod);
+            if (tree.LodMeshes != null)
+            {
+                for (int lod = 0; lod < tree.LodMeshes.Length; lod++)
+                    ApplyRemovedGeometryLod(tree, lod);
+            }
+            RebuildDynamicImpostor(tree);
         }
 
         private void ApplyRemovedGeometryLod(TreePresentation tree, int lod)
@@ -770,6 +992,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             }
         }
 
+
         private void ApplyDamageMaterial(TreePresentation tree)
         {
             if (tree.LodRenderers == null) return;
@@ -780,11 +1003,14 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             if (_damageProperties == null) _damageProperties = new MaterialPropertyBlock();
             _damageProperties.Clear();
             _damageProperties.SetFloat(s_Damage, damageAmount);
-            for (int lod = 0; lod < tree.LodRenderers.Length; lod++)
+            int geometryLods = Mathf.Min(3, tree.LodRenderers.Length);
+            for (int lod = 0; lod < geometryLods; lod++)
             {
                 MeshRenderer renderer = tree.LodRenderers[lod];
                 if (renderer != null) renderer.SetPropertyBlock(_damageProperties, 1);
             }
+            if (tree.LodRenderers.Length > 3 && tree.LodRenderers[3] != null)
+                tree.LodRenderers[3].SetPropertyBlock(_damageProperties);
         }
 
         private void ApplyDamage()
@@ -843,6 +1069,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 && tree.ResolvedRemovedBranches.Count >= tree.Skeleton.Branches.Count;
         }
 
+
         private void DestroyBatchObjects(BatchPresentation batch)
         {
             if (batch == null) return;
@@ -851,6 +1078,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 for (int lod = 0; lod < batch.LodMeshes.Length; lod++)
                     if (batch.LodMeshes[lod] != null) Destroy(batch.LodMeshes[lod]);
             }
+            if (batch.ImpostorMesh != null) Destroy(batch.ImpostorMesh);
             if (batch.Root != null)
             {
                 batch.Root.SetActive(false);

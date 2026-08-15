@@ -1,14 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
-using Unity.Networking.Transport;
 using UnityEngine;
-using VoxelEngine.Edits.Api;
-using VoxelEngine.Edits.Runtime;
-using VoxelEngine.Storage.Runtime;
-using VoxelEngine.Net.Runtime.Client;
-using VoxelEngine.Net.Runtime.Protocol;
-using VoxelEngine.Net.Runtime.Server;
+using VoxelEngine.Composition;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Showcase
 {
@@ -18,11 +13,12 @@ namespace VoxelEngine.Showcase
     /// ordered event application, and the existing CharacterMotor remains the sole movement code.
     /// </summary>
     internal sealed class ShowcaseMultiplayerSession : IDisposable,
-        IAuthoritativePlayerInputSink, IClientPredictionAdapter
+        IAuthoritativeNetworkInputSink, IClientNetworkPredictionAdapter
     {
         private enum SessionMode : byte { Offline, Host, Client }
 
-        private const float FixedDeltaSeconds = 1f / AuthoritativeTickConfig.TickRateHz;
+        private static readonly float FixedDeltaSeconds =
+            1f / NetworkingComposition.AuthoritativeTickRateHz;
         private const byte InputFlagSprint = 1 << 0;
         private const byte InputFlagJump = 1 << 1;
         private const int ShowcaseReachVoxels = 1024;
@@ -32,8 +28,8 @@ namespace VoxelEngine.Showcase
         private readonly Dictionary<ushort, CharacterMotor> _serverMotors = new();
         private readonly Dictionary<ushort, uint> _connectionByPlayer = new();
 
-        private AuthoritativeServerSession _server;
-        private ClientNetworkRuntime _client;
+        private NetworkServerFacade _server;
+        private NetworkClientFacade _client;
         private SessionMode _mode;
         private ushort _localPlayerId;
         private uint _serverTick = 1;
@@ -75,18 +71,13 @@ namespace VoxelEngine.Showcase
             {
                 _mode = SessionMode.Host;
                 _localPlayerId = 1;
-                _server = new AuthoritativeServerSession(
-                    _world.Seed,
-                    new Validation.DensityCap(1f, VoxelDimensions.BricksPerRegion),
-                    new DeterministicAlterationApplier(),
-                    maxConnections: 2);
+                _server = NetworkingComposition.CreateServer(_world.Seed, maxConnections: 2);
                 _server.ConnectionOpened += OnServerConnectionOpened;
                 _server.ConnectionClosed += OnServerConnectionClosed;
                 _server.ProtocolError += OnServerProtocolError;
                 _server.SendError += OnServerSendError;
 
-                NetworkEndpoint listen = NetworkEndpoint.AnyIpv4.WithPort(networkPort);
-                if (_server.Listen(listen) != 0)
+                if (!_server.Listen(networkPort))
                 {
                     Status = $"Could not listen on port {networkPort}";
                     CleanupNetworking();
@@ -94,7 +85,7 @@ namespace VoxelEngine.Showcase
                 }
 
                 CreateClient(localPlayerId: 1);
-                if (!_client.Connect(NetworkEndpoint.LoopbackIpv4.WithPort(networkPort)))
+                if (!_client.ConnectLoopback(networkPort))
                 {
                     Status = "Could not connect host loopback client";
                     CleanupNetworking();
@@ -126,8 +117,7 @@ namespace VoxelEngine.Showcase
             if (string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase))
                 address = "127.0.0.1";
 
-            if (!NetworkEndpoint.TryParse(address, networkPort, out NetworkEndpoint endpoint, NetworkFamily.Ipv4) &&
-                !NetworkEndpoint.TryParse(address, networkPort, out endpoint, NetworkFamily.Ipv6))
+            if (!NetworkingComposition.IsValidAddress(address, networkPort))
             {
                 Status = $"Invalid address: {address}";
                 return false;
@@ -138,7 +128,7 @@ namespace VoxelEngine.Showcase
                 _mode = SessionMode.Client;
                 _localPlayerId = 2;
                 CreateClient(localPlayerId: 2);
-                if (!_client.Connect(endpoint))
+                if (!_client.Connect(address, networkPort))
                 {
                     Status = $"Could not connect to {address}:{networkPort}";
                     CleanupNetworking();
@@ -193,17 +183,11 @@ namespace VoxelEngine.Showcase
                 return false;
 
             uint radiusBricks = (uint)RadiusVoxelsToBricks(radiusVoxels);
-            var request = new C_AlterationRequest(
-                _clientTick,
-                originVoxel,
-                AlterationEvent.KindExplosion,
-                VoxelDimensions.MaterialEmpty,
-                AlterationEvent.KindExplosion,
-                radiusBricks,
-                seed: 0,
-                sequence: _nextAlterationSequence);
-
-            if (!_client.TrySendAlterationRequest(in request))
+            if (!_client.TrySendExplosionRequest(
+                    _clientTick,
+                    originVoxel,
+                    radiusBricks,
+                    _nextAlterationSequence))
                 return false;
 
             _nextAlterationSequence = unchecked((ushort)(_nextAlterationSequence + 1));
@@ -215,8 +199,8 @@ namespace VoxelEngine.Showcase
         public static int RadiusVoxelsToBricks(int radiusVoxels)
         {
             int positive = math.max(1, radiusVoxels);
-            int bricks = (positive + VoxelDimensions.BrickEdge - 1) >> VoxelDimensions.BrickEdgeLog2;
-            return math.clamp(bricks, 1, VoxelDimensions.RegionEdge - 1);
+            int bricks = (positive + VoxelReadGrid.BlockEdge - 1) >> VoxelReadGrid.BlockEdgeLog2;
+            return math.clamp(bricks, 1, VoxelReadGrid.BlocksPerRegionEdge - 1);
         }
 
         public void Disconnect()
@@ -239,7 +223,7 @@ namespace VoxelEngine.Showcase
 
         private void CreateClient(ushort localPlayerId)
         {
-            _client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
+            _client = NetworkingComposition.CreateClient();
             _client.Connected += OnClientConnected;
             _client.Disconnected += OnClientDisconnected;
             _client.PacketRejected += OnClientPacketRejected;
@@ -260,13 +244,11 @@ namespace VoxelEngine.Showcase
             // Host loopback input is flushed immediately above. Pump it before the authoritative
             // fixed step so the same tick can consume the command and acknowledge it in snapshots.
             _server.PumpTransport();
-            ProtectedZones zones = default;
             _server.ProcessAuthoritativeTick(
                 _serverTick,
                 _world.ReadStorage,
                 _world.MutationStorage,
                 _world.SnapshotStorage,
-                in zones,
                 this);
 
             _serverTick = unchecked(_serverTick + 1);
@@ -275,10 +257,6 @@ namespace VoxelEngine.Showcase
 
         private void SendPredictedLocalInput()
         {
-            C_PlayerInput.ActionBits actions = C_PlayerInput.ActionBits.Aim;
-            if (math.lengthsq(_movement) > 1e-6f)
-                actions |= C_PlayerInput.ActionBits.Move;
-
             byte flags = 0;
             if (_sprint) flags |= InputFlagSprint;
             if (_jump) flags |= InputFlagJump;
@@ -287,16 +265,13 @@ namespace VoxelEngine.Showcase
             _clientTick = unchecked(_clientTick + 1);
             if (_clientTick == 0) _clientTick = 1;
 
-            var input = new C_PlayerInput(
-                tick,
-                _nextInputSequence,
-                _movement,
-                _viewDirection,
-                actions,
-                toolMaterial: 0,
-                flags: flags);
-
-            if (!_client.TrySendPlayerInput(in input))
+            if (!_client.TrySendPlayerInput(
+                    tick,
+                    _nextInputSequence,
+                    _movement,
+                    _viewDirection,
+                    flags,
+                    out NetworkPlayerInput input))
                 return;
 
             _nextInputSequence = unchecked((ushort)(_nextInputSequence + 1));
@@ -321,9 +296,9 @@ namespace VoxelEngine.Showcase
                 ShowcaseNetworkWorldBridge.PublishDirtyRegionsAround(_world, (float3)_localMotor.Position);
         }
 
-        void IAuthoritativePlayerInputSink.ApplyInput(
+        void IAuthoritativeNetworkInputSink.ApplyInput(
             ushort playerId,
-            in C_PlayerInput input,
+            in NetworkPlayerInput input,
             uint serverTick)
         {
             if (_server == null ||
@@ -332,36 +307,32 @@ namespace VoxelEngine.Showcase
                 return;
 
             SimulateMotor(motor, in input);
-            S_PlayerState.StateFlags stateFlags = motor.Grounded
-                ? S_PlayerState.StateFlags.Grounded
-                : S_PlayerState.StateFlags.None;
-
             _server.UpdateAuthoritativePlayerKinematics(
                 connectionId,
                 (float3)motor.Position / ShowcaseWorld.VoxelSize,
                 (float3)motor.Velocity / ShowcaseWorld.VoxelSize,
-                input.viewYaw,
-                stateFlags);
+                input.ViewYaw,
+                motor.Grounded);
         }
 
-        void IClientPredictionAdapter.ApplyAuthoritativeState(in S_PlayerState state)
+        void IClientNetworkPredictionAdapter.ApplyAuthoritativeState(in NetworkPlayerState state)
         {
-            _localMotor.Position = (Vector3)(state.PositionVoxels() * ShowcaseWorld.VoxelSize);
-            _localMotor.Velocity = (Vector3)(state.VelocityVoxelsPerSecond() * ShowcaseWorld.VoxelSize);
+            _localMotor.Position = (Vector3)(state.PositionVoxels * ShowcaseWorld.VoxelSize);
+            _localMotor.Velocity = (Vector3)(state.VelocityVoxelsPerSecond * ShowcaseWorld.VoxelSize);
         }
 
-        public void ReplayInput(in C_PlayerInput input)
+        public void ReplayInput(in NetworkPlayerInput input)
         {
             SimulateMotor(_localMotor, in input);
         }
 
-        private void SimulateMotor(CharacterMotor motor, in C_PlayerInput input)
+        private void SimulateMotor(CharacterMotor motor, in NetworkPlayerInput input)
         {
             if (!_world.IsGenerated(ShowcaseWorld.RegionAt(motor.Position)))
                 return;
 
-            float2 movement = input.Movement();
-            float3 view = input.ViewDirection();
+            float2 movement = input.Movement;
+            float3 view = input.ViewDirection;
             Vector3 forward = new Vector3(view.x, 0f, view.z);
             if (forward.sqrMagnitude < 1e-6f) forward = Vector3.forward;
             else forward.Normalize();
@@ -369,12 +340,12 @@ namespace VoxelEngine.Showcase
             Vector3 wish = forward * movement.y + right * movement.x;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-            bool sprint = (input.flags & InputFlagSprint) != 0;
-            bool jump = (input.flags & InputFlagJump) != 0;
+            bool sprint = (input.Flags & InputFlagSprint) != 0;
+            bool jump = (input.Flags & InputFlagJump) != 0;
             motor.Step(_world, wish, sprint, jump, FixedDeltaSeconds);
         }
 
-        private void OnServerConnectionOpened(uint connectionId, NetworkEndpoint endpoint)
+        private void OnServerConnectionOpened(uint connectionId)
         {
             ushort playerId = !_connectionByPlayer.ContainsKey(1)
                 ? (ushort)1
@@ -405,7 +376,7 @@ namespace VoxelEngine.Showcase
                 (float3)motor.Position / ShowcaseWorld.VoxelSize,
                 float3.zero,
                 viewYaw: 0,
-                stateFlags: S_PlayerState.StateFlags.None);
+                grounded: false);
 
             Status = playerId == 1
                 ? "Host local player authenticated; waiting for player 2"
@@ -465,12 +436,12 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private void OnPlayerStateReceived(S_PlayerState state)
+        private void OnPlayerStateReceived(NetworkPlayerState state)
         {
-            if (state.playerId != _localPlayerId)
+            if (state.PlayerId != _localPlayerId)
                 return;
 
-            uint nextAuthoritativeTick = unchecked(state.tick + 1);
+            uint nextAuthoritativeTick = unchecked(state.Tick + 1);
             if (nextAuthoritativeTick == 0) nextAuthoritativeTick = 1;
 
             if (_clientTickAnchored)
@@ -521,7 +492,7 @@ namespace VoxelEngine.Showcase
             }
 
             ushort remoteId = _localPlayerId == 1 ? (ushort)2 : (ushort)1;
-            if (!_client.TrySampleRemotePlayer(remoteId, 1f, out RemotePlayerSample sample))
+            if (!_client.TrySampleRemotePlayer(remoteId, 1f, out NetworkRemotePlayerSample sample))
             {
                 if (_remoteAvatar != null) _remoteAvatar.SetActive(false);
                 return;
