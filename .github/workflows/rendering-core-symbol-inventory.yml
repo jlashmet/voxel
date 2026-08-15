@@ -1,0 +1,29 @@
+name: Rendering Core symbol inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/rendering-core-symbol-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== CORE_IMPORT_FILES_AND_MATCHING_SYMBOLS ==='
+          for f in $(grep -RIl 'using VoxelEngine.Core.Storage;' Assets/VoxelEngine/Rendering --include='*.cs' | sort); do
+            echo "--- $f"
+            grep -nE 'MaterialPalette|SurfaceCatalogue|CoatingCatalogue|VoxelChangeJournal|VoxelDimensions|RegionTable|BrickPool|BrickRef|VoxelAccess|Region\b|OccupancyMask|MaterialAdjacencyCatalogue|SurfaceStyles|Coatings|VoxelCell|VoxelBoundarySample' "$f" || true
+          done
+          echo '=== CORE_STORAGE_DEFINITIONS ==='
+          grep -RInE '^(public |internal )?(sealed |readonly )?(class|struct) (MaterialPalette|SurfaceCatalogue|CoatingCatalogue|VoxelChangeJournal|MaterialAdjacencyCatalogue)|class MaterialPalette|struct MaterialPalette|class SurfaceCatalogue|struct SurfaceCatalogue|class CoatingCatalogue|struct CoatingCatalogue|class VoxelChangeJournal|struct VoxelChangeJournal' Assets/VoxelEngine/Core/Storage --include='*.cs' || true
+          echo '=== SYMBOL_USAGE_ALL_RENDERING ==='
+          grep -RInE 'MaterialPalette|SurfaceCatalogue|CoatingCatalogue|VoxelChangeJournal|VoxelDimensions|MaterialAdjacencyCatalogue' Assets/VoxelEngine/Rendering --include='*.cs' | sort || true
+          echo '=== STORAGE_API_RELATED_TYPES ==='
+          grep -RInE 'public (readonly )?(struct|class|interface|enum).*Material|public (readonly )?(struct|class|interface|enum).*Surface|public (readonly )?(struct|class|interface|enum).*Coating|ChangeJournal|Change.*View|Material.*Catalogue|Surface.*Catalogue|Coating.*Catalogue' Assets/VoxelEngine/Storage/Api --include='*.cs' | sort || true
