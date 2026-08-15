@@ -1,50 +1,41 @@
 # Character Factory
 
-Headless local asset factory for modular characters. Character bodies, clothing, weapons, and
-accessories are deliberately separate products; a dressed character is assembled at runtime rather
-than baked into one generated mesh.
+Headless asset factory for modular Unity characters. Character bodies, clothing, weapons, and accessories are separate products; clothing and equipment are attached to a character at runtime instead of being baked into one generated mesh.
 
 ## Boundary layout
 
-The Unity side follows the engine subsystem rule:
+The Unity subsystem follows the engine boundary rule:
 
 ```text
 Assets/VoxelEngine/Characters/
-  Api/       stable equipment slots, part kinds, and ICharacterEquipment
-  Runtime/   CharacterPartCatalogue, CharacterPartAsset, skeleton rebinding/socket attachment
+  Api/       stable equipment slots, part kinds, ICharacterEquipment
+  Runtime/   catalogue, part assets, skeleton rebinding, socket attachment
+  Editor/    automatic import of staged Character Factory outputs
 ```
 
-Consumers depend on `VoxelEngine.Characters.Api`; concrete Unity implementation stays in
-`VoxelEngine.Characters.Runtime`. `CharacterPartKind` is stable API, while prefab/catalogue mechanics
-remain Runtime-owned.
+Consumers depend on `VoxelEngine.Characters.Api`. Unity implementation details remain in `Runtime`/`Editor`.
 
-The offline factory mirrors that separation and has four explicit pipelines:
+The offline factory mirrors that separation and keeps four explicit pipelines:
 
 ```text
-tools/character-factory/
-  api/                       stable JSON build-spec model
-  runtime/
-    pipeline.py              dispatcher only
-    pipelines/
-      character.py           body mesh -> canonical skeleton -> FBX
-      clothing.py            garment mesh -> canonical weights -> FBX
-      weapon.py              rigid weapon mesh -> FBX + socket metadata
-      accessory.py           rigid accessory mesh -> FBX + socket metadata
+character   generated body -> canonical skeleton/weights -> FBX
+clothing    generated garment -> canonical skeleton/weights -> FBX
+weapon      rigid generated mesh -> FBX + socket metadata
+accessory   rigid generated mesh -> FBX + socket metadata
 ```
 
-There is intentionally no generic `wearable` pipeline. The category is part of the build contract so
-we can evolve character fitting, garment fitting, weapon grip/origin processing, and accessory mount
-processing independently.
+There is intentionally no generic `wearable` pipeline. Character fitting, garment fitting, weapon processing, and accessory mounting can evolve independently.
 
-## Generator backends and presets
+## Generator backends
 
-The product pipeline and mesh generator are independent choices. Current CI uses **TripoSR on Apple
-MPS** as the fast end-to-end smoke backend because it reconstructs a single input image quickly on
-the self-hosted Apple-Silicon runner. The TripoSR adapter also bakes UV color, harmonizes the inferred
-palette toward the isolated source, and can project source pixels onto high-confidence aligned
-surfaces while retaining generated texture on hidden/side surfaces.
+Product pipeline and mesh generator are independent choices.
 
-Official Hunyuan/PyTorch remains available as the higher-quality path. The Hunyuan presets are:
+Current backends:
+
+- `triposr-mps`: fast Apple-Silicon smoke/prototyping path. It reconstructs a single image, bakes UV color, harmonizes source palette, and can project source pixels onto confidently aligned surfaces.
+- `hunyuan-pytorch`: higher-quality Hunyuan path, including the multiview quality preset.
+
+Current Hunyuan presets:
 
 ```text
 smoke
@@ -52,122 +43,104 @@ smoke
   hunyuan3d-dit-v2-mini-turbo
   FlashVDM enabled
   5 diffusion steps
-  octree resolution 64
 
 quality
   tencent/Hunyuan3D-2mv
-  multiview
+  hunyuan3d-dit-v2-mv
   50 diffusion steps
-  octree resolution 380
 ```
 
-Swapping the generator does not change the `character`, `clothing`, `weapon`, or `accessory` pipeline
-classes. The fast CI path currently chooses `backend: triposr-mps` explicitly; production-quality
-passes can choose Hunyuan instead.
+Swapping generators does not change the `character`, `clothing`, `weapon`, or `accessory` pipeline contract.
 
-## Pipeline behavior
+## Accepted mechanics
 
-All four pipelines share only the image-to-mesh backend boundary. Their post-processing remains
-asset-specific:
+The Apple-Silicon CI smoke now validates all of these paths with real TripoSR inference:
 
 ```text
+weapon
+  source image -> textured generated GLB -> rigid FBX
+  -> detailed ornament + procedural shaft -> material-preserving render
+
 character
-  image(s) -> generator -> generated body GLB
-           -> infer generated/canonical axis mapping
-           -> align body to canonical bounds
-           -> transfer canonical body weights by group name
-           -> canonical armature + generated skinned meshes
-           -> character FBX
+  T-pose source -> generated textured body
+  -> automatic global axis/scale/center alignment
+  -> canonical 17-bone weight transfer
+  -> skinned FBX -> re-import -> programmatic pose deformation
 
 clothing
-  image(s) -> generator -> garment GLB
-           -> Blender clothing pass
-           -> transfer canonical body weights / canonical armature
-           -> independent clothing FBX
+  isolated garment source -> generated garment
+  -> donor alignment -> canonical weight transfer
+  -> independent skinned FBX -> re-import -> pose deformation
 
-weapon
-  image(s) -> generator -> rigid GLB
-           -> Blender rigid weapon pass
-           -> weapon FBX + hand/socket metadata
-
-accessory
-  image(s) -> generator -> rigid GLB
-           -> Blender rigid accessory pass
-           -> accessory FBX + bone/socket metadata
+modular composition
+  separate character FBX + separate clothing FBX
+  -> discard clothing's duplicate imported armature
+  -> rebind clothing renderer to the character armature by canonical bone name
+  -> pose one shared skeleton
+  -> require both body and clothing to deform
 ```
 
-Character alignment handles generator axis permutation, scale, center, and sufficiently confident
-axis flips before skinning. The weight-transfer stage pre-creates the canonical donor's vertex-group
-layout on each generated mesh, transfers all groups by name, and verifies that vertices actually
-received weights before export.
+These fixtures validate mechanics, not production art quality.
 
-The manifest records the selected generator preset/model plus the exact pipeline, output FBX,
-generator/prepare commands, and runtime-part metadata. Clothing is marked
-`SkinnedToCharacterSkeleton`; weapons/accessories are marked `BoneSocket`.
+## Unity staging and automatic import
 
-## CI acceptance smoke
+A completed build can be staged under Unity `Assets/` without launching Unity:
 
-The Apple-Silicon workflow currently exercises two real neural-generation paths:
+```bash
+python3 tools/character-factory/character_factory.py stage-unity \
+  path/to/manifest.json \
+  --assets-root Assets/Generated/CharacterFactory
+```
+
+Or build and stage in one command:
+
+```bash
+python3 tools/character-factory/character_factory.py build path/to/spec.json \
+  --unity-assets-root Assets/Generated/CharacterFactory
+```
+
+Staging copies the generated FBX to:
 
 ```text
-weapon smoke
-  Sunlit Cleric staff fixture
-    -> TripoSR MPS
-    -> textured GLB
-    -> rigid weapon Blender pass
-    -> detailed ornament + procedural shaft assembly
-    -> FBX re-import/material render
-
-character smoke
-  deterministic rigged T-pose mannequin fixture
-    -> rendered front image
-    -> TripoSR MPS reconstruction
-    -> generated textured GLB
-    -> automatic canonical alignment
-    -> canonical weight transfer
-    -> 17-bone skinned FBX
-    -> re-import
-    -> programmatic RightUpperArm pose
-    -> require visible generated-mesh deformation
+Assets/Generated/CharacterFactory/<assetType>/<id>/
 ```
 
-The character smoke is deliberately a simple procedural mannequin: it proves that a **generated**
-mesh can survive image-to-3D reconstruction, canonical alignment, weight transfer, FBX export/import,
-and actual skeletal deformation. It is not a production character-quality benchmark.
+and writes a portable `*.characterfactory.json` descriptor beside it. The Unity Editor importer consumes that descriptor during normal asset import:
+
+- clothing/weapons/accessories create or update `CharacterPartAsset` entries and the shared `CharacterPartCatalogue`;
+- character bodies create or update a prefab containing the generated model and a configured `CharacterEquipmentController` wired to the shared catalogue.
+
+The Character Factory CLI itself never launches Unity.
+
+## Manifest
+
+Every completed build writes `manifest.json` containing the actual generator backend, pipeline, output FBX, generator/prepare commands, and runtime-part metadata. TripoSR manifests do not claim Hunyuan model metadata.
+
+Clothing uses `SkinnedToCharacterSkeleton`; rigid weapons/accessories use `BoneSocket`.
 
 ## Current limitations
 
-Character mechanics are now end-to-end validated, but robust production fitting is still incomplete.
-The generated-body aligner is global rather than semantic/landmark-driven, so realistic humanoid
-proportions, fingers, faces, hair, and unusual silhouettes need stronger fitting. Clothing still lacks
-its own garment-aware alignment/conforming pass and has not yet been accepted by a real generated
-skinned-garment CI smoke.
+The mechanics are now end-to-end validated, but production fitting and art quality still need work. Current body/garment alignment is global rather than semantic or landmark-driven. Remaining quality work includes realistic proportions, faces/fingers/hair, loose-garment conforming, collision/poke-through correction, body-region hiding, LOD generation, weapon-grip inference, and accessory-mount inference.
 
-Automatic loose-garment fitting, collision/poke-through correction, body-region hiding, LODs, weapon
-grip inference, accessory mount inference, and automatic Unity prefab/`CharacterPartAsset` creation
-remain follow-up stages. Accessories are currently rigid/socket-mounted; skinned hair/capes should
-use the clothing pipeline until a dedicated skinned-accessory mode exists.
+Accessories are currently rigid/socket-mounted. Skinned hair and capes should use the clothing path until a dedicated skinned-accessory mode exists.
 
 ## Commands
 
-Dry-run one pipeline without requiring the placeholder example files to exist:
+Dry-run a spec:
 
 ```bash
 python3 tools/character-factory/character_factory.py build \
   tools/character-factory/examples/cleric_character.json --dry-run
-
-python3 tools/character-factory/character_factory.py build \
-  tools/character-factory/examples/cleric_robe.json --dry-run
-
-python3 tools/character-factory/character_factory.py build \
-  tools/character-factory/examples/cleric_staff.json --dry-run
 ```
 
-Run the routing/spec/alignment tests:
+Build all specs in a directory:
+
+```bash
+python3 tools/character-factory/character_factory.py batch path/to/specs
+```
+
+Run factory tests:
 
 ```bash
 python3 -m unittest discover -s tools/character-factory/tests -p 'test_*.py' -v
 ```
-
-Every build writes a `manifest.json` beside generated assets so later import/resume stages can be
-added without changing the public factory API.
