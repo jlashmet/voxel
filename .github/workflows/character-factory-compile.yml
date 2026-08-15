@@ -48,3 +48,96 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tools/character-factory/tests -p 'test_*.py'
+
+  pipeline-smoke:
+    needs: compile
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 90
+    env:
+      HF_HOME: ${{ github.workspace }}/../character-factory-hf-cache
+      PYTORCH_ENABLE_MPS_FALLBACK: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 1
+
+      - name: Resolve Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="/Applications/Blender.app/Contents/MacOS/Blender"
+          if [ ! -x "$BLENDER_BIN" ]; then
+            if ! command -v brew >/dev/null 2>&1; then
+              echo "Blender is not installed and Homebrew is unavailable" >&2
+              exit 1
+            fi
+            brew install --cask blender
+          fi
+          test -x "$BLENDER_BIN"
+          echo "BLENDER_BIN=$BLENDER_BIN" >> "$GITHUB_ENV"
+
+      - name: Bootstrap local Hunyuan3D
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x tools/character-factory/ci/bootstrap_hunyuan_macos.sh
+          HUNYUAN_PY="$(tools/character-factory/ci/bootstrap_hunyuan_macos.sh | tail -1)"
+          test -x "$HUNYUAN_PY"
+          echo "HUNYUAN_PY=$HUNYUAN_PY" >> "$GITHUB_ENV"
+
+      - name: Build Sunlit Cleric staff through real weapon pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/Artifacts/CharacterFactorySmoke"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+
+          SPEC="$RUNNER_TEMP/sunlit-cleric-staff-ci.json"
+          cat > "$SPEC" <<JSON
+          {
+            "id": "sunlit_cleric_staff_ci",
+            "assetType": "weapon",
+            "views": {
+              "front": "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg",
+              "left": "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg",
+              "back": "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg"
+            },
+            "outputDir": "$OUT",
+            "generator": {
+              "python": "$HUNYUAN_PY",
+              "model": "tencent/Hunyuan3D-2mv",
+              "subfolder": "hunyuan3d-dit-v2-mv",
+              "device": "auto",
+              "seed": 12345,
+              "steps": 3,
+              "octreeResolution": 128,
+              "numChunks": 4000,
+              "removeBackground": false
+            },
+            "rigid": {
+              "blender": "$BLENDER_BIN"
+            },
+            "runtimePart": {
+              "slot": "MainHand",
+              "socketBoneName": "RightHand",
+              "socketLocalPosition": [0, 0, 0],
+              "socketLocalEulerAngles": [0, 0, 0],
+              "socketLocalScale": [1, 1, 1]
+            }
+          }
+          JSON
+
+          python3 tools/character-factory/character_factory.py build "$SPEC"
+          python3 tools/character-factory/ci/verify_pipeline_artifact.py "$OUT"
+          ls -lh "$OUT"
+
+      - name: Upload generated pipeline smoke artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: character-factory-sunlit-cleric-staff-${{ github.sha }}
+          path: Artifacts/CharacterFactorySmoke/
+          if-no-files-found: warn
+          retention-days: 7
