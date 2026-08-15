@@ -7,7 +7,6 @@
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Streaming.Api",
     "VoxelEngine.Storage.Api",
-    "VoxelEngine.StructuralIntegrity.Api",
     "Unity.Collections",
     "Unity.Mathematics",
     "Unity.Networking.Transport"
