@@ -30,8 +30,8 @@ replace_exact(SERVER,
     '            ProcessAlterations(serverTick, ref table, ref pool, in zones, applier, publisher, rejectionSink);',
     '            ProcessAlterations(\n                serverTick, ref table, ref pool, _mutationStorage, in zones,\n                applier, publisher, rejectionSink);')
 replace_exact(SERVER,
-    '            ref BrickPool pool,\n            in ProtectedZones zones,',
-    '            ref BrickPool pool,\n            IRegionMutationStore mutationStorage,\n            in ProtectedZones zones,')
+    '        private void ProcessAlterations(\n            uint serverTick,\n            ref RegionTable table,\n            ref BrickPool pool,\n            in ProtectedZones zones,',
+    '        private void ProcessAlterations(\n            uint serverTick,\n            ref RegionTable table,\n            ref BrickPool pool,\n            IRegionMutationStore mutationStorage,\n            in ProtectedZones zones,')
 replace_exact(SERVER,
     '                        _players,\n                        ref table,\n                        in pool,',
     '                        _players,\n                        mutationStorage,\n                        ref table,\n                        in pool,')
