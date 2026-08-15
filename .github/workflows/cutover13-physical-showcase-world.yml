@@ -1,0 +1,83 @@
+name: Cutover 13 physical Showcase world ownership
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-physical-showcase-world.yml
+
+permissions:
+  contents: write
+
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Move Composition-owned Showcase runtime into Composition tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-foundation-storage
+
+          src='Assets/Scenes/Showcase/CompositionOwned'
+          dst='Assets/VoxelEngine/Composition/Showcase'
+          mkdir -p "$dst"
+
+          for name in ShowcaseWorld.cs ShowcaseWorld.StorageBridge.cs FarFieldStructureStore.cs ShowcaseCatalogue.cs ShowcaseHeightJob.cs; do
+            test -f "$src/$name"
+            test -f "$src/$name.meta"
+            git mv "$src/$name" "$dst/$name"
+            git mv "$src/$name.meta" "$dst/$name.meta"
+          done
+
+          git rm "$src/VoxelEngine.Composition.asmref" "$src/VoxelEngine.Composition.asmref.meta"
+          if test -f Assets/Scenes/Showcase/CompositionOwned.meta; then
+            git rm Assets/Scenes/Showcase/CompositionOwned.meta
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          world = Path('Assets/VoxelEngine/Composition/Showcase/ShowcaseWorld.cs')
+          text = world.read_text()
+          text = text.replace('using VoxelEngine.Terrain.Runtime;\n', '')
+
+          anchor = '        private const int MaxCollapseComponentVoxels = 1_048_576;\n'
+          if 'RenderInstancesPerDetachedChunk' not in text:
+              if anchor not in text:
+                  raise SystemExit('missing detached-chunk constant anchor')
+              text = text.replace(
+                  anchor,
+                  '        // Must stay in sync with the presentation upload budget, but is owned here so\n'
+                  '        // the authoritative Composition world does not depend on scene presentation.\n'
+                  '        private const int RenderInstancesPerDetachedChunk = 16;\n'
+                  + anchor,
+                  1)
+          text = text.replace('new(16);', 'new(RenderInstancesPerDetachedChunk);', 1)
+          text = text.replace('int capacity = 16;', 'int capacity = RenderInstancesPerDetachedChunk;')
+          if 'GpuDebrisSystem.RenderInstancesPerChunk' in text:
+              raise SystemExit('scene presentation coupling remains in ShowcaseWorld')
+          if 'using VoxelEngine.Terrain.Runtime;' in text:
+              raise SystemExit('dead Terrain.Runtime import remains')
+          world.write_text(text)
+          PY
+
+          # Scene/application files must now be Runtime-free; concrete wiring is physically owned by Composition.
+          if grep -R -n -E 'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime' Assets/Scenes/Showcase --include='*.cs' --include='*.asmdef' --include='*.asmref'; then
+            echo 'Showcase scene tree still contains concrete Runtime references' >&2
+            exit 1
+          fi
+          test ! -e "$src/ShowcaseWorld.cs"
+          test -f "$dst/ShowcaseWorld.cs"
+          git diff --check
+
+          rm .github/workflows/cutover13-physical-showcase-world.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A Assets/Scenes/Showcase Assets/VoxelEngine/Composition .github/workflows/cutover13-physical-showcase-world.yml
+          git commit -m 'refactor(showcase): physically own world runtime in Composition'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
