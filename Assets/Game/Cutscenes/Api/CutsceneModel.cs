@@ -78,6 +78,50 @@ namespace Game.Cutscenes.Api
         }
     }
 
+    /// <summary>Semantic region a procedural site must provide for a stage point; never a coordinate.</summary>
+    public enum CutsceneStageRegion
+    {
+        Unspecified = 0,
+        SiteInterior = 1,
+        PublicEntrance = 2,
+        EntranceApproach = 3,
+        InteriorGatheringArea = 4,
+        PlayerSpawnArea = 5
+    }
+
+    /// <summary>Orientation hint resolved by site generation after the concrete layout exists.</summary>
+    public enum CutsceneStageFacingHint
+    {
+        SiteDefault = 0,
+        IntoSite = 1,
+        TowardEntrance = 2,
+        TowardStageCenter = 3
+    }
+
+    public readonly struct CutsceneStagePointRequirement
+    {
+        public CutsceneStagePointId Point { get; }
+        public CutsceneStageRegion Region { get; }
+        public CutsceneStageFacingHint Facing { get; }
+        public int MinimumClearanceDecimetres { get; }
+
+        public CutsceneStagePointRequirement(
+            CutsceneStagePointId point,
+            CutsceneStageRegion region,
+            int minimumClearanceDecimetres,
+            CutsceneStageFacingHint facing = CutsceneStageFacingHint.SiteDefault)
+        {
+            if (string.IsNullOrWhiteSpace(point.Value))
+                throw new ArgumentException("Stage requirement requires a point id.", nameof(point));
+            if (minimumClearanceDecimetres < 0)
+                throw new ArgumentOutOfRangeException(nameof(minimumClearanceDecimetres));
+            Point = point;
+            Region = region;
+            Facing = facing;
+            MinimumClearanceDecimetres = minimumClearanceDecimetres;
+        }
+    }
+
     /// <summary>
     /// Per-instance mapping from semantic stage points to deterministic world positions.
     /// World generation owns how the points are chosen; cutscene definitions only consume them.
@@ -235,24 +279,36 @@ namespace Game.Cutscenes.Api
 
     /// <summary>
     /// Engine-independent authored choreography. Required actors and semantic stage points are
-    /// derived once from setup + steps so higher-level world planning can satisfy them before play.
+    /// derived once from setup + steps. Optional stage requirements describe what procedural
+    /// geometry must provide without choosing coordinates.
     /// </summary>
     public sealed class CutsceneDefinition
     {
         private readonly CutsceneStep[] _steps;
         private readonly CutsceneActorId[] _requiredActors;
         private readonly CutsceneStagePointId[] _requiredStagePoints;
+        private readonly CutsceneStagePointRequirement[] _stageRequirements;
 
         public string Id { get; }
         public CutsceneStageSetupDefinition Setup { get; }
         public IReadOnlyList<CutsceneStep> Steps => _steps;
         public IReadOnlyList<CutsceneActorId> RequiredActors => _requiredActors;
         public IReadOnlyList<CutsceneStagePointId> RequiredStagePoints => _requiredStagePoints;
+        public IReadOnlyList<CutsceneStagePointRequirement> StageRequirements => _stageRequirements;
 
         public CutsceneDefinition(
             string id,
             CutsceneStageSetupDefinition setup,
             IEnumerable<CutsceneStep> steps)
+            : this(id, setup, steps, null)
+        {
+        }
+
+        public CutsceneDefinition(
+            string id,
+            CutsceneStageSetupDefinition setup,
+            IEnumerable<CutsceneStep> steps,
+            IEnumerable<CutsceneStagePointRequirement> stageRequirements)
         {
             Id = CutsceneIdRules.Require(id, nameof(id));
             Setup = setup ?? throw new ArgumentNullException(nameof(setup));
@@ -275,6 +331,42 @@ namespace Game.Cutscenes.Api
 
             _requiredActors = actors.ToArray();
             _requiredStagePoints = points.ToArray();
+            _stageRequirements = BuildStageRequirements(stageRequirements, _requiredStagePoints);
+        }
+
+        private static CutsceneStagePointRequirement[] BuildStageRequirements(
+            IEnumerable<CutsceneStagePointRequirement> declared,
+            CutsceneStagePointId[] requiredPoints)
+        {
+            if (declared == null)
+            {
+                var fallback = new CutsceneStagePointRequirement[requiredPoints.Length];
+                for (var i = 0; i < requiredPoints.Length; i++)
+                    fallback[i] = new CutsceneStagePointRequirement(requiredPoints[i], CutsceneStageRegion.Unspecified, 0);
+                return fallback;
+            }
+
+            var result = new List<CutsceneStagePointRequirement>();
+            var seen = new HashSet<CutsceneStagePointId>();
+            foreach (CutsceneStagePointRequirement requirement in declared)
+            {
+                if (!seen.Add(requirement.Point))
+                    throw new ArgumentException("Stage requirement declared more than once: " + requirement.Point, nameof(declared));
+                result.Add(requirement);
+            }
+
+            var required = new HashSet<CutsceneStagePointId>(requiredPoints);
+            for (var i = 0; i < result.Count; i++)
+            {
+                if (!required.Contains(result[i].Point))
+                    throw new ArgumentException("Stage requirement is not referenced by choreography: " + result[i].Point, nameof(declared));
+            }
+            for (var i = 0; i < requiredPoints.Length; i++)
+            {
+                if (!seen.Contains(requiredPoints[i]))
+                    throw new ArgumentException("Missing stage requirement for choreography point: " + requiredPoints[i], nameof(declared));
+            }
+            return result.ToArray();
         }
 
         private static void CollectRequirements(

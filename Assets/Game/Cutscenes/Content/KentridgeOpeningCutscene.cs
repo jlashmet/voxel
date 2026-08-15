@@ -4,7 +4,7 @@ namespace Game.Cutscenes.Content.Kentridge
 {
     /// <summary>
     /// Port of the recovered Kentridge opening choreography. It deliberately contains no world
-    /// coordinates; WorldBuilder/world generation must provide the semantic stage points.
+    /// coordinates; WorldBuilder/world generation must satisfy the declared semantic stage regions.
     /// </summary>
     public static class KentridgeOpeningCutscene
     {
@@ -39,6 +39,17 @@ namespace Game.Cutscenes.Content.Kentridge
                 new CutsceneActorPlacement(Logan, LoganStart)
             });
 
+            var stage = new[]
+            {
+                new CutsceneStagePointRequirement(LeadStart, CutsceneStageRegion.PlayerSpawnArea, 8, CutsceneStageFacingHint.IntoSite),
+                new CutsceneStagePointRequirement(MadelineStage, CutsceneStageRegion.InteriorGatheringArea, 8, CutsceneStageFacingHint.TowardStageCenter),
+                new CutsceneStagePointRequirement(StevenStage, CutsceneStageRegion.InteriorGatheringArea, 8, CutsceneStageFacingHint.TowardStageCenter),
+                new CutsceneStagePointRequirement(LoganStart, CutsceneStageRegion.PublicEntrance, 8, CutsceneStageFacingHint.IntoSite),
+                new CutsceneStagePointRequirement(LeadStage, CutsceneStageRegion.InteriorGatheringArea, 8, CutsceneStageFacingHint.TowardStageCenter),
+                new CutsceneStagePointRequirement(EntranceFocus, CutsceneStageRegion.PublicEntrance, 4, CutsceneStageFacingHint.IntoSite),
+                new CutsceneStagePointRequirement(LoganStop, CutsceneStageRegion.EntranceApproach, 8, CutsceneStageFacingHint.TowardStageCenter)
+            };
+
             return new CutsceneDefinition("kentridge.pub.opening", setup, new[]
             {
                 CutsceneStep.Camera(EstablishingCamera),
@@ -67,7 +78,7 @@ namespace Game.Cutscenes.Content.Kentridge
                     CutsceneStep.FaceActor(Steven, Logan)),
                 CutsceneStep.Wait(500),
                 CutsceneStep.Dialogue(LoganConversationDialogue)
-            });
+            }, stage);
         }
     }
 }

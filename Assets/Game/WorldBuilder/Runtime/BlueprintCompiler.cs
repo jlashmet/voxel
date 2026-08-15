@@ -37,13 +37,16 @@ namespace Game.WorldBuilder.Runtime
     {
         public CutsceneRef Cutscene { get; }
         public SiteRef Site { get; }
-        public IReadOnlyList<CutsceneStagePointId> RequiredPoints { get; }
+        public IReadOnlyList<CutsceneStagePointRequirement> Requirements { get; }
 
-        internal CutsceneStagePlan(CutsceneRef cutscene, SiteRef site, CutsceneStagePointId[] requiredPoints)
+        internal CutsceneStagePlan(
+            CutsceneRef cutscene,
+            SiteRef site,
+            CutsceneStagePointRequirement[] requirements)
         {
             Cutscene = cutscene;
             Site = site;
-            RequiredPoints = requiredPoints ?? Array.Empty<CutsceneStagePointId>();
+            Requirements = requirements ?? Array.Empty<CutsceneStagePointRequirement>();
         }
     }
 
@@ -129,20 +132,17 @@ namespace Game.WorldBuilder.Runtime
                         AddUnique(dependencies, NodeId("npc", binding.Target.Npc.Id));
                 }
 
-                // Story conditions/effects are runtime state dependencies, not generation
-                // dependencies. Keeping them out of this graph prevents story sequencing
-                // from introducing cycles into spatial realization.
                 nodes.Add(new PlanningNode(
                     NodeId("cutscene", cutscene.Ref.Id),
                     PlanningNodeKind.Cutscene,
                     dependencies.ToArray()));
 
-                if (cutscene.StageRequirements.Count > 0)
+                if (cutscene.Definition.StageRequirements.Count > 0)
                 {
-                    var points = new CutsceneStagePointId[cutscene.StageRequirements.Count];
-                    for (var j = 0; j < points.Length; j++)
-                        points[j] = cutscene.StageRequirements[j];
-                    stagePlans.Add(new CutsceneStagePlan(cutscene.Ref, cutscene.Site, points));
+                    var requirements = new CutsceneStagePointRequirement[cutscene.Definition.StageRequirements.Count];
+                    for (var j = 0; j < requirements.Length; j++)
+                        requirements[j] = cutscene.Definition.StageRequirements[j];
+                    stagePlans.Add(new CutsceneStagePlan(cutscene.Ref, cutscene.Site, requirements));
                 }
             }
 

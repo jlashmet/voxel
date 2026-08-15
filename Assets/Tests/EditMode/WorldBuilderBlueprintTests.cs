@@ -79,6 +79,9 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(intro.Definition.RequiredActors.Count, Is.EqualTo(4));
             Assert.That(intro.ActorBindings.Count, Is.EqualTo(4));
             Assert.That(intro.StageRequirements.Count, Is.EqualTo(7));
+            Assert.That(intro.Definition.StageRequirements.All(r => r.Region != CutsceneStageRegion.Unspecified), Is.True);
+            Assert.That(intro.Definition.StageRequirements.Any(r => r.Region == CutsceneStageRegion.PublicEntrance), Is.True);
+            Assert.That(intro.Definition.StageRequirements.Any(r => r.Region == CutsceneStageRegion.InteriorGatheringArea), Is.True);
             Assert.That(
                 blueprint.SpatialConstraints.Any(c =>
                     c.Kind == SpatialConstraintKind.ReachableFrom &&
@@ -96,7 +99,15 @@ namespace VoxelEngine.Tests.EditMode
             var definition = new CutsceneDefinition(
                 "destination-scene",
                 new CutsceneStageSetupDefinition(new[] { new CutsceneActorPlacement(actor, stagePoint) }),
-                new[] { CutsceneStep.Dialogue(actor, new CutsceneCueId("guide.arrives")) });
+                new[] { CutsceneStep.Dialogue(actor, new CutsceneCueId("guide.arrives")) },
+                new[]
+                {
+                    new CutsceneStagePointRequirement(
+                        stagePoint,
+                        CutsceneStageRegion.InteriorGatheringArea,
+                        8,
+                        CutsceneStageFacingHint.TowardStageCenter)
+                });
 
             var destination = game.World.RequireSite("destination", site => site
                 .Archetype(SiteArchetype.Ruin)
@@ -115,12 +126,15 @@ namespace VoxelEngine.Tests.EditMode
             var graph = BlueprintCompiler.Compile(game.Build());
             var destinationScene = graph.Nodes.Single(n => n.Id == "cutscene:destination-scene");
             var stage = graph.CutsceneStages.Single(s => s.Cutscene.Id == "destination-scene");
+            var requirement = stage.Requirements.Single();
 
             Assert.That(destinationScene.Dependencies, Does.Contain("site:destination"));
             Assert.That(destinationScene.Dependencies, Does.Contain("npc:npc"));
             Assert.That(destinationScene.Dependencies, Does.Not.Contain("objective:objective"));
             Assert.That(stage.Site, Is.EqualTo(destination));
-            Assert.That(stage.RequiredPoints.Single(), Is.EqualTo(stagePoint));
+            Assert.That(requirement.Point, Is.EqualTo(stagePoint));
+            Assert.That(requirement.Region, Is.EqualTo(CutsceneStageRegion.InteriorGatheringArea));
+            Assert.That(requirement.MinimumClearanceDecimetres, Is.EqualTo(8));
         }
 
         [Test]
