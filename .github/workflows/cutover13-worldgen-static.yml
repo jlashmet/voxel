@@ -1,0 +1,81 @@
+name: Cutover 13 WorldGen static acceptance
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/cutover13-worldgen-static.yml]
+permissions:
+  contents: read
+jobs:
+  worldgen-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 4599efb83f1ccd95382711be4f229ae2bb344163
+          fetch-depth: 1
+      - name: Verify final WorldGen engine dependency direction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+
+          pkg = Path('Packages/com.mountingforce.worldgen')
+          core = pkg / 'Runtime/MountingForce.WorldGen.Core.asmdef'
+          architecture = pkg / 'Runtime/Architecture/MountingForce.WorldGen.Architecture.asmdef'
+          voxel = pkg / 'Runtime/Voxel/MountingForce.WorldGen.Voxel.asmdef'
+
+          core_refs = json.loads(core.read_text()).get('references', [])
+          arch_refs = json.loads(architecture.read_text()).get('references', [])
+          voxel_refs = json.loads(voxel.read_text()).get('references', [])
+
+          bad_core = [r for r in core_refs if r.startswith('VoxelEngine.')]
+          bad_arch = [r for r in arch_refs if r.startswith('VoxelEngine.')]
+          if bad_core:
+              raise SystemExit('WorldGen.Core references engine assemblies: ' + ', '.join(bad_core))
+          if bad_arch:
+              raise SystemExit('WorldGen.Architecture references engine assemblies: ' + ', '.join(bad_arch))
+
+          engine_refs = [r for r in voxel_refs if r.startswith('VoxelEngine.')]
+          bad_voxel = [r for r in engine_refs if not r.endswith('.Api')]
+          if bad_voxel:
+              raise SystemExit('WorldGen.Voxel has non-Api engine refs: ' + ', '.join(bad_voxel))
+          expected = {
+              'VoxelEngine.Storage.Api',
+              'VoxelEngine.Terrain.Api',
+              'VoxelEngine.Structures.Api',
+              'VoxelEngine.Vegetation.Api',
+          }
+          if set(engine_refs) != expected:
+              raise SystemExit('WorldGen.Voxel engine refs differ from used final Api set: ' + ', '.join(engine_refs))
+
+          # Source-level direction: semantic assemblies must not mention VoxelEngine namespaces;
+          # Voxel adapter may only import engine Api namespaces.
+          semantic_roots = [pkg / 'Runtime/Core', pkg / 'Runtime/Architecture']
+          semantic_hits = []
+          for root in semantic_roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob('*.cs'):
+                  for n, line in enumerate(path.read_text().splitlines(), 1):
+                      if re.search(r'\bVoxelEngine\.', line):
+                          semantic_hits.append(f'{path}:{n}:{line.strip()}')
+          if semantic_hits:
+              raise SystemExit('semantic WorldGen source references VoxelEngine:\n' + '\n'.join(semantic_hits))
+
+          runtime_import = re.compile(r'^\s*using\s+VoxelEngine\.[A-Za-z0-9_.]+\.Runtime\s*;', re.M)
+          voxel_hits = []
+          voxel_root = pkg / 'Runtime/Voxel'
+          for path in voxel_root.rglob('*.cs'):
+              text = path.read_text()
+              if runtime_import.search(text):
+                  voxel_hits.append(str(path))
+              if 'VoxelEngine.Core' in text:
+                  voxel_hits.append(str(path) + ' -> VoxelEngine.Core')
+          if voxel_hits:
+              raise SystemExit('WorldGen.Voxel source has forbidden engine dependency:\n' + '\n'.join(voxel_hits))
+
+          print('Cutover 13 WorldGen boundary accepted')
+          print('WorldGen.Voxel engine refs:', ', '.join(engine_refs))
+          PY
