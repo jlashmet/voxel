@@ -101,7 +101,7 @@ jobs:
           test -f Assets/VoxelEngine/Rendering/Runtime/VoxelEngine.Rendering.Runtime.asmdef
           test -f Assets/VoxelEngine/Rendering/Api/VoxelEngine.Rendering.Api.asmdef
           count=$(grep -RIl '"VoxelEngine.Rendering.Runtime"' Assets Packages --include='*.asmdef' | wc -l | tr -d ' ')
-          test "$count" = 5
+          test "$count" = 6
           ! grep -RIn '"VoxelEngine.Rendering"' Assets Packages --include='*.asmdef'
           git diff --check
           git config user.name architecture-refactor-ci
