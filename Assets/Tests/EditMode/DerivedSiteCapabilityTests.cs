@@ -41,16 +41,55 @@ namespace VoxelEngine.Tests.EditMode
 
             CampaignBlueprint blueprint = game.Build();
             SiteSpec resolvedPub = blueprint.Sites.Single(site => site.Ref.Equals(pub));
+            SiteCapabilityRequirement stage = resolvedPub.Capabilities.Single(capability =>
+                capability.Kind == SiteCapabilityKind.CutsceneStage);
 
-            Assert.That(
-                resolvedPub.Capabilities.Any(capability => capability.Kind == SiteCapabilityKind.CutsceneStage),
-                Is.True,
-                "The bound choreography should impose its stage capability without duplicated authoring on the site.");
+            Assert.That(stage.Source, Is.EqualTo(SiteCapabilitySource.Derived));
             Assert.That(BlueprintValidator.Validate(blueprint).IsValid, Is.True);
 
             PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
             Assert.That(graph.CutsceneStages.Single().Site, Is.EqualTo(pub));
             Assert.That(graph.CutsceneStages.Single().Requirements.Single().Point, Is.EqualTo(mark));
+        }
+
+        [Test]
+        public void ConversationNpcAutomaticallyRequiresConversationSpace()
+        {
+            var game = Campaign.Create("derived-conversation-space");
+            SiteRef destination = game.World.RequireSite("destination", site => site
+                .Archetype(SiteArchetype.Ruin));
+
+            game.World.RequireNpc("guide", npc => npc
+                .PlaceAt(destination)
+                .RequireConversation());
+
+            CampaignBlueprint blueprint = game.Build();
+            SiteCapabilityRequirement conversation = blueprint.Sites.Single()
+                .Capabilities.Single(capability => capability.Kind == SiteCapabilityKind.ConversationSpace);
+
+            Assert.That(conversation.Source, Is.EqualTo(SiteCapabilitySource.Derived));
+            Assert.That(BlueprintValidator.Validate(blueprint).IsValid, Is.True);
+        }
+
+        [Test]
+        public void ExplicitCapabilityRemainsAuthoredWhenContentAlsoRequiresIt()
+        {
+            var game = Campaign.Create("authored-capability-provenance");
+            SiteRef destination = game.World.RequireSite("destination", site => site
+                .Archetype(SiteArchetype.Ruin)
+                .RequireCapability(SiteCapability.ConversationSpace));
+
+            game.World.RequireNpc("guide", npc => npc
+                .PlaceAt(destination)
+                .RequireConversation());
+
+            CampaignBlueprint blueprint = game.Build();
+            SiteCapabilityRequirement conversation = blueprint.Sites.Single()
+                .Capabilities.Single(capability => capability.Kind == SiteCapabilityKind.ConversationSpace);
+
+            Assert.That(conversation.Source, Is.EqualTo(SiteCapabilitySource.Authored));
+            Assert.That(blueprint.Sites.Single().Capabilities.Count(capability =>
+                capability.Kind == SiteCapabilityKind.ConversationSpace), Is.EqualTo(1));
         }
     }
 }
