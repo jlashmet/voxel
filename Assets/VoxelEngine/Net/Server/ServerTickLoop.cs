@@ -1,7 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Server
@@ -36,11 +35,11 @@ namespace VoxelEngine.Net.Server
         }
 
         /// <summary>
-        /// Compatibility-only clock advancement. brickStorage/regions are intentionally untouched;
-        /// authoritative simulation belongs to the caller that invokes AuthoritativeServerSession.
+        /// Compatibility-only clock advancement. Authoritative world simulation belongs to the
+        /// caller that invokes AuthoritativeServerSession; this scaffold has no storage capability.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Update(float deltaTime, NativeArray<byte> brickStorage, ref RegionTable regions)
+        public void Update(float deltaTime)
         {
             if (deltaTime <= 0f)
                 return;
