@@ -1,65 +1,122 @@
-name: WorldGen import cleanup publisher
+name: Networking CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - refactor/system-boundaries-foundation-storage
+      - feature/minimal-voxel-networking
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/networking-ci.yml"
+      - "Assets/VoxelEngine/**"
+      - "Assets/Scenes/Showcase/**"
+      - "Assets/Tests/EditMode/**"
+      - "Packages/com.mountingforce.worldgen/**"
+      - "Packages/manifest.json"
+      - "Packages/packages-lock.json"
+      - "ProjectSettings/ProjectVersion.txt"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: worldgen-import-cleanup-${{ github.ref }}
-  cancel-in-progress: false
+  group: networking-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  publish:
+  unity-editmode:
+    name: Unity EditMode suite
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 10
+    timeout-minutes: 30
+
     steps:
-      - name: Checkout branch
+      - name: Checkout without deleting Unity import cache
         uses: actions/checkout@v4
         with:
           clean: false
-          fetch-depth: 0
-      - name: Remove stale imports, restore normal workflow, and push
+
+      - name: Reset tracked and non-cache files
         shell: bash
         run: |
           set -euo pipefail
           git reset --hard HEAD
           git clean -ffdx -e Library/
-          python3 - <<'PY'
-          from pathlib import Path
-          root = Path('Packages/com.mountingforce.worldgen/Runtime/Voxel')
-          needle = 'using VoxelEngine.Core.Features;\n'
-          changed = []
-          removed = 0
-          for path in sorted(root.rglob('*.cs')):
-              text = path.read_text()
-              count = text.count(needle)
-              if count == 0:
-                  continue
-              text = text.replace(needle, '')
-              path.write_text(text)
-              changed.append(str(path))
-              removed += count
-          if removed < 20:
-              raise RuntimeError(f'expected broad stale-import cleanup; removed only {removed}')
-          leftovers = []
-          for path in root.rglob('*.cs'):
-              if 'using VoxelEngine.Core.Features;' in path.read_text():
-                  leftovers.append(str(path))
-          if leftovers:
-              raise RuntimeError('stale Core.Features imports remain: ' + ', '.join(leftovers))
-          print(f'removed {removed} stale imports from {len(changed)} files')
-          for path in changed:
-              print(path)
-          PY
-          git diff --check -- Packages/com.mountingforce.worldgen/Runtime/Voxel
-          git diff --stat -- Packages/com.mountingforce.worldgen/Runtime/Voxel
-          git show cdbbc49048dc2c04d7dd5391da558088d0a8c886:.github/workflows/networking-ci.yml > .github/workflows/networking-ci.yml
-          git config user.name 'architecture-refactor-ci'
-          git config user.email 'architecture-refactor-ci@users.noreply.github.com'
-          git add Packages/com.mountingforce.worldgen/Runtime/Voxel .github/workflows/networking-ci.yml
-          git commit -m 'Remove stale WorldGen Core.Features imports'
-          git push origin HEAD:refactor/system-boundaries-foundation-storage
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          echo "Unity version: ${UNITY_VERSION}"
+          echo "Unity path: ${UNITY_PATH}"
+          if [[ ! -x "${UNITY_PATH}" ]]; then
+            echo "Unity executable was not found at ${UNITY_PATH}" >&2
+            exit 1
+          fi
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity editor to become available
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              echo 'Timed out waiting for another Unity editor to exit.' >&2
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            echo 'Another Unity editor is active; waiting 5 seconds...'
+            sleep 5
+          done
+
+      - name: Run EditMode tests
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/NetworkingCI"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+
+          UNITY_MAX_RSS_MB=8192 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh \
+            -batchmode \
+            -nographics \
+            -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log"
+          status=$?
+
+          if [[ $status -ne 0 ]]; then
+            echo "Unity EditMode tests failed with exit code $status" >&2
+            exit $status
+          fi
+
+          test -s "$ROOT/results.xml"
+
+      - name: Show Unity log tail
+        if: always()
+        shell: bash
+        run: |
+          LOG="$GITHUB_WORKSPACE/Artifacts/NetworkingCI/unity.log"
+          if [[ -f "$LOG" ]]; then
+            tail -n 250 "$LOG"
+          fi
+
+      - name: Upload networking CI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: networking-ci-${{ github.sha }}
+          path: Artifacts/NetworkingCI/
+          if-no-files-found: warn
+          retention-days: 14

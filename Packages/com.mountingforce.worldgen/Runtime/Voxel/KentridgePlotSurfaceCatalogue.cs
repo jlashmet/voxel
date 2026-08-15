@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 using VoxelEngine.Structures.Api;
