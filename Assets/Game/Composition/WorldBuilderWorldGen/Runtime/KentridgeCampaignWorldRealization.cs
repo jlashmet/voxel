@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Game.Composition.WorldBuilderWorldGen;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
