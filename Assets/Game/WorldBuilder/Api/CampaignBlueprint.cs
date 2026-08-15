@@ -6,6 +6,7 @@ namespace Game.WorldBuilder.Api
     public sealed class CampaignBlueprint
     {
         public string Id { get; }
+        public WorldHierarchyBlueprint Hierarchy { get; }
         public IReadOnlyList<SiteSpec> Sites { get; }
         public IReadOnlyList<NpcSpec> Npcs { get; }
         public IReadOnlyList<SpatialConstraintSpec> SpatialConstraints { get; }
@@ -16,6 +17,7 @@ namespace Game.WorldBuilder.Api
 
         internal CampaignBlueprint(
             string id,
+            WorldHierarchyBlueprint hierarchy,
             SiteSpec[] sites,
             NpcSpec[] npcs,
             SpatialConstraintSpec[] spatialConstraints,
@@ -25,6 +27,7 @@ namespace Game.WorldBuilder.Api
             LootTableSpec[] lootTables)
         {
             Id = WorldIdRules.Require(id, nameof(id));
+            Hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
             Sites = sites ?? Array.Empty<SiteSpec>();
             Npcs = npcs ?? Array.Empty<NpcSpec>();
             SpatialConstraints = spatialConstraints ?? Array.Empty<SpatialConstraintSpec>();
