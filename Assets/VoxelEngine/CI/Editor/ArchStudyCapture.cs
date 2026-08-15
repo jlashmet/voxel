@@ -230,10 +230,10 @@ namespace VoxelEngine.CI
                 // presentation frames. This is the same production scheduler and extractor.
                 VoxelRenderBridge.SolidBuildBudgetMs = 12.0;
                 VoxelRenderBridge.WaterBuildBudgetMs = 2.0;
+                var readSource = new RegionReadSource(in table, in pool, changes);
                 VoxelRenderBridge.Source = () => new VoxelWorldView
                 {
-                    Table = table,
-                    Pool = pool,
+                    Storage = readSource,
                     Palette = palette,
                     SurfaceCatalogue = surfaces,
                     CoatingCatalogue = coatings,
