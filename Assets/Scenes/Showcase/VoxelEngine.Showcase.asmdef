@@ -9,6 +9,7 @@
     "VoxelEngine.Net",
     "VoxelEngine.Rendering",
     "VoxelEngine.Structures",
+    "VoxelEngine.Structures.Api",
     "VoxelEngine.Streaming",
     "VoxelEngine.Tiering",
     "MountingForce.WorldGen.Voxel",
