@@ -4,11 +4,11 @@ using VoxelEngine.Characters.Api;
 namespace VoxelEngine.Characters.Runtime
 {
     /// <summary>
-    /// Runtime-owned authoring asset for a separately generated clothing, hair, cape, or equipment mesh.
+    /// Runtime-owned definition for one independently generated clothing, weapon, or accessory asset.
     /// Gameplay systems reference only the stable PartId through Characters.Api.
     /// </summary>
-    [CreateAssetMenu(fileName = "WearableAsset", menuName = "Voxel Engine/Characters/Wearable Asset")]
-    public sealed class WearableAsset : ScriptableObject
+    [CreateAssetMenu(fileName = "CharacterPartAsset", menuName = "Voxel Engine/Characters/Character Part Asset")]
+    public sealed class CharacterPartAsset : ScriptableObject
     {
         public enum MountMode : byte
         {
@@ -17,6 +17,7 @@ namespace VoxelEngine.Characters.Runtime
         }
 
         [SerializeField] private string partId = string.Empty;
+        [SerializeField] private CharacterPartKind kind = CharacterPartKind.Clothing;
         [SerializeField] private CharacterEquipmentSlot slot;
         [SerializeField] private GameObject prefab;
         [SerializeField] private MountMode mountMode = MountMode.SkinnedToCharacterSkeleton;
@@ -26,6 +27,7 @@ namespace VoxelEngine.Characters.Runtime
         [SerializeField] private Vector3 socketLocalScale = Vector3.one;
 
         public string PartId => partId;
+        public CharacterPartKind Kind => kind;
         public CharacterEquipmentSlot Slot => slot;
         public GameObject Prefab => prefab;
         public MountMode Mode => mountMode;

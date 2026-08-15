@@ -4,17 +4,17 @@ using UnityEngine;
 namespace VoxelEngine.Characters.Runtime
 {
     /// <summary>
-    /// Runtime lookup table for independent wearable assets.
+    /// Runtime lookup table for independently generated character parts.
     /// The public API intentionally exposes identifiers rather than this catalogue.
     /// </summary>
-    [CreateAssetMenu(fileName = "WearableCatalogue", menuName = "Voxel Engine/Characters/Wearable Catalogue")]
-    public sealed class WearableCatalogue : ScriptableObject
+    [CreateAssetMenu(fileName = "CharacterPartCatalogue", menuName = "Voxel Engine/Characters/Character Part Catalogue")]
+    public sealed class CharacterPartCatalogue : ScriptableObject
     {
-        [SerializeField] private List<WearableAsset> entries = new List<WearableAsset>();
+        [SerializeField] private List<CharacterPartAsset> entries = new List<CharacterPartAsset>();
 
-        private Dictionary<string, WearableAsset> index;
+        private Dictionary<string, CharacterPartAsset> index;
 
-        public bool TryGet(string partId, out WearableAsset asset)
+        public bool TryGet(string partId, out CharacterPartAsset asset)
         {
             EnsureIndex();
             return index.TryGetValue(partId, out asset);
@@ -32,10 +32,10 @@ namespace VoxelEngine.Characters.Runtime
                 return;
             }
 
-            index = new Dictionary<string, WearableAsset>(System.StringComparer.Ordinal);
+            index = new Dictionary<string, CharacterPartAsset>(System.StringComparer.Ordinal);
             for (int i = 0; i < entries.Count; i++)
             {
-                WearableAsset entry = entries[i];
+                CharacterPartAsset entry = entries[i];
                 if (entry == null || string.IsNullOrWhiteSpace(entry.PartId))
                 {
                     continue;

@@ -7,14 +7,14 @@ namespace VoxelEngine.Characters.Runtime
 {
     /// <summary>
     /// Binds independently-authored parts to one canonical character skeleton at runtime.
-    /// Skinned parts are rebound by canonical bone name; rigid parts are attached to a bone socket.
+    /// Skinned clothing is rebound by canonical bone name; rigid weapons/accessories use bone sockets.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class CharacterEquipmentController : MonoBehaviour, ICharacterEquipment
     {
         [SerializeField] private Transform skeletonRoot;
         [SerializeField] private Transform equipmentRoot;
-        [SerializeField] private WearableCatalogue catalogue;
+        [SerializeField] private CharacterPartCatalogue catalogue;
 
         private readonly Dictionary<CharacterEquipmentSlot, GameObject> equippedInstances =
             new Dictionary<CharacterEquipmentSlot, GameObject>();
@@ -39,7 +39,7 @@ namespace VoxelEngine.Characters.Runtime
                 return false;
             }
 
-            if (!catalogue.TryGet(partId, out WearableAsset asset))
+            if (!catalogue.TryGet(partId, out CharacterPartAsset asset))
             {
                 failure = CharacterEquipmentFailure.PartNotFound;
                 return false;
@@ -66,7 +66,7 @@ namespace VoxelEngine.Characters.Runtime
             }
 
             GameObject candidate;
-            if (asset.Mode == WearableAsset.MountMode.BoneSocket)
+            if (asset.Mode == CharacterPartAsset.MountMode.BoneSocket)
             {
                 if (!TryCreateSocketPart(asset, out candidate, out failure))
                 {
@@ -145,7 +145,7 @@ namespace VoxelEngine.Characters.Runtime
         }
 
         private bool TryCreateSocketPart(
-            WearableAsset asset,
+            CharacterPartAsset asset,
             out GameObject instance,
             out CharacterEquipmentFailure failure)
         {
