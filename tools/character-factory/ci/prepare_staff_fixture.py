@@ -30,6 +30,11 @@ def largest_component(mask: np.ndarray) -> np.ndarray:
     return (labels == index).astype(np.uint8) * 255
 
 
+def shaft_center(width: int, y: int, y_start: int, y_end: int) -> int:
+    t = (y - y_start) / max(1, y_end - y_start - 1)
+    return int(round((0.508 + (0.617 - 0.508) * t) * width))
+
+
 def build_staff_mask(rgb: np.ndarray) -> np.ndarray:
     height, width, _ = rgb.shape
     hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
@@ -53,36 +58,54 @@ def build_staff_mask(rgb: np.ndarray) -> np.ndarray:
     head = cv2.dilate(head, np.ones((3, 3), np.uint8), iterations=1)
     mask = np.maximum(mask, head)
 
-    # The shaft is visible almost continuously but is occluded by the hand and
-    # robe in places. Use a narrow corridor following the visible centerline.
-    # This does not synthesize missing pixels; it only keeps source pixels in the
-    # corridor so the model sees one long, thin object rather than the full scene.
+    # Follow the actual shaft corridor, but retain only source pixels that look
+    # like the brown/gold staff. This removes most of the hand, robe and scenery
+    # without inventing replacement pixels where the shaft is occluded.
     y_start = int(0.235 * height)
     y_end = int(0.955 * height)
-    x_start = 0.508 * width
-    x_end = 0.617 * width
     half_width = max(4, int(round(0.018 * width)))
+    corridor = np.zeros_like(mask)
     for y in range(y_start, y_end):
-        t = (y - y_start) / max(1, y_end - y_start - 1)
-        center_x = int(round(x_start + (x_end - x_start) * t))
+        center_x = shaft_center(width, y, y_start, y_end)
         lo = max(0, center_x - half_width)
         hi = min(width, center_x + half_width + 1)
-        mask[y, lo:hi] = 255
+        corridor[y, lo:hi] = 1
 
-    # Preserve the wider gold finial at the bottom, but only inside a tight
-    # corridor around the known staff endpoint.
-    bottom_region = np.zeros_like(mask)
-    bottom_region[
-        int(0.885 * height) : height,
-        int(0.54 * width) : int(0.67 * width),
-    ] = 1
+    shaft_color = (
+        (hue >= 3)
+        & (hue <= 38)
+        & (saturation >= 65)
+        & (value >= 25)
+        & (value <= 205)
+    ).astype(np.uint8)
+    shaft = (corridor & shaft_color) * 255
+    shaft = cv2.morphologyEx(
+        shaft,
+        cv2.MORPH_CLOSE,
+        np.ones((3, 3), np.uint8),
+        iterations=1,
+    )
+    shaft = cv2.dilate(shaft, np.ones((3, 3), np.uint8), iterations=1)
+    mask = np.maximum(mask, shaft)
+
+    # Preserve the wider gold finial only when gold pixels are close to the staff
+    # centerline. This avoids the grassy/robe rectangle that contaminated the
+    # previous diagnostic input.
+    bottom_start = int(0.88 * height)
     bottom_gold = (
         (hue >= 4)
         & (hue <= 38)
         & (saturation >= 100)
         & (value >= 35)
-    ).astype(np.uint8)
-    bottom = (bottom_gold & bottom_region) * 255
+    )
+    bottom = np.zeros_like(mask)
+    bottom_half_width = max(8, int(round(0.035 * width)))
+    for y in range(bottom_start, height):
+        center_x = shaft_center(width, min(y, y_end - 1), y_start, y_end)
+        lo = max(0, center_x - bottom_half_width)
+        hi = min(width, center_x + bottom_half_width + 1)
+        row = bottom_gold[y, lo:hi]
+        bottom[y, lo:hi][row] = 255
     bottom = cv2.dilate(bottom, np.ones((3, 3), np.uint8), iterations=1)
     mask = np.maximum(mask, bottom)
 
@@ -99,9 +122,8 @@ def fit_on_gray_canvas(rgb: np.ndarray, mask: np.ndarray) -> Image.Image:
     cropped_rgb = rgb[y0:y1, x0:x1]
     cropped_mask = mask[y0:y1, x0:x1]
 
-    # TripoSR conditions on a 512x512 image and its official preprocessing places
-    # the foreground on neutral gray at about 85% of the canvas. Use a larger
-    # square here; TripoSR will downsample while preserving this layout.
+    # Match TripoSR's official preprocessing convention: isolated foreground on
+    # neutral gray, centered and occupying about 85% of a square image.
     canvas_size = 768
     target_extent = int(round(canvas_size * 0.85))
     crop_h, crop_w = cropped_mask.shape
