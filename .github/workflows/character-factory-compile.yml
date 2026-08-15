@@ -369,6 +369,22 @@ jobs:
           test -s "$RENDER"
           ls -lh "$OUT"
 
+      - name: Verify modular character and clothing composition
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHARACTER_OUT="$GITHUB_WORKSPACE/Artifacts/CharacterFactoryCharacterSmoke"
+          CLOTHING_OUT="$GITHUB_WORKSPACE/Artifacts/CharacterFactoryClothingSmoke"
+          COMPOSITE_RENDER="$CLOTHING_OUT/canonical_mannequin_with_robe_ci.render.png"
+
+          "$BLENDER_BIN" --background \
+            --python tools/character-factory/ci/verify_modular_character_clothing.py -- \
+            --character "$CHARACTER_OUT/canonical_mannequin_character_ci.fbx" \
+            --clothing "$CLOTHING_OUT/canonical_cleric_robe_ci.fbx" \
+            --output "$COMPOSITE_RENDER"
+          test -s "$COMPOSITE_RENDER"
+
       - name: Upload generated pipeline smoke artifacts
         if: always()
         uses: actions/upload-artifact@v4
