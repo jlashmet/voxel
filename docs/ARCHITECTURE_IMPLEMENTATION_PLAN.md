@@ -41,6 +41,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
 - Latest accepted code gate: `8780cffe66a0e3e4ba75b524957d00b481ace971`, run `31907252082` — 387 tests, 374 passed, exactly the same 13 known baseline failures with zero C# compiler errors. This accepts `ArchLookdev` routing rendering presentation/build configuration and surface-status access through `RenderingComposition` and reduces the remaining Runtime-coupled Showcase source inventory to two files.
 - Latest accepted final static closure: source `2c451f2759f4c04649eeab3dba88edc56efd2c46`, run `31910012496` — GUID-resolved asmdef scanning accepts Api/Runtime direction, Composition-only concrete Runtime wiring, production `VoxelEngine.Core` zero-match, no legacy/compatibility adapter source, and WorldGen Core/Architecture/Voxel dependency direction. Final Unity/EditMode parity remains pending.
+- Final static dependency report `final-architecture-dependency-report-2c451f2759f4c04649eeab3dba88edc56efd2c46` explicitly confirms Streaming has no Net edge, Net consumes `Streaming.Api`, Rendering consumes only Storage/Tiering/Vegetation APIs, and every exposed subsystem has a single owned Api assembly.
 - [x] route `ArchLookdev` structure authoring through `StructuresComposition`; accepted in the `05de54c3` slice, run `31907948874` with exact 387/374/13 baseline and zero compiler errors
 - [x] route `ShowcaseMultiplayerSession` through Composition-owned network facades; accepted in the `28a3fda2` slice, run `31908243915` with exact 387/374/13 baseline and zero compiler errors
 - Prior integrated Cutover 13 gate: `a0528159ada889c59190888840523e6fb8c05a10`, run `31899261112` — 387/374/13, exact same known failure set.
@@ -1587,13 +1588,13 @@ Lookdev/artifact capture tests are explicit by design and should be run delibera
 At the end, generate an asmdef dependency report and verify:
 
 ```text
-[ ] every exposed subsystem has one Api directory/assembly
+[x] every exposed subsystem has one Api directory/assembly
 [x] no Api references Runtime
 [x] no Runtime references another subsystem Runtime
 [x] Composition is the only production Runtime-wiring exception
-[ ] Streaming has no Net reference
-[ ] Net references Streaming.Api, not Streaming.Runtime
-[ ] Rendering references Storage.Api, Tiering.Api, Vegetation.Api only
+[x] Streaming has no Net reference
+[x] Net references Streaming.Api, not Streaming.Runtime
+[x] Rendering references Storage.Api, Tiering.Api, Vegetation.Api only
 [x] WorldGen.Core references no VoxelEngine assembly
 [x] WorldGen.Architecture references no VoxelEngine assembly
 [x] WorldGen.Voxel references only VoxelEngine Api assemblies
@@ -1614,9 +1615,9 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 1. Foundation
 
-- [ ] create Foundation assembly
-- [ ] move `IntMath`
-- [ ] update references
+- [x] create Foundation assembly
+- [x] move `IntMath`
+- [x] update references
 
 ### 2. Storage
 
