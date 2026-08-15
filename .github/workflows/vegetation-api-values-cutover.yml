@@ -1,0 +1,86 @@
+name: Vegetation Api value cutover
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx
+          mkdir -p Assets/VoxelEngine/Vegetation/Api
+          git mv Assets/VoxelEngine/Vegetation/ProceduralTreeTypes.cs Assets/VoxelEngine/Vegetation/Api/ProceduralTreeTypes.cs
+          git mv Assets/VoxelEngine/Vegetation/ProceduralTreeTypes.cs.meta Assets/VoxelEngine/Vegetation/Api/ProceduralTreeTypes.cs.meta
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, uuid
+          def simple_meta(path): Path(path).write_text(f"fileFormatVersion: 2\nguid: {uuid.uuid4().hex}\n")
+          def folder_meta(path): Path(path).write_text(f"fileFormatVersion: 2\nguid: {uuid.uuid4().hex}\nfolderAsset: yes\nDefaultImporter:\n  externalObjects: {{}}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n")
+          if not Path('Assets/VoxelEngine/Vegetation/Api.meta').exists(): folder_meta('Assets/VoxelEngine/Vegetation/Api.meta')
+          p=Path('Assets/VoxelEngine/Vegetation/Api/ProceduralTreeTypes.cs'); s=p.read_text()
+          if 'namespace VoxelEngine.Core.Vegetation\n' not in s: raise SystemExit('missing old types namespace')
+          p.write_text(s.replace('namespace VoxelEngine.Core.Vegetation\n','namespace VoxelEngine.Vegetation.Api\n',1))
+          api={'name':'VoxelEngine.Vegetation.Api','rootNamespace':'VoxelEngine.Vegetation.Api','references':['Unity.Mathematics'],'includePlatforms':[],'excludePlatforms':[],'allowUnsafeCode':False,'overrideReferences':False,'precompiledReferences':[],'autoReferenced':False,'defineConstraints':[],'versionDefines':[],'noEngineReferences':False}
+          Path('Assets/VoxelEngine/Vegetation/Api/VoxelEngine.Vegetation.Api.asmdef').write_text(json.dumps(api,indent=2)+'\n')
+          simple_meta('Assets/VoxelEngine/Vegetation/Api/VoxelEngine.Vegetation.Api.asmdef.meta')
+
+          # Existing implementation temporarily remains broad but now consumes Api values.
+          asm=Path('Assets/VoxelEngine/Vegetation/VoxelEngine.Vegetation.asmdef'); data=json.loads(asm.read_text()); refs=data.get('references',[])
+          if 'VoxelEngine.Vegetation.Api' not in refs: refs.append('VoxelEngine.Vegetation.Api')
+          data['references']=refs; asm.write_text(json.dumps(data,indent=2)+'\n')
+          for path in ('Assets/VoxelEngine/Vegetation/ProceduralTreeDamageService.cs','Assets/VoxelEngine/Vegetation/ProceduralTreeSkeletonBuilder.cs','Assets/VoxelEngine/Vegetation/TreeWorldState.cs'):
+              p=Path(path); s=p.read_text()
+              if 'using VoxelEngine.Vegetation.Api;' not in s:
+                  lines=s.splitlines(); idx=0
+                  while idx < len(lines) and lines[idx].startswith('using '): idx+=1
+                  lines.insert(idx,'using VoxelEngine.Vegetation.Api;')
+                  p.write_text('\n'.join(lines)+'\n')
+
+          # Every old TreeInstance alias now points at Api.
+          for p in list(Path('Assets').rglob('*.cs')) + list(Path('Packages').rglob('*.cs')):
+              s=p.read_text()
+              old='TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance'
+              if old in s: p.write_text(s.replace(old,'TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance'))
+
+          # WorldGen Voxel must be Api-only for vegetation values.
+          for path in ('Packages/com.mountingforce.worldgen/Runtime/Voxel/CastleVegetationPlanner.cs','Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeVegetationPlanner.cs'):
+              p=Path(path); s=p.read_text()
+              if 'using VoxelEngine.Core.Vegetation;' not in s: raise SystemExit(f'missing WorldGen vegetation using: {path}')
+              p.write_text(s.replace('using VoxelEngine.Core.Vegetation;','using VoxelEngine.Vegetation.Api;',1))
+
+          # Other callers still need implementation plus Api values during this staged split.
+          for p in list(Path('Assets').rglob('*.cs')):
+              if str(p).startswith('Assets/VoxelEngine/Vegetation/'):
+                  continue
+              s=p.read_text()
+              if 'using VoxelEngine.Core.Vegetation;' in s and 'using VoxelEngine.Vegetation.Api;' not in s:
+                  s=s.replace('using VoxelEngine.Core.Vegetation;','using VoxelEngine.Core.Vegetation;\nusing VoxelEngine.Vegetation.Api;',1)
+                  p.write_text(s)
+
+          def refs(path, replace_broad=False, add_api=False):
+              p=Path(path); data=json.loads(p.read_text()); rs=data.get('references',[])
+              if replace_broad: rs=['VoxelEngine.Vegetation.Api' if x=='VoxelEngine.Vegetation' else x for x in rs]
+              if add_api and 'VoxelEngine.Vegetation.Api' not in rs: rs.append('VoxelEngine.Vegetation.Api')
+              data['references']=rs; p.write_text(json.dumps(data,indent=2)+'\n')
+          refs('Packages/com.mountingforce.worldgen/Runtime/Voxel/MountingForce.WorldGen.Voxel.asmdef',replace_broad=True)
+          for path in ('Assets/VoxelEngine/Rendering/VoxelEngine.Rendering.asmdef','Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef','Assets/VoxelEngine/CI/Editor/VoxelEngine.CI.Editor.asmdef','Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef'):
+              refs(path,add_api=True)
+          PY
+          git rm .github/workflows/vegetation-api-values-cutover.yml
+          git diff --check
+          if grep -RIn 'VoxelEngine.Core.Vegetation' Packages/com.mountingforce.worldgen/Runtime/Voxel --include='*.cs' --include='*.asmdef'; then echo WorldGen still references Core Vegetation >&2; exit 1; fi
+          if grep -RIn '"VoxelEngine.Vegetation"' Packages/com.mountingforce.worldgen/Runtime/Voxel --include='*.asmdef'; then echo WorldGen still references broad Vegetation >&2; exit 1; fi
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Vegetation Assets/VoxelEngine/Rendering Assets/Scenes/Showcase Assets/VoxelEngine/CI Packages/com.mountingforce.worldgen/Runtime/Voxel
+          git commit -m 'Extract Vegetation Api tree values'
+          git push origin HEAD:${{ github.ref_name }}
