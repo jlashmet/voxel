@@ -1,0 +1,44 @@
+name: Add Showcase Structures closure guard
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/add-showcase-structures-closure-guard.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Add permanent Structures ownership guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-foundation-storage
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('Assets/Tests/EditMode/ProductionArchitectureClosureTests.cs')
+          text = path.read_text()
+          if 'ShowcaseWorldDoesNotOwnStructuresRuntimeDetails' not in text:
+              marker = '''        [Test]\n        public void DeletedCoreNamespaceDoesNotReappearInProductionSourceOrAsmdefs()'''
+              test = '''        [Test]\n        public void ShowcaseWorldDoesNotOwnStructuresRuntimeDetails()\n        {\n            string path = Path.Combine(\n                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");\n            Assert.IsTrue(File.Exists(path), "Missing Composition-owned ShowcaseWorld.cs");\n\n            string source = File.ReadAllText(path);\n            string[] forbidden =\n            {\n                "using VoxelEngine.Structures.Runtime;",\n                "CastleBuilder.",\n                "ArchFeatureDefinition",\n                "PrimitiveRasteriser",\n                "ProfileBlockStore",\n                "RasterResult",\n            };\n            var violations = forbidden.Where(token =>\n                source.IndexOf(token, StringComparison.Ordinal) >= 0).ToArray();\n\n            Assert.IsEmpty(violations,\n                "ShowcaseWorld may orchestrate Structures through Structures.Api/Composition contracts, " +\n                "but concrete Structures.Runtime authoring state and algorithms must stay behind the " +\n                "Composition Structures boundary.\\n\\n" + string.Join("\\n", violations));\n        }\n\n'''
+              if text.count(marker) != 1:
+                  raise SystemExit('closure-test insertion marker drifted')
+              path.write_text(text.replace(marker, test + marker, 1))
+          PY
+          git diff --check
+          rm .github/workflows/add-showcase-structures-closure-guard.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/Tests/EditMode/ProductionArchitectureClosureTests.cs \
+                  .github/workflows/add-showcase-structures-closure-guard.yml
+          git commit -m 'test(architecture): lock Showcase Structures boundary'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
