@@ -1,0 +1,50 @@
+name: Edits stale Core cleanup
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          git rm Assets/VoxelEngine/Core/Edits/DensityCap.cs Assets/VoxelEngine/Core/Edits/DensityCap.cs.meta
+          python3 - <<'PY'
+          from pathlib import Path
+          keep = {
+              'Assets/Tests/EditMode/CanonicalBrushTests.cs',
+              'Assets/Tests/EditMode/DeterministicAlterationApplierTests.cs',
+              'Assets/VoxelEngine/Net/Client/ClientAuthoritativeEventQueue.cs',
+              'Assets/VoxelEngine/Net/Client/EventApplication.cs',
+              'Assets/VoxelEngine/Net/Server/AuthoritativeAlterationValidator.cs',
+              'Assets/VoxelEngine/Net/Server/ServerDeterministicAlterationApplier.cs',
+          }
+          for root in (Path('Assets'), Path('Packages')):
+              for p in root.rglob('*.cs'):
+                  s = p.as_posix()
+                  text = p.read_text()
+                  needle = 'using VoxelEngine.Core.Edits;\n'
+                  if needle in text and s not in keep:
+                      p.write_text(text.replace(needle, ''))
+          PY
+          git rm .github/workflows/edits-final-inventory.yml .github/workflows/edits-stale-core-cleanup.yml
+          git diff --check
+          remaining="$(grep -RIl 'using VoxelEngine.Core.Edits;' Assets Packages --include='*.cs' | sort || true)"
+          printf '%s\n' "$remaining"
+          test "$(printf '%s\n' "$remaining" | grep -c . || true)" -eq 6
+          test -z "$(grep -RIn 'using VoxelEngine.Core.Edits;' Assets/VoxelEngine/Net/Protocol --include='*.cs' || true)"
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add -u Assets Packages
+          git commit -m 'Remove stale Core Edits dependencies'
+          git push origin HEAD:${{ github.ref_name }}
