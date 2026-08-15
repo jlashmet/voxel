@@ -32,6 +32,46 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// Typed solver input for one stable authored SiteRef role. Every role resolves to exactly one
+    /// concrete site. ConstraintMatch intentionally leaves archetype free; RequiredArchetype makes
+    /// Archetype a hard requirement. Capabilities include both explicit and content-derived needs.
+    /// </summary>
+    public sealed class SiteRolePlan
+    {
+        public SiteRef Role { get; }
+        public SiteResolutionMode ResolutionMode { get; }
+        public SiteArchetype Archetype { get; }
+        public int RequiredCardinality { get; }
+        public IReadOnlyList<SiteCapabilityRequirement> Capabilities { get; }
+
+        public SiteRolePlan(
+            SiteRef role,
+            SiteResolutionMode resolutionMode,
+            SiteArchetype archetype,
+            int requiredCardinality,
+            SiteCapabilityRequirement[] capabilities)
+        {
+            if (requiredCardinality != 1)
+                throw new ArgumentOutOfRangeException(nameof(requiredCardinality),
+                    "A SiteRef role currently resolves to exactly one concrete site.");
+            if (resolutionMode == SiteResolutionMode.RequiredArchetype
+                && archetype == SiteArchetype.Unspecified)
+                throw new ArgumentException(
+                    "RequiredArchetype site role must declare an archetype.", nameof(archetype));
+            if (resolutionMode == SiteResolutionMode.ConstraintMatch
+                && archetype != SiteArchetype.Unspecified)
+                throw new ArgumentException(
+                    "ConstraintMatch site role must leave archetype unconstrained.", nameof(archetype));
+
+            Role = role;
+            ResolutionMode = resolutionMode;
+            Archetype = archetype;
+            RequiredCardinality = requiredCardinality;
+            Capabilities = capabilities ?? Array.Empty<SiteCapabilityRequirement>();
+        }
+    }
+
     public sealed class CutsceneStagePlan
     {
         public CutsceneRef Cutscene { get; }
@@ -111,15 +151,30 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// Engine-independent output of blueprint compilation. Dependency Nodes give generation ordering;
+    /// typed collections carry the actual solver inputs so a spatial planner does not have to recover
+    /// semantics from node names.
+    /// </summary>
     public sealed class PlanningGraph
     {
         public IReadOnlyList<PlanningNode> Nodes { get; }
+        public IReadOnlyList<SiteRolePlan> SiteRoles { get; }
+        public WorldHierarchyBlueprint Hierarchy { get; }
+        public IReadOnlyList<SpatialConstraintSpec> SpatialConstraints { get; }
         public IReadOnlyList<CutsceneStagePlan> CutsceneStages { get; }
         public IReadOnlyList<SecretCandidatePlan> SecretCandidates { get; }
         public IReadOnlyList<RequiredSecretCandidatePlan> RequiredSecrets { get; }
 
         public PlanningGraph(PlanningNode[] nodes, CutsceneStagePlan[] cutsceneStages)
-            : this(nodes, cutsceneStages, null, null)
+            : this(
+                nodes,
+                Array.Empty<SiteRolePlan>(),
+                EmptyHierarchy(),
+                Array.Empty<SpatialConstraintSpec>(),
+                cutsceneStages,
+                null,
+                null)
         {
         }
 
@@ -127,7 +182,14 @@ namespace Game.WorldBuilder.Api
             PlanningNode[] nodes,
             CutsceneStagePlan[] cutsceneStages,
             SecretCandidatePlan[] secretCandidates)
-            : this(nodes, cutsceneStages, secretCandidates, null)
+            : this(
+                nodes,
+                Array.Empty<SiteRolePlan>(),
+                EmptyHierarchy(),
+                Array.Empty<SpatialConstraintSpec>(),
+                cutsceneStages,
+                secretCandidates,
+                null)
         {
         }
 
@@ -136,12 +198,37 @@ namespace Game.WorldBuilder.Api
             CutsceneStagePlan[] cutsceneStages,
             SecretCandidatePlan[] secretCandidates,
             RequiredSecretCandidatePlan[] requiredSecrets)
+            : this(
+                nodes,
+                Array.Empty<SiteRolePlan>(),
+                EmptyHierarchy(),
+                Array.Empty<SpatialConstraintSpec>(),
+                cutsceneStages,
+                secretCandidates,
+                requiredSecrets)
+        {
+        }
+
+        public PlanningGraph(
+            PlanningNode[] nodes,
+            SiteRolePlan[] siteRoles,
+            WorldHierarchyBlueprint hierarchy,
+            SpatialConstraintSpec[] spatialConstraints,
+            CutsceneStagePlan[] cutsceneStages,
+            SecretCandidatePlan[] secretCandidates,
+            RequiredSecretCandidatePlan[] requiredSecrets)
         {
             Nodes = nodes ?? Array.Empty<PlanningNode>();
+            SiteRoles = siteRoles ?? Array.Empty<SiteRolePlan>();
+            Hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
+            SpatialConstraints = spatialConstraints ?? Array.Empty<SpatialConstraintSpec>();
             CutsceneStages = cutsceneStages ?? Array.Empty<CutsceneStagePlan>();
             SecretCandidates = secretCandidates ?? Array.Empty<SecretCandidatePlan>();
             RequiredSecrets = requiredSecrets ?? Array.Empty<RequiredSecretCandidatePlan>();
         }
+
+        private static WorldHierarchyBlueprint EmptyHierarchy() =>
+            new WorldHierarchyBlueprint(null, null, null, null, null);
     }
 
     public readonly struct CutsceneSiteGeometry
