@@ -383,7 +383,7 @@ namespace VoxelEngine.Tests.EditMode
         public void UnifiedSurfaceShaderDoesNotRecognizeMaterialOrCoatingIds()
         {
             string shaderPath = Path.GetFullPath(
-                "Assets/VoxelEngine/Rendering/Shaders/SmoothSurface.shader");
+                "Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader");
             string shader = File.ReadAllText(shaderPath);
 
             StringAssert.DoesNotContain("material ==", shader);

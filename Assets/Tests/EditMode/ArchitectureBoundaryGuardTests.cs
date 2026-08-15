@@ -76,7 +76,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 foreach (string reference in asmdef.References)
                 {
-                    if (!reference.EndsWith(".Runtime", StringComparison.Ordinal))
+                    if (!reference.StartsWith("VoxelEngine.", StringComparison.Ordinal)
+                        || !reference.EndsWith(".Runtime", StringComparison.Ordinal))
                         continue;
 
                     if (!string.Equals(reference, asmdef.Name, StringComparison.Ordinal))
@@ -108,7 +109,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void RenderingReadPathUsesStorageApiForPhysicalReads()
         {
-            string renderingRoot = Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Rendering");
+            string renderingRoot = Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime");
             string[] relativePaths =
             {
                 Path.Combine("RenderFeature", "VoxelRenderBridge.cs"),
