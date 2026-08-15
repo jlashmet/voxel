@@ -27,7 +27,7 @@ namespace VoxelEngine.Tests.PlayMode
             _table = new RegionTable(32, Allocator.Persistent);
 
             // Initialize with a heavily altered world — not pristine terrain.
-            SessionLifecycle.Create(12345u, ref _table, ref _pool);
+            SessionLifecycle.Create(12345u);
         }
 
         [TearDown]
