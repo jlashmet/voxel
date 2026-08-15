@@ -20,15 +20,13 @@ jobs:
           test -f Assets/VoxelEngine/Rendering/VoxelEngine.Rendering.asmdef
           test ! -e Assets/VoxelEngine/Rendering/Runtime
           test ! -e Assets/VoxelEngine/Rendering/Api
+          test ! -d Assets/VoxelEngine/Rendering/Irradiance
           mkdir -p Assets/VoxelEngine/Rendering/Runtime Assets/VoxelEngine/Rendering/Api
-          for name in Irradiance RenderFeature Shaders SurfaceExtraction Vegetation; do
-            if [ -d "Assets/VoxelEngine/Rendering/$name" ]; then
-              git mv "Assets/VoxelEngine/Rendering/$name" "Assets/VoxelEngine/Rendering/Runtime/$name"
-            fi
-            if [ -f "Assets/VoxelEngine/Rendering/$name.meta" ]; then
-              git mv "Assets/VoxelEngine/Rendering/$name.meta" "Assets/VoxelEngine/Rendering/Runtime/$name.meta"
-            fi
+          for name in RenderFeature Shaders SurfaceExtraction Vegetation; do
+            git mv "Assets/VoxelEngine/Rendering/$name" "Assets/VoxelEngine/Rendering/Runtime/$name"
+            git mv "Assets/VoxelEngine/Rendering/$name.meta" "Assets/VoxelEngine/Rendering/Runtime/$name.meta"
           done
+          git rm Assets/VoxelEngine/Rendering/Irradiance.meta
           git mv Assets/VoxelEngine/Rendering/AssemblyInfo.cs Assets/VoxelEngine/Rendering/Runtime/AssemblyInfo.cs
           git mv Assets/VoxelEngine/Rendering/AssemblyInfo.cs.meta Assets/VoxelEngine/Rendering/Runtime/AssemblyInfo.cs.meta
           git mv Assets/VoxelEngine/Rendering/VoxelEngine.Rendering.asmdef Assets/VoxelEngine/Rendering/Runtime/VoxelEngine.Rendering.Runtime.asmdef
