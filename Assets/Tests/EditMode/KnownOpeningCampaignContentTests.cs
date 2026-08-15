@@ -58,11 +58,28 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(destinationPlacement.Kind, Is.EqualTo(SitePlacementKind.Region));
             Assert.That(destinationPlacement.Region, Is.EqualTo(region.Ref));
 
+            SiteSpec pubSite = blueprint.Sites
+                .Single(value => value.Ref.Equals(content.StartingPub));
+            SiteCapabilityRequirement spawn = pubSite.Capabilities
+                .Single(value => value.Kind == SiteCapabilityKind.PlayerSpawn);
+            Assert.That(spawn.Source, Is.EqualTo(SiteCapabilitySource.Authored));
+            Assert.That(spawn.MinimumCapacity, Is.EqualTo(4),
+                "Four-player campaign capacity remains explicit even though the opening cutscene only binds player slot 0.");
+            Assert.That(pubSite.Capabilities.Single(value => value.Kind == SiteCapabilityKind.Interior).Source,
+                Is.EqualTo(SiteCapabilitySource.Derived));
+            Assert.That(pubSite.Capabilities.Single(value => value.Kind == SiteCapabilityKind.PublicExit).Source,
+                Is.EqualTo(SiteCapabilitySource.Derived));
+            Assert.That(pubSite.Capabilities.Single(value => value.Kind == SiteCapabilityKind.CutsceneStage).Source,
+                Is.EqualTo(SiteCapabilitySource.Derived));
+
             SiteSpec destinationSite = blueprint.Sites
                 .Single(value => value.Ref.Equals(content.FirstDestination));
             Assert.That(destinationSite.ResolutionMode, Is.EqualTo(SiteResolutionMode.ConstraintMatch));
             Assert.That(destinationSite.Archetype, Is.EqualTo(SiteArchetype.Unspecified),
                 "The first destination remains generator-selected; hierarchy ownership must not invent its archetype.");
+            Assert.That(destinationSite.Capabilities
+                    .Single(value => value.Kind == SiteCapabilityKind.ConversationSpace).Source,
+                Is.EqualTo(SiteCapabilitySource.Derived));
         }
 
         private static CutsceneDefinition ActorfulDestination(CutsceneActorId speaker) =>
