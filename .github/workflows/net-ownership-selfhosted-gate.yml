@@ -1,0 +1,51 @@
+name: Net ownership self-hosted acceptance
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-ownership-selfhosted-gate.yml]
+permissions:
+  contents: read
+jobs:
+  editmode:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 50650f21854da651f98ca12240e1a5863ed394b7
+          clean: false
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard 50650f21854da651f98ca12240e1a5863ed394b7
+          git clean -ffdx -e Library/
+      - id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+      - shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/NetOwnershipSelfHostedAcceptance"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log"
+          status=$?
+          test -s "$ROOT/results.xml" || true
+          exit $status
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: net-ownership-selfhosted-50650f21
+          path: Artifacts/NetOwnershipSelfHostedAcceptance/
+          if-no-files-found: warn
+          retention-days: 14
