@@ -1,0 +1,36 @@
+name: Fix TreeBatch SetDamage call
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/fix-treebatch-setdamage.yml]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/VoxelEngine/CI/PlayMode/TreeBatchRenderingTests.cs')
+          text = p.read_text()
+          old = '                TreeWorldRuntime.SetDamage(0, 0.70f, false);'
+          new = '                TreeWorldRuntime.SetDamage(0, 0.70f, false, default, default, -1);'
+          assert text.count(old) == 1, text.count(old)
+          p.write_text(text.replace(old, new))
+          PY
+          git rm .github/workflows/fix-treebatch-setdamage.yml
+          git diff --check
+          git diff -- Assets/VoxelEngine/CI/PlayMode/TreeBatchRenderingTests.cs
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/CI/PlayMode/TreeBatchRenderingTests.cs
+          git add -u .github/workflows
+          git commit -m 'Fix Vegetation batch damage test caller'
+          git push origin HEAD:${{ github.ref_name }}
