@@ -40,25 +40,20 @@ namespace Game.Composition.Kentridge.Runtime
     /// <summary>
     /// Concrete application-level Kentridge bootstrap. Plan is called before voxel emission so the
     /// backend can include Generation.HiddenSpaces. CreateSession is called after the backend has
-    /// exact site/hidden-space realization facts. Authored content only needs to supply a
-    /// CampaignBlueprint; character, presentation, and secret interaction stay behind narrow adapters.
+    /// exact site/hidden-space realization facts. Authored content supplies all semantic hierarchy
+    /// ownership through CampaignBlueprint; character, presentation, and secret interaction stay
+    /// behind narrow adapters.
     /// </summary>
     public static class KentridgeCampaignSessionBootstrap
     {
         public static KentridgeCampaignGenerationPlan Plan(
             CampaignBlueprint blueprint,
-            SettlementPlan settlement,
-            RegionRef region,
-            SettlementRef settlementRef)
+            SettlementPlan settlement)
         {
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
             if (settlement == null) throw new ArgumentNullException(nameof(settlement));
 
-            return KentridgeCampaignWorldPlanner.Plan(
-                blueprint,
-                settlement,
-                region,
-                settlementRef);
+            return KentridgeCampaignWorldPlanner.Plan(blueprint, settlement);
         }
 
         public static KentridgeCampaignSession CreateSession(
