@@ -13,6 +13,7 @@ namespace Game.WorldBuilder.Api
         internal readonly List<CutsceneSpec> Cutscenes = new List<CutsceneSpec>();
         internal readonly List<ObjectiveSpec> Objectives = new List<ObjectiveSpec>();
         internal readonly List<SecretPolicySpec> SecretPolicies = new List<SecretPolicySpec>();
+        internal readonly List<RequiredSecretSpec> RequiredSecrets = new List<RequiredSecretSpec>();
         internal readonly List<LootTableSpec> LootTables = new List<LootTableSpec>();
 
         public WorldBlueprintBuilder World { get; }
@@ -37,6 +38,7 @@ namespace Game.WorldBuilder.Api
                 Cutscenes.ToArray(),
                 Objectives.ToArray(),
                 SecretPolicies.ToArray(),
+                RequiredSecrets.ToArray(),
                 LootTables.ToArray());
     }
 
