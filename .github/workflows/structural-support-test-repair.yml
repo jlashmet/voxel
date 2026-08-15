@@ -1,0 +1,52 @@
+name: StructuralIntegrity parity caller repair
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('Assets/Tests/Parity/CollapseAgreementTests.cs')
+          text=p.read_text().replace('using VoxelEngine.Core.Structure;\n','using VoxelEngine.StructuralIntegrity.Runtime;\n')
+          replacements={
+              'SupportField.ComputeSupport(in tableA, in poolA, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportA, Allocator.Temp);':'SupportField.ComputeSupport(new RegionReadSource(in tableA, in poolA), GetRegion(origin.x, origin.y, origin.z), supportA, Allocator.Temp);',
+              'SupportField.ComputeSupport(in tableB, in poolB, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportB, Allocator.Temp);':'SupportField.ComputeSupport(new RegionReadSource(in tableB, in poolB), GetRegion(origin.x, origin.y, origin.z), supportB, Allocator.Temp);',
+              'SupportField.ComputeSupport(in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);':'SupportField.ComputeSupport(new RegionReadSource(in table, in pool), regionCoord, support, Allocator.Temp);',
+              'var targets = CollapseDetection.FindUnsupportedBuilds(in region.BrickRefs, in pool, in support);':'var targets = CollapseDetection.FindUnsupportedBuilds(new RegionReadSource(in table, in pool), regionCoord, in support);'
+          }
+          for old,new in replacements.items():
+              if text.count(old)!=1: raise SystemExit(f'replacement count {text.count(old)} for {old[:60]}')
+              text=text.replace(old,new,1)
+          old='            SupportField.ComputeSupport(\n                in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);\n\n            var targets = CollapseDetection.FindCollapseTargets(\n                in region.BrickRefs, in pool, in support, threshold);'
+          new='            var readSource = new RegionReadSource(in table, in pool);\n            SupportField.ComputeSupport(readSource, regionCoord, support, Allocator.Temp);\n\n            var targets = CollapseDetection.FindCollapseTargets(\n                readSource, regionCoord, in support, threshold);'
+          if text.count(old)!=1: raise SystemExit(f'composed replacement count {text.count(old)}')
+          p.write_text(text.replace(old,new,1))
+          p=Path('Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef')
+          data=json.loads(p.read_text())
+          if 'VoxelEngine.StructuralIntegrity.Runtime' not in data['references']:
+              data['references'].append('VoxelEngine.StructuralIntegrity.Runtime')
+          p.write_text(json.dumps(data,indent=2)+'\n')
+          PY
+          git rm .github/workflows/structural-support-test-repair.yml .github/workflows/structural-support-runtime-move.yml .github/workflows/structural-support-move-inventory.yml 2>/dev/null || true
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/Tests/Parity/CollapseAgreementTests.cs Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef
+          git add -u .github/workflows
+          git commit -m 'Update structural parity callers for Runtime API'
+          git push origin HEAD:${{ github.ref_name }}
