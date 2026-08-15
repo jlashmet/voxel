@@ -1,0 +1,36 @@
+name: Restructuring Net queue cleanup
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  actions: write
+  contents: read
+jobs:
+  cancel-stale-net-helper-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel queued temporary Net helper runs only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for page in 1 2 3 4 5; do
+            response="$(curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GH_REPO}/actions/runs?branch=${BRANCH}&status=queued&per_page=100&page=${page}")"
+            ids="$(printf '%s' "$response" | jq -r '.workflow_runs[] | select(.path | test("/net-[^/]*(publisher|cutover|inventory)[^/]*\\.yml$"; "i")) | .id')"
+            if [ -n "$ids" ]; then
+              while IFS= read -r id; do
+                [ -n "$id" ] || continue
+                echo "Cancelling stale Net helper run $id"
+                curl -fsSL -X POST \
+                  -H "Authorization: Bearer ${GH_TOKEN}" \
+                  -H "Accept: application/vnd.github+json" \
+                  "https://api.github.com/repos/${GH_REPO}/actions/runs/${id}/cancel" >/dev/null || true
+              done <<< "$ids"
+            fi
+          done
