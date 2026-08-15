@@ -1,0 +1,33 @@
+name: Final Structures cleanup inventory
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - name: Inventory final Structures cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo '=== asmdefs with broad Structures reference ==='
+          grep -RIlF '"VoxelEngine.Structures"' Assets Packages --include='*.asmdef' | sort || true
+          echo '=== Runtime namespace declarations ==='
+          grep -RInE '^namespace ' Assets/VoxelEngine/Structures/Runtime --include='*.cs' | sort || true
+          echo '=== source broad Structures imports outside Runtime ==='
+          grep -RInF 'using VoxelEngine.Structures;' Assets Packages --include='*.cs' | grep -v 'Assets/VoxelEngine/Structures/Runtime/' | sort || true
+          echo '=== explicit broad Structures assembly name mentions ==='
+          grep -RInF 'VoxelEngine.Structures"' Assets Packages docs --include='*.cs' --include='*.asmdef' --include='*.md' | sort || true
