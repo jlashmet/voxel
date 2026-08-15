@@ -17,6 +17,7 @@
     "Game.Cutscenes.Content",
     "Game.WorldBuilder.Api",
     "Game.WorldBuilder.Runtime",
+    "Game.Composition.Campaign",
     "Game.Composition.WorldBuilderWorldGen",
     "Game.Story.Api",
     "Game.Story.Runtime",
