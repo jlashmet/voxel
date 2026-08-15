@@ -116,7 +116,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void CompilerCarriesCutsceneActorsAndStagePointsIntoGenerationPlanButNotStoryState()
+        public void CompilerCarriesCutsceneActorsStagePointsAndNpcPlacementIntoGenerationPlanButNotStoryState()
         {
             var game = Campaign.Create("compiler-test");
             var actor = new CutsceneActorId("guide");
@@ -153,6 +153,7 @@ namespace VoxelEngine.Tests.EditMode
             var blueprint = game.Build();
             var graph = BlueprintCompiler.Compile(blueprint);
             var destinationScene = graph.Nodes.Single(n => n.Id == "cutscene:destination-scene");
+            var npcPlacement = graph.NpcPlacements.Single(p => p.Npc.Equals(npc));
             var stage = graph.CutsceneStages.Single(s => s.Cutscene.Id == "destination-scene");
             var requirement = stage.Requirements.Single();
 
@@ -160,6 +161,8 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(destinationScene.Dependencies, Does.Contain("npc:npc"));
             Assert.That(destinationScene.Dependencies, Does.Not.Contain("objective:objective"));
             Assert.That(blueprint.StoryRules.Single().Conditions.Single(), Is.TypeOf<ObjectiveActiveConditionSpec>());
+            Assert.That(npcPlacement.Site, Is.EqualTo(destination));
+            Assert.That(npcPlacement.RequiresConversation, Is.True);
             Assert.That(stage.Site, Is.EqualTo(destination));
             Assert.That(requirement.Point, Is.EqualTo(stagePoint));
             Assert.That(requirement.Region, Is.EqualTo(CutsceneStageRegion.InteriorGatheringArea));
