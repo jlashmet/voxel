@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Vegetation.Api;
+using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
 namespace VoxelEngine.Core.Vegetation
 {
