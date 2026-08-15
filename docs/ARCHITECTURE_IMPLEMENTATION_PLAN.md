@@ -1277,8 +1277,8 @@ No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtim
 ### Implementation progress
 
 - [x] Net.Api/Runtime assemblies exist and Client/Interest/Protocol/Server/Transport are physically under `Net/Runtime`; broad `VoxelEngine.Net` is deleted.
-- [ ] Server residency delegates to Streaming.Api and semantic convergence/repair uses Storage.Api capabilities in the current code; acceptance is pending revalidation.
-- [ ] Net ownership checkpoint must be re-earned; the previously cited `da3b6f0b` acceptance could not be tied to a completed baseline artifact, and ownership-specific artifacts inspected during revalidation were compile-only failures.
+- [x] Server residency delegates to Streaming.Api and semantic convergence/repair uses Storage.Api capabilities; dedicated hosted ownership gate passed against the final Net source.
+- [x] Net ownership checkpoint re-earned by the dedicated hosted ownership gate: residency delegates to Streaming.Api, semantic repair applies through Storage.Api, and no physical Storage types remain in Net.Runtime.
 - [x] Runtime namespaces are normalized to `VoxelEngine.Net.Runtime.*`; final static architecture gate accepted the physical move, namespace cutover and absence of package Runtime references.
 - [x] Final Net static architecture gate passed at `8dafd264dfd3e228e833da23c258d9e21768ad98`; full 384/371/13 parity revalidation remains intentionally unchecked.
 
@@ -1287,8 +1287,8 @@ No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtim
 - [x] Net.Runtime references only the explicit domain/API allowlist; final static architecture gate passed at `8dafd264dfd3e228e833da23c258d9e21768ad98`;
 - [x] structural graph is gone from Net;
 - [x] no duplicate deterministic edit applier wrapper;
-- [ ] network residency calls Streaming.Api;
-- [ ] semantic repair/snapshot paths use Storage.Api logical data;
+- [x] network residency calls Streaming.Api; dedicated hosted ownership gate passed;
+- [x] semantic repair/snapshot paths use Storage.Api logical data; dedicated hosted ownership gate passed;
 - [ ] protocol/convergence/late-join/reconciliation tests pass against the accepted baseline.
 
 ---
