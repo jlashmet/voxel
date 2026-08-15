@@ -210,7 +210,6 @@ jobs:
               if totals[method] < minimum:
                   raise SystemExit(f'{method}: migrated only {totals[method]}, expected at least {minimum}')
 
-          # Guard: none of the migrated orchestration methods may retain their old ref-table/ref-pool shape.
           for path in targets:
               text = path.read_text()
               for method in ('ProcessAuthoritativeTick','ApplyReadyAuthoritativeEvents','DrainReady','ProcessTick'):
@@ -236,6 +235,5 @@ jobs:
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
           git add Assets
-          git add -u .github/workflows/net-storage-api-caller-migration.yml
           git commit -m 'refactor(net): migrate callers to Storage API boundaries'
           git push origin HEAD:refactor/system-boundaries-foundation-storage
