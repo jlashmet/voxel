@@ -12,7 +12,7 @@ if str(TOOL_ROOT) not in sys.path:
 
 from api import AssetType, BuildSpec, CharacterFactoryError
 from api.models import GeneratorConfig
-from runtime.pipeline import pipeline_type_for
+from runtime.pipeline import generator_metadata, pipeline_type_for
 
 
 class PipelineRoutingTests(unittest.TestCase):
@@ -96,6 +96,68 @@ class PipelineRoutingTests(unittest.TestCase):
 
         self.assertEqual(AssetType.WEAPON, spec.asset_type)
         self.assertEqual("RightHand", spec.runtime_part.socket_bone_name)
+
+    def test_triposr_manifest_does_not_claim_hunyuan_model(self) -> None:
+        payload = {
+            "id": "robe",
+            "assetType": "clothing",
+            "views": {"front": "front.png"},
+            "generator": {
+                "python": "/tmp/triposr/bin/python",
+                "backend": "triposr-mps",
+                "source": "triposr-source",
+                "weights": "triposr-weights",
+                "mcResolution": 192,
+                "chunkSize": 4096,
+            },
+            "rig": {
+                "blender": "/Applications/Blender.app/Contents/MacOS/Blender",
+                "canonicalBody": "canonical.glb",
+            },
+            "runtimePart": {"slot": "Torso"},
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            spec_path = Path(directory) / "robe.json"
+            spec_path.write_text(json.dumps(payload), encoding="utf-8")
+            spec = BuildSpec.load(spec_path, validate_paths=False)
+            metadata = generator_metadata(spec)
+
+        self.assertEqual("triposr-mps", metadata["backend"])
+        self.assertEqual(192, metadata["mcResolution"])
+        self.assertEqual(4096, metadata["chunkSize"])
+        self.assertNotIn("model", metadata)
+        self.assertNotIn("subfolder", metadata)
+        self.assertNotIn("enableFlashVdm", metadata)
+
+    def test_hunyuan_manifest_keeps_diffusion_metadata(self) -> None:
+        payload = {
+            "id": "robe",
+            "assetType": "clothing",
+            "views": {"front": "front.png"},
+            "generator": {
+                "python": "/tmp/hunyuan/bin/python",
+                "backend": "hunyuan-pytorch",
+                "preset": "quality",
+            },
+            "rig": {
+                "blender": "/Applications/Blender.app/Contents/MacOS/Blender",
+                "canonicalBody": "canonical.glb",
+            },
+            "runtimePart": {"slot": "Torso"},
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            spec_path = Path(directory) / "robe.json"
+            spec_path.write_text(json.dumps(payload), encoding="utf-8")
+            spec = BuildSpec.load(spec_path, validate_paths=False)
+            metadata = generator_metadata(spec)
+
+        self.assertEqual("hunyuan-pytorch", metadata["backend"])
+        self.assertEqual("tencent/Hunyuan3D-2mv", metadata["model"])
+        self.assertEqual("hunyuan3d-dit-v2-mv", metadata["subfolder"])
+        self.assertEqual(50, metadata["steps"])
+        self.assertFalse(metadata["enableFlashVdm"])
 
 
 if __name__ == "__main__":
