@@ -23,7 +23,7 @@ jobs:
           set -euo pipefail
           git reset --hard HEAD
           git clean -ffdx -e Library/
-          echo '=== CastleBuilder member usages ==='
-          grep -RInE '\bCastleBuilder\.[A-Za-z_]+' Assets Packages --include='*.cs' | sort || true
-          echo '=== CastlePlan declarations/usages outside CastleBuilder ==='
-          grep -RInE '\bCastlePlan\b' Assets Packages --include='*.cs' | grep -v 'Assets/VoxelEngine/Structures/CastleBuilder.cs' | sort || true
+          echo '=== WorldGen broad Structures imports ==='
+          grep -RInF 'using VoxelEngine.Structures;' Packages/com.mountingforce.worldgen/Runtime/Voxel --include='*.cs' | sort || true
+          echo '=== CastleBuilder internal layout symbol usage ==='
+          grep -nE '\b(TrapdoorHalfSize|ChapelBellTowerSize|ChapelBellTowerStairRadius|FrontGateWidth|FrontGateHeight|FrontGateDepth|LowerRiverDepth|TrapdoorCentre|FrontGateMinimum|WaterfallStreamX|LowerRiverZAt|WaterfallLipZ|ChapelBellTowerCentre)\b' Assets/VoxelEngine/Structures/CastleBuilder.cs || true
