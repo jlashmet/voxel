@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 
@@ -41,7 +40,6 @@ namespace VoxelEngine.Net.Server
         private readonly AlterationRateLimiter _rateLimiter;
         private readonly uint _serverSeed;
         private readonly Validation.DensityCap _densityCap;
-        private RegionMutationStore _mutationStorage;
 
         private readonly List<ServerCommandInbox.QueuedAlterationRequest> _alterationDrain = new List<ServerCommandInbox.QueuedAlterationRequest>(128);
         private readonly List<ServerCommandInbox.QueuedPlayerInput> _inputDrain = new List<ServerCommandInbox.QueuedPlayerInput>(256);
@@ -71,8 +69,8 @@ namespace VoxelEngine.Net.Server
 
         public void ProcessTick(
             uint serverTick,
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionReadSource readStorage,
+            IRegionMutationStore mutationStorage,
             in ProtectedZones zones,
             IAuthoritativePlayerInputSink inputSink,
             IAlterationApplier applier,
@@ -80,18 +78,17 @@ namespace VoxelEngine.Net.Server
             IAlterationRejectionSink rejectionSink)
         {
             if (serverTick == 0) throw new ArgumentOutOfRangeException(nameof(serverTick));
+            if (readStorage == null) throw new ArgumentNullException(nameof(readStorage));
+            if (mutationStorage == null) throw new ArgumentNullException(nameof(mutationStorage));
             if (inputSink == null) throw new ArgumentNullException(nameof(inputSink));
             if (applier == null) throw new ArgumentNullException(nameof(applier));
             if (publisher == null) throw new ArgumentNullException(nameof(publisher));
             if (rejectionSink == null) throw new ArgumentNullException(nameof(rejectionSink));
 
-            _mutationStorage ??= new RegionMutationStore(in table, in pool);
-            _mutationStorage.Refresh(in table, in pool);
-
             DrainAndResolve(serverTick);
             ProcessInputs(serverTick, inputSink);
             ProcessAlterations(
-                serverTick, ref table, ref pool, _mutationStorage, in zones,
+                serverTick, readStorage, mutationStorage, in zones,
                 applier, publisher, rejectionSink);
         }
 
@@ -165,9 +162,6 @@ namespace VoxelEngine.Net.Server
                 ResolvedInput resolved = _resolvedInputs[i];
                 C_PlayerInput input = resolved.Queued.Input;
 
-                // The UTP receiver already deduplicates redundant bundles, but the fixed-tick
-                // boundary owns the authoritative acknowledgement and therefore also rejects a
-                // stale sequence if an alternate ingress ever bypasses that transport helper.
                 if (!IsNewInputSequence(resolved.PlayerId, input.sequence))
                 {
                     StaleOrDuplicateCommands++;
@@ -181,8 +175,7 @@ namespace VoxelEngine.Net.Server
 
         private void ProcessAlterations(
             uint serverTick,
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionReadSource readStorage,
             IRegionMutationStore mutationStorage,
             in ProtectedZones zones,
             IAlterationApplier applier,
@@ -220,10 +213,9 @@ namespace VoxelEngine.Net.Server
                         in evt,
                         in player,
                         _players,
+                        readStorage,
                         mutationStorage,
                         applier,
-                        ref table,
-                        in pool,
                         _densityCap,
                         in zones);
 
