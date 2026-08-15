@@ -1,4 +1,5 @@
 import argparse
+import sys
 from mathutils import Vector
 import bpy
 
@@ -20,11 +21,20 @@ def look_at(obj, target):
     obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
 
 
-def main():
+def script_args():
+    argv = sys.argv
+    if '--' in argv:
+        argv = argv[argv.index('--') + 1:]
+    else:
+        argv = []
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', required=True)
     parser.add_argument('--output', required=True)
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main():
+    args = script_args()
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.fbx(filepath=args.input)
@@ -65,7 +75,6 @@ def main():
         bpy.context.collection.objects.link(light)
         light.location = location
         look_at(light, center)
-        return light
 
     add_area('Key', center + Vector((radius * 2.0, -radius * 1.5, radius * 2.2)), 1200, radius * 1.4)
     add_area('Fill', center + Vector((-radius * 1.5, -radius * 0.7, radius * 1.0)), 650, radius * 1.8)
