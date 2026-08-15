@@ -12,7 +12,10 @@ namespace Game.WorldBuilder.Runtime
         LootTable = 2,
         SecretPolicy = 3,
         Objective = 4,
-        Cutscene = 5
+        Cutscene = 5,
+        Region = 6,
+        Route = 7,
+        Settlement = 8
     }
 
     public sealed class PlanningNode
@@ -85,8 +88,55 @@ namespace Game.WorldBuilder.Runtime
             var nodes = new List<PlanningNode>();
             var stagePlans = new List<CutsceneStagePlan>();
 
+            for (var i = 0; i < blueprint.Hierarchy.Regions.Count; i++)
+            {
+                RegionSpec region = blueprint.Hierarchy.Regions[i];
+                nodes.Add(new PlanningNode(
+                    NodeId("region", region.Ref.Id),
+                    PlanningNodeKind.Region,
+                    Array.Empty<string>()));
+            }
+
+            for (var i = 0; i < blueprint.Hierarchy.Routes.Count; i++)
+            {
+                RouteSpec route = blueprint.Hierarchy.Routes[i];
+                nodes.Add(new PlanningNode(
+                    NodeId("route", route.Ref.Id),
+                    PlanningNodeKind.Route,
+                    new[] { NodeId("region", route.Region.Id) }));
+            }
+
+            for (var i = 0; i < blueprint.Hierarchy.Settlements.Count; i++)
+            {
+                SettlementSpec settlement = blueprint.Hierarchy.Settlements[i];
+                var dependencies = new List<string>
+                {
+                    NodeId("region", settlement.Region.Id)
+                };
+
+                for (var j = 0; j < blueprint.Hierarchy.RouteAccess.Count; j++)
+                {
+                    SettlementRouteAccessSpec access = blueprint.Hierarchy.RouteAccess[j];
+                    if (access.Settlement.Equals(settlement.Ref))
+                        AddUnique(dependencies, NodeId("route", access.Route.Id));
+                }
+
+                nodes.Add(new PlanningNode(
+                    NodeId("settlement", settlement.Ref.Id),
+                    PlanningNodeKind.Settlement,
+                    dependencies.ToArray()));
+            }
+
             for (var i = 0; i < blueprint.Sites.Count; i++)
-                nodes.Add(new PlanningNode(NodeId("site", blueprint.Sites[i].Ref.Id), PlanningNodeKind.Site, Array.Empty<string>()));
+            {
+                SiteSpec site = blueprint.Sites[i];
+                var dependencies = new List<string>();
+                AddSiteOwnerDependency(blueprint.Hierarchy, site.Ref, dependencies);
+                nodes.Add(new PlanningNode(
+                    NodeId("site", site.Ref.Id),
+                    PlanningNodeKind.Site,
+                    dependencies.ToArray()));
+            }
 
             for (var i = 0; i < blueprint.LootTables.Count; i++)
                 nodes.Add(new PlanningNode(NodeId("loot", blueprint.LootTables[i].Ref.Id), PlanningNodeKind.LootTable, Array.Empty<string>()));
@@ -156,6 +206,23 @@ namespace Game.WorldBuilder.Runtime
             }
 
             return new PlanningGraph(nodes.ToArray(), stagePlans.ToArray());
+        }
+
+        private static void AddSiteOwnerDependency(
+            WorldHierarchyBlueprint hierarchy,
+            SiteRef site,
+            List<string> dependencies)
+        {
+            for (var i = 0; i < hierarchy.SitePlacements.Count; i++)
+            {
+                SitePlacementSpec placement = hierarchy.SitePlacements[i];
+                if (!placement.Site.Equals(site)) continue;
+
+                if (placement.Kind == SitePlacementKind.Region)
+                    AddUnique(dependencies, NodeId("region", placement.Region.Id));
+                else if (placement.Kind == SitePlacementKind.Settlement)
+                    AddUnique(dependencies, NodeId("settlement", placement.Settlement.Id));
+            }
         }
 
         private static string NodeId(string kind, string id) => $"{kind}:{id}";
