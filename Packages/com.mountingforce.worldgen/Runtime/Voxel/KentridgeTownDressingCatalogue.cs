@@ -6,6 +6,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Terrain;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
@@ -80,7 +82,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < placements.Count; i++)
                 byKind[(int)placements[i].Kind].Add(placements[i]);
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: DefinitionCount,
                 rules: DefinitionCount,
                 parameters: 0,
@@ -165,7 +167,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();

@@ -1,5 +1,7 @@
 using Unity.Mathematics;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Core.Features.Emitters
 {
     /// <summary>Extruded profiles: gable roofs, shed roofs, arched openings.</summary>

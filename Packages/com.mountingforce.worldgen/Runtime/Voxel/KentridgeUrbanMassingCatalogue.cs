@@ -5,6 +5,8 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
@@ -86,7 +88,7 @@ namespace MountingForce.WorldGen.Voxel
             int[] threeProgram = MassProgram(3, settings);
             int placementCount = twoStorey.Count + threeStorey.Count;
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: DefinitionCount,
                 rules: DefinitionCount,
                 parameters: 0,
@@ -125,7 +127,7 @@ namespace MountingForce.WorldGen.Voxel
             catalogue.Rules[ThreeStoreyDefinition] = ExplicitRule(
                 ThreeStoreyDefinition, threeOffset, threeStorey.Count);
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();

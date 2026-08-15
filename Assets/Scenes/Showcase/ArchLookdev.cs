@@ -13,6 +13,8 @@ using VoxelEngine.Rendering;
 using VoxelEngine.Rendering.SurfaceExtraction;
 using VoxelEngine.Structures;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Showcase
 {
     /// <summary>Interactive production-path look-development bench for the hero arch.</summary>

@@ -3,6 +3,8 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     public static partial class KentridgeTerraceSurfaceCorrectionCatalogue
@@ -53,7 +55,7 @@ namespace MountingForce.WorldGen.Voxel
                 programLength += programs[i].Length;
             }
 
-            FeatureCatalogue c = CatalogueLoader.Allocate(
+            FeatureCatalogue c = FeatureCatalogueBuilder.Allocate(
                 patches.Length, patches.Length, 0, 0, 0, programLength, 0,
                 patches.Length, 0, allocator);
             int programOffset = 0;
@@ -91,7 +93,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += programs[i].Length;
             }
 
-            CatalogueLoadResult load = CatalogueLoader.Finalise(ref c);
+            CatalogueLoadResult load = FeatureCatalogueBuilder.Finalise(ref c);
             if (load != CatalogueLoadResult.Ok)
             {
                 c.Dispose();

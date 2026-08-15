@@ -4,6 +4,8 @@ using VoxelEngine.Core.Features.Emitters;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Core.Features
 {
     /// <summary>

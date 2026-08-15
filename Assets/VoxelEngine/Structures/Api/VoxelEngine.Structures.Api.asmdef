@@ -1,13 +1,10 @@
 {
-  "name": "VoxelEngine.Core",
-  "rootNamespace": "VoxelEngine.Core",
+  "name": "VoxelEngine.Structures.Api",
+  "rootNamespace": "VoxelEngine.Structures.Api",
   "references": [
-    "VoxelEngine.Foundation",
     "VoxelEngine.Storage.Api",
-    "Unity.Burst",
     "Unity.Collections",
-    "Unity.Mathematics",
-    "VoxelEngine.Structures.Api"
+    "Unity.Mathematics"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

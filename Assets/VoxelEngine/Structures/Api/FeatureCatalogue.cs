@@ -1,7 +1,7 @@
 using System;
 using Unity.Collections;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// The set of definitions available to a world, with their placement rules.

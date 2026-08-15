@@ -1,4 +1,4 @@
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// Budgets for world feature generation.

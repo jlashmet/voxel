@@ -11,6 +11,8 @@ using VoxelEngine.Rendering;
 using VoxelEngine.Rendering.SurfaceExtraction;
 using VoxelEngine.Structures;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.CI
 {
     /// <summary>

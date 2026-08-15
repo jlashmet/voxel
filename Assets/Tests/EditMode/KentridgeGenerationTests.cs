@@ -5,6 +5,8 @@ using NUnit.Framework;
 using Unity.Collections;
 using VoxelEngine.Core.Features;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>Kentridge tests with no Showcase scene or ShowcaseWorld dependency.</summary>

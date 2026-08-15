@@ -9,7 +9,8 @@
     "VoxelEngine.Vegetation",
     "VoxelEngine.Structures",
     "Unity.Collections",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "VoxelEngine.Structures.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

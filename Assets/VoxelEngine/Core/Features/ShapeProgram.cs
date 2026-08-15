@@ -3,6 +3,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Features.Emitters;
 using VoxelEngine.Core.Terrain;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Core.Features
 {
     /// <summary>Why an evaluation stopped short. Anything but Ok is a catalogue defect.</summary>

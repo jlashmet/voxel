@@ -6,6 +6,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Features.Emitters;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Tests.EditMode
 {
     public sealed class KentridgeDirectedRampTests

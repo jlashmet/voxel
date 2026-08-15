@@ -2,6 +2,8 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Core.Features
 {
     /// <summary>What a region's feature generation produced.</summary>

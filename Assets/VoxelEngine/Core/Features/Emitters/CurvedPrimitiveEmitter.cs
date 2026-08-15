@@ -2,6 +2,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Core.Features.Emitters
 {
     /// <summary>Integer-only architectural curved primitives.</summary>

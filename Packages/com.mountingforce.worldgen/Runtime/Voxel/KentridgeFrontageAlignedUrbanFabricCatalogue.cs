@@ -3,6 +3,8 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>

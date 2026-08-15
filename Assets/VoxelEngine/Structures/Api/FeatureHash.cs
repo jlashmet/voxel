@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// Integer hashing for placement and identity.

@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// One authored parameter and the range it may take.

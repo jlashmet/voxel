@@ -6,6 +6,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Terrain;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
@@ -98,7 +100,7 @@ namespace MountingForce.WorldGen.Voxel
             programs[roadCount] = PlazaProgram(plaza, settings);
             programLength += programs[roadCount].Length;
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: definitionCount,
                 rules: definitionCount,
                 parameters: 0,
@@ -171,7 +173,7 @@ namespace MountingForce.WorldGen.Voxel
             catalogue.ExplicitPlacements[plazaDefinition] = plaza.Placement;
             catalogue.Rules[plazaDefinition] = ExplicitRule(plazaDefinition, plazaDefinition);
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();

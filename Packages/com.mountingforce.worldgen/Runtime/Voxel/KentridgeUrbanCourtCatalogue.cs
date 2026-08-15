@@ -5,6 +5,8 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     public static class KentridgeUrbanCourtCatalogue
@@ -47,7 +49,7 @@ namespace MountingForce.WorldGen.Voxel
                 programLength += programs[i].Length;
             }
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(builds.Length, builds.Length, 0, 0, 0, programLength, 0, builds.Length, 0, allocator);
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(builds.Length, builds.Length, 0, 0, 0, programLength, 0, builds.Length, 0, allocator);
             int programOffset = 0;
             for (int i = 0; i < builds.Length; i++)
             {
@@ -89,7 +91,7 @@ namespace MountingForce.WorldGen.Voxel
                 };
                 programOffset += program.Length;
             }
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();

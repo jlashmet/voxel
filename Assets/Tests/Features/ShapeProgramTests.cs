@@ -5,6 +5,8 @@ using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Tests.Features.Fixtures;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Tests.Features
 {
     /// <summary>
@@ -24,7 +26,7 @@ namespace VoxelEngine.Tests.Features
         public void CottageProgramEmitsPrimitives()
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            Assert.AreEqual(CatalogueLoadResult.Ok, CatalogueLoader.Finalise(ref catalogue));
+            Assert.AreEqual(CatalogueLoadResult.Ok, FeatureCatalogueBuilder.Finalise(ref catalogue));
 
             var primitives = new NativeList<Primitive>(32, Allocator.Temp);
             var anchors = new NativeList<ResolvedAnchor>(4, Allocator.Temp);
@@ -48,7 +50,7 @@ namespace VoxelEngine.Tests.Features
         public void EvaluationIsDeterministic()
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            CatalogueLoader.Finalise(ref catalogue);
+            FeatureCatalogueBuilder.Finalise(ref catalogue);
 
             var a = Evaluate(in catalogue, new int3(512, 0, 512), 0, out var anchorsA);
             var b = Evaluate(in catalogue, new int3(512, 0, 512), 0, out var anchorsB);
@@ -75,7 +77,7 @@ namespace VoxelEngine.Tests.Features
             // The footprint bounds the neighbourhood every region in the world scans. Content
             // outside it is content a region will not know to look for, which is a seam.
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            CatalogueLoader.Finalise(ref catalogue);
+            FeatureCatalogueBuilder.Finalise(ref catalogue);
 
             var definition = catalogue.Definitions[CottageFixture.CottageId];
             var origin = new int3(2048, 0, 2048);
@@ -108,7 +110,7 @@ namespace VoxelEngine.Tests.Features
         public void RasterisingInPiecesEqualsRasterisingWhole()
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            CatalogueLoader.Finalise(ref catalogue);
+            FeatureCatalogueBuilder.Finalise(ref catalogue);
 
             var origin = new int3(256, 200, 256);
             var definition = catalogue.Definitions[CottageFixture.CottageId];
@@ -149,7 +151,7 @@ namespace VoxelEngine.Tests.Features
         public void ClippingNeverWritesOutsideTheSubVolume()
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            CatalogueLoader.Finalise(ref catalogue);
+            FeatureCatalogueBuilder.Finalise(ref catalogue);
 
             var origin = new int3(64, 200, 64);
             var primitives = Evaluate(in catalogue, origin, 0, out var anchors);

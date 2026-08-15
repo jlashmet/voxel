@@ -15,6 +15,8 @@ using VoxelEngine.Storage.Api;
 using VoxelEngine.Core.Terrain;
 using VoxelEngine.Rendering.SurfaceExtraction;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.CI
 {
     internal static class KentridgeCaptureImpl

@@ -1,6 +1,6 @@
 using Unity.Mathematics;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// Where a definition may appear.

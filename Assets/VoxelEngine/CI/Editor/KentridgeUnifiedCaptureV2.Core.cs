@@ -13,6 +13,8 @@ using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering.SurfaceExtraction;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.CI
 {
     internal static partial class KentridgeUnifiedCaptureV2

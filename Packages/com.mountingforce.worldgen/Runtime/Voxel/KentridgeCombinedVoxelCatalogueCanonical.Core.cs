@@ -2,6 +2,8 @@ using System;
 using Unity.Collections;
 using VoxelEngine.Core.Features;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     internal static partial class KentridgeCombinedVoxelCatalogueCanonical
@@ -56,7 +58,7 @@ namespace MountingForce.WorldGen.Voxel
                     overrides += stage.ParameterOverrides.Length;
                 }
 
-                FeatureCatalogue result = CatalogueLoader.Allocate(
+                FeatureCatalogue result = FeatureCatalogueBuilder.Allocate(
                     definitions, rules, parameters, anchors, slots, programs,
                     materials, placements, overrides, allocator);
                 int d = 0, r = 0, p = 0, a = 0, s = 0;
@@ -66,7 +68,7 @@ namespace MountingForce.WorldGen.Voxel
                         ref d, ref r, ref p, ref a, ref s,
                         ref code, ref m, ref e, ref o);
 
-                CatalogueLoadResult load = CatalogueLoader.Finalise(ref result);
+                CatalogueLoadResult load = FeatureCatalogueBuilder.Finalise(ref result);
                 if (load != CatalogueLoadResult.Ok)
                 {
                     result.Dispose();

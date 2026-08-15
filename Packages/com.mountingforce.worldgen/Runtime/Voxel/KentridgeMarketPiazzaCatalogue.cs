@@ -5,6 +5,8 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
@@ -32,7 +34,7 @@ namespace MountingForce.WorldGen.Voxel
             int thickness = SurfaceThicknessDm * s;
             int[] program = PiazzaProgram(width, depth, settings);
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: 1,
                 rules: 1,
                 parameters: 0,
@@ -90,7 +92,7 @@ namespace MountingForce.WorldGen.Voxel
                 ExplicitCount = 1,
             };
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();

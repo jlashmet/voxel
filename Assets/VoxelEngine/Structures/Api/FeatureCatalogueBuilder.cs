@@ -1,6 +1,6 @@
 using Unity.Collections;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>Why a catalogue was refused. Loading never half-succeeds.</summary>
     public enum CatalogueLoadResult
@@ -21,7 +21,7 @@ namespace VoxelEngine.Core.Features
     /// Deeper validation — footprint proofs over the parameter space, degenerate combinations,
     /// slot cycles — belongs in <c>CatalogueValidation</c> and runs at authoring time.
     /// </summary>
-    public static class CatalogueLoader
+    public static class FeatureCatalogueBuilder
     {
         /// <summary>Format version this build implements.</summary>
         public const uint SupportedVersion = 1;

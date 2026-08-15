@@ -3,6 +3,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Features.Emitters;
 using VoxelEngine.Storage.Api;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Core.Features
 {
     /// <summary>Outcome of rasterising a batch of primitives.</summary>

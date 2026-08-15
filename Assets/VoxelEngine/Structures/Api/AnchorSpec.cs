@@ -1,7 +1,7 @@
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>Cardinal facing. Integer, so orientation never involves a rotation matrix.</summary>
     public enum Facing : byte

@@ -5,6 +5,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Terrain;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>

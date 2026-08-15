@@ -1,7 +1,7 @@
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>What kind of thing a definition describes. Selects the generation path.</summary>
     public enum FeatureKind : byte

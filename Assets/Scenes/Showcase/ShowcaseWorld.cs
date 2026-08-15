@@ -14,6 +14,8 @@ using VoxelEngine.Core.Terrain;
 using VoxelEngine.Streaming;
 using VoxelEngine.Structures;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Showcase
 {
     /// <summary>

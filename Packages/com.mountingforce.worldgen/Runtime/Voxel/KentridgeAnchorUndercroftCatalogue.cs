@@ -6,6 +6,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Terrain;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
@@ -87,7 +89,7 @@ namespace MountingForce.WorldGen.Voxel
                 if (sites[i].DefinitionId == HospitalityDefinition) hospitalityCount++;
             int workingCount = sites.Count - hospitalityCount;
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: DefinitionCount,
                 rules: DefinitionCount,
                 parameters: 0,
@@ -127,7 +129,7 @@ namespace MountingForce.WorldGen.Voxel
             catalogue.Rules[WorkingDefinition] = ExplicitRule(
                 WorkingDefinition, workingOffset, workingCount);
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();

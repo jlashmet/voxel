@@ -1,4 +1,4 @@
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// The shape program instruction set.

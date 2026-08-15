@@ -1,6 +1,8 @@
 using Unity.Collections;
 using VoxelEngine.Core.Features;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     internal static partial class KentridgeCombinedVoxelCatalogueCanonical

@@ -4,6 +4,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Tests.Features.Fixtures;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Tests.Features
 {
     /// <summary>
@@ -20,7 +22,7 @@ namespace VoxelEngine.Tests.Features
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
 
-            var result = CatalogueLoader.Finalise(ref catalogue);
+            var result = FeatureCatalogueBuilder.Finalise(ref catalogue);
 
             Assert.AreEqual(CatalogueLoadResult.Ok, result);
             Assert.AreNotEqual(0ul, catalogue.Hash, "a loaded catalogue must have an identity hash");
@@ -38,7 +40,7 @@ namespace VoxelEngine.Tests.Features
             catalogue.Definitions[CottageFixture.CottageId] = definition;
 
             Assert.AreEqual(CatalogueLoadResult.FootprintExceedsBudget,
-                CatalogueLoader.Finalise(ref catalogue));
+                FeatureCatalogueBuilder.Finalise(ref catalogue));
 
             catalogue.Dispose();
         }
@@ -56,7 +58,7 @@ namespace VoxelEngine.Tests.Features
             catalogue.Rules[0] = rule;
 
             Assert.AreEqual(CatalogueLoadResult.SpacingNotEnforceable,
-                CatalogueLoader.Finalise(ref catalogue));
+                FeatureCatalogueBuilder.Finalise(ref catalogue));
 
             catalogue.Dispose();
         }
@@ -65,10 +67,10 @@ namespace VoxelEngine.Tests.Features
         public void UnsupportedVersionIsRefused()
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            catalogue.Version = CatalogueLoader.SupportedVersion + 1;
+            catalogue.Version = FeatureCatalogueBuilder.SupportedVersion + 1;
 
             Assert.AreEqual(CatalogueLoadResult.UnsupportedVersion,
-                CatalogueLoader.Finalise(ref catalogue));
+                FeatureCatalogueBuilder.Finalise(ref catalogue));
 
             catalogue.Dispose();
         }
@@ -78,17 +80,17 @@ namespace VoxelEngine.Tests.Features
         {
             // A single changed opcode changes the world. A hash that missed the program would let
             // two clients compare catalogues, agree, and generate different worlds.
-            var a = CatalogueLoader.Allocate(1, 0, 0, 0, 0, 4, 0, 0, 0, Allocator.Temp);
-            var b = CatalogueLoader.Allocate(1, 0, 0, 0, 0, 4, 0, 0, 0, Allocator.Temp);
+            var a = FeatureCatalogueBuilder.Allocate(1, 0, 0, 0, 0, 4, 0, 0, 0, Allocator.Temp);
+            var b = FeatureCatalogueBuilder.Allocate(1, 0, 0, 0, 0, 4, 0, 0, 0, Allocator.Temp);
 
             a.Definitions[0] = new FeatureDefinition { Footprint = new int3(8, 8, 8), MaxPrimitives = 1 };
             b.Definitions[0] = a.Definitions[0];
 
             for (var i = 0; i < 4; i++) { a.Program[i] = i; b.Program[i] = i; }
-            Assert.AreEqual(CatalogueLoader.ComputeHash(in a), CatalogueLoader.ComputeHash(in b));
+            Assert.AreEqual(FeatureCatalogueBuilder.ComputeHash(in a), FeatureCatalogueBuilder.ComputeHash(in b));
 
             b.Program[2] = 99;
-            Assert.AreNotEqual(CatalogueLoader.ComputeHash(in a), CatalogueLoader.ComputeHash(in b),
+            Assert.AreNotEqual(FeatureCatalogueBuilder.ComputeHash(in a), FeatureCatalogueBuilder.ComputeHash(in b),
                 "changing an opcode did not change the catalogue hash");
 
             a.Dispose();

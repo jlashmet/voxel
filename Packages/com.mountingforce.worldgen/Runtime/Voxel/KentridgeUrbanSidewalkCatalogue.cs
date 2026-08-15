@@ -6,6 +6,8 @@ using Unity.Mathematics;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Terrain;
 
+using VoxelEngine.Structures.Api;
+
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
@@ -98,7 +100,7 @@ namespace MountingForce.WorldGen.Voxel
             // intentionally rendered as a terrain field in the smooth pipeline, so surface-paint
             // sidewalks must use the distinct dark-masonry channel to retain an architectural read.
             byte stone = settings.Materials.Resolve(MaterialRole.DarkMasonry);
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: strips.Count,
                 rules: strips.Count,
                 parameters: 0,
@@ -155,7 +157,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();

@@ -11,6 +11,8 @@ using VoxelEngine.Net.Server;
 using VoxelEngine.Rendering.SurfaceExtraction;
 using VoxelEngine.Structures;
 
+using VoxelEngine.Structures.Api;
+
 namespace VoxelEngine.Tests.EditMode
 {
     public sealed class VoxelSurfaceArchitectureTests

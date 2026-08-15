@@ -1,7 +1,7 @@
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Api
 {
     /// <summary>What a primitive does to the voxels it covers.</summary>
     public enum PrimitiveMode : byte
