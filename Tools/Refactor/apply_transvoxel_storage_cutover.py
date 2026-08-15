@@ -84,7 +84,7 @@ s = replace_exact(
     expected=2,
 )
 
-s = replace_exact(s, "VoxelMipSampler.LevelForStride", "VoxelReadGrid.LevelForStride", expected=3)
+s = replace_exact(s, "VoxelMipSampler.LevelForStride", "VoxelReadGrid.LevelForStride", expected=4)
 
 s = replace_exact(
     s,
