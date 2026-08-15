@@ -101,6 +101,65 @@ namespace VoxelEngine.Composition
         }
 
         /// <summary>
+        /// Applies sky-only lookdev settings while keeping renderer globals behind Composition.
+        /// </summary>
+        public static void ConfigureRenderingSky(
+            Vector3 sunDirection,
+            Color skyHorizon,
+            Color skyZenith)
+        {
+            VoxelRenderBridge.SunDirection = sunDirection;
+            VoxelRenderBridge.SkyHorizon = skyHorizon;
+            VoxelRenderBridge.SkyZenith = skyZenith;
+        }
+
+        /// <summary>
+        /// Configures a turf presentation row from an existing renderer material template.
+        /// Concrete presentation arrays remain private to Rendering.Runtime.
+        /// </summary>
+        public static void ConfigureTurfMaterialPresentation(
+            byte material,
+            byte templateMaterial,
+            Color colour)
+        {
+            Vector4 sampling = VoxelPresentationCatalogue.MaterialSampling[templateMaterial];
+            Vector4 surface = VoxelPresentationCatalogue.MaterialSurface[templateMaterial];
+            VoxelPresentationCatalogue.MaterialAlbedo[material] =
+                new Vector4(colour.r, colour.g, colour.b, 1f);
+            VoxelPresentationCatalogue.MaterialSampling[material] =
+                new Vector4(sampling.x, sampling.y, sampling.z, 0.13f);
+            VoxelPresentationCatalogue.MaterialSurface[material] =
+                new Vector4(surface.x, 0.07f, 0.91f, 0f);
+            VoxelPresentationCatalogue.MaterialVariation[material] =
+                new Vector4(0.68f, 0.018f, 0.009f, 0.012f);
+        }
+
+        /// <summary>
+        /// Applies a material presentation override while preserving the row's authored sampling
+        /// projection and UV scale. Scene code owns the lookdev values; Rendering.Runtime owns the
+        /// physical GPU catalogue.
+        /// </summary>
+        public static void ConfigureMaterialPresentation(
+            byte material,
+            Color colour,
+            float textureWeight,
+            float normalStrength,
+            float roughness,
+            float variation)
+        {
+            Vector4 sampling = VoxelPresentationCatalogue.MaterialSampling[material];
+            Vector4 surface = VoxelPresentationCatalogue.MaterialSurface[material];
+            VoxelPresentationCatalogue.MaterialAlbedo[material] =
+                new Vector4(colour.r, colour.g, colour.b, 1f);
+            VoxelPresentationCatalogue.MaterialSampling[material] =
+                new Vector4(sampling.x, sampling.y, sampling.z, textureWeight);
+            VoxelPresentationCatalogue.MaterialSurface[material] =
+                new Vector4(surface.x, normalStrength, roughness, 0f);
+            VoxelPresentationCatalogue.MaterialVariation[material] =
+                new Vector4(0.68f, variation, variation * 0.5f, variation);
+        }
+
+        /// <summary>
         /// Projects concrete renderer timing state into the stable presentation diagnostics API.
         /// </summary>
         public static SurfaceTimingDiagnostics GetSurfaceTimingDiagnostics()
