@@ -22,7 +22,9 @@ jobs:
           test ! -e Assets/VoxelEngine/Rendering/Api
           mkdir -p Assets/VoxelEngine/Rendering/Runtime Assets/VoxelEngine/Rendering/Api
           for name in Irradiance RenderFeature Shaders SurfaceExtraction Vegetation; do
-            git mv "Assets/VoxelEngine/Rendering/$name" "Assets/VoxelEngine/Rendering/Runtime/$name"
+            if [ -d "Assets/VoxelEngine/Rendering/$name" ]; then
+              git mv "Assets/VoxelEngine/Rendering/$name" "Assets/VoxelEngine/Rendering/Runtime/$name"
+            fi
             git mv "Assets/VoxelEngine/Rendering/$name.meta" "Assets/VoxelEngine/Rendering/Runtime/$name.meta"
           done
           git mv Assets/VoxelEngine/Rendering/AssemblyInfo.cs Assets/VoxelEngine/Rendering/Runtime/AssemblyInfo.cs
@@ -83,8 +85,7 @@ jobs:
               refs = obj.get('references', [])
               if refs.count('VoxelEngine.Rendering') != 1:
                   raise SystemExit(f'{p}: expected exactly one broad Rendering reference')
-              refs = ['VoxelEngine.Rendering.Runtime' if r == 'VoxelEngine.Rendering' else r for r in refs]
-              obj['references'] = refs
+              obj['references'] = ['VoxelEngine.Rendering.Runtime' if r == 'VoxelEngine.Rendering' else r for r in refs]
               p.write_text(json.dumps(obj, indent=2) + '\n')
 
           guard = Path('Assets/Tests/EditMode/VegetationAssemblyBoundaryTests.cs')
@@ -103,7 +104,6 @@ jobs:
           test "$count" = 5
           ! grep -RIn '"VoxelEngine.Rendering"' Assets Packages --include='*.asmdef'
           git diff --check
-          git status --short
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
           git add Assets/VoxelEngine/Rendering Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef Assets/Tests/EditMode/VegetationAssemblyBoundaryTests.cs Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef Assets/VoxelEngine/CI/Editor/VoxelEngine.CI.Editor.asmdef Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef
