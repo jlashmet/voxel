@@ -1,0 +1,30 @@
+name: Architecture clear queue v2
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/architecture-clear-queue-v2.yml]
+permissions:
+  actions: write
+  contents: read
+jobs:
+  clear:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: refactor/system-boundaries-foundation-storage
+          KEEP: '31891603458'
+        run: |
+          set -euo pipefail
+          for page in $(seq 1 10); do
+            json="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/actions/runs?branch=$BRANCH&status=queued&per_page=100&page=$page")"
+            count="$(jq '.workflow_runs | length' <<<"$json")"
+            [ "$count" -eq 0 ] && break
+            jq -r --arg keep "$KEEP" '.workflow_runs[] | select((.id|tostring) != $keep) | .id' <<<"$json" | while read -r id; do
+              [ -z "$id" ] && continue
+              echo "cancelling queued run $id"
+              curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/actions/runs/$id/cancel" >/dev/null || true
+            done
+          done
