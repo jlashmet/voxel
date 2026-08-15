@@ -87,6 +87,7 @@ namespace VoxelEngine.Showcase
 
         private RegionTable _table;
         private BrickPool _pool;
+        private readonly RegionReadSource _readSource;
         private FeatureCatalogue _catalogue;
         private MaterialPalette _palette;
         private SurfaceCatalogue _surfaceCatalogue;
@@ -153,6 +154,14 @@ namespace VoxelEngine.Showcase
 
         public ref RegionTable Table => ref _table;
         public ref BrickPool Pool => ref _pool;
+        public IRegionReadSource ReadStorage
+        {
+            get
+            {
+                _readSource.Refresh(in _table, in _pool);
+                return _readSource;
+            }
+        }
         public MaterialPalette Palette => _palette;
         public SurfaceCatalogue SurfaceRules => _surfaceCatalogue;
         public CoatingCatalogue CoatingRules => _coatingCatalogue;
@@ -209,6 +218,7 @@ namespace VoxelEngine.Showcase
 
             _table = new RegionTable(64, Allocator.Persistent);
             _pool = new BrickPool(brickPoolCapacity, Allocator.Persistent);
+            _readSource = new RegionReadSource(in _table, in _pool, _changes);
 
             _palette = default;
             const uint weatherCoatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)

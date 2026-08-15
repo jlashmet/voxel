@@ -25,6 +25,7 @@ namespace VoxelEngine.Showcase
 
         private RegionTable _table;
         private BrickPool _pool;
+        private RegionReadSource _readSource;
         private MaterialPalette _palette;
         private SurfaceCatalogue _surfaces;
         private CoatingCatalogue _coatings;
@@ -228,12 +229,17 @@ namespace VoxelEngine.Showcase
             _stateDirty = true;
         }
 
-        private VoxelWorldView WorldView() => new()
+        private VoxelWorldView WorldView()
         {
-            Table = _table, Pool = _pool, Palette = _palette,
-            SurfaceCatalogue = _surfaces, CoatingCatalogue = _coatings,
-            ProfileBlocks = _profileBlocks,
-        };
+            _readSource ??= new RegionReadSource(in _table, in _pool, _changes);
+            _readSource.Refresh(in _table, in _pool);
+            return new VoxelWorldView
+            {
+                Storage = _readSource, Palette = _palette,
+                SurfaceCatalogue = _surfaces, CoatingCatalogue = _coatings,
+                ProfileBlocks = _profileBlocks,
+            };
+        }
 
         private void DisposeWorld()
         {
@@ -241,6 +247,7 @@ namespace VoxelEngine.Showcase
             if (_pool.IsCreated) _pool.Dispose();
             _table = default;
             _pool = default;
+            _readSource = null;
         }
 
         private void FrameCamera(int width, int height)

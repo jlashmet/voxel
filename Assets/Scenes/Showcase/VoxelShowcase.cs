@@ -151,8 +151,7 @@ namespace VoxelEngine.Showcase
             _farTerrain.Structures = _world.FarField;
             VoxelRenderBridge.Source = () => new VoxelWorldView
             {
-                Table = _world.Table,
-                Pool = _world.Pool,
+                Storage = _world.ReadStorage,
                 Palette = _world.Palette,
                 SurfaceCatalogue = _world.SurfaceRules,
                 CoatingCatalogue = _world.CoatingRules,

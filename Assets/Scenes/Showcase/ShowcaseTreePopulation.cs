@@ -45,7 +45,7 @@ namespace VoxelEngine.Showcase
             CastlePlan plan = CastleBuilder.Plan(new int3(cx, ground, cz), worldSeed);
 
             if (!CastleVegetationPlanner.TryBuild(
-                    in plan, ref view.Table, in view.Pool, worldSeed, out var instances))
+                    in plan, view.Storage, worldSeed, out var instances))
                 return;
 
             TreeWorldState.Replace(instances);
