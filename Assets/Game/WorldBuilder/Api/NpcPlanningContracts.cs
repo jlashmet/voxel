@@ -22,4 +22,29 @@ namespace Game.WorldBuilder.Api
             RequiresConversation = requiresConversation;
         }
     }
+
+    /// <summary>
+    /// Post-site-resolution assignment for one NPC. This deliberately stops at concrete generated-site
+    /// identity: a later site-realization adapter chooses a physical anchor suitable for the requested
+    /// interaction semantics.
+    /// </summary>
+    public sealed class NpcSiteAssignment
+    {
+        public NpcRef Npc { get; }
+        public SiteRef SiteRole { get; }
+        public ResolvedSiteId Site { get; }
+        public bool RequiresConversation { get; }
+
+        public NpcSiteAssignment(
+            NpcRef npc,
+            SiteRef siteRole,
+            ResolvedSiteId site,
+            bool requiresConversation)
+        {
+            Npc = npc;
+            SiteRole = siteRole;
+            Site = site;
+            RequiresConversation = requiresConversation;
+        }
+    }
 }
