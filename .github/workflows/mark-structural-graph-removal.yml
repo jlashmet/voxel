@@ -1,0 +1,52 @@
+name: Record StructuralGraph removal
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text=p.read_text()
+          replacements={
+              '| 6 — StructuralIntegrity | **Not started — current** | — | full cutover |':
+                  '| 6 — StructuralIntegrity | **In progress — current** | final inventory found the Net-owned `StructuralGraph` placeholder had zero callers; dead graph removed with parity preserved | create Api/Runtime; move support/connectivity/collapse algorithms behind Storage.Api; expose only result/request values required by real consumers |',
+              '| `Net/Server/StructuralGraph.cs` | `StructuralIntegrity/Runtime/StructuralGraph.cs` |':
+                  '| `Net/Server/StructuralGraph.cs` | delete — final inventory found zero callers and the placeholder graph had no persisted bounded state |',
+              '- [ ] move StructuralGraph out of Net':
+                  '- [x] move StructuralGraph out of Net',
+              '- [ ] `StructuralGraph` no longer lives in Net;':
+                  '- [x] `StructuralGraph` no longer lives in Net;',
+              '- Latest accepted code gate: `4477d1cf2b552d84bcf44ccf5bf33b645a32cb70` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate completes Cutover 5 Edits: `DeterministicAlterationApplier` is physically under `Edits/Runtime` with its Unity GUID preserved; all composition/test imports use `VoxelEngine.Edits.Runtime`; no live `VoxelEngine.Core.Edits` namespace remains; Net remains Edits.Api-only.':
+                  '- Latest accepted code gate: `50df9bd2b0769905727dad63f167d5f604319b4c` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted first StructuralIntegrity slice: final caller inventory proved `Net/Server/StructuralGraph.cs` was unused; the unbounded placeholder graph was deleted rather than preserved in the new subsystem, with no behavioral regression.'
+          }
+          for old,new in replacements.items():
+              if text.count(old)!=1: raise SystemExit(f'plan marker count {text.count(old)}: {old}')
+              text=text.replace(old,new,1)
+          marker='### Gate\n\n- [x] `StructuralGraph` no longer lives in Net;'
+          progress='''### Implementation progress\n\n- [x] Final StructuralIntegrity caller inventory confirmed `StructuralGraph` had zero callers and no owned persisted graph state; the dead Net placeholder was removed instead of migrated.\n- [x] Dead StructuralGraph removal accepted by CI at `50df9bd2b0769905727dad63f167d5f604319b4c`: 382 total / 369 passed / exact same 13 known baseline failures.\n\n### Gate\n\n- [x] `StructuralGraph` no longer lives in Net;'''
+          if text.count(marker)!=1: raise SystemExit('StructuralIntegrity gate marker mismatch')
+          text=text.replace(marker,progress,1)
+          p.write_text(text)
+          PY
+          git rm .github/workflows/mark-structural-graph-removal.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'Record accepted StructuralGraph removal'
+          git push origin HEAD:${{ github.ref_name }}
