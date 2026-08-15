@@ -1,7 +1,11 @@
 {
   "name": "VoxelEngine.Composition",
   "rootNamespace": "VoxelEngine.Composition",
-  "references": [],
+  "references": [
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Storage.Runtime",
+    "Unity.Collections"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
