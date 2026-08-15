@@ -4,6 +4,7 @@
   "references": [
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
+    "VoxelEngine.Structures.Api",
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
     "VoxelEngine.Streaming",
