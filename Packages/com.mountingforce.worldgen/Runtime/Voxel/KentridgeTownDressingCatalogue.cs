@@ -4,7 +4,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -192,7 +192,7 @@ namespace MountingForce.WorldGen.Voxel
             // The public-space pass flattens the market square to the centre sample. Reusing that
             // semantic target means every prop sits exactly on the generated plaza instead of
             // consulting the pre-grade terrain beneath its individual column.
-            int plazaY = TerrainSampler.HeightAt(cx * scale, cz * scale, seed);
+            int plazaY = TerrainQuery.HeightAt(cx * scale, cz * scale, seed);
 
             var result = new List<DressingPlacement>(PlacementCount);
 
