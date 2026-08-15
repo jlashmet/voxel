@@ -1,0 +1,43 @@
+name: Vegetation readonly-list boundary fix
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs'),
+              Path('Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs'),
+          ]
+          old = 'int[] parents = skeleton.BranchParents;'
+          new = 'IReadOnlyList<int> parents = skeleton.BranchParents;'
+          for path in paths:
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one old assignment, found {count}')
+              path.write_text(text.replace(old, new))
+          PY
+          git rm .github/workflows/vegetation-readonly-list-fix.yml
+          git diff --check
+          git diff -- Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git commit -m 'Fix vegetation read-only topology consumers'
+          git push origin HEAD:${{ github.ref_name }}
