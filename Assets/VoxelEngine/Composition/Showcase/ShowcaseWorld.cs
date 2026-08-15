@@ -136,7 +136,7 @@ namespace VoxelEngine.Showcase
 
         private sealed class VisualBucket
         {
-            public readonly List<FallingVoxel> Samples = new(16);
+            public readonly List<FallingVoxel> Samples = new(RenderInstancesPerDetachedChunk);
             public int SourceVoxelCount;
             public uint Priority;
         }
@@ -147,6 +147,9 @@ namespace VoxelEngine.Showcase
             public bool HasStructuralMarker;
         }
 
+        // Must stay in sync with the presentation upload budget, but is owned here so
+        // the authoritative Composition world does not depend on scene presentation.
+        private const int RenderInstancesPerDetachedChunk = 16;
         private const int MaxCollapseComponentVoxels = 1_048_576;
         private const int FallingChunkEdge = 8;
         public const int MaxQueuedDetachedChunks = 256;
@@ -1884,7 +1887,7 @@ namespace VoxelEngine.Showcase
         private static void AddVisualSample(VisualBucket bucket, FallingVoxel voxel)
         {
             bucket.SourceVoxelCount++;
-            int capacity = 16;
+            int capacity = RenderInstancesPerDetachedChunk;
             if (bucket.Samples.Count < capacity)
             {
                 bucket.Samples.Add(voxel);
@@ -1943,7 +1946,7 @@ namespace VoxelEngine.Showcase
                 }
 
                 bucket.SourceVoxelCount++;
-                int capacity = 16;
+                int capacity = RenderInstancesPerDetachedChunk;
                 if (bucket.Samples.Count < capacity)
                     bucket.Samples.Add(voxel);
                 else
