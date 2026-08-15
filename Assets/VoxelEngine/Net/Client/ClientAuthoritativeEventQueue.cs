@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 
@@ -47,7 +46,6 @@ namespace VoxelEngine.Net.Client
         private uint _snapshotCatchupTransferId;
         private int3 _snapshotCatchupRegion;
         private uint _snapshotCatchupTick;
-        private RegionMutationStore _mutationStorage;
 
         public ClientAuthoritativeEventQueue(
             IAlterationApplier applier,
@@ -162,22 +160,25 @@ namespace VoxelEngine.Net.Client
             return true;
         }
 
-        public int DrainReady(ref RegionTable table, ref BrickPool pool, out int appliedEvents) =>
-            DrainReady(ref table, ref pool, out appliedEvents, null, out _);
+        public int DrainReady(
+            IRegionMutationStore mutations,
+            IRegionSnapshotSource snapshots,
+            out int appliedEvents) =>
+            DrainReady(mutations, snapshots, out appliedEvents, null, out _);
 
         public int DrainReady(
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore mutations,
+            IRegionSnapshotSource snapshots,
             out int appliedEvents,
             IRegionHashMismatchSink mismatchSink,
             out int comparedHashes)
         {
+            if (mutations == null) throw new ArgumentNullException(nameof(mutations));
+            if (snapshots == null) throw new ArgumentNullException(nameof(snapshots));
+
             appliedEvents = 0;
             comparedHashes = 0;
             int appliedBatches = 0;
-
-            _mutationStorage ??= new RegionMutationStore(in table, in pool);
-            _mutationStorage.Refresh(in table, in pool);
 
             if (_repairPending || _fullSnapshotWaitPending)
                 return 0;
@@ -225,10 +226,14 @@ namespace VoxelEngine.Net.Client
                         continue;
                     }
 
-                    if (!table.TryGetRegion(checkpoint.regionCoord, out Region region) || !region.BrickRefs.IsCreated)
+                    RegionSnapshotCaptureResult captureResult = snapshots.CaptureSemanticSnapshot(
+                        checkpoint.regionCoord,
+                        RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,
+                        out RegionSemanticSnapshot localSnapshot);
+                    if (captureResult != RegionSnapshotCaptureResult.Ok)
                         break;
 
-                    uint localHash = SemanticRegionHasher.HashRegion(in region, in pool);
+                    uint localHash = localSnapshot.SemanticHash;
                     _authority.Dequeue();
                     _pendingHashes--;
                     comparedHashes++;
@@ -260,7 +265,7 @@ namespace VoxelEngine.Net.Client
                     break;
 
                 if (!HasRequiredResidency(
-                        _mutationStorage,
+                        mutations,
                         events,
                         catchupBatch,
                         _snapshotCatchupRegion))
@@ -273,7 +278,7 @@ namespace VoxelEngine.Net.Client
                     if (catchupBatch)
                     {
                         _applier.TryApplyExceptRegion(
-                            _mutationStorage,
+                            mutations,
                             in evt,
                             _snapshotCatchupRegion,
                             out affectedBricks);
@@ -281,7 +286,7 @@ namespace VoxelEngine.Net.Client
                     else
                     {
                         _applier.TryApply(
-                            _mutationStorage,
+                            mutations,
                             in evt,
                             out affectedBricks);
                     }
