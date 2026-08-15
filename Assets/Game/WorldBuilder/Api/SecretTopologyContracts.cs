@@ -11,6 +11,33 @@ namespace Game.WorldBuilder.Api
         HiddenAlcove = 3
     }
 
+    /// <summary>One authored secret that must resolve at one specific site.</summary>
+    public sealed class RequiredSecretSpec
+    {
+        public SecretRef Ref { get; }
+        public SiteRef Site { get; }
+        public SecretEntranceType Entrance { get; }
+        public bool RequiresHiddenSpace { get; }
+        public ContainerArchetype Container { get; }
+        public LootTableRef Reward { get; }
+
+        internal RequiredSecretSpec(
+            SecretRef @ref,
+            SiteRef site,
+            SecretEntranceType entrance,
+            bool requiresHiddenSpace,
+            ContainerArchetype container,
+            LootTableRef reward)
+        {
+            Ref = @ref;
+            Site = site;
+            Entrance = entrance;
+            RequiresHiddenSpace = requiresHiddenSpace;
+            Container = container;
+            Reward = reward;
+        }
+    }
+
     public readonly struct SecretCandidateId : IEquatable<SecretCandidateId>
     {
         public string Id { get; }
@@ -92,9 +119,17 @@ namespace Game.WorldBuilder.Api
         IReadOnlyList<SecretCandidate> GetCandidates(SiteRef site);
     }
 
+    public enum SecretResolutionSourceKind
+    {
+        Policy = 0,
+        RequiredSecret = 1
+    }
+
     public sealed class ResolvedSecretPlan
     {
+        public SecretResolutionSourceKind SourceKind { get; }
         public SecretPolicyRef Policy { get; }
+        public SecretRef RequiredSecret { get; }
         public SiteRef Site { get; }
         public SecretCandidateId Candidate { get; }
         public string EntranceId { get; }
@@ -109,7 +144,27 @@ namespace Game.WorldBuilder.Api
             ContainerArchetype container,
             LootTableRef reward)
         {
+            SourceKind = SecretResolutionSourceKind.Policy;
             Policy = policy;
+            RequiredSecret = default;
+            Site = site;
+            Candidate = candidate;
+            EntranceId = WorldIdRules.Require(entranceId, nameof(entranceId));
+            Container = container;
+            Reward = reward;
+        }
+
+        public ResolvedSecretPlan(
+            SecretRef requiredSecret,
+            SiteRef site,
+            SecretCandidateId candidate,
+            string entranceId,
+            ContainerArchetype container,
+            LootTableRef reward)
+        {
+            SourceKind = SecretResolutionSourceKind.RequiredSecret;
+            Policy = default;
+            RequiredSecret = requiredSecret;
             Site = site;
             Candidate = candidate;
             EntranceId = WorldIdRules.Require(entranceId, nameof(entranceId));
