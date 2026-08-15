@@ -1,0 +1,26 @@
+name: Structural support move inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo ===NamespaceImports===
+          grep -RIn 'VoxelEngine.Core.Structure' Assets Packages --include='*.cs' --include='*.asmdef' | sort || true
+          echo ===Paths===
+          grep -RInE 'Core[/", ]+Structure|Core/Structure' Assets Packages docs --include='*.cs' --include='*.md' | sort || true
+          echo ===Methods===
+          grep -RInE 'CollapseDetection\.(FindCollapseTargets|ApplyCollapse|FindUnsupportedBuilds)|SupportField\.(ComputeSupport|MinBrickSupport|HasUnsupportedBricks)' Assets Packages --include='*.cs' | grep -vE 'Core/Structure/(CollapseDetection|SupportField)\.cs' | sort || true
