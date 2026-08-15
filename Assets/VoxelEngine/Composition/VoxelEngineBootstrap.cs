@@ -1,5 +1,6 @@
 using System;
 using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Rendering.Runtime;
@@ -10,7 +11,8 @@ namespace VoxelEngine.Composition
 {
     /// <summary>
     /// Public lifetime boundary for the physical voxel store. Callers receive only Storage.Api
-    /// capabilities; the Composition assembly is the sole owner of the concrete table/pool pair.
+    /// capabilities; the Composition assembly is the sole owner of concrete storage/catalogue
+    /// implementations and the table/pool pair.
     /// </summary>
     public interface IVoxelStorageRuntime : IDisposable
     {
@@ -22,6 +24,25 @@ namespace VoxelEngine.Composition
         IRegionSnapshotMutationStore SnapshotMutations { get; }
         IVoxelSurfaceQuery SurfaceQuery { get; }
         IVoxelChangeSource Changes { get; }
+
+        IMaterialAuthoringCatalogue MaterialAuthoring { get; }
+        MaterialPaletteView MaterialPresentation { get; }
+        SurfaceCatalogueView SurfacePresentation { get; }
+        CoatingCatalogueView CoatingPresentation { get; }
+
+        void RegisterMaterial(
+            byte materialId,
+            byte hardness,
+            DestructionClass destructionClass,
+            ushort defaultSurfaceStyle,
+            uint allowedCoatings);
+
+        /// <summary>
+        /// Publishes the currently resident regions to derived consumers after an application
+        /// finishes a bulk authoring phase. Physical region enumeration and journal mutation stay
+        /// inside Composition/Storage.Runtime.
+        /// </summary>
+        void PublishAllResidentRegions();
     }
 
     /// <summary>
@@ -103,6 +124,9 @@ namespace VoxelEngine.Composition
         {
             private RegionTable _table;
             private BrickPool _pool;
+            private MaterialPalette _materials;
+            private SurfaceCatalogue _surfaces;
+            private CoatingCatalogue _coatings;
             private readonly VoxelChangeJournal _changes;
             private readonly RegionGenerationStore _generation;
             private readonly RegionReadSource _reads;
@@ -118,6 +142,9 @@ namespace VoxelEngine.Composition
             {
                 _table = new RegionTable(expectedResidentRegions, Allocator.Persistent);
                 _pool = new BrickPool(mixedBrickCapacity, Allocator.Persistent);
+                _materials = default;
+                _surfaces = SurfaceCatalogue.CreateBuiltIns();
+                _coatings = CoatingCatalogue.CreateBuiltIns();
                 _changes = new VoxelChangeJournal(changeJournalCapacity);
                 _generation = new RegionGenerationStore(in _table);
                 _reads = new RegionReadSource(in _table, in _pool, _changes);
@@ -135,12 +162,47 @@ namespace VoxelEngine.Composition
             public IVoxelSurfaceQuery SurfaceQuery => _reads;
             public IVoxelChangeSource Changes => _changes;
 
+            public IMaterialAuthoringCatalogue MaterialAuthoring => _materials;
+            public MaterialPaletteView MaterialPresentation => _materials.PresentationView;
+            public SurfaceCatalogueView SurfacePresentation => _surfaces;
+            public CoatingCatalogueView CoatingPresentation => _coatings;
+
+            public void RegisterMaterial(
+                byte materialId,
+                byte hardness,
+                DestructionClass destructionClass,
+                ushort defaultSurfaceStyle,
+                uint allowedCoatings)
+            {
+                ThrowIfDisposed();
+                _materials.Register(
+                    materialId,
+                    hardness,
+                    destructionClass,
+                    defaultSurfaceStyle,
+                    allowedCoatings);
+            }
+
+            public void PublishAllResidentRegions()
+            {
+                ThrowIfDisposed();
+                using NativeArray<int3> regions = _reads.GetResidentRegionCoords(Allocator.Temp);
+                for (int i = 0; i < regions.Length; i++)
+                    _changes.PublishRegion(regions[i]);
+            }
+
             public void Dispose()
             {
                 if (_disposed) return;
                 _disposed = true;
                 if (_table.IsCreated) _table.Dispose();
                 if (_pool.IsCreated) _pool.Dispose();
+            }
+
+            private void ThrowIfDisposed()
+            {
+                if (_disposed)
+                    throw new ObjectDisposedException(nameof(StorageRuntimeLifetime));
             }
         }
     }
