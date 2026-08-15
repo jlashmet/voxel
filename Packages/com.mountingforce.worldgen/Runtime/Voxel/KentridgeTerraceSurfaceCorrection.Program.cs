@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -29,7 +29,7 @@ namespace MountingForce.WorldGen.Voxel
 
             int pad = VerticalPaddingDm * scale;
             int baseY = Math.Max(0, minY - pad);
-            int topY = Math.Min(TerrainSampler.MaxHeight, maxY + pad);
+            int topY = Math.Min(TerrainQuery.MaxHeight, maxY + pad);
             position = new int3(minX * scale, baseY, minZ * scale);
             footprint = new int3(
                 Math.Max(1, (maxX - minX) * scale),
@@ -40,7 +40,7 @@ namespace MountingForce.WorldGen.Voxel
         private static void Sample(int xDm, int zDm, uint seed, int scale,
                                    ref int minY, ref int maxY)
         {
-            int y = TerrainSampler.HeightAt(xDm * scale, zDm * scale, seed);
+            int y = TerrainQuery.HeightAt(xDm * scale, zDm * scale, seed);
             minY = Math.Min(minY, y);
             maxY = Math.Max(maxY, y);
         }
