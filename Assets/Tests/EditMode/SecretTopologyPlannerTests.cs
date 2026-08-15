@@ -148,6 +148,56 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(second, Is.EqualTo(first));
         }
 
+        [Test]
+        public void CampaignSecretResolutionNeverReusesOnePhysicalCandidate()
+        {
+            var game = Campaign.Create("campaign-secret-allocation");
+            SiteRef dungeon = game.World.RequireSite("dungeon", site => site
+                .Archetype(SiteArchetype.Dungeon)
+                .RequireCapability(SiteCapability.SecretCandidateHost));
+            LootTableRef treasure = game.Loot.Table("treasure", loot => loot
+                .RollCount(1, 1)
+                .Guaranteed(LootCategory.Currency));
+
+            game.World.RequireSecret("required-a", secret => secret
+                .Inside(dungeon)
+                .Entrance(SecretEntranceType.DestroyableFalseWall)
+                .RequireHiddenSpace()
+                .RewardWith(treasure));
+            game.World.RequireSecret("required-b", secret => secret
+                .Inside(dungeon)
+                .Entrance(SecretEntranceType.DestroyableFalseWall)
+                .RequireHiddenSpace()
+                .RewardWith(treasure));
+            game.World.Secrets.Policy("scattered", secret => secret
+                .Entrance(SecretEntranceType.DestroyableFalseWall)
+                .Distribution(new SecretDistribution(1, 1, 10000))
+                .RequireHiddenSpace()
+                .RewardWith(treasure));
+
+            CampaignBlueprint blueprint = game.Build();
+            PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
+            var provider = new Provider(
+                ValidCandidate("best", dungeon, 10000),
+                ValidCandidate("second", dungeon, 9000),
+                ValidCandidate("third", dungeon, 8000));
+
+            IReadOnlyList<ResolvedSecretPlan> resolved = SecretPlanner.ResolveCampaign(
+                blueprint,
+                graph,
+                provider,
+                worldSeed: 99);
+
+            Assert.That(resolved.Count, Is.EqualTo(3));
+            Assert.That(resolved.Select(value => value.Candidate).Distinct().Count(), Is.EqualTo(3));
+            Assert.That(resolved[0].SourceKind, Is.EqualTo(SecretResolutionSourceKind.RequiredSecret));
+            Assert.That(resolved[0].RequiredSecret.Id, Is.EqualTo("required-a"));
+            Assert.That(resolved[1].SourceKind, Is.EqualTo(SecretResolutionSourceKind.RequiredSecret));
+            Assert.That(resolved[1].RequiredSecret.Id, Is.EqualTo("required-b"));
+            Assert.That(resolved[2].SourceKind, Is.EqualTo(SecretResolutionSourceKind.Policy));
+            Assert.That(resolved[2].Policy.Id, Is.EqualTo("scattered"));
+        }
+
         private static SecretCandidate ValidCandidate(string id, SiteRef site, int quality) =>
             new SecretCandidate(
                 new SecretCandidateId(id),
