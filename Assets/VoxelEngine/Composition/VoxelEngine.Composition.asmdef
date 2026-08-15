@@ -12,6 +12,8 @@
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Terrain.Runtime",
+    "VoxelEngine.Streaming.Runtime",
     "Unity.Collections",
     "Unity.Mathematics",
     "UnityEngine.UI",
