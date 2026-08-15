@@ -178,6 +178,87 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ProductionSourcesDoNotIntroduceLegacyCompatibilityAdapters()
+        {
+            string[] roots =
+            {
+                Path.Combine(RepoRoot, "Assets"),
+                Path.Combine(RepoRoot, "Packages"),
+            };
+            var violations = new List<string>();
+
+            foreach (string root in roots)
+            {
+                if (!Directory.Exists(root))
+                    continue;
+
+                foreach (string path in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+                {
+                    string relativePath = ToRepoRelativePath(path);
+                    if (!IsProductionPath(relativePath))
+                        continue;
+
+                    string sourceName = Path.GetFileNameWithoutExtension(path);
+                    if (sourceName.StartsWith("Legacy", StringComparison.OrdinalIgnoreCase)
+                        || sourceName.IndexOf("Compatibility", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        violations.Add(relativePath);
+                    }
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Clean cutovers prohibit production Legacy* and *Compatibility* adapter source files.\n\n" +
+                string.Join("\n", violations));
+        }
+
+        [Test]
+        public void RepositoryVoxelEngineCoreLiteralsStayExplicitlyClassified()
+        {
+            var allowed = new HashSet<string>(StringComparer.Ordinal)
+            {
+                ".github/workflows/stable-final-architecture-acceptance.yml",
+                "Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs",
+                "docs/ARCHITECTURE_DEPENDENCY_REPORT.md",
+                "docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md",
+                "docs/ARCHITECTURE_LEGACY_LITERAL_CLASSIFICATION.md",
+                "docs/ARCHITECTURE_MIGRATION_PLAN.md",
+                "specs/001-destructible-voxel-engine/tasks.md",
+                "specs/002-world-feature-authoring/tasks.md",
+            };
+            string[] roots = { ".github", "Assets", "Packages", "docs", "specs", "tools", "Artifacts" };
+            string[] textExtensions = { ".cs", ".asmdef", ".asmref", ".json", ".md", ".yml", ".yaml", ".sh", ".txt", ".log" };
+            var matches = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (string rootName in roots)
+            {
+                string root = Path.Combine(RepoRoot, rootName);
+                if (!Directory.Exists(root))
+                    continue;
+
+                foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                {
+                    if (!textExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                        continue;
+
+                    string source = File.ReadAllText(path);
+                    if (source.IndexOf("VoxelEngine.Core", StringComparison.Ordinal) >= 0)
+                        matches.Add(ToRepoRelativePath(path));
+                }
+            }
+
+            string[] unexpected = matches.Except(allowed).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+            string[] staleAllowlist = allowed.Except(matches).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+
+            Assert.IsEmpty(unexpected,
+                "Every surviving VoxelEngine.Core literal must be an explicitly classified guard or history file.\n\n" +
+                string.Join("\n", unexpected));
+            Assert.IsEmpty(staleAllowlist,
+                "The legacy Core literal allowlist must shrink when a classified file stops naming the old boundary.\n\n" +
+                string.Join("\n", staleAllowlist));
+        }
+
+        [Test]
         public void CompositionShowcaseWorldExposesProfileBlocksThroughStorageApi()
         {
             string path = Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");
