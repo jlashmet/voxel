@@ -155,6 +155,41 @@ namespace VoxelEngine.Composition
         public static Vector4 GetMaterialAlbedo(byte material) =>
             VoxelPresentationCatalogue.MaterialAlbedo[material];
 
+        public static Vector4 GetCoatingTint(byte coating) =>
+            VoxelPresentationCatalogue.CoatingTint[coating];
+
+        public static void SetMaterialAlbedo(byte material, Vector4 albedo) =>
+            VoxelPresentationCatalogue.MaterialAlbedo[material] = albedo;
+
+        public static void SetCoatingTint(byte coating, Vector4 tint) =>
+            VoxelPresentationCatalogue.CoatingTint[coating] = tint;
+
+        public static void SetBuildBudgets(double solidBuildBudgetMs, double waterBuildBudgetMs)
+        {
+            VoxelRenderBridge.SolidBuildBudgetMs = solidBuildBudgetMs;
+            VoxelRenderBridge.WaterBuildBudgetMs = waterBuildBudgetMs;
+        }
+
+        public static void SetSky(Color horizon, Color zenith)
+        {
+            VoxelRenderBridge.SkyHorizon = horizon;
+            VoxelRenderBridge.SkyZenith = zenith;
+        }
+
+        public static bool TryGetSurfaceBuildStatus(
+            out int knownChunks,
+            out int dirtyChunks,
+            out int residentChunks,
+            out long residentGeometryBytes)
+        {
+            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+            knownChunks = metrics.SolidKnownChunks;
+            dirtyChunks = metrics.SolidDirtyChunks;
+            residentChunks = metrics.SolidResidentChunks;
+            residentGeometryBytes = metrics.ResidentGeometryBytes;
+            return knownChunks > 0;
+        }
+
         private static void BindWorld(
             in RenderingWorldBinding world,
             IVoxelChangeSource changes,

@@ -9,8 +9,6 @@ using UnityEngine.Rendering;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Rendering.Runtime;
-using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 using VoxelEngine.Structures.Api;
 
@@ -82,12 +80,12 @@ namespace VoxelEngine.Showcase
             _camera.nearClipPlane = 0.1f;
             _camera.farClipPlane = 80f;
             _camera.allowHDR = false;
-            _originalStoneAlbedo = VoxelPresentationCatalogue.MaterialAlbedo[StoneMaterial];
-            _originalMossTint = VoxelPresentationCatalogue.CoatingTint[Coatings.Moss];
-            VoxelRenderBridge.SolidBuildBudgetMs = _buildBudgetMs;
-            VoxelRenderBridge.WaterBuildBudgetMs = 0;
-            VoxelRenderBridge.SkyZenith = new Color(0.341f, 0.600f, 0.847f, 1f);
-            VoxelRenderBridge.SkyHorizon = new Color(0.627f, 0.722f, 0.773f, 1f);
+            _originalStoneAlbedo = RenderingComposition.GetMaterialAlbedo(StoneMaterial);
+            _originalMossTint = RenderingComposition.GetCoatingTint(Coatings.Moss);
+            RenderingComposition.SetBuildBudgets(_buildBudgetMs, 0);
+            RenderingComposition.SetSky(
+                new Color(0.627f, 0.722f, 0.773f, 1f),
+                new Color(0.341f, 0.600f, 0.847f, 1f));
             InitialiseExchange();
             LoadTargetImage();
             Rebuild();
@@ -96,10 +94,9 @@ namespace VoxelEngine.Showcase
 
         private void OnDisable()
         {
-            VoxelRenderBridge.Source = null;
-            VoxelRenderBridge.Changes = null;
-            VoxelPresentationCatalogue.MaterialAlbedo[StoneMaterial] = _originalStoneAlbedo;
-            VoxelPresentationCatalogue.CoatingTint[Coatings.Moss] = _originalMossTint;
+            RenderingComposition.ClearWorld();
+            RenderingComposition.SetMaterialAlbedo(StoneMaterial, _originalStoneAlbedo);
+            RenderingComposition.SetCoatingTint(Coatings.Moss, _originalMossTint);
             if (_targetImage != null) Destroy(_targetImage);
             DisposeWorld();
         }
@@ -120,14 +117,16 @@ namespace VoxelEngine.Showcase
                 PublishState();
             }
 
-            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
-            if (metrics.SolidKnownChunks > 0)
+            if (RenderingComposition.TryGetSurfaceBuildStatus(
+                    out int knownChunks,
+                    out int dirtyChunks,
+                    out int residentChunks,
+                    out long residentGeometryBytes))
             {
-                bool converged = metrics.SolidDirtyChunks == 0
-                    && metrics.SolidResidentChunks >= metrics.SolidKnownChunks;
+                bool converged = dirtyChunks == 0 && residentChunks >= knownChunks;
                 _status = converged
-                    ? $"READY  {metrics.ResidentGeometryBytes / (1024f * 1024f):0.0} MB  ·  {_lastBuildMs:0} ms authoring"
-                    : $"MESHING  {metrics.SolidResidentChunks}/{metrics.SolidKnownChunks} chunks";
+                    ? $"READY  {residentGeometryBytes / (1024f * 1024f):0.0} MB  ·  {_lastBuildMs:0} ms authoring"
+                    : $"MESHING  {residentChunks}/{knownChunks} chunks";
             }
         }
 
@@ -199,8 +198,14 @@ namespace VoxelEngine.Showcase
             IVoxelStorageRuntime oldStorage = _storage;
             _storage = nextStorage;
             _profileBlocks = nextProfiles;
-            VoxelRenderBridge.Changes = _storage.Changes;
-            VoxelRenderBridge.Source = WorldView;
+            var world = new RenderingWorldBinding(
+                _storage.Reads,
+                _storage.MaterialPresentation,
+                _storage.SurfacePresentation,
+                _storage.CoatingPresentation,
+                _profileBlocks);
+            RenderingComposition.ConfigureWorld(
+                in world, _storage.Changes, 0, _buildBudgetMs, 0, farFieldEnabled: false);
             oldStorage?.Dispose();
 
             watch.Stop();
@@ -211,15 +216,6 @@ namespace VoxelEngine.Showcase
             if (!_cameraInitialized) FrameCamera(bay.Width, bay.Height);
             _stateDirty = true;
         }
-
-        private VoxelWorldView WorldView() => new VoxelWorldView
-        {
-            Storage = _storage.Reads,
-            Palette = _storage.MaterialPresentation,
-            SurfaceCatalogueView = _storage.SurfacePresentation,
-            CoatingCatalogueView = _storage.CoatingPresentation,
-            ProfileBlocks = _profileBlocks,
-        };
 
         private void DisposeWorld()
         {
@@ -449,14 +445,15 @@ namespace VoxelEngine.Showcase
 
         private void ApplyPresentation()
         {
-            VoxelPresentationCatalogue.MaterialAlbedo[StoneMaterial] = new Vector4(
+            RenderingComposition.SetMaterialAlbedo(StoneMaterial, new Vector4(
                 0.48f + 0.28f * _stoneWarmth,
                 0.42f + 0.23f * _stoneWarmth,
                 0.34f + 0.16f * _stoneWarmth,
-                1f) * _stoneValue;
-            VoxelPresentationCatalogue.CoatingTint[Coatings.Moss] = Color.HSVToRGB(
-                _mossHue, _mossSaturation, _mossValue);
-            VoxelRenderBridge.SolidBuildBudgetMs = _buildBudgetMs;
+                1f) * _stoneValue);
+            RenderingComposition.SetCoatingTint(
+                Coatings.Moss,
+                Color.HSVToRGB(_mossHue, _mossSaturation, _mossValue));
+            RenderingComposition.SetBuildBudgets(_buildBudgetMs, 0);
             _camera.fieldOfView = _cameraFov;
         }
 
