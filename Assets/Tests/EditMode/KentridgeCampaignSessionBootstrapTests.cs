@@ -88,7 +88,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void BootstrapConnectsGeneratedNpcPlacementsAndStartsOpeningCutscene()
+        public void BootstrapRunsKnownOpeningFromGeneratedWorldIntoDestinationConversation()
         {
             KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(
                 DialogueOnly("destination-conversation"));
@@ -138,6 +138,21 @@ namespace VoxelEngine.Tests.EditMode
                 Is.EqualTo(stage.Binding.Resolve(
                     Game.Cutscenes.Content.Kentridge.KentridgeOpeningCutscene.LeadStart).Position),
                 "Starting the opening must place the authoritative player runtime at the generated LeadStart stage point.");
+
+            DrainActiveCutscene(session);
+            Assert.That(session.Runtime.IsCutsceneCompleted(content.IntroCutscene), Is.True);
+            Assert.That(session.Runtime.IsObjectiveActive(content.TravelObjective), Is.True,
+                "Completing the recovered opening cutscene must activate the authored travel objective.");
+
+            int interactionMatches = session.Runtime.InteractWithNpc(content.DestinationNpc);
+            Assert.That(interactionMatches, Is.EqualTo(1));
+            Assert.That(session.Runtime.IsObjectiveCompleted(content.TravelObjective), Is.True,
+                "The destination interaction completes the travel objective after matching story rules observe its active state.");
+            Assert.That(session.Runtime.HasActiveCutscene, Is.True);
+            Assert.That(session.Runtime.ActiveCutscene, Is.EqualTo(content.DestinationCutscene));
+
+            DrainActiveCutscene(session);
+            Assert.That(session.Runtime.IsCutsceneCompleted(content.DestinationCutscene), Is.True);
         }
 
         [Test]
@@ -164,6 +179,15 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(error.Message, Does.Contain("player slot 0"));
             Assert.That(actors.Prepared, Is.Empty,
                 "Player preflight must fail before any authoritative NPC is created or repositioned.");
+        }
+
+        private static void DrainActiveCutscene(KentridgeCampaignSession session)
+        {
+            for (var i = 0; i < 64 && session.Runtime.HasActiveCutscene; i++)
+                session.Runtime.Tick(100000);
+
+            Assert.That(session.Runtime.HasActiveCutscene, Is.False,
+                "Cutscene did not complete within the deterministic integration-test tick budget.");
         }
 
         private static CutsceneDefinition DialogueOnly(string id) =>
