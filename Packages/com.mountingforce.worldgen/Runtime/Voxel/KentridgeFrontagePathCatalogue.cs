@@ -37,7 +37,9 @@ namespace MountingForce.WorldGen.Voxel
         /// tall the world happens to be.
         /// </summary>
         private const int VerticalSearchVoxels = 256;
-        private const int ProgramLengthPerPath = 12;
+        private static int ProgramLengthPerPath =>
+            ShapeOps.InstructionLength(ShapeOp.EmitBox)
+            + ShapeOps.InstructionLength(ShapeOp.End);
 
         private readonly struct PathRect
         {

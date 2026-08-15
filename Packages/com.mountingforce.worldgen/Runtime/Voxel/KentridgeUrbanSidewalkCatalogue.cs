@@ -36,7 +36,9 @@ namespace MountingForce.WorldGen.Voxel
         /// catalogue actually had when it was written and authored against.
         /// </summary>
         private const int VerticalSearchVoxels = 520;
-        private const int ProgramLengthPerStrip = 12;
+        private static int ProgramLengthPerStrip =>
+            ShapeOps.InstructionLength(ShapeOp.EmitBox)
+            + ShapeOps.InstructionLength(ShapeOp.End);
 
         private readonly struct Strip
         {

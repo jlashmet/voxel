@@ -78,7 +78,8 @@ namespace MountingForce.WorldGen.Voxel
                 parameters: 0,
                 anchors: 0,
                 slots: 0,
-                programLength: count * 12,
+                programLength: count * (ShapeOps.InstructionLength(ShapeOp.EmitBox)
+                    + ShapeOps.InstructionLength(ShapeOp.End)),
                 materials: 0,
                 explicitPlacements: count,
                 overrides: 0,
