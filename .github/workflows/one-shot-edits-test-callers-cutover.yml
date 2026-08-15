@@ -1,0 +1,49 @@
+name: One-shot Edits Test Callers Cutover
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - '.github/workflows/one-shot-edits-test-callers-cutover.yml'
+      - 'Tools/Refactor/apply_edits_test_callers_cutover.py'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+
+      - name: Apply deterministic test caller cutover
+        run: python Tools/Refactor/apply_edits_test_callers_cutover.py
+
+      - name: Verify test caller diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'TryApplyAlteration(IRegionMutationStore storage' Assets/Tests/EditMode/AuthoritativeSessionLoopbackTests.cs
+          grep -q 'TryApplyAlteration(IRegionMutationStore storage' Assets/Tests/EditMode/ServerCommandProcessorTests.cs
+          grep -q 'var storageA = new RegionMutationStore' Assets/Tests/Parity/SharedDestructionTests.cs
+
+      - name: Commit cutover and remove one-shot tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/one-shot-edits-test-callers-cutover.yml
+          git rm Tools/Refactor/apply_edits_test_callers_cutover.py
+          git add Assets/Tests/EditMode/AuthoritativeSessionLoopbackTests.cs
+          git add Assets/Tests/EditMode/ServerCommandProcessorTests.cs
+          git add Assets/Tests/Parity/SharedDestructionTests.cs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'refactor: cut over edits test callers'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
