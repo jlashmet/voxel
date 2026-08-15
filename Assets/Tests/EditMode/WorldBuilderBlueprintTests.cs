@@ -24,13 +24,13 @@ namespace VoxelEngine.Tests.EditMode
                 .Archetype(SiteArchetype.Pub)
                 .RequireCapability(SiteCapability.Interior)
                 .RequireCapability(SiteCapability.PlayerSpawn(4))
-                .RequireCapability(SiteCapability.CutsceneStage)
                 .RequireCapability(SiteCapability.PublicExit));
 
+            // The story only says the party goes somewhere else. Omitting Archetype is deliberate:
+            // this role resolves to exactly one generated site satisfying its hard requirements.
             var firstDestination = game.World.RequireSite("first-destination", site => site
                 .DifferentSiteFrom(startingPub)
-                .ReachableFrom(startingPub, TraversalProfile.NormalParty)
-                .RequireCapability(SiteCapability.ConversationSpace));
+                .ReachableFrom(startingPub, TraversalProfile.NormalParty));
 
             var madeline = game.World.RequireNpc("madeline", npc => npc.PlaceAt(startingPub));
             var steven = game.World.RequireNpc("steven", npc => npc.PlaceAt(startingPub));
@@ -78,10 +78,18 @@ namespace VoxelEngine.Tests.EditMode
             var blueprint = game.Build();
             var validation = BlueprintValidator.Validate(blueprint);
             var intro = blueprint.Cutscenes.Single(c => c.Ref.Equals(introRef));
+            var pubSpec = blueprint.Sites.Single(site => site.Ref.Equals(startingPub));
+            var destinationSpec = blueprint.Sites.Single(site => site.Ref.Equals(firstDestination));
 
             Assert.That(validation.IsValid, Is.True);
-            Assert.That(validation.Diagnostics.Any(d => d.Code == "WB1001"), Is.True);
+            Assert.That(validation.Diagnostics.Any(d => d.Code == "WB1001"), Is.False);
             Assert.That(blueprint.Sites.Count, Is.EqualTo(2));
+            Assert.That(pubSpec.ResolutionMode, Is.EqualTo(SiteResolutionMode.RequiredArchetype));
+            Assert.That(pubSpec.RequiredCardinality, Is.EqualTo(1));
+            Assert.That(destinationSpec.ResolutionMode, Is.EqualTo(SiteResolutionMode.ConstraintMatch));
+            Assert.That(destinationSpec.RequiredCardinality, Is.EqualTo(1));
+            Assert.That(destinationSpec.Capabilities.Any(c => c.Kind == SiteCapabilityKind.ConversationSpace), Is.True,
+                "The destination NPC's conversation requirement must flow backward into site selection.");
             Assert.That(blueprint.Npcs.Single(n => n.Ref.Equals(destinationNpc)).Site, Is.EqualTo(firstDestination));
             Assert.That(blueprint.Objectives.Single().Target, Is.EqualTo(firstDestination));
             Assert.That(blueprint.Cutscenes.Any(c => c.Ref.Equals(destinationCutscene)), Is.True);
@@ -94,6 +102,8 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(intro.Definition.RequiredActors.Count, Is.EqualTo(4));
             Assert.That(intro.ActorBindings.Count, Is.EqualTo(4));
             Assert.That(intro.StageRequirements.Count, Is.EqualTo(7));
+            Assert.That(pubSpec.Capabilities.Any(c => c.Kind == SiteCapabilityKind.CutsceneStage), Is.True,
+                "The staged intro cutscene must flow backward into pub generation without duplicate authoring.");
             Assert.That(intro.Definition.StageRequirements.All(r => r.Region != CutsceneStageRegion.Unspecified), Is.True);
             Assert.That(intro.Definition.StageRequirements.Any(r => r.Region == CutsceneStageRegion.PublicEntrance), Is.True);
             Assert.That(intro.Definition.StageRequirements.Any(r => r.Region == CutsceneStageRegion.InteriorGatheringArea), Is.True);
@@ -125,8 +135,7 @@ namespace VoxelEngine.Tests.EditMode
                 });
 
             var destination = game.World.RequireSite("destination", site => site
-                .Archetype(SiteArchetype.Ruin)
-                .RequireCapability(SiteCapability.CutsceneStage));
+                .Archetype(SiteArchetype.Ruin));
             var npc = game.World.RequireNpc("npc", value => value.PlaceAt(destination).RequireConversation());
             var objective = game.Story.Objective("objective", value => value
                 .Target(destination)
