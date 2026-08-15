@@ -9,6 +9,7 @@ CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character
 SOURCE_DIR="$CACHE_ROOT/Hunyuan3D-2-$HUNYUAN_REV"
 VENV_DIR="$CACHE_ROOT/hunyuan3d-2-$HUNYUAN_REV-venv"
 STAMP="$VENV_DIR/.voxel-ready-$HUNYUAN_REV"
+XET_STAMP="$VENV_DIR/.voxel-hf-xet-ready-v1"
 MODEL_ROOT="${HY3DGEN_MODELS:-$CACHE_ROOT/models}"
 PYTHON_BIN="${PYTHON_BIN:-$(command -v python3)}"
 
@@ -35,6 +36,15 @@ if [ ! -f "$STAMP" ]; then
   "$VENV_DIR/bin/python" -m pip install -e "$SOURCE_DIR"
   touch "$STAMP"
 fi
+
+# Hugging Face's Xet backend supports a high-performance mode intended for
+# machines with at least 64 GB RAM. The CI Mac has that headroom, so use it for
+# the one-time multi-GB model fill. Partial downloads remain resumable.
+if [ ! -f "$XET_STAMP" ]; then
+  "$VENV_DIR/bin/python" -m pip install --upgrade "huggingface_hub[hf_xet]"
+  touch "$XET_STAMP"
+fi
+export HF_XET_HIGH_PERFORMANCE="${HF_XET_HIGH_PERFORMANCE:-1}"
 
 # hy3dgen does not use HF_HOME as its primary local-model lookup. Its
 # smart_load_model() first checks HY3DGEN_MODELS/<repo>/<subfolder>. Populate
