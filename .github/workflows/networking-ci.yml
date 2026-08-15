@@ -6,6 +6,7 @@ on:
     branches:
       - feature/minimal-voxel-networking
       - refactor/system-boundaries-foundation-storage
+      - refactor/system-boundaries-finalization
   pull_request:
     branches:
       - master
