@@ -1,0 +1,80 @@
+name: Rendering Storage boundary publisher
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/rendering-storage-boundary-publish.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/rendering-storage-boundary.py')
+          s = p.read_text()
+          s = s.replace('from pathlib import Path\n', 'from pathlib import Path\nimport re\n', 1)
+          type_pairs = [
+              ('MaterialPalette', 'MaterialPaletteView'),
+              ('SurfaceCatalogue', 'SurfaceCatalogueView'),
+              ('CoatingCatalogue', 'CoatingCatalogueView'),
+              ('VoxelChangeJournal', 'IVoxelChangeSource'),
+              ('SurfaceStyleDefinition', 'SurfaceStyleReadDefinition'),
+              ('CoatingDefinition', 'CoatingReadDefinition'),
+              ('SurfaceJoinRule', 'SurfaceJoinReadRule'),
+          ]
+          for old, new in type_pairs:
+              s = s.replace(f'    ("{old}", "{new}"),\n', '')
+          old_loop = '''    for old, new in replacements:\n        text = text.replace(old, new)\n'''
+          new_loop = '''    for old, new in replacements:\n        text = text.replace(old, new)\n    for old, new in type_replacements:\n        text = re.sub(rf"\\b{re.escape(old)}\\b", new, text)\n'''
+          if old_loop not in s:
+              raise SystemExit('Rendering replacement loop seam not found')
+          s = s.replace(old_loop, new_loop, 1)
+          marker = 'replacements = [\n'
+          insert = 'type_replacements = ' + repr(type_pairs) + '\n\n'
+          if marker not in s:
+              raise SystemExit('Rendering replacements marker not found')
+          s = s.replace(marker, insert + marker, 1)
+          p.write_text(s)
+          PY
+          python3 .github/scripts/rendering-storage-boundary.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p = Path('Assets/VoxelEngine/Rendering/Runtime/VoxelEngine.Rendering.Runtime.asmdef')
+          data = json.loads(p.read_text())
+          data['references'] = [r for r in data['references'] if r != 'VoxelEngine.Core']
+          required = {'VoxelEngine.Storage.Api','VoxelEngine.Tiering.Api','VoxelEngine.Vegetation.Api'}
+          missing = required.difference(data['references'])
+          if missing:
+              raise SystemExit(f'Rendering Runtime missing API refs: {sorted(missing)}')
+          if any(r.endswith('.Runtime') and r.startswith('VoxelEngine.') for r in data['references']):
+              raise SystemExit(f'foreign Runtime dependency remains: {data["references"]}')
+          p.write_text(json.dumps(data, indent=2) + '\n')
+
+          root = Path('Assets/VoxelEngine/Rendering/Runtime')
+          bad = []
+          for cs in root.rglob('*.cs'):
+              body = cs.read_text()
+              if 'VoxelEngine.Core.Storage' in body or 'VoxelDimensions.' in body:
+                  bad.append(str(cs))
+          if bad:
+              raise SystemExit('Rendering physical Storage dependencies remain: ' + ', '.join(bad))
+          PY
+          git rm .github/workflows/rendering-storage-boundary-publish.yml .github/scripts/rendering-storage-boundary.py
+          git diff --check
+          git status --short
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Storage/Api Assets/VoxelEngine/Core/Storage Assets/VoxelEngine/Rendering/Runtime
+          git commit -m 'Route Rendering catalogues and changes through Storage API'
+          git push origin HEAD:${{ github.ref_name }}
