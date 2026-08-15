@@ -11,12 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: c29aa7d16be0229866808617704e66157f55757a
+          ref: 99cac732202df6162e1d7cc9ee43afc11a7ad18b
           clean: false
       - shell: bash
         run: |
           set -euo pipefail
-          git reset --hard c29aa7d16be0229866808617704e66157f55757a
+          git reset --hard 99cac732202df6162e1d7cc9ee43afc11a7ad18b
           git clean -ffdx -e Library/
       - id: unity
         shell: bash
@@ -50,7 +50,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: net-snapshot-c29aa7d1
+          name: net-snapshot-99cac732
           path: Artifacts/NetSnapshotAcceptance/
           if-no-files-found: warn
           retention-days: 14
