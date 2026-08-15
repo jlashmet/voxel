@@ -84,18 +84,13 @@ jobs:
 
               write_if_changed(path, text, original)
 
-          if total_drain != 6:
-              raise SystemExit(f'expected 6 legacy DrainReady calls, found {total_drain}')
-          if total_apply != 9:
-              raise SystemExit(f'expected 9 legacy ApplyReadyAuthoritativeEvents calls, found {total_apply}')
-          if total_server != 10:
-              raise SystemExit(f'expected 10 legacy ProcessAuthoritativeTick calls, found {total_server}')
-          if total_processor != 1:
-              raise SystemExit(f'expected 1 legacy ProcessTick call, found {total_processor}')
+          if total_drain != 6: raise SystemExit(f'expected 6 legacy DrainReady calls, found {total_drain}')
+          if total_apply != 9: raise SystemExit(f'expected 9 legacy ApplyReadyAuthoritativeEvents calls, found {total_apply}')
+          if total_server != 10: raise SystemExit(f'expected 10 legacy ProcessAuthoritativeTick calls, found {total_server}')
+          if total_processor != 1: raise SystemExit(f'expected 1 legacy ProcessTick call, found {total_processor}')
 
           world = Path('Assets/Scenes/Showcase/ShowcaseWorld.cs')
-          original = world.read_text()
-          text = original
+          original = world.read_text(); text = original
           old = '''        private readonly RegionReadSource _readSource;\n        private readonly RegionMutationStore _mutationStore;\n        private readonly RegionResidencyStore _residencyStore;'''
           new = '''        private readonly RegionReadSource _readSource;\n        private readonly RegionMutationStore _mutationStore;\n        private readonly RegionSnapshotMutationStore _snapshotMutationStore;\n        private readonly RegionResidencyStore _residencyStore;'''
           if old not in text: raise SystemExit('ShowcaseWorld storage field seam not found')
@@ -111,8 +106,7 @@ jobs:
           write_if_changed(world, text, original)
 
           session = Path('Assets/Scenes/Showcase/ShowcaseMultiplayerSession.cs')
-          original = session.read_text()
-          text = original
+          original = session.read_text(); text = original
           old = '''            _server.ProcessAuthoritativeTick(\n                _serverTick,\n                ref _world.Table,\n                ref _world.Pool,\n                in zones,\n                this);'''
           new = '''            _server.ProcessAuthoritativeTick(\n                _serverTick,\n                _world.ReadStorage,\n                _world.MutationStorage,\n                _world.SnapshotStorage,\n                in zones,\n                this);'''
           if old not in text: raise SystemExit('Showcase server tick seam not found')
@@ -124,24 +118,18 @@ jobs:
           write_if_changed(session, text, original)
 
           roots = [Path('Assets/Tests/EditMode'), Path('Assets/Scenes/Showcase')]
-          forbidden = [
-              re.compile(r'\.DrainReady\(\s*ref '),
-              re.compile(r'\.ApplyReadyAuthoritativeEvents\(\s*ref '),
-              re.compile(r'\.ProcessAuthoritativeTick\(\s*[^,\n]+,\s*ref '),
-          ]
+          forbidden = [re.compile(r'\.DrainReady\(\s*ref '), re.compile(r'\.ApplyReadyAuthoritativeEvents\(\s*ref '), re.compile(r'\.ProcessAuthoritativeTick\(\s*[^,\n]+,\s*ref ')]
           for root in roots:
               for path in root.glob('*.cs'):
                   body = path.read_text()
                   for pattern in forbidden:
-                      if pattern.search(body):
-                          raise SystemExit(f'legacy physical Net call remains in {path}: {pattern.pattern}')
+                      if pattern.search(body): raise SystemExit(f'legacy physical Net call remains in {path}: {pattern.pattern}')
           PY
           git rm .github/workflows/net-caller-repair.yml
           git diff --check
           git status --short
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
-          git add Assets/Tests/EditMode Assets/Scenes/Showcase
-          git add -u .github/workflows/net-caller-repair.yml
+          git add -A
           git commit -m 'Migrate Net callers to Storage API capabilities'
           git push origin HEAD:${{ github.ref_name }}
