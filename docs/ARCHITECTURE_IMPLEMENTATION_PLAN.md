@@ -40,6 +40,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
 - Latest accepted code gate: `8780cffe66a0e3e4ba75b524957d00b481ace971`, run `31907252082` — 387 tests, 374 passed, exactly the same 13 known baseline failures with zero C# compiler errors. This accepts `ArchLookdev` routing rendering presentation/build configuration and surface-status access through `RenderingComposition` and reduces the remaining Runtime-coupled Showcase source inventory to two files.
+- [x] route `ArchLookdev` structure authoring through `StructuresComposition`; accepted in the `05de54c3` slice, run `31907948874` with exact 387/374/13 baseline and zero compiler errors
+- [x] route `ShowcaseMultiplayerSession` through Composition-owned network facades; accepted in the `28a3fda2` slice, run `31908243915` with exact 387/374/13 baseline and zero compiler errors
 - Prior integrated Cutover 13 gate: `a0528159ada889c59190888840523e6fb8c05a10`, run `31899261112` — 387/374/13, exact same known failure set.
 - Latest accepted Rendering static gate: source `f5e0b646102a50305424850a0508d190bae3e44d`, run `31894268246` — physical Api/Runtime layout, Runtime namespaces, dependency direction, reverse simulation dependency, and explicit/manual lookdev status all passed. Behavioral parity is still pending and is not implied by this static gate.
 
