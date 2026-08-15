@@ -54,7 +54,7 @@ namespace Game.Composition.Campaign.Content
             if (destinationCutsceneDefinition == null)
                 throw new ArgumentNullException(nameof(destinationCutsceneDefinition));
 
-            var game = Campaign.Create("main-campaign");
+            var game = Game.WorldBuilder.Api.Campaign.Create("main-campaign");
 
             SiteRef startingPub = game.World.RequireSite("starting-pub", site => site
                 .Archetype(SiteArchetype.Pub)
