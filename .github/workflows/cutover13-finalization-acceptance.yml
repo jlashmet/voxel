@@ -3,7 +3,12 @@ name: Cutover 13 finalization acceptance
 on:
   push:
     branches: [refactor/system-boundaries-finalization]
-    paths: [.github/workflows/cutover13-finalization-acceptance.yml]
+    paths:
+      - ".github/workflows/cutover13-finalization-acceptance.yml"
+      - "Assets/VoxelEngine/**"
+      - "Assets/Scenes/Showcase/**"
+      - "Assets/Tests/EditMode/**"
+      - "Packages/com.mountingforce.worldgen/**"
 
 permissions:
   contents: read
