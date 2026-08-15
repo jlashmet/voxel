@@ -1,5 +1,4 @@
 using UnityEngine;
-using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
@@ -9,9 +8,10 @@ namespace VoxelEngine.Rendering
     /// <summary>
     /// A read-only snapshot of the world for the render pass.
     ///
-    /// Storage is exposed only through the borrowed read-view contract. The render pass never
-    /// receives the physical region table, brick pool, allocator identity, or pool slots. The
-    /// direction remains one-way: rendering consumes authoritative reads and produces pixels.
+    /// Storage is exposed only through borrowed read contracts. The render pass never receives
+    /// the physical region table, brick pool, allocator identity, pool slots, or mutable structure
+    /// authoring stores. The direction remains one-way: rendering consumes authoritative reads and
+    /// produces pixels.
     /// </summary>
     public struct VoxelWorldView
     {
@@ -19,7 +19,7 @@ namespace VoxelEngine.Rendering
         public MaterialPalette Palette;
         public SurfaceCatalogue SurfaceCatalogue;
         public CoatingCatalogue CoatingCatalogue;
-        public ProfileBlockStore ProfileBlocks;
+        public IProfileBlockReadSource ProfileBlocks;
 
         public bool IsValid => Storage != null
             && SurfaceCatalogue.CatalogueHash != 0 && CoatingCatalogue.CatalogueHash != 0;
