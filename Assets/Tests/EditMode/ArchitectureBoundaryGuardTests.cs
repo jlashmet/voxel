@@ -143,6 +143,34 @@ namespace VoxelEngine.Tests.EditMode
                 string.Join("\n", violations));
         }
 
+        [Test]
+        public void ArchLookdevDoesNotReachIntoStructuresRuntime()
+        {
+            string path = Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase", "ArchLookdev.cs");
+            Assert.IsTrue(File.Exists(path), "Missing ArchLookdev source: " + path);
+
+            string source = File.ReadAllText(path);
+            string[] forbiddenTokens =
+            {
+                "VoxelEngine.Structures.Runtime",
+                "ProfileBlockStore",
+                "ArchFeatureDefinition",
+                "ArchBayFeatureDefinition",
+                "ArchRuinDamage",
+                "PrimitiveRasteriser",
+                "VoxelBrush",
+                "MasonryWeathering",
+                "NativeList<Primitive>",
+            };
+            var violations = forbiddenTokens
+                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                .ToList();
+
+            Assert.IsEmpty(violations,
+                "ArchLookdev must consume stable Api/Composition contracts and must not reach into " +
+                "Structures.Runtime implementation details.\n\n" + string.Join("\n", violations));
+        }
+
         private static IReadOnlyList<Asmdef> EnumerateVoxelEngineAsmdefs()
         {
             string root = Path.Combine(RepoRoot, "Assets", "VoxelEngine");
