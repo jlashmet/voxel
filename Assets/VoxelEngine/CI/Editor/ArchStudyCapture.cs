@@ -177,7 +177,7 @@ namespace VoxelEngine.CI
                             throw new InvalidOperationException($"Arch variant {i} exceeded budget.");
                         totalVoxels += result.VoxelsWritten;
 
-                        var brush = new VoxelBrush(table, pool, in palette, 2_000_000);
+                        var brush = new VoxelBrush(reads, mutations, palette, 2_000_000);
                         int3 weatherMin = origin - new int3(2, 2, 2);
                         int3 weatherSize = bay.Metadata.Footprint + new int3(4, 4, 4);
                         chipped += MasonryWeathering.ChipExposedEdges(
