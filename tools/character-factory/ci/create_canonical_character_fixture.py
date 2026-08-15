@@ -16,10 +16,14 @@ def parse_args() -> argparse.Namespace:
         raise SystemExit("Expected Blender arguments after '--'")
     argv = argv[argv.index("--") + 1 :]
     parser = argparse.ArgumentParser(
-        description="Create a deterministic rigged T-pose mannequin and render a TripoSR input"
+        description="Create a deterministic rigged T-pose mannequin and optional robe donor"
     )
     parser.add_argument("--canonical", required=True)
     parser.add_argument("--input", required=True)
+    parser.add_argument(
+        "--garment-input",
+        help="Optional isolated robe render used by the generated-clothing smoke.",
+    )
     return parser.parse_args(argv)
 
 
@@ -82,6 +86,32 @@ def add_cylinder_z(name: str, x: float, z0: float, z1: float, radius: float, mat
     )
     obj = bpy.context.object
     obj.name = name
+    obj.data.materials.append(mat)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return obj
+
+
+def add_cone_z(
+    name: str,
+    z0: float,
+    z1: float,
+    bottom_radius: float,
+    top_radius: float,
+    depth_scale: float,
+    mat,
+) -> bpy.types.Object:
+    midpoint = (z0 + z1) * 0.5
+    length = abs(z1 - z0)
+    bpy.ops.mesh.primitive_cone_add(
+        vertices=32,
+        radius1=bottom_radius,
+        radius2=top_radius,
+        depth=length,
+        location=(0.0, 0.0, midpoint),
+    )
+    obj = bpy.context.object
+    obj.name = name
+    obj.scale.y = depth_scale
     obj.data.materials.append(mat)
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     return obj
@@ -154,31 +184,36 @@ def point_segment_distance(point: Vector, a: Vector, b: Vector) -> float:
     return (point - (a + ab * t)).length
 
 
-def join_body(parts: list[bpy.types.Object], armature: bpy.types.Object, segments) -> bpy.types.Object:
+def join_weighted(
+    parts: list[bpy.types.Object],
+    name: str,
+    armature: bpy.types.Object,
+    segments,
+) -> bpy.types.Object:
     bpy.ops.object.select_all(action="DESELECT")
     for obj in parts:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = parts[0]
     bpy.ops.object.join()
-    body = bpy.context.object
-    body.name = "Body"
+    mesh = bpy.context.object
+    mesh.name = name
 
-    groups = {name: body.vertex_groups.new(name=name) for name in segments}
-    for vertex in body.data.vertices:
+    groups = {bone_name: mesh.vertex_groups.new(name=bone_name) for bone_name in segments}
+    for vertex in mesh.data.vertices:
         point = vertex.co
         ranked = sorted(
-            (point_segment_distance(point, a, b), name)
-            for name, (a, b) in segments.items()
+            (point_segment_distance(point, a, b), bone_name)
+            for bone_name, (a, b) in segments.items()
         )[:2]
         raw = [1.0 / max(distance, 0.025) ** 2 for distance, _ in ranked]
         total = sum(raw)
-        for weight, (_, name) in zip(raw, ranked):
-            groups[name].add([vertex.index], weight / total, "REPLACE")
+        for weight, (_, bone_name) in zip(raw, ranked):
+            groups[bone_name].add([vertex.index], weight / total, "REPLACE")
 
-    modifier = body.modifiers.new(name="CanonicalArmature", type="ARMATURE")
+    modifier = mesh.modifiers.new(name="CanonicalArmature", type="ARMATURE")
     modifier.object = armature
-    body.parent = armature
-    return body
+    mesh.parent = armature
+    return mesh
 
 
 def look_at(obj: bpy.types.Object, target: Vector) -> None:
@@ -186,7 +221,10 @@ def look_at(obj: bpy.types.Object, target: Vector) -> None:
     obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
 
-def render_fixture(body: bpy.types.Object, output: Path) -> None:
+def ensure_render_scene() -> None:
+    if bpy.context.scene.camera is not None:
+        return
+
     world = bpy.data.worlds.new("FixtureWorld")
     world.use_nodes = True
     bg = world.node_tree.nodes.get("Background")
@@ -227,16 +265,25 @@ def render_fixture(body: bpy.types.Object, output: Path) -> None:
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGB"
     scene.render.film_transparent = False
-    scene.render.filepath = str(output)
     scene.view_settings.look = "AgX - Medium High Contrast"
+
+
+def render_fixture(output: Path) -> None:
+    ensure_render_scene()
+    bpy.context.scene.render.filepath = str(output)
     bpy.ops.render.render(write_still=True)
 
 
-def export_canonical(body: bpy.types.Object, armature: bpy.types.Object, output: Path) -> None:
+def export_canonical(
+    meshes: list[bpy.types.Object],
+    armature: bpy.types.Object,
+    output: Path,
+) -> None:
     bpy.ops.object.select_all(action="DESELECT")
     armature.select_set(True)
-    body.select_set(True)
-    bpy.context.view_layer.objects.active = body
+    for mesh in meshes:
+        mesh.select_set(True)
+    bpy.context.view_layer.objects.active = meshes[0]
     bpy.ops.export_scene.gltf(
         filepath=str(output),
         export_format="GLB",
@@ -250,14 +297,17 @@ def main() -> int:
     args = parse_args()
     canonical = Path(args.canonical).resolve()
     input_image = Path(args.input).resolve()
+    garment_input = Path(args.garment_input).resolve() if args.garment_input else None
     canonical.parent.mkdir(parents=True, exist_ok=True)
     input_image.parent.mkdir(parents=True, exist_ok=True)
+    if garment_input:
+        garment_input.parent.mkdir(parents=True, exist_ok=True)
 
     clear_scene()
     skin = material("MannequinSkin", (0.68, 0.48, 0.34, 1.0), 0.68)
     accent = material("RightSideMarker", (0.18, 0.32, 0.58, 1.0), 0.54)
 
-    parts = [
+    body_parts = [
         add_sphere("HipsMesh", (0.0, 0.0, 0.99), (0.29, 0.18, 0.22), skin),
         add_sphere("TorsoMesh", (0.0, 0.0, 1.34), (0.34, 0.19, 0.36), skin),
         add_sphere("ChestMesh", (0.0, 0.0, 1.50), (0.39, 0.20, 0.22), skin),
@@ -278,18 +328,48 @@ def main() -> int:
     ]
 
     armature, segments = create_armature()
-    body = join_body(parts, armature, segments)
-    render_fixture(body, input_image)
-    export_canonical(body, armature, canonical)
+    body = join_weighted(body_parts, "Body", armature, segments)
+    render_fixture(input_image)
+
+    garment = None
+    if garment_input:
+        robe = material("ClericRobe", (0.82, 0.72, 0.47, 1.0), 0.58)
+        trim = material("ClericRobeTrim", (0.24, 0.39, 0.62, 1.0), 0.48)
+        garment_parts = [
+            add_sphere("RobeHood", (0.0, 0.0, 1.86), (0.205, 0.18, 0.235), robe),
+            add_sphere("RobeChest", (0.0, 0.0, 1.43), (0.43, 0.225, 0.33), robe),
+            add_sphere("RobeWaist", (0.0, 0.0, 1.16), (0.34, 0.21, 0.26), robe),
+            add_cylinder_x("RobeLeftSleeve", 0.22, 1.10, 1.53, 0.13, robe),
+            add_cylinder_x("RobeRightSleeve", -1.10, -0.22, 1.53, 0.13, robe),
+            add_sphere("RobeLeftCuff", (1.10, 0.0, 1.53), (0.13, 0.10, 0.10), trim),
+            add_sphere("RobeRightCuff", (-1.10, 0.0, 1.53), (0.13, 0.10, 0.10), robe),
+            add_cone_z("RobeSkirt", 0.16, 1.18, 0.46, 0.31, 0.48, robe),
+            add_sphere("RobeOrientationMark", (-0.29, -0.225, 1.47), (0.09, 0.045, 0.09), trim),
+        ]
+        garment = join_weighted(garment_parts, "GarmentDonor", armature, segments)
+        body.hide_render = True
+        render_fixture(garment_input)
+        body.hide_render = False
+
+    meshes = [body] + ([garment] if garment is not None else [])
+    export_canonical(meshes, armature, canonical)
 
     if not canonical.is_file() or canonical.stat().st_size == 0:
         raise RuntimeError("failed to create canonical GLB")
     if not input_image.is_file() or input_image.stat().st_size == 0:
         raise RuntimeError("failed to render character input")
+    if garment_input and (not garment_input.is_file() or garment_input.stat().st_size == 0):
+        raise RuntimeError("failed to render garment input")
 
     print(f"canonical={canonical}")
     print(f"input={input_image}")
-    print(f"vertices={len(body.data.vertices)} bones={len(armature.data.bones)}")
+    if garment_input:
+        print(f"garmentInput={garment_input}")
+    print(
+        f"bodyVertices={len(body.data.vertices)} "
+        f"garmentVertices={len(garment.data.vertices) if garment else 0} "
+        f"bones={len(armature.data.bones)}"
+    )
     return 0
 
 
