@@ -1455,7 +1455,7 @@ namespace VoxelEngine.Showcase
             for (int d = 0; d < s_Neighbours.Length; d++)
             {
                 int3 candidate = removed[r].Position + s_Neighbours[d];
-                if (VoxelAccess.IsSolid(ref _table, in _pool, candidate)) candidates.Add(candidate);
+                if (IsSolidApi(candidate)) candidates.Add(candidate);
             }
 
             int collapsed = ResolveDisconnectedCandidates(candidates, impact, impulseDirection);
@@ -1496,7 +1496,7 @@ namespace VoxelEngine.Showcase
                 {
                     int3 current = stack.Pop();
                     if (knownSupported.Contains(current)) { anchored = true; break; }
-                    byte material = VoxelAccess.GetVoxel(ref _table, in _pool, current);
+                    byte material = ReadMaterialApi(current);
                     if (material == VoxelDimensions.MaterialEmpty) continue;
 
                     if (!_materialSimulation.IsDestructible(material) || current.y <= 0)
@@ -1505,7 +1505,7 @@ namespace VoxelEngine.Showcase
                         break;
                     }
 
-                    VoxelCell cell = VoxelAccess.GetCell(ref _table, in _pool, current);
+                    if (!TryReadCellApi(current, out VoxelCell cell)) continue;
                     component.Add(new FallingVoxel
                     {
                         Position = current,
@@ -1524,7 +1524,7 @@ namespace VoxelEngine.Showcase
                     {
                         int3 next = current + s_Neighbours[n];
                         if (localSeen.Contains(next)
-                            || !VoxelAccess.IsSolid(ref _table, in _pool, next)) continue;
+                            || !IsSolidApi(next)) continue;
                         localSeen.Add(next);
                         stack.Push(next);
                     }
@@ -1624,9 +1624,8 @@ namespace VoxelEngine.Showcase
                         {
                             int3 upper = new int3(brickOriginX + lx, seedY,
                                                   brickOriginZ + lz);
-                            if (!VoxelAccess.IsSolid(ref _table, in _pool, upper)) continue;
-                            byte below = VoxelAccess.GetVoxel(ref _table, in _pool,
-                                                             upper + new int3(0, -1, 0));
+                            if (!IsSolidApi(upper)) continue;
+                            byte below = ReadMaterialApi(upper + new int3(0, -1, 0));
                             if (below != VoxelDimensions.MaterialEmpty)
                             {
                                 // One intact voxel column carries dozens of voxels above it, not
@@ -1854,7 +1853,7 @@ namespace VoxelEngine.Showcase
                     for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
                     {
                         int3 voxel = new int3(originX + x, minimumVoxelY - 1, originZ + z);
-                        if (VoxelAccess.IsSolid(ref _table, in _pool, voxel)) boundary.Add(voxel);
+                        if (IsSolidApi(voxel)) boundary.Add(voxel);
                     }
                 }
             }
@@ -1879,7 +1878,7 @@ namespace VoxelEngine.Showcase
 
                 int3 voxel = origin + local;
                 if (voxel.y < minimumVoxelY
-                    || !VoxelAccess.IsSolid(ref _table, in _pool, voxel)) continue;
+                    || !IsSolidApi(voxel)) continue;
                 boundary.Add(voxel);
             }
         }
@@ -1909,8 +1908,8 @@ namespace VoxelEngine.Showcase
             {
                 if (dx * dx + dz * dz > radiusSq) continue;
                 int3 lower = new int3(centreX + dx, planeY, centreZ + dz);
-                if (VoxelAccess.IsSolid(ref _table, in _pool, lower)
-                    && VoxelAccess.IsSolid(ref _table, in _pool, lower + new int3(0, 1, 0)))
+                if (IsSolidApi(lower)
+                    && IsSolidApi(lower + new int3(0, 1, 0)))
                     count++;
             }
             return count;
@@ -2102,7 +2101,7 @@ namespace VoxelEngine.Showcase
         {
             var voxels = BuildBrushes.PlaceSphere(centre, radius, material, Seed);
             for (int i = 0; i < voxels.Length; i++)
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxels[i], material)) MarkDirty(voxels[i]);
+                if (SetMaterialApi(voxels[i], material)) MarkDirty(voxels[i]);
             voxels.Dispose();
         }
 
