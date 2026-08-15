@@ -1,0 +1,46 @@
+name: Refactor one-shot Core zero-match closure guard
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-finalization-clean
+    paths:
+      - .github/workflows/refactor-one-shot-core-zero-match.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-clean
+          fetch-depth: 0
+      - name: Add permanent Core namespace zero-match guard
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs')
+          text = path.read_text()
+          if 'ProductionSourceDoesNotReferenceRemovedCoreNamespace' in text:
+              raise SystemExit('Core zero-match guard already exists')
+
+          marker = '''        [Test]\n        public void ApiAndRuntimeAssemblyNamesHaveSingleOwners()\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('architecture guard insertion marker changed')
+
+          method = '''        [Test]\n        public void ProductionSourceDoesNotReferenceRemovedCoreNamespace()\n        {\n            var violations = new List<string>();\n            foreach (string rootName in new[] { "Assets", "Packages" })\n            {\n                string root = Path.Combine(RepoRoot, rootName);\n                if (!Directory.Exists(root)) continue;\n\n                foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))\n                {\n                    string extension = Path.GetExtension(file);\n                    if (!string.Equals(extension, ".cs", StringComparison.OrdinalIgnoreCase)\n                        && !string.Equals(extension, ".asmdef", StringComparison.OrdinalIgnoreCase))\n                        continue;\n\n                    string relative = Relative(file);\n                    string normalized = "/" + relative.Replace('\\\\', '/') + "/";\n                    if (normalized.IndexOf("/Tests/", StringComparison.OrdinalIgnoreCase) >= 0\n                        || normalized.IndexOf("/Editor/", StringComparison.OrdinalIgnoreCase) >= 0)\n                        continue;\n\n                    if (File.ReadAllText(file).IndexOf("VoxelEngine.Core", StringComparison.Ordinal) >= 0)\n                        violations.Add(relative);\n                }\n            }\n\n            Assert.IsEmpty(violations,\n                "VoxelEngine.Core was deleted by the final cutover and may not reappear in production source or asmdefs.\\n\\n" +\n                string.Join("\\n", violations));\n        }\n\n'''
+          path.write_text(text.replace(marker, method + marker))
+      - name: Self-delete and commit
+        run: |
+          rm .github/workflows/refactor-one-shot-core-zero-match.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'test(architecture): enforce Core namespace zero-match'
+          git push origin HEAD:refactor/system-boundaries-finalization-clean
