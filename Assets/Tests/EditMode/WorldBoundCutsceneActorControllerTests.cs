@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Game.Composition.WorldBuilderWorldGen;
+using Game.Composition.Campaign;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Content.Kentridge;
 using Game.Cutscenes.Runtime;
