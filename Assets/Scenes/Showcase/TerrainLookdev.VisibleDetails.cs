@@ -1,5 +1,4 @@
 using Unity.Mathematics;
-using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
@@ -14,11 +13,11 @@ namespace VoxelEngine.Showcase
             if (!_built || _visibleDetailsApplied) return;
 
             var writer = CreateWriter(2_400_000);
-            BuildTurfTufts(ref writer);
-            BuildTurfShelfBanks(ref writer);
-            BuildReadableFlowerClumps(ref writer);
-            BuildVisibleRockAccents(ref writer);
-            BuildFarRockShelves(ref writer);
+            BuildTurfTufts(writer);
+            BuildTurfShelfBanks(writer);
+            BuildReadableFlowerClumps(writer);
+            BuildVisibleRockAccents(writer);
+            BuildFarRockShelves(writer);
 
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain visible detail pass exceeded voxel authoring budget.");
@@ -27,7 +26,7 @@ namespace VoxelEngine.Showcase
             _visibleDetailsApplied = true;
         }
 
-        private static void BuildTurfTufts(ref VoxelBrush writer)
+        private static void BuildTurfTufts(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xA77Du);
             for (int i = 0; i < 1220; i++)
@@ -43,12 +42,12 @@ namespace VoxelEngine.Showcase
                 int ry = rng.NextFloat() < math.lerp(0.38f, 0.12f, depth) ? 2 : 1;
                 int top = FinalTerrainTopVoxel(x, z);
 
-                StampEllipsoid(ref writer, new int3(x, top + ry, z),
+                StampEllipsoid(writer, new int3(x, top + ry, z),
                     new int3(rx, ry, rz), GroundToneMaterial(x, z), SurfaceStyles.Smooth);
             }
         }
 
-        private static void BuildTurfShelfBanks(ref VoxelBrush writer)
+        private static void BuildTurfShelfBanks(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x17B5u);
 
@@ -78,7 +77,7 @@ namespace VoxelEngine.Showcase
                           + rng.NextInt(-2, 3);
                     int zz = z + rng.NextInt(-2, 3);
                     int localTop = FinalTerrainTopVoxel(x, zz);
-                    StampEllipsoid(ref writer, new int3(x, localTop + lipHeight, zz),
+                    StampEllipsoid(writer, new int3(x, localTop + lipHeight, zz),
                         new int3(rng.NextInt(4, 8), lipHeight, depth),
                         GroundToneMaterial(x, zz), SurfaceStyles.Smooth);
                 }
@@ -92,14 +91,14 @@ namespace VoxelEngine.Showcase
                     int hz = rng.NextInt(2, 5);
                     int hy = rng.NextInt(1, 3);
                     int y = FinalTerrainTopVoxel(x, zz) + hy - 1;
-                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.62f);
                 }
             }
         }
 
-        private static void BuildReadableFlowerClumps(ref VoxelBrush writer)
+        private static void BuildReadableFlowerClumps(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xE47Du);
 
@@ -165,7 +164,7 @@ namespace VoxelEngine.Showcase
             return Mat.FlowerBlue;
         }
 
-        private static void BuildVisibleRockAccents(ref VoxelBrush writer)
+        private static void BuildVisibleRockAccents(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x9A31u);
 
@@ -193,13 +192,13 @@ namespace VoxelEngine.Showcase
                     int y = FinalTerrainTopVoxel(x, zz) + hy - 1;
                     bool moss = rng.NextFloat() < (z < 180 ? 0.56f : 0.32f);
 
-                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Planar, moss);
                 }
             }
         }
 
-        private static void BuildFarRockShelves(ref VoxelBrush writer)
+        private static void BuildFarRockShelves(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xC511u);
 
@@ -222,7 +221,7 @@ namespace VoxelEngine.Showcase
                     int hz = rng.NextInt(1, maxHalf + 1);
                     int hy = rng.NextInt(1, 3);
                     int y = FinalTerrainTopVoxel(x, zz) + hy - 1;
-                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.25f);
                 }

@@ -1,6 +1,5 @@
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
@@ -14,10 +13,10 @@ namespace VoxelEngine.Showcase
             if (!_built || _referenceDetailsApplied) return;
 
             var writer = CreateWriter(2_200_000);
-            RestyleBaseStoneRounded(ref writer);
-            BuildReferenceTufts(ref writer);
-            BuildReferenceFlowers(ref writer);
-            BuildReferenceRockAccents(ref writer);
+            RestyleBaseStoneRounded(writer);
+            BuildReferenceTufts(writer);
+            BuildReferenceFlowers(writer);
+            BuildReferenceRockAccents(writer);
 
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain reference detail pass exceeded voxel authoring budget.");
@@ -26,7 +25,7 @@ namespace VoxelEngine.Showcase
             _referenceDetailsApplied = true;
         }
 
-        private static void BuildReferenceTufts(ref VoxelBrush writer)
+        private static void BuildReferenceTufts(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x45A1u);
             for (int i = 0; i < 460; i++)
@@ -42,12 +41,12 @@ namespace VoxelEngine.Showcase
                 int rz = depth < 0.32f ? rng.NextInt(2, 6) : rng.NextInt(1, 4);
                 int ry = rng.NextFloat() < 0.18f ? 2 : 1;
                 int top = FinalTerrainTopVoxel(x, z);
-                StampEllipsoid(ref writer, new int3(x, top + ry, z), new int3(rx, ry, rz),
+                StampEllipsoid(writer, new int3(x, top + ry, z), new int3(rx, ry, rz),
                     rng.NextFloat() < 0.22f ? Mat.Moss : Mat.Grass, SurfaceStyles.Smooth);
             }
         }
 
-        private static void BuildReferenceFlowers(ref VoxelBrush writer)
+        private static void BuildReferenceFlowers(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xF10Au);
             for (int clump = 0; clump < 390; clump++)
@@ -95,7 +94,7 @@ namespace VoxelEngine.Showcase
             return Mat.FlowerBlue;
         }
 
-        private static void BuildReferenceRockAccents(ref VoxelBrush writer)
+        private static void BuildReferenceRockAccents(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x6C31u);
             for (int cluster = 0; cluster < 62; cluster++)
@@ -117,7 +116,7 @@ namespace VoxelEngine.Showcase
                     int hz = rng.NextInt(2, maxHalf + 1);
                     int hy = depth < 0.34f ? rng.NextInt(1, 4) : rng.NextInt(1, 3);
                     int y = FinalTerrainTopVoxel(x, zz) + hy;
-                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         1, TerrainLimestoneAccent, SurfaceStyles.Rounded,
                         rng.NextFloat() < math.lerp(0.56f, 0.20f, depth));
                 }

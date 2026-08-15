@@ -79,9 +79,8 @@ namespace VoxelEngine.Showcase
 
             _profiles = new ProfileBlockStore();
 
-            var writer = new VoxelBrush(
-                _storage.Reads, _storage.Mutations, _storage.MaterialAuthoring, 9_000_000);
-            AuthorTerrain(ref writer);
+            var writer = VoxelEngineBootstrap.CreateStructureAuthoring(_storage, 9_000_000);
+            AuthorTerrain(writer);
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain lookdev exceeded voxel authoring budget.");
 
@@ -111,16 +110,16 @@ namespace VoxelEngine.Showcase
             VoxelRenderBridge.SkyZenith = new Color(0.82f, 0.80f, 0.46f, 1f);
         }
 
-        private void AuthorTerrain(ref VoxelBrush writer)
+        private void AuthorTerrain(IStructureAuthoringSession writer)
         {
-            BuildValley(ref writer);
-            BuildRockFields(ref writer);
-            BuildTurfCushions(ref writer);
-            BuildPath(ref writer);
-            BuildFlowers(ref writer);
+            BuildValley(writer);
+            BuildRockFields(writer);
+            BuildTurfCushions(writer);
+            BuildPath(writer);
+            BuildFlowers(writer);
         }
 
-        private static void BuildValley(ref VoxelBrush writer)
+        private static void BuildValley(IStructureAuthoringSession writer)
         {
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
@@ -149,7 +148,7 @@ namespace VoxelEngine.Showcase
             return (h & 0x00FFFFFFu) * (1f / 16777216f);
         }
 
-        private static void BuildPath(ref VoxelBrush writer)
+        private static void BuildPath(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x2231u);
             int z = -60;
@@ -169,7 +168,7 @@ namespace VoxelEngine.Showcase
                     int py = HeightVoxel(px, pz);
                     // One-voxel-thick pavers overlap the terrain surface so they read as embedded
                     // cobbles, not a heap of beige rubble sitting on top of the path.
-                    StampRoundedBox(ref writer, new int3(px, py + 1, pz),
+                    StampRoundedBox(writer, new int3(px, py + 1, pz),
                         new int3(hx, 1, hz), 1, Mat.TerrainPathStone,
                         SurfaceStyles.Planar, false);
                 }
@@ -177,7 +176,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private static void BuildRockFields(ref VoxelBrush writer)
+        private static void BuildRockFields(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed);
 
@@ -209,7 +208,7 @@ namespace VoxelEngine.Showcase
                     int hz = rng.NextInt(2, maxHalf + 1);
                     int hy = rng.NextInt(1, z < 170 ? 4 : 3);
                     int y = HeightVoxel(x, zz) + hy;
-                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.58f);
 
@@ -217,7 +216,7 @@ namespace VoxelEngine.Showcase
                     {
                         int upperHx = math.max(2, hx - 1);
                         int upperHz = math.max(2, hz - 1);
-                        StampRoundedBox(ref writer,
+                        StampRoundedBox(writer,
                             new int3(x + rng.NextInt(-2, 3), y + hy + 1, zz + rng.NextInt(-2, 3)),
                             new int3(upperHx, 1, upperHz), 1,
                             Mat.TerrainLimestone, SurfaceStyles.Planar,
@@ -241,18 +240,18 @@ namespace VoxelEngine.Showcase
                 int hz = rng.NextInt(2, maxHalf + 1);
                 int hy = rng.NextInt(1, z > 300 ? 3 : 4);
                 int y = HeightVoxel(x, z) + hy;
-                StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
+                StampRoundedBox(writer, new int3(x, y, z), new int3(hx, hy, hz),
                     1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                     rng.NextFloat() < 0.42f);
             }
 
-            BuildForegroundOutcrop(ref writer, new int3(-106, 0, -46), 15, ref rng);
-            BuildForegroundOutcrop(ref writer, new int3(104, 0, -38), 14, ref rng);
-            BuildForegroundOutcrop(ref writer, new int3(-130, 0, 32), 11, ref rng);
-            BuildForegroundOutcrop(ref writer, new int3(125, 0, 66), 10, ref rng);
+            BuildForegroundOutcrop(writer, new int3(-106, 0, -46), 15, ref rng);
+            BuildForegroundOutcrop(writer, new int3(104, 0, -38), 14, ref rng);
+            BuildForegroundOutcrop(writer, new int3(-130, 0, 32), 11, ref rng);
+            BuildForegroundOutcrop(writer, new int3(125, 0, 66), 10, ref rng);
         }
 
-        private static void BuildForegroundOutcrop(ref VoxelBrush writer, int3 centre, int scale,
+        private static void BuildForegroundOutcrop(IStructureAuthoringSession writer, int3 centre, int scale,
             ref Unity.Mathematics.Random rng)
         {
             for (int layer = 0; layer < 3; layer++)
@@ -268,14 +267,14 @@ namespace VoxelEngine.Showcase
                     // Keep foreground stones above the terrain rather than slicing them through a
                     // slope. Stacking still gives the chunky ruins/outcrop silhouette in the target.
                     int y = HeightVoxel(x, z) + layer * 2 + hy;
-                    StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, z), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.68f);
                 }
             }
         }
 
-        private static void BuildTurfCushions(ref VoxelBrush writer)
+        private static void BuildTurfCushions(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0x7B19u);
 
@@ -287,7 +286,7 @@ namespace VoxelEngine.Showcase
                 int rx = rng.NextInt(2, 6);
                 int rz = rng.NextInt(2, 7);
                 int ry = rng.NextFloat() < 0.30f ? 2 : 1;
-                StampEllipsoid(ref writer, new int3(x, HeightVoxel(x, z) + ry, z),
+                StampEllipsoid(writer, new int3(x, HeightVoxel(x, z) + ry, z),
                     new int3(rx, ry, rz), TurfMaterial(x, z), SurfaceStyles.Smooth);
             }
 
@@ -299,12 +298,12 @@ namespace VoxelEngine.Showcase
                 int rx = rng.NextInt(5, 10);
                 int rz = rng.NextInt(4, 9);
                 int ry = rng.NextInt(1, 3);
-                StampEllipsoid(ref writer, new int3(x, HeightVoxel(x, z) + ry, z),
+                StampEllipsoid(writer, new int3(x, HeightVoxel(x, z) + ry, z),
                     new int3(rx, ry, rz), TurfMaterial(x, z), SurfaceStyles.Smooth);
             }
         }
 
-        private static void BuildFlowers(ref VoxelBrush writer)
+        private static void BuildFlowers(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed ^ 0xD451u);
             for (int i = 0; i < 1750; i++)
@@ -324,7 +323,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private static void StampEllipsoid(ref VoxelBrush writer, int3 centre, int3 radius,
+        private static void StampEllipsoid(IStructureAuthoringSession writer, int3 centre, int3 radius,
             byte material, ushort style)
         {
             float3 inv = 1f / math.max((float3)radius, 1f);
@@ -338,7 +337,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private static void StampRoundedBox(ref VoxelBrush writer, int3 centre, int3 half,
+        private static void StampRoundedBox(IStructureAuthoringSession writer, int3 centre, int3 half,
             int radius, byte material, ushort style, bool mossTop)
         {
             radius = math.max(1, radius);
@@ -415,8 +414,8 @@ namespace VoxelEngine.Showcase
             return Mathf.RoundToInt(metres * 10f);
         }
 
-        private VoxelBrush CreateWriter(int budget) =>
-            new VoxelBrush(_storage.Reads, _storage.Mutations, _storage.MaterialAuthoring, budget);
+        private IStructureAuthoringSession CreateWriter(int budget) =>
+            VoxelEngineBootstrap.CreateStructureAuthoring(_storage, budget);
 
         private void PublishAllResidentRegions() => _storage.PublishAllResidentRegions();
 
