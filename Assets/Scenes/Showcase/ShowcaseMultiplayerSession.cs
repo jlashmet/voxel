@@ -5,7 +5,7 @@ using Unity.Networking.Transport;
 using UnityEngine;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
-using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Runtime.Client;
 using VoxelEngine.Net.Runtime.Protocol;
 using VoxelEngine.Net.Runtime.Server;
@@ -77,7 +77,7 @@ namespace VoxelEngine.Showcase
                 _localPlayerId = 1;
                 _server = new AuthoritativeServerSession(
                     _world.Seed,
-                    new Validation.DensityCap(1f, VoxelDimensions.BricksPerRegion),
+                    new Validation.DensityCap(1f, VoxelReadGrid.BlocksPerRegion),
                     new DeterministicAlterationApplier(),
                     maxConnections: 2);
                 _server.ConnectionOpened += OnServerConnectionOpened;
@@ -197,7 +197,7 @@ namespace VoxelEngine.Showcase
                 _clientTick,
                 originVoxel,
                 AlterationEvent.KindExplosion,
-                VoxelDimensions.MaterialEmpty,
+                VoxelGrid.MaterialEmpty,
                 AlterationEvent.KindExplosion,
                 radiusBricks,
                 seed: 0,
@@ -215,8 +215,8 @@ namespace VoxelEngine.Showcase
         public static int RadiusVoxelsToBricks(int radiusVoxels)
         {
             int positive = math.max(1, radiusVoxels);
-            int bricks = (positive + VoxelDimensions.BrickEdge - 1) >> VoxelDimensions.BrickEdgeLog2;
-            return math.clamp(bricks, 1, VoxelDimensions.RegionEdge - 1);
+            int bricks = (positive + VoxelReadGrid.BlockEdge - 1) >> VoxelReadGrid.BlockEdgeLog2;
+            return math.clamp(bricks, 1, VoxelReadGrid.BlocksPerRegionEdge - 1);
         }
 
         public void Disconnect()
