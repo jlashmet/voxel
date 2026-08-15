@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Collision.Api;
+using VoxelEngine.Collision.Runtime;
 using VoxelEngine.Storage.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
