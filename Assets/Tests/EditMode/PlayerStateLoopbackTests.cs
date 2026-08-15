@@ -8,7 +8,7 @@ using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Server;
 using VoxelEngine.Net.Transport;
 
-using VoxelEngine.Core.Edits;
+using VoxelEngine.Edits.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {

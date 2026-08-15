@@ -18,7 +18,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             string root = FindRepoRoot();
             string path = Path.Combine(
-                root, "Assets", "VoxelEngine", "Core", "Edits", "DeterministicAlterationApplier.cs");
+                root, "Assets", "VoxelEngine", "Edits", "Runtime", "DeterministicAlterationApplier.cs");
             string source = StripComments(File.ReadAllText(path));
             string[] forbidden =
             {

@@ -3,7 +3,7 @@ using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Edits.Api;
 
-namespace VoxelEngine.Core.Edits
+namespace VoxelEngine.Edits.Runtime
 {
     /// <summary>
     /// Shared authoritative/client application of semantic alteration events.
