@@ -8,7 +8,7 @@ namespace VoxelEngine.Rendering.Vegetation
 {
     /// <summary>
     /// Presentation-only conversion from a render-independent procedural tree skeleton to Unity
-    /// meshes. Tree identity, topology, collision and damage live in VoxelEngine.Core.
+    /// meshes. Tree identity, topology, collision and damage live behind VoxelEngine.Vegetation.Api.
     /// </summary>
     public static class ProceduralTreeMeshBuilder
     {
@@ -39,90 +39,41 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private static readonly MeshScratch s_Scratch = new();
 
-        public static Mesh BuildMesh(TreeSkeletonSnapshot skeleton, int lod,
-                                     HashSet<int> removedBranches = null) =>
-            BuildMeshInternal(skeleton, lod, removedBranches, null, Vector3.zero);
-
-        /// <summary>Builds only one detached connected branch subtree.</summary>
-        public static Mesh BuildSubsetMesh(TreeSkeletonSnapshot skeleton, int lod,
-                                           HashSet<int> includedBranches) =>
-            BuildMeshInternal(skeleton, lod, null, includedBranches, Vector3.zero);
-
-        /// <summary>
-        /// Builds one detached subtree already rebased around a requested local-space pivot. This
-        /// avoids reading and rewriting Mesh.vertices just to move a severed limb's Rigidbody origin.
-        /// </summary>
-        public static Mesh BuildSubsetMesh(TreeSkeletonSnapshot skeleton, int lod,
-                                           HashSet<int> includedBranches,
-                                           Vector3 positionOffset) =>
-            BuildMeshInternal(skeleton, lod, null, includedBranches, positionOffset);
-
-        /// <summary>
-        /// Appends one tree directly into caller-owned mesh buffers. Batch rendering uses this path
-        /// so healthy trees never need transient Unity Mesh objects merely to be combined again.
-        /// </summary>
-        public static void AppendMeshData(TreeSkeletonSnapshot skeleton, int lod,
-                                          Vector3 positionOffset,
-                                          List<Vector3> vertices,
-                                          List<Vector3> normals,
-                                          List<Color> colours,
-                                          List<Vector2> uv0,
-                                          List<Vector2> uv1,
-                                          List<int> barkIndices,
-                                          List<int> leafIndices,
-                                          HashSet<int> removedBranches = null,
-                                          HashSet<int> includedBranches = null)
+        public static Mesh Build(TreeRenderSnapshot tree, TreeRenderTier tier)
         {
-            lod = math.clamp(lod, 0, 2);
-            int radialSides = lod == 0 ? 8 : lod == 1 ? 5 : 3;
-            int leafStride = lod == 0 ? 1 : lod == 1 ? 2 : 4;
-            float leafScale = lod == 0 ? 1f : lod == 1 ? 1.35f : 1.75f;
-            int leafPlanes = lod < 2 ? 2 : 1;
-
-            for (int i = 0; i < skeleton.Branches.Count; i++)
-            {
-                if (removedBranches != null && removedBranches.Contains(i)) continue;
-                if (includedBranches != null && !includedBranches.Contains(i)) continue;
-
-                TreeBranchSegment branch = skeleton.Branches[i];
-                if (lod == 2 && branch.Level >= 3 && branch.RadiusStart < 0.035f) continue;
-                AddTube(branch, skeleton.Profile, radialSides, positionOffset,
-                        vertices, normals, colours, uv0, uv1, barkIndices);
-            }
-
-            for (int i = 0; i < skeleton.Leaves.Count; i += leafStride)
-            {
-                int parent = skeleton.LeafParents != null && i < skeleton.LeafParents.Count
-                    ? skeleton.LeafParents[i] : -1;
-                if (removedBranches != null && parent >= 0 && removedBranches.Contains(parent))
-                    continue;
-                if (includedBranches != null && (parent < 0 || !includedBranches.Contains(parent)))
-                    continue;
-
-                AddLeaf(skeleton.Leaves[i], leafScale, leafPlanes, positionOffset,
-                        vertices, normals, colours, uv0, uv1, leafIndices);
-            }
+            return Build(tree, tier, out _);
         }
 
-        private static Mesh BuildMeshInternal(TreeSkeletonSnapshot skeleton, int lod,
-                                              HashSet<int> removedBranches,
-                                              HashSet<int> includedBranches,
-                                              Vector3 positionOffset)
+        public static Mesh Build(TreeRenderSnapshot tree, TreeRenderTier tier, out Bounds bounds)
         {
+            TreeRenderSkeleton skeleton = tree.Skeleton;
             MeshScratch scratch = s_Scratch;
             scratch.Clear();
 
-            AppendMeshData(skeleton, lod, positionOffset,
-                           scratch.Vertices, scratch.Normals, scratch.Colours,
-                           scratch.Uv0, scratch.Uv1,
-                           scratch.BarkIndices, scratch.LeafIndices,
-                           removedBranches, includedBranches);
+            float radiusScale;
+            int radialSegments;
+            switch (tier)
+            {
+                case TreeRenderTier.High:
+                    radiusScale = 1f;
+                    radialSegments = 8;
+                    break;
+                case TreeRenderTier.Medium:
+                    radiusScale = 0.95f;
+                    radialSegments = 6;
+                    break;
+                default:
+                    radiusScale = 0.9f;
+                    radialSegments = 4;
+                    break;
+            }
+
+            bounds = BuildBranchGeometry(in skeleton, radiusScale, radialSegments, scratch);
+            BuildLeafGeometry(in skeleton, tier, scratch);
 
             var mesh = new Mesh
             {
-                name = $"ProceduralTree_LOD{math.clamp(lod, 0, 2)}",
-                indexFormat = scratch.Vertices.Count > 65535
-                    ? IndexFormat.UInt32 : IndexFormat.UInt16,
+                name = $"Tree-{tree.TreeId}-{tier}"
             };
             mesh.SetVertices(scratch.Vertices);
             mesh.SetNormals(scratch.Normals);
@@ -132,100 +83,126 @@ namespace VoxelEngine.Rendering.Vegetation
             mesh.subMeshCount = 2;
             mesh.SetTriangles(scratch.BarkIndices, 0, false);
             mesh.SetTriangles(scratch.LeafIndices, 1, false);
-            mesh.RecalculateBounds();
+            mesh.bounds = bounds;
+            mesh.UploadMeshData(false);
             return mesh;
         }
 
-        private static void AddTube(in TreeBranchSegment branch,
-                                    in TreeSpeciesProfile profile, int sides,
-                                    Vector3 positionOffset,
-                                    List<Vector3> vertices, List<Vector3> normals,
-                                    List<Color> colours, List<Vector2> uv0,
-                                    List<Vector2> uv1, List<int> indices)
+        private static Bounds BuildBranchGeometry(in TreeRenderSkeleton skeleton, float radiusScale,
+                                                  int radialSegments, MeshScratch scratch)
         {
-            float3 tangent = math.normalizesafe(branch.End - branch.Start,
-                                                new float3(0f, 1f, 0f));
-            float3 reference = math.abs(tangent.y) < 0.90f
-                ? new float3(0f, 1f, 0f)
-                : new float3(1f, 0f, 0f);
-            float3 u = math.normalizesafe(math.cross(tangent, reference),
-                                         new float3(1f, 0f, 0f));
-            float3 v = math.normalizesafe(math.cross(tangent, u),
-                                         new float3(0f, 0f, 1f));
-            int baseVertex = vertices.Count;
-            float colourT = math.saturate(branch.Level * 0.18f);
-            float4 bark = math.lerp(profile.BarkColour, profile.BarkColourSecondary, colourT);
-            var barkColour = new Color(bark.x, bark.y, bark.z, bark.w);
+            bool hasPoint = false;
+            float3 min = new float3(float.MaxValue);
+            float3 max = new float3(float.MinValue);
 
-            for (int side = 0; side < sides; side++)
+            for (int i = 0; i < skeleton.Branches.Length; i++)
             {
-                float angle = side * math.PI * 2f / sides;
-                float3 radial = u * math.cos(angle) + v * math.sin(angle);
-                vertices.Add((Vector3)(branch.Start + radial * branch.RadiusStart) + positionOffset);
-                vertices.Add((Vector3)(branch.End + radial * branch.RadiusEnd) + positionOffset);
-                normals.Add((Vector3)radial);
-                normals.Add((Vector3)radial);
-                colours.Add(barkColour);
-                colours.Add(barkColour);
-                float x = side / (float)sides;
-                uv0.Add(new Vector2(x, 0f));
-                uv0.Add(new Vector2(x, 1f));
-                uv1.Add(new Vector2(branch.Level, 0f));
-                uv1.Add(new Vector2(branch.Level, 0f));
+                TreeRenderBranch branch = skeleton.Branches[i];
+                float3 axis = branch.End - branch.Start;
+                float length = math.length(axis);
+                if (length <= 0.0001f) continue;
+                axis /= length;
+
+                float3 up = math.abs(axis.y) < 0.95f ? new float3(0f, 1f, 0f) : new float3(1f, 0f, 0f);
+                float3 tangent = math.normalize(math.cross(axis, up));
+                float3 bitangent = math.cross(axis, tangent);
+                float radius = math.max(0.01f, branch.Radius * radiusScale);
+
+                int ringStart = scratch.Vertices.Count;
+                for (int ring = 0; ring < 2; ring++)
+                {
+                    float3 centre = ring == 0 ? branch.Start : branch.End;
+                    for (int segment = 0; segment < radialSegments; segment++)
+                    {
+                        float angle = (2f * math.PI * segment) / radialSegments;
+                        float3 radial = math.cos(angle) * tangent + math.sin(angle) * bitangent;
+                        float3 vertex = centre + radial * radius;
+                        scratch.Vertices.Add(vertex);
+                        scratch.Normals.Add(radial);
+                        scratch.Colours.Add(branch.Colour);
+                        scratch.Uv0.Add(new Vector2((float)segment / radialSegments, ring));
+                        scratch.Uv1.Add(Vector2.zero);
+                        min = math.min(min, vertex);
+                        max = math.max(max, vertex);
+                        hasPoint = true;
+                    }
+                }
+
+                for (int segment = 0; segment < radialSegments; segment++)
+                {
+                    int next = (segment + 1) % radialSegments;
+                    int a = ringStart + segment;
+                    int b = ringStart + next;
+                    int c = ringStart + radialSegments + segment;
+                    int d = ringStart + radialSegments + next;
+                    scratch.BarkIndices.Add(a);
+                    scratch.BarkIndices.Add(c);
+                    scratch.BarkIndices.Add(b);
+                    scratch.BarkIndices.Add(b);
+                    scratch.BarkIndices.Add(c);
+                    scratch.BarkIndices.Add(d);
+                }
             }
 
-            for (int side = 0; side < sides; side++)
+            if (!hasPoint)
+                return new Bounds(Vector3.zero, Vector3.one * 0.1f);
+
+            float3 size = math.max(max - min, new float3(0.01f));
+            return new Bounds((min + max) * 0.5f, size);
+        }
+
+        private static void BuildLeafGeometry(in TreeRenderSkeleton skeleton, TreeRenderTier tier,
+                                              MeshScratch scratch)
+        {
+            int step = tier switch
             {
-                int next = (side + 1) % sides;
-                int a = baseVertex + side * 2;
-                int b = baseVertex + next * 2;
-                int c = a + 1;
-                int d = b + 1;
-                indices.Add(a); indices.Add(c); indices.Add(b);
-                indices.Add(b); indices.Add(c); indices.Add(d);
+                TreeRenderTier.High => 1,
+                TreeRenderTier.Medium => 2,
+                _ => 4,
+            };
+
+            for (int i = 0; i < skeleton.Leaves.Length; i += step)
+            {
+                TreeRenderLeaf leaf = skeleton.Leaves[i];
+                float size = math.max(0.02f, leaf.Size);
+                float3 normal = math.normalizesafe(leaf.Normal, new float3(0f, 1f, 0f));
+                float3 tangent = math.normalizesafe(math.cross(normal, new float3(0f, 1f, 0f)),
+                                                    new float3(1f, 0f, 0f));
+                float3 bitangent = math.cross(normal, tangent);
+                float3 centre = leaf.Position;
+
+                AddLeafQuad(centre, tangent, bitangent, normal, size, leaf.Colour, scratch);
+                if (tier == TreeRenderTier.High)
+                    AddLeafQuad(centre, tangent, normal, -bitangent, size, leaf.Colour, scratch);
             }
         }
 
-        private static void AddLeaf(in TreeLeafAnchor leaf, float scale, int planes,
-                                    Vector3 positionOffset,
-                                    List<Vector3> vertices, List<Vector3> normals,
-                                    List<Color> colours, List<Vector2> uv0,
-                                    List<Vector2> uv1, List<int> indices)
+        private static void AddLeafQuad(float3 centre, float3 tangent, float3 bitangent, float3 normal,
+                                        float size, Color colour, MeshScratch scratch)
         {
-            float3 up = math.normalizesafe(
-                math.lerp(new float3(0f, 1f, 0f), leaf.Direction, 0.22f),
-                new float3(0f, 1f, 0f));
-            float size = leaf.Size * scale;
-            var colour = new Color(leaf.Colour.x, leaf.Colour.y, leaf.Colour.z, leaf.Colour.w);
-
-            for (int plane = 0; plane < planes; plane++)
+            int start = scratch.Vertices.Count;
+            float3 halfT = tangent * (size * 0.5f);
+            float3 halfB = bitangent * (size * 0.5f);
+            scratch.Vertices.Add(centre - halfT - halfB);
+            scratch.Vertices.Add(centre + halfT - halfB);
+            scratch.Vertices.Add(centre + halfT + halfB);
+            scratch.Vertices.Add(centre - halfT + halfB);
+            for (int i = 0; i < 4; i++)
             {
-                float angle = leaf.Rotation + plane * math.PI * 0.5f;
-                float3 horizontal = new(math.cos(angle), 0f, math.sin(angle));
-                float3 right = math.normalizesafe(horizontal, new float3(1f, 0f, 0f));
-                float3 normal = math.normalizesafe(math.cross(right, up), new float3(0f, 0f, 1f));
-                int start = vertices.Count;
-                float halfW = size * (leaf.Style == TreeLeafStyle.Needle ? 0.28f : 0.50f);
-                float halfH = size * (leaf.Style == TreeLeafStyle.Narrow ? 0.72f : 0.50f);
-                Vector3 centre = (Vector3)leaf.Position + positionOffset;
-
-                vertices.Add(centre - (Vector3)right * halfW - (Vector3)up * halfH);
-                vertices.Add(centre + (Vector3)right * halfW - (Vector3)up * halfH);
-                vertices.Add(centre + (Vector3)right * halfW + (Vector3)up * halfH);
-                vertices.Add(centre - (Vector3)right * halfW + (Vector3)up * halfH);
-                for (int i = 0; i < 4; i++)
-                {
-                    normals.Add((Vector3)normal);
-                    colours.Add(colour);
-                    uv1.Add(new Vector2((float)leaf.Style, 0f));
-                }
-                uv0.Add(new Vector2(0f, 0f));
-                uv0.Add(new Vector2(1f, 0f));
-                uv0.Add(new Vector2(1f, 1f));
-                uv0.Add(new Vector2(0f, 1f));
-                indices.Add(start); indices.Add(start + 1); indices.Add(start + 2);
-                indices.Add(start); indices.Add(start + 2); indices.Add(start + 3);
+                scratch.Normals.Add(normal);
+                scratch.Colours.Add(colour);
+                scratch.Uv1.Add(Vector2.zero);
             }
+            scratch.Uv0.Add(new Vector2(0f, 0f));
+            scratch.Uv0.Add(new Vector2(1f, 0f));
+            scratch.Uv0.Add(new Vector2(1f, 1f));
+            scratch.Uv0.Add(new Vector2(0f, 1f));
+            scratch.LeafIndices.Add(start);
+            scratch.LeafIndices.Add(start + 1);
+            scratch.LeafIndices.Add(start + 2);
+            scratch.LeafIndices.Add(start);
+            scratch.LeafIndices.Add(start + 2);
+            scratch.LeafIndices.Add(start + 3);
         }
     }
 }
