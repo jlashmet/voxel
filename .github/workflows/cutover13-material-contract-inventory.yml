@@ -1,0 +1,30 @@
+name: Cutover 13 material contract inventory
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-material-contract-inventory.yml
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d8fc9e5bc549f8cf62dc1cc13b2f375aa54f531a
+          fetch-depth: 1
+      - name: Inspect material contract consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== DestructionClass references ==='
+          grep -R -n --include='*.cs' 'DestructionClass' Assets Packages | head -200 || true
+          echo '=== Surface/Coating built-in API constructors ==='
+          grep -n -A170 'public static SurfaceCatalogueView CreateBuiltIns' Assets/VoxelEngine/Storage/Api/RenderingCatalogueViews.cs | head -190 || true
+          grep -n -A170 'public static CoatingCatalogueView CreateBuiltIns' Assets/VoxelEngine/Storage/Api/RenderingCatalogueViews.cs | head -190 || true
+          echo '=== Runtime catalogue conversion methods ==='
+          grep -n -E 'PresentationView|implicit operator|CreateBuiltIns' Assets/VoxelEngine/Storage/Runtime/SurfaceCatalogue.cs Assets/VoxelEngine/Storage/Runtime/MaterialPalette.cs || true
+          echo '=== IVoxelChangeSource ==='
+          grep -R -n -A80 -B5 'interface IVoxelChangeSource' Assets/VoxelEngine/Storage/Api || true
