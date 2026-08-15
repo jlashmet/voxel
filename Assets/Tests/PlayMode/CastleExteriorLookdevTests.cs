@@ -8,9 +8,10 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Showcase;
-using VoxelEngine.Structures;
-using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -153,9 +154,9 @@ namespace VoxelEngine.Tests.PlayMode
             CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
             int baseY = plan.Centre.y + plan.PlateauHeight;
             Vector3 centre = new Vector3(plan.Centre.x, baseY, plan.Centre.z) * 0.1f;
-            Vector3 waterfall = new Vector3(CastleBuilder.WaterfallStreamX(in plan),
+            Vector3 waterfall = new Vector3(CastleLayout.WaterfallStreamX(in plan),
                                             baseY - 48,
-                                            CastleBuilder.WaterfallLipZ(in plan)) * 0.1f;
+                                            CastleLayout.WaterfallLipZ(in plan)) * 0.1f;
             int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
             int trapZ = keepMinZ + plan.KeepHalfZ + 40;
             int dungeonY = baseY - 166;

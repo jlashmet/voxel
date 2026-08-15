@@ -9,9 +9,11 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.CI
 {
@@ -75,9 +77,11 @@ namespace VoxelEngine.CI
                 TownBounds(plan, out int minX, out int maxX, out int minZ, out int maxZ);
                 table = new RegionTable(96, Allocator.Persistent);
                 pool = new BrickPool(262144, Allocator.Persistent);
-                LoadTerrain(minX, maxX, minZ, maxZ, ref table, in pool);
+                LoadTerrain(minX, maxX, minZ, maxZ, ref table);
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(Seed, BuildSettings(), Allocator.Persistent);
 
+                var featureReads = new RegionReadSource(in table, in pool);
+                var featureMutations = new RegionMutationStore(in table, in pool);
                 int instances = 0;
                 int voxels = 0;
                 int minRX = minX >> VoxelDimensions.RegionVoxelEdgeLog2;
@@ -87,8 +91,10 @@ namespace VoxelEngine.CI
                 for (int rz = minRZ; rz <= maxRZ; rz++)
                 for (int rx = minRX; rx <= maxRX; rx++)
                 {
+                    featureReads.Refresh(in table, in pool);
+                    featureMutations.Refresh(in table, in pool);
                     FeatureGenerationReport report = FeatureGeneration.GenerateRegion(
-                        in catalogue, Seed, new int3(rx, 0, rz), ref table, ref pool);
+                        in catalogue, Seed, new int3(rx, 0, rz), featureReads, featureMutations);
                     if (report.BudgetExceeded)
                         throw new InvalidOperationException($"Kentridge generation limit exceeded in {rx},{rz}.");
                     instances += report.InstancesRasterised;
@@ -117,6 +123,9 @@ namespace VoxelEngine.CI
                 MaterialPalette materialPalette = BuildMaterialPalette();
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
+                VoxelEngine.Storage.Api.MaterialPaletteView materialPaletteView = materialPalette;
+                VoxelEngine.Storage.Api.SurfaceCatalogueView surfaceView = surfaces;
+                VoxelEngine.Storage.Api.CoatingCatalogueView coatingView = coatings;
                 cache = new CpuTransvoxelChunkCache
                 {
                     MaxResidentChunks = 32768,
@@ -124,12 +133,13 @@ namespace VoxelEngine.CI
                 };
                 cache.InvalidateSurfaceBricks(ChunkSeeds(minX, maxX, minZ, maxZ));
 
+                var readSource = new RegionReadSource(in table, in pool);
                 int previousDirty = int.MaxValue;
                 int stalled = 0;
                 for (int iteration = 0; iteration < 65536 && cache.DirtyCount > 0; iteration++)
                 {
-                    cache.Prepare(ref table, in pool, in materialPalette,
-                        in surfaces, in coatings, null, camera, VoxelSize, 1, 100.0);
+                    cache.Prepare(readSource, in materialPaletteView,
+                        in surfaceView, in coatingView, null, camera, VoxelSize, 1, 100.0);
                     int dirty = cache.DirtyCount;
                     if (dirty == previousDirty)
                     {

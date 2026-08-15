@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -38,7 +39,7 @@ namespace MountingForce.WorldGen.Voxel
                 programLength += programs[i].Length;
             }
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: plan.Zones.Count,
                 rules: plan.Zones.Count,
                 parameters: 0,
@@ -124,7 +125,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -262,7 +263,7 @@ namespace MountingForce.WorldGen.Voxel
                 PrimitiveMode mode = PrimitiveMode.Fill)
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, (int)mode);
+                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
             }
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz)

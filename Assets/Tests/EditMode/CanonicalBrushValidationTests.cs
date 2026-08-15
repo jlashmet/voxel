@@ -1,10 +1,12 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -39,6 +41,7 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 table.LoadRegion(int3.zero);
+                var mutationStorage = new RegionMutationStore(in table, in pool);
 
                 // Canonical 1-brick brush centered at (4,4,4) occupies [0..7]^3. The only support
                 // is at (8,0,0), on the +X face corner rather than its center.
@@ -71,8 +74,9 @@ namespace VoxelEngine.Tests.EditMode
                     in evt,
                     in player,
                     players,
-                    ref table,
-                    in pool,
+                    new RegionReadSource(in table, in pool),
+                    mutationStorage,
+                    new DeterministicAlterationApplier(),
                     new Validation.DensityCap(1f, 0));
 
                 Assert.That(result, Is.EqualTo(Validation.ValidationResult.Success));

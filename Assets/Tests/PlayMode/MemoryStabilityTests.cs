@@ -3,9 +3,9 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Streaming;
-using VoxelEngine.Tiering;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Streaming.Runtime;
+using VoxelEngine.Tiering.Api;
+using VoxelEngine.Storage.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -63,6 +63,7 @@ namespace VoxelEngine.Tests.PlayMode
             var pool = new BrickPool(
                 math.max(1, brickPoolCapacityBytes / VoxelDimensions.BytesPerMixedBrick),
                 Allocator.Persistent);
+            var residency = new RegionResidencyStore(in table, in pool);
 
             float3 playerPos = new float3(64f, 64f, 64f); // start inside a region.
             float3 velocity = new float3(10f, 0f, 0f);   // along +X.
@@ -83,7 +84,8 @@ namespace VoxelEngine.Tests.PlayMode
                     tickCount++;
 
                     // Full residency update cycle.
-                    ResidencyManager.Update(playerPos, k_TickInterval, ref table, pool);
+                    residency.Refresh(in table, in pool);
+                    ResidencyManager.Update(playerPos, k_TickInterval, residency);
                     var wantedRegions = ResidencyManager.GetResidentRegions(
                         playerPos, loadRadiusBricks);
 
@@ -94,7 +96,8 @@ namespace VoxelEngine.Tests.PlayMode
                     wantedRegions.Dispose();
 
                     // Publish loaded regions.
-                    RegionLoader.PublishLoaded(ref table, ref pool, 0.5f);
+                    residency.Refresh(in table, in pool);
+                    RegionLoader.PublishLoaded(residency, 0.5f);
 
                     // Advance player: two hours at 10 m/s = 72 km traversed.
                     playerPos += velocity * k_TickInterval;
@@ -160,7 +163,8 @@ namespace VoxelEngine.Tests.PlayMode
             float3 playerPos = (float3)regionCoord * (VoxelDimensions.RegionEdge * 0.8f);
 
             // Evict with ResidencyManager (no write-back).
-            ResidencyManager.EvictWithoutWriteBack(regionCoord, ref table, ref pool);
+            var residency = new RegionResidencyStore(in table, in pool);
+            ResidencyManager.EvictWithoutWriteBack(regionCoord, residency);
 
             Assert.That(table.IsResident(regionCoord), Is.False,
                 "Region must be evicted from the table.");

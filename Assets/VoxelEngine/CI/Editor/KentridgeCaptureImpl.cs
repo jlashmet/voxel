@@ -9,10 +9,13 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Terrain;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.CI
 {
@@ -81,6 +84,8 @@ namespace VoxelEngine.CI
                 table = new RegionTable(64, Allocator.Persistent);
                 pool = new BrickPool(262144, Allocator.Persistent);
 
+                var featureReads = new RegionReadSource(in table, in pool);
+                var featureMutations = new RegionMutationStore(in table, in pool);
                 int featureInstances = 0;
                 int featureVoxels = 0;
                 int minRX = minX >> VoxelDimensions.RegionVoxelEdgeLog2;
@@ -90,8 +95,10 @@ namespace VoxelEngine.CI
                 for (int rz = minRZ; rz <= maxRZ; rz++)
                 for (int rx = minRX; rx <= maxRX; rx++)
                 {
+                    featureReads.Refresh(in table, in pool);
+                    featureMutations.Refresh(in table, in pool);
                     FeatureGenerationReport report = FeatureGeneration.GenerateRegion(
-                        in catalogue, Seed, new int3(rx, 0, rz), ref table, ref pool);
+                        in catalogue, Seed, new int3(rx, 0, rz), featureReads, featureMutations);
                     if (report.BudgetExceeded)
                         throw new InvalidOperationException($"Kentridge feature budget exceeded in {rx},{rz}.");
                     featureInstances += report.InstancesRasterised;
@@ -130,6 +137,9 @@ namespace VoxelEngine.CI
                 MaterialPalette materialPalette = BuildMaterialPalette();
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
+                VoxelEngine.Storage.Api.MaterialPaletteView materialPaletteView = materialPalette;
+                VoxelEngine.Storage.Api.SurfaceCatalogueView surfaceView = surfaces;
+                VoxelEngine.Storage.Api.CoatingCatalogueView coatingView = coatings;
                 cache = new CpuTransvoxelChunkCache
                 {
                     MaxResidentChunks = 16384,
@@ -137,12 +147,13 @@ namespace VoxelEngine.CI
                 };
                 cache.InvalidateSurfaceBricks(SurfaceChunkSeeds(minX, maxX, minZ, maxZ));
 
+                var readSource = new RegionReadSource(in table, in pool);
                 int previousDirty = int.MaxValue;
                 int stalled = 0;
                 for (int iteration = 0; iteration < 65536 && cache.DirtyCount > 0; iteration++)
                 {
-                    cache.Prepare(ref table, in pool, in materialPalette,
-                        in surfaces, in coatings, null, camera, VoxelSize, 1, 100.0);
+                    cache.Prepare(readSource, in materialPaletteView,
+                        in surfaceView, in coatingView, null, camera, VoxelSize, 1, 100.0);
                     int dirty = cache.DirtyCount;
                     if (dirty == previousDirty)
                     {

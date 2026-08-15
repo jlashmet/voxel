@@ -10,10 +10,14 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Terrain;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+using VoxelEngine.Terrain.Runtime;
+
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.CI
 {
@@ -84,11 +88,13 @@ namespace VoxelEngine.CI
                 TownBounds(plan, out int minX, out int maxX, out int minZ, out int maxZ);
                 table = new RegionTable(96, Allocator.Persistent);
                 pool = new BrickPool(262144, Allocator.Persistent);
-                LoadTerrain(minX, maxX, minZ, maxZ, ref table, in pool);
+                LoadTerrain(minX, maxX, minZ, maxZ, ref table);
 
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(
                     Seed, BuildSettings(), Allocator.Persistent);
 
+                var featureReads = new RegionReadSource(in table, in pool);
+                var featureMutations = new RegionMutationStore(in table, in pool);
                 int featureInstances = 0;
                 int featureVoxels = 0;
                 int minRegionX = minX >> VoxelDimensions.RegionVoxelEdgeLog2;
@@ -99,8 +105,10 @@ namespace VoxelEngine.CI
                 for (int rz = minRegionZ; rz <= maxRegionZ; rz++)
                 for (int rx = minRegionX; rx <= maxRegionX; rx++)
                 {
+                    featureReads.Refresh(in table, in pool);
+                    featureMutations.Refresh(in table, in pool);
                     FeatureGenerationReport report = FeatureGeneration.GenerateRegion(
-                        in catalogue, Seed, new int3(rx, 0, rz), ref table, ref pool);
+                        in catalogue, Seed, new int3(rx, 0, rz), featureReads, featureMutations);
                     if (report.BudgetExceeded)
                         throw new InvalidOperationException(
                             $"Kentridge feature budget exceeded in region {rx},{rz}.");
@@ -138,6 +146,9 @@ namespace VoxelEngine.CI
                 MaterialPalette materials = BuildMaterialPalette();
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
+                VoxelEngine.Storage.Api.MaterialPaletteView materialPaletteView = materials;
+                VoxelEngine.Storage.Api.SurfaceCatalogueView surfaceView = surfaces;
+                VoxelEngine.Storage.Api.CoatingCatalogueView coatingView = coatings;
                 cache = new CpuTransvoxelChunkCache
                 {
                     MaxResidentChunks = 16384,
@@ -145,12 +156,13 @@ namespace VoxelEngine.CI
                 };
                 cache.InvalidateSurfaceBricks(SurfaceChunkSeeds(minX, maxX, minZ, maxZ));
 
+                var readSource = new RegionReadSource(in table, in pool);
                 int previousDirty = int.MaxValue;
                 int stalled = 0;
                 for (int iteration = 0; iteration < 65536 && cache.DirtyCount > 0; iteration++)
                 {
-                    cache.Prepare(ref table, in pool, in materials,
-                        in surfaces, in coatings, null, camera, VoxelSize,
+                    cache.Prepare(readSource, in materialPaletteView,
+                        in surfaceView, in coatingView, null, camera, VoxelSize,
                         frame: 1, budgetMs: 100.0);
 
                     int dirty = cache.DirtyCount;
@@ -266,19 +278,19 @@ namespace VoxelEngine.CI
 
         private static void LoadTerrain(
             int minX, int maxX, int minZ, int maxZ,
-            ref RegionTable table, in BrickPool pool)
+            ref RegionTable table)
         {
             int minRegionX = (minX >> VoxelDimensions.RegionVoxelEdgeLog2) - 1;
             int maxRegionX = (maxX >> VoxelDimensions.RegionVoxelEdgeLog2) + 1;
             int minRegionZ = (minZ >> VoxelDimensions.RegionVoxelEdgeLog2) - 1;
             int maxRegionZ = (maxZ >> VoxelDimensions.RegionVoxelEdgeLog2) + 1;
+            var generation = new RegionGenerationStore(in table);
 
             for (int rz = minRegionZ; rz <= maxRegionZ; rz++)
             for (int rx = minRegionX; rx <= maxRegionX; rx++)
             {
-                Region region = table.LoadRegion(new int3(rx, 0, rz));
-                TerrainGenerator.Generate(in region, Seed, in pool);
-                table.CommitRegion(in region);
+                int3 regionCoord = new int3(rx, 0, rz);
+                TerrainGenerator.Generate(generation, regionCoord, Seed);
             }
         }
 

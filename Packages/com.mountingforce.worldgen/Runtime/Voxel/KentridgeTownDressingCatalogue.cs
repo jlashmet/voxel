@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -80,7 +81,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < placements.Count; i++)
                 byKind[(int)placements[i].Kind].Add(placements[i]);
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: DefinitionCount,
                 rules: DefinitionCount,
                 parameters: 0,
@@ -165,7 +166,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -190,7 +191,7 @@ namespace MountingForce.WorldGen.Voxel
             // The public-space pass flattens the market square to the centre sample. Reusing that
             // semantic target means every prop sits exactly on the generated plaza instead of
             // consulting the pre-grade terrain beneath its individual column.
-            int plazaY = TerrainSampler.HeightAt(cx * scale, cz * scale, seed);
+            int plazaY = TerrainQuery.HeightAt(cx * scale, cz * scale, seed);
 
             var result = new List<DressingPlacement>(PlacementCount);
 

@@ -3,9 +3,9 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Streaming;
-using VoxelEngine.Tiering;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Streaming.Runtime;
+using VoxelEngine.Tiering.Api;
+using VoxelEngine.Storage.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -134,7 +134,8 @@ namespace VoxelEngine.Tests.PlayMode
             table.CommitRegion(in region);
 
             // Evict to cold.
-            ResidencyManager.EvictWithoutWriteBack(regionCoord, ref table, ref pool);
+            var residency = new RegionResidencyStore(in table, in pool);
+            ResidencyManager.EvictWithoutWriteBack(regionCoord, residency);
             Assert.That(table.IsResident(regionCoord), Is.False, "Region must be evicted.");
 
             // Re-load the region (simulates player returning).

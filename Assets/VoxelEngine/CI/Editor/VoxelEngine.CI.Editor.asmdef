@@ -2,17 +2,24 @@
   "name": "VoxelEngine.CI.Editor",
   "rootNamespace": "VoxelEngine.CI",
   "references": [
-    "VoxelEngine.Core",
-    "VoxelEngine.Vegetation",
-    "VoxelEngine.Rendering",
+    "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Rendering.Runtime",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Voxel",
-    "VoxelEngine.Structures",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Showcase",
     "Unity.Collections",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.Vegetation.Runtime",
+    "VoxelEngine.Terrain.Runtime"
   ],
-  "includePlatforms": ["Editor"],
+  "includePlatforms": [
+    "Editor"
+  ],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,

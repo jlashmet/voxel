@@ -4,11 +4,12 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -107,8 +108,9 @@ namespace VoxelEngine.Tests.EditMode
             using var server = new AuthoritativeServerSession(
                 serverSeed: 123,
                 densityCap: new Validation.DensityCap(1f, 0),
+                alterationApplier: new DeterministicAlterationApplier(),
                 hashIntervalTicks: 1);
-            using var client = new ClientNetworkRuntime();
+            using var client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
 
             uint connectionId = 0;
             bool connected = false;
@@ -144,9 +146,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(server.AuthenticateConnection(connectionId, 7, int3.zero, 64), Is.True);
 
                 // Tick 1 hashes identical state.
-                server.ProcessAuthoritativeTick(1, ref serverTable, ref serverPool, in zones, inputSink);
+                server.ProcessAuthoritativeTick(1, new RegionReadSource(in serverTable, in serverPool), new RegionMutationStore(in serverTable, in serverPool), new RegionReadSource(in serverTable, in serverPool), in zones, inputSink);
                 PumpUntil(() => client.PendingRegionHashes == 1, () => Pump(client, server));
-                client.ApplyReadyAuthoritativeEvents(ref clientTable, ref clientPool, out _);
+                client.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientTable, in clientPool), new RegionReadSource(in clientTable, in clientPool), new RegionSnapshotMutationStore(in clientTable, in clientPool), out _);
                 Assert.That(client.PendingRegionHashes, Is.Zero);
                 Assert.That(client.RepairPending, Is.False);
 
@@ -158,22 +160,19 @@ namespace VoxelEngine.Tests.EditMode
                     5), Is.True);
 
                 // Tick 2 hash reaches the ordered barrier. Client reports mismatch and pauses there.
-                server.ProcessAuthoritativeTick(2, ref serverTable, ref serverPool, in zones, inputSink);
+                server.ProcessAuthoritativeTick(2, new RegionReadSource(in serverTable, in serverPool), new RegionMutationStore(in serverTable, in serverPool), new RegionReadSource(in serverTable, in serverPool), in zones, inputSink);
                 PumpUntil(() => client.PendingRegionHashes == 1, () => Pump(client, server));
-                client.ApplyReadyAuthoritativeEvents(ref clientTable, ref clientPool, out _);
+                client.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientTable, in clientPool), new RegionReadSource(in clientTable, in clientPool), new RegionSnapshotMutationStore(in clientTable, in clientPool), out _);
                 Assert.That(client.RepairPending, Is.True);
                 Assert.That(client.PendingRegionHashes, Is.Zero);
-                Assert.That(client.ApplyReadyAuthoritativeEvents(
-                    ref clientTable,
-                    ref clientPool,
-                    out int blockedEvents), Is.Zero);
+                Assert.That(client.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientTable, in clientPool), new RegionReadSource(in clientTable, in clientPool), new RegionSnapshotMutationStore(in clientTable, in clientPool), out int blockedEvents), Is.Zero);
                 Assert.That(blockedEvents, Is.Zero);
 
                 PumpUntil(() => server.ConvergenceInbox.PendingCount == 1, () => Pump(client, server));
 
                 // Tick 3 verifies the exact checkpoint, queues repair, and also queues the newer
                 // tick-3 hash. The client must not compare that newer barrier until repair succeeds.
-                server.ProcessAuthoritativeTick(3, ref serverTable, ref serverPool, in zones, inputSink);
+                server.ProcessAuthoritativeTick(3, new RegionReadSource(in serverTable, in serverPool), new RegionMutationStore(in serverTable, in serverPool), new RegionReadSource(in serverTable, in serverPool), in zones, inputSink);
                 Assert.That(verified, Is.True);
                 Assert.That(verifiedMismatch.ConnectionId, Is.EqualTo(connectionId));
                 Assert.That(verifiedMismatch.RegionCoord, Is.EqualTo(int3.zero));
@@ -187,7 +186,7 @@ namespace VoxelEngine.Tests.EditMode
                     () => Pump(client, server));
 
                 Assert.That(client.RepairPending, Is.True);
-                client.ApplyReadyAuthoritativeEvents(ref clientTable, ref clientPool, out _);
+                client.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientTable, in clientPool), new RegionReadSource(in clientTable, in clientPool), new RegionSnapshotMutationStore(in clientTable, in clientPool), out _);
 
                 Assert.That(repairApplied, Is.True);
                 Assert.That(client.RepairPending, Is.False);

@@ -1,8 +1,10 @@
+using System.IO;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
-using VoxelEngine.Core.Features;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -53,6 +55,124 @@ namespace VoxelEngine.Tests.EditMode
             {
                 catalogue.Dispose();
             }
+        }
+
+        [Test]
+        public void FoundationSkirtsUseCanonicalBoxThenEndEncoding()
+        {
+            FeatureCatalogue catalogue = KentridgeCombinedVoxelCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            try
+            {
+                int expectedLength = ShapeOps.InstructionLength(ShapeOp.EmitBox)
+                                   + ShapeOps.InstructionLength(ShapeOp.End);
+                int found = 0;
+                for (int i = 0; i < catalogue.Definitions.Length; i++)
+                {
+                    FeatureDefinition definition = catalogue.Definitions[i];
+                    if (!definition.Name.ToString().StartsWith("kentridge-foundation-skirt-"))
+                        continue;
+
+                    found++;
+                    Assert.AreEqual(expectedLength, definition.ProgramLength,
+                        $"{definition.Name} must contain exactly one canonical EmitBox and End.");
+                    Assert.AreEqual(ShapeOp.EmitBox,
+                        (ShapeOp)catalogue.Program[definition.ProgramOffset]);
+                    Assert.AreEqual(ShapeOp.End,
+                        (ShapeOp)catalogue.Program[
+                            definition.ProgramOffset + ShapeOps.InstructionLength(ShapeOp.EmitBox)]);
+                }
+
+                Assert.Greater(found, 0, "Expected at least one Kentridge foundation skirt definition.");
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
+        public void ManualBoxProgramBuildersDeriveAllocationLengthFromShapeOps()
+        {
+            string root = FindRepoRoot();
+            string voxelRoot = Path.Combine(
+                root, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel");
+
+            string terrace = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeTerraceSupportCatalogue.cs"));
+            StringAssert.Contains(
+                "programLength: count * (ShapeOps.InstructionLength(ShapeOp.EmitBox)", terrace);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.End)", terrace);
+            StringAssert.DoesNotContain("programLength: count * 12", terrace);
+
+            string frontage = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeFrontagePathCatalogue.cs"));
+            StringAssert.Contains("private static int ProgramLengthPerPath", frontage);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.EmitBox)", frontage);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.End)", frontage);
+            StringAssert.DoesNotContain("ProgramLengthPerPath = 12", frontage);
+
+            string sidewalk = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeUrbanSidewalkCatalogue.cs"));
+            StringAssert.Contains("private static int ProgramLengthPerStrip", sidewalk);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.EmitBox)", sidewalk);
+            StringAssert.Contains("ShapeOps.InstructionLength(ShapeOp.End)", sidewalk);
+            StringAssert.DoesNotContain("ProgramLengthPerStrip = 12", sidewalk);
+        }
+
+        [Test]
+        public void KentridgeUsesCanonicalEncodingWithoutCompatibilityNormalizer()
+        {
+            string root = FindRepoRoot();
+            string voxelRoot = Path.Combine(
+                root, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel");
+            string compatibility = Path.Combine(
+                voxelRoot, "KentridgeShapeProgramCompatibility.cs");
+            Assert.False(File.Exists(compatibility),
+                "Kentridge builders must emit canonical Structures.Api bytecode directly; " +
+                "do not restore the compatibility normalizer.");
+
+            string core = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeCombinedVoxelCatalogueCanonical.Core.cs"));
+            string merge = File.ReadAllText(Path.Combine(
+                voxelRoot, "KentridgeCombinedVoxelCatalogueCanonical.Merge.cs"));
+            StringAssert.DoesNotContain("KentridgeShapeProgramCompatibility", core);
+            StringAssert.DoesNotContain("KentridgeShapeProgramCompatibility", merge);
+            StringAssert.Contains("programs += stage.Program.Length", core,
+                "Combined allocation must use already-canonical source lengths.");
+            StringAssert.Contains("source.Program[definition.ProgramOffset + code]", merge,
+                "Combined merge must copy canonical program bytes verbatim.");
+        }
+
+        [Test]
+        public void CanonicalShapeEncodingHasOneApiOwner()
+        {
+            Assert.AreEqual("VoxelEngine.Structures.Api", typeof(ShapeOp).Assembly.GetName().Name,
+                "ShapeOp is an engine contract and must stay owned by Structures.Api.");
+            Assert.AreEqual("VoxelEngine.Structures.Api", typeof(ShapeOps).Assembly.GetName().Name,
+                "ShapeOps is the canonical bytecode definition and must stay owned by Structures.Api.");
+
+            string root = FindRepoRoot();
+            string worldGenRoot = Path.Combine(
+                root, "Packages", "com.mountingforce.worldgen", "Runtime");
+            string structuresRuntimeRoot = Path.Combine(
+                root, "Assets", "VoxelEngine", "Structures", "Runtime");
+
+            Assert.IsEmpty(
+                Directory.GetFiles(worldGenRoot, "ShapeOps.cs", SearchOption.AllDirectories),
+                "WorldGen must consume Structures.Api ShapeOps instead of defining a second encoder contract.");
+            Assert.IsEmpty(
+                Directory.GetFiles(structuresRuntimeRoot, "ShapeOps.cs", SearchOption.AllDirectories),
+                "Structures.Runtime must consume its Api contract instead of defining a second ShapeOps owner.");
+        }
+
+        private static string FindRepoRoot()
+        {
+            DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Packages")))
+                directory = directory.Parent;
+            Assert.NotNull(directory, "Could not locate project root containing Packages/.");
+            return directory.FullName;
         }
 
         private static VoxelWorldGenSettings BuildSettings()

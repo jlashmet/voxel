@@ -1,8 +1,8 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Terrain.Api;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -30,8 +30,8 @@ namespace VoxelEngine.Tests.Parity
             for (int offset = -4; offset <= 4; offset++)
             {
                 int x = border + offset;
-                int a = TerrainSampler.HeightAt(x, 100, Seed);
-                int b = TerrainSampler.HeightAt(x, 100, Seed);
+                int a = TerrainQuery.HeightAt(x, 100, Seed);
+                int b = TerrainQuery.HeightAt(x, 100, Seed);
 
                 Assert.AreEqual(a, b, $"height at x={x} is not a pure function");
             }
@@ -42,11 +42,9 @@ namespace VoxelEngine.Tests.Parity
         {
             const int border = 1 << VoxelDimensions.RegionVoxelEdgeLog2;
 
-            int inside = TerrainSampler.HeightAt(border - 1, 512, Seed);
-            int outside = TerrainSampler.HeightAt(border, 512, Seed);
+            int inside = TerrainQuery.HeightAt(border - 1, 512, Seed);
+            int outside = TerrainQuery.HeightAt(border, 512, Seed);
 
-            // One voxel of horizontal travel cannot produce a cliff. A tiling sampler shows up
-            // here as a jump of tens of voxels exactly on the boundary.
             Assert.LessOrEqual(math.abs(outside - inside), 4,
                 $"height jumps {math.abs(outside - inside)} voxels across a region border");
         }
@@ -61,8 +59,8 @@ namespace VoxelEngine.Tests.Parity
             for (int i = 0; i < 64; i++)
             {
                 int local = i * 8;
-                int inRegionZero = TerrainSampler.HeightAt(local, local, Seed);
-                int inRegionOne = TerrainSampler.HeightAt(edge + local, local, Seed);
+                int inRegionZero = TerrainQuery.HeightAt(local, local, Seed);
+                int inRegionOne = TerrainQuery.HeightAt(edge + local, local, Seed);
 
                 if (inRegionZero != inRegionOne) differing++;
             }
@@ -74,14 +72,12 @@ namespace VoxelEngine.Tests.Parity
         [Test]
         public void SlopeIsSymmetric()
         {
-            // Slope must not depend on which direction the caller approached from, or two regions
-            // will disagree about whether a site is buildable.
             for (int i = 0; i < 32; i++)
             {
                 int x = i * 37;
                 int z = i * 53;
 
-                Assert.AreEqual(TerrainSampler.SlopeAt(x, z, Seed), TerrainSampler.SlopeAt(x, z, Seed));
+                Assert.AreEqual(TerrainQuery.SlopeAt(x, z, Seed), TerrainQuery.SlopeAt(x, z, Seed));
             }
         }
 
@@ -92,23 +88,21 @@ namespace VoxelEngine.Tests.Parity
             {
                 int x = i * 101 - 20000;
                 int z = i * 211 - 30000;
-                int h = TerrainSampler.HeightAt(x, z, Seed);
+                int h = TerrainQuery.HeightAt(x, z, Seed);
 
-                Assert.GreaterOrEqual(h, TerrainSampler.MinHeight);
-                Assert.LessOrEqual(h, TerrainSampler.MaxHeight);
+                Assert.GreaterOrEqual(h, TerrainQuery.MinHeight);
+                Assert.LessOrEqual(h, TerrainQuery.MaxHeight);
             }
         }
 
         [Test]
         public void NegativeCoordinatesDoNotMirrorTheWorld()
         {
-            // Truncating division instead of an arithmetic shift mirrors terrain about the origin,
-            // which is invisible unless something walks west.
             int differing = 0;
 
             for (int i = 1; i <= 64; i++)
             {
-                if (TerrainSampler.HeightAt(-i * 16, 0, Seed) != TerrainSampler.HeightAt(i * 16, 0, Seed))
+                if (TerrainQuery.HeightAt(-i * 16, 0, Seed) != TerrainQuery.HeightAt(i * 16, 0, Seed))
                     differing++;
             }
 

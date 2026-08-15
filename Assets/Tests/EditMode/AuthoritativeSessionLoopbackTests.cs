@@ -4,11 +4,13 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
-using VoxelEngine.Net.Transport;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
+using VoxelEngine.Net.Runtime.Transport;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -20,7 +22,8 @@ namespace VoxelEngine.Tests.EditMode
         {
             using var server = new AuthoritativeServerSession(
                 serverSeed: 0x12345678,
-                densityCap: new Validation.DensityCap(1f, 0));
+                densityCap: new Validation.DensityCap(1f, 0),
+                alterationApplier: new DeterministicAlterationApplier());
             using var client = new UtpClientHost();
 
             var clientHandler = new RecordingClientHandler();
@@ -76,7 +79,7 @@ namespace VoxelEngine.Tests.EditMode
             table.LoadRegion(int3.zero);
             try
             {
-                server.ProcessAuthoritativeTick(10, ref table, ref pool, in zones, inputSink, applier);
+                server.ProcessAuthoritativeTick(10, new RegionReadSource(in table, in pool), new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), in zones, inputSink, applier);
 
                 PumpUntil(
                     () => clientHandler.BatchCount == 1,
@@ -105,7 +108,7 @@ namespace VoxelEngine.Tests.EditMode
                         client.Pump(clientHandler);
                     });
 
-                server.ProcessAuthoritativeTick(11, ref table, ref pool, in zones, inputSink, applier);
+                server.ProcessAuthoritativeTick(11, new RegionReadSource(in table, in pool), new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), in zones, inputSink, applier);
 
                 PumpUntil(
                     () => clientHandler.RejectionCount == 1,
@@ -161,11 +164,23 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private sealed class AcceptingApplier : IAuthoritativeAlterationApplier
+        private sealed class AcceptingApplier : IAlterationApplier
         {
+            public bool Supports(in AlterationEvent evt) => true;
+            public bool HasRequiredResidency(IRegionMutationStore storage, in AlterationEvent evt) => true;
+            public bool HasRequiredResidencyExcept(
+                IRegionMutationStore storage, in AlterationEvent evt, int3 excludedRegion) => true;
+            public bool TryApplyExceptRegion(
+                IRegionMutationStore storage,
+                in AlterationEvent evt,
+                int3 excludedRegion,
+                out NativeList<int3> affectedBlocks) =>
+                TryApply(storage, in evt, out affectedBlocks);
+
             public int Count { get; private set; }
-            public bool TryApplyAlteration(ref RegionTable table, ref BrickPool pool, in AlterationEvent evt)
+            public bool TryApply(IRegionMutationStore storage, in AlterationEvent evt, out NativeList<int3> affectedBlocks)
             {
+                affectedBlocks = new NativeList<int3>(0, Allocator.Temp);
                 Count++;
                 return true;
             }

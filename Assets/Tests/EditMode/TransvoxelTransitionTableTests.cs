@@ -1,5 +1,5 @@
 using NUnit.Framework;
-using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 
 namespace VoxelEngine.Tests.EditMode
 {

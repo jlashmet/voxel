@@ -1,9 +1,11 @@
-using VoxelEngine.Core.Edits;
+using VoxelEngine.Edits.Api;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Net.Runtime.Client;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -32,6 +34,8 @@ namespace VoxelEngine.Tests.Parity
             // Build a wall at Z=256 spanning X: 200–300, Y: 100–400.
             BuildWall(ref poolA, ref tableA, new int3(200, 100, 256), 100, 300);
             BuildWall(ref poolB, ref tableB, new int3(200, 100, 256), 100, 300);
+            var storageA = new RegionMutationStore(in tableA, in poolA);
+            var storageB = new RegionMutationStore(in tableB, in poolB);
 
             // The wall must be solid: every voxel on the wall is material 5.
             for (int x = 200; x < 300; x++)
@@ -47,7 +51,7 @@ namespace VoxelEngine.Tests.Parity
             var evt = new AlterationEvent
             {
                 tick = 1u,
-                kind = (byte)VoxelEngine.Core.Edits.AlterationEventKind.Explosion,
+                kind = (byte)VoxelEngine.Edits.Api.AlterationEventKind.Explosion,
                 origin = new int3(256, 250, 256),
                 shapeData = 30,
                 material = VoxelDimensions.MaterialEmpty,
@@ -55,8 +59,8 @@ namespace VoxelEngine.Tests.Parity
                 playerId = 1, sequence = 1,
             };
 
-            var resultA = EventApplication.Apply(ref tableA, ref poolA, in evt, out _);
-            var resultB = EventApplication.Apply(ref tableB, ref poolB, in evt, out _);
+            var resultA = EventApplication.Apply(new DeterministicAlterationApplier(), storageA, in evt, out _);
+            var resultB = EventApplication.Apply(new DeterministicAlterationApplier(), storageB, in evt, out _);
 
             // Both must report changes (the explosion hits the wall).
             Assert.IsTrue(resultA, "Client A: destruction should have changed the world.");
@@ -109,17 +113,18 @@ namespace VoxelEngine.Tests.Parity
             {
                 BuildWall(ref pool, ref table, new int3(200, 100, 256 + zOff), 100, 300);
             }
+            var storage = new RegionMutationStore(in table, in pool);
 
             var evt = new AlterationEvent
             {
                 tick = 1u,
-                kind = (byte)VoxelEngine.Core.Edits.AlterationEventKind.Explosion,
+                kind = (byte)VoxelEngine.Edits.Api.AlterationEventKind.Explosion,
                 origin = new int3(256, 250, 256),
                 shapeData = 20, material = VoxelDimensions.MaterialEmpty,
                 seed = 42u, playerId = 1, sequence = 1,
             };
 
-            EventApplication.Apply(ref table, ref pool, in evt, out _);
+            EventApplication.Apply(new DeterministicAlterationApplier(), storage, in evt, out _);
 
             // The hole's radius (in voxels) should be approximately ShapeRadius * BrickEdge.
             int expectedVoxelRadius = evt.Radius() * VoxelDimensions.BrickEdge;

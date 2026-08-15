@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -92,7 +93,7 @@ namespace MountingForce.WorldGen.Voxel
                 programLength += programs[i].Length;
             }
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: s_TileSizesDm.Length,
                 rules: s_TileSizesDm.Length,
                 parameters: 0,
@@ -154,7 +155,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -236,7 +237,7 @@ namespace MountingForce.WorldGen.Voxel
 
         private static void Sample(int x, int z, uint seed, ref int minY, ref int maxY)
         {
-            int y = TerrainSampler.HeightAt(x, z, seed);
+            int y = TerrainQuery.HeightAt(x, z, seed);
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
         }

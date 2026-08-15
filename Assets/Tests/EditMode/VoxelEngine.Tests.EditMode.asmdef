@@ -2,13 +2,16 @@
   "name": "VoxelEngine.Tests.EditMode",
   "rootNamespace": "VoxelEngine.Tests.EditMode",
   "references": [
-    "VoxelEngine.Core",
-    "VoxelEngine.Rendering",
-    "VoxelEngine.Net",
-    "VoxelEngine.Collision",
-    "VoxelEngine.Streaming",
-    "VoxelEngine.Tiering",
-    "VoxelEngine.Structures",
+    "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Composition",
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Rendering.Runtime",
+    "VoxelEngine.Net.Api",
+    "VoxelEngine.Net.Runtime",
+    "VoxelEngine.Tiering.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Architecture",
     "MountingForce.WorldGen.Voxel",
@@ -33,7 +36,13 @@
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "Unity.RenderPipelines.Universal.Runtime",
-    "Unity.RenderPipelines.Core.Runtime"
+    "Unity.RenderPipelines.Core.Runtime",
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Edits.Runtime",
+    "VoxelEngine.Streaming.Api",
+    "VoxelEngine.Streaming.Runtime",
+    "VoxelEngine.Collision.Runtime",
+    "VoxelEngine.Terrain.Runtime"
   ],
   "includePlatforms": [
     "Editor"

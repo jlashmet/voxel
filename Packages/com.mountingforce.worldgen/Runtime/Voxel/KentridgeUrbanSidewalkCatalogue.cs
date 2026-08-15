@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -34,7 +35,9 @@ namespace MountingForce.WorldGen.Voxel
         /// catalogue actually had when it was written and authored against.
         /// </summary>
         private const int VerticalSearchVoxels = 520;
-        private const int ProgramLengthPerStrip = 12;
+        private static int ProgramLengthPerStrip =>
+            ShapeOps.InstructionLength(ShapeOp.EmitBox)
+            + ShapeOps.InstructionLength(ShapeOp.End);
 
         private readonly struct Strip
         {
@@ -98,7 +101,7 @@ namespace MountingForce.WorldGen.Voxel
             // intentionally rendered as a terrain field in the smooth pipeline, so surface-paint
             // sidewalks must use the distinct dark-masonry channel to retain an architectural read.
             byte stone = settings.Materials.Resolve(MaterialRole.DarkMasonry);
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: strips.Count,
                 rules: strips.Count,
                 parameters: 0,
@@ -155,7 +158,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -223,6 +226,7 @@ namespace MountingForce.WorldGen.Voxel
                 0, 0, 0,
                 width, VerticalSearchVoxels, depth,
                 material,
+                0, 0,
                 (int)PrimitiveMode.PaintSurface,
                 (int)ShapeOp.End,
                 0,

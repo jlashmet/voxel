@@ -1,0 +1,21 @@
+{
+  "name": "VoxelEngine.Streaming.Runtime",
+  "rootNamespace": "VoxelEngine.Streaming.Runtime",
+  "references": [
+    "VoxelEngine.Streaming.Api",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Tiering.Api",
+    "Unity.Burst",
+    "Unity.Collections",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

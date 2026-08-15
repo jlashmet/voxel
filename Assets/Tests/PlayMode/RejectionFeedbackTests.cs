@@ -1,8 +1,8 @@
 using NUnit.Framework;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
 
 namespace VoxelEngine.Tests.PlayMode
 {

@@ -1,8 +1,9 @@
 using System;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Storage.Runtime;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+using VoxelEngine.Terrain.Runtime;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -51,7 +52,8 @@ namespace VoxelEngine.Tests.Parity
                 var pool = new BrickPool(poolCapacity, Allocator.Temp);
                 var region = new Region(coord, Allocator.Temp);
 
-                TerrainGenerator.Generate(region, seed, in pool);
+                TerrainGenerator.Generate(
+                    new StandaloneRegionGenerationStore(in region), region.Coord, seed);
 
                 fingerprints[linear] = FingerprintRegion(in region, coord);
 

@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -98,7 +99,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < placements.Count; i++)
                 byKind[(int)placements[i].Kind].Add(placements[i]);
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: DefinitionCount,
                 rules: DefinitionCount,
                 parameters: 0,
@@ -183,7 +184,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();

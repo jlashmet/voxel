@@ -2,23 +2,34 @@
   "name": "VoxelEngine.Tests.Parity",
   "rootNamespace": "VoxelEngine.Tests.Parity",
   "references": [
-    "VoxelEngine.Core",
-    "VoxelEngine.Net",
-    "VoxelEngine.Collision",
-    "VoxelEngine.Streaming",
-    "VoxelEngine.Tiering",
+    "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Net.Api",
+    "VoxelEngine.Net.Runtime",
+    "VoxelEngine.Tiering.Api",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
     "UnityEngine.TestRunner",
-    "UnityEditor.TestRunner"
+    "UnityEditor.TestRunner",
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Edits.Runtime",
+    "VoxelEngine.StructuralIntegrity.Runtime",
+    "VoxelEngine.Terrain.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": true,
   "overrideReferences": true,
-  "precompiledReferences": ["nunit.framework.dll"],
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
   "autoReferenced": false,
-  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
   "versionDefines": []
 }

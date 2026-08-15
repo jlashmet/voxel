@@ -4,11 +4,12 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -21,10 +22,11 @@ namespace VoxelEngine.Tests.EditMode
             using var server = new AuthoritativeServerSession(
                 serverSeed: 0xC001C0DEu,
                 densityCap: new Validation.DensityCap(1f, VoxelDimensions.BricksPerRegion),
+                alterationApplier: new DeterministicAlterationApplier(),
                 maxConnections: 2,
                 playerStateIntervalTicks: 1);
-            using var clientOne = new ClientNetworkRuntime();
-            using var clientTwo = new ClientNetworkRuntime();
+            using var clientOne = new ClientNetworkRuntime(new DeterministicAlterationApplier());
+            using var clientTwo = new ClientNetworkRuntime(new DeterministicAlterationApplier());
 
             uint connectionOne = 0;
             uint connectionTwo = 0;
@@ -114,9 +116,7 @@ namespace VoxelEngine.Tests.EditMode
                 var inputSink = new NoopInputSink();
                 server.ProcessAuthoritativeTick(
                     20,
-                    ref serverTable,
-                    ref serverPool,
-                    in zones,
+                    new RegionReadSource(in serverTable, in serverPool), new RegionMutationStore(in serverTable, in serverPool), new RegionReadSource(in serverTable, in serverPool), in zones,
                     inputSink);
 
                 PumpUntil(
@@ -138,14 +138,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(clientOne.ApplyPlayerStateUpdates(out _), Is.EqualTo(2));
                 Assert.That(clientTwo.ApplyPlayerStateUpdates(out _), Is.EqualTo(2));
 
-                Assert.That(clientOne.ApplyReadyAuthoritativeEvents(
-                    ref clientOneTable,
-                    ref clientOnePool,
-                    out int clientOneEvents), Is.EqualTo(1));
-                Assert.That(clientTwo.ApplyReadyAuthoritativeEvents(
-                    ref clientTwoTable,
-                    ref clientTwoPool,
-                    out int clientTwoEvents), Is.EqualTo(1));
+                Assert.That(clientOne.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientOneTable, in clientOnePool), new RegionReadSource(in clientOneTable, in clientOnePool), new RegionSnapshotMutationStore(in clientOneTable, in clientOnePool), out int clientOneEvents), Is.EqualTo(1));
+                Assert.That(clientTwo.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientTwoTable, in clientTwoPool), new RegionReadSource(in clientTwoTable, in clientTwoPool), new RegionSnapshotMutationStore(in clientTwoTable, in clientTwoPool), out int clientTwoEvents), Is.EqualTo(1));
                 Assert.That(clientOneEvents, Is.EqualTo(1));
                 Assert.That(clientTwoEvents, Is.EqualTo(1));
 

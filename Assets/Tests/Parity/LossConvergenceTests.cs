@@ -1,9 +1,11 @@
 using System;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Terrain.Runtime;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -40,8 +42,10 @@ namespace VoxelEngine.Tests.Parity
             var regionA = new Region(int3.zero, Allocator.Temp);
             var regionB = new Region(int3.zero, Allocator.Temp);
 
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionA, terrainSeed, in poolA);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionB, terrainSeed, in poolB);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, terrainSeed);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, terrainSeed);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
             var tableB = new RegionTable(1, Allocator.Persistent);
@@ -85,8 +89,10 @@ namespace VoxelEngine.Tests.Parity
             var regionA = new Region(int3.zero, Allocator.Temp);
             var regionB = new Region(int3.zero, Allocator.Temp);
 
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionA, 42u, in poolA);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionB, 42u, in poolB);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
             var tableB = new RegionTable(1, Allocator.Persistent);
@@ -125,8 +131,10 @@ namespace VoxelEngine.Tests.Parity
             var regionA = new Region(int3.zero, Allocator.Temp);
             var regionB = new Region(int3.zero, Allocator.Temp);
 
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionA, 42u, in poolA);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionB, 42u, in poolB);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u);
 
             const int eventCount = 1000;
             var events = LossConvergenceHarness.GenerateEvents(eventCount, 42u);
@@ -231,7 +239,7 @@ namespace VoxelEngine.Tests.Parity
             int maxBricks = pool.Capacity >> 4; // Approximate region-brick allocation ratio
             for (int i = 0; i < maxBricks; i++)
             {
-                if (!VoxelEngine.Core.Occupancy.OccupancyMask.IsEmpty(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick))
+                if (!VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.IsEmpty(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick))
                     count++;
             }
             return count;

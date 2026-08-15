@@ -3,9 +3,9 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Streaming;
-using VoxelEngine.Tiering;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Streaming.Runtime;
+using VoxelEngine.Tiering.Api;
+using VoxelEngine.Storage.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -46,6 +46,7 @@ namespace VoxelEngine.Tests.PlayMode
             // Arrange: region table and brick pool.
             var table = new RegionTable(1024, Allocator.Persistent);
             var pool = new BrickPool(1 << 20, Allocator.Persistent); // 1 MB for test.
+            var residency = new RegionResidencyStore(in table, in pool);
 
             var playerPos = new float3(0f, 64f, 0f); // start at origin, eye height.
             var velocity = new float3(k_MovementSpeed, 0f, 0f); // straight along +X.
@@ -97,7 +98,8 @@ namespace VoxelEngine.Tests.PlayMode
                     residentRegions.Dispose();
 
                     // Simulate region loader publish (0.5 ms budget per device-matrix.md).
-                    float mainThreadWorkMs = RegionLoader.PublishLoaded(ref table, ref pool, 0.5f);
+                    residency.Refresh(in table, in pool);
+                    float mainThreadWorkMs = RegionLoader.PublishLoaded(residency, 0.5f);
 
                     // Verify streaming work stays within budget.
                     Assert.That(mainThreadWorkMs, Is.LessThanOrEqualTo(0.5f),
@@ -152,6 +154,7 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 var table = new RegionTable(1024, Allocator.Persistent);
                 var pool = new BrickPool(1 << 20, Allocator.Persistent);
+                var residency = new RegionResidencyStore(in table, in pool);
                 float playerPosZ = 0f;
 
                 try
@@ -172,7 +175,8 @@ namespace VoxelEngine.Tests.PlayMode
 
                         // Measure streaming work.
                         var sw = System.Diagnostics.Stopwatch.StartNew();
-                        int published = RegionLoader.PublishLoaded(ref table, ref pool, 0.5f);
+                        residency.Refresh(in table, in pool);
+                        int published = RegionLoader.PublishLoaded(residency, 0.5f);
                         float elapsedMs = sw.ElapsedMilliseconds;
 
                         Assert.That(elapsedMs, Is.LessThanOrEqualTo(0.5f),

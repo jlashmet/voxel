@@ -4,10 +4,11 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -19,8 +20,9 @@ namespace VoxelEngine.Tests.EditMode
         {
             using var server = new AuthoritativeServerSession(
                 serverSeed: 77,
-                densityCap: new Validation.DensityCap(1f, 0));
-            using var client = new ClientNetworkRuntime();
+                densityCap: new Validation.DensityCap(1f, 0),
+                alterationApplier: new DeterministicAlterationApplier());
+            using var client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
 
             uint connectionId = 0;
             bool connected = false;
@@ -49,7 +51,7 @@ namespace VoxelEngine.Tests.EditMode
                     serverHash: 0x22222222);
                 server.ConvergenceInbox.HandleRegionHashMismatch(connectionId, in stale);
 
-                server.ProcessAuthoritativeTick(100, ref table, ref pool, in zones, inputSink);
+                server.ProcessAuthoritativeTick(100, new RegionReadSource(in table, in pool), new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), in zones, inputSink);
                 PumpUntil(() => client.IsFullRegionResyncRequired, () => Pump(client, server));
 
                 Assert.That(client.LastResyncRequirement.regionCoord, Is.EqualTo(int3.zero));
@@ -59,10 +61,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(server.Convergence.ResyncRequiredCount, Is.EqualTo(1));
                 Assert.That(client.FullSnapshotWaitPending, Is.True);
 
-                Assert.That(client.ApplyReadyAuthoritativeEvents(
-                    ref table,
-                    ref pool,
-                    out int appliedEvents), Is.Zero);
+                Assert.That(client.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), new RegionSnapshotMutationStore(in table, in pool), out int appliedEvents), Is.Zero);
                 Assert.That(appliedEvents, Is.Zero);
 
                 client.ResetAfterAuthoritativeSnapshot();
@@ -82,7 +81,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             var inbox = new ServerConvergenceInbox();
             var players = new ServerPlayerRegistry();
-            var subscriptions = new VoxelEngine.Net.Interest.RegionSubscriptionIndex();
+            var subscriptions = new VoxelEngine.Net.Runtime.Interest.RegionSubscriptionIndex();
             var manager = new ServerConvergenceManager(inbox, players);
 
             Assert.That(players.TryRegisterAuthenticated(7, 3, int3.zero, 64, true), Is.True);

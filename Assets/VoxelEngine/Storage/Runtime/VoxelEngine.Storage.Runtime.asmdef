@@ -1,0 +1,20 @@
+{
+  "name": "VoxelEngine.Storage.Runtime",
+  "rootNamespace": "VoxelEngine.Storage.Runtime",
+  "references": [
+    "VoxelEngine.Foundation",
+    "VoxelEngine.Storage.Api",
+    "Unity.Burst",
+    "Unity.Collections",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

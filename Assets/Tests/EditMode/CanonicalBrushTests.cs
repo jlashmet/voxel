@@ -1,11 +1,13 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -34,6 +36,7 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 table.LoadRegion(int3.zero);
+                var storage = new RegionMutationStore(in table, in pool);
                 var evt = AlterationEvent.CreateCubeBrush(
                     tick: 1,
                     origin: new int3(4, 4, 4),
@@ -46,8 +49,7 @@ namespace VoxelEngine.Tests.EditMode
                     sequence: 1);
 
                 Assert.That(DeterministicAlterationApplier.TryApply(
-                    ref table,
-                    ref pool,
+                    storage,
                     in evt,
                     out NativeList<int3> affected), Is.True);
                 try
@@ -102,14 +104,15 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 table.LoadRegion(int3.zero);
+                var storage = new RegionMutationStore(in table, in pool);
                 var materialBrush = AlterationEvent.CreateCubeBrush(
                     1, new int3(4, 4, 4), 1, 1, 1, 5, 1, 1, 1, false);
-                Assert.That(ApplyAndDispose(ref table, ref pool, in materialBrush), Is.True);
+                Assert.That(ApplyAndDispose(storage, in materialBrush), Is.True);
                 Assert.That(pool.AllocatedCount, Is.Zero);
 
                 var hardBrush = AlterationEvent.CreateCubeBrush(
                     2, new int3(4, 4, 4), 1, 1, 1, 5, 2, 1, 2, true);
-                Assert.That(ApplyAndDispose(ref table, ref pool, in hardBrush), Is.True,
+                Assert.That(ApplyAndDispose(storage, in hardBrush), Is.True,
                     "Marking authored hard geometry is authoritative even when material bytes already match.");
                 Assert.That(pool.AllocatedCount, Is.Zero);
 
@@ -131,6 +134,7 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 table.LoadRegion(int3.zero);
+                var storage = new RegionMutationStore(in table, in pool);
                 int3 sentinel = new int3(508, 4, 4);
                 Assert.That(VoxelAccess.SetVoxel(ref table, ref pool, sentinel, 9), Is.True);
 
@@ -143,8 +147,8 @@ namespace VoxelEngine.Tests.EditMode
                     1,
                     1);
 
-                Assert.That(DeterministicAlterationApplier.HasRequiredResidency(ref table, in evt), Is.False);
-                Assert.That(ApplyAndDispose(ref table, ref pool, in evt), Is.False);
+                Assert.That(DeterministicAlterationApplier.HasRequiredResidency(storage, in evt), Is.False);
+                Assert.That(ApplyAndDispose(storage, in evt), Is.False);
                 Assert.That(VoxelAccess.GetVoxel(ref table, in pool, sentinel), Is.EqualTo((byte)9),
                     "Residency preflight must prevent any partial write in the loaded half.");
             }
@@ -166,6 +170,7 @@ namespace VoxelEngine.Tests.EditMode
             {
                 serverTable.LoadRegion(int3.zero);
                 clientTable.LoadRegion(int3.zero);
+                var serverStorage = new RegionMutationStore(in serverTable, in serverPool);
 
                 var evt = AlterationEvent.CreateCubeBrush(
                     11,
@@ -177,7 +182,7 @@ namespace VoxelEngine.Tests.EditMode
                     1,
                     hardSurface: true);
 
-                Assert.That(ApplyAndDispose(ref serverTable, ref serverPool, in evt), Is.True);
+                Assert.That(ApplyAndDispose(serverStorage, in evt), Is.True);
 
                 int payloadSize = S_AlterationEventBatch.EncodedSize(1);
                 var packet = new byte[ProtocolEnvelope.HeaderSize + payloadSize];
@@ -191,9 +196,9 @@ namespace VoxelEngine.Tests.EditMode
                     out int written), Is.True);
                 Assert.That(written, Is.EqualTo(payloadSize));
 
-                var queue = new ClientAuthoritativeEventQueue();
+                var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
                 Assert.That(queue.TryEnqueueEventPacket(packet), Is.True);
-                Assert.That(queue.DrainReady(ref clientTable, ref clientPool, out int appliedEvents), Is.EqualTo(1));
+                Assert.That(queue.DrainReady(new RegionMutationStore(in clientTable, in clientPool), new RegionReadSource(in clientTable, in clientPool), out int appliedEvents), Is.EqualTo(1));
                 Assert.That(appliedEvents, Is.EqualTo(1));
 
                 Assert.That(serverTable.TryGetRegion(int3.zero, out Region serverRegion), Is.True);
@@ -212,13 +217,11 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         private static bool ApplyAndDispose(
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore storage,
             in AlterationEvent evt)
         {
             bool result = DeterministicAlterationApplier.TryApply(
-                ref table,
-                ref pool,
+                storage,
                 in evt,
                 out NativeList<int3> affected);
             if (affected.IsCreated) affected.Dispose();

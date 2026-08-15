@@ -3,8 +3,10 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Runtime.Emitters;
+
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -18,7 +20,7 @@ namespace VoxelEngine.Tests.EditMode
             Primitive ramp = BoxEmitter.Ramp(
                 int3.zero,
                 new int3(4, 4, 8),
-                (byte)(2 | BoxEmitter.ReverseRampBit),
+                (byte)(2 | ShapeOps.ReverseRampBit),
                 material: 1,
                 PrimitiveMode.Fill,
                 order: 0);
@@ -62,7 +64,7 @@ namespace VoxelEngine.Tests.EditMode
                         {
                             ramps++;
                             int axis = catalogue.Program[pc + 2 + 6];
-                            if ((axis & BoxEmitter.ReverseRampBit) != 0)
+                            if ((axis & ShapeOps.ReverseRampBit) != 0)
                                 reversedRamps++;
                         }
 

@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -47,7 +48,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < plan.Sites.Count; i++)
                 byArchetype[(int)plan.Sites[i].Archetype].Add(plan.Sites[i]);
 
-            var catalogue = CatalogueLoader.Allocate(
+            var catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: DefinitionCount,
                 rules: DefinitionCount,
                 parameters: 0,
@@ -129,7 +130,7 @@ namespace MountingForce.WorldGen.Voxel
                 placementOffset += sites.Count;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -150,7 +151,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int z = 0; z <= footprint.z; z += sampleStep)
             for (int x = 0; x <= footprint.x; x += sampleStep)
             {
-                int h = TerrainSampler.HeightAt(ox + x, oz + z, seed);
+                int h = TerrainQuery.HeightAt(ox + x, oz + z, seed);
                 if (h < lowest) lowest = h;
             }
 

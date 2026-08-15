@@ -4,11 +4,12 @@
   "references": [
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Architecture",
-    "VoxelEngine.Core",
-    "VoxelEngine.Vegetation",
-    "VoxelEngine.Structures",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Vegetation.Api",
     "Unity.Collections",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "VoxelEngine.Structures.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

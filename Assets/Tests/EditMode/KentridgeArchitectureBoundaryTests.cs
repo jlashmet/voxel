@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
@@ -9,6 +13,140 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class KentridgeArchitectureBoundaryTests
     {
         private const uint Seed = 0x4B454E54u;
+
+        private static readonly Regex ReferencesRegex = new Regex(
+            "\"references\"\\s*:\\s*\\[(?<value>.*?)\\]",
+            RegexOptions.Compiled | RegexOptions.Singleline);
+        private static readonly Regex QuotedStringRegex = new Regex(
+            "\"(?<value>[^\"]+)\"",
+            RegexOptions.Compiled);
+        private static readonly Regex RuntimeNamespaceRegex = new Regex(
+            @"\bVoxelEngine\.[A-Za-z0-9_.]+\.Runtime\b",
+            RegexOptions.Compiled);
+
+        private static string RepoRoot
+        {
+            get
+            {
+                var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+                while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Packages")))
+                    directory = directory.Parent;
+
+                Assert.NotNull(directory, "Could not locate project root containing Packages/.");
+                return directory.FullName;
+            }
+        }
+
+        private static string WorldGenRuntimeRoot => Path.Combine(
+            RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime");
+
+        [Test]
+        public void KentridgeSemanticSourcesDoNotReferenceVoxelEngineNamespaces()
+        {
+            string[] semanticKentridgeRoots =
+            {
+                Path.Combine(WorldGenRuntimeRoot, "Content", "Kentridge"),
+                Path.Combine(WorldGenRuntimeRoot, "Architecture", "Kentridge"),
+            };
+            var violations = new List<string>();
+
+            foreach (string root in semanticKentridgeRoots)
+            {
+                Assert.IsTrue(Directory.Exists(root), "Missing Kentridge semantic source root: " + root);
+                foreach (string path in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+                {
+                    string source = File.ReadAllText(path);
+                    if (source.IndexOf("VoxelEngine.", StringComparison.Ordinal) >= 0)
+                        violations.Add(Path.GetRelativePath(WorldGenRuntimeRoot, path));
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Kentridge settlement/content and architecture semantics must remain engine-independent; " +
+                "only the WorldGen.Voxel adapter may consume VoxelEngine contracts.\n\n" +
+                string.Join("\n", violations));
+        }
+
+        [Test]
+        public void KentridgeVoxelSourcesDoNotReferenceEngineRuntimeNamespaces()
+        {
+            string voxelRoot = Path.Combine(WorldGenRuntimeRoot, "Voxel");
+            Assert.IsTrue(Directory.Exists(voxelRoot), "Missing WorldGen Voxel adapter source root: " + voxelRoot);
+
+            var violations = new List<string>();
+            foreach (string path in Directory.EnumerateFiles(
+                         voxelRoot, "Kentridge*.cs", SearchOption.TopDirectoryOnly))
+            {
+                string source = File.ReadAllText(path);
+                foreach (Match match in RuntimeNamespaceRegex.Matches(source))
+                {
+                    violations.Add(
+                        Path.GetRelativePath(WorldGenRuntimeRoot, path) + " -> " + match.Value);
+                }
+
+                if (source.IndexOf("VoxelEngine.Core", StringComparison.Ordinal) >= 0)
+                {
+                    violations.Add(
+                        Path.GetRelativePath(WorldGenRuntimeRoot, path) + " -> VoxelEngine.Core");
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Kentridge voxel realization may consume stable VoxelEngine Api namespaces only; " +
+                "Runtime/Core implementation namespaces must never cross the package boundary.\n\n" +
+                string.Join("\n", violations));
+        }
+
+        [Test]
+        public void KentridgeAssemblyDefinitionsKeepEngineDependenciesAtVoxelApiBoundary()
+        {
+            string[] semanticAsmdefs =
+            {
+                "MountingForce.WorldGen.Core.asmdef",
+                Path.Combine("Architecture", "MountingForce.WorldGen.Architecture.asmdef"),
+            };
+            var violations = new List<string>();
+
+            foreach (string relativeAsmdef in semanticAsmdefs)
+            {
+                foreach (string reference in ReadReferences(relativeAsmdef))
+                {
+                    if (reference.StartsWith("VoxelEngine.", StringComparison.Ordinal))
+                        violations.Add(relativeAsmdef + " -> " + reference);
+                }
+            }
+
+            string voxelAsmdef = Path.Combine("Voxel", "MountingForce.WorldGen.Voxel.asmdef");
+            string[] engineReferences = ReadReferences(voxelAsmdef)
+                .Where(reference => reference.StartsWith("VoxelEngine.", StringComparison.Ordinal))
+                .OrderBy(reference => reference, StringComparer.Ordinal)
+                .ToArray();
+            string[] allowedEngineReferences =
+            {
+                "VoxelEngine.Storage.Api",
+                "VoxelEngine.Structures.Api",
+                "VoxelEngine.Terrain.Api",
+                "VoxelEngine.Vegetation.Api",
+            };
+
+            CollectionAssert.AreEquivalent(
+                allowedEngineReferences,
+                engineReferences,
+                "The Kentridge/WorldGen voxel realization boundary must consume only the explicitly " +
+                "approved engine API assemblies. Adding a new engine dependency requires an intentional " +
+                "architecture decision and guard update.");
+
+            foreach (string reference in engineReferences)
+            {
+                if (!reference.EndsWith(".Api", StringComparison.Ordinal))
+                    violations.Add(voxelAsmdef + " -> non-Api engine reference " + reference);
+            }
+
+            Assert.IsEmpty(violations,
+                "Kentridge semantic assemblies must not reference VoxelEngine, and the Voxel adapter " +
+                "must never depend on engine Runtime/Core implementation assemblies.\n\n" +
+                string.Join("\n", violations));
+        }
 
         [Test]
         public void KentridgeContentSuppliesIntentAndArchitectureOwnsDetail()
@@ -178,6 +316,24 @@ namespace VoxelEngine.Tests.EditMode
             }
 
             Assert.Greater(samples, 0);
+        }
+
+        private static IReadOnlyList<string> ReadReferences(string relativeAsmdef)
+        {
+            string path = Path.Combine(
+                WorldGenRuntimeRoot,
+                relativeAsmdef.Replace('/', Path.DirectorySeparatorChar));
+            Assert.IsTrue(File.Exists(path), "Missing WorldGen asmdef: " + path);
+
+            string json = File.ReadAllText(path);
+            Match block = ReferencesRegex.Match(json);
+            if (!block.Success)
+                return new string[0];
+
+            return QuotedStringRegex.Matches(block.Groups["value"].Value)
+                .Cast<Match>()
+                .Select(match => match.Groups["value"].Value)
+                .ToArray();
         }
     }
 }

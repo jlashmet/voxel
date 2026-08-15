@@ -1,9 +1,11 @@
 using System;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Occupancy;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime.Occupancy;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Terrain.Runtime;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -59,9 +61,13 @@ namespace VoxelEngine.Tests.Parity
             // Generate identical terrain in both.
             var regionA = _tableA.LoadRegion(int3.zero);
             var regionB = _tableB.LoadRegion(int3.zero);
+            var generationA = new RegionGenerationStore(in _tableA);
+            var generationB = new RegionGenerationStore(in _tableB);
 
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionA, terrainSeed, in _poolA);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionB, terrainSeed, in _poolB);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                generationA, regionA.Coord, terrainSeed);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                generationB, regionB.Coord, terrainSeed);
 
             // Materialise both.
             _tableA.CommitRegion(regionA);
@@ -174,7 +180,7 @@ namespace VoxelEngine.Tests.Parity
         /// <summary>
         /// Expands one event and writes its result into the world.
         ///
-        /// Dispatches to the real Core.Edits expansions — the harness must exercise the
+        /// Dispatches to the real Edits.Runtime expansions — the harness must exercise the
         /// shipping code paths, since a harness with its own copy of expansion would prove
         /// nothing about the engine.
         /// </summary>
@@ -185,11 +191,11 @@ namespace VoxelEngine.Tests.Parity
             switch (evt.kind)
             {
                 case AlterationEvent.KindExplosion:
-                    affected = ExplosionExpansion.Expand(in pool, in table, in evt);
+                    affected = ExplosionExpansion.Expand(new RegionReadSource(in table, in pool), in evt);
                     break;
 
                 case AlterationEvent.KindBrush:
-                    affected = BrushExpansion.Expand(in pool, in table, evt);
+                    affected = BrushExpansion.Expand(evt);
                     break;
 
                 default:

@@ -3,12 +3,17 @@ using System.Reflection;
 using System.IO;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Server;
-using VoxelEngine.Rendering.SurfaceExtraction;
-using VoxelEngine.Structures;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Runtime.Emitters;
+using VoxelEngine.Storage.Runtime;
+using CoreSurfaceCompatibility = VoxelEngine.Storage.Runtime.SurfaceCompatibility;
+using CoreSurfaceReconstruction = VoxelEngine.Storage.Runtime.SurfaceReconstruction;
+using CoreSurfaceDecorationShape = VoxelEngine.Storage.Runtime.SurfaceDecorationShape;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Net.Runtime.Server;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -24,10 +29,10 @@ namespace VoxelEngine.Tests.EditMode
             SurfaceJoinRule ab = catalogue.GetJoin(1, 2);
             SurfaceJoinRule ba = catalogue.GetJoin(2, 1);
             Assert.True(ab.Equals(ba));
-            Assert.AreEqual(SurfaceCompatibility.Seam, ab.Compatibility);
+            Assert.AreEqual(CoreSurfaceCompatibility.Seam, ab.Compatibility);
             Assert.True(ab.PreserveSharpFeature);
             SurfaceStyleDefinition missing = catalogue.Get(31);
-            Assert.AreEqual(SurfaceReconstruction.Sharp, missing.Reconstruction);
+            Assert.AreEqual(CoreSurfaceReconstruction.Sharp, missing.Reconstruction);
             Assert.True(missing.PreserveSharpFeatures);
         }
 
@@ -37,7 +42,7 @@ namespace VoxelEngine.Tests.EditMode
             SurfaceCatalogue catalogue = SurfaceCatalogue.CreateBuiltIns();
             SurfaceStyleDefinition masonry = catalogue.Get(SurfaceStyles.MasonryJoint);
 
-            Assert.AreEqual(SurfaceReconstruction.Planar, masonry.Reconstruction);
+            Assert.AreEqual(CoreSurfaceReconstruction.Planar, masonry.Reconstruction);
             Assert.AreEqual(0, masonry.Curvature);
             Assert.True(masonry.PreserveSharpFeatures);
         }
@@ -47,12 +52,12 @@ namespace VoxelEngine.Tests.EditMode
         {
             var smooth = new SurfaceStyleDefinition
             {
-                StableId = 1, Reconstruction = SurfaceReconstruction.Smooth,
+                StableId = 1, Reconstruction = CoreSurfaceReconstruction.Smooth,
                 Curvature = 255, JoinGroup = 1
             };
             var planar = new SurfaceStyleDefinition
             {
-                StableId = 2, Reconstruction = SurfaceReconstruction.Planar,
+                StableId = 2, Reconstruction = CoreSurfaceReconstruction.Planar,
                 JoinGroup = 2, PreserveSharpFeatures = true
             };
             SurfaceCatalogue a = default;
@@ -152,7 +157,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(0, original.Get(Coatings.Moss).Displacement,
                 "raised moss mats provide relief without changing the base solid topology");
             CoatingDefinition builtInMoss = original.Get(Coatings.Moss);
-            Assert.AreEqual(SurfaceDecorationShape.Clump, builtInMoss.DecorationShape);
+            Assert.AreEqual(CoreSurfaceDecorationShape.Clump, builtInMoss.DecorationShape);
             Assert.Greater(builtInMoss.DecorationDensity, 0);
             Assert.Greater(builtInMoss.DecorationRadiusQ4, 0);
             Assert.Greater(builtInMoss.DecorationHeightQ4, 0);
@@ -188,7 +193,7 @@ namespace VoxelEngine.Tests.EditMode
                 detail.SurfaceDetail = 31;
                 detail.SurfaceFlags = VoxelSurfaceFlags.IntentionalSeam;
                 primitives[0] = detail;
-                PrimitiveRasteriser.Rasterise(primitives, int3.zero, new int3(8),
+                Rasterise(primitives, int3.zero, new int3(8),
                                               ref table, ref pool);
 
                 VoxelCell result = VoxelAccess.GetCell(ref table, in pool, position);
@@ -218,7 +223,7 @@ namespace VoxelEngine.Tests.EditMode
                 primitives[0] = CurvedPrimitiveEmitter.Annulus(
                     new int3(12, 12, 4), 8, 5, 5, 2, false,
                     6, SurfaceStyles.Planar, PrimitiveMode.Fill, 0);
-                PrimitiveRasteriser.Rasterise(primitives, int3.zero, new int3(25, 25, 9),
+                Rasterise(primitives, int3.zero, new int3(25, 25, 9),
                                               ref table, ref pool);
 
                 VoxelCell outerEdge = VoxelAccess.GetCell(
@@ -266,10 +271,8 @@ namespace VoxelEngine.Tests.EditMode
                 b.Boundary = VoxelBoundarySample.FromSignedQ4(11);
                 VoxelAccess.SetCell(ref aTable, ref aPool, new int3(2, 3, 4), in a);
                 VoxelAccess.SetCell(ref bTable, ref bPool, new int3(2, 3, 4), in b);
-                Assert.True(aTable.TryGetRegion(int3.zero, out Region aRegion));
-                Assert.True(bTable.TryGetRegion(int3.zero, out Region bRegion));
-                Assert.AreNotEqual(RegionHasher.HashRegion(in aRegion, in aPool),
-                                   RegionHasher.HashRegion(in bRegion, in bPool));
+                Assert.AreNotEqual(SemanticHash(ref aTable, in aPool),
+                                   SemanticHash(ref bTable, in bPool));
             }
             finally
             {
@@ -306,8 +309,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.True(bTable.TryGetRegion(int3.zero, out Region bRegion));
                 Assert.AreNotEqual(aRegion.BrickRefs[0].PoolIndex,
                                    bRegion.BrickRefs[0].PoolIndex);
-                Assert.AreEqual(RegionHasher.HashRegion(in aRegion, in aPool),
-                                RegionHasher.HashRegion(in bRegion, in bPool));
+                Assert.AreEqual(SemanticHash(ref aTable, in aPool),
+                                SemanticHash(ref bTable, in bPool));
                 bPool.Free(unused);
             }
             finally
@@ -329,7 +332,9 @@ namespace VoxelEngine.Tests.EditMode
                 MaterialPalette palette = default;
                 palette.Register(6, 200, DestructionClass.Crumble,
                                  SurfaceStyles.Rounded, 1u << Coatings.Moss);
-                var brush = new VoxelBrush(table, pool, in palette);
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                var brush = new VoxelBrush(reads, mutations, palette);
                 brush.SetStyled(1, 1, 1, 6, SurfaceStyles.Rounded, Coatings.Moss);
                 brush.Coat(1, 1, 1, Coatings.Snow);
 
@@ -355,7 +360,9 @@ namespace VoxelEngine.Tests.EditMode
                 MaterialPalette palette = default;
                 palette.Register(6, 210, DestructionClass.Crumble,
                                  SurfaceStyles.Rounded, 1u << Coatings.Moss);
-                var brush = new VoxelBrush(table, pool, in palette);
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                var brush = new VoxelBrush(reads, mutations, palette);
                 brush.SetStyled(2, 2, 2, 6, SurfaceStyles.Rounded);
 
                 int coated = MasonryWeathering.CoatExposedSurfaces(
@@ -379,7 +386,7 @@ namespace VoxelEngine.Tests.EditMode
         public void UnifiedSurfaceShaderDoesNotRecognizeMaterialOrCoatingIds()
         {
             string shaderPath = Path.GetFullPath(
-                "Assets/VoxelEngine/Rendering/Shaders/SmoothSurface.shader");
+                "Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader");
             string shader = File.ReadAllText(shaderPath);
 
             StringAssert.DoesNotContain("material ==", shader);
@@ -449,12 +456,12 @@ namespace VoxelEngine.Tests.EditMode
             var tiledPool = new BrickPool(128, Allocator.Temp);
             try
             {
-                PrimitiveRasteriser.Rasterise(primitives, int3.zero, new int3(32),
+                Rasterise(primitives, int3.zero, new int3(32),
                                               ref wholeTable, ref wholePool);
                 for (int z = 0; z < 32; z += 8)
                 for (int y = 0; y < 32; y += 8)
                 for (int x = 0; x < 32; x += 8)
-                    PrimitiveRasteriser.Rasterise(primitives, new int3(x, y, z),
+                    Rasterise(primitives, new int3(x, y, z),
                         new int3(x + 8, y + 8, z + 8), ref tiledTable, ref tiledPool);
 
                 AssertCellsEqual(ref wholeTable, in wholePool, ref tiledTable, in tiledPool,
@@ -591,7 +598,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.True(hasOpeningCarve);
                 Assert.Greater(veneerBlocks, 8);
 
-                RasterResult result = PrimitiveRasteriser.Rasterise(
+                RasterResult result = Rasterise(
                     primitives.AsArray(), int3.zero, bay.Metadata.Footprint,
                     ref table, ref pool);
                 Assert.False(result.BudgetExceeded);
@@ -857,7 +864,10 @@ namespace VoxelEngine.Tests.EditMode
                                  SurfaceStyles.MasonryJoint, uint.MaxValue);
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
-                cache.Prepare(ref table, in pool, in palette, in surfaces, in coatings, store,
+                MaterialPaletteView paletteView = palette;
+                SurfaceCatalogueView surfaceView = surfaces;
+                CoatingCatalogueView coatingView = coatings;
+                cache.Prepare(new RegionReadSource(in table, in pool), in paletteView, in surfaceView, in coatingView, store,
                               cameraObject.AddComponent<UnityEngine.Camera>(), 0.1f, 0, 0.0);
                 Assert.AreEqual(1, cache.IndexedProfileBlockCount(int3.zero));
                 Assert.AreEqual(0, cache.IndexedProfileBlockCount(new int3(8, 0, 0)));
@@ -889,8 +899,11 @@ namespace VoxelEngine.Tests.EditMode
                 custom.Seal(41, custom.ComputeHash());
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
                 Assert.AreNotEqual(cache.ActiveSurfaceCatalogueHash, custom.CatalogueHash);
+                MaterialPaletteView paletteView = palette;
+                SurfaceCatalogueView surfaceView = custom;
+                CoatingCatalogueView coatingView = coatings;
 
-                cache.Prepare(ref table, in pool, in palette, in custom, in coatings, null,
+                cache.Prepare(new RegionReadSource(in table, in pool), in paletteView, in surfaceView, in coatingView, null,
                               cameraObject.AddComponent<UnityEngine.Camera>(), 0.1f, 0, 0.0);
 
                 Assert.AreEqual(custom.CatalogueHash, cache.ActiveSurfaceCatalogueHash);
@@ -934,5 +947,32 @@ namespace VoxelEngine.Tests.EditMode
                 3 => new int3(point.z, point.y, footprint.x - 1 - point.x),
                 _ => point
             };
+
+        private static uint SemanticHash(ref RegionTable table, in BrickPool pool)
+        {
+            var source = new RegionReadSource(in table, in pool);
+            Assert.AreEqual(
+                RegionSnapshotCaptureResult.Ok,
+                source.CaptureSemanticSnapshot(
+                    int3.zero,
+                    RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,
+                    out RegionSemanticSnapshot snapshot));
+            return snapshot.SemanticHash;
+        }
+
+        private static RasterResult Rasterise(
+            NativeArray<Primitive> primitives,
+            int3 min,
+            int3 max,
+            ref RegionTable table,
+            ref BrickPool pool,
+            bool markHardSurface = false)
+        {
+            var reads = new RegionReadSource(in table, in pool);
+            var mutations = new RegionMutationStore(in table, in pool);
+            return PrimitiveRasteriser.Rasterise(
+                primitives, min, max, reads, mutations, markHardSurface);
+        }
+
     }
 }

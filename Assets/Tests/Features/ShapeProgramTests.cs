@@ -1,9 +1,12 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Runtime.Emitters;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Tests.Features.Fixtures;
+
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.Features
 {
@@ -24,7 +27,7 @@ namespace VoxelEngine.Tests.Features
         public void CottageProgramEmitsPrimitives()
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            Assert.AreEqual(CatalogueLoadResult.Ok, CatalogueLoader.Finalise(ref catalogue));
+            Assert.AreEqual(CatalogueLoadResult.Ok, FeatureCatalogueBuilder.Finalise(ref catalogue));
 
             var primitives = new NativeList<Primitive>(32, Allocator.Temp);
             var anchors = new NativeList<ResolvedAnchor>(4, Allocator.Temp);
@@ -48,7 +51,7 @@ namespace VoxelEngine.Tests.Features
         public void EvaluationIsDeterministic()
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            CatalogueLoader.Finalise(ref catalogue);
+            FeatureCatalogueBuilder.Finalise(ref catalogue);
 
             var a = Evaluate(in catalogue, new int3(512, 0, 512), 0, out var anchorsA);
             var b = Evaluate(in catalogue, new int3(512, 0, 512), 0, out var anchorsB);
@@ -75,7 +78,7 @@ namespace VoxelEngine.Tests.Features
             // The footprint bounds the neighbourhood every region in the world scans. Content
             // outside it is content a region will not know to look for, which is a seam.
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            CatalogueLoader.Finalise(ref catalogue);
+            FeatureCatalogueBuilder.Finalise(ref catalogue);
 
             var definition = catalogue.Definitions[CottageFixture.CottageId];
             var origin = new int3(2048, 0, 2048);
@@ -108,7 +111,7 @@ namespace VoxelEngine.Tests.Features
         public void RasterisingInPiecesEqualsRasterisingWhole()
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            CatalogueLoader.Finalise(ref catalogue);
+            FeatureCatalogueBuilder.Finalise(ref catalogue);
 
             var origin = new int3(256, 200, 256);
             var definition = catalogue.Definitions[CottageFixture.CottageId];
@@ -121,7 +124,7 @@ namespace VoxelEngine.Tests.Features
             // Whole.
             var wholeTable = new RegionTable(4, Allocator.Temp);
             var wholePool = new BrickPool(8192, Allocator.Temp);
-            PrimitiveRasteriser.Rasterise(primitives.AsArray(), min, max, ref wholeTable, ref wholePool);
+            Rasterise(primitives.AsArray(), min, max, ref wholeTable, ref wholePool);
             var whole = SubVolumeEquality.Snapshot(ref wholeTable, in wholePool, min, max);
 
             // Eight disjoint octants that tile the same volume.
@@ -129,7 +132,7 @@ namespace VoxelEngine.Tests.Features
             var piecesPool = new BrickPool(8192, Allocator.Temp);
 
             foreach (var (octantMin, octantMax) in SubVolumeEquality.Octants(min, max))
-                PrimitiveRasteriser.Rasterise(primitives.AsArray(), octantMin, octantMax,
+                Rasterise(primitives.AsArray(), octantMin, octantMax,
                                               ref piecesTable, ref piecesPool);
 
             var pieces = SubVolumeEquality.Snapshot(ref piecesTable, in piecesPool, min, max);
@@ -149,7 +152,7 @@ namespace VoxelEngine.Tests.Features
         public void ClippingNeverWritesOutsideTheSubVolume()
         {
             var catalogue = CottageFixture.Build(Allocator.Temp);
-            CatalogueLoader.Finalise(ref catalogue);
+            FeatureCatalogueBuilder.Finalise(ref catalogue);
 
             var origin = new int3(64, 200, 64);
             var primitives = Evaluate(in catalogue, origin, 0, out var anchors);
@@ -158,7 +161,7 @@ namespace VoxelEngine.Tests.Features
             var pool = new BrickPool(8192, Allocator.Temp);
 
             var slice = (min: origin, max: origin + new int3(16, 200, 16));
-            PrimitiveRasteriser.Rasterise(primitives.AsArray(), slice.min, slice.max, ref table, ref pool);
+            Rasterise(primitives.AsArray(), slice.min, slice.max, ref table, ref pool);
 
             // One voxel outside the slice on each axis must be untouched.
             Assert.AreEqual(VoxelDimensions.MaterialEmpty,
@@ -178,12 +181,12 @@ namespace VoxelEngine.Tests.Features
             var pool = new BrickPool(1024, Allocator.Temp);
 
             var primitives = new NativeArray<Primitive>(2, Allocator.Temp);
-            primitives[0] = Core.Features.Emitters.BoxEmitter.Box(
+            primitives[0] = BoxEmitter.Box(
                 new int3(10, 10, 10), new int3(8, 8, 8), 1, PrimitiveMode.Fill, 0);
-            primitives[1] = Core.Features.Emitters.BoxEmitter.Box(
+            primitives[1] = BoxEmitter.Box(
                 new int3(12, 12, 12), new int3(2, 2, 2), 0, PrimitiveMode.Carve, 1);
 
-            PrimitiveRasteriser.Rasterise(primitives, new int3(0, 0, 0), new int3(32, 32, 32),
+            Rasterise(primitives, new int3(0, 0, 0), new int3(32, 32, 32),
                                           ref table, ref pool);
 
             Assert.AreNotEqual(VoxelDimensions.MaterialEmpty,
@@ -203,7 +206,7 @@ namespace VoxelEngine.Tests.Features
 
             var primitives = new NativeArray<Primitive>(FeatureBudget.MaxPrimitivesPerRegion + 1, Allocator.Temp);
 
-            var result = PrimitiveRasteriser.Rasterise(primitives, int3.zero, new int3(8, 8, 8),
+            var result = Rasterise(primitives, int3.zero, new int3(8, 8, 8),
                                                        ref table, ref pool);
 
             Assert.IsTrue(result.BudgetExceeded, "over-budget batch was accepted");
@@ -240,5 +243,20 @@ namespace VoxelEngine.Tests.Features
 
             return primitives;
         }
+
+        private static RasterResult Rasterise(
+            NativeArray<Primitive> primitives,
+            int3 min,
+            int3 max,
+            ref RegionTable table,
+            ref BrickPool pool,
+            bool markHardSurface = false)
+        {
+            var reads = new RegionReadSource(in table, in pool);
+            var mutations = new RegionMutationStore(in table, in pool);
+            return PrimitiveRasteriser.Rasterise(
+                primitives, min, max, reads, mutations, markHardSurface);
+        }
+
     }
 }

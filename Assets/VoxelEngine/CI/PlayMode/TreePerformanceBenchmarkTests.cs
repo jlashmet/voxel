@@ -9,9 +9,10 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.TestTools;
-using VoxelEngine.Core.Vegetation;
-using VoxelEngine.Rendering.Vegetation;
-using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
+using VoxelEngine.Vegetation.Runtime;
+using VoxelEngine.Vegetation.Api;
+using VoxelEngine.Rendering.Runtime.Vegetation;
+using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 using Object = UnityEngine.Object;
 
 namespace VoxelEngine.CI
@@ -57,7 +58,7 @@ namespace VoxelEngine.CI
             };
 
             TreeInstance warm = MakeInstance(0);
-            ProceduralTreeSkeleton warmSkeleton = ProceduralTreeSkeletonBuilder.Generate(in warm);
+            TreeSkeletonSnapshot warmSkeleton = ProceduralTreeSkeletonBuilder.Generate(in warm);
             Mesh warmMesh = ProceduralTreeMeshBuilder.BuildMesh(warmSkeleton, 2);
             Object.Destroy(warmMesh);
             yield return null;
@@ -71,7 +72,7 @@ namespace VoxelEngine.CI
                 for (int i = 0; i < count; i++)
                 {
                     TreeInstance instance = MakeInstance(i);
-                    ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                    TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                     branches += skeleton.Branches.Count;
                     leaves += skeleton.Leaves.Count;
                 }
@@ -94,7 +95,7 @@ namespace VoxelEngine.CI
                 for (int i = 0; i < count; i++)
                 {
                     TreeInstance instance = MakeInstance(i);
-                    ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                    TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                     Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 2);
                     triangles += (long)mesh.GetIndexCount(0) / 3L;
                     triangles += (long)mesh.GetIndexCount(1) / 3L;
@@ -125,14 +126,14 @@ namespace VoxelEngine.CI
             double trianglesPerTreeAllLods = 0.0;
             foreach (int count in RuntimeCounts)
             {
-                TreeWorldState.Replace(Array.Empty<TreeInstance>());
+                TreeWorldRuntime.Replace(Array.Empty<TreeInstance>());
                 for (int frame = 0; frame < 3; frame++) yield return null;
 
                 var instances = new TreeInstance[count];
                 for (int i = 0; i < count; i++) instances[i] = MakeInstance(i);
 
                 long beforeAllocated = Profiler.GetTotalAllocatedMemoryLong();
-                TreeWorldState.Replace(instances);
+                TreeWorldRuntime.Replace(instances);
 
                 float deadline = Time.realtimeSinceStartup + 90f;
                 while (renderer.PresentationCount != count
@@ -219,7 +220,7 @@ namespace VoxelEngine.CI
             text.Add("recommendation=healthy tree residency duplication is removed; next scaling target is direct batch-buffer construction so rebuilds stop creating temporary per-tree Unity Mesh objects before CombineMeshes");
             Flush(csvPath, txtPath, csv, text);
 
-            TreeWorldState.Replace(Array.Empty<TreeInstance>());
+            TreeWorldRuntime.Replace(Array.Empty<TreeInstance>());
             for (int frame = 0; frame < 3; frame++) yield return null;
 
             UnityEngine.Debug.Log("Tree performance benchmark:\n" + string.Join("\n", text));

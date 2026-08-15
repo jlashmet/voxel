@@ -1,6 +1,8 @@
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
+using VoxelEngine.Structures.Runtime;
+
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.Features.Fixtures
 {
@@ -32,7 +34,7 @@ namespace VoxelEngine.Tests.Features.Fixtures
         {
             var program = CottageProgram.Build();
 
-            var catalogue = CatalogueLoader.Allocate(
+            var catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: 1,
                 rules: 1,
                 parameters: 4,

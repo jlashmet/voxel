@@ -1,8 +1,10 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -16,6 +18,7 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 Region region = table.LoadRegion(int3.zero);
+                var storage = new RegionMutationStore(in table, in pool);
                 int brickIndex = Region.BrickIndex(1, 1, 1);
                 region.BrickRefs[brickIndex] = BrickRef.Uniform(3);
                 table.CommitRegion(region);
@@ -31,8 +34,7 @@ namespace VoxelEngine.Tests.EditMode
                     sequence: 1);
 
                 Assert.That(DeterministicAlterationApplier.TryApply(
-                    ref table,
-                    ref pool,
+                    storage,
                     in evt,
                     out var affected), Is.True);
 
@@ -67,6 +69,7 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 Region region = table.LoadRegion(int3.zero);
+                var storage = new RegionMutationStore(in table, in pool);
                 int brickIndex = Region.BrickIndex(1, 1, 1);
                 region.BrickRefs[brickIndex] = BrickRef.Uniform(4);
                 table.CommitRegion(region);
@@ -82,8 +85,7 @@ namespace VoxelEngine.Tests.EditMode
                     1);
 
                 Assert.That(DeterministicAlterationApplier.TryApply(
-                    ref table,
-                    ref pool,
+                    storage,
                     in evt,
                     out var affected), Is.True);
 
@@ -113,6 +115,7 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 Region region = table.LoadRegion(int3.zero);
+                var storage = new RegionMutationStore(in table, in pool);
                 int brickIndex = Region.BrickIndex(63, 0, 0);
                 region.BrickRefs[brickIndex] = BrickRef.Uniform(5);
                 table.CommitRegion(region);
@@ -128,8 +131,7 @@ namespace VoxelEngine.Tests.EditMode
                     1);
 
                 Assert.That(DeterministicAlterationApplier.TryApply(
-                    ref table,
-                    ref pool,
+                    storage,
                     in evt,
                     out var affected), Is.False);
 

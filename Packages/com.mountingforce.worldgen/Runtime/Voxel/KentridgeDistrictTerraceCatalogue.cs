@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -144,7 +145,7 @@ namespace MountingForce.WorldGen.Voxel
             }
 
             int definitionCount = seeds.Length + retainingCount;
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: definitionCount,
                 rules: definitionCount,
                 parameters: 0,
@@ -230,7 +231,7 @@ namespace MountingForce.WorldGen.Voxel
                 retainingIndex++;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -281,19 +282,19 @@ namespace MountingForce.WorldGen.Voxel
             int shoulderDm = terrace.ShoulderWidthDm;
             int centreXDm = terrace.XDm + terrace.WidthDm / 2;
             int centreZDm = terrace.ZDm + terrace.DepthDm / 2;
-            int northEdge = TerrainSampler.HeightAt(
+            int northEdge = TerrainQuery.HeightAt(
                 centreXDm * scale,
                 (terrace.ZDm - shoulderDm) * scale,
                 seed);
-            int southEdge = TerrainSampler.HeightAt(
+            int southEdge = TerrainQuery.HeightAt(
                 centreXDm * scale,
                 (terrace.ZDm + terrace.DepthDm + shoulderDm) * scale,
                 seed);
-            int westEdge = TerrainSampler.HeightAt(
+            int westEdge = TerrainQuery.HeightAt(
                 (terrace.XDm - shoulderDm) * scale,
                 centreZDm * scale,
                 seed);
-            int eastEdge = TerrainSampler.HeightAt(
+            int eastEdge = TerrainQuery.HeightAt(
                 (terrace.XDm + terrace.WidthDm + shoulderDm) * scale,
                 centreZDm * scale,
                 seed);
@@ -352,7 +353,7 @@ namespace MountingForce.WorldGen.Voxel
         private static void Sample(int xDm, int zDm, uint seed, int scale,
                                    ref int minY, ref int maxY)
         {
-            int y = TerrainSampler.HeightAt(xDm * scale, zDm * scale, seed);
+            int y = TerrainQuery.HeightAt(xDm * scale, zDm * scale, seed);
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
         }
@@ -495,7 +496,6 @@ namespace MountingForce.WorldGen.Voxel
                         break;
                 }
             }
-
             return b.Finish();
         }
 
@@ -602,7 +602,7 @@ namespace MountingForce.WorldGen.Voxel
                             PrimitiveMode mode = PrimitiveMode.Fill)
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, (int)mode);
+                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
             }
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>

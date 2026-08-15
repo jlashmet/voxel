@@ -3,8 +3,7 @@ using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Rendering;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Showcase
 {

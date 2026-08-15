@@ -1,11 +1,12 @@
 using System.Collections;
 using System.IO;
 using NUnit.Framework;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -29,10 +30,10 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.IsTrue(VoxelRenderBridge.TryGetWorld(out VoxelWorldView world),
                 "Showcase did not register a valid render-world view.");
-            Debug.Log($"GPU test world: regions={world.Table.ResidentCount}, "
-                    + $"pool={world.Pool.AllocatedCount}/{world.Pool.Capacity}, "
-                    + $"surfaceHash={world.SurfaceCatalogue.CatalogueHash}, "
-                    + $"coatingHash={world.CoatingCatalogue.CatalogueHash}");
+            using (var resident = world.Storage.GetResidentRegionCoords(Allocator.Temp))
+                Debug.Log($"GPU test world: regions={resident.Length}, "
+                        + $"surfaceHash={world.SurfaceCatalogueView.CatalogueHash}, "
+                        + $"coatingHash={world.CoatingCatalogueView.CatalogueHash}");
             Camera camera = Camera.main;
             Assert.NotNull(camera);
 

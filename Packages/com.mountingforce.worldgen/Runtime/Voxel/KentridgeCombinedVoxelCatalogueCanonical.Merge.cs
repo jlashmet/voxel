@@ -1,5 +1,6 @@
 using Unity.Collections;
-using VoxelEngine.Core.Features;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -23,16 +24,11 @@ namespace MountingForce.WorldGen.Voxel
                 if (definition.SlotCount > 0) definition.SlotOffset += slotOffset;
                 if (definition.ProgramLength > 0)
                 {
-                    int written = KentridgeShapeProgramCompatibility.CopyDefinition(
-                        source.Program,
-                        definition.ProgramOffset,
-                        definition.ProgramLength,
-                        target.Program,
-                        programOffset,
-                        definition.Name.ToString());
+                    for (int code = 0; code < definition.ProgramLength; code++)
+                        target.Program[programOffset + code] =
+                            source.Program[definition.ProgramOffset + code];
                     definition.ProgramOffset = programOffset;
-                    definition.ProgramLength = written;
-                    programOffset += written;
+                    programOffset += definition.ProgramLength;
                 }
                 if (definition.MaterialCount > 0) definition.MaterialOffset += materialOffset;
                 target.Definitions[definitionOffset + i] = definition;

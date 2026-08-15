@@ -2,10 +2,11 @@ using System;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -38,7 +39,7 @@ namespace VoxelEngine.Tests.EditMode
                     playerId: 4,
                     sequence: 1);
 
-                var queue = new ClientAuthoritativeEventQueue();
+                var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
                 byte[] batchPacket = FrameBatch(replacedRegion, 5, evt);
                 Assert.That(queue.TryEnqueueEventPacket(batchPacket), Is.True);
 
@@ -51,7 +52,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(queue.CompleteFullRegionSnapshot(91, replacedRegion, 5), Is.True);
                 Assert.That(queue.SnapshotCatchupActive, Is.True);
 
-                Assert.That(queue.DrainReady(ref table, ref pool, out int appliedEvents), Is.EqualTo(1));
+                Assert.That(queue.DrainReady(new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), out int appliedEvents), Is.EqualTo(1));
                 Assert.That(appliedEvents, Is.EqualTo(1));
 
                 Assert.That(VoxelAccess.GetVoxel(ref table, in pool, replacedVoxel), Is.EqualTo(7),

@@ -1,8 +1,9 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Structures;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -46,7 +47,9 @@ namespace VoxelEngine.Tests.EditMode
 
             try
             {
-                var brush = new VoxelBrush(table, pool, writeBudget: 500_000);
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                var brush = new VoxelBrush(reads, mutations, writeBudget: 500_000);
                 const int cx = 32, cz = 32, baseY = 2, radius = 12, height = 38;
                 brush.SpiralStair(cx, baseY, cz, radius, height, Mat.Stone);
 
@@ -91,7 +94,9 @@ namespace VoxelEngine.Tests.EditMode
 
             try
             {
-                var brush = new VoxelBrush(table, pool, writeBudget: 1);
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                var brush = new VoxelBrush(reads, mutations, writeBudget: 1);
 
                 for (int z = 0; z < VoxelDimensions.BrickEdge; z++)
                 for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
@@ -100,7 +105,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(Mat.Stone, brush.Get(3, 4, 5));
                 Assert.AreEqual(Mat.Empty, brush.Get(8, 4, 5),
                     "A column batch must not overwrite the neighbouring brick.");
-                Assert.AreEqual(0, brush.Pool.AllocatedCount,
+                Assert.AreEqual(0, pool.AllocatedCount,
                     "A completely filled brick must collapse back to a uniform reference.");
                 Assert.IsFalse(brush.BudgetExceeded,
                     "Batched column writes must not consume the slow per-voxel budget.");

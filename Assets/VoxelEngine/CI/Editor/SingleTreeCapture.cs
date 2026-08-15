@@ -3,11 +3,12 @@ using System.IO;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
-using VoxelEngine.Core.Vegetation;
-using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.Vegetation;
+using VoxelEngine.Vegetation.Runtime;
+using VoxelEngine.Vegetation.Api;
+using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.Vegetation;
 using VoxelEngine.Showcase;
-using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
+using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
 namespace VoxelEngine.CI
 {
@@ -50,7 +51,7 @@ namespace VoxelEngine.CI
                     Scale = 1f,
                 };
 
-                ProceduralTreeSkeleton skeleton =
+                TreeSkeletonSnapshot skeleton =
                     ProceduralTreeSkeletonBuilder.Generate(in instance);
                 mesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 0);
                 if (mesh == null || mesh.vertexCount == 0)

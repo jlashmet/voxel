@@ -1,10 +1,10 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -23,7 +23,8 @@ namespace VoxelEngine.Tests.PlayMode
             var table = new RegionTable(16, Allocator.Temp);
             var pool = new BrickPool(64, Allocator.Temp);
             table.LoadRegion(int3.zero);
-            overlay.ConfirmTick(1, ref table, ref pool);
+            var storage = new RegionMutationStore(in table, in pool);
+            overlay.ConfirmTick(1, storage);
 
             Assert.That(overlay.HasPending, Is.False);
             Assert.That(table.TryGetRegion(int3.zero, out var confirmedRegion), Is.True);

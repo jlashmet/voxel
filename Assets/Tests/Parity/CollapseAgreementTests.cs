@@ -1,10 +1,10 @@
-using VoxelEngine.Core.Edits;
+using VoxelEngine.Edits.Api;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Structure;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Occupancy;
+using VoxelEngine.StructuralIntegrity.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Runtime.Occupancy;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -58,8 +58,8 @@ namespace VoxelEngine.Tests.Parity
             var supportA = new NativeArray<byte>(VoxelDimensions.BricksPerRegion, Allocator.Temp);
             var supportB = new NativeArray<byte>(VoxelDimensions.BricksPerRegion, Allocator.Temp);
 
-            SupportField.ComputeSupport(in tableA, in poolA, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportA, Allocator.Temp);
-            SupportField.ComputeSupport(in tableB, in poolB, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportB, Allocator.Temp);
+            SupportField.ComputeSupport(new RegionReadSource(in tableA, in poolA), GetRegion(origin.x, origin.y, origin.z), supportA, Allocator.Temp);
+            SupportField.ComputeSupport(new RegionReadSource(in tableB, in poolB), GetRegion(origin.x, origin.y, origin.z), supportB, Allocator.Temp);
 
             var unsupportedCount = 0;
             byte threshold = CollapseDetection.DefaultThreshold;
@@ -251,7 +251,7 @@ namespace VoxelEngine.Tests.Parity
 
             // Check for unsupported bricks using SupportField with threshold=1.
             var support = new NativeArray<byte>(VoxelDimensions.BricksPerRegion, Allocator.Temp);
-            SupportField.ComputeSupport(in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);
+            SupportField.ComputeSupport(new RegionReadSource(in table, in pool), regionCoord, support, Allocator.Temp);
 
             bool hasUnsupported = false;
             for (int y = 10; y < 20 && !hasUnsupported; y++)
@@ -268,7 +268,7 @@ namespace VoxelEngine.Tests.Parity
 
             Assert.IsTrue(hasUnsupported, "Platform with no ground support should have unsupported bricks.");
 
-            var targets = CollapseDetection.FindUnsupportedBuilds(in region.BrickRefs, in pool, in support);
+            var targets = CollapseDetection.FindUnsupportedBuilds(new RegionReadSource(in table, in pool), regionCoord, in support);
             Assert.Greater(targets.Length, 0, "Unsupported builds must produce collapse targets.");
 
             // Apply the collapse.
@@ -304,11 +304,11 @@ namespace VoxelEngine.Tests.Parity
                 return new NativeList<int3>(0, Allocator.Temp);
 
             var support = new NativeArray<byte>(VoxelDimensions.BricksPerRegion, Allocator.Temp);
-            SupportField.ComputeSupport(
-                in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);
+            var readSource = new RegionReadSource(in table, in pool);
+            SupportField.ComputeSupport(readSource, regionCoord, support, Allocator.Temp);
 
             var targets = CollapseDetection.FindCollapseTargets(
-                in region.BrickRefs, in pool, in support, threshold);
+                readSource, regionCoord, in support, threshold);
 
             support.Dispose();
             return targets;
@@ -363,7 +363,7 @@ namespace VoxelEngine.Tests.Parity
         private static AlterationEvent BuildExplosionEvent(int3 origin, byte radius) =>
             new()
             {
-                kind = (byte)VoxelEngine.Core.Edits.AlterationEventKind.Explosion,
+                kind = (byte)VoxelEngine.Edits.Api.AlterationEventKind.Explosion,
                 tick = 1u,
                 origin = origin,
                 shapeData = radius,

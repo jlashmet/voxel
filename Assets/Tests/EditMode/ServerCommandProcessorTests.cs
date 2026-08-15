@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -153,9 +154,7 @@ namespace VoxelEngine.Tests.EditMode
             {
                 Processor.ProcessTick(
                     tick,
-                    ref _table,
-                    ref _pool,
-                    in _zones,
+                    new RegionReadSource(in _table, in _pool), new RegionMutationStore(in _table, in _pool), in _zones,
                     Inputs,
                     Applier,
                     Publisher,
@@ -180,11 +179,23 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private sealed class RecordingApplier : IAuthoritativeAlterationApplier
+        private sealed class RecordingApplier : IAlterationApplier
         {
+            public bool Supports(in AlterationEvent evt) => true;
+            public bool HasRequiredResidency(IRegionMutationStore storage, in AlterationEvent evt) => true;
+            public bool HasRequiredResidencyExcept(
+                IRegionMutationStore storage, in AlterationEvent evt, int3 excludedRegion) => true;
+            public bool TryApplyExceptRegion(
+                IRegionMutationStore storage,
+                in AlterationEvent evt,
+                int3 excludedRegion,
+                out NativeList<int3> affectedBlocks) =>
+                TryApply(storage, in evt, out affectedBlocks);
+
             public int ApplyCount { get; private set; }
-            public bool TryApplyAlteration(ref RegionTable table, ref BrickPool pool, in AlterationEvent evt)
+            public bool TryApply(IRegionMutationStore storage, in AlterationEvent evt, out NativeList<int3> affectedBlocks)
             {
+                affectedBlocks = new NativeList<int3>(0, Allocator.Temp);
                 ApplyCount++;
                 return true;
             }

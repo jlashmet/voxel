@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Composition;
+using VoxelEngine.Rendering.Api;
 
 namespace VoxelEngine.Showcase
 {
@@ -61,14 +61,14 @@ namespace VoxelEngine.Showcase
             }
 
             _label = $"FPS {fps:0}   MIN {_minFps:0}   MAX {_maxFps:0}";
-            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
-            _label += $"\nSURFACE p95  frame {metrics.SchedulerPrepareTiming.P95Ms:0.0}  "
-                    + $"discover {metrics.SurfaceDiscoveryTiming.P95Ms:0.0}  "
-                    + $"snapshot {metrics.SnapshotTiming.P95Ms:0.0}  "
-                    + $"compact {metrics.TopologyCompactTiming.P95Ms:0.0}  "
-                    + $"merge {metrics.FacetedMergeTiming.P95Ms:0.0}  "
-                    + $"upload {metrics.UploadTiming.P95Ms:0.0} ms  "
-                    + $"queue {metrics.QueueLatencyTiming.P95Ms:0} ms";
+            SurfaceTimingDiagnostics metrics = VoxelEngineBootstrap.GetSurfaceTimingDiagnostics();
+            _label += $"\nSURFACE p95  frame {metrics.FrameP95Ms:0.0}  "
+                    + $"discover {metrics.DiscoveryP95Ms:0.0}  "
+                    + $"snapshot {metrics.SnapshotP95Ms:0.0}  "
+                    + $"compact {metrics.TopologyCompactP95Ms:0.0}  "
+                    + $"merge {metrics.FacetedMergeP95Ms:0.0}  "
+                    + $"upload {metrics.UploadP95Ms:0.0} ms  "
+                    + $"queue {metrics.QueueLatencyP95Ms:0} ms";
             _elapsed = 0f;
             _frames = 0;
         }

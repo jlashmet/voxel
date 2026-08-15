@@ -1,8 +1,8 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.Parity
 {

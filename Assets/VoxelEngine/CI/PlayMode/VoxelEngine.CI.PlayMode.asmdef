@@ -2,11 +2,12 @@
   "name": "VoxelEngine.CI.PlayMode",
   "rootNamespace": "VoxelEngine.CI",
   "references": [
-    "VoxelEngine.Core",
-    "VoxelEngine.Vegetation",
-    "VoxelEngine.Rendering",
+    "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Showcase",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.Vegetation.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

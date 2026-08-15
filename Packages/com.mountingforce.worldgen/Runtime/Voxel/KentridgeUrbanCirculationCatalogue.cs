@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -75,7 +75,7 @@ namespace MountingForce.WorldGen.Voxel
                 programLength += programs[i].Length;
             }
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: builds.Length,
                 rules: builds.Length,
                 parameters: 0,
@@ -105,8 +105,6 @@ namespace MountingForce.WorldGen.Voxel
                     FixedAltitude = 0,
                     Footprint = build.Footprint,
                     MaxSlope = 32,
-                    // Contours belong with roads; stair streets must sit above smooth terrain and
-                    // anonymous fabric but remain below the more specialised access/gallery layers.
                     Precedence = stairStreet ? (byte)89 : (byte)23,
                     ParameterOffset = 0,
                     ParameterCount = 0,
@@ -142,7 +140,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -204,16 +202,16 @@ namespace MountingForce.WorldGen.Voxel
             int lowTarget = Math.Min(targetMin, targetMax);
             int delta = Math.Abs(targetMax - targetMin);
             if (targetMin > targetMax)
-                axis = (byte)(axis | BoxEmitter.ReverseRampBit);
+                axis = (byte)(axis | ShapeOps.ReverseRampBit);
 
             Int2 middle = new Int2(
                 (minPoint.X + maxPoint.X) / 2,
                 (minPoint.Y + maxPoint.Y) / 2);
-            int naturalMinEnd = TerrainSampler.HeightAt(
+            int naturalMinEnd = TerrainQuery.HeightAt(
                 minPoint.X * scale, minPoint.Y * scale, seed);
-            int naturalMid = TerrainSampler.HeightAt(
+            int naturalMid = TerrainQuery.HeightAt(
                 middle.X * scale, middle.Y * scale, seed);
-            int naturalMaxEnd = TerrainSampler.HeightAt(
+            int naturalMaxEnd = TerrainQuery.HeightAt(
                 maxPoint.X * scale, maxPoint.Y * scale, seed);
             int minNatural = Math.Min(naturalMinEnd, Math.Min(naturalMid, naturalMaxEnd));
             int maxNatural = Math.Max(naturalMinEnd, Math.Max(naturalMid, naturalMaxEnd));
@@ -305,7 +303,7 @@ namespace MountingForce.WorldGen.Voxel
             int nominalRise = Math.Max(1, StairRiseDm * scale);
             int stepCount = Math.Max(2, (build.HeightDelta + nominalRise - 1) / nominalRise);
             stepCount = Math.Min(stepCount, 48);
-            bool highAtMin = (build.RampAxis & BoxEmitter.ReverseRampBit) != 0;
+            bool highAtMin = (build.RampAxis & ShapeOps.ReverseRampBit) != 0;
 
             for (int step = 0; step < stepCount; step++)
             {

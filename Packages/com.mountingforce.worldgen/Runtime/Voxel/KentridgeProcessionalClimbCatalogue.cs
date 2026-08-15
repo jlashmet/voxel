@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -37,7 +37,7 @@ namespace MountingForce.WorldGen.Voxel
                 programLength += programs[i].Length;
             }
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: plan.Segments.Count,
                 rules: plan.Segments.Count,
                 parameters: 0,
@@ -119,7 +119,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -159,7 +159,7 @@ namespace MountingForce.WorldGen.Voxel
                     width,
                     rise,
                     length,
-                    (byte)(2 | BoxEmitter.ReverseRampBit),
+                    (byte)(2 | ShapeOps.ReverseRampBit),
                     paving);
             }
 

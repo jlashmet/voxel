@@ -1,7 +1,6 @@
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Rendering;
-using VoxelEngine.Structures;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
 {
@@ -13,7 +12,7 @@ namespace VoxelEngine.Showcase
         /// changed so individual limestone blocks read as soft cuboids instead of zebra-like stacks
         /// of planar horizontal faces.
         /// </summary>
-        private static void RestyleBaseStoneRounded(ref VoxelBrush writer)
+        private static void RestyleBaseStoneRounded(IStructureAuthoringSession writer)
         {
             var rng = new Unity.Mathematics.Random(Seed);
 
@@ -41,7 +40,7 @@ namespace VoxelEngine.Showcase
                     int hy = rng.NextInt(1, z < 170 ? 4 : 3);
                     int y = HeightVoxel(x, zz) + hy;
                     bool moss = rng.NextFloat() < 0.58f;
-                    StampRoundedBox(ref writer, new int3(x, y, zz), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, zz), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Rounded, moss);
 
                     if (z < 230 && rng.NextFloat() < 0.16f)
@@ -51,7 +50,7 @@ namespace VoxelEngine.Showcase
                         int ux = x + rng.NextInt(-2, 3);
                         int uz = zz + rng.NextInt(-2, 3);
                         bool upperMoss = rng.NextFloat() < 0.62f;
-                        StampRoundedBox(ref writer, new int3(ux, y + hy + 1, uz),
+                        StampRoundedBox(writer, new int3(ux, y + hy + 1, uz),
                             new int3(upperHx, 1, upperHz), 1,
                             Mat.TerrainLimestone, SurfaceStyles.Rounded, upperMoss);
                     }
@@ -72,14 +71,14 @@ namespace VoxelEngine.Showcase
                 int hy = rng.NextInt(1, z > 300 ? 3 : 4);
                 int y = HeightVoxel(x, z) + hy;
                 bool moss = rng.NextFloat() < 0.42f;
-                StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
+                StampRoundedBox(writer, new int3(x, y, z), new int3(hx, hy, hz),
                     1, Mat.TerrainLimestone, SurfaceStyles.Rounded, moss);
             }
 
-            RestyleForegroundOutcrop(ref writer, new int3(-106, 0, -46), 15, ref rng);
-            RestyleForegroundOutcrop(ref writer, new int3(104, 0, -38), 14, ref rng);
-            RestyleForegroundOutcrop(ref writer, new int3(-130, 0, 32), 11, ref rng);
-            RestyleForegroundOutcrop(ref writer, new int3(125, 0, 66), 10, ref rng);
+            RestyleForegroundOutcrop(writer, new int3(-106, 0, -46), 15, ref rng);
+            RestyleForegroundOutcrop(writer, new int3(104, 0, -38), 14, ref rng);
+            RestyleForegroundOutcrop(writer, new int3(-130, 0, 32), 11, ref rng);
+            RestyleForegroundOutcrop(writer, new int3(125, 0, 66), 10, ref rng);
 
             // Replay the path positions too, but use rounded surface extraction. This does not add
             // a second path; it overwrites the style of the same deterministic paver voxels.
@@ -98,7 +97,7 @@ namespace VoxelEngine.Showcase
                     int hx = pathRng.NextInt(1, progress < 0.30f ? 4 : 3);
                     int hz = pathRng.NextInt(1, progress < 0.30f ? 4 : 3);
                     int py = HeightVoxel(px, pz);
-                    StampRoundedBox(ref writer, new int3(px, py + 1, pz),
+                    StampRoundedBox(writer, new int3(px, py + 1, pz),
                         new int3(hx, 1, hz), 1, Mat.TerrainPathStone,
                         SurfaceStyles.Rounded, false);
                 }
@@ -106,7 +105,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private static void RestyleForegroundOutcrop(ref VoxelBrush writer, int3 centre, int scale,
+        private static void RestyleForegroundOutcrop(IStructureAuthoringSession writer, int3 centre, int scale,
             ref Unity.Mathematics.Random rng)
         {
             for (int layer = 0; layer < 3; layer++)
@@ -121,7 +120,7 @@ namespace VoxelEngine.Showcase
                     int hz = rng.NextInt(3, math.max(5, scale / 2 + 1));
                     int y = HeightVoxel(x, z) + layer * 2 + hy;
                     bool moss = rng.NextFloat() < 0.68f;
-                    StampRoundedBox(ref writer, new int3(x, y, z), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(x, y, z), new int3(hx, hy, hz),
                         1, Mat.TerrainLimestone, SurfaceStyles.Rounded, moss);
                 }
             }

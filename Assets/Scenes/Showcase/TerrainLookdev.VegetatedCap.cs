@@ -1,8 +1,5 @@
-using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Rendering;
-using VoxelEngine.Structures;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Showcase
 {
@@ -20,7 +17,7 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _vegetatedCapApplied) return;
 
-            var writer = new VoxelBrush(_table, _pool, in _palette, 3_000_000);
+            var writer = CreateWriter(3_000_000);
             for (int z = TerrainZMin; z <= TerrainZMax; z++)
             for (int x = TerrainXMin; x <= TerrainXMax; x++)
             {
@@ -38,16 +35,13 @@ namespace VoxelEngine.Showcase
 
             // Re-author the semantic features after the shell recolour so the path and flower
             // rhythm remain legible. These still use the normal production voxel authoring path.
-            BuildPath(ref writer);
-            BuildFlowers(ref writer);
+            BuildPath(writer);
+            BuildFlowers(writer);
 
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain vegetated cap exceeded voxel authoring budget.");
 
-            _table = writer.Table;
-            _pool = writer.Pool;
-            using (NativeArray<int3> regions = _table.GetResidentCoords(Allocator.Temp))
-                for (int i = 0; i < regions.Length; i++) _changes.PublishRegion(regions[i]);
+            PublishAllResidentRegions();
             _vegetatedCapApplied = true;
         }
     }

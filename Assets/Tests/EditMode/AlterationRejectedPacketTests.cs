@@ -1,5 +1,5 @@
 using NUnit.Framework;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Net.Runtime.Protocol;
 
 namespace VoxelEngine.Tests.EditMode
 {

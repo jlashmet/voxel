@@ -3,10 +3,12 @@ using System.Threading;
 using NUnit.Framework;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
-using VoxelEngine.Net.Transport;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
+using VoxelEngine.Net.Runtime.Transport;
+
+using VoxelEngine.Edits.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -17,7 +19,7 @@ namespace VoxelEngine.Tests.EditMode
         public void EphemeralSnapshotReconcilesOutsideTransportCallback()
         {
             using var server = new UtpServerHost();
-            using var client = new ClientNetworkRuntime();
+            using var client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
             var serverHandler = new RecordingServerHandler();
             var prediction = new RecordingPredictionAdapter();
 

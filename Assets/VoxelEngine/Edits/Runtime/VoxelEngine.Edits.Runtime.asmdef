@@ -1,0 +1,20 @@
+{
+  "name": "VoxelEngine.Edits.Runtime",
+  "rootNamespace": "VoxelEngine.Edits.Runtime",
+  "references": [
+    "VoxelEngine.Foundation",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Edits.Api",
+    "Unity.Collections",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

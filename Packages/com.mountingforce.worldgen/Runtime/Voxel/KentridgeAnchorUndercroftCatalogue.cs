@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -87,7 +88,7 @@ namespace MountingForce.WorldGen.Voxel
                 if (sites[i].DefinitionId == HospitalityDefinition) hospitalityCount++;
             int workingCount = sites.Count - hospitalityCount;
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: DefinitionCount,
                 rules: DefinitionCount,
                 parameters: 0,
@@ -127,7 +128,7 @@ namespace MountingForce.WorldGen.Voxel
             catalogue.Rules[WorkingDefinition] = ExplicitRule(
                 WorkingDefinition, workingOffset, workingCount);
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -202,7 +203,7 @@ namespace MountingForce.WorldGen.Voxel
             int centreXDm = plot.PositionDm.X + footprint.X / 2;
             int downhillZDm = plot.PositionDm.Y + footprint.Z + NaturalSampleBeyondEdgeDm;
             int shelfSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
-            int naturalSurface = TerrainSampler.HeightAt(
+            int naturalSurface = TerrainQuery.HeightAt(
                 centreXDm * scale,
                 downhillZDm * scale,
                 seed);
@@ -436,7 +437,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                    material, (int)mode);
+                    material, 0, 0, (int)mode);
             }
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz)
@@ -452,7 +453,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
-                    (int)profile, material, (int)PrimitiveMode.Fill);
+                    (int)profile, material, 0, 0, (int)PrimitiveMode.Fill);
             }
 
             public int[] Finish()

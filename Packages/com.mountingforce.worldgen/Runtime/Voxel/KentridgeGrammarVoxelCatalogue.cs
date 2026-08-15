@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -53,7 +54,7 @@ namespace MountingForce.WorldGen.Voxel
                     programLength += programs[roleId].Code.Length;
                 }
 
-                FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+                FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                     definitions: DefinitionCount,
                     rules: DefinitionCount,
                     parameters: 0,
@@ -145,7 +146,7 @@ namespace MountingForce.WorldGen.Voxel
                     programOffset += program.Code.Length;
                 }
 
-                CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+                CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
                 if (result != CatalogueLoadResult.Ok)
                 {
                     catalogue.Dispose();
@@ -631,7 +632,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                    material, (int)mode);
+                    material, 0, 0, (int)mode);
             }
 
             public void Carve(
@@ -649,7 +650,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
-                    (int)profile, material, (int)PrimitiveMode.Fill);
+                    (int)profile, material, 0, 0, (int)PrimitiveMode.Fill);
             }
 
             public void Anchor(int index, int3 p, Facing facing)

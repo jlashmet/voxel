@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
+
+using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -70,13 +71,14 @@ namespace MountingForce.WorldGen.Voxel
             }
 
             int count = supports.Count;
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: count,
                 rules: count,
                 parameters: 0,
                 anchors: 0,
                 slots: 0,
-                programLength: count * 12,
+                programLength: count * (ShapeOps.InstructionLength(ShapeOp.EmitBox)
+                    + ShapeOps.InstructionLength(ShapeOp.End)),
                 materials: 0,
                 explicitPlacements: count,
                 overrides: 0,
@@ -144,7 +146,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += program.Length;
             }
 
-            CatalogueLoadResult result = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (result != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
@@ -164,6 +166,7 @@ namespace MountingForce.WorldGen.Voxel
                 0, 0, 0,
                 width, height, depth,
                 material,
+                0, 0,
                 (int)PrimitiveMode.Fill,
                 (int)ShapeOp.End,
                 0,

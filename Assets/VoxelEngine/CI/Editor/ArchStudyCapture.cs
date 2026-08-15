@@ -4,11 +4,13 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Rendering;
-using VoxelEngine.Rendering.SurfaceExtraction;
-using VoxelEngine.Structures;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.CI
 {
@@ -166,13 +168,15 @@ namespace VoxelEngine.CI
                         if (!bay.Emit(origin, primitives, profileBlocks))
                             throw new InvalidOperationException($"Arch variant {i} did not emit.");
                         int3 max = origin + bay.Metadata.Footprint;
+                        var reads = new RegionReadSource(in table, in pool);
+                        var mutations = new RegionMutationStore(in table, in pool);
                         RasterResult result = PrimitiveRasteriser.Rasterise(
-                            primitives.AsArray(), origin, max, ref table, ref pool);
+                            primitives.AsArray(), origin, max, reads, mutations);
                         if (result.BudgetExceeded)
                             throw new InvalidOperationException($"Arch variant {i} exceeded budget.");
                         totalVoxels += result.VoxelsWritten;
 
-                        var brush = new VoxelBrush(table, pool, in palette, 2_000_000);
+                        var brush = new VoxelBrush(reads, mutations, palette, 2_000_000);
                         int3 weatherMin = origin - new int3(2, 2, 2);
                         int3 weatherSize = bay.Metadata.Footprint + new int3(4, 4, 4);
                         chipped += MasonryWeathering.ChipExposedEdges(
@@ -229,13 +233,13 @@ namespace VoxelEngine.CI
                 // presentation frames. This is the same production scheduler and extractor.
                 VoxelRenderBridge.SolidBuildBudgetMs = 12.0;
                 VoxelRenderBridge.WaterBuildBudgetMs = 2.0;
+                var readSource = new RegionReadSource(in table, in pool, changes);
                 VoxelRenderBridge.Source = () => new VoxelWorldView
                 {
-                    Table = table,
-                    Pool = pool,
+                    Storage = readSource,
                     Palette = palette,
-                    SurfaceCatalogue = surfaces,
-                    CoatingCatalogue = coatings,
+                    SurfaceCatalogueView = surfaces,
+                    CoatingCatalogueView = coatings,
                     ProfileBlocks = profileBlocks,
                 };
 

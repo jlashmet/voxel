@@ -1,10 +1,11 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -13,7 +14,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void MissingNeighborRegionDefersBatchWithoutConsumingAuthority()
         {
-            var queue = new ClientAuthoritativeEventQueue();
+            var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
             var table = new RegionTable(2, Allocator.TempJob);
             var pool = new BrickPool(8, Allocator.TempJob);
             try
@@ -29,12 +30,12 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.That(queue.TryEnqueueEventPacket(packet), Is.True);
                 Assert.That(queue.PendingEventCount, Is.EqualTo(1));
-                Assert.That(queue.DrainReady(ref table, ref pool, out int appliedBefore), Is.Zero);
+                Assert.That(queue.DrainReady(new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), out int appliedBefore), Is.Zero);
                 Assert.That(appliedBefore, Is.Zero);
                 Assert.That(queue.PendingEventCount, Is.EqualTo(1));
 
                 table.LoadRegion(new int3(1, 0, 0));
-                Assert.That(queue.DrainReady(ref table, ref pool, out int appliedAfter), Is.EqualTo(1));
+                Assert.That(queue.DrainReady(new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), out int appliedAfter), Is.EqualTo(1));
                 Assert.That(appliedAfter, Is.EqualTo(1));
                 Assert.That(queue.PendingEventCount, Is.Zero);
             }
@@ -48,7 +49,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void LaterReadyBatchCannotLeapfrogDeferredAuthority()
         {
-            var queue = new ClientAuthoritativeEventQueue();
+            var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
             var table = new RegionTable(2, Allocator.TempJob);
             var pool = new BrickPool(8, Allocator.TempJob);
             try
@@ -70,12 +71,12 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(queue.TryEnqueueEventPacket(EncodeBatch(int3.zero, ready)), Is.True);
                 Assert.That(queue.PendingBatchCount, Is.EqualTo(2));
 
-                Assert.That(queue.DrainReady(ref table, ref pool, out int applied), Is.Zero);
+                Assert.That(queue.DrainReady(new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), out int applied), Is.Zero);
                 Assert.That(applied, Is.Zero);
                 Assert.That(queue.PendingBatchCount, Is.EqualTo(2));
 
                 table.LoadRegion(new int3(1, 0, 0));
-                Assert.That(queue.DrainReady(ref table, ref pool, out applied), Is.EqualTo(2));
+                Assert.That(queue.DrainReady(new RegionMutationStore(in table, in pool), new RegionReadSource(in table, in pool), out applied), Is.EqualTo(2));
                 Assert.That(applied, Is.EqualTo(2));
                 Assert.That(queue.PendingBatchCount, Is.Zero);
             }
@@ -89,7 +90,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void RejectionNotifiesImmediatelyAndDoesNotEnterWorldQueue()
         {
-            var queue = new ClientAuthoritativeEventQueue();
+            var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
             var notifications = new RecordingNotifications();
             var rejection = new S_AlterationRejected(
                 tick: 50,
@@ -107,7 +108,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void RegressingServerAuthorityIsRejectedBeforeQueueing()
         {
-            var queue = new ClientAuthoritativeEventQueue();
+            var queue = new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier());
             AlterationEvent first = Explosion(100, 2, 1, new int3(100, 100, 100));
             AlterationEvent older = Explosion(99, 9, 99, new int3(100, 100, 100));
 

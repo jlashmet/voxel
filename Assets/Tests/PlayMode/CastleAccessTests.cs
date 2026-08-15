@@ -6,10 +6,11 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Terrain;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Showcase;
-using VoxelEngine.Structures;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -64,7 +65,7 @@ namespace VoxelEngine.Tests.PlayMode
             const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = world.SurfaceHeight(cx, cz);
             var plan = CastleBuilder.Plan(new int3(cx, ground, cz), world.Seed);
-            int3 hatch = CastleBuilder.TrapdoorCentre(in plan);
+            int3 hatch = CastleLayout.TrapdoorCentre(in plan);
 
             Assert.AreEqual(Mat.Wood, Get(world, hatch.x, hatch.y, hatch.z),
                 "the secret stair must begin behind a visible closed hatch");
@@ -74,7 +75,7 @@ namespace VoxelEngine.Tests.PlayMode
                         Is.True, "a nearby E press should open the hatch");
             Assert.That(world.CastleTrapdoorOpen, Is.True);
 
-            int half = CastleBuilder.TrapdoorHalfSize;
+            int half = CastleLayout.TrapdoorHalfSize;
             for (int y = hatch.y; y < hatch.y + 4; y++)
             for (int z = hatch.z - half; z < hatch.z + half; z++)
             for (int x = hatch.x - half; x < hatch.x + half; x++)
@@ -95,13 +96,13 @@ namespace VoxelEngine.Tests.PlayMode
             const int cz = ShowcaseWorld.RegionVoxelEdge / 2 + 120;
             int ground = world.SurfaceHeight(cx, cz);
             CastlePlan plan = CastleBuilder.Plan(new int3(cx, ground, cz), world.Seed);
-            int3 min = CastleBuilder.FrontGateMinimum(in plan);
+            int3 min = CastleLayout.FrontGateMinimum(in plan);
 
             Assert.AreEqual(Mat.Wood,
                 Get(world, min.x + 6, min.y + 8, min.z),
                 "the front arch must begin with a visible closed timber gate");
             Assert.AreEqual(Mat.DarkStone,
-                Get(world, min.x + CastleBuilder.FrontGateWidth / 2, min.y + 8, min.z),
+                Get(world, min.x + CastleLayout.FrontGateWidth / 2, min.y + 8, min.z),
                 "the closed gate must include visible structural ironwork");
             Assert.That(world.TryOpenCastleFrontGate(world.CastleFrontGatePosition
                                                      + Vector3.forward * 20f), Is.False,
@@ -110,11 +111,11 @@ namespace VoxelEngine.Tests.PlayMode
                 "a player on the bridge should be able to open the front gate");
             Assert.That(world.CastleFrontGateOpen, Is.True);
 
-            int half = CastleBuilder.FrontGateWidth / 2;
-            int archTop = CastleBuilder.FrontGateHeight - half;
-            for (int d = 0; d < CastleBuilder.FrontGateDepth; d++)
-            for (int w = 0; w < CastleBuilder.FrontGateWidth; w++)
-            for (int h = 0; h < CastleBuilder.FrontGateHeight; h++)
+            int half = CastleLayout.FrontGateWidth / 2;
+            int archTop = CastleLayout.FrontGateHeight - half;
+            for (int d = 0; d < CastleLayout.FrontGateDepth; d++)
+            for (int w = 0; w < CastleLayout.FrontGateWidth; w++)
+            for (int h = 0; h < CastleLayout.FrontGateHeight; h++)
             {
                 int dx = w - half;
                 if (h > archTop && dx * dx + (h - archTop) * (h - archTop) > half * half)
@@ -140,7 +141,7 @@ namespace VoxelEngine.Tests.PlayMode
             int top = plan.Centre.y + plan.PlateauHeight;
             int gateZ = plan.Centre.z - plan.BaileyHalfZ;
             int riverZ = gateZ - plan.WallThickness - 92;
-            int riverY = top - CastleBuilder.LowerRiverDepth;
+            int riverY = top - CastleLayout.LowerRiverDepth;
 
             Assert.AreEqual(Mat.Water, Get(world, cx, riverY, riverZ),
                 "the lower approach river is missing beneath the bridge");
@@ -165,8 +166,8 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.True(grassBank && dirtBank,
                 "the gorge wall must expose both a grass lip and dirt strata");
 
-            int streamX = CastleBuilder.WaterfallStreamX(in plan);
-            int lipZ = CastleBuilder.WaterfallLipZ(in plan);
+            int streamX = CastleLayout.WaterfallStreamX(in plan);
+            int lipZ = CastleLayout.WaterfallLipZ(in plan);
             int streamStartZ = plan.Centre.z + plan.BaileyHalfZ + plan.TowerRadius + 18;
             int streamZ = (streamStartZ + lipZ) / 2;
             float streamT = (streamStartZ - streamZ)
@@ -181,7 +182,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.AreEqual(Mat.Cascade, Get(world, streamX, poolY + 2, lipZ),
                 "the upper stream does not form a waterfall into its plunge pool");
 
-            int lowerRiverAtOutlet = CastleBuilder.LowerRiverZAt(in plan, streamX);
+            int lowerRiverAtOutlet = CastleLayout.LowerRiverZAt(in plan, streamX);
             int poolZ = lowerRiverAtOutlet + 27;
             int outletZ = (poolZ + lowerRiverAtOutlet) / 2;
             float outletT = (poolZ - outletZ)
@@ -196,7 +197,7 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 bool waterBelow = false;
                 bool structurallyAnchored = false;
-                for (int y = top - CastleBuilder.LowerRiverDepth - 12; y <= top + 8; y++)
+                for (int y = top - CastleLayout.LowerRiverDepth - 12; y <= top + 8; y++)
                 {
                     byte material = Get(world, x, y, z);
                     if (material == Mat.Water || material == Mat.Cascade)
@@ -294,16 +295,16 @@ namespace VoxelEngine.Tests.PlayMode
             // The offset bell tower is four occupied storeys, not a sealed skyline prop. Its
             // ground threshold joins the chapel's rear aisle and its spiral must provide a clear
             // landing on every upper floor.
-            int3 bellCentre = CastleBuilder.ChapelBellTowerCentre(in plan);
-            int bellMinZ = bellCentre.z - CastleBuilder.ChapelBellTowerSize / 2;
+            int3 bellCentre = CastleLayout.ChapelBellTowerCentre(in plan);
+            int bellMinZ = bellCentre.z - CastleLayout.ChapelBellTowerSize / 2;
             for (int z = chapelCentreZ; z <= bellMinZ + 9; z += 2)
                 AssertActorClear(world, new int3(bellCentre.x, baseY + 2, z),
                     $"chapel bell-tower threshold at z={z}");
 
-            int bellStairX = bellCentre.x + CastleBuilder.ChapelBellTowerSize / 2 - 19;
+            int bellStairX = bellCentre.x + CastleLayout.ChapelBellTowerSize / 2 - 19;
             for (int floor = 1; floor < 4; floor++)
                 AssertStairLanding(world, bellStairX, baseY + 2, bellCentre.z,
-                                   CastleBuilder.ChapelBellTowerStairRadius,
+                                   CastleLayout.ChapelBellTowerStairRadius,
                                    floor * plan.FloorHeight - 2,
                                    $"chapel bell tower floor {floor}");
 
@@ -556,6 +557,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         private static byte Get(ShowcaseWorld world, int x, int y, int z) =>
-            VoxelAccess.GetVoxel(ref world.Table, in world.Pool, new int3(x, y, z));
+            world.SurfaceQuery.TryRead(new int3(x, y, z), out VoxelCell cell)
+                ? cell.BaseMaterialId : VoxelGrid.MaterialEmpty;
     }
 }

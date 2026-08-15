@@ -6,10 +6,11 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Core.Vegetation;
-using VoxelEngine.Rendering.Vegetation;
+using VoxelEngine.Vegetation.Runtime;
+using VoxelEngine.Vegetation.Api;
+using VoxelEngine.Rendering.Runtime.Vegetation;
 using VoxelEngine.Showcase;
-using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
+using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
 namespace VoxelEngine.CI
 {
@@ -48,18 +49,18 @@ namespace VoxelEngine.CI
             while (!load.isDone) yield return null;
 
             float deadline = Time.realtimeSinceStartup + StartupTimeoutSeconds;
-            while ((!ShowcaseTreePopulation.Completed || TreeWorldState.Instances.Count == 0)
+            while ((!ShowcaseTreePopulation.Completed || TreeWorldRuntime.Instances.Count == 0)
                    && Time.realtimeSinceStartup < deadline)
                 yield return null;
 
             Assert.That(ShowcaseTreePopulation.Completed, Is.True,
                         "Semantic Showcase tree population did not complete.");
-            Assert.That(TreeWorldState.Instances.Count, Is.GreaterThan(0),
+            Assert.That(TreeWorldRuntime.Instances.Count, Is.GreaterThan(0),
                         "Showcase never published semantic tree instances.");
 
             List<ProceduralTreeRenderer> renderers = FindRuntimeRenderers();
             while ((renderers.Count != 1
-                    || renderers[0].PresentationCount < TreeWorldState.Instances.Count)
+                    || renderers[0].PresentationCount < TreeWorldRuntime.Instances.Count)
                    && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
@@ -71,8 +72,8 @@ namespace VoxelEngine.CI
             ProceduralTreeRenderer treeRenderer = renderers[0];
             for (int i = 0; i < 30; i++) yield return null;
 
-            int instanceCount = TreeWorldState.Instances.Count;
-            int damageCount = TreeWorldState.Damage.Count;
+            int instanceCount = TreeWorldRuntime.Instances.Count;
+            int damageCount = TreeWorldRuntime.Damage.Count;
             int severedCount = 0;
             int foliageDamagedCount = 0;
             int sidewaysSkeletonCount = 0;
@@ -83,13 +84,13 @@ namespace VoxelEngine.CI
             {
                 if (i < damageCount)
                 {
-                    TreeWorldState.TreeDamageState damage = TreeWorldState.Damage[i];
+                    TreeDamageState damage = TreeWorldRuntime.Damage[i];
                     if (damage.Severed) severedCount++;
                     if (damage.FoliageHealth < 0.999f) foliageDamagedCount++;
                 }
 
-                TreeInstance instance = TreeWorldState.Instances[i];
-                ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                TreeInstance instance = TreeWorldRuntime.Instances[i];
+                TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                 if (!HasUprightTrunk(skeleton)) sidewaysSkeletonCount++;
 
                 if (treeRenderer.TryGetDynamicPresentationRoot(i, out Transform root)
@@ -164,7 +165,7 @@ namespace VoxelEngine.CI
                 camera.targetTexture = null;
             }
 
-            TreeInstance selected = TreeWorldState.Instances[selectedTreeIndex];
+            TreeInstance selected = TreeWorldRuntime.Instances[selectedTreeIndex];
             int expectedDynamic = instanceCount - treeRenderer.BatchedTreeCount;
             string metadata =
                 $"populationComplete={ShowcaseTreePopulation.Completed}\n" +
@@ -217,7 +218,7 @@ namespace VoxelEngine.CI
             if (cameraObject != null) Object.Destroy(cameraObject);
         }
 
-        private static bool HasUprightTrunk(ProceduralTreeSkeleton skeleton)
+        private static bool HasUprightTrunk(TreeSkeletonSnapshot skeleton)
         {
             float highestY = 0f;
             float maxHorizontal = 0f;

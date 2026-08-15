@@ -4,10 +4,11 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Net.Client;
-using VoxelEngine.Net.Protocol;
-using VoxelEngine.Net.Server;
+using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Net.Runtime.Client;
+using VoxelEngine.Net.Runtime.Protocol;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -19,8 +20,9 @@ namespace VoxelEngine.Tests.EditMode
         {
             using var server = new AuthoritativeServerSession(
                 serverSeed: 0x12345678,
-                densityCap: new Validation.DensityCap(1f, 0));
-            using var client = new ClientNetworkRuntime();
+                densityCap: new Validation.DensityCap(1f, 0),
+                alterationApplier: new DeterministicAlterationApplier());
+            using var client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
 
             uint connectionId = 0;
             bool connected = false;
@@ -58,7 +60,7 @@ namespace VoxelEngine.Tests.EditMode
                     serverHash: 0x22222222);
                 server.ConvergenceInbox.HandleRegionHashMismatch(connectionId, in expired);
 
-                server.ProcessAuthoritativeTick(100, ref serverTable, ref serverPool, in zones, inputSink);
+                server.ProcessAuthoritativeTick(100, new RegionReadSource(in serverTable, in serverPool), new RegionMutationStore(in serverTable, in serverPool), new RegionReadSource(in serverTable, in serverPool), in zones, inputSink);
                 PumpUntil(
                     () => client.IsFullRegionResyncRequired && server.RegionStateInbox.PendingCount == 1,
                     () => Pump(client, server));
@@ -68,15 +70,12 @@ namespace VoxelEngine.Tests.EditMode
 
                 // Tick 101 captures the authoritative current region only after the fixed-tick world
                 // state is final, queues the EVENT fence, and sends the semantic bytes over BULK.
-                server.ProcessAuthoritativeTick(101, ref serverTable, ref serverPool, in zones, inputSink);
+                server.ProcessAuthoritativeTick(101, new RegionReadSource(in serverTable, in serverPool), new RegionMutationStore(in serverTable, in serverPool), new RegionReadSource(in serverTable, in serverPool), in zones, inputSink);
                 PumpUntil(
                     () => client.CompletedFullStateTransfers == 1 && client.PendingRegionStateFences == 1,
                     () => Pump(client, server));
 
-                Assert.That(client.ApplyReadyAuthoritativeEvents(
-                    ref clientTable,
-                    ref clientPool,
-                    out int appliedEvents), Is.GreaterThanOrEqualTo(0));
+                Assert.That(client.ApplyReadyAuthoritativeEvents(new RegionMutationStore(in clientTable, in clientPool), new RegionReadSource(in clientTable, in clientPool), new RegionSnapshotMutationStore(in clientTable, in clientPool), out int appliedEvents), Is.GreaterThanOrEqualTo(0));
                 Assert.That(appliedEvents, Is.Zero);
 
                 Assert.That(client.IsFullRegionResyncRequired, Is.False);

@@ -5,7 +5,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -42,9 +42,8 @@ namespace VoxelEngine.Tests.PlayMode
             for (int y = minY; y <= maxY; y++)
             for (int x = minX; x <= maxX; x++)
             {
-                byte material = VoxelAccess.GetVoxel(ref world.Table, in world.Pool,
-                                                     new int3(x, y, z));
-                Assert.AreEqual(VoxelDimensions.MaterialEmpty, material,
+                byte material = ReadMaterial(world, new int3(x, y, z));
+                Assert.AreEqual(VoxelGrid.MaterialEmpty, material,
                     $"Player spawn overlaps occupied voxel ({x}, {y}, {z}).");
             }
 
@@ -60,9 +59,8 @@ namespace VoxelEngine.Tests.PlayMode
                 "Player feet should start no more than one clearance voxel above the highest " +
                 "surface under the capsule footprint.");
 
-            byte ground = VoxelAccess.GetVoxel(ref world.Table, in world.Pool,
-                                               new int3(centreX, surface, centreZ));
-            Assert.AreNotEqual(VoxelDimensions.MaterialEmpty, ground,
+            byte ground = ReadMaterial(world, new int3(centreX, surface, centreZ));
+            Assert.AreNotEqual(VoxelGrid.MaterialEmpty, ground,
                 "Player spawn has no occupied ground directly beneath it.");
 
             Vector3 castleTarget = new(ShowcaseWorld.RegionMetres * 0.5f,
@@ -88,5 +86,9 @@ namespace VoxelEngine.Tests.PlayMode
                 motor.Step(world, Vector3.zero, false, true, 0.016f);
             Assert.True(motor.AssistedFlight, "holding Space must transition from jumping to flight");
         }
+
+        private static byte ReadMaterial(ShowcaseWorld world, int3 voxel) =>
+            world.SurfaceQuery.TryRead(voxel, out VoxelCell cell)
+                ? cell.BaseMaterialId : VoxelGrid.MaterialEmpty;
     }
 }

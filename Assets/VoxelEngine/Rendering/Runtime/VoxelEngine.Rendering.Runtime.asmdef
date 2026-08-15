@@ -1,0 +1,23 @@
+{
+  "name": "VoxelEngine.Rendering.Runtime",
+  "rootNamespace": "VoxelEngine.Rendering.Runtime",
+  "references": [
+    "VoxelEngine.Storage.Api",
+    "Unity.Burst",
+    "Unity.Collections",
+    "Unity.Mathematics",
+    "VoxelEngine.Tiering.Api",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Core.Runtime",
+    "VoxelEngine.Vegetation.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "noEngineReferences": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": []
+}

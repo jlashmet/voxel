@@ -1,9 +1,11 @@
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Edits;
+using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Tests.Parity;
+using VoxelEngine.Terrain.Runtime;
 
 namespace VoxelEngine.Tests.Parity
 {
@@ -105,8 +107,10 @@ namespace VoxelEngine.Tests.Parity
             var regionB = new Region(int3.zero, Allocator.Temp);
 
             // Materialise terrain in both.
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionA, TerrainSeed, in poolA);
-            VoxelEngine.Core.Terrain.TerrainGenerator.Generate(regionB, TerrainSeed, in poolB);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, TerrainSeed);
+            VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, TerrainSeed);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
             var tableB = new RegionTable(1, Allocator.Persistent);
@@ -120,8 +124,8 @@ namespace VoxelEngine.Tests.Parity
                 playerId = 1, sequence = 1
             };
 
-            var resultA = ExplosionExpansion.Expand(in poolA, in tableA, in evt);
-            var resultB = ExplosionExpansion.Expand(in poolB, in tableB, in evt);
+            var resultA = ExplosionExpansion.Expand(new RegionReadSource(in tableA, in poolA), in evt);
+            var resultB = ExplosionExpansion.Expand(new RegionReadSource(in tableB, in poolB), in evt);
 
             Assert.AreEqual(resultA.Length, resultB.Length, "Large explosion affected brick count differs.");
             for (int i = 0; i < resultA.Length; i++)

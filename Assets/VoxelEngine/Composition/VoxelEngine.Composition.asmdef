@@ -1,0 +1,32 @@
+{
+  "name": "VoxelEngine.Composition",
+  "rootNamespace": "VoxelEngine.Composition",
+  "references": [
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Rendering.Runtime",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
+    "Unity.Burst",
+    "Unity.Collections",
+    "Unity.Mathematics",
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.Vegetation.Runtime",
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Edits.Runtime",
+    "VoxelEngine.Net.Runtime",
+    "MountingForce.WorldGen.Voxel",
+    "Unity.Networking.Transport"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
