@@ -186,7 +186,7 @@ namespace VoxelEngine.Core.Features
             Emit(origin, output, null);
 
         public bool Emit(int3 origin, NativeList<Primitive> output,
-                         ProfileBlockStore profileBlocks)
+                         IProfileBlockWriter profileBlocks)
         {
             if (!IsValid) return false;
             int order = output.Length;
@@ -392,7 +392,7 @@ namespace VoxelEngine.Core.Features
             Emit(origin, output, null);
 
         public bool Emit(int3 origin, NativeList<Primitive> output,
-                         ProfileBlockStore profileBlocks)
+                         IProfileBlockWriter profileBlocks)
         {
             if (!Arch.IsValid) return false;
 
