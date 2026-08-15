@@ -1,0 +1,33 @@
+name: Cutover 13 TerrainLookdev API inventory
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-terrain-lookdev-api-inventory.yml
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d8fc9e5bc549f8cf62dc1cc13b2f375aa54f531a
+          fetch-depth: 1
+      - name: Print existing catalogue and authoring seams
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== definitions ==='
+          grep -R -n -E '(^|[^A-Za-z])(struct|class|interface) (MaterialPaletteView|SurfaceCatalogueView|CoatingCatalogueView|IMaterialAuthoringCatalogue)' Assets/VoxelEngine || true
+          echo '=== VoxelBrush constructors ==='
+          grep -n -A18 -B5 'VoxelBrush(' Assets/VoxelEngine/Structures/Runtime/VoxelBrush.cs || true
+          echo '=== catalogue runtime declarations ==='
+          grep -R -n -E 'class (MaterialPalette|SurfaceCatalogue|CoatingCatalogue)|struct (MaterialPalette|SurfaceCatalogue|CoatingCatalogue)' Assets/VoxelEngine/Storage/Runtime || true
+          echo '=== api files mentioning palette/catalogue ==='
+          grep -R -l -E 'MaterialPaletteView|SurfaceCatalogueView|CoatingCatalogueView|IMaterialAuthoringCatalogue' Assets/VoxelEngine/Storage/Api | sort || true
+          echo '=== concrete files excerpts ==='
+          for f in $(grep -R -l -E 'MaterialPaletteView|SurfaceCatalogueView|CoatingCatalogueView|IMaterialAuthoringCatalogue' Assets/VoxelEngine/Storage/Api | sort); do echo ---$f; sed -n '1,240p' "$f"; done
+          echo '=== TerrainLookdev storage usages ==='
+          grep -n -E '_table|_pool|_readSource|_palette|_surfaces|_coatings|_changes|Region(ReadSource|MutationStore|Table)|BrickPool|MaterialPalette|SurfaceCatalogue|CoatingCatalogue|VoxelChangeJournal' Assets/Scenes/Showcase/TerrainLookdev.cs
