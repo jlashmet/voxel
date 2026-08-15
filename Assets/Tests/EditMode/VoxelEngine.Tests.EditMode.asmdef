@@ -8,7 +8,6 @@
     "VoxelEngine.Rendering",
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
-    "VoxelEngine.Streaming",
     "VoxelEngine.Tiering.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
@@ -24,7 +23,9 @@
     "Unity.RenderPipelines.Universal.Runtime",
     "Unity.RenderPipelines.Core.Runtime",
     "VoxelEngine.Edits.Api",
-    "VoxelEngine.Edits.Runtime"
+    "VoxelEngine.Edits.Runtime",
+    "VoxelEngine.Streaming.Api",
+    "VoxelEngine.Streaming.Runtime"
   ],
   "includePlatforms": [
     "Editor"

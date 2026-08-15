@@ -6,7 +6,6 @@
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
-    "VoxelEngine.Streaming",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Tiering.Api",
@@ -18,7 +17,8 @@
     "UnityEditor.TestRunner",
     "VoxelEngine.Showcase",
     "VoxelEngine.Terrain.Api",
-    "VoxelEngine.Edits.Api"
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Streaming.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

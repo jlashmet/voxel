@@ -5,17 +5,19 @@ using System.Reflection;
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Streaming;
+using VoxelEngine.Streaming.Api;
+using VoxelEngine.Streaming.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
     public sealed class StreamingStorageBoundaryTests
     {
         [Test]
-        public void StreamingAssemblyUsesStorageApiInsteadOfPhysicalCoreStorage()
+        public void StreamingRuntimeUsesApisInsteadOfPhysicalOrNetworkingImplementations()
         {
             string root = FindRepoRoot();
             string streaming = Path.Combine(root, "Assets", "VoxelEngine", "Streaming");
+            string runtime = Path.Combine(streaming, "Runtime");
             string[] forbidden =
             {
                 "RegionTable",
@@ -27,7 +29,7 @@ namespace VoxelEngine.Tests.EditMode
             };
             var violations = new List<string>();
 
-            foreach (string path in Directory.EnumerateFiles(streaming, "*.cs", SearchOption.TopDirectoryOnly))
+            foreach (string path in Directory.EnumerateFiles(runtime, "*.cs", SearchOption.TopDirectoryOnly))
             {
                 string source = File.ReadAllText(path);
                 foreach (string token in forbidden)
@@ -37,16 +39,20 @@ namespace VoxelEngine.Tests.EditMode
                 }
             }
 
-            string asmdefPath = Path.Combine(streaming, "VoxelEngine.Streaming.asmdef");
+            string asmdefPath = Path.Combine(runtime, "VoxelEngine.Streaming.Runtime.asmdef");
             string asmdef = File.ReadAllText(asmdefPath);
             if (asmdef.IndexOf("\"VoxelEngine.Core\"", StringComparison.Ordinal) >= 0)
-                violations.Add("VoxelEngine.Streaming.asmdef -> VoxelEngine.Core");
+                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> VoxelEngine.Core");
+            if (asmdef.IndexOf("\"VoxelEngine.Net\"", StringComparison.Ordinal) >= 0)
+                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> VoxelEngine.Net");
             if (asmdef.IndexOf("\"VoxelEngine.Storage.Api\"", StringComparison.Ordinal) < 0)
-                violations.Add("VoxelEngine.Streaming.asmdef -> missing VoxelEngine.Storage.Api");
+                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> missing VoxelEngine.Storage.Api");
+            if (asmdef.IndexOf("\"VoxelEngine.Streaming.Api\"", StringComparison.Ordinal) < 0)
+                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> missing VoxelEngine.Streaming.Api");
 
             Assert.IsEmpty(violations,
-                "Streaming must own residency policy while consuming Storage only through " +
-                "Storage.Api.\n\n" + string.Join("\n", violations));
+                "Streaming Runtime must own policy/orchestration while consuming foreign systems only through APIs.\n\n" +
+                string.Join("\n", violations));
         }
 
         [Test]
@@ -74,6 +80,13 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsEmpty(violations,
                 "Tests must exercise Streaming through its Storage.Api boundary rather than " +
                 "keeping deleted table/pool signatures alive.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
+        public void StreamingServiceCanBeInstantiatedWithoutNetworking()
+        {
+            IRegionStreaming streaming = new RegionStreamingService(new RecordingResidencyStore());
+            Assert.NotNull(streaming);
         }
 
         [Test]

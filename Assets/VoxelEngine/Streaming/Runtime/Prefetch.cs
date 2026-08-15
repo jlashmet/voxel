@@ -3,7 +3,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Streaming
+namespace VoxelEngine.Streaming.Runtime
 {
     /// <summary>
     /// Movement-vector prefetch: load regions ahead of the player based on velocity rather than

@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Tiering.Api;
 
-namespace VoxelEngine.Streaming
+namespace VoxelEngine.Streaming.Runtime
 {
     /// <summary>
     /// Manages client region-residency policy: desired radius, hysteresis and LRU eviction.

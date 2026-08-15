@@ -3,7 +3,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Streaming;
+using VoxelEngine.Streaming.Runtime;
 using VoxelEngine.Tiering.Api;
 using VoxelEngine.Core.Storage;
 

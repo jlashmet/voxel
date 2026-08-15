@@ -5,7 +5,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Streaming
+namespace VoxelEngine.Streaming.Runtime
 {
     /// <summary>
     /// Tracks asynchronous region-load completion and publishes residency within a bounded

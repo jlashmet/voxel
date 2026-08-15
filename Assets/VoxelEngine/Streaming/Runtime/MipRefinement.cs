@@ -2,7 +2,7 @@ using System;
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Streaming
+namespace VoxelEngine.Streaming.Runtime
 {
     /// <summary>
     /// Implements progressive mip refinement: when a client has mip level N and requests

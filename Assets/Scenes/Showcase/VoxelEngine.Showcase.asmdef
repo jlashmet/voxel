@@ -11,7 +11,6 @@
     "VoxelEngine.Rendering",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
-    "VoxelEngine.Streaming",
     "VoxelEngine.Tiering.Api",
     "MountingForce.WorldGen.Voxel",
     "Unity.Burst",
@@ -19,7 +18,8 @@
     "Unity.Mathematics",
     "Unity.Networking.Transport",
     "VoxelEngine.Edits.Api",
-    "VoxelEngine.Edits.Runtime"
+    "VoxelEngine.Edits.Runtime",
+    "VoxelEngine.Streaming.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

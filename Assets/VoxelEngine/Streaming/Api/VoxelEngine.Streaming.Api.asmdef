@@ -1,16 +1,12 @@
 {
-  "name": "VoxelEngine.Streaming",
-  "rootNamespace": "VoxelEngine.Streaming",
+  "name": "VoxelEngine.Streaming.Api",
+  "rootNamespace": "VoxelEngine.Streaming.Api",
   "references": [
-    "VoxelEngine.Storage.Api",
-    "Unity.Burst",
-    "Unity.Collections",
-    "Unity.Mathematics",
-    "VoxelEngine.Tiering.Api"
+    "Unity.Mathematics"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
-  "allowUnsafeCode": true,
+  "allowUnsafeCode": false,
   "overrideReferences": false,
   "precompiledReferences": [],
   "autoReferenced": false,

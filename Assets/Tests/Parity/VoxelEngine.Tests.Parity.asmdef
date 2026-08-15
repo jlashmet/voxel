@@ -9,7 +9,6 @@
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
-    "VoxelEngine.Streaming",
     "VoxelEngine.Tiering.Api",
     "Unity.Burst",
     "Unity.Collections",
