@@ -9,7 +9,7 @@ SOURCE_DIR="$CACHE_ROOT/TripoSR-$TRIPOSR_REV"
 VENV_DIR="$CACHE_ROOT/triposr-$TRIPOSR_REV-py312-venv"
 MODEL_DIR="$CACHE_ROOT/models/triposr"
 DINO_DIR="$CACHE_ROOT/models/dino-vitb16"
-STAMP="$VENV_DIR/.voxel-ready-v5"
+STAMP="$VENV_DIR/.voxel-ready-v6"
 
 resolve_python312() {
   if [ -n "${PYTHON_BIN:-}" ]; then
@@ -63,37 +63,32 @@ if [ ! -f "$STAMP" ]; then
   "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
   "$VENV_DIR/bin/python" -m pip install torch torchvision
 
-  # TripoSR pins trimesh 4.0.5, whose GLB exporter still calls ndarray.ptp().
-  # NumPy 2 removed that method. Keep this smoke environment on the last
-  # NumPy 1.x line, and keep OpenCV on a release that supports that ABI.
-  "$VENV_DIR/bin/python" -m pip install 'numpy==1.26.4' 'opencv-python-headless==4.11.0.86'
-
-  # The upstream requirements include Gradio, which is only needed for its UI,
-  # and xatlas==0.0.9, which has no CPython 3.12 Apple-Silicon wheel and fails
-  # against current CMake. The smoke CLI never opens Gradio or bakes textures,
-  # but run.py imports xatlas at module load. Use the compatible wheel release
-  # and install the remaining runtime requirements without the UI dependency.
+  # Upstream pins UI-only Gradio, an old xatlas release that no longer builds
+  # cleanly on this Apple-Silicon runner, and trimesh 4.0.5. The old trimesh
+  # GLB exporter calls ndarray.ptp(), which NumPy 2 removed. The smoke path
+  # needs neither Gradio nor texture baking, so install the runtime set and use
+  # current compatible binary/exporter releases instead of downgrading NumPy.
   SMOKE_REQUIREMENTS="$VENV_DIR/triposr-smoke-requirements.txt"
-  grep -Ev '^[[:space:]]*(gradio([[:space:]]|$)|xatlas==|opencv-python-headless([[:space:]]|$))' "$SOURCE_DIR/requirements.txt" > "$SMOKE_REQUIREMENTS"
-  "$VENV_DIR/bin/python" -m pip install 'xatlas==0.0.11'
+  grep -Ev '^[[:space:]]*(gradio([[:space:]]|$)|xatlas==|trimesh==)' "$SOURCE_DIR/requirements.txt" > "$SMOKE_REQUIREMENTS"
+  "$VENV_DIR/bin/python" -m pip install 'xatlas==0.0.11' 'trimesh==4.12.2'
   "$VENV_DIR/bin/python" -m pip install -r "$SMOKE_REQUIREMENTS"
 
   # rembg is imported by TripoSR's run.py even when --no-remove-bg is used.
-  # The rembg package does not pull in an ONNX execution provider by default,
-  # so install the CPU runtime to satisfy that import without adding another
-  # model to the actual smoke inference path.
+  # The package intentionally leaves the execution provider optional.
   "$VENV_DIR/bin/python" -m pip install onnxruntime
 
-  # Re-assert the NumPy/OpenCV compatibility pins after dependency resolution.
-  "$VENV_DIR/bin/python" -m pip install 'numpy==1.26.4' 'opencv-python-headless==4.11.0.86'
+  # Reassert the exporter version in case a transitive dependency resolver
+  # changed it while installing the upstream runtime requirements.
+  "$VENV_DIR/bin/python" -m pip install 'trimesh==4.12.2'
 
   "$VENV_DIR/bin/python" - <<'PY'
 import importlib
 import numpy
+import trimesh
 for module in ("torch", "torchvision", "omegaconf", "PIL", "einops", "transformers", "trimesh", "onnxruntime", "rembg", "xatlas", "moderngl"):
     importlib.import_module(module)
-assert numpy.__version__.split('.')[0] == '1', numpy.__version__
-print(f"TripoSR smoke runtime imports ready; numpy={numpy.__version__}")
+assert trimesh.__version__ == "4.12.2", trimesh.__version__
+print(f"TripoSR smoke runtime imports ready; numpy={numpy.__version__} trimesh={trimesh.__version__}")
 PY
   touch "$STAMP"
 fi
@@ -142,7 +137,8 @@ PY
 import sys
 import numpy
 import torch
-print(f"python={sys.version.split()[0]} torch={torch.__version__} numpy={numpy.__version__} mps={torch.backends.mps.is_available()}")
+import trimesh
+print(f"python={sys.version.split()[0]} torch={torch.__version__} numpy={numpy.__version__} trimesh={trimesh.__version__} mps={torch.backends.mps.is_available()}")
 if not torch.backends.mps.is_available():
     raise SystemExit("Apple MPS is unavailable")
 PY
