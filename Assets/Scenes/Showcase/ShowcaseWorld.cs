@@ -168,6 +168,14 @@ namespace VoxelEngine.Showcase
                 return _readSource;
             }
         }
+        public IVoxelSurfaceQuery SurfaceQuery
+        {
+            get
+            {
+                _readSource.Refresh(in _table, in _pool);
+                return _readSource;
+            }
+        }
         public IRegionMutationStore MutationStorage
         {
             get
