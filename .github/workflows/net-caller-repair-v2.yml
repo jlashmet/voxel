@@ -1,0 +1,115 @@
+name: Net caller migration final
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-caller-repair-v2.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: true
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          counts = {'drain': 0, 'apply': 0, 'server': 0, 'processor': 0}
+
+          for path in Path('Assets/Tests/EditMode').glob('*.cs'):
+              original = path.read_text()
+              text = original
+
+              def drain(m):
+                  counts['drain'] += 1
+                  target, table, pool = m.groups()
+                  return (f'{target}(new RegionMutationStore(in {table}, in {pool}), '
+                          f'new RegionReadSource(in {table}, in {pool}), out ')
+              text = re.sub(r'(\b[A-Za-z_][\w.]*\.DrainReady)\(\s*ref ([A-Za-z_]\w*),\s*ref ([A-Za-z_]\w*),\s*out ', drain, text)
+
+              def apply_ready(m):
+                  counts['apply'] += 1
+                  target, table, pool = m.groups()
+                  return (f'{target}(new RegionMutationStore(in {table}, in {pool}), '
+                          f'new RegionReadSource(in {table}, in {pool}), '
+                          f'new RegionSnapshotMutationStore(in {table}, in {pool}), out ')
+              text = re.sub(r'(\b[A-Za-z_][\w.]*\.ApplyReadyAuthoritativeEvents)\(\s*ref ([A-Za-z_]\w*),\s*ref ([A-Za-z_]\w*),\s*out ', apply_ready, text)
+
+              def server_tick(m):
+                  counts['server'] += 1
+                  prefix, table, pool, zones = m.groups()
+                  return (f'{prefix}new RegionReadSource(in {table}, in {pool}), '
+                          f'new RegionMutationStore(in {table}, in {pool}), '
+                          f'new RegionReadSource(in {table}, in {pool}), in {zones},')
+              text = re.sub(r'(\b[A-Za-z_][\w.]*\.ProcessAuthoritativeTick\(\s*[^,\n]+,\s*)ref ([A-Za-z_]\w*),\s*ref ([A-Za-z_]\w*),\s*in ([A-Za-z_]\w*),', server_tick, text)
+
+              def processor_tick(m):
+                  counts['processor'] += 1
+                  prefix, table, pool, zones = m.groups()
+                  return (f'{prefix}new RegionReadSource(in {table}, in {pool}), '
+                          f'new RegionMutationStore(in {table}, in {pool}), in {zones},')
+              text = re.sub(r'(\b[A-Za-z_][\w.]*\.ProcessTick\(\s*[^,\n]+,\s*)ref ([A-Za-z_]\w*),\s*ref ([A-Za-z_]\w*),\s*in ([A-Za-z_]\w*),', processor_tick, text)
+
+              if text != original:
+                  path.write_text(text)
+                  print('updated', path)
+
+          expected = {'drain': 6, 'apply': 9, 'server': 10, 'processor': 1}
+          if counts != expected:
+              raise SystemExit(f'legacy caller counts changed: {counts}, expected {expected}')
+
+          world = Path('Assets/Scenes/Showcase/ShowcaseWorld.cs')
+          text = world.read_text()
+          replacements = [
+              ('''        private readonly RegionReadSource _readSource;\n        private readonly RegionMutationStore _mutationStore;\n        private readonly RegionResidencyStore _residencyStore;''',
+               '''        private readonly RegionReadSource _readSource;\n        private readonly RegionMutationStore _mutationStore;\n        private readonly RegionSnapshotMutationStore _snapshotMutationStore;\n        private readonly RegionResidencyStore _residencyStore;'''),
+              ('''            _readSource = new RegionReadSource(in _table, in _pool, _changes);\n            _mutationStore = new RegionMutationStore(in _table, in _pool);\n            _residencyStore = new RegionResidencyStore(in _table, in _pool);''',
+               '''            _readSource = new RegionReadSource(in _table, in _pool, _changes);\n            _mutationStore = new RegionMutationStore(in _table, in _pool);\n            _snapshotMutationStore = new RegionSnapshotMutationStore(in _table, in _pool);\n            _residencyStore = new RegionResidencyStore(in _table, in _pool);'''),
+              ('''        public MaterialPalette Palette => _palette;''',
+               '''        public IRegionMutationStore MutationStorage\n        {\n            get\n            {\n                _mutationStore.Refresh(in _table, in _pool);\n                return _mutationStore;\n            }\n        }\n        public IRegionSnapshotSource SnapshotStorage\n        {\n            get\n            {\n                _readSource.Refresh(in _table, in _pool);\n                return _readSource;\n            }\n        }\n        public IRegionSnapshotMutationStore SnapshotMutationStorage\n        {\n            get\n            {\n                _snapshotMutationStore.Refresh(in _table, in _pool);\n                return _snapshotMutationStore;\n            }\n        }\n        public MaterialPalette Palette => _palette;''')]
+          for before, after in replacements:
+              if before in text:
+                  text = text.replace(before, after, 1)
+          world.write_text(text)
+
+          session = Path('Assets/Scenes/Showcase/ShowcaseMultiplayerSession.cs')
+          text = session.read_text()
+          replacements = [
+              ('''            _server.ProcessAuthoritativeTick(\n                _serverTick,\n                ref _world.Table,\n                ref _world.Pool,\n                in zones,\n                this);''',
+               '''            _server.ProcessAuthoritativeTick(\n                _serverTick,\n                _world.ReadStorage,\n                _world.MutationStorage,\n                _world.SnapshotStorage,\n                in zones,\n                this);'''),
+              ('''            _client.ApplyReadyAuthoritativeEvents(\n                ref _world.Table,\n                ref _world.Pool,\n                out int appliedEvents);''',
+               '''            _client.ApplyReadyAuthoritativeEvents(\n                _world.MutationStorage,\n                _world.SnapshotStorage,\n                _world.SnapshotMutationStorage,\n                out int appliedEvents);''')]
+          for before, after in replacements:
+              if before in text:
+                  text = text.replace(before, after, 1)
+          session.write_text(text)
+
+          roots = [Path('Assets/Tests/EditMode'), Path('Assets/Scenes/Showcase')]
+          forbidden = [
+              re.compile(r'\.DrainReady\(\s*ref '),
+              re.compile(r'\.ApplyReadyAuthoritativeEvents\(\s*ref '),
+              re.compile(r'\.ProcessAuthoritativeTick\(\s*[^,\n]+,\s*ref '),
+              re.compile(r'\.ProcessTick\(\s*[^,\n]+,\s*ref '),
+          ]
+          for root in roots:
+              for path in root.glob('*.cs'):
+                  body = path.read_text()
+                  if any(pattern.search(body) for pattern in forbidden):
+                      raise SystemExit(f'legacy physical Net call remains: {path}')
+          PY
+          git diff --check
+          git rm .github/workflows/net-caller-repair-v2.yml
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/Tests/EditMode Assets/Scenes/Showcase
+          git commit -m 'Migrate Net callers to Storage API capabilities'
+          git push origin HEAD:${{ github.ref_name }}
