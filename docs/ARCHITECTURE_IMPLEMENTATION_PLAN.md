@@ -20,7 +20,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 |---|---|---|---|
 | 0 — Guardrails | **Complete** | asmdef boundary guard, split-safe determinism roots, WorldGen boundary guards | final no-Core assertions tighten automatically as final assemblies land |
 | 1 — Foundation | **Complete** | `IntMath` clean-moved to `VoxelEngine.Foundation`; consumers and Core bridge reference migrated | none |
-| 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency and mutation capabilities; shared BrickPool allocator state; Rendering/Collision read boundaries | migrate Kentridge vegetation off `RegionTable`/`BrickPool`; move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
+| 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency, mutation and focused surface-query capabilities; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
 | 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts live in `VoxelEngine.Structures.Api`; Kentridge compatibility seam deleted and all Kentridge definitions validated against canonical encoding | migrate Runtime dependencies, then move Structures.Runtime and delete the old broad Structures assembly |
 | 5 — Edits | **In progress** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |
@@ -28,7 +28,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 7 — Tiering | **Not started** | — | full cutover |
 | 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
 | 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
-| 10 — Vegetation | **Partial dependency cleanup** | worldgen vegetation terrain reads no longer require physical Storage | full Vegetation.Api/Runtime cutover |
+| 10 — Vegetation | **Partial dependency cleanup** | Kentridge top-surface reads use Storage.Api and terrain sampling uses Terrain.Api | full Vegetation.Api/Runtime cutover |
 | 11 — Net | **Partial dependency cleanup** | authoritative edit application callers now consume Storage mutation capability | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |
 | 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; parity accepted | final Rendering.Api/Runtime move and Vegetation.Api-only dependency |
 | 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `1233cc3d29a56f7a37cc979d0bd897f4f716db8a` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate accepts the Terrain.Api query extraction and repository-wide sampling-consumer migration. The baseline previously shrank from 15 to 13 because canonical `EmitBox` encoding fixed `KentridgeUpperSkybridgeTests.SkybridgeCatalogueCreatesOneOpenHardUpperStreetWithoutRoadPiers` and `KentridgeVerticalFrontageTests.VerticalFrontagesEmbedIntoTerraceAndEndOnAuthoredDownhillEdge`; no new failures were introduced.
+- Latest accepted code gate: `a47c3b8abff99e27e5c5cbeda0451ad8b963c314` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate accepts the Storage.Api focused voxel-surface query and Kentridge vegetation migration away from `RegionTable`/`BrickPool`/`VoxelAccess`. The prior Terrain.Api query extraction remains accepted. The baseline previously shrank from 15 to 13 because canonical `EmitBox` encoding fixed `KentridgeUpperSkybridgeTests.SkybridgeCatalogueCreatesOneOpenHardUpperStreetWithoutRoadPiers` and `KentridgeVerticalFrontageTests.VerticalFrontagesEmbedIntoTerraceAndEndOnAuthoredDownhillEdge`; no new failures were introduced.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -530,7 +530,8 @@ with `VoxelSurfaceQuery` (or the equivalent concrete Api value created above). I
 - [ ] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are internal/runtime-only.
 - [ ] No source outside `Storage/Runtime` imports their namespaces.
 - [x] Rendering and Collision use readonly native views, not virtual per-voxel services.
-- [ ] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`. **Reopened:** `KentridgeVegetationPlanner` still receives physical Storage types and calls `VoxelAccess`; this must move to the Storage.Api surface/read capability before Storage can close.
+- [x] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`; it consumes `IVoxelSurfaceQuery` and preserves water/cascade exclusion via caller-owned material IDs.
+- [x] Kentridge vegetation surface-query slice accepted by CI at `a47c3b8abff99e27e5c5cbeda0451ad8b963c314`: 382 total / 369 passed / exact 13 known baseline failures.
 - [ ] Net semantic hash/snapshot paths do not depend on physical brick layout.
 - [x] Existing storage/read/mutation parity tests pass against the established CI baseline; snapshot/hash final ownership remains tracked by the unchecked item above.
 - [ ] Architecture guard has no Storage.Runtime foreign-reference exception.
@@ -1508,6 +1509,7 @@ At the end, generate an asmdef dependency report and verify:
 - [ ] move Occupancy implementation to Storage.Runtime
 - [ ] move semantic hash/snapshot implementation to Runtime
 - [ ] update all existing consumers to Storage.Api
+- [x] move Kentridge vegetation top-surface reads to Storage.Api
 - [ ] remove every foreign Storage.Runtime reference
 
 ### 3. Terrain
