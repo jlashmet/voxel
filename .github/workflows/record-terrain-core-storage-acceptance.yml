@@ -1,0 +1,102 @@
+name: Record Terrain and Core Storage acceptance
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/record-terrain-core-storage-acceptance.yml]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Mark accepted Terrain and Core deletion tasks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = p.read_text()
+
+          replacements = {
+            '| 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency, mutation, focused surface-query and authoring-validation capabilities; whole-cell block authoring; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |':
+              '| 2 — Storage | **In progress** | `Storage.Api` contracts/read views/generation/mutation/snapshot/hash boundaries complete; physical representation and occupancy now live under `Storage.Runtime`; Core storage ownership and Core assembly are deleted; full 384/371/13 baseline accepted | remove remaining direct Storage.Runtime consumers outside Composition/tests/tooling and finish final architecture gate |',
+            '| 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |':
+              '| 3 — Terrain | **Complete** | `Terrain.Api` owns deterministic query/generation contracts; `TerrainGenerator` lives in `Terrain.Runtime`; Runtime references only Terrain.Api/Storage.Api/Foundation; WorldGen/Structures remain Api-only; exact 384/371/13 baseline accepted | none |',
+            '| 13 — Composition/Core deletion | **In progress — current** | final inventory complete; semantic WorldGen engine-free and Voxel adapter Api-only accepted | composition root, move remaining Storage/Terrain ownership out of Core, migrate app/tool consumers, delete Core |':
+              '| 13 — Composition/Core deletion | **In progress — current** | final inventory complete; WorldGen dependency direction accepted; Terrain and Storage physical ownership extracted; `Assets/VoxelEngine/Core` and `VoxelEngine.Core` assembly deleted with exact 384/371/13 baseline | create Composition root, migrate Showcase/Tools concrete Runtime wiring, remove residual Core guard literals, final dependency report |',
+            '- Latest accepted code gate: `f5e0b646102a50305424850a0508d190bae3e44d` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Rendering Cutover 12 run `31894170304` produced a complete `results.xml`; this accepts the final Rendering Api/Runtime, namespace, Storage.Api presentation/change-feed boundary, consumer/tooling migrations, and behavioral parity.':
+              '- Latest accepted code gate: `c6089e18e1774dcedb6145f0b6977147ffba3d0d` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Cutover 13 Terrain/Core/Storage run `31895124610` accepts the final Terrain Runtime move, deterministic guard relocation, Storage.Runtime physical-owner move, occupancy namespace repair, and physical deletion of `Assets/VoxelEngine/Core` / `VoxelEngine.Core`.',
+            '- [ ] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are internal/runtime-only.':
+              '- [x] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are owned by `Storage.Runtime`; physical move + Core deletion accepted by static gate `31894801235` and exact behavioral gate `31895124610`.',
+            '- [ ] Terrain.Api/Runtime physical move and namespace cutover complete.':
+              '- [x] Terrain.Api/Runtime physical move and namespace cutover complete at `4a46df0f39299535f6d036fd0641964eefd3a516`; static Terrain gate `31894703756` passed and final post-Core exact baseline is `31895124610`.',
+            '- [ ] no `VoxelEngine.Core.Terrain` references remain;':
+              '- [x] no `VoxelEngine.Core.Terrain` references remain; static Terrain gate `31894703756` passed;',
+            '- [ ] Terrain.Runtime references only Terrain.Api + Storage.Api + Foundation;':
+              '- [x] Terrain.Runtime references only Terrain.Api + Storage.Api + Foundation; static Terrain gate `31894703756` passed;',
+            '- [ ] Structures/worldgen cannot call a Terrain.Runtime type;':
+              '- [x] Structures/worldgen cannot call a Terrain.Runtime type; static Terrain gate `31894703756` verifies WorldGen remains Terrain.Api-only and no Structures.Runtime reference exists;',
+            '- [ ] Core folder and asmdef deleted;':
+              '- [x] Core folder and asmdef deleted at `0027e6a64f137763b994d304eac9621071e1ea3d`; static Core/Storage gate `31894801235` and exact behavioral gate `31895124610` accept the deletion with no forwarding facade;',
+            '- [ ] no source namespace begins `VoxelEngine.Core`;':
+              '- [x] no source namespace begins `VoxelEngine.Core`; static Core/Storage gate `31894801235` verifies this after physical deletion;',
+            '[ ] no VoxelEngine.Core assembly remains':
+              '[x] no VoxelEngine.Core assembly remains',
+            '[ ] no VoxelEngine.Core namespace remains':
+              '[x] no VoxelEngine.Core namespace remains',
+            '- [ ] create Storage.Api/Runtime asmdefs':
+              '- [x] create Storage.Api/Runtime asmdefs',
+            '- [ ] move `VoxelCell` logical value types to Api':
+              '- [x] move `VoxelCell` logical value types to Api',
+            '- [ ] split public grid constants from private brick layout':
+              '- [x] split public grid constants from private brick layout',
+            '- [ ] create region/read/generation/mutation/surface-query/snapshot contracts':
+              '- [x] create region/read/generation/mutation/surface-query/snapshot contracts',
+            '- [ ] move BrickPool/BrickRef/Region/RegionTable/VoxelAccess to Runtime':
+              '- [x] move BrickPool/BrickRef/Region/RegionTable/VoxelAccess to Runtime',
+            '- [ ] move Occupancy implementation to Storage.Runtime':
+              '- [x] move Occupancy implementation to Storage.Runtime',
+            '- [ ] move semantic hash/snapshot implementation to Runtime':
+              '- [x] move semantic hash/snapshot implementation to Runtime',
+            '- [ ] create Terrain.Api/Runtime':
+              '- [x] create Terrain.Api/Runtime',
+            '- [ ] move TerrainGenerator/Sampler implementation to Runtime':
+              '- [x] move TerrainGenerator/Sampler implementation to Runtime',
+            '- [ ] update Structures/Streaming/WorldGen callers':
+              '- [x] update Structures/Streaming/WorldGen callers'
+          }
+
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one plan marker ({count} found): {old}')
+              text = text.replace(old, new, 1)
+
+          terrain_marker = '- [x] Terrain.Api/Runtime physical move and namespace cutover complete at `4a46df0f39299535f6d036fd0641964eefd3a516`; static Terrain gate `31894703756` passed and final post-Core exact baseline is `31895124610`.\n'
+          terrain_extra = terrain_marker + '- [x] Final Terrain Cutover 3 behavioral acceptance: source `c6089e18e1774dcedb6145f0b6977147ffba3d0d`, isolated run `31895124610`, 384 total / 371 passed / exact same 13 failed-test names as the accepted baseline.\n'
+          if text.count(terrain_marker) != 1:
+              raise SystemExit('Terrain progress marker missing after replacements')
+          text = text.replace(terrain_marker, terrain_extra, 1)
+
+          worldgen_marker = '- [x] `MountingForce.WorldGen.Voxel` broad `VoxelEngine.Core` reference removed at `4599efb83f1ccd95382711be4f229ae2bb344163`; hosted gate `31894519041` verifies its engine references are exactly Storage.Api, Terrain.Api, Structures.Api and Vegetation.Api.\n'
+          core_extra = worldgen_marker + '- [x] Physical Core deletion accepted: Storage/Occupancy moved to `Storage.Runtime`, Terrain moved to `Terrain.Runtime`, and no `VoxelEngine.Core` assembly or source namespace remains. Static gate `31894801235`; final exact behavioral gate `31895124610`.\n'
+          if text.count(worldgen_marker) != 1:
+              raise SystemExit('Cutover 13 progress marker missing')
+          text = text.replace(worldgen_marker, core_extra, 1)
+
+          p.write_text(text)
+          PY
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git rm .github/workflows/record-terrain-core-storage-acceptance.yml
+          git commit -m 'docs: record accepted Terrain and Core Storage cutovers'
+          git fetch origin "${GITHUB_REF_NAME}"
+          git rebase "origin/${GITHUB_REF_NAME}"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
