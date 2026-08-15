@@ -1,0 +1,48 @@
+name: Vegetation parent list compile fix
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/vegetation-parent-list-fix.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          changes = {
+              Path('Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs'): [
+                  ('int[] parents = skeleton.BranchParents;', 'var parents = skeleton.BranchParents;'),
+                  ('parents.Length != skeleton.Branches.Count', 'parents.Count != skeleton.Branches.Count'),
+                  ('(uint)parents.Length', '(uint)parents.Count'),
+              ],
+              Path('Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs'): [
+                  ('int[] parents = skeleton.BranchParents;', 'var parents = skeleton.BranchParents;'),
+                  ('i < parents.Length', 'i < parents.Count'),
+              ],
+          }
+          for path, replacements in changes.items():
+              text = path.read_text()
+              for old, new in replacements:
+                  if old not in text:
+                      raise SystemExit(f'{path}: missing expected text: {old}')
+                  text = text.replace(old, new, 1)
+              path.write_text(text)
+          PY
+          git rm .github/workflows/vegetation-parent-list-fix.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git add -u .github/workflows
+          git commit -m 'fix: consume vegetation parent topology as read-only lists'
+          git push origin HEAD:${{ github.ref_name }}
