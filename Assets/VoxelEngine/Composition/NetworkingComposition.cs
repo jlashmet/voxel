@@ -427,7 +427,7 @@ namespace VoxelEngine.Composition
         {
             var runtime = new AuthoritativeServerSession(
                 serverSeed,
-                new Validation.DensityCap(1f, VoxelReadGrid.BlocksPerRegion),
+                new Validation.DensityCap(1f, (int)VoxelReadGrid.BlocksPerRegion),
                 EditsComposition.CreateAlterationApplier(),
                 maxConnections);
             return new NetworkServerFacade(runtime);
