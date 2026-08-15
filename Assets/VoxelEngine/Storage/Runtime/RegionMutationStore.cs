@@ -1,16 +1,45 @@
+using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
-    /// Current physical implementation of block-granular authoritative mutation.
-    /// Moves to Storage.Runtime with RegionTable/BrickPool during the Core split.
+    /// Physical implementation of block-granular authoritative mutation. Public mutation leases
+    /// contain only logical block slices; region/block/pool rollback state stays private here.
     /// </summary>
     public sealed class RegionMutationStore : IRegionMutationStore
     {
+        private readonly Dictionary<ulong, PendingMutation> _pendingMutations = new();
         private RegionTable _table;
         private BrickPool _pool;
+        private ulong _nextLeaseToken = 1UL;
+
+        private readonly struct PendingMutation
+        {
+            public readonly int3 RegionCoord;
+            public readonly int BlockIndex;
+            public readonly int OriginalEncodedRef;
+            public readonly int PoolIndex;
+            public readonly bool MaterializedUniform;
+            public readonly bool MetadataChanged;
+
+            public PendingMutation(
+                int3 regionCoord,
+                int blockIndex,
+                int originalEncodedRef,
+                int poolIndex,
+                bool materializedUniform,
+                bool metadataChanged)
+            {
+                RegionCoord = regionCoord;
+                BlockIndex = blockIndex;
+                OriginalEncodedRef = originalEncodedRef;
+                PoolIndex = poolIndex;
+                MaterializedUniform = materializedUniform;
+                MetadataChanged = metadataChanged;
+            }
+        }
 
         public RegionMutationStore(in RegionTable table, in BrickPool pool)
         {
@@ -120,8 +149,14 @@ namespace VoxelEngine.Storage.Runtime
 
             if (original.IsUniform && original.UniformMaterial == targetMaterial)
             {
-                mutation = VoxelBlockMutation.MetadataOnly(
-                    regionCoord, blockIndex, original.Value, metadataChanged);
+                ulong leaseToken = RegisterPending(new PendingMutation(
+                    regionCoord,
+                    blockIndex,
+                    original.Value,
+                    -1,
+                    false,
+                    metadataChanged));
+                mutation = VoxelBlockMutation.MetadataOnly(leaseToken, metadataChanged);
                 return true;
             }
 
@@ -155,28 +190,36 @@ namespace VoxelEngine.Storage.Runtime
 
         public bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool payloadChanged)
         {
-            if (!_table.TryGetRegion(mutation.RegionCoord, out Region region) || !region.BrickRefs.IsCreated)
+            ulong leaseToken = mutation.LeaseToken;
+            if (leaseToken == 0UL || !_pendingMutations.TryGetValue(leaseToken, out PendingMutation pending))
+            {
+                mutation = default;
+                return false;
+            }
+            _pendingMutations.Remove(leaseToken);
+
+            if (!_table.TryGetRegion(pending.RegionCoord, out Region region) || !region.BrickRefs.IsCreated)
             {
                 mutation = default;
                 return false;
             }
 
-            bool changed = mutation.MetadataChangedInternal || payloadChanged;
+            bool changed = pending.MetadataChanged || payloadChanged;
 
             if (!payloadChanged)
             {
-                if (mutation.MaterializedUniform)
+                if (pending.MaterializedUniform)
                 {
-                    _pool.Free(mutation.PoolIndex);
-                    region.BrickRefs[mutation.BlockIndex] =
-                        BrickRef.Uniform(DecodeUniformMaterial(mutation.OriginalEncodedRef));
+                    _pool.Free(pending.PoolIndex);
+                    region.BrickRefs[pending.BlockIndex] =
+                        BrickRef.Uniform(DecodeUniformMaterial(pending.OriginalEncodedRef));
                 }
             }
             else if (mutation.IsCreated &&
-                     _pool.TryGetUniformMaterial(mutation.PoolIndex, out byte uniform))
+                     _pool.TryGetUniformMaterial(pending.PoolIndex, out byte uniform))
             {
-                _pool.Free(mutation.PoolIndex);
-                region.BrickRefs[mutation.BlockIndex] = BrickRef.Uniform(uniform);
+                _pool.Free(pending.PoolIndex);
+                region.BrickRefs[pending.BlockIndex] = BrickRef.Uniform(uniform);
             }
 
             if (changed)
@@ -211,19 +254,34 @@ namespace VoxelEngine.Storage.Runtime
                 poolIndex = original.PoolIndex;
             }
 
-            return new VoxelBlockMutation(
-                _pool.Voxels,
-                _pool.SurfaceSemantics,
-                _pool.BoundarySamples,
-                _pool.Occupancy,
-                _pool.VoxelOffset(poolIndex),
-                _pool.OccupancyOffset(poolIndex),
+            ulong leaseToken = RegisterPending(new PendingMutation(
                 regionCoord,
                 blockIndex,
                 original.Value,
                 poolIndex,
                 materializedUniform,
+                metadataChanged));
+
+            return new VoxelBlockMutation(
+                _pool.Voxels.GetSubArray(
+                    _pool.VoxelOffset(poolIndex), VoxelReadGrid.VoxelsPerBlock),
+                _pool.SurfaceSemantics.GetSubArray(
+                    _pool.VoxelOffset(poolIndex), VoxelReadGrid.VoxelsPerBlock),
+                _pool.BoundarySamples.GetSubArray(
+                    _pool.VoxelOffset(poolIndex), VoxelReadGrid.VoxelsPerBlock),
+                _pool.Occupancy.GetSubArray(
+                    _pool.OccupancyOffset(poolIndex), VoxelReadGrid.OccupancyWordsPerBlock),
+                leaseToken,
                 metadataChanged);
+        }
+
+        private ulong RegisterPending(in PendingMutation pending)
+        {
+            ulong leaseToken = _nextLeaseToken++;
+            if (leaseToken == 0UL)
+                leaseToken = _nextLeaseToken++;
+            _pendingMutations.Add(leaseToken, pending);
+            return leaseToken;
         }
 
         private static byte DecodeUniformMaterial(int encoded)
