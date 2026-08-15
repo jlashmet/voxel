@@ -98,6 +98,30 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(resolved.Site, Is.EqualTo(pub));
             Assert.That(resolved.EntranceId, Does.EndWith("/false-wall"));
             Assert.That(provider.GetCandidates(pub).Single().HiddenFromNormalTraversal, Is.True);
+
+            var physicalFacts = new KentridgeHiddenSpaceVoxelRealizationFacts(
+                plan,
+                voxelsPerDecimetre: 1,
+                geometry);
+            ResolvedSecretWorldGeometry physical = SecretWorldGeometryResolver.Resolve(
+                resolved,
+                physicalFacts);
+
+            Assert.That(physical.Secret, Is.SameAs(resolved));
+            Assert.That(physical.HiddenSpaceBounds.UnitsPerDecimetre, Is.EqualTo(1));
+            Assert.That(physical.EntranceBounds.UnitsPerDecimetre, Is.EqualTo(1));
+            Assert.That(physical.ContainerFloorPoint.UnitsPerDecimetre, Is.EqualTo(1));
+            Assert.That(physical.ContainerFloorPoint.Position.Y,
+                Is.EqualTo(physical.HiddenSpaceBounds.MinInclusive.Y),
+                "The container sits on the top of the room foundation, where the carved interior begins.");
+            Assert.That(physical.ContainerFloorPoint.Position.X,
+                Is.InRange(
+                    physical.HiddenSpaceBounds.MinInclusive.X,
+                    physical.HiddenSpaceBounds.MaxInclusive.X));
+            Assert.That(physical.ContainerFloorPoint.Position.Z,
+                Is.InRange(
+                    physical.HiddenSpaceBounds.MinInclusive.Z,
+                    physical.HiddenSpaceBounds.MaxInclusive.Z));
         }
 
         [Test]
