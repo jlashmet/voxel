@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 55cfd39d5ea78094562e0ba621a1dd5fd20b1109
+          ref: 6dac3e29d171bf6a8fe7a5538717e4beabdbdaef
           fetch-depth: 1
       - name: Verify Composition Storage lifetime and far-field read boundary
         shell: bash
@@ -67,14 +67,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 55cfd39d5ea78094562e0ba621a1dd5fd20b1109
+          ref: 6dac3e29d171bf6a8fe7a5538717e4beabdbdaef
           clean: false
           fetch-depth: 1
       - name: Reset pinned Composition candidate
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard 55cfd39d5ea78094562e0ba621a1dd5fd20b1109
+          git reset --hard 6dac3e29d171bf6a8fe7a5538717e4beabdbdaef
           git clean -ffdx -e Library/
           rm -rf Library/ScriptAssemblies Library/Bee
       - id: unity
@@ -111,7 +111,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: composition-storage-slice-55cfd39d
+          name: composition-storage-slice-6dac3e29
           path: Artifacts/CompositionStorageSlice/
           if-no-files-found: warn
           retention-days: 14
