@@ -62,7 +62,7 @@ namespace VoxelEngine.Core.Storage
             materialId < 32 && (AllowedMaterialMask & (1u << materialId)) != 0;
     }
 
-    public unsafe struct CoatingCatalogue
+    public unsafe struct CoatingCatalogue : ICoatingAuthoringCatalogue
     {
         public const uint BuiltInVersion = 4;
         public const int MaxCoatings = 16;
@@ -209,7 +209,7 @@ namespace VoxelEngine.Core.Storage
     /// Fixed-capacity compiled surface catalogue. Its pair table canonicalizes group order on
     /// both reads and writes, making asymmetric curvature rules unrepresentable.
     /// </summary>
-    public unsafe struct SurfaceCatalogue
+    public unsafe struct SurfaceCatalogue : ISurfaceStyleAuthoringCatalogue
     {
         public const uint BuiltInVersion = 1;
         public const int MaxStyles = 32;

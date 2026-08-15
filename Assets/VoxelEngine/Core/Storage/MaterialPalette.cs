@@ -16,7 +16,7 @@ namespace VoxelEngine.Core.Storage
     ///   - The type of debris generated on destruction (none, particles, physics bodies)
     ///   - Whether the material spreads fire/chemical reactions to adjacent bricks
     /// </summary>
-    public unsafe struct MaterialPalette
+    public unsafe struct MaterialPalette : IMaterialAuthoringCatalogue
     {
         /// <summary>Number of registered materials in the palette.</summary>
         public int Count => _count;
