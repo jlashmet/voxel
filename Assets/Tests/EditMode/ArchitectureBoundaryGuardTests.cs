@@ -25,6 +25,10 @@ namespace VoxelEngine.Tests.EditMode
             "\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
 
+        private static readonly Regex GuidRegex = new Regex(
+            "^guid:\\s*(?<value>[0-9a-fA-F]{32})\\s*$",
+            RegexOptions.Compiled | RegexOptions.Multiline);
+
         private static string RepoRoot
         {
             get
@@ -100,6 +104,43 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsEmpty(duplicates,
                 "Each Api/Runtime assembly name must have exactly one owning subsystem.\n\n" +
                 string.Join("\n", duplicates));
+        }
+
+        [Test]
+        public void ProductionSourcesDoNotReferenceVoxelEngineCore()
+        {
+            string[] roots =
+            {
+                Path.Combine(RepoRoot, "Assets"),
+                Path.Combine(RepoRoot, "Packages"),
+            };
+            string[] extensions = { ".cs", ".asmdef", ".asmref", ".json" };
+            var violations = new List<string>();
+
+            foreach (string root in roots)
+            {
+                if (!Directory.Exists(root)) continue;
+
+                foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                {
+                    if (!extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                        continue;
+
+                    string source = File.ReadAllText(path);
+                    if (source.IndexOf("VoxelEngine.Core", StringComparison.Ordinal) < 0)
+                        continue;
+
+                    string normalized = path.Replace('\\', '/');
+                    string repoRoot = RepoRoot.Replace('\\', '/');
+                    violations.Add(normalized.StartsWith(repoRoot + "/", StringComparison.Ordinal)
+                        ? normalized.Substring(repoRoot.Length + 1)
+                        : normalized);
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Production source and assembly metadata may not reference the deleted " +
+                "VoxelEngine.Core namespace or assembly.\n\n" + string.Join("\n", violations));
         }
 
         [Test]
@@ -239,13 +280,7 @@ namespace VoxelEngine.Tests.EditMode
             if (block.Success)
             {
                 foreach (Match match in QuotedStringRegex.Matches(block.Groups["value"].Value))
-                {
-                    string reference = match.Groups["value"].Value;
-                    // Target VoxelEngine subsystem asmdefs use named references. Existing GUID
-                    // references are intentionally ignored until their owner is migrated.
-                    if (!reference.StartsWith("GUID:", StringComparison.Ordinal))
-                        references.Add(reference);
-                }
+                    references.Add(ResolveVoxelEngineReference(match.Groups["value"].Value));
             }
 
             string normalized = path.Replace('\\', '/');
@@ -255,6 +290,31 @@ namespace VoxelEngine.Tests.EditMode
                 : normalized;
 
             return new Asmdef(nameMatch.Groups["value"].Value, relative, references);
+        }
+
+        private static string ResolveVoxelEngineReference(string reference)
+        {
+            if (!reference.StartsWith("GUID:", StringComparison.Ordinal)) return reference;
+
+            string guid = reference.Substring("GUID:".Length);
+            string root = Path.Combine(RepoRoot, "Assets", "VoxelEngine");
+            foreach (string metaPath in Directory.EnumerateFiles(
+                         root, "*.asmdef.meta", SearchOption.AllDirectories))
+            {
+                Match guidMatch = GuidRegex.Match(File.ReadAllText(metaPath));
+                if (!guidMatch.Success
+                    || !string.Equals(guidMatch.Groups["value"].Value, guid,
+                                      StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string asmdefPath = metaPath.Substring(0, metaPath.Length - ".meta".Length);
+                if (!File.Exists(asmdefPath)) return reference;
+                Match nameMatch = NameRegex.Match(File.ReadAllText(asmdefPath));
+                return nameMatch.Success ? nameMatch.Groups["value"].Value : reference;
+            }
+
+            // GUID references to external Unity/package assemblies are outside the engine graph.
+            return reference;
         }
 
         private sealed class Asmdef
