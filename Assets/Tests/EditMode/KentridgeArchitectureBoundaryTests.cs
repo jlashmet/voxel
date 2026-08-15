@@ -20,6 +20,9 @@ namespace VoxelEngine.Tests.EditMode
         private static readonly Regex QuotedStringRegex = new Regex(
             "\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
+        private static readonly Regex RuntimeNamespaceRegex = new Regex(
+            @"\bVoxelEngine\.[A-Za-z0-9_.]+\.Runtime\b",
+            RegexOptions.Compiled);
 
         private static string RepoRoot
         {
@@ -61,6 +64,36 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsEmpty(violations,
                 "Kentridge settlement/content and architecture semantics must remain engine-independent; " +
                 "only the WorldGen.Voxel adapter may consume VoxelEngine contracts.\n\n" +
+                string.Join("\n", violations));
+        }
+
+        [Test]
+        public void KentridgeVoxelSourcesDoNotReferenceEngineRuntimeNamespaces()
+        {
+            string voxelRoot = Path.Combine(WorldGenRuntimeRoot, "Voxel");
+            Assert.IsTrue(Directory.Exists(voxelRoot), "Missing WorldGen Voxel adapter source root: " + voxelRoot);
+
+            var violations = new List<string>();
+            foreach (string path in Directory.EnumerateFiles(
+                         voxelRoot, "Kentridge*.cs", SearchOption.TopDirectoryOnly))
+            {
+                string source = File.ReadAllText(path);
+                foreach (Match match in RuntimeNamespaceRegex.Matches(source))
+                {
+                    violations.Add(
+                        Path.GetRelativePath(WorldGenRuntimeRoot, path) + " -> " + match.Value);
+                }
+
+                if (source.IndexOf("VoxelEngine.Core", StringComparison.Ordinal) >= 0)
+                {
+                    violations.Add(
+                        Path.GetRelativePath(WorldGenRuntimeRoot, path) + " -> VoxelEngine.Core");
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Kentridge voxel realization may consume stable VoxelEngine Api namespaces only; " +
+                "Runtime/Core implementation namespaces must never cross the package boundary.\n\n" +
                 string.Join("\n", violations));
         }
 
