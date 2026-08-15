@@ -1,0 +1,43 @@
+name: Record Net acceptance
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/record-net-acceptance.yml]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          s=p.read_text()
+          replacements={
+          '**Current focus:** Cutover 11 Net — Api/Runtime decomposition and ownership cleanup':'**Current focus:** Cutover 12 Rendering — final Api/Runtime physical move',
+          '| 11 — Net | **In progress — current** | Net.Api/Runtime physical decomposition, Runtime namespace normalization, broad assembly deletion and domain-only Runtime references are accepted by the final static architecture gate; earlier cutovers removed the structural graph and duplicate edit-applier wrapper | baseline revalidation still required for residency/snapshot/protocol behavior before Cutover 11 can close |':'| 11 — Net | **Complete** | Net.Api/Runtime decomposition, Runtime namespace normalization, broad assembly deletion, domain-only Runtime references, Streaming.Api residency ownership and Storage.Api semantic snapshot/repair ownership are accepted; protocol/convergence/late-join/reconciliation parity revalidated | none |',
+          '- Latest accepted code gate: `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Net ownership/decomposition work after this gate is code-landed but remains unaccepted until a full compile/test run returns to this baseline; the Net-specific artifacts inspected during revalidation stopped at compilation and did not produce `results.xml`.':'- Latest accepted code gate: `ed126903cd18dcd62324fab41942d41fdaa37532` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Final Net behavioral acceptance was produced by the standard Unity harness pinned to this exact source tree; its complete `results.xml` matched the prior `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` baseline name-for-name across all 13 failures.',
+          '- [x] Final Net static architecture gate passed at `8dafd264dfd3e228e833da23c258d9e21768ad98`; full 384/371/13 parity revalidation remains intentionally unchecked.':'- [x] Final Net static architecture gate passed at `8dafd264dfd3e228e833da23c258d9e21768ad98`; full behavioral parity revalidation passed on source `ed126903cd18dcd62324fab41942d41fdaa37532` at 384/371/13 with the exact accepted failure-name set.',
+          '- [ ] protocol/convergence/late-join/reconciliation tests pass against the accepted baseline.':'- [x] protocol/convergence/late-join/reconciliation tests pass against the accepted baseline; final `results.xml` on `ed126903cd18dcd62324fab41942d41fdaa37532` is 384/371/13 with an identical 13-name failure set.'
+          }
+          for old,new in replacements.items():
+              count=s.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one match, got {count}: {old[:90]}')
+              s=s.replace(old,new)
+          p.write_text(s)
+          PY
+          git rm .github/workflows/record-net-acceptance.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'docs: mark Net cutover complete'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
