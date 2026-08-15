@@ -9,7 +9,7 @@
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Tiering.Api",
-    "VoxelEngine.Rendering",
+    "VoxelEngine.Rendering.Runtime",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",

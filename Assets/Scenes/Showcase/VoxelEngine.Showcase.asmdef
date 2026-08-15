@@ -6,7 +6,7 @@
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Net.Runtime",
-    "VoxelEngine.Rendering",
+    "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Tiering.Api",

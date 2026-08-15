@@ -10,7 +10,7 @@ namespace VoxelEngine.Tests.EditMode
         public void RenderingAndWorldGenUseVegetationApiOnly()
         {
             string root = FindRepoRoot();
-            AssertApiOnly(Path.Combine(root, "Assets", "VoxelEngine", "Rendering", "VoxelEngine.Rendering.asmdef"));
+            AssertApiOnly(Path.Combine(root, "Assets", "VoxelEngine", "Rendering", "Runtime", "VoxelEngine.Rendering.Runtime.asmdef"));
             AssertApiOnly(Path.Combine(root, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel", "MountingForce.WorldGen.Voxel.asmdef"));
 
             string rendering = Path.Combine(root, "Assets", "VoxelEngine", "Rendering");

@@ -4,7 +4,7 @@
   "references": [
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
-    "VoxelEngine.Rendering",
+    "VoxelEngine.Rendering.Runtime",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Voxel",
     "VoxelEngine.Structures.Api",
