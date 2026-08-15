@@ -4,6 +4,7 @@
   "references": [
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
+    "VoxelEngine.Terrain.Api",
     "VoxelEngine.Rendering",
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
