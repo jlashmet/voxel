@@ -21,6 +21,13 @@ namespace VoxelEngine.Storage.Api
         bool SetWholeBlock(int3 worldBlock, byte material, bool markHardSurface);
 
         /// <summary>
+        /// Replaces one complete logical 8^3 block with the same authored logical cell, creating
+        /// the containing region when necessary. Storage chooses uniform or mixed physical
+        /// representation while preserving surface and boundary semantics.
+        /// </summary>
+        bool SetWholeCellBlock(int3 worldBlock, in VoxelCell cell, bool markHardSurface);
+
+        /// <summary>
         /// Begins a material-oriented partial mutation of one logical 8^3 block. The returned view
         /// is borrowed and valid only until <see cref="CompletePartialBlock"/>. Returns false when
         /// the region is unavailable. A created=false view is valid when the requested material is
