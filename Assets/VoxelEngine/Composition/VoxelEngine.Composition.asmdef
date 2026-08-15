@@ -6,6 +6,8 @@
     "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Rendering.Api",
     "VoxelEngine.Rendering.Runtime",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
     "Unity.Collections"
   ],
   "includePlatforms": [],
