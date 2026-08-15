@@ -16,7 +16,7 @@ namespace VoxelEngine.Vegetation.Runtime
 
         public static void Clear()
         {
-            TreeWorldState.Clear();
+            TreeWorldState.Replace(null);
         }
 
         public static bool RemoveBranch(int treeIndex, int branchIndex,
