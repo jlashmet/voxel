@@ -6,6 +6,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
+using VoxelEngine.Core.Terrain;
 
 namespace VoxelEngine.Tests.EditMode
 {

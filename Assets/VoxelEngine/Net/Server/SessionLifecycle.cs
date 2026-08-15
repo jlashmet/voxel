@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Core.Terrain;
 
 namespace VoxelEngine.Net.Server
 {

@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Tests.Parity;
+using VoxelEngine.Core.Terrain;
 
 namespace VoxelEngine.Tests.Parity
 {

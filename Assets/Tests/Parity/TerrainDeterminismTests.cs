@@ -4,6 +4,7 @@ using Unity.Collections;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Terrain.Api;
+using VoxelEngine.Core.Terrain;
 
 namespace VoxelEngine.Tests.Parity
 {

@@ -13,6 +13,7 @@ using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Streaming;
 using VoxelEngine.Structures;
+using VoxelEngine.Core.Terrain;
 
 using VoxelEngine.Structures.Api;
 
