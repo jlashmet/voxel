@@ -1,5 +1,4 @@
 using System;
-using Game.Composition.Campaign.Content;
 using Game.Composition.Campaign.Runtime;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.WorldBuilderWorldGen;
@@ -12,22 +11,23 @@ namespace Game.Composition.Kentridge.Runtime
 {
     /// <summary>
     /// Fully realized campaign session after generated-world placement and authoritative gameplay
-    /// actors have been connected. The bootstrap does not own the character or voxel runtimes.
+    /// actors have been connected. The bootstrap does not own authored content, character runtime,
+    /// or voxel runtime.
     /// </summary>
     public sealed class KentridgeCampaignSession
     {
-        public KnownOpeningCampaignContent Content { get; }
+        public CampaignBlueprint Blueprint { get; }
         public KentridgeCampaignGenerationPlan Generation { get; }
         public KentridgeCampaignWorldRealization World { get; }
         public CampaignRuntime Runtime { get; }
 
         internal KentridgeCampaignSession(
-            KnownOpeningCampaignContent content,
+            CampaignBlueprint blueprint,
             KentridgeCampaignGenerationPlan generation,
             KentridgeCampaignWorldRealization world,
             CampaignRuntime runtime)
         {
-            Content = content ?? throw new ArgumentNullException(nameof(content));
+            Blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
             Generation = generation ?? throw new ArgumentNullException(nameof(generation));
             World = world ?? throw new ArgumentNullException(nameof(world));
             Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
@@ -39,43 +39,43 @@ namespace Game.Composition.Kentridge.Runtime
     /// <summary>
     /// Concrete application-level Kentridge bootstrap. Plan is called before voxel emission so the
     /// backend can include Generation.HiddenSpaces. CreateSession is called after the backend has
-    /// exact site/hidden-space realization facts. Character creation remains behind
-    /// IKentridgeCampaignActorHost and presentation remains behind ICutscenePresentation.
+    /// exact site/hidden-space realization facts. Authored content only needs to supply a
+    /// CampaignBlueprint; character creation and presentation stay behind narrow adapters.
     /// </summary>
     public static class KentridgeCampaignSessionBootstrap
     {
         public static KentridgeCampaignGenerationPlan Plan(
-            KnownOpeningCampaignContent content,
+            CampaignBlueprint blueprint,
             SettlementPlan settlement,
             RegionRef region,
             SettlementRef settlementRef)
         {
-            if (content == null) throw new ArgumentNullException(nameof(content));
+            if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
             if (settlement == null) throw new ArgumentNullException(nameof(settlement));
 
             return KentridgeCampaignWorldPlanner.Plan(
-                content.Blueprint,
+                blueprint,
                 settlement,
                 region,
                 settlementRef);
         }
 
         public static KentridgeCampaignSession CreateSession(
-            KnownOpeningCampaignContent content,
+            CampaignBlueprint blueprint,
             KentridgeCampaignGenerationPlan generation,
             ISettlementSiteRealizationFacts siteFacts,
             IKentridgeCampaignActorHost actors,
             ICutscenePresentation presentation,
             IHiddenSpaceRealizationFacts hiddenSpaceFacts = null)
         {
-            if (content == null) throw new ArgumentNullException(nameof(content));
+            if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
             if (generation == null) throw new ArgumentNullException(nameof(generation));
             if (siteFacts == null) throw new ArgumentNullException(nameof(siteFacts));
             if (actors == null) throw new ArgumentNullException(nameof(actors));
             if (presentation == null) throw new ArgumentNullException(nameof(presentation));
-            if (!ReferenceEquals(content.Blueprint, generation.Blueprint))
+            if (!ReferenceEquals(blueprint, generation.Blueprint))
                 throw new InvalidOperationException(
-                    "Kentridge session content does not own the supplied campaign generation plan.");
+                    "Kentridge session blueprint does not own the supplied campaign generation plan.");
 
             KentridgeCampaignWorldRealization world =
                 KentridgeCampaignWorldRealizer.Realize(
@@ -85,7 +85,7 @@ namespace Game.Composition.Kentridge.Runtime
 
             // Player actors are session-owned and must already exist. Check them before preparing any
             // NPCs so a missing local/network player cannot leave the actor host partially mutated.
-            ValidatePlayerBindings(content.Blueprint, actors);
+            ValidatePlayerBindings(blueprint, actors);
 
             for (var i = 0; i < world.Npcs.Count; i++)
             {
@@ -101,16 +101,16 @@ namespace Game.Composition.Kentridge.Runtime
                         "' but did not expose it through TryResolveNpc.");
             }
 
-            ValidateAllCutsceneBindings(content.Blueprint, actors);
+            ValidateAllCutsceneBindings(blueprint, actors);
 
             var runtime = new CampaignRuntime(
-                content.Blueprint,
+                blueprint,
                 world.CutsceneStages,
                 actors,
                 presentation);
 
             return new KentridgeCampaignSession(
-                content,
+                blueprint,
                 generation,
                 world,
                 runtime);
