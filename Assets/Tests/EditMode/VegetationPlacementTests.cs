@@ -35,7 +35,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void WetShadedMasonry_SelectsMossOrVineRatherThanGroundPlants()
+        public void WetShadedMasonry_SelectsSurfaceGrowingVegetation()
         {
             var samples = new List<VegetationSurfaceSample>
             {
@@ -55,7 +55,14 @@ namespace VoxelEngine.Tests.EditMode
             VegetationPlacement.Generate(samples, settings, output);
 
             Assert.That(output.Count, Is.EqualTo(1));
-            Assert.That(output[0].Kind, Is.AnyOf(VegetationKind.Moss, VegetationKind.Vine));
+            VegetationProfile profile = VegetationCatalogue.Get(output[0].Kind);
+            Assert.That(profile.MasonryWeight, Is.GreaterThan(0f));
+            Assert.That(profile.GrowthForm, Is.AnyOf(
+                VegetationGrowthForm.Creeper,
+                VegetationGrowthForm.Climber,
+                VegetationGrowthForm.Hanger,
+                VegetationGrowthForm.Frond,
+                VegetationGrowthForm.Fungus));
         }
 
         [Test]
@@ -83,6 +90,62 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void MundaneHabitat_NeverProducesMagicalSpecies()
+        {
+            var samples = new List<VegetationSurfaceSample>();
+            for (int i = 0; i < 128; i++)
+            {
+                samples.Add(Sample(new float3(i * 0.5f, 0f, i % 9), VegetationSurface.Ground, 0.65f, 0.45f, 0f));
+            }
+
+            var settings = VegetationPlacementSettings.Default(554433u);
+            settings.Density = 1f;
+            var output = new List<VegetationInstance>();
+            VegetationPlacement.Generate(samples, settings, output);
+
+            Assert.That(output.Count, Is.GreaterThan(0));
+            for (int i = 0; i < output.Count; i++)
+            {
+                Assert.That(VegetationCatalogue.HasTrait(output[i].Kind, VegetationTraits.Magical), Is.False,
+                    $"Mundane habitat produced magical vegetation {output[i].Kind}");
+            }
+        }
+
+        [Test]
+        public void ArcaneHabitat_CanProduceMagicalSpeciesDeterministically()
+        {
+            var samples = new List<VegetationSurfaceSample>();
+            for (int i = 0; i < 128; i++)
+            {
+                samples.Add(Sample(new float3(i * 0.5f, 0f, i % 11), VegetationSurface.Ground, 0.65f, 0.55f, 1f));
+            }
+
+            var settings = VegetationPlacementSettings.Default(991122u);
+            settings.Density = 1f;
+            settings.ArcaneBias = 1f;
+            var output = new List<VegetationInstance>();
+            VegetationPlacement.Generate(samples, settings, output);
+
+            bool foundMagical = false;
+            for (int i = 0; i < output.Count; i++)
+            {
+                foundMagical |= VegetationCatalogue.HasTrait(output[i].Kind, VegetationTraits.Magical);
+            }
+
+            Assert.That(foundMagical, Is.True);
+        }
+
+        [Test]
+        public void Catalogue_MapsSpeciesToReusableGrowthForms()
+        {
+            Assert.That(VegetationCatalogue.GrowthForm(VegetationKind.Grass), Is.EqualTo(VegetationGrowthForm.Tuft));
+            Assert.That(VegetationCatalogue.GrowthForm(VegetationKind.Ivy), Is.EqualTo(VegetationGrowthForm.Climber));
+            Assert.That(VegetationCatalogue.GrowthForm(VegetationKind.HangingVine), Is.EqualTo(VegetationGrowthForm.Hanger));
+            Assert.That(VegetationCatalogue.GrowthForm(VegetationKind.StarMoss), Is.EqualTo(VegetationGrowthForm.Creeper));
+            Assert.That(VegetationCatalogue.GrowthForm(VegetationKind.Glowshroom), Is.EqualTo(VegetationGrowthForm.Fungus));
+        }
+
+        [Test]
         public void VineGrowth_IsDeterministicAndStaysNearSupportPlane()
         {
             var settings = VineGrowthSettings.Default(55u);
@@ -107,7 +170,12 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(a[a.Count - 1].y, Is.LessThan(anchor.y));
         }
 
-        private static VegetationSurfaceSample Sample(float3 position, VegetationSurface surface, float moisture, float shade)
+        private static VegetationSurfaceSample Sample(
+            float3 position,
+            VegetationSurface surface,
+            float moisture,
+            float shade,
+            float arcane = 0f)
         {
             return new VegetationSurfaceSample
             {
@@ -116,6 +184,7 @@ namespace VoxelEngine.Tests.EditMode
                 Surface = surface,
                 Moisture = moisture,
                 Shade = shade,
+                ArcaneSaturation = arcane,
             };
         }
     }
