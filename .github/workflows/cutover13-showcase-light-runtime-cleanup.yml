@@ -1,0 +1,98 @@
+name: Cutover 13 Showcase light runtime cleanup
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-finalization
+    paths:
+      - .github/workflows/cutover13-showcase-light-runtime-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization
+          fetch-depth: 0
+      - name: Remove dead/light Showcase Runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          world_path = Path('Assets/Scenes/Showcase/ShowcaseWorld.cs')
+          world = world_path.read_text()
+
+          replacements = [
+              ('using VoxelEngine.Streaming.Runtime;\n', '', 1),
+              ('using VoxelEngine.Terrain.Runtime;\n', '', 1),
+              ('<see cref="ResidencyManager"/> for the residency set and eviction policy. A region is',
+               'Storage.Api residency capabilities for allocation and eviction. A region is', 1),
+              ('<see cref="ResidencyManager.LoadRadiusMetres_PC"/> (500 m): the shipping engine',
+               'the shipping streaming load radius (500 m): the engine', 1),
+              ('var centre = ResidencyManager.PositionToRegion(cameraMetres);',
+               'var centre = PositionToRegion(cameraMetres);', 2),
+              ('if (_generated.Contains(rc)) { ResidencyManager.TouchRegion(rc); return; }',
+               'if (_generated.Contains(rc)) return;', 1),
+              ('            ResidencyManager.TouchRegion(coord);\n', '', 1),
+              ('ResidencyManager.EvictWithoutWriteBack(rc, _residencyStore);',
+               '_residencyStore.EvictRegion(rc);', 1),
+          ]
+          for old, new, expected in replacements:
+              count = world.count(old)
+              if count != expected:
+                  raise SystemExit(f'Expected {expected} occurrence(s) of {old!r}, found {count}')
+              world = world.replace(old, new)
+
+          marker = '        // -- streaming -----------------------------------------------------------\n'
+          if world.count(marker) != 1:
+              raise SystemExit('Expected one streaming section marker')
+          helper = '''        private static int3 PositionToRegion(float3 position)\n        {\n            return new int3(\n                (int)math.floor(position.x / RegionMetres),\n                (int)math.floor(position.y / RegionMetres),\n                (int)math.floor(position.z / RegionMetres));\n        }\n\n'''
+          world = world.replace(marker, helper + marker, 1)
+          world_path.write_text(world)
+
+          height_job = Path('Assets/Scenes/Showcase/ShowcaseHeightJob.cs').read_text()
+          if 'namespace VoxelEngine.Showcase' not in height_job or 'TerrainSampler.HeightAt' not in height_job:
+              raise SystemExit('ShowcaseHeightJob is not the expected Showcase-owned Terrain.Api job')
+          if 'VoxelEngine.Terrain.Runtime' in height_job:
+              raise SystemExit('ShowcaseHeightJob still depends on Terrain.Runtime')
+
+          for cs in Path('Assets/Scenes/Showcase').rglob('*.cs'):
+              if 'VoxelEngine.Rendering.Runtime' in cs.read_text():
+                  raise SystemExit(f'Rendering.Runtime still referenced by {cs}')
+
+          asmdef_path = Path('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef')
+          asmdef = json.loads(asmdef_path.read_text())
+          refs = asmdef['references']
+          for ref in ('VoxelEngine.Streaming.Runtime', 'VoxelEngine.Terrain.Runtime', 'VoxelEngine.Rendering.Runtime'):
+              if refs.count(ref) != 1:
+                  raise SystemExit(f'Expected exactly one {ref} asmdef reference, found {refs.count(ref)}')
+              refs.remove(ref)
+          asmdef_path.write_text(json.dumps(asmdef, indent=2) + '\n')
+          PY
+
+          if grep -R -n -E 'VoxelEngine\.(Streaming|Terrain|Rendering)\.Runtime|ResidencyManager' Assets/Scenes/Showcase --include='*.cs'; then
+            echo 'Showcase still contains a removed Runtime dependency' >&2
+            exit 1
+          fi
+          if grep -E 'VoxelEngine\.(Streaming|Terrain|Rendering)\.Runtime' Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef; then
+            echo 'Showcase asmdef still contains a removed Runtime dependency' >&2
+            exit 1
+          fi
+
+          rm .github/workflows/cutover13-showcase-light-runtime-cleanup.yml
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/Scenes/Showcase/ShowcaseWorld.cs Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef .github/workflows/cutover13-showcase-light-runtime-cleanup.yml
+          git commit -m 'refactor(showcase): remove light Runtime dependencies'
+          git fetch origin refactor/system-boundaries-finalization
+          git rebase origin/refactor/system-boundaries-finalization
+          git push origin HEAD:refactor/system-boundaries-finalization
