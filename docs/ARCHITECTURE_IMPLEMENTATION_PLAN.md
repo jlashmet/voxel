@@ -31,7 +31,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
 | 11 — Net | **Complete** | Net.Api/Runtime physical decomposition and Runtime namespaces are complete; Runtime references only approved domain APIs; residency delegates Streaming.Api; semantic repair/snapshots use Storage.Api logical capabilities; structural graph and duplicate edit wrapper are gone; final 384/371/13 behavioral baseline accepted | none |
 | 12 — Rendering | **Complete** | Rendering Api/Runtime physical + namespace + asmdef cutover complete; Runtime consumes Storage.Api/Tiering.Api/Vegetation.Api only; presentation catalogues/change feed use Storage.Api read views; retained profiles use Storage.Api; tree presentation uses Vegetation.Api; dead physical leaks removed; static and 384/371/13 behavioral parity accepted | none |
-| 13 — Composition/Core deletion | **In progress — current** | final inventory complete; WorldGen dependency direction accepted; Terrain and Storage physical ownership extracted; `Assets/VoxelEngine/Core` and `VoxelEngine.Core` assembly deleted with exact 384/371/13 baseline | create Composition root, migrate Showcase/Tools concrete Runtime wiring, remove residual Core guard literals, final dependency report |
+| 13 — Composition/Core deletion | **In progress — current** | final inventory complete; WorldGen direction accepted; Terrain/Storage ownership extracted; Core deleted; functional `VoxelEngine.Composition` Storage lifetime/bootstrap created; far-field Showcase reads are Storage.Api-only; 386/373/13 acceptance preserves the exact 13 known failures | migrate remaining Showcase/Tools concrete Runtime wiring, remove residual Core guard literals/temporary exceptions, final dependency report |
 
 ### Checklist discipline
 
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `c6089e18e1774dcedb6145f0b6977147ffba3d0d` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Cutover 13 Terrain/Core/Storage run `31895124610` accepts the final Terrain Runtime move, deterministic guard relocation, Storage.Runtime physical-owner move, occupancy namespace repair, and physical deletion of `Assets/VoxelEngine/Core` / `VoxelEngine.Core`.
+- Latest accepted code gate: `6dac3e29d171bf6a8fe7a5538717e4beabdbdaef` — 386 tests, 373 passed, exactly the same 13 known baseline failures. Composition Storage slice run `31895983180` adds two passing bootstrap/lifetime tests, accepts the functional `VoxelEngine.Composition` Storage owner, and accepts the far-field Showcase read migration to Storage.Api.
 - Latest accepted Rendering static gate: source `f5e0b646102a50305424850a0508d190bae3e44d`, run `31894268246` — physical Api/Runtime layout, Runtime namespaces, dependency direction, reverse simulation dependency, and explicit/manual lookdev status all passed. Behavioral parity is still pending and is not implied by this static gate.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
@@ -1422,6 +1422,8 @@ Only include an Api reference if current source uses it after refactor. No `Voxe
 - [x] `MountingForce.WorldGen.Core` and `MountingForce.WorldGen.Architecture` remain engine-free.
 - [x] `MountingForce.WorldGen.Voxel` broad `VoxelEngine.Core` reference removed at `4599efb83f1ccd95382711be4f229ae2bb344163`; hosted gate `31894519041` verifies its engine references are exactly Storage.Api, Terrain.Api, Structures.Api and Vegetation.Api.
 - [x] Physical Core deletion accepted: Storage/Occupancy moved to `Storage.Runtime`, Terrain moved to `Terrain.Runtime`, and no `VoxelEngine.Core` assembly or source namespace remains. Static gate `31894801235`; final exact behavioral gate `31895124610`.
+- [x] Functional `VoxelEngine.Composition` Storage bootstrap/lifetime created and accepted at source `6dac3e29d171bf6a8fe7a5538717e4beabdbdaef`: Composition owns `RegionTable`/`BrickPool`/change journal plus Storage.Runtime adapters while its public lifetime surface exposes Storage.Api capabilities only. Static + EditMode gate `31895983180`; 386 total / 373 passed / exact same 13 known failures.
+- [x] `FarFieldStructureStore` and both Showcase far-field capture call sites now consume `IRegionReadSource` / `RegionReadView` rather than `RegionTable`/`BrickPool`; accepted by gate `31895983180`.
 
 ## 18.2 Delete Core
 
@@ -1699,11 +1701,11 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 13. Composition and final cleanup
 
-- [ ] create Composition assembly/bootstrap
+- [x] create Composition assembly/bootstrap
 - [ ] centralize concrete runtime wiring/disposal
 - [ ] remove scattered scene Runtime coupling where practical
-- [ ] update WorldGen.Voxel asmdef to exact Api refs
-- [ ] delete Core asmdef/folder
+- [x] update WorldGen.Voxel asmdef to exact Api refs
+- [x] delete Core asmdef/folder
 - [ ] remove all architecture-test temporary exceptions
 - [ ] repository-wide zero-match check for `VoxelEngine.Core`
 - [ ] final targeted/full-available validation
