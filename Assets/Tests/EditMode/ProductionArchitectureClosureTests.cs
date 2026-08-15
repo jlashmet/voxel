@@ -29,6 +29,10 @@ namespace VoxelEngine.Tests.EditMode
             "\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
 
+        private static readonly Regex RuntimeNamespaceRegex = new Regex(
+            @"\bVoxelEngine\.[A-Za-z0-9_.]+\.Runtime\b",
+            RegexOptions.Compiled);
+
         private static string RepoRoot
         {
             get
@@ -76,6 +80,28 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsEmpty(violations,
                 "Composition must be the only production assembly that wires concrete Runtime implementations.\n\n" +
                 string.Join("\n", violations));
+        }
+
+        [Test]
+        public void SceneSourceDoesNotReferenceRuntimeImplementationNamespaces()
+        {
+            string sceneRoot = Path.Combine(RepoRoot, "Assets", "Scenes");
+            var violations = new List<string>();
+
+            if (Directory.Exists(sceneRoot))
+            {
+                foreach (string path in Directory.EnumerateFiles(sceneRoot, "*.cs", SearchOption.AllDirectories))
+                {
+                    string source = File.ReadAllText(path);
+                    Match match = RuntimeNamespaceRegex.Match(source);
+                    if (match.Success)
+                        violations.Add(RelativePath(path) + " -> " + match.Value);
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Scene/application source must consume subsystem APIs or Composition entry points, never " +
+                "concrete Runtime namespaces.\n\n" + string.Join("\n", violations));
         }
 
         [Test]
