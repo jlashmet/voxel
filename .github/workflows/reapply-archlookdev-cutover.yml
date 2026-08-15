@@ -1,0 +1,31 @@
+name: Reapply validated ArchLookdev cutover
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-finalization
+    paths:
+      - .github/workflows/reapply-archlookdev-cutover.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization
+          fetch-depth: 0
+      - name: Cherry-pick validated ArchLookdev boundary commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git cherry-pick 570b79320d4893afc0cf1e2ca12437f9ab0df4b8
+          git cherry-pick 515cbad9b0b2d7711f3d62a316b098db0af70573
+          git rm .github/workflows/reapply-archlookdev-cutover.yml
+          git commit -m 'chore(refactor): remove ArchLookdev reapply workflow'
+          git push origin HEAD:refactor/system-boundaries-finalization
