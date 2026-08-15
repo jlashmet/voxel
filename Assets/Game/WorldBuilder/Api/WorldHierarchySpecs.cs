@@ -6,7 +6,7 @@ namespace Game.WorldBuilder.Api
     public readonly struct RegionRef : IEquatable<RegionRef>
     {
         public string Id { get; }
-        public RegionRef(string id) => Id = WorldIdRules.Require(id, nameof(id));
+        internal RegionRef(string id) => Id = WorldIdRules.Require(id, nameof(id));
         public bool Equals(RegionRef other) => string.Equals(Id, other.Id, StringComparison.Ordinal);
         public override bool Equals(object obj) => obj is RegionRef other && Equals(other);
         public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Id ?? string.Empty);
@@ -16,7 +16,7 @@ namespace Game.WorldBuilder.Api
     public readonly struct RouteRef : IEquatable<RouteRef>
     {
         public string Id { get; }
-        public RouteRef(string id) => Id = WorldIdRules.Require(id, nameof(id));
+        internal RouteRef(string id) => Id = WorldIdRules.Require(id, nameof(id));
         public bool Equals(RouteRef other) => string.Equals(Id, other.Id, StringComparison.Ordinal);
         public override bool Equals(object obj) => obj is RouteRef other && Equals(other);
         public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Id ?? string.Empty);
@@ -26,7 +26,7 @@ namespace Game.WorldBuilder.Api
     public readonly struct SettlementRef : IEquatable<SettlementRef>
     {
         public string Id { get; }
-        public SettlementRef(string id) => Id = WorldIdRules.Require(id, nameof(id));
+        internal SettlementRef(string id) => Id = WorldIdRules.Require(id, nameof(id));
         public bool Equals(SettlementRef other) => string.Equals(Id, other.Id, StringComparison.Ordinal);
         public override bool Equals(object obj) => obj is SettlementRef other && Equals(other);
         public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Id ?? string.Empty);

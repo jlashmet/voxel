@@ -15,7 +15,7 @@ NpcHandle madeline = pub.Npc("madeline");
 
 After a thing is declared, relationships use the returned typed handle rather than repeating its ID or constructing a `*Ref`.
 
-Stable `RegionRef`, `SettlementRef`, `SiteRef`, `NpcRef`, `CutsceneRef`, and related values remain the compiler/runtime identity layer. They are useful for immutable plans, serialization, deterministic equality, diagnostics, save data, and networking. The designer-facing DSL should not use them as its normal relationship API.
+Stable `RegionRef`, `SettlementRef`, `SiteRef`, `NpcRef`, `CutsceneRef`, and related values remain the compiler/runtime identity layer. They are useful for immutable plans, serialization, deterministic equality, diagnostics, save data, and networking. Their string constructors are internal to `Game.WorldBuilder.Api`; ordinary authoring code cannot manufacture a semantic ref from an arbitrary string.
 
 ## Ownership by nesting
 
@@ -73,7 +73,9 @@ These checks should happen at the earliest layer that has enough information.
 
 ## Compatibility boundary
 
-The existing `RequireRegion`, `RequireSettlement`, `RequireSite`, `RequireNpc`, raw builders, and public stable `*Ref` constructors are currently retained as a low-level compatibility path because existing planner tests and integrations still construct identity values directly. New campaign content should use handles.
+Stable `*Ref` types remain public because compiled plans, runtime adapters, diagnostics, save/network code, and tests need to carry those identities across assembly boundaries. Construction from strings is now internal to `Game.WorldBuilder.Api`. `VoxelEngine.Tests.EditMode` is the only friend assembly and retains direct construction strictly for test fixtures.
+
+The legacy `RequireRegion`, `RequireSettlement`, `RequireSite`, `RequireNpc`, and raw relationship builders are still present as a low-level compatibility surface. Production campaign content uses the typed handle DSL. The next cutover is to internalize that legacy builder surface once remaining compatibility tests/callers are migrated.
 
 The intended migration is:
 
@@ -84,9 +86,9 @@ The intended migration is:
 - [x] Reject cross-campaign handles and cross-region route connections at authoring time.
 - [x] Migrate the production known Kentridge opening to the typed DSL.
 - [x] Keep compiled/runtime plans on stable `*Ref` identities.
-- [ ] Migrate remaining campaign-content call sites from the legacy `Require*` path.
-- [ ] Split test-only identity construction from public authoring identity construction.
-- [ ] Make stable `*Ref` constructors non-public once remaining direct-construction callers have migrated.
-- [ ] Remove or internalize legacy raw relationship builders once no production content depends on them.
+- [x] Migrate current production campaign-content call sites from the legacy `Require*` path.
+- [x] Split test-only identity construction from public authoring identity construction.
+- [x] Make stable `*Ref` constructors non-public.
+- [ ] Remove or internalize legacy raw relationship builders once remaining compatibility callers have migrated.
 
-The final target is a narrow public authoring surface where arbitrary `new SiteRef("...")`/`new RegionRef("...")` construction is no longer available to campaign content, while compiled plans retain stable deterministic IDs internally.
+The public authoring surface can no longer express arbitrary `new SiteRef("...")`/`new RegionRef("...")` construction. Stable deterministic refs still flow through compiled plans and runtimes; only WorldBuilder creates authored identities from strings.
