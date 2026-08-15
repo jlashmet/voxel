@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `ed126903cd18dcd62324fab41942d41fdaa37532` — 384 tests, 371 passed, exactly the same 13 known baseline failures. This is the final Net post-repair source; isolated acceptance artifact from run `31892401811` produced a complete `results.xml` with the identical 13 failed test names, so Cutover 11 is accepted.
+- Latest accepted code gate: `871fd663ac9c57d8e001ce2ff11f5ac30df242f0` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated acceptance run `31892491967` tested this source-equivalent final Net tree with the standard Unity harness and produced a complete `results.xml`; the 13 failed test names match accepted gate `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` exactly, so Cutover 11 is accepted.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -1289,7 +1289,7 @@ No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtim
 - [x] no duplicate deterministic edit applier wrapper;
 - [x] network residency calls Streaming.Api; dedicated hosted ownership gate passed;
 - [x] semantic repair/snapshot paths use Storage.Api logical data; dedicated hosted ownership gate passed;
-- [x] protocol/convergence/late-join/reconciliation tests pass against the accepted 384/371/13 baseline at `ed126903cd18dcd62324fab41942d41fdaa37532`.
+- [x] protocol/convergence/late-join/reconciliation tests pass against the accepted 384/371/13 baseline at `871fd663ac9c57d8e001ce2ff11f5ac30df242f0` (isolated run `31892491967`).
 
 ---
 
