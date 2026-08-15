@@ -1,0 +1,104 @@
+name: Final exact-head architecture validation
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths: [.github/workflows/final-exact-head-validation.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  editmode:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 1
+      - name: Reset exact candidate while preserving Unity cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git clean -ffdx -e Library/
+          rm -rf Library/ScriptAssemblies Library/Bee
+      - id: unity
+        name: Locate Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+      - name: Run and verify exact EditMode baseline
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/FinalExactHeadArchitecture"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log" || true
+          test -s "$ROOT/results.xml"
+          if grep -E 'error CS[0-9]+' "$ROOT/unity.log"; then
+            echo 'Compiler errors detected' >&2
+            exit 1
+          fi
+          python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          expected = {
+              'VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests.CurrentCascadeLabBootsWithEnemyAIStack',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.BattleResetClearsSharedPlanHistoryAndGhostBackToStart',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.PlannerBootsWithGhostBoardAndVisualLayer',
+              'VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests.SharedPlanExecutionRequiresEveryLivingPlayerReady',
+              'VoxelEngine.Tests.PlayMode.ChainCombatMechanicsV2Tests.CascadeLabControllerBootsFourPlayerBattle',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.CommittingApprovedPlanPreservesReadyForEnemyHandoff',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests.EditingAnApprovedPlanRevokesEveryReadyApproval',
+              'VoxelEngine.Tests.PlayMode.ChainCombatPrototypeTests.ControllerBootsPlayableBattlePresentation',
+              'VoxelEngine.Tests.EditMode.KentridgeAnchorUndercroftTests.AnchorUndercroftsOccupyPubAndWarehouseSupportFacesWithoutAddingGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeGenerationTests.DistrictTerracesCreateNeighbourhoodScaleShelves',
+              'VoxelEngine.Tests.EditMode.KentridgeInfrastructureTests.UrbanInfrastructureStaysSeparateFromStableGameplayStructures',
+              'VoxelEngine.Tests.EditMode.KentridgeUrbanFabricTests.UrbanFabricCatalogueRealizesAllEightBlocksAsIndividualBuildings',
+              'VoxelEngine.Tests.EditMode.SurfaceRingBandTests.RingsDoNotReachBeyondTheStreamingRadius',
+          }
+          root = ET.parse(sys.argv[1]).getroot()
+          failed = {
+              tc.get('fullname') or tc.get('name')
+              for tc in root.iter('test-case')
+              if (tc.get('result') or '').lower() in ('failed', 'failure')
+          }
+          if failed != expected:
+              print('Unexpected failures:', sorted(failed - expected))
+              print('Missing baseline failures:', sorted(expected - failed))
+              raise SystemExit(1)
+          if root.get('total') != '389' or root.get('passed') != '376' or root.get('failed') != '13':
+              raise SystemExit(f"Unexpected totals: total={root.get('total')} passed={root.get('passed')} failed={root.get('failed')}")
+          print('Exact accepted 389/376/13 baseline matched; same 13 known failures and zero compiler errors')
+          PY
+      - name: Upload acceptance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-exact-head-architecture-${{ github.sha }}
+          path: Artifacts/FinalExactHeadArchitecture/
+          if-no-files-found: warn
+          retention-days: 14
