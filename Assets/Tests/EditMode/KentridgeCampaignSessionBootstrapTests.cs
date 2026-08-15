@@ -5,6 +5,7 @@ using Game.Composition.Campaign.Content;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.Kentridge.Runtime;
 using Game.Composition.WorldBuilderWorldGen;
+using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
