@@ -1,0 +1,64 @@
+name: Cutover 13 multiplayer edits boundary
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-multiplayer-edits-boundary.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Route alteration applier creation through Composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          comp = Path('Assets/VoxelEngine/Composition/VoxelEngine.Composition.asmdef')
+          data = json.loads(comp.read_text())
+          refs = data['references']
+          for ref in ('VoxelEngine.Edits.Api', 'VoxelEngine.Edits.Runtime'):
+              if ref not in refs:
+                  refs.append(ref)
+          comp.write_text(json.dumps(data, indent=2) + '\n')
+
+          edits = Path('Assets/VoxelEngine/Composition/EditsComposition.cs')
+          edits.write_text('''using VoxelEngine.Edits.Api;\nusing VoxelEngine.Edits.Runtime;\n\nnamespace VoxelEngine.Composition\n{\n    /// <summary>Composition-owned construction for deterministic edit application.</summary>\n    public static class EditsComposition\n    {\n        public static IAlterationApplier CreateAlterationApplier() =>\n            new DeterministicAlterationApplier();\n    }\n}\n''')
+          Path(str(edits) + '.meta').write_text('fileFormatVersion: 2\nguid: 38f2766384ce4ec0a204c6ff6be2ac95\n')
+
+          showcase = Path('Assets/Scenes/Showcase/ShowcaseMultiplayerSession.cs')
+          text = showcase.read_text()
+          text = text.replace('using VoxelEngine.Edits.Runtime;\n', '')
+          if 'using VoxelEngine.Composition;\n' not in text:
+              text = text.replace('using UnityEngine;\n', 'using UnityEngine;\nusing VoxelEngine.Composition;\n', 1)
+          count = text.count('new DeterministicAlterationApplier()')
+          if count != 2:
+              raise SystemExit(f'Expected two concrete alteration-applier constructions, found {count}')
+          text = text.replace('new DeterministicAlterationApplier()', 'EditsComposition.CreateAlterationApplier()')
+          if 'VoxelEngine.Edits.Runtime' in text or 'DeterministicAlterationApplier' in text:
+              raise SystemExit('ShowcaseMultiplayerSession still names Edits.Runtime implementation')
+          showcase.write_text(text)
+          PY
+
+          rm .github/workflows/cutover13-multiplayer-edits-boundary.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Composition/VoxelEngine.Composition.asmdef \
+                  Assets/VoxelEngine/Composition/EditsComposition.cs \
+                  Assets/VoxelEngine/Composition/EditsComposition.cs.meta \
+                  Assets/Scenes/Showcase/ShowcaseMultiplayerSession.cs \
+                  .github/workflows/cutover13-multiplayer-edits-boundary.yml
+          git commit -m 'refactor(showcase): compose multiplayer edit applier'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
