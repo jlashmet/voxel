@@ -9,6 +9,7 @@
     "VoxelEngine.Streaming",
     "VoxelEngine.Structures",
     "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Tiering",
     "VoxelEngine.Rendering",
     "Unity.Burst",
