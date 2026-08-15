@@ -1,0 +1,34 @@
+name: One-shot Fix Direct Kentridge Emit Calls
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/one-shot-fix-direct-kentridge-emit-calls.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Canonicalize direct Emit builders
+        run: python .github/scripts/one_shot_fix_direct_kentridge_emit_calls.py
+      - name: Verify scope
+        run: git diff --stat
+      - name: Commit and self-clean
+        run: |
+          rm .github/scripts/one_shot_fix_direct_kentridge_emit_calls.py
+          rm .github/workflows/one-shot-fix-direct-kentridge-emit-calls.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: canonicalize direct kentridge emit builders"
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
