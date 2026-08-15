@@ -1,0 +1,33 @@
+name: Rendering cutover inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/rendering-cutover-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          echo '=== RENDERING FILES ==='
+          find Assets/VoxelEngine/Rendering -type f \( -name '*.cs' -o -name '*.asmdef' -o -name '*.shader' -o -name '*.compute' \) | sort
+          echo '=== CORE REFERENCES INSIDE RENDERING ==='
+          grep -RIn 'VoxelEngine.Core' Assets/VoxelEngine/Rendering --include='*.cs' --include='*.asmdef' || true
+          echo '=== ENGINE REFERENCES INSIDE RENDERING ==='
+          grep -RInE 'using VoxelEngine\.|"VoxelEngine\.' Assets/VoxelEngine/Rendering --include='*.cs' --include='*.asmdef' | sort || true
+          echo '=== OUTSIDE SOURCE REFERENCES TO RENDERING ==='
+          grep -RInE 'using VoxelEngine\.Rendering|VoxelEngine\.Rendering\.' Assets Packages --include='*.cs' | grep -v '^Assets/VoxelEngine/Rendering/' | sort || true
+          echo '=== OUTSIDE ASMDEF REFERENCES TO RENDERING ==='
+          grep -RIn '"VoxelEngine.Rendering"' Assets Packages --include='*.asmdef' | grep -v '^Assets/VoxelEngine/Rendering/' | sort || true
+          echo '=== PUBLIC TYPES IN RENDERING ==='
+          grep -RInE '^\s*public\s+(static\s+)?(class|struct|interface|enum|sealed\s+class|readonly\s+struct)\s+' Assets/VoxelEngine/Rendering --include='*.cs' | sort || true
