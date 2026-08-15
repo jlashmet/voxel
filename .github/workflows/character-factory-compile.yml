@@ -89,7 +89,7 @@ jobs:
           echo "TRIPOSR_WEIGHTS=$TRIPOSR_WEIGHTS" >> "$GITHUB_ENV"
 
       - name: Build and render isolated Sunlit Cleric staff
-        timeout-minutes: 10
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
@@ -138,16 +138,18 @@ jobs:
 
           python3 tools/character-factory/character_factory.py build "$SPEC"
           python3 tools/character-factory/ci/verify_pipeline_artifact.py "$OUT"
+          test -s "$OUT/sunlit_cleric_staff_ci.raw.basecolor.png"
 
           RENDER="$OUT/sunlit_cleric_staff_ci.render.png"
           "$BLENDER_BIN" --background \
             --python tools/character-factory/ci/render_pipeline_artifact.py -- \
             --input "$OUT/sunlit_cleric_staff_ci.fbx" \
-            --output "$RENDER"
+            --output "$RENDER" \
+            --preserve-materials
           test -s "$RENDER"
 
       - name: Reconstruct enlarged isolated staff head
-        timeout-minutes: 10
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
@@ -193,11 +195,13 @@ jobs:
           JSON
 
           python3 tools/character-factory/character_factory.py build "$HEAD_SPEC"
+          test -s "$OUT/sunlit_cleric_staff_head_ci.raw.basecolor.png"
           HEAD_RENDER="$OUT/sunlit_cleric_staff_head_ci.render.png"
           "$BLENDER_BIN" --background \
             --python tools/character-factory/ci/render_pipeline_artifact.py -- \
             --input "$OUT/sunlit_cleric_staff_head_ci.fbx" \
-            --output "$HEAD_RENDER"
+            --output "$HEAD_RENDER" \
+            --preserve-materials
           test -s "$HEAD_RENDER"
 
       - name: Assemble detailed head with procedural staff shaft
@@ -222,7 +226,8 @@ jobs:
           "$BLENDER_BIN" --background \
             --python tools/character-factory/ci/render_pipeline_artifact.py -- \
             --input "$COMPOSITE" \
-            --output "$COMPOSITE_RENDER"
+            --output "$COMPOSITE_RENDER" \
+            --preserve-materials
           test -s "$COMPOSITE_RENDER"
 
           "$BLENDER_BIN" --background --python-expr "import bpy,sys; bpy.ops.import_scene.fbx(filepath='$COMPOSITE'); meshes=[o for o in bpy.context.scene.objects if o.type=='MESH']; print('CI_COMPOSITE_MESH_COUNT',len(meshes)); sys.exit(0 if len(meshes)>=2 else 3)"

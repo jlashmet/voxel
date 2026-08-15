@@ -30,7 +30,24 @@ def script_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument(
+        '--preserve-materials',
+        action='store_true',
+        help='Render imported materials/textures instead of the neutral CI geometry material.',
+    )
     return parser.parse_args(argv)
+
+
+def neutral_material():
+    material = bpy.data.materials.new('CI Geometry')
+    material.diffuse_color = (0.34, 0.38, 0.44, 1.0)
+    material.use_nodes = True
+    principled = material.node_tree.nodes.get('Principled BSDF')
+    if principled is not None:
+        principled.inputs['Base Color'].default_value = (0.34, 0.38, 0.44, 1.0)
+        principled.inputs['Roughness'].default_value = 0.62
+        principled.inputs['Metallic'].default_value = 0.0
+    return material
 
 
 def main():
@@ -42,20 +59,17 @@ def main():
     if not meshes:
         raise RuntimeError('FBX contains no mesh objects')
 
-    # CI is evaluating geometry rather than authored materials. Assign one neutral
-    # material to every imported mesh so silhouettes, holes and surface curvature
-    # remain visible instead of blowing out to white under the studio lights.
-    material = bpy.data.materials.new('CI Geometry')
-    material.diffuse_color = (0.34, 0.38, 0.44, 1.0)
-    material.use_nodes = True
-    principled = material.node_tree.nodes.get('Principled BSDF')
-    if principled is not None:
-        principled.inputs['Base Color'].default_value = (0.34, 0.38, 0.44, 1.0)
-        principled.inputs['Roughness'].default_value = 0.62
-        principled.inputs['Metallic'].default_value = 0.0
-    for obj in meshes:
-        obj.data.materials.clear()
-        obj.data.materials.append(material)
+    fallback = neutral_material()
+    if not args.preserve_materials:
+        for obj in meshes:
+            obj.data.materials.clear()
+            obj.data.materials.append(fallback)
+    else:
+        # Keep baked/generated materials, but make unmaterialed helper geometry
+        # visible rather than silently rendering black.
+        for obj in meshes:
+            if not obj.data.materials:
+                obj.data.materials.append(fallback)
 
     lo, hi = scene_bounds(meshes)
     center = (lo + hi) * 0.5

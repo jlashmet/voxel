@@ -114,6 +114,18 @@ def attachment_center(
     return center
 
 
+def staff_shaft_material() -> bpy.types.Material:
+    material = bpy.data.materials.new("ProceduralStaffShaftMaterial")
+    material.diffuse_color = (0.17, 0.075, 0.025, 1.0)
+    material.use_nodes = True
+    principled = material.node_tree.nodes.get("Principled BSDF")
+    if principled is not None:
+        principled.inputs["Base Color"].default_value = (0.17, 0.075, 0.025, 1.0)
+        principled.inputs["Roughness"].default_value = 0.48
+        principled.inputs["Metallic"].default_value = 0.03
+    return material
+
+
 def add_shaft(
     attachment: Vector,
     axis: int,
@@ -147,6 +159,7 @@ def add_shaft(
     )
     shaft = bpy.context.active_object
     shaft.name = "ProceduralStaffShaft"
+    shaft.data.materials.append(staff_shaft_material())
 
     # Blender cylinders are created along local Z. Rotate to the inferred ornament axis.
     if axis == 0:
