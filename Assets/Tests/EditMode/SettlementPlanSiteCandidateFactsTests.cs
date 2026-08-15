@@ -21,10 +21,10 @@ namespace VoxelEngine.Tests.EditMode
             var projections = new FakeProjectionProvider();
             projections.Add(
                 10,
-                new SettlementSiteProjection(
+                Projection(
                     SiteArchetype.Pub,
-                    100,
-                    100,
+                    0, 0, 100, 100,
+                    30, 0,
                     new SiteCapabilityOffer(SiteCapabilityKind.Interior),
                     new SiteCapabilityOffer(SiteCapabilityKind.PlayerSpawn, 4)));
 
@@ -48,18 +48,22 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void DerivesBoundaryAndPublicEntranceDistancesFromPlannedGeometry()
+        public void UsesExplicitFootprintAndEntranceGeometryWithoutFrontageInference()
         {
             SettlementPlan plan = Plan(
                 "distance-town",
                 new BuildingPlot(1, StructureArchetype.Inn, DistrictKind.Market,
-                    new Int2(0, 0), FrontageDirection.South),
+                    new Int2(0, 0), FrontageDirection.North),
                 new BuildingPlot(2, StructureArchetype.Shop, DistrictKind.Market,
-                    new Int2(300, 0), FrontageDirection.South));
+                    new Int2(300, 0), FrontageDirection.West));
 
             var projections = new FakeProjectionProvider();
-            projections.Add(1, Projection(SiteArchetype.Pub, 100, 100));
-            projections.Add(2, Projection(SiteArchetype.Fort, 100, 100));
+            projections.Add(1, Projection(
+                SiteArchetype.Pub, 0, 0, 100, 100, 20, 0,
+                new SiteCapabilityOffer(SiteCapabilityKind.Interior)));
+            projections.Add(2, Projection(
+                SiteArchetype.Fort, 300, 0, 400, 100, 380, 0,
+                new SiteCapabilityOffer(SiteCapabilityKind.Interior)));
 
             var facts = new SettlementPlanSiteCandidateFacts(
                 plan,
@@ -72,7 +76,7 @@ namespace VoxelEngine.Tests.EditMode
             ResolvedSiteId b = SettlementPlanSiteCandidateFacts.CandidateId("distance-town", 2);
 
             Assert.That(facts.BoundaryDistanceMetres(a, b), Is.EqualTo(20));
-            Assert.That(facts.PublicEntranceDistanceMetres(a, b), Is.EqualTo(30));
+            Assert.That(facts.PublicEntranceDistanceMetres(a, b), Is.EqualTo(36));
         }
 
         [Test]
@@ -86,8 +90,12 @@ namespace VoxelEngine.Tests.EditMode
                     new Int2(50, 0), FrontageDirection.South));
 
             var projections = new FakeProjectionProvider();
-            projections.Add(11, Projection(SiteArchetype.Pub, 100, 100));
-            projections.Add(22, Projection(SiteArchetype.Fort, 100, 100));
+            projections.Add(11, Projection(
+                SiteArchetype.Pub, 0, 0, 100, 100, 50, 0,
+                new SiteCapabilityOffer(SiteCapabilityKind.Interior)));
+            projections.Add(22, Projection(
+                SiteArchetype.Fort, 50, 0, 150, 100, 100, 0,
+                new SiteCapabilityOffer(SiteCapabilityKind.Interior)));
 
             var traversal = new FakeTraversalFacts
             {
@@ -116,13 +124,18 @@ namespace VoxelEngine.Tests.EditMode
 
         private static SettlementSiteProjection Projection(
             SiteArchetype archetype,
-            int widthDm,
-            int depthDm) =>
+            int minX,
+            int minZ,
+            int maxX,
+            int maxZ,
+            int entranceX,
+            int entranceZ,
+            params SiteCapabilityOffer[] capabilities) =>
             new SettlementSiteProjection(
                 archetype,
-                widthDm,
-                depthDm,
-                new SiteCapabilityOffer(SiteCapabilityKind.Interior));
+                new SiteFootprintBoundsDm(minX, minZ, maxX, maxZ),
+                new Int2(entranceX, entranceZ),
+                capabilities);
 
         private static SettlementPlan Plan(string id, params BuildingPlot[] plots) =>
             new SettlementPlan(

@@ -7,40 +7,64 @@ using MountingForce.WorldGen;
 namespace Game.Composition.WorldBuilderWorldGen
 {
     /// <summary>
-    /// Explicit projection from one WorldGen planned building/site into the gameplay semantics
-    /// understood by WorldBuilder. The composition layer requires these facts to be supplied rather
-    /// than inferring gameplay capabilities from a visual/architectural archetype.
+    /// Exact horizontal world-space footprint bounds for one generated site, in WorldGen decimetres.
+    /// Composition consumes these resolved bounds instead of trying to reconstruct rotation, wings,
+    /// overhangs, or other generator-owned geometry from an archetype name.
+    /// </summary>
+    public readonly struct SiteFootprintBoundsDm
+    {
+        public int MinX { get; }
+        public int MinZ { get; }
+        public int MaxX { get; }
+        public int MaxZ { get; }
+
+        public SiteFootprintBoundsDm(int minX, int minZ, int maxX, int maxZ)
+        {
+            if (maxX <= minX) throw new ArgumentOutOfRangeException(nameof(maxX));
+            if (maxZ <= minZ) throw new ArgumentOutOfRangeException(nameof(maxZ));
+
+            MinX = minX;
+            MinZ = minZ;
+            MaxX = maxX;
+            MaxZ = maxZ;
+        }
+    }
+
+    /// <summary>
+    /// Explicit projection from one WorldGen planned site into the gameplay semantics understood by
+    /// WorldBuilder. Geometry is already resolved in world space: the projection provider must supply
+    /// the real footprint and public-entrance anchor rather than letting Composition infer them from
+    /// frontage or architectural archetype.
     /// </summary>
     public readonly struct SettlementSiteProjection
     {
         public SiteArchetype Archetype { get; }
         public IReadOnlyList<SiteCapabilityOffer> Capabilities { get; }
-        public int WidthDm { get; }
-        public int DepthDm { get; }
+        public SiteFootprintBoundsDm Footprint { get; }
+        public Int2 PublicEntranceDm { get; }
 
         public SettlementSiteProjection(
             SiteArchetype archetype,
-            int widthDm,
-            int depthDm,
+            SiteFootprintBoundsDm footprint,
+            Int2 publicEntranceDm,
             params SiteCapabilityOffer[] capabilities)
         {
             if (archetype == SiteArchetype.Unspecified)
                 throw new ArgumentException(
                     "A projected generated site must have a concrete WorldBuilder archetype.",
                     nameof(archetype));
-            if (widthDm <= 0) throw new ArgumentOutOfRangeException(nameof(widthDm));
-            if (depthDm <= 0) throw new ArgumentOutOfRangeException(nameof(depthDm));
 
             Archetype = archetype;
-            WidthDm = widthDm;
-            DepthDm = depthDm;
+            Footprint = footprint;
+            PublicEntranceDm = publicEntranceDm;
             Capabilities = capabilities ?? Array.Empty<SiteCapabilityOffer>();
         }
     }
 
     /// <summary>
     /// Content/generator-specific semantic projection. Returning false excludes a planned site from
-    /// the WorldBuilder candidate set; the adapter never guesses an archetype or capability.
+    /// the WorldBuilder candidate set; the adapter never guesses archetype, capability, footprint,
+    /// or entrance geometry.
     /// </summary>
     public interface ISettlementSiteProjectionProvider
     {
@@ -70,8 +94,8 @@ namespace Game.Composition.WorldBuilderWorldGen
     /// site-role solver input. This adapter intentionally covers only building-scale PlannedSite
     /// candidates that the supplied projection provider can describe honestly.
     ///
-    /// Boundary and public-entrance Euclidean distances are derived from planned footprint geometry.
-    /// Traversal queries are delegated to ISettlementTraversalFacts and are never synthesized.
+    /// Euclidean metrics use explicit resolved footprint/entrance facts. Traversal queries are
+    /// delegated to ISettlementTraversalFacts and are never synthesized.
     /// </summary>
     public sealed class SettlementPlanSiteCandidateFacts : ISiteCandidateFacts
     {
@@ -150,34 +174,22 @@ namespace Game.Composition.WorldBuilderWorldGen
 
         public int BoundaryDistanceMetres(ResolvedSiteId subject, ResolvedSiteId target)
         {
-            Entry a = RequireEntry(subject);
-            Entry b = RequireEntry(target);
+            SiteFootprintBoundsDm a = RequireEntry(subject).Projection.Footprint;
+            SiteFootprintBoundsDm b = RequireEntry(target).Projection.Footprint;
 
-            int aMinX = a.Site.PositionDm.X;
-            int aMaxX = aMinX + a.Projection.WidthDm;
-            int aMinZ = a.Site.PositionDm.Y;
-            int aMaxZ = aMinZ + a.Projection.DepthDm;
-
-            int bMinX = b.Site.PositionDm.X;
-            int bMaxX = bMinX + b.Projection.WidthDm;
-            int bMinZ = b.Site.PositionDm.Y;
-            int bMaxZ = bMinZ + b.Projection.DepthDm;
-
-            int dx = AxisGap(aMinX, aMaxX, bMinX, bMaxX);
-            int dz = AxisGap(aMinZ, aMaxZ, bMinZ, bMaxZ);
+            int dx = AxisGap(a.MinX, a.MaxX, b.MinX, b.MaxX);
+            int dz = AxisGap(a.MinZ, a.MaxZ, b.MinZ, b.MaxZ);
             double distanceDm = Math.Sqrt((double)dx * dx + (double)dz * dz);
             return DecimetresToNearestMetre(distanceDm);
         }
 
         public int PublicEntranceDistanceMetres(ResolvedSiteId subject, ResolvedSiteId target)
         {
-            Entry a = RequireEntry(subject);
-            Entry b = RequireEntry(target);
-            Point2 aEntrance = PublicEntrance(a);
-            Point2 bEntrance = PublicEntrance(b);
+            Int2 a = RequireEntry(subject).Projection.PublicEntranceDm;
+            Int2 b = RequireEntry(target).Projection.PublicEntranceDm;
 
-            double dx = aEntrance.X - bEntrance.X;
-            double dz = aEntrance.Z - bEntrance.Z;
+            double dx = a.X - b.X;
+            double dz = a.Y - b.Y;
             return DecimetresToNearestMetre(Math.Sqrt(dx * dx + dz * dz));
         }
 
@@ -221,27 +233,6 @@ namespace Game.Composition.WorldBuilderWorldGen
             return 0;
         }
 
-        private static Point2 PublicEntrance(Entry entry)
-        {
-            double minX = entry.Site.PositionDm.X;
-            double maxX = minX + entry.Projection.WidthDm;
-            double minZ = entry.Site.PositionDm.Y;
-            double maxZ = minZ + entry.Projection.DepthDm;
-            double centreX = (minX + maxX) / 2.0;
-            double centreZ = (minZ + maxZ) / 2.0;
-
-            switch ((FrontageDirection)entry.Site.Orientation)
-            {
-                case FrontageDirection.South: return new Point2(centreX, minZ);
-                case FrontageDirection.West:  return new Point2(minX, centreZ);
-                case FrontageDirection.North: return new Point2(centreX, maxZ);
-                case FrontageDirection.East:  return new Point2(maxX, centreZ);
-                default:
-                    throw new InvalidOperationException(
-                        $"Unsupported planned-site orientation '{entry.Site.Orientation}'.");
-            }
-        }
-
         private static int DecimetresToNearestMetre(double decimetres) =>
             (int)Math.Round(decimetres / 10.0, MidpointRounding.AwayFromZero);
 
@@ -254,18 +245,6 @@ namespace Game.Composition.WorldBuilderWorldGen
             {
                 Site = site;
                 Projection = projection;
-            }
-        }
-
-        private readonly struct Point2
-        {
-            public double X { get; }
-            public double Z { get; }
-
-            public Point2(double x, double z)
-            {
-                X = x;
-                Z = z;
             }
         }
     }
