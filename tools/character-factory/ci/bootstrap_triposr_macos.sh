@@ -9,7 +9,7 @@ SOURCE_DIR="$CACHE_ROOT/TripoSR-$TRIPOSR_REV"
 VENV_DIR="$CACHE_ROOT/triposr-$TRIPOSR_REV-py312-venv"
 MODEL_DIR="$CACHE_ROOT/models/triposr"
 DINO_DIR="$CACHE_ROOT/models/dino-vitb16"
-STAMP="$VENV_DIR/.voxel-ready-v4"
+STAMP="$VENV_DIR/.voxel-ready-v5"
 
 resolve_python312() {
   if [ -n "${PYTHON_BIN:-}" ]; then
@@ -63,13 +63,18 @@ if [ ! -f "$STAMP" ]; then
   "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
   "$VENV_DIR/bin/python" -m pip install torch torchvision
 
+  # TripoSR pins trimesh 4.0.5, whose GLB exporter still calls ndarray.ptp().
+  # NumPy 2 removed that method. Keep this smoke environment on the last
+  # NumPy 1.x line, and keep OpenCV on a release that supports that ABI.
+  "$VENV_DIR/bin/python" -m pip install 'numpy==1.26.4' 'opencv-python-headless==4.11.0.86'
+
   # The upstream requirements include Gradio, which is only needed for its UI,
   # and xatlas==0.0.9, which has no CPython 3.12 Apple-Silicon wheel and fails
   # against current CMake. The smoke CLI never opens Gradio or bakes textures,
   # but run.py imports xatlas at module load. Use the compatible wheel release
   # and install the remaining runtime requirements without the UI dependency.
   SMOKE_REQUIREMENTS="$VENV_DIR/triposr-smoke-requirements.txt"
-  grep -Ev '^[[:space:]]*(gradio([[:space:]]|$)|xatlas==)' "$SOURCE_DIR/requirements.txt" > "$SMOKE_REQUIREMENTS"
+  grep -Ev '^[[:space:]]*(gradio([[:space:]]|$)|xatlas==|opencv-python-headless([[:space:]]|$))' "$SOURCE_DIR/requirements.txt" > "$SMOKE_REQUIREMENTS"
   "$VENV_DIR/bin/python" -m pip install 'xatlas==0.0.11'
   "$VENV_DIR/bin/python" -m pip install -r "$SMOKE_REQUIREMENTS"
 
@@ -79,11 +84,16 @@ if [ ! -f "$STAMP" ]; then
   # model to the actual smoke inference path.
   "$VENV_DIR/bin/python" -m pip install onnxruntime
 
+  # Re-assert the NumPy/OpenCV compatibility pins after dependency resolution.
+  "$VENV_DIR/bin/python" -m pip install 'numpy==1.26.4' 'opencv-python-headless==4.11.0.86'
+
   "$VENV_DIR/bin/python" - <<'PY'
 import importlib
+import numpy
 for module in ("torch", "torchvision", "omegaconf", "PIL", "einops", "transformers", "trimesh", "onnxruntime", "rembg", "xatlas", "moderngl"):
     importlib.import_module(module)
-print("TripoSR smoke runtime imports ready")
+assert numpy.__version__.split('.')[0] == '1', numpy.__version__
+print(f"TripoSR smoke runtime imports ready; numpy={numpy.__version__}")
 PY
   touch "$STAMP"
 fi
@@ -130,8 +140,9 @@ PY
 
 "$VENV_DIR/bin/python" - <<'PY'
 import sys
+import numpy
 import torch
-print(f"python={sys.version.split()[0]} torch={torch.__version__} mps={torch.backends.mps.is_available()}")
+print(f"python={sys.version.split()[0]} torch={torch.__version__} numpy={numpy.__version__} mps={torch.backends.mps.is_available()}")
 if not torch.backends.mps.is_available():
     raise SystemExit("Apple MPS is unavailable")
 PY
