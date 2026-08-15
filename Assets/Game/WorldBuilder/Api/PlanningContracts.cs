@@ -14,7 +14,8 @@ namespace Game.WorldBuilder.Api
         LootTable = 5,
         SecretPolicy = 6,
         Objective = 7,
-        Cutscene = 8
+        Cutscene = 8,
+        RequiredSecret = 9
     }
 
     public sealed class PlanningNode
@@ -31,11 +32,6 @@ namespace Game.WorldBuilder.Api
         }
     }
 
-    /// <summary>
-    /// Physical requirements imposed by one authored cutscene on one generated site.
-    /// This is an exposed planning contract: world-generation adapters may consume it, but they
-    /// never reference Game.WorldBuilder.Runtime.
-    /// </summary>
     public sealed class CutsceneStagePlan
     {
         public CutsceneRef Cutscene { get; }
@@ -57,9 +53,8 @@ namespace Game.WorldBuilder.Api
     }
 
     /// <summary>
-    /// Requirements a site generator must satisfy so a secret policy has real topology to select
-    /// from. MinimumCandidateCount is hard. PreferredCandidateCount is generation freedom/quality:
-    /// producing fewer than it is legal so long as the minimum is met.
+    /// Requirements a site generator must satisfy so a procedural secret policy has real topology
+    /// to select from. MinimumCandidateCount is hard; PreferredCandidateCount is a soft target.
     /// </summary>
     public sealed class SecretCandidatePlan
     {
@@ -92,14 +87,39 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// Hard generation request for one authored secret. Exactly one valid candidate must be available
+    /// at the specified site; failure to provide one makes world generation invalid.
+    /// </summary>
+    public sealed class RequiredSecretCandidatePlan
+    {
+        public SecretRef Secret { get; }
+        public SiteRef Site { get; }
+        public bool RequiresHiddenSpace { get; }
+        public SecretEntranceType Entrance { get; }
+
+        public RequiredSecretCandidatePlan(
+            SecretRef secret,
+            SiteRef site,
+            bool requiresHiddenSpace,
+            SecretEntranceType entrance)
+        {
+            Secret = secret;
+            Site = site;
+            RequiresHiddenSpace = requiresHiddenSpace;
+            Entrance = entrance;
+        }
+    }
+
     public sealed class PlanningGraph
     {
         public IReadOnlyList<PlanningNode> Nodes { get; }
         public IReadOnlyList<CutsceneStagePlan> CutsceneStages { get; }
         public IReadOnlyList<SecretCandidatePlan> SecretCandidates { get; }
+        public IReadOnlyList<RequiredSecretCandidatePlan> RequiredSecrets { get; }
 
         public PlanningGraph(PlanningNode[] nodes, CutsceneStagePlan[] cutsceneStages)
-            : this(nodes, cutsceneStages, null)
+            : this(nodes, cutsceneStages, null, null)
         {
         }
 
@@ -107,18 +127,23 @@ namespace Game.WorldBuilder.Api
             PlanningNode[] nodes,
             CutsceneStagePlan[] cutsceneStages,
             SecretCandidatePlan[] secretCandidates)
+            : this(nodes, cutsceneStages, secretCandidates, null)
+        {
+        }
+
+        public PlanningGraph(
+            PlanningNode[] nodes,
+            CutsceneStagePlan[] cutsceneStages,
+            SecretCandidatePlan[] secretCandidates,
+            RequiredSecretCandidatePlan[] requiredSecrets)
         {
             Nodes = nodes ?? Array.Empty<PlanningNode>();
             CutsceneStages = cutsceneStages ?? Array.Empty<CutsceneStagePlan>();
             SecretCandidates = secretCandidates ?? Array.Empty<SecretCandidatePlan>();
+            RequiredSecrets = requiredSecrets ?? Array.Empty<RequiredSecretCandidatePlan>();
         }
     }
 
-    /// <summary>
-    /// Backend-neutral realized geometry needed to stage a cutscene inside a site.
-    /// Positions and dimensions are integer decimetres. EntrancePosition is the public threshold;
-    /// Inward and Right are orthogonal horizontal cardinal unit axes in world space.
-    /// </summary>
     public readonly struct CutsceneSiteGeometry
     {
         public CutsceneInt3 EntrancePosition { get; }
@@ -159,10 +184,6 @@ namespace Game.WorldBuilder.Api
             a.X * b.X + a.Y * b.Y + a.Z * b.Z;
     }
 
-    /// <summary>
-    /// Implemented by world realization/composition after a site has concrete geometry.
-    /// Consumers need only Game.WorldBuilder.Api.
-    /// </summary>
     public interface ICutsceneSiteGeometryProvider
     {
         bool TryResolve(SiteRef site, out CutsceneSiteGeometry geometry);
