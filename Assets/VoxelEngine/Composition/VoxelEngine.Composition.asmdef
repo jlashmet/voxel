@@ -4,6 +4,7 @@
   "references": [
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Rendering.Runtime",
     "Unity.Collections"
   ],
   "includePlatforms": [],
