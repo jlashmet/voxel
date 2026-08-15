@@ -30,21 +30,26 @@ namespace Game.WorldBuilder.Runtime
     }
 
     /// <summary>
-    /// Typed physical requirements imposed by one cutscene on one generated site. A future
-    /// generation adapter consumes these and produces a CutsceneStageBinding after realization.
+    /// Typed physical requirements imposed by one cutscene on one generated site. A realization
+    /// adapter consumes these and produces a CutsceneStageBinding after concrete site geometry exists.
+    /// The authored definition is retained so the resolver can distinguish actor destinations from
+    /// non-occupying focus points without duplicating that intent in the world blueprint.
     /// </summary>
     public sealed class CutsceneStagePlan
     {
         public CutsceneRef Cutscene { get; }
+        public CutsceneDefinition Definition { get; }
         public SiteRef Site { get; }
         public IReadOnlyList<CutsceneStagePointRequirement> Requirements { get; }
 
         internal CutsceneStagePlan(
             CutsceneRef cutscene,
+            CutsceneDefinition definition,
             SiteRef site,
             CutsceneStagePointRequirement[] requirements)
         {
             Cutscene = cutscene;
+            Definition = definition ?? throw new ArgumentNullException(nameof(definition));
             Site = site;
             Requirements = requirements ?? Array.Empty<CutsceneStagePointRequirement>();
         }
@@ -142,7 +147,11 @@ namespace Game.WorldBuilder.Runtime
                     var requirements = new CutsceneStagePointRequirement[cutscene.Definition.StageRequirements.Count];
                     for (var j = 0; j < requirements.Length; j++)
                         requirements[j] = cutscene.Definition.StageRequirements[j];
-                    stagePlans.Add(new CutsceneStagePlan(cutscene.Ref, cutscene.Site, requirements));
+                    stagePlans.Add(new CutsceneStagePlan(
+                        cutscene.Ref,
+                        cutscene.Definition,
+                        cutscene.Site,
+                        requirements));
                 }
             }
 
