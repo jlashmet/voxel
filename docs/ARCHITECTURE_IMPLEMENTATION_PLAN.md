@@ -23,7 +23,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency, mutation, focused surface-query and authoring-validation capabilities; whole-cell block authoring; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
 | 4 — Structures | **Complete** | `Structures.Api` owns canonical authoring/material/layout contracts; all implementation (feature VM/generation/rasterizer/emitters, retained-profile store, CastleBuilder, VoxelBrush, MasonryWeathering) lives under `Structures/Runtime` with Runtime namespaces and preserved Unity GUIDs; Storage dependencies route through Storage.Api; Rendering uses the retained-profile read boundary; WorldGen Voxel is Api-only; broad Structures assembly, legacy `VoxelEngine.Core.Features` namespace, and Kentridge compatibility seam are gone | none |
-| 5 — Edits | **In progress — current** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |
+| 5 — Edits | **In progress — current** | `Edits.Api`/`Edits.Runtime` assemblies created; canonical `AlterationEvent`/`AlterationEventKind` and brush wire codec moved to Edits.Api with source GUIDs preserved and logical block geometry sourced from Storage.Api; deterministic alteration application is behind Storage.Api; Net/test consumers now reference Edits.Api; mutation transition parity accepted | move expansion/apply implementation to Runtime; remove `VoxelEngine.Core.Edits`; delete server wrapper; finish Net protocol cleanup |
 | 6 — StructuralIntegrity | **Not started** | — | full cutover |
 | 7 — Tiering | **Not started** | — | full cutover |
 | 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `2d35d46a3e74935e224e70ee2038c5b0629322b5` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate completes the Structures cutover: Runtime declarations and implementation consumers now use `VoxelEngine.Structures.Runtime` / `.Emitters`; the last two fully-qualified legacy emitter references were repaired; no live `VoxelEngine.Core.Features` or broad `VoxelEngine.Structures` namespace remains; WorldGen still has no Structures.Runtime dependency. The preceding accepted gate `6209dfd3ffe2210073395ee610c9a5907cf2d767` removed the empty broad Structures assembly at the same 382/369/13 baseline.
+- Latest accepted code gate: `2a1ffecf03532cdd1b6cf4bd51947db23ffa8db8` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate accepts the first Edits ownership slice: explicit Edits.Api/Runtime assemblies exist; `AlterationEvent`, `AlterationEventKind`, and the canonical brush shape codec live in Edits.Api; the two moved source files preserve their Unity GUIDs; canonical block geometry now comes from Storage.Api `VoxelReadGrid`; existing Core/Net/Showcase/test consumers explicitly reference Edits.Api. The preceding accepted gate `2d35d46a3e74935e224e70ee2038c5b0629322b5` completed Structures at the same 382/369/13 baseline.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -1567,8 +1567,8 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 5. Edits
 
-- [ ] create Edits.Api/Runtime
-- [ ] split canonical alteration domain values into Api
+- [x] create Edits.Api/Runtime
+- [x] split canonical alteration domain values into Api
 - [ ] move expansion/apply implementation to Runtime
 - [ ] route mutations through Storage.Api
 - [ ] delete `ServerDeterministicAlterationApplier`
