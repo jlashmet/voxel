@@ -1,0 +1,57 @@
+name: Cutover 13 sync accepted Arch status
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-sync-arch-status.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Record accepted ArchLookdev cutover
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = path.read_text()
+
+          old = "current Showcase Runtime-coupled source inventory reduced to three files; `ShowcaseTreePopulation` now routes world/structure/vegetation access through Composition; 387/374/13 baseline preserved | migrate three remaining Showcase concrete Runtime consumers, enable the final production-wide Runtime dependency guard, remove residual Core documentation literals, final dependency report |"
+          new = "`ShowcaseTreePopulation` routes world/structure/vegetation access through Composition; `ArchLookdev` routes presentation catalogue, build-budget, sky, and surface-status access through `RenderingComposition`; current Showcase Runtime-coupled source inventory reduced to two files; 387/374/13 baseline preserved | migrate two remaining Showcase concrete Runtime consumers, enable the final production-wide Runtime dependency guard, remove residual Core documentation literals, final dependency report |"
+          if old not in text:
+              raise SystemExit('Cutover 13 status anchor changed')
+          text = text.replace(old, new, 1)
+
+          old = "- Latest accepted code gate: `892b8d5d3fd1fb80d9226ffcb1cb4821be22efb7`, run `31906539037` — 387 tests, 374 passed, exactly the same 13 known baseline failures with zero C# compiler errors. This accepts `ShowcaseTreePopulation` routing its world/seed, castle planning, and tree-world publication through Composition/API contracts and reduces the remaining Runtime-coupled Showcase inventory to three files."
+          new = "- Latest accepted code gate: `8780cffe66a0e3e4ba75b524957d00b481ace971`, run `31907252082` — 387 tests, 374 passed, exactly the same 13 known baseline failures with zero C# compiler errors. This accepts `ArchLookdev` routing rendering presentation/build configuration and surface-status access through `RenderingComposition` and reduces the remaining Runtime-coupled Showcase source inventory to two files."
+          if old not in text:
+              raise SystemExit('Latest accepted gate anchor changed')
+          text = text.replace(old, new, 1)
+
+          old = "### 13. Composition and final cleanup\n\n- [x] create Composition assembly/bootstrap\n"
+          new = "### 13. Composition and final cleanup\n\n- [x] create Composition assembly/bootstrap\n- [x] route `ArchLookdev` rendering/presentation access through `RenderingComposition`; accepted at `8780cffe66a0e3e4ba75b524957d00b481ace971`, run `31907252082` with exact 387/374/13 baseline and zero compiler errors\n"
+          if old not in text:
+              raise SystemExit('Cutover 13 checklist anchor changed')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+          rm .github/workflows/cutover13-sync-arch-status.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md .github/workflows/cutover13-sync-arch-status.yml
+          git commit -m 'docs(refactor): record accepted arch rendering cutover'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
