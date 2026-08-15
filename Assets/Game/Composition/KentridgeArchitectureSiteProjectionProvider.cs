@@ -17,6 +17,11 @@ namespace Game.Composition.WorldBuilderWorldGen
         ISettlementSiteProjectionProvider,
         ISettlementCutsceneStageEnvelopeProvider
     {
+        // Keep ordinary party spawning at least as conservative as the procedural cutscene stage.
+        // One row is guaranteed: each actor has 8dm lateral clearance and centres are 16dm apart.
+        private const int PlayerSpawnClearanceDm = 8;
+        private const int PlayerSpawnSeparationDm = 16;
+
         private readonly SettlementPlan _plan;
         private readonly Dictionary<int, BuildingPlot> _plots;
 
@@ -61,18 +66,20 @@ namespace Game.Composition.WorldBuilderWorldGen
                 form,
                 out interior);
 
-            SiteCapabilityOffer[] capabilities = hasInterior
-                ? new[]
-                {
-                    new SiteCapabilityOffer(SiteCapabilityKind.Interior),
-                    new SiteCapabilityOffer(SiteCapabilityKind.PublicExit),
-                    new SiteCapabilityOffer(SiteCapabilityKind.ConversationSpace),
-                    new SiteCapabilityOffer(SiteCapabilityKind.CutsceneStage),
-                }
-                : new[]
-                {
-                    new SiteCapabilityOffer(SiteCapabilityKind.PublicExit),
-                };
+            var capabilities = new List<SiteCapabilityOffer>();
+            capabilities.Add(new SiteCapabilityOffer(SiteCapabilityKind.PublicExit));
+            if (hasInterior)
+            {
+                capabilities.Add(new SiteCapabilityOffer(SiteCapabilityKind.Interior));
+                capabilities.Add(new SiteCapabilityOffer(SiteCapabilityKind.ConversationSpace));
+                capabilities.Add(new SiteCapabilityOffer(SiteCapabilityKind.CutsceneStage));
+
+                int spawnCapacity = ResolvePlayerSpawnCapacity(interior);
+                if (spawnCapacity > 0)
+                    capabilities.Add(new SiteCapabilityOffer(
+                        SiteCapabilityKind.PlayerSpawn,
+                        spawnCapacity));
+            }
 
             projection = new SettlementSiteProjection(
                 archetype,
@@ -82,7 +89,7 @@ namespace Game.Composition.WorldBuilderWorldGen
                     geometry.FootprintMaxDm.X,
                     geometry.FootprintMaxDm.Y),
                 geometry.PublicEntranceDm,
-                capabilities);
+                capabilities.ToArray());
             return true;
         }
 
@@ -138,6 +145,18 @@ namespace Game.Composition.WorldBuilderWorldGen
                 _plan.Theme,
                 form,
                 out geometry);
+        }
+
+        private static int ResolvePlayerSpawnCapacity(StructureInteriorEnvelope interior)
+        {
+            if (interior.DepthDm < PlayerSpawnClearanceDm * 2)
+                return 0;
+            if (interior.HalfWidthDm < PlayerSpawnClearanceDm)
+                return 0;
+
+            int availableLateralSpan =
+                2 * (interior.HalfWidthDm - PlayerSpawnClearanceDm);
+            return 1 + availableLateralSpan / PlayerSpawnSeparationDm;
         }
 
         private static bool Matches(PlannedSite site, BuildingPlot plot) =>
