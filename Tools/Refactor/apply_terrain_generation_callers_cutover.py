@@ -79,8 +79,8 @@ for path in (RUNTIME, UNIFIED):
     )
     replace_exact(
         path,
-        "            for (int rz = minRegionZ; rz <= maxRegionZ; rz++)",
-        "            var generation = new RegionGenerationStore(in table);\n\n            for (int rz = minRegionZ; rz <= maxRegionZ; rz++)",
+        "            int maxRegionZ = (maxZ >> VoxelDimensions.RegionVoxelEdgeLog2) + 1;\n\n            for (int rz = minRegionZ; rz <= maxRegionZ; rz++)",
+        "            int maxRegionZ = (maxZ >> VoxelDimensions.RegionVoxelEdgeLog2) + 1;\n            var generation = new RegionGenerationStore(in table);\n\n            for (int rz = minRegionZ; rz <= maxRegionZ; rz++)",
     )
     replace_exact(
         path,
