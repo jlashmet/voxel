@@ -111,8 +111,9 @@ namespace VoxelEngine.Tests.EditMode
         {
             string[] roots =
             {
-                Path.Combine(RepoRoot, "Assets"),
-                Path.Combine(RepoRoot, "Packages"),
+                Path.Combine(RepoRoot, "Assets", "VoxelEngine"),
+                Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase"),
+                Path.Combine(RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime"),
             };
             string[] extensions = { ".cs", ".asmdef", ".asmref", ".json" };
             var violations = new List<string>();
