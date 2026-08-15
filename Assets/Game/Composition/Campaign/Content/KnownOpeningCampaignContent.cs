@@ -92,9 +92,7 @@ namespace Game.Composition.Campaign.Content
 
             SiteRef startingPub = game.World.RequireSite("starting-pub", kentridge, site => site
                 .Archetype(SiteArchetype.Pub)
-                .RequireCapability(SiteCapability.Interior)
-                .RequireCapability(SiteCapability.PlayerSpawn(4))
-                .RequireCapability(SiteCapability.PublicExit));
+                .RequireCapability(SiteCapability.PlayerSpawn(4)));
 
             // The known story says only that the party goes somewhere else in the surrounding region.
             // The generator remains free to choose the concrete site as long as the hard
