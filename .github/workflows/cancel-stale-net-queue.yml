@@ -6,6 +6,7 @@ on:
 permissions:
   actions: write
   contents: read
+# Retriggered after the Net Runtime move preparation so only the pinned ownership gate remains.
 jobs:
   cancel:
     runs-on: ubuntu-latest
