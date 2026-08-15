@@ -1,6 +1,5 @@
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Showcase
