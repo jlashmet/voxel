@@ -127,7 +127,11 @@ namespace Game.Composition.WorldBuilderWorldGen
                         "Resolved site '" + siteId +
                         "' has no physical public-entrance realization for NPC placement.");
 
-                var slots = BuildSlots(geometry, interior, siteAssignments.Count);
+                var slots = BuildSlots(
+                    geometry,
+                    interior,
+                    (byte)plot.Frontage,
+                    siteAssignments.Count);
                 for (var n = 0; n < siteAssignments.Count; n++)
                 {
                     NpcSiteAssignment assignment = siteAssignments[n];
@@ -157,6 +161,7 @@ namespace Game.Composition.WorldBuilderWorldGen
         private static List<Int2> BuildSlots(
             StructureSiteGeometry geometry,
             StructureInteriorEnvelope interior,
+            byte orientation,
             int count)
         {
             var slots = new List<Int2>(count);
@@ -168,8 +173,9 @@ namespace Game.Composition.WorldBuilderWorldGen
                 throw new InvalidOperationException(
                     "Entrance-connected interior is too small for deterministic NPC placement.");
 
-            Int2 inward = InwardDirection(geometry);
-            var lateral = new Int2(-inward.Y, inward.X);
+            Int2 inward;
+            Int2 lateral;
+            KentridgePlacementAxes.Resolve(orientation, out inward, out lateral);
 
             for (int depth = FirstRowDepthDm;
                  depth <= maxDepth && slots.Count < count;
@@ -205,24 +211,6 @@ namespace Game.Composition.WorldBuilderWorldGen
             slots.Add(new Int2(
                 entrance.X + inward.X * inwardDistance + lateral.X * lateralDistance,
                 entrance.Y + inward.Y * inwardDistance + lateral.Y * lateralDistance));
-        }
-
-        private static Int2 InwardDirection(StructureSiteGeometry geometry)
-        {
-            int dx2 = geometry.FootprintMinDm.X
-                    + geometry.FootprintMaxDm.X
-                    - 2 * geometry.PublicEntranceDm.X;
-            int dz2 = geometry.FootprintMinDm.Y
-                    + geometry.FootprintMaxDm.Y
-                    - 2 * geometry.PublicEntranceDm.Y;
-
-            if (Math.Abs(dx2) >= Math.Abs(dz2) && dx2 != 0)
-                return new Int2(dx2 > 0 ? 1 : -1, 0);
-            if (dz2 != 0)
-                return new Int2(0, dz2 > 0 ? 1 : -1);
-
-            throw new InvalidOperationException(
-                "Public entrance is not directional relative to the structure footprint.");
         }
 
         private static int CompareAssignments(NpcSiteAssignment left, NpcSiteAssignment right)
