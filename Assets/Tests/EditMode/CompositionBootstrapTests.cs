@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Storage.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -30,6 +31,22 @@ namespace VoxelEngine.Tests.EditMode
             storage.Residency.EnsureRegionResident(region);
             Assert.That(storage.Residency.IsRegionResident(region), Is.True);
             Assert.That(storage.Reads.TryAcquireRegion(region, out _), Is.True);
+        }
+
+        [Test]
+        public void StorageCapacityBudgetingKeepsPhysicalLayoutInsideComposition()
+        {
+            int oneThousandBricks = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
+                requestedCapacity: 262144,
+                budgetBytes: VoxelDimensions.BytesPerMixedBrick * 1000,
+                minimumCapacity: 8);
+            Assert.That(oneThousandBricks, Is.EqualTo(1000));
+
+            int minimum = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
+                requestedCapacity: 1,
+                budgetBytes: 0,
+                minimumCapacity: 8);
+            Assert.That(minimum, Is.EqualTo(8));
         }
 
         [Test]
