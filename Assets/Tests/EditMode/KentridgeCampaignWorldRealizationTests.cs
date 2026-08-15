@@ -63,7 +63,7 @@ namespace VoxelEngine.Tests.EditMode
 
             VoxelWorldGenSettings settings = Settings();
             var catalogue = KentridgeCombinedVoxelCatalogue.Build(
-                Seed,
+                settlement,
                 settings,
                 generation.HiddenSpaces,
                 Allocator.Temp);
