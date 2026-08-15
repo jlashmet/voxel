@@ -4,7 +4,7 @@ using Game.Cutscenes.Api;
 
 namespace Game.WorldBuilder.Api
 {
-    public sealed class CampaignBuilder
+    public sealed partial class CampaignBuilder
     {
         private readonly string _id;
         internal readonly List<SiteSpec> Sites = new List<SiteSpec>();
@@ -30,6 +30,7 @@ namespace Game.WorldBuilder.Api
         public CampaignBlueprint Build() =>
             new CampaignBlueprint(
                 _id,
+                BuildHierarchy(),
                 Sites.ToArray(),
                 Npcs.ToArray(),
                 SpatialConstraints.ToArray(),
@@ -39,7 +40,7 @@ namespace Game.WorldBuilder.Api
                 LootTables.ToArray());
     }
 
-    public sealed class WorldBlueprintBuilder
+    public sealed partial class WorldBlueprintBuilder
     {
         private readonly CampaignBuilder _campaign;
         public SecretPolicyBlueprintBuilder Secrets { get; }
