@@ -44,6 +44,7 @@ namespace VoxelEngine.Storage.Api
     public interface IProfileBlockReadSource
     {
         uint Version { get; }
+        int Count { get; }
         ProfileBlock[] Snapshot();
     }
 }
