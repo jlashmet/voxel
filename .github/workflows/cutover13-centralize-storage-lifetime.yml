@@ -1,0 +1,142 @@
+name: Cutover 13 centralize Composition storage lifetime
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-centralize-storage-lifetime.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Centralize physical storage allocation and disposal
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-foundation-storage
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_one(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          bootstrap_path = Path('Assets/VoxelEngine/Composition/VoxelEngineBootstrap.cs')
+          bootstrap = bootstrap_path.read_text()
+          old = '        private sealed class StorageRuntimeLifetime : IVoxelStorageRuntime\n'
+          new = '        internal sealed class StorageRuntimeLifetime : IVoxelStorageRuntime\n'
+          if bootstrap.count(old) != 1:
+              raise SystemExit('StorageRuntimeLifetime visibility marker drifted')
+          bootstrap = bootstrap.replace(old, new, 1)
+
+          old = '''            public IRegionGenerationStore Generation => _generation;\n            public IRegionReadSource Reads => _reads;\n            public IRegionMutationStore Mutations => _mutations;\n            public IRegionResidencyStore Residency => _residency;\n            public IRegionSnapshotSource Snapshots => _reads;\n            public IRegionSnapshotMutationStore SnapshotMutations => _snapshotMutations;\n            public IVoxelSurfaceQuery SurfaceQuery => _reads;\n            public IVoxelChangeSource Changes => _changes;\n'''
+          new = '''            // Composition-owned hot paths may borrow these physical structs by ref, but no\n            // reference escapes this assembly. One lifetime owns allocation, adapter refresh, and disposal.\n            internal ref RegionTable Table => ref _table;\n            internal ref BrickPool Pool => ref _pool;\n            internal ref MaterialPalette Materials => ref _materials;\n            internal ref SurfaceCatalogue Surfaces => ref _surfaces;\n            internal ref CoatingCatalogue Coatings => ref _coatings;\n            internal VoxelChangeJournal ChangeJournal => _changes;\n\n            internal RegionReadSource ReadSource\n            {\n                get\n                {\n                    _reads.Refresh(in _table, in _pool);\n                    return _reads;\n                }\n            }\n\n            internal RegionMutationStore MutationStore\n            {\n                get\n                {\n                    _mutations.Refresh(in _table, in _pool);\n                    return _mutations;\n                }\n            }\n\n            internal RegionResidencyStore ResidencyStore\n            {\n                get\n                {\n                    _residency.Refresh(in _table, in _pool);\n                    return _residency;\n                }\n            }\n\n            internal RegionSnapshotMutationStore SnapshotMutationStore\n            {\n                get\n                {\n                    _snapshotMutations.Refresh(in _table, in _pool);\n                    return _snapshotMutations;\n                }\n            }\n\n            public IRegionGenerationStore Generation\n            {\n                get\n                {\n                    _generation.Refresh(in _table);\n                    return _generation;\n                }\n            }\n            public IRegionReadSource Reads => ReadSource;\n            public IRegionMutationStore Mutations => MutationStore;\n            public IRegionResidencyStore Residency => ResidencyStore;\n            public IRegionSnapshotSource Snapshots => ReadSource;\n            public IRegionSnapshotMutationStore SnapshotMutations => SnapshotMutationStore;\n            public IVoxelSurfaceQuery SurfaceQuery => ReadSource;\n            public IVoxelChangeSource Changes => _changes;\n'''
+          if bootstrap.count(old) != 1:
+              raise SystemExit('StorageRuntimeLifetime capability block drifted')
+          bootstrap = bootstrap.replace(old, new, 1)
+
+          old = '''                using NativeArray<int3> regions = _reads.GetResidentRegionCoords(Allocator.Temp);\n'''
+          new = '''                using NativeArray<int3> regions = ReadSource.GetResidentRegionCoords(Allocator.Temp);\n'''
+          if bootstrap.count(old) != 1:
+              raise SystemExit('PublishAllResidentRegions read-source marker drifted')
+          bootstrap = bootstrap.replace(old, new, 1)
+          bootstrap_path.write_text(bootstrap)
+
+          world_path = Path('Assets/VoxelEngine/Composition/Showcase/ShowcaseWorld.cs')
+          world = world_path.read_text()
+          old = '''        private RegionTable _table;\n        private BrickPool _pool;\n        private readonly RegionReadSource _readSource;\n        private readonly RegionMutationStore _mutationStore;\n        private readonly RegionSnapshotMutationStore _snapshotMutationStore;\n        private readonly RegionResidencyStore _residencyStore;\n'''
+          new = '''        // A single Composition lifetime owns the physical store. Ref-return aliases preserve\n        // direct native hot paths here without duplicating allocation, adapter wiring, or disposal.\n        private readonly VoxelEngineBootstrap.StorageRuntimeLifetime _storage;\n        private ref RegionTable _table => ref _storage.Table;\n        private ref BrickPool _pool => ref _storage.Pool;\n        private RegionReadSource _readSource => _storage.ReadSource;\n        private RegionMutationStore _mutationStore => _storage.MutationStore;\n        private RegionSnapshotMutationStore _snapshotMutationStore => _storage.SnapshotMutationStore;\n        private RegionResidencyStore _residencyStore => _storage.ResidencyStore;\n'''
+          if world.count(old) != 1:
+              raise SystemExit('Showcase storage field block drifted')
+          world = world.replace(old, new, 1)
+
+          old = '''        private FeatureCatalogue _catalogue;\n        private MaterialPalette _palette;\n        private MaterialSimulationView _materialSimulation;\n        private SurfaceCatalogue _surfaceCatalogue;\n        private CoatingCatalogue _coatingCatalogue;\n'''
+          new = '''        private FeatureCatalogue _catalogue;\n        private ref MaterialPalette _palette => ref _storage.Materials;\n        private MaterialSimulationView _materialSimulation;\n        private ref SurfaceCatalogue _surfaceCatalogue => ref _storage.Surfaces;\n        private ref CoatingCatalogue _coatingCatalogue => ref _storage.Coatings;\n'''
+          if world.count(old) != 1:
+              raise SystemExit('Showcase catalogue field block drifted')
+          world = world.replace(old, new, 1)
+
+          old = '        private readonly VoxelChangeJournal _changes = new();\n'
+          new = '        private VoxelChangeJournal _changes => _storage.ChangeJournal;\n'
+          if world.count(old) != 1:
+              raise SystemExit('Showcase change journal marker drifted')
+          world = world.replace(old, new, 1)
+
+          old = '''            _table = new RegionTable(64, Allocator.Persistent);\n            _pool = new BrickPool(brickPoolCapacity, Allocator.Persistent);\n            _readSource = new RegionReadSource(in _table, in _pool, _changes);\n            _mutationStore = new RegionMutationStore(in _table, in _pool);\n            _snapshotMutationStore = new RegionSnapshotMutationStore(in _table, in _pool);\n            _residencyStore = new RegionResidencyStore(in _table, in _pool);\n\n            _palette = default;\n'''
+          new = '''            _storage = new VoxelEngineBootstrap.StorageRuntimeLifetime(\n                64, brickPoolCapacity, 4096);\n\n'''
+          if world.count(old) != 1:
+              raise SystemExit('Showcase constructor storage allocation block drifted')
+          world = world.replace(old, new, 1)
+
+          old = '''            _surfaceCatalogue = SurfaceCatalogue.CreateBuiltIns();\n            _coatingCatalogue = CoatingCatalogue.CreateBuiltIns();\n            _materialAdjacencyCatalogue = default;\n'''
+          new = '''            _materialAdjacencyCatalogue = default;\n'''
+          if world.count(old) != 1:
+              raise SystemExit('Showcase catalogue construction block drifted')
+          world = world.replace(old, new, 1)
+
+          old = '''            if (_catalogue.IsCreated) _catalogue.Dispose();\n            if (_table.IsCreated) _table.Dispose();\n            if (_pool.IsCreated) _pool.Dispose();\n'''
+          new = '''            if (_catalogue.IsCreated) _catalogue.Dispose();\n            _storage.Dispose();\n'''
+          if world.count(old) != 1:
+              raise SystemExit('Showcase dispose block drifted')
+          world = world.replace(old, new, 1)
+
+          forbidden = ['new RegionTable(', 'new BrickPool(', '_table.Dispose()', '_pool.Dispose()']
+          leftovers = [token for token in forbidden if token in world]
+          if leftovers:
+              raise SystemExit('Showcase still owns physical storage lifetime: ' + ', '.join(leftovers))
+          world_path.write_text(world)
+
+          bridge_path = Path('Assets/VoxelEngine/Composition/Showcase/ShowcaseWorld.StorageBridge.cs')
+          bridge = bridge_path.read_text()
+          bridge = bridge.replace(
+              '    /// still owns the transitional concrete storage implementation.\n',
+              '    /// borrows the single Composition-owned storage lifetime used by the world hot paths.\n')
+          bridge_path.write_text(bridge)
+
+          guard_path = Path('Assets/Tests/EditMode/ProductionArchitectureClosureTests.cs')
+          guard = guard_path.read_text()
+          marker = '''        [Test]\n        public void DeletedCoreNamespaceDoesNotReappearInProductionSourceOrAsmdefs()\n'''
+          if 'ShowcaseWorldDoesNotAllocateOrDisposePhysicalStorage' not in guard:
+              test = '''        [Test]\n        public void ShowcaseWorldDoesNotAllocateOrDisposePhysicalStorage()\n        {\n            string path = Path.Combine(\n                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs");\n            Assert.IsTrue(File.Exists(path), "Missing Composition-owned ShowcaseWorld: " + path);\n\n            string source = File.ReadAllText(path);\n            string[] forbidden =\n            {\n                "new RegionTable(",\n                "new BrickPool(",\n                "_table.Dispose()",\n                "_pool.Dispose()",\n            };\n            var violations = forbidden\n                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)\n                .ToArray();\n\n            Assert.IsEmpty(violations,\n                "ShowcaseWorld may borrow physical storage for Composition-owned hot paths, but allocation " +\n                "and disposal must stay centralized in the shared Composition storage lifetime.\\n\\n" +\n                string.Join("\\n", violations));\n            StringAssert.Contains("VoxelEngineBootstrap.StorageRuntimeLifetime", source);\n        }\n\n'''
+              if guard.count(marker) != 1:
+                  raise SystemExit('ProductionArchitectureClosureTests insertion marker drifted')
+              guard = guard.replace(marker, test + marker, 1)
+          guard_path.write_text(guard)
+
+          plan_path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          plan = plan_path.read_text()
+          old = '- [ ] strengthen Kentridge boundary tests'
+          new = ('- [x] strengthen Kentridge boundary tests; `WorldGenAssemblyBoundaryTests` now guards semantic source, '
+                 'Voxel adapter Runtime refs, and physical Storage leakage from castle vegetation placement')
+          if old in plan:
+              plan = plan.replace(old, new, 1)
+          elif new not in plan:
+              raise SystemExit('Kentridge checklist marker drifted')
+          plan_path.write_text(plan)
+          PY
+
+          git diff --check
+          rm .github/workflows/cutover13-centralize-storage-lifetime.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Assets/VoxelEngine/Composition/VoxelEngineBootstrap.cs \
+                  Assets/VoxelEngine/Composition/Showcase/ShowcaseWorld.cs \
+                  Assets/VoxelEngine/Composition/Showcase/ShowcaseWorld.StorageBridge.cs \
+                  Assets/Tests/EditMode/ProductionArchitectureClosureTests.cs \
+                  docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md \
+                  .github/workflows/cutover13-centralize-storage-lifetime.yml
+          git commit -m 'refactor(composition): centralize Showcase storage lifetime'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
