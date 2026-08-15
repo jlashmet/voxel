@@ -1,6 +1,5 @@
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Net.Server
@@ -15,15 +14,14 @@ namespace VoxelEngine.Net.Server
             in AlterationEvent evt,
             in ServerPlayerRegistry.PlayerSession player,
             ServerPlayerRegistry players,
+            IRegionReadSource readStorage,
             IRegionMutationStore mutationStorage,
             IAlterationApplier applier,
-            ref RegionTable table,
-            in BrickPool pool,
             Validation.DensityCap densityCap,
             in ProtectedZones zones = default)
         {
             if (!evt.Validate() || evt.playerId != player.PlayerId || !player.CanAlterWorld ||
-                !applier.Supports(in evt))
+                readStorage == null || mutationStorage == null || !applier.Supports(in evt))
                 return Validation.ValidationResult.InvalidTarget;
 
             int estimatedBricks = EstimateAffectedBricks(in evt);
@@ -47,10 +45,10 @@ namespace VoxelEngine.Net.Server
             if (constructive && players != null && players.IntersectsPlayerVolume(minVoxel, maxVoxel))
                 return Validation.ValidationResult.InPlayerVolume;
 
-            if (constructive && !HasAttachment(minVoxel, maxVoxel, ref table, in pool))
+            if (constructive && !HasAttachment(minVoxel, maxVoxel, readStorage))
                 return Validation.ValidationResult.NotAttached;
 
-            if (constructive && WouldExceedDensity(in evt, estimatedBricks, ref table, densityCap))
+            if (constructive && WouldExceedDensity(in evt, estimatedBricks, readStorage, densityCap))
                 return Validation.ValidationResult.OverDensity;
 
             return Validation.ValidationResult.Success;
@@ -74,11 +72,11 @@ namespace VoxelEngine.Net.Server
                         evt.BrushExtents(),
                         out int3 minVoxel,
                         out int3 maxVoxel);
-                    int3 minBrick = minVoxel >> VoxelDimensions.BrickEdgeLog2;
-                    int3 maxBrick = maxVoxel >> VoxelDimensions.BrickEdgeLog2;
-                    long sx = (long)maxBrick.x - minBrick.x + 1;
-                    long sy = (long)maxBrick.y - minBrick.y + 1;
-                    long sz = (long)maxBrick.z - minBrick.z + 1;
+                    int3 minBlock = minVoxel >> VoxelReadGrid.BlockEdgeLog2;
+                    int3 maxBlock = maxVoxel >> VoxelReadGrid.BlockEdgeLog2;
+                    long sx = (long)maxBlock.x - minBlock.x + 1;
+                    long sy = (long)maxBlock.y - minBlock.y + 1;
+                    long sz = (long)maxBlock.z - minBlock.z + 1;
                     long estimate = sx * sy * sz;
                     return estimate > int.MaxValue ? int.MaxValue : (int)estimate;
                 }
@@ -97,7 +95,7 @@ namespace VoxelEngine.Net.Server
             {
                 case AlterationEvent.KindExplosion:
                 {
-                    int radiusVoxels = evt.Radius() * VoxelDimensions.BrickEdge;
+                    int radiusVoxels = evt.Radius() * VoxelReadGrid.BlockEdge;
                     int3 padding = new int3(radiusVoxels);
                     minVoxel = evt.origin - padding;
                     maxVoxel = evt.origin + padding;
@@ -114,7 +112,7 @@ namespace VoxelEngine.Net.Server
 
                 case AlterationEvent.KindRawBatch:
                 {
-                    int3 padding = new int3(VoxelDimensions.BrickEdge);
+                    int3 padding = new int3(VoxelReadGrid.BlockEdge);
                     minVoxel = evt.origin - padding;
                     maxVoxel = evt.origin + padding;
                     return;
@@ -137,7 +135,7 @@ namespace VoxelEngine.Net.Server
         }
 
         private static bool IsConstructive(in AlterationEvent evt) =>
-            evt.kind != AlterationEvent.KindExplosion && evt.material != VoxelDimensions.MaterialEmpty;
+            evt.kind != AlterationEvent.KindExplosion && evt.material != VoxelGrid.MaterialEmpty;
 
         /// <summary>
         /// A placement is attached when any voxel immediately outside one of its six faces is solid.
@@ -147,28 +145,27 @@ namespace VoxelEngine.Net.Server
         private static bool HasAttachment(
             int3 minVoxel,
             int3 maxVoxel,
-            ref RegionTable table,
-            in BrickPool pool)
+            IRegionReadSource storage)
         {
             for (int y = minVoxel.y; y <= maxVoxel.y; y++)
             for (int z = minVoxel.z; z <= maxVoxel.z; z++)
             {
-                if (IsSolidAtVoxel(ref table, in pool, new int3(minVoxel.x - 1, y, z))) return true;
-                if (IsSolidAtVoxel(ref table, in pool, new int3(maxVoxel.x + 1, y, z))) return true;
+                if (IsSolidAtVoxel(storage, new int3(minVoxel.x - 1, y, z))) return true;
+                if (IsSolidAtVoxel(storage, new int3(maxVoxel.x + 1, y, z))) return true;
             }
 
             for (int x = minVoxel.x; x <= maxVoxel.x; x++)
             for (int z = minVoxel.z; z <= maxVoxel.z; z++)
             {
-                if (IsSolidAtVoxel(ref table, in pool, new int3(x, minVoxel.y - 1, z))) return true;
-                if (IsSolidAtVoxel(ref table, in pool, new int3(x, maxVoxel.y + 1, z))) return true;
+                if (IsSolidAtVoxel(storage, new int3(x, minVoxel.y - 1, z))) return true;
+                if (IsSolidAtVoxel(storage, new int3(x, maxVoxel.y + 1, z))) return true;
             }
 
             for (int x = minVoxel.x; x <= maxVoxel.x; x++)
             for (int y = minVoxel.y; y <= maxVoxel.y; y++)
             {
-                if (IsSolidAtVoxel(ref table, in pool, new int3(x, y, minVoxel.z - 1))) return true;
-                if (IsSolidAtVoxel(ref table, in pool, new int3(x, y, maxVoxel.z + 1))) return true;
+                if (IsSolidAtVoxel(storage, new int3(x, y, minVoxel.z - 1))) return true;
+                if (IsSolidAtVoxel(storage, new int3(x, y, maxVoxel.z + 1))) return true;
             }
 
             return false;
@@ -176,50 +173,38 @@ namespace VoxelEngine.Net.Server
 
         private static bool WouldExceedDensity(
             in AlterationEvent evt,
-            int estimatedBricks,
-            ref RegionTable table,
+            int estimatedBlocks,
+            IRegionReadSource storage,
             Validation.DensityCap densityCap)
         {
             if (densityCap.totalBricks <= 0)
                 return false;
 
-            int3 regionCoord = evt.origin >> VoxelDimensions.RegionVoxelEdgeLog2;
-            if (!table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
+            int3 regionCoord = evt.origin >> VoxelGrid.RegionVoxelEdgeLog2;
+            if (!storage.TryAcquireRegion(regionCoord, out RegionReadView region))
                 return false;
 
             int currentMixed = 0;
-            for (int i = 0; i < region.BrickRefs.Length; i++)
-                if (region.BrickRefs[i].IsMixed)
+            for (int z = 0; z < VoxelReadGrid.BlocksPerRegionEdge; z++)
+            for (int y = 0; y < VoxelReadGrid.BlocksPerRegionEdge; y++)
+            for (int x = 0; x < VoxelReadGrid.BlocksPerRegionEdge; x++)
+            {
+                if (region.TryGetBlock(new int3(x, y, z), out VoxelReadBlock block)
+                    && block.Kind == VoxelReadBlockKind.Mixed)
                     currentMixed++;
+            }
 
-            return currentMixed + estimatedBricks > densityCap.MaxMixedBricks();
+            return currentMixed + estimatedBlocks > densityCap.MaxMixedBricks();
         }
 
-        private static bool IsSolidAtVoxel(ref RegionTable table, in BrickPool pool, int3 voxelCoord)
+        private static bool IsSolidAtVoxel(IRegionReadSource storage, int3 voxelCoord)
         {
-            int3 brickCoord = voxelCoord >> VoxelDimensions.BrickEdgeLog2;
-            int3 regionCoord = brickCoord >> VoxelDimensions.RegionEdgeLog2;
-
-            if (!table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
+            int3 worldBlock = voxelCoord >> VoxelReadGrid.BlockEdgeLog2;
+            if (!storage.TryAcquireRegionContainingBlock(worldBlock, out RegionReadView region))
                 return false;
 
-            int brickIndex = Region.BrickIndex(
-                brickCoord.x & VoxelDimensions.RegionEdgeMask,
-                brickCoord.y & VoxelDimensions.RegionEdgeMask,
-                brickCoord.z & VoxelDimensions.RegionEdgeMask);
-
-            BrickRef brickRef = region.BrickRefs[brickIndex];
-            if (!brickRef.IsMixed)
-                return brickRef.UniformMaterial != VoxelDimensions.MaterialEmpty;
-
-            int localX = voxelCoord.x & VoxelDimensions.BrickEdgeMask;
-            int localY = voxelCoord.y & VoxelDimensions.BrickEdgeMask;
-            int localZ = voxelCoord.z & VoxelDimensions.BrickEdgeMask;
-            int voxelIndex = localX |
-                             (localY << VoxelDimensions.BrickEdgeLog2) |
-                             (localZ << (VoxelDimensions.BrickEdgeLog2 * 2));
-
-            return pool.GetVoxel(brickRef.PoolIndex, voxelIndex) != VoxelDimensions.MaterialEmpty;
+            int3 localVoxel = voxelCoord - (region.RegionCoord << VoxelGrid.RegionVoxelEdgeLog2);
+            return region.TryReadCell(localVoxel, out VoxelCell cell) && cell.IsSolid;
         }
     }
 }
