@@ -15,7 +15,7 @@ on:
       - "ProjectSettings/ProjectVersion.txt"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: cutover13-final-unity-${{ github.ref }}
@@ -122,3 +122,96 @@ jobs:
           path: Artifacts/Cutover13Final/
           if-no-files-found: warn
           retention-days: 14
+
+  record-plan:
+    needs: editmode
+    if: ${{ needs.editmode.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-clean
+          fetch-depth: 0
+      - name: Verify no newer source invalidates this acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin refactor/system-boundaries-finalization-clean
+          changed="$(git diff --name-only "$GITHUB_SHA"..origin/refactor/system-boundaries-finalization-clean -- \
+            Assets/VoxelEngine \
+            Assets/Scenes/Showcase \
+            Assets/Tests/EditMode \
+            Packages/com.mountingforce.worldgen \
+            Packages/manifest.json \
+            Packages/packages-lock.json \
+            ProjectSettings/ProjectVersion.txt)"
+          if [ -n "$changed" ]; then
+            echo 'A newer source change exists; refusing to mark final validation complete:' >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+      - name: Mark final architecture tasks complete
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -B refactor/system-boundaries-finalization-clean origin/refactor/system-boundaries-finalization-clean
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          source = os.environ['GITHUB_SHA']
+          run = os.environ['GITHUB_RUN_ID']
+          path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = path.read_text()
+
+          text = text.replace(
+              '**Status:** In progress — live checklist maintained on the implementation branch  ',
+              '**Status:** Complete — final architecture acceptance passed  ',
+              1)
+          text = text.replace(
+              '**Current focus:** Cutover 13 — static architecture closure accepted; final Unity/EditMode parity pending',
+              '**Current focus:** Complete — system-boundary refactor accepted',
+              1)
+
+          lines = text.splitlines()
+          for i, line in enumerate(lines):
+              if line.startswith('| 13 — Composition/Core deletion |'):
+                  lines[i] = (
+                      '| 13 — Composition/Core deletion | **Complete** | '
+                      'concrete Runtime wiring is centralized in Composition; scene Showcase is Runtime-free; '
+                      'production Runtime/Core/legacy-adapter closure and WorldGen direction pass the permanent static gate; '
+                      f'final Unity/EditMode parity accepted at source `{source}`, run `{run}` with 387/374/13 and zero compiler errors | none |'
+                  )
+              elif line.startswith('- Latest accepted code gate:'):
+                  lines[i] = (
+                      f'- Latest accepted code gate: source `{source}`, run `{run}` — 387 tests, 374 passed, '
+                      'exactly the same 13 known baseline failures with zero C# compiler errors. '
+                      'This is the final Cutover 13 Unity/EditMode acceptance.'
+                  )
+              elif line.strip() == '- [ ] final targeted/full-available validation':
+                  lines[i] = (
+                      f'- [x] final targeted/full-available validation; source `{source}`, run `{run}` — '
+                      '387 total / 374 passed / exact 13 known baseline failures / zero C# compiler errors'
+                  )
+          text = '\n'.join(lines) + '\n'
+          text = text.replace(
+              'Final Unity/EditMode parity remains pending.',
+              f'Final Unity/EditMode parity accepted at source `{source}`, run `{run}` with 387/374/13 and zero compiler errors.')
+
+          if '[ ]' in text:
+              pending = [line for line in text.splitlines() if '[ ]' in line]
+              raise SystemExit('Unchecked implementation-plan tasks remain after final acceptance:\n' + '\n'.join(pending))
+          if '**Status:** Complete — final architecture acceptance passed' not in text:
+              raise SystemExit('Plan status was not updated to Complete')
+          if '| 13 — Composition/Core deletion | **Complete** |' not in text:
+              raise SystemExit('Cutover 13 table row was not updated to Complete')
+
+          path.write_text(text)
+          PY
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'docs(architecture): mark system-boundary refactor complete'
+          git pull --rebase origin refactor/system-boundaries-finalization-clean
+          git push origin HEAD:refactor/system-boundaries-finalization-clean
