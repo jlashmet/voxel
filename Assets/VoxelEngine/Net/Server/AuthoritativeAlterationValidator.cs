@@ -1,6 +1,7 @@
 using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Net.Server
 {
@@ -14,6 +15,7 @@ namespace VoxelEngine.Net.Server
             in AlterationEvent evt,
             in ServerPlayerRegistry.PlayerSession player,
             ServerPlayerRegistry players,
+            IRegionMutationStore mutationStorage,
             ref RegionTable table,
             in BrickPool pool,
             Validation.DensityCap densityCap,
@@ -34,7 +36,7 @@ namespace VoxelEngine.Net.Server
 
             // Fail before expensive placement checks and before the applier has a chance to see a
             // partially resident effect. Missing streaming state is not a valid mutation target.
-            if (!DeterministicAlterationApplier.HasRequiredResidency(ref table, in evt))
+            if (!DeterministicAlterationApplier.HasRequiredResidency(mutationStorage, in evt))
                 return Validation.ValidationResult.InvalidTarget;
 
             if (zones.IsCreated && zones.IntersectsProtected(minVoxel, maxVoxel))

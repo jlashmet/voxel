@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Server
@@ -18,7 +19,7 @@ namespace VoxelEngine.Net.Server
 
     public interface IAuthoritativeAlterationApplier
     {
-        bool TryApplyAlteration(ref RegionTable table, ref BrickPool pool, in AlterationEvent evt);
+        bool TryApplyAlteration(IRegionMutationStore storage, in AlterationEvent evt);
     }
 
     public interface IAuthoritativeAlterationPublisher
@@ -44,6 +45,7 @@ namespace VoxelEngine.Net.Server
         private readonly AlterationRateLimiter _rateLimiter;
         private readonly uint _serverSeed;
         private readonly Validation.DensityCap _densityCap;
+        private RegionMutationStore _mutationStorage;
 
         private readonly List<ServerCommandInbox.QueuedAlterationRequest> _alterationDrain = new List<ServerCommandInbox.QueuedAlterationRequest>(128);
         private readonly List<ServerCommandInbox.QueuedPlayerInput> _inputDrain = new List<ServerCommandInbox.QueuedPlayerInput>(256);
@@ -87,9 +89,14 @@ namespace VoxelEngine.Net.Server
             if (publisher == null) throw new ArgumentNullException(nameof(publisher));
             if (rejectionSink == null) throw new ArgumentNullException(nameof(rejectionSink));
 
+            _mutationStorage ??= new RegionMutationStore(in table, in pool);
+            _mutationStorage.Refresh(in table, in pool);
+
             DrainAndResolve(serverTick);
             ProcessInputs(serverTick, inputSink);
-            ProcessAlterations(serverTick, ref table, ref pool, in zones, applier, publisher, rejectionSink);
+            ProcessAlterations(
+                serverTick, ref table, ref pool, _mutationStorage, in zones,
+                applier, publisher, rejectionSink);
         }
 
         public bool TryGetLastProcessedInputSequence(ushort playerId, out ushort sequence) =>
@@ -180,6 +187,7 @@ namespace VoxelEngine.Net.Server
             uint serverTick,
             ref RegionTable table,
             ref BrickPool pool,
+            IRegionMutationStore mutationStorage,
             in ProtectedZones zones,
             IAuthoritativeAlterationApplier applier,
             IAuthoritativeAlterationPublisher publisher,
@@ -216,13 +224,14 @@ namespace VoxelEngine.Net.Server
                         in evt,
                         in player,
                         _players,
+                        mutationStorage,
                         ref table,
                         in pool,
                         _densityCap,
                         in zones);
 
                     if (validation == Validation.ValidationResult.Success &&
-                        !applier.TryApplyAlteration(ref table, ref pool, in evt))
+                        !applier.TryApplyAlteration(mutationStorage, in evt))
                         validation = Validation.ValidationResult.InvalidTarget;
 
                     if (validation == Validation.ValidationResult.Success)
