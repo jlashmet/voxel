@@ -1,0 +1,56 @@
+name: Final guard self-reference fix once
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths:
+      - ".github/workflows/final-guard-selfref-fix-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-stable
+          fetch-depth: 0
+      - name: Fix exact guard allowlists and self-delete
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization-stable
+          python3 - <<'PY'
+          from pathlib import Path
+
+          static_path = "              '.github/workflows/final-architecture-static.yml',"
+          stable_path = "              '.github/workflows/stable-final-architecture-acceptance.yml',"
+
+          workflow = Path('.github/workflows/stable-final-architecture-acceptance.yml')
+          text = workflow.read_text()
+          if static_path not in text:
+              if text.count(stable_path) != 1:
+                  raise SystemExit('expected exactly one stable workflow allowlist entry')
+              text = text.replace(stable_path, stable_path + '\n' + static_path, 1)
+              workflow.write_text(text)
+
+          test = Path('Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs')
+          text = test.read_text()
+          cs_static = '                ".github/workflows/final-architecture-static.yml",'
+          cs_stable = '                ".github/workflows/stable-final-architecture-acceptance.yml",'
+          if cs_static not in text:
+              if text.count(cs_stable) != 1:
+                  raise SystemExit('expected exactly one C# stable workflow allowlist entry')
+              text = text.replace(cs_stable, cs_static + '\n' + cs_stable, 1)
+              test.write_text(text)
+          PY
+
+          git rm -f .github/workflows/final-guard-selfref-fix-once.yml
+          git rm -f .github/workflows/final-storage-checklist-sync.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/stable-final-architecture-acceptance.yml Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs
+          git commit -m "test(architecture): fix final guard self references"
+          git push origin HEAD:refactor/system-boundaries-finalization-stable
