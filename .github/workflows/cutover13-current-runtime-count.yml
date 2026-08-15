@@ -1,0 +1,40 @@
+name: Cutover 13 current Runtime count
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-current-runtime-count.yml
+permissions:
+  contents: read
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Count Showcase Runtime references
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          root=Path('Assets/Scenes/Showcase')
+          pat=re.compile(r'using\s+(VoxelEngine\.[A-Za-z0-9_.]+\.Runtime(?:\.[A-Za-z0-9_.]+)*)\s*;')
+          files=[]; namespaces=set(); storage=[]
+          for p in sorted(root.rglob('*.cs')):
+              text=p.read_text(errors='ignore')
+              hits=sorted(set(pat.findall(text)))
+              if hits:
+                  files.append((p,hits)); namespaces.update(hits)
+              if 'using VoxelEngine.Storage.Runtime;' in text: storage.append(p)
+          asm=json.loads((root/'VoxelEngine.Showcase.asmdef').read_text())
+          refs=sorted(r for r in asm.get('references',[]) if isinstance(r,str) and '.Runtime' in r)
+          print('FILES_WITH_RUNTIME=',len(files))
+          for p,h in files: print(p, '=>', ', '.join(h))
+          print('RUNTIME_NAMESPACES=',len(namespaces))
+          print('STORAGE_RUNTIME_FILES=',len(storage))
+          for p in storage: print('STORAGE',p)
+          print('RUNTIME_ASMDEF_REFS=',len(refs))
+          for r in refs: print('ASM',r)
+          PY
