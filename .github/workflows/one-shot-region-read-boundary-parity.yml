@@ -1,0 +1,34 @@
+name: One-shot Region Read Boundary Parity
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Apply parity fix
+        run: python Tools/Refactor/fix_region_read_boundary_parity.py
+      - name: Verify scoped diff
+        run: |
+          git diff --check
+          git diff --name-only | grep -qx 'Assets/VoxelEngine/Storage/Api/RegionReadView.cs'
+      - name: Commit fix and remove one-shot tooling
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Storage/Api/RegionReadView.cs
+          git rm Tools/Refactor/fix_region_read_boundary_parity.py .github/workflows/one-shot-region-read-boundary-parity.yml
+          git commit -m 'fix: preserve empty-cell authored boundaries in read view'
+          git push
