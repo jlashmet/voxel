@@ -4,7 +4,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -237,11 +237,10 @@ namespace MountingForce.WorldGen.Voxel
             int lowTarget = Math.Min(targetA, targetB);
             int highTarget = Math.Max(targetA, targetB);
             int delta = highTarget - lowTarget;
-
             Int2 mid = new Int2((a.X + b.X) / 2, (a.Y + b.Y) / 2);
-            int naturalA = TerrainSampler.HeightAt(a.X * scale, a.Y * scale, seed);
-            int naturalB = TerrainSampler.HeightAt(b.X * scale, b.Y * scale, seed);
-            int naturalMid = TerrainSampler.HeightAt(mid.X * scale, mid.Y * scale, seed);
+            int naturalA = TerrainQuery.HeightAt(a.X * scale, a.Y * scale, seed);
+            int naturalB = TerrainQuery.HeightAt(b.X * scale, b.Y * scale, seed);
+            int naturalMid = TerrainQuery.HeightAt(mid.X * scale, mid.Y * scale, seed);
             int minNatural = Math.Min(naturalA, Math.Min(naturalB, naturalMid));
             int maxNatural = Math.Max(naturalA, Math.Max(naturalB, naturalMid));
 
@@ -300,12 +299,12 @@ namespace MountingForce.WorldGen.Voxel
             int target = KentridgeVerticalProfile.SurfaceYAtDm(
                 plaza.CentreDm.X, plaza.CentreDm.Y, seed, scale);
 
-            int naturalCentre = TerrainSampler.HeightAt(
+            int naturalCentre = TerrainQuery.HeightAt(
                 plaza.CentreDm.X * scale, plaza.CentreDm.Y * scale, seed);
-            int natural00 = TerrainSampler.HeightAt(minXDm * scale, minZDm * scale, seed);
-            int natural10 = TerrainSampler.HeightAt(maxXDm * scale, minZDm * scale, seed);
-            int natural01 = TerrainSampler.HeightAt(minXDm * scale, maxZDm * scale, seed);
-            int natural11 = TerrainSampler.HeightAt(maxXDm * scale, maxZDm * scale, seed);
+            int natural00 = TerrainQuery.HeightAt(minXDm * scale, minZDm * scale, seed);
+            int natural10 = TerrainQuery.HeightAt(maxXDm * scale, minZDm * scale, seed);
+            int natural01 = TerrainQuery.HeightAt(minXDm * scale, maxZDm * scale, seed);
+            int natural11 = TerrainQuery.HeightAt(maxXDm * scale, maxZDm * scale, seed);
             int minNatural = Math.Min(naturalCentre,
                 Math.Min(Math.Min(natural00, natural10), Math.Min(natural01, natural11)));
             int maxNatural = Math.Max(naturalCentre,
