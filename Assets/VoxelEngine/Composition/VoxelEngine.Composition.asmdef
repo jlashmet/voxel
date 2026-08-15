@@ -20,6 +20,8 @@
     "VoxelEngine.Tiering.Api",
     "VoxelEngine.Collision.Api",
     "VoxelEngine.Net.Runtime",
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.Vegetation.Runtime",
     "Unity.Networking.Transport"
   ],
   "includePlatforms": [],
