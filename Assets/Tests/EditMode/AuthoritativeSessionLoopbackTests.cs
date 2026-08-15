@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
+using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
@@ -21,7 +22,8 @@ namespace VoxelEngine.Tests.EditMode
         {
             using var server = new AuthoritativeServerSession(
                 serverSeed: 0x12345678,
-                densityCap: new Validation.DensityCap(1f, 0));
+                densityCap: new Validation.DensityCap(1f, 0),
+                alterationApplier: new DeterministicAlterationApplier());
             using var client = new UtpClientHost();
 
             var clientHandler = new RecordingClientHandler();
@@ -162,11 +164,12 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private sealed class AcceptingApplier : IAuthoritativeAlterationApplier
+        private sealed class AcceptingApplier : IAlterationApplier
         {
             public int Count { get; private set; }
-            public bool TryApplyAlteration(IRegionMutationStore storage, in AlterationEvent evt)
+            public bool TryApply(IRegionMutationStore storage, in AlterationEvent evt, out NativeList<int3> affectedBlocks)
             {
+                affectedBlocks = new NativeList<int3>(0, Allocator.Temp);
                 Count++;
                 return true;
             }

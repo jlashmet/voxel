@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
@@ -15,11 +16,6 @@ namespace VoxelEngine.Net.Server
     public interface IProcessedInputAckSource
     {
         bool TryGetLastProcessedInputSequence(ushort playerId, out ushort sequence);
-    }
-
-    public interface IAuthoritativeAlterationApplier
-    {
-        bool TryApplyAlteration(IRegionMutationStore storage, in AlterationEvent evt);
     }
 
     public interface IAuthoritativeAlterationPublisher
@@ -79,7 +75,7 @@ namespace VoxelEngine.Net.Server
             ref BrickPool pool,
             in ProtectedZones zones,
             IAuthoritativePlayerInputSink inputSink,
-            IAuthoritativeAlterationApplier applier,
+            IAlterationApplier applier,
             IAuthoritativeAlterationPublisher publisher,
             IAlterationRejectionSink rejectionSink)
         {
@@ -189,7 +185,7 @@ namespace VoxelEngine.Net.Server
             ref BrickPool pool,
             IRegionMutationStore mutationStorage,
             in ProtectedZones zones,
-            IAuthoritativeAlterationApplier applier,
+            IAlterationApplier applier,
             IAuthoritativeAlterationPublisher publisher,
             IAlterationRejectionSink rejectionSink)
         {
@@ -230,9 +226,13 @@ namespace VoxelEngine.Net.Server
                         _densityCap,
                         in zones);
 
-                    if (validation == Validation.ValidationResult.Success &&
-                        !applier.TryApplyAlteration(mutationStorage, in evt))
-                        validation = Validation.ValidationResult.InvalidTarget;
+                    if (validation == Validation.ValidationResult.Success)
+                    {
+                        bool changed = applier.TryApply(
+                            mutationStorage, in evt, out NativeList<Unity.Mathematics.int3> affectedBlocks);
+                        if (affectedBlocks.IsCreated) affectedBlocks.Dispose();
+                        if (!changed) validation = Validation.ValidationResult.InvalidTarget;
+                    }
 
                     if (validation == Validation.ValidationResult.Success)
                     {

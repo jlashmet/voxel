@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
+using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Client;
 using VoxelEngine.Net.Protocol;
@@ -21,6 +22,7 @@ namespace VoxelEngine.Tests.EditMode
             using var server = new AuthoritativeServerSession(
                 serverSeed: 0xC001C0DEu,
                 densityCap: new Validation.DensityCap(1f, VoxelDimensions.BricksPerRegion),
+                alterationApplier: new DeterministicAlterationApplier(),
                 maxConnections: 2,
                 playerStateIntervalTicks: 1);
             using var clientOne = new ClientNetworkRuntime();

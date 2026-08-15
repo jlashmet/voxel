@@ -181,11 +181,12 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private sealed class RecordingApplier : IAuthoritativeAlterationApplier
+        private sealed class RecordingApplier : IAlterationApplier
         {
             public int ApplyCount { get; private set; }
-            public bool TryApplyAlteration(IRegionMutationStore storage, in AlterationEvent evt)
+            public bool TryApply(IRegionMutationStore storage, in AlterationEvent evt, out NativeList<int3> affectedBlocks)
             {
+                affectedBlocks = new NativeList<int3>(0, Allocator.Temp);
                 ApplyCount++;
                 return true;
             }

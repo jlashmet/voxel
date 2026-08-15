@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
+using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Client;
 using VoxelEngine.Net.Protocol;
@@ -20,7 +21,8 @@ namespace VoxelEngine.Tests.EditMode
         {
             using var server = new AuthoritativeServerSession(
                 serverSeed: 0xA11CE55u,
-                densityCap: new Validation.DensityCap(1f, 0));
+                densityCap: new Validation.DensityCap(1f, 0),
+                alterationApplier: new DeterministicAlterationApplier());
             using var client = new ClientNetworkRuntime();
 
             uint connectionId = 0;
@@ -79,7 +81,7 @@ namespace VoxelEngine.Tests.EditMode
                     });
 
                 var inputSink = new NoopInputSink();
-                var applier = new ServerDeterministicAlterationApplier();
+                var applier = new DeterministicAlterationApplier();
                 server.ProcessAuthoritativeTick(
                     20,
                     ref serverTable,

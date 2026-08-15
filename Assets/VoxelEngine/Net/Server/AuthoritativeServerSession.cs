@@ -1,6 +1,7 @@
 using System;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
+using VoxelEngine.Edits.Api;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Protocol;
 
@@ -21,7 +22,7 @@ namespace VoxelEngine.Net.Server
         private readonly ServerConvergenceManager _convergence;
         private readonly ServerBulkRegionStateManager _bulkRegionState;
         private readonly ServerPlayerStateReplicator _playerStates;
-        private readonly ServerDeterministicAlterationApplier _defaultAlterationApplier;
+        private readonly IAlterationApplier _defaultAlterationApplier;
         private bool _disposed;
 
         public event Action<uint, NetworkEndpoint> ConnectionOpened;
@@ -34,6 +35,7 @@ namespace VoxelEngine.Net.Server
         public AuthoritativeServerSession(
             uint serverSeed,
             Validation.DensityCap densityCap,
+            IAlterationApplier alterationApplier = null,
             int maxConnections = 64,
             int initialEventCapacity = 64,
             uint hashIntervalTicks = ServerConvergenceManager.DefaultHashIntervalTicks,
@@ -54,7 +56,7 @@ namespace VoxelEngine.Net.Server
             _convergence = new ServerConvergenceManager(_convergenceInbox, _players, hashIntervalTicks);
             _bulkRegionState = new ServerBulkRegionStateManager(_regionStateInbox, _players);
             _playerStates = new ServerPlayerStateReplicator(_players, _processor, playerStateIntervalTicks);
-            _defaultAlterationApplier = new ServerDeterministicAlterationApplier();
+            _defaultAlterationApplier = alterationApplier;
 
             _network.ConnectionOpened += OnConnectionOpened;
             _network.ConnectionClosed += OnConnectionClosed;
@@ -148,6 +150,8 @@ namespace VoxelEngine.Net.Server
             in ProtectedZones zones,
             IAuthoritativePlayerInputSink inputSink)
         {
+            if (_defaultAlterationApplier == null)
+                throw new InvalidOperationException("An Edits alteration applier must be supplied for the default authoritative tick path.");
             ProcessAuthoritativeTick(
                 serverTick,
                 ref table,
@@ -163,7 +167,7 @@ namespace VoxelEngine.Net.Server
             ref BrickPool pool,
             in ProtectedZones zones,
             IAuthoritativePlayerInputSink inputSink,
-            IAuthoritativeAlterationApplier applier)
+            IAlterationApplier applier)
         {
             ThrowIfDisposed();
             if (inputSink == null) throw new ArgumentNullException(nameof(inputSink));

@@ -31,7 +31,7 @@ namespace VoxelEngine.Net.Server
             ref RegionTable table,
             ref BrickPool pool,
             Validation.DensityCap densityCap,
-            IAuthoritativeAlterationApplier applier,
+            IAlterationApplier applier,
             in ProtectedZones zones = default)
         {
             if (mutationStorage == null)
@@ -58,7 +58,10 @@ namespace VoxelEngine.Net.Server
             if (validation != Validation.ValidationResult.Success)
                 return AdjudicationResult.Reject(authoritativeTick, player.PlayerId, ToReason(validation));
 
-            if (!applier.TryApplyAlteration(mutationStorage, in evt))
+            bool changed = applier.TryApply(
+                mutationStorage, in evt, out NativeList<int3> affectedBlocks);
+            if (affectedBlocks.IsCreated) affectedBlocks.Dispose();
+            if (!changed)
                 return AdjudicationResult.Reject(
                     authoritativeTick,
                     player.PlayerId,

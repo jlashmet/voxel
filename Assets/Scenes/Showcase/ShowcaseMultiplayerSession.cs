@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using Unity.Networking.Transport;
 using UnityEngine;
 using VoxelEngine.Edits.Api;
+using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Client;
 using VoxelEngine.Net.Protocol;
@@ -77,6 +78,7 @@ namespace VoxelEngine.Showcase
                 _server = new AuthoritativeServerSession(
                     _world.Seed,
                     new Validation.DensityCap(1f, VoxelDimensions.BricksPerRegion),
+                    new DeterministicAlterationApplier(),
                     maxConnections: 2);
                 _server.ConnectionOpened += OnServerConnectionOpened;
                 _server.ConnectionClosed += OnServerConnectionClosed;

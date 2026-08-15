@@ -10,8 +10,14 @@ namespace VoxelEngine.Core.Edits
     /// Geometry and iteration order live in Edits; physical storage transitions are owned by
     /// Storage through block-granular mutation views.
     /// </summary>
-    public static class DeterministicAlterationApplier
+    public sealed class DeterministicAlterationApplier : IAlterationApplier
     {
+        bool IAlterationApplier.TryApply(
+            IRegionMutationStore storage,
+            in AlterationEvent evt,
+            out NativeList<int3> affectedBlocks) =>
+            TryApply(storage, in evt, out affectedBlocks);
+
         public static bool Supports(in AlterationEvent evt) =>
             evt.kind == AlterationEvent.KindExplosion ||
             (evt.kind == AlterationEvent.KindBrush && BrushShapeCodec.Validate(evt.shapeKind, evt.shapeData));

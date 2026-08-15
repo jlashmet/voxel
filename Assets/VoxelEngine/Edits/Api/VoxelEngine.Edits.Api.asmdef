@@ -3,7 +3,8 @@
   "rootNamespace": "VoxelEngine.Edits.Api",
   "references": [
     "VoxelEngine.Storage.Api",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "Unity.Collections"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

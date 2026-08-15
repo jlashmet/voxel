@@ -4,6 +4,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
+using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Net.Client;
 using VoxelEngine.Net.Protocol;
@@ -19,7 +20,8 @@ namespace VoxelEngine.Tests.EditMode
         {
             using var server = new AuthoritativeServerSession(
                 serverSeed: 0x12345678,
-                densityCap: new Validation.DensityCap(1f, 0));
+                densityCap: new Validation.DensityCap(1f, 0),
+                alterationApplier: new DeterministicAlterationApplier());
             using var client = new ClientNetworkRuntime();
 
             uint connectionId = 0;
