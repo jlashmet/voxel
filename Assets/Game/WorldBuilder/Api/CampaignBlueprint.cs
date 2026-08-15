@@ -33,8 +33,11 @@ namespace Game.WorldBuilder.Api
             Id = WorldIdRules.Require(id, nameof(id));
             Hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
             Cutscenes = cutscenes ?? Array.Empty<CutsceneSpec>();
-            Sites = DeriveSiteCapabilities(sites ?? Array.Empty<SiteSpec>(), Cutscenes);
             Npcs = npcs ?? Array.Empty<NpcSpec>();
+            Sites = DeriveSiteCapabilities(
+                sites ?? Array.Empty<SiteSpec>(),
+                Cutscenes,
+                Npcs);
             SpatialConstraints = spatialConstraints ?? Array.Empty<SpatialConstraintSpec>();
             StoryRules = storyRules ?? Array.Empty<StoryRuleSpec>();
             Objectives = objectives ?? Array.Empty<ObjectiveSpec>();
@@ -44,52 +47,72 @@ namespace Game.WorldBuilder.Api
         }
 
         /// <summary>
-        /// Normalizes capabilities implied by authored content. A cutscene with physical stage points
-        /// is itself proof that its host must support cutscene staging; authors should not repeat the
-        /// same fact with RequireCapability(CutsceneStage). The detailed CutsceneStagePlan remains the
-        /// actual geometry requirement consumed by generation.
+        /// Normalizes capabilities implied directly by authored content. The detailed generation
+        /// plans remain authoritative; these capabilities let generic site selection/generation see
+        /// the same requirements without forcing authors to restate them manually.
         /// </summary>
         private static SiteSpec[] DeriveSiteCapabilities(
             SiteSpec[] sites,
-            IReadOnlyList<CutsceneSpec> cutscenes)
+            IReadOnlyList<CutsceneSpec> cutscenes,
+            IReadOnlyList<NpcSpec> npcs)
         {
             var result = new SiteSpec[sites.Length];
             for (var i = 0; i < sites.Length; i++)
             {
                 SiteSpec site = sites[i];
-                bool requiresCutsceneStage = false;
-                for (var j = 0; j < cutscenes.Count; j++)
-                {
-                    CutsceneSpec cutscene = cutscenes[j];
-                    if (cutscene.Site.Equals(site.Ref)
-                        && cutscene.Definition.StageRequirements.Count > 0)
-                    {
-                        requiresCutsceneStage = true;
-                        break;
-                    }
-                }
+                var capabilities = new List<SiteCapabilityRequirement>(site.Capabilities.Count + 2);
+                for (var j = 0; j < site.Capabilities.Count; j++)
+                    capabilities.Add(site.Capabilities[j]);
 
-                if (!requiresCutsceneStage || HasCapability(site, SiteCapabilityKind.CutsceneStage))
+                if (RequiresCutsceneStage(site.Ref, cutscenes))
+                    AddCapabilityIfMissing(capabilities, SiteCapability.CutsceneStage);
+
+                if (RequiresConversationSpace(site.Ref, npcs))
+                    AddCapabilityIfMissing(capabilities, SiteCapability.ConversationSpace);
+
+                if (capabilities.Count == site.Capabilities.Count)
                 {
                     result[i] = site;
                     continue;
                 }
 
-                var capabilities = new SiteCapabilityRequirement[site.Capabilities.Count + 1];
-                for (var j = 0; j < site.Capabilities.Count; j++)
-                    capabilities[j] = site.Capabilities[j];
-                capabilities[capabilities.Length - 1] = SiteCapability.CutsceneStage;
-                result[i] = new SiteSpec(site.Ref, site.Archetype, capabilities);
+                result[i] = new SiteSpec(site.Ref, site.Archetype, capabilities.ToArray());
             }
             return result;
         }
 
-        private static bool HasCapability(SiteSpec site, SiteCapabilityKind kind)
+        private static bool RequiresCutsceneStage(
+            SiteRef site,
+            IReadOnlyList<CutsceneSpec> cutscenes)
         {
-            for (var i = 0; i < site.Capabilities.Count; i++)
-                if (site.Capabilities[i].Kind == kind)
+            for (var i = 0; i < cutscenes.Count; i++)
+            {
+                CutsceneSpec cutscene = cutscenes[i];
+                if (cutscene.Site.Equals(site)
+                    && cutscene.Definition.StageRequirements.Count > 0)
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool RequiresConversationSpace(
+            SiteRef site,
+            IReadOnlyList<NpcSpec> npcs)
+        {
+            for (var i = 0; i < npcs.Count; i++)
+                if (npcs[i].Site.Equals(site) && npcs[i].RequiresConversation)
                     return true;
             return false;
+        }
+
+        private static void AddCapabilityIfMissing(
+            List<SiteCapabilityRequirement> capabilities,
+            SiteCapabilityRequirement capability)
+        {
+            for (var i = 0; i < capabilities.Count; i++)
+                if (capabilities[i].Kind == capability.Kind)
+                    return;
+            capabilities.Add(capability);
         }
     }
 
