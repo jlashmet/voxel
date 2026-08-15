@@ -1,5 +1,5 @@
 name: Net acceptance isolated
-# rerun: final behavioral acceptance after static ownership gate
+# final behavioral acceptance against stable Net source tree 871fd663
 on:
   push:
     branches: [refactor/system-boundaries-foundation-storage]
@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 84b817635c5282ae958b6166b0c0c8c48cc7d91a
+          ref: 871fd663ac9c57d8e001ce2ff11f5ac30df242f0
           clean: true
           fetch-depth: 1
       - name: Run EditMode suite
