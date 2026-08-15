@@ -268,10 +268,8 @@ namespace VoxelEngine.Tests.EditMode
                 b.Boundary = VoxelBoundarySample.FromSignedQ4(11);
                 VoxelAccess.SetCell(ref aTable, ref aPool, new int3(2, 3, 4), in a);
                 VoxelAccess.SetCell(ref bTable, ref bPool, new int3(2, 3, 4), in b);
-                Assert.True(aTable.TryGetRegion(int3.zero, out Region aRegion));
-                Assert.True(bTable.TryGetRegion(int3.zero, out Region bRegion));
-                Assert.AreNotEqual(RegionHasher.HashRegion(in aRegion, in aPool),
-                                   RegionHasher.HashRegion(in bRegion, in bPool));
+                Assert.AreNotEqual(SemanticHash(ref aTable, in aPool),
+                                   SemanticHash(ref bTable, in bPool));
             }
             finally
             {
@@ -308,8 +306,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.True(bTable.TryGetRegion(int3.zero, out Region bRegion));
                 Assert.AreNotEqual(aRegion.BrickRefs[0].PoolIndex,
                                    bRegion.BrickRefs[0].PoolIndex);
-                Assert.AreEqual(RegionHasher.HashRegion(in aRegion, in aPool),
-                                RegionHasher.HashRegion(in bRegion, in bPool));
+                Assert.AreEqual(SemanticHash(ref aTable, in aPool),
+                                SemanticHash(ref bTable, in bPool));
                 bPool.Free(unused);
             }
             finally
@@ -940,6 +938,18 @@ namespace VoxelEngine.Tests.EditMode
                 3 => new int3(point.z, point.y, footprint.x - 1 - point.x),
                 _ => point
             };
+
+        private static uint SemanticHash(ref RegionTable table, in BrickPool pool)
+        {
+            var source = new RegionReadSource(in table, in pool);
+            Assert.AreEqual(
+                RegionSnapshotCaptureResult.Ok,
+                source.CaptureSemanticSnapshot(
+                    int3.zero,
+                    RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,
+                    out RegionSemanticSnapshot snapshot));
+            return snapshot.SemanticHash;
+        }
 
         private static RasterResult Rasterise(
             NativeArray<Primitive> primitives,
