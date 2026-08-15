@@ -31,7 +31,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
 | 11 — Net | **Complete** | Net.Api/Runtime physical decomposition and Runtime namespaces are complete; Runtime references only approved domain APIs; residency delegates Streaming.Api; semantic repair/snapshots use Storage.Api logical capabilities; structural graph and duplicate edit wrapper are gone; final 384/371/13 behavioral baseline accepted | none |
 | 12 — Rendering | **Complete** | Rendering Api/Runtime physical + namespace + asmdef cutover complete; Runtime consumes Storage.Api/Tiering.Api/Vegetation.Api only; presentation catalogues/change feed use Storage.Api read views; retained profiles use Storage.Api; tree presentation uses Vegetation.Api; dead physical leaks removed; static and 384/371/13 behavioral parity accepted | none |
-| 13 — Composition/Core deletion | **In progress — current** | all concrete Showcase runtime ownership is under `Composition`; `VoxelEngine.Showcase` is Runtime-free; the permanent dependency guard and final dependency report are in place; exact-head static acceptance proves Api/Runtime direction, Composition-only concrete wiring, WorldGen isolation, and zero production `VoxelEngine.Core` references | exact EditMode 387/374/13 acceptance for the final Composition move and final validation closeout |
+| 13 — Composition/Core deletion | **In progress — current** | all concrete Showcase runtime ownership is under `Composition`; `VoxelEngine.Showcase` is Runtime-free; the permanent dependency guard and final dependency report are in place; exact-head static acceptance proves Api/Runtime direction, Composition-only concrete wiring, WorldGen isolation, and zero production `VoxelEngine.Core` references | classify/remove stale non-production legacy Core literals, then exact EditMode acceptance for the final Composition move and final validation closeout |
 
 ### Checklist discipline
 
@@ -40,7 +40,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
 - Latest accepted code gate: `8780cffe66a0e3e4ba75b524957d00b481ace971`, run `31907252082` — 387 tests, 374 passed, exactly the same 13 known baseline failures with zero C# compiler errors. This accepts `ArchLookdev` routing rendering presentation/build configuration and surface-status access through `RenderingComposition` and reduces the remaining Runtime-coupled Showcase source inventory to two files.
-- Latest accepted stable static gate: source `c09dc595211d492f8bb934292367dfd5b4215b4e`, run `31909666042`, static job `95072945213` — exact-head checkout passed the final production dependency graph: no Api -> Runtime edge, no foreign Runtime -> Runtime edge, Composition is the sole production Runtime-wiring exception, Showcase has no Runtime assembly refs, production has no deleted Core reference, Streaming/Net/Rendering directions are final, and semantic WorldGen remains isolated. The exact EditMode job is still pending and is not implied by this static acceptance.
+- Latest accepted stable static gate: source `c09dc595211d492f8bb934292367dfd5b4215b4e`, run `31909666042`, static job `95073061962` — exact-head checkout passed the final production dependency graph: no Api -> Runtime edge, no foreign Runtime -> Runtime edge, Composition is the sole production Runtime-wiring exception, Showcase has no Runtime assembly refs, production has no deleted Core reference, Streaming/Net/Rendering directions are final, and semantic WorldGen remains isolated. The exact EditMode job is still pending and is not implied by this static acceptance.
+- Repository-wide legacy-token inventory: run `31909802220` at `0b64b52370ab483f2b34110d2c08826c924d49a1` found 181 `VoxelEngine.Core` literals outside generated Unity caches. Production code remains clean; the residual set is dominated by historical docs, retired migration/acceptance workflows, guard/test vocabulary, specs, tooling, and archived logs and is tracked separately from the production architecture gate.
 - Prior integrated Cutover 13 gate: `a0528159ada889c59190888840523e6fb8c05a10`, run `31899261112` — 387/374/13, exact same known failure set.
 - Latest accepted Rendering static gate: source `f5e0b646102a50305424850a0508d190bae3e44d`, run `31894268246` — physical Api/Runtime layout, Runtime namespaces, dependency direction, reverse simulation dependency, and explicit/manual lookdev status all passed. Behavioral parity is still pending and is not implied by this static gate.
 
@@ -1465,9 +1466,9 @@ Do not retain Core as a forwarding facade.
 
 - [x] Core folder and asmdef deleted at `0027e6a64f137763b994d304eac9621071e1ea3d`; static Core/Storage gate `31894801235` and exact behavioral gate `31895124610` accept the deletion with no forwarding facade;
 - [x] no source namespace begins `VoxelEngine.Core`; static Core/Storage gate `31894801235` verifies this after physical deletion;
-- [x] all production asmdefs satisfy dependency guard; exact-head stable static acceptance at `c09dc595211d492f8bb934292367dfd5b4215b4e`, run `31909666042`, static job `95072945213`;
+- [x] all production asmdefs satisfy dependency guard; exact-head stable static acceptance at `c09dc595211d492f8bb934292367dfd5b4215b4e`, run `31909666042`, static job `95073061962`;
 - [x] semantic WorldGen assemblies still have no VoxelEngine refs; hosted Cutover 13 WorldGen gate `31894519041` verified Core/Architecture remain engine-free after source `4599efb83f1ccd95382711be4f229ae2bb344163`;
-- [x] Composition is the only runtime-wiring exception; exact-head stable static acceptance at `c09dc595211d492f8bb934292367dfd5b4215b4e`, run `31909666042`, static job `95072945213`.
+- [x] Composition is the only runtime-wiring exception; exact-head stable static acceptance at `c09dc595211d492f8bb934292367dfd5b4215b4e`, run `31909666042`, static job `95073061962`.
 
 ---
 
@@ -1718,7 +1719,8 @@ At the end, generate an asmdef dependency report and verify:
 - [x] update WorldGen.Voxel asmdef to exact Api refs
 - [x] delete Core asmdef/folder
 - [x] remove architecture-test temporary exceptions; the permanent guard has only explicit non-production test/CI/Editor policy plus the single Composition production exception
-- [x] zero production source/asmdef matches for `VoxelEngine.Core`; exact-head static acceptance scans Assets/Packages production code while docs/tests intentionally retain the deleted name as history/guard vocabulary
+- [x] zero production source/asmdef matches for `VoxelEngine.Core`; exact-head static acceptance scans Assets/Packages production code
+- [ ] classify/remove stale repository-wide `VoxelEngine.Core` literals outside production; inventory run `31909802220` found 181 matches, primarily historical migration docs, retired one-shot workflows, guard/test vocabulary, and archived logs. Intentional guard/history references must be explicitly retained rather than pretending the repository is at literal zero-match.
 - [ ] final targeted/full-available validation
 
 ---
