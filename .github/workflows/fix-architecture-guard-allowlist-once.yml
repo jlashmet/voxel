@@ -1,0 +1,45 @@
+name: Fix architecture guard allowlist once
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-stable]
+    paths:
+      - ".github/workflows/fix-architecture-guard-allowlist-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-stable
+          fetch-depth: 0
+      - name: Add permanent static workflow to C# guard allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization-stable
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs')
+          text = path.read_text()
+          static = '                ".github/workflows/final-architecture-static.yml",'
+          stable = '                ".github/workflows/stable-final-architecture-acceptance.yml",'
+          if static not in text:
+              if text.count(stable) != 1:
+                  raise SystemExit('expected exactly one stable workflow allowlist entry')
+              text = text.replace(stable, static + '\n' + stable, 1)
+              path.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs
+          if git diff --cached --quiet; then
+            echo "C# guard already classified"
+            exit 0
+          fi
+          git commit -m "test(architecture): classify permanent static guard"
+          git push origin HEAD:refactor/system-boundaries-finalization-stable
