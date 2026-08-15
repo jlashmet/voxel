@@ -18,5 +18,20 @@ namespace VoxelEngine.Storage.Api
         public const int BlocksPerRegionEdgeLog2 = VoxelGrid.RegionVoxelEdgeLog2 - BlockEdgeLog2;
         public const int BlocksPerRegionEdge = 1 << BlocksPerRegionEdgeLog2;
         public const int BlocksPerRegionEdgeMask = BlocksPerRegionEdge - 1;
+
+        /// <summary>
+        /// Mip level whose cells span <paramref name="sourceStep"/> voxels, or -1 when the
+        /// stride is finer than one read block and exact voxel sampling is required.
+        /// </summary>
+        public static int LevelForStride(int sourceStep)
+        {
+            if (sourceStep < BlockEdge) return -1;
+            int level = 0;
+            for (int span = BlockEdge; span < sourceStep; span <<= 1) level++;
+            return level;
+        }
+
+        /// <summary>Voxels spanned by one cell at a read-view mip level.</summary>
+        public static int VoxelsPerCell(int level) => BlockEdge << level;
     }
 }
