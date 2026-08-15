@@ -24,7 +24,7 @@ permissions:
 
 concurrency:
   group: stable-final-architecture-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   static-boundary:
@@ -55,8 +55,6 @@ jobs:
                   and '/voxelengine/ci/' not in p
               )
 
-          # Resolve repository-owned GUID references so asmdef direction checks cannot be bypassed
-          # by switching a named reference to its GUID form.
           guid_to_name = {}
           asmdef_paths = []
           for root in roots:
@@ -151,8 +149,6 @@ jobs:
           if violations:
               raise SystemExit('\n'.join(violations))
 
-          # The deleted Core name may survive only as explicit historical evidence or as a
-          # forbidden-token guard. New paths fail this classification immediately.
           allowed_core_literal_paths = {
               '.github/workflows/stable-final-architecture-acceptance.yml',
               'Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs',
