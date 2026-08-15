@@ -144,6 +144,28 @@ namespace VoxelEngine.Tests.EditMode
                 "Combined merge must copy canonical program bytes verbatim.");
         }
 
+        [Test]
+        public void CanonicalShapeEncodingHasOneApiOwner()
+        {
+            Assert.AreEqual("VoxelEngine.Structures.Api", typeof(ShapeOp).Assembly.GetName().Name,
+                "ShapeOp is an engine contract and must stay owned by Structures.Api.");
+            Assert.AreEqual("VoxelEngine.Structures.Api", typeof(ShapeOps).Assembly.GetName().Name,
+                "ShapeOps is the canonical bytecode definition and must stay owned by Structures.Api.");
+
+            string root = FindRepoRoot();
+            string worldGenRoot = Path.Combine(
+                root, "Packages", "com.mountingforce.worldgen", "Runtime");
+            string structuresRuntimeRoot = Path.Combine(
+                root, "Assets", "VoxelEngine", "Structures", "Runtime");
+
+            Assert.IsEmpty(
+                Directory.GetFiles(worldGenRoot, "ShapeOps.cs", SearchOption.AllDirectories),
+                "WorldGen must consume Structures.Api ShapeOps instead of defining a second encoder contract.");
+            Assert.IsEmpty(
+                Directory.GetFiles(structuresRuntimeRoot, "ShapeOps.cs", SearchOption.AllDirectories),
+                "Structures.Runtime must consume its Api contract instead of defining a second ShapeOps owner.");
+        }
+
         private static string FindRepoRoot()
         {
             DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
