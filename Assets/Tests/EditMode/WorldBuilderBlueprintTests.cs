@@ -45,19 +45,28 @@ namespace VoxelEngine.Tests.EditMode
 
             var destinationDefinition = DialogueOnly("destination-conversation");
             var destinationCutscene = game.Story.Cutscene(destinationDefinition, scene => scene
-                .At(firstDestination)
-                .Trigger(StoryTrigger.InteractWith(destinationNpc))
-                .If(StoryCondition.ObjectiveActive(travelObjective))
-                .If(StoryCondition.CutsceneNotCompleted(scene.Ref)));
+                .At(firstDestination));
 
             var introRef = game.Story.Cutscene(KentridgeOpeningCutscene.Definition, scene => scene
                 .At(startingPub)
                 .Bind(KentridgeOpeningCutscene.Lead, CutsceneActorTarget.Player(0))
                 .Bind(KentridgeOpeningCutscene.Madeline, CutsceneActorTarget.Npc(madeline))
                 .Bind(KentridgeOpeningCutscene.Steven, CutsceneActorTarget.Npc(steven))
-                .Bind(KentridgeOpeningCutscene.Logan, CutsceneActorTarget.Npc(logan))
-                .Trigger(StoryTrigger.NewGame())
+                .Bind(KentridgeOpeningCutscene.Logan, CutsceneActorTarget.Npc(logan)));
+
+            game.Story.Rule("start-intro", rule => rule
+                .When(StoryTrigger.NewGame())
+                .Then(StoryEffect.PlayCutscene(introRef)));
+
+            game.Story.Rule("start-travel-after-intro", rule => rule
+                .When(StoryTrigger.CutsceneCompleted(introRef))
                 .Then(StoryEffect.StartObjective(travelObjective)));
+
+            game.Story.Rule("destination-conversation-trigger", rule => rule
+                .When(StoryTrigger.InteractWith(destinationNpc))
+                .If(StoryCondition.ObjectiveActive(travelObjective))
+                .If(StoryCondition.CutsceneNotCompleted(destinationCutscene))
+                .Then(StoryEffect.PlayCutscene(destinationCutscene)));
 
             game.World.Secrets.Policy("world-secrets", policy => policy
                 .Scope(SecretScope.ExplorableSites)
@@ -76,6 +85,12 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(blueprint.Npcs.Single(n => n.Ref.Equals(destinationNpc)).Site, Is.EqualTo(firstDestination));
             Assert.That(blueprint.Objectives.Single().Target, Is.EqualTo(firstDestination));
             Assert.That(blueprint.Cutscenes.Any(c => c.Ref.Equals(destinationCutscene)), Is.True);
+            Assert.That(blueprint.StoryRules.Count, Is.EqualTo(3));
+            Assert.That(
+                blueprint.StoryRules.Any(r =>
+                    r.Trigger is CutsceneCompletedTriggerSpec completed && completed.Cutscene.Equals(introRef)
+                    && r.Effects.Any(e => e is StartObjectiveEffectSpec start && start.Objective.Equals(travelObjective))),
+                Is.True);
             Assert.That(intro.Definition.RequiredActors.Count, Is.EqualTo(4));
             Assert.That(intro.ActorBindings.Count, Is.EqualTo(4));
             Assert.That(intro.StageRequirements.Count, Is.EqualTo(7));
@@ -91,7 +106,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void CompilerCarriesCutsceneActorsAndStagePointsIntoGenerationPlan()
+        public void CompilerCarriesCutsceneActorsAndStagePointsIntoGenerationPlanButNotStoryState()
         {
             var game = Campaign.Create("compiler-test");
             var actor = new CutsceneActorId("guide");
@@ -117,13 +132,17 @@ namespace VoxelEngine.Tests.EditMode
                 .Target(destination)
                 .CompleteWhen(ObjectiveCompletion.InteractWith(npc)));
 
-            game.Story.Cutscene(definition, scene => scene
+            CutsceneRef cutscene = game.Story.Cutscene(definition, scene => scene
                 .At(destination)
-                .Bind(actor, CutsceneActorTarget.Npc(npc))
-                .Trigger(StoryTrigger.InteractWith(npc))
-                .If(StoryCondition.ObjectiveActive(objective)));
+                .Bind(actor, CutsceneActorTarget.Npc(npc)));
 
-            var graph = BlueprintCompiler.Compile(game.Build());
+            game.Story.Rule("show-destination-scene", rule => rule
+                .When(StoryTrigger.InteractWith(npc))
+                .If(StoryCondition.ObjectiveActive(objective))
+                .Then(StoryEffect.PlayCutscene(cutscene)));
+
+            var blueprint = game.Build();
+            var graph = BlueprintCompiler.Compile(blueprint);
             var destinationScene = graph.Nodes.Single(n => n.Id == "cutscene:destination-scene");
             var stage = graph.CutsceneStages.Single(s => s.Cutscene.Id == "destination-scene");
             var requirement = stage.Requirements.Single();
@@ -131,6 +150,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(destinationScene.Dependencies, Does.Contain("site:destination"));
             Assert.That(destinationScene.Dependencies, Does.Contain("npc:npc"));
             Assert.That(destinationScene.Dependencies, Does.Not.Contain("objective:objective"));
+            Assert.That(blueprint.StoryRules.Single().Conditions.Single(), Is.TypeOf<ObjectiveActiveConditionSpec>());
             Assert.That(stage.Site, Is.EqualTo(destination));
             Assert.That(requirement.Point, Is.EqualTo(stagePoint));
             Assert.That(requirement.Region, Is.EqualTo(CutsceneStageRegion.InteriorGatheringArea));
@@ -148,13 +168,24 @@ namespace VoxelEngine.Tests.EditMode
                 new[] { CutsceneStep.Dialogue(speaker, new CutsceneCueId("speaker.line")) });
             var site = game.World.RequireSite("site", value => value.Archetype(SiteArchetype.Pub));
 
-            game.Story.Cutscene(definition, scene => scene
-                .At(site)
-                .Trigger(StoryTrigger.NewGame()));
+            game.Story.Cutscene(definition, scene => scene.At(site));
 
             var validation = BlueprintValidator.Validate(game.Build());
             Assert.That(validation.IsValid, Is.False);
             Assert.That(validation.Diagnostics.Any(d => d.Code == "WB2211"), Is.True);
+        }
+
+        [Test]
+        public void ValidatorRejectsStoryRuleReferencesToUnknownCutscene()
+        {
+            var game = Campaign.Create("invalid-rule");
+            game.Story.Rule("bad-rule", rule => rule
+                .When(StoryTrigger.NewGame())
+                .Then(StoryEffect.PlayCutscene(new CutsceneRef("missing"))));
+
+            BlueprintValidationResult validation = BlueprintValidator.Validate(game.Build());
+            Assert.That(validation.IsValid, Is.False);
+            Assert.That(validation.Diagnostics.Any(d => d.Code == "WB2506"), Is.True);
         }
 
         private static CutsceneDefinition DialogueOnly(string id) =>
