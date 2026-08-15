@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
-using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace VoxelEngine.Showcase
@@ -11,17 +11,13 @@ namespace VoxelEngine.Showcase
     ///
     /// <para><b>The problem this solves.</b> Terrain renders to the horizon because
     /// <see cref="TerrainSampler"/> is a pure function: any coordinate can be answered with no
-    /// storage. Built content is not a function, it is voxels, and voxels live in
-    /// <c>Region</c>s that cost 1 MB of brick pointers each whatever they contain. Keeping
-    /// regions resident across 12 km would be tens of gigabytes, so structures stopped at the
-    /// streaming radius and the castle popped into being at 400 m.</para>
+    /// storage. Built content is not a function, it is voxels, and resident voxel regions are too
+    /// expensive to retain to the horizon.</para>
     ///
     /// <para><b>What this stores instead.</b> One height per coarse column — 16x16 columns per
     /// region, about 3.2 m each — capturing how far the built surface rises above the terrain
-    /// the height function already describes. That is roughly 512 bytes per region against a
-    /// megabyte, and it is <b>sparse</b>: a region whose surface matches the analytic terrain
-    /// stores nothing at all. Only the handful of regions containing structures ever get an
-    /// entry, so the whole far field costs kilobytes.</para>
+    /// the height function already describes. The capture path consumes only Storage.Api's
+    /// borrowed read view; the far-field cache never sees physical region/brick representation.</para>
     ///
     /// <para>The trade is honest and deliberate: at range a structure becomes a silhouette with
     /// no overhangs, no interior, and no destruction detail. That is the same trade every voxel
@@ -58,10 +54,10 @@ namespace VoxelEngine.Showcase
         /// Scans a freshly generated region and records any coarse column whose solid surface
         /// stands above the terrain height field. Called once per region, after generation.
         /// </summary>
-        public void CaptureRegion(int3 regionCoord, ref RegionTable table, in BrickPool pool,
-                                  uint seed)
+        public void CaptureRegion(int3 regionCoord, IRegionReadSource storage, uint seed)
         {
-            if (!table.TryGetRegion(regionCoord, out Region region)) return;
+            if (storage == null || !storage.TryAcquireRegion(regionCoord, out RegionReadView region))
+                return;
 
             int3 originVoxel = regionCoord * ShowcaseWorld.RegionVoxelEdge;
             int[] heights = null;
@@ -69,12 +65,10 @@ namespace VoxelEngine.Showcase
             for (int cz = 0; cz < ColumnsPerRegion; cz++)
             for (int cx = 0; cx < ColumnsPerRegion; cx++)
             {
-                // Sample the column's centre rather than every voxel in it. A structure large
-                // enough to matter at kilometre range spans many columns.
                 int voxelX = originVoxel.x + cx * VoxelsPerColumn + VoxelsPerColumn / 2;
                 int voxelZ = originVoxel.z + cz * VoxelsPerColumn + VoxelsPerColumn / 2;
 
-                int top = TopSolidVoxel(ref table, in pool, voxelX, voxelZ,
+                int top = TopSolidVoxel(in region, voxelX, voxelZ,
                                         originVoxel.y, ShowcaseWorld.RegionVoxelEdge);
                 if (top == int.MinValue) continue;
 
@@ -91,7 +85,6 @@ namespace VoxelEngine.Showcase
             var key = new int2(regionCoord.x, regionCoord.z);
             if (_columns.TryGetValue(key, out int[] existing))
             {
-                // Regions stack vertically, so a taller layer must not erase a shorter one.
                 for (int i = 0; i < existing.Length; i++)
                     if (heights[i] > existing[i]) existing[i] = heights[i];
                 Version++;
@@ -125,14 +118,18 @@ namespace VoxelEngine.Showcase
         private static int[] NewColumnArray() => new int[ColumnsPerRegion * ColumnsPerRegion];
 
         /// <summary>Topmost solid voxel in a column within one region's vertical span.</summary>
-        private static int TopSolidVoxel(ref RegionTable table, in BrickPool pool,
+        private static int TopSolidVoxel(in RegionReadView region,
                                          int worldX, int worldZ, int baseY, int height)
         {
-            for (int y = baseY + height - 1; y >= baseY; y--)
+            int3 originVoxel = region.RegionCoord * ShowcaseWorld.RegionVoxelEdge;
+            int localX = worldX - originVoxel.x;
+            int localZ = worldZ - originVoxel.z;
+            for (int localY = height - 1; localY >= 0; localY--)
             {
-                byte material = VoxelAccess.GetVoxel(ref table, in pool,
-                                                     new int3(worldX, y, worldZ));
-                if (material != VoxelDimensions.MaterialEmpty) return y;
+                if (!region.TryReadCell(new int3(localX, localY, localZ), out VoxelCell cell))
+                    continue;
+                if (cell.BaseMaterialId != VoxelGrid.MaterialEmpty)
+                    return baseY + localY;
             }
             return int.MinValue;
         }
