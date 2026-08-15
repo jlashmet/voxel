@@ -1,0 +1,49 @@
+name: Cutover 13 Runtime reinventory 2
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-runtime-reinventory-2.yml
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ac28c0f2609f150de9ee782fed013e1c3e25e780
+          fetch-depth: 1
+      - name: Report remaining production Runtime coupling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+          root = Path('Assets/Scenes/Showcase')
+          runtime = re.compile(r'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime(?:\.[A-Za-z0-9_.]+)*')
+          files = []
+          namespaces = set()
+          storage_files = []
+          for path in sorted(root.rglob('*.cs')):
+              text = path.read_text()
+              found = sorted(set(runtime.findall(text)))
+              if found:
+                  files.append(path)
+                  print(path)
+                  for value in found:
+                      namespaces.add(value)
+                      print('  ', value)
+              if 'VoxelEngine.Storage.Runtime' in text:
+                  storage_files.append(path)
+          asm = json.loads((root / 'VoxelEngine.Showcase.asmdef').read_text())
+          refs = sorted(r for r in asm.get('references', []) if r.startswith('VoxelEngine.') and r.endswith('.Runtime'))
+          print('FILES_WITH_RUNTIME=', len(files))
+          print('FILES_WITH_STORAGE_RUNTIME=', len(storage_files))
+          for path in storage_files: print('STORAGE ', path)
+          print('RUNTIME_NAMESPACE_COUNT=', len(namespaces))
+          print('RUNTIME_ASMDEF_REFS=', len(refs))
+          for ref in refs: print('ASM ', ref)
+          PY
