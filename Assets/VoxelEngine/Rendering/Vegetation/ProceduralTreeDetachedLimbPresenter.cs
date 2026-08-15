@@ -77,10 +77,10 @@ namespace VoxelEngine.Rendering.Vegetation
             }
 
             var subtree = new HashSet<int> { cut.BranchIndex };
-            int[] parents = skeleton.BranchParents;
+            IReadOnlyList<int> parents = skeleton.BranchParents;
             if (parents != null)
             {
-                for (int i = cut.BranchIndex + 1; i < parents.Length; i++)
+                for (int i = cut.BranchIndex + 1; i < parents.Count; i++)
                 {
                     int parent = parents[i];
                     if (parent >= 0 && subtree.Contains(parent)) subtree.Add(i);

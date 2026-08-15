@@ -399,8 +399,8 @@ namespace VoxelEngine.Vegetation.Runtime
             TreeSkeletonSnapshot skeleton, int branchIndex)
         {
             if ((uint)branchIndex >= (uint)skeleton.Branches.Count) return 0;
-            int[] parents = skeleton.BranchParents;
-            if (parents == null || parents.Length != skeleton.Branches.Count) return 1;
+            IReadOnlyList<int> parents = skeleton.BranchParents;
+            if (parents == null || parents.Count != skeleton.Branches.Count) return 1;
 
             int count = 0;
             for (int i = branchIndex; i < skeleton.Branches.Count; i++)
