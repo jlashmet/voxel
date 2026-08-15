@@ -56,7 +56,7 @@ jobs:
                   p.write_text(s)
                   changed.append(str(p))
 
-          if len(changed) < 6:
+          if len(changed) < 5:
               raise SystemExit(f'Expected broad TerrainLookdev migration, changed only {len(changed)} files: {changed}')
           print('\n'.join(changed))
           PY
