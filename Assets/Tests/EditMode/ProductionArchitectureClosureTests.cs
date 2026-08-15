@@ -25,9 +25,17 @@ namespace VoxelEngine.Tests.EditMode
             "\"references\"\\s*:\\s*\\[(?<value>.*?)\\]",
             RegexOptions.Compiled | RegexOptions.Singleline);
 
+        private static readonly Regex OptionalUnityReferencesRegex = new Regex(
+            "\"optionalUnityReferences\"\\s*:\\s*\\[(?<value>.*?)\\]",
+            RegexOptions.Compiled | RegexOptions.Singleline);
+
         private static readonly Regex QuotedStringRegex = new Regex(
             "\"(?<value>[^\"]+)\"",
             RegexOptions.Compiled);
+
+        private static readonly Regex GuidRegex = new Regex(
+            "^guid:\\s*(?<value>[0-9a-fA-F]{32})\\s*$",
+            RegexOptions.Compiled | RegexOptions.Multiline);
 
         private static readonly Regex RuntimeNamespaceRegex = new Regex(
             @"\bVoxelEngine\.[A-Za-z0-9_.]+\.Runtime\b",
@@ -50,10 +58,14 @@ namespace VoxelEngine.Tests.EditMode
         public void CompositionIsTheOnlyProductionAssemblyThatReferencesRuntimeImplementations()
         {
             var violations = new List<string>();
+            IReadOnlyDictionary<string, string> asmdefNamesByGuid = BuildAsmdefNamesByGuid();
 
             foreach (string asmdefPath in EnumerateProductionFiles("*.asmdef"))
             {
                 string json = File.ReadAllText(asmdefPath);
+                if (IsTestAssembly(json))
+                    continue;
+
                 Match nameMatch = NameRegex.Match(json);
                 Assert.IsTrue(nameMatch.Success, "Could not parse assembly name from " + asmdefPath);
 
@@ -67,7 +79,9 @@ namespace VoxelEngine.Tests.EditMode
 
                 foreach (Match quoted in QuotedStringRegex.Matches(referencesMatch.Groups["value"].Value))
                 {
-                    string reference = quoted.Groups["value"].Value;
+                    string reference = ResolveAssemblyReference(
+                        quoted.Groups["value"].Value,
+                        asmdefNamesByGuid);
                     if (reference.StartsWith("VoxelEngine.", StringComparison.Ordinal)
                         && reference.EndsWith(".Runtime", StringComparison.Ordinal))
                     {
@@ -205,6 +219,10 @@ namespace VoxelEngine.Tests.EditMode
             {
                 foreach (string path in EnumerateProductionFiles(pattern))
                 {
+                    if (string.Equals(Path.GetExtension(path), ".asmdef", StringComparison.OrdinalIgnoreCase)
+                        && IsTestAssembly(File.ReadAllText(path)))
+                        continue;
+
                     string text = File.ReadAllText(path);
                     if (text.IndexOf(DeletedCoreNamespace, StringComparison.Ordinal) >= 0)
                         violations.Add(RelativePath(path));
@@ -225,15 +243,91 @@ namespace VoxelEngine.Tests.EditMode
                     continue;
 
                 foreach (string path in Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories))
-                    yield return path;
+                {
+                    if (!IsNonProductionPath(path))
+                        yield return path;
+                }
             }
         }
 
         private static IEnumerable<string> ProductionRoots()
         {
-            yield return Path.Combine("Assets", "VoxelEngine");
-            yield return Path.Combine("Assets", "Scenes", "Showcase");
+            // Scan the whole application Assets tree, not just VoxelEngine/Showcase. Tests,
+            // Editor-only code and CI harnesses are filtered by IsNonProductionPath/IsTestAssembly.
+            yield return "Assets";
             yield return Path.Combine("Packages", "com.mountingforce.worldgen", "Runtime");
+        }
+
+        private static bool IsNonProductionPath(string path)
+        {
+            string relative = "/" + RelativePath(path).Replace('\\', '/') + "/";
+            return relative.IndexOf("/Assets/Tests/", StringComparison.Ordinal) >= 0
+                   || relative.IndexOf("/Assets/Editor/", StringComparison.Ordinal) >= 0
+                   || relative.IndexOf("/Assets/VoxelEngine/CI/", StringComparison.Ordinal) >= 0
+                   || relative.IndexOf("/Editor/", StringComparison.Ordinal) >= 0;
+        }
+
+        private static bool IsTestAssembly(string json)
+        {
+            Match optionalReferences = OptionalUnityReferencesRegex.Match(json);
+            if (!optionalReferences.Success)
+                return false;
+
+            return QuotedStringRegex.Matches(optionalReferences.Groups["value"].Value)
+                .Cast<Match>()
+                .Any(match => string.Equals(
+                    match.Groups["value"].Value,
+                    "TestAssemblies",
+                    StringComparison.Ordinal));
+        }
+
+        private static IReadOnlyDictionary<string, string> BuildAsmdefNamesByGuid()
+        {
+            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string relativeRoot in new[]
+                     {
+                         "Assets",
+                         Path.Combine("Packages", "com.mountingforce.worldgen", "Runtime"),
+                     })
+            {
+                string root = Path.Combine(RepoRoot, relativeRoot);
+                if (!Directory.Exists(root))
+                    continue;
+
+                foreach (string metaPath in Directory.EnumerateFiles(
+                             root,
+                             "*.asmdef.meta",
+                             SearchOption.AllDirectories))
+                {
+                    Match guidMatch = GuidRegex.Match(File.ReadAllText(metaPath));
+                    if (!guidMatch.Success)
+                        continue;
+
+                    string asmdefPath = metaPath.Substring(0, metaPath.Length - ".meta".Length);
+                    if (!File.Exists(asmdefPath))
+                        continue;
+
+                    Match nameMatch = NameRegex.Match(File.ReadAllText(asmdefPath));
+                    if (nameMatch.Success)
+                        names[guidMatch.Groups["value"].Value] = nameMatch.Groups["value"].Value;
+                }
+            }
+
+            return names;
+        }
+
+        private static string ResolveAssemblyReference(
+            string reference,
+            IReadOnlyDictionary<string, string> asmdefNamesByGuid)
+        {
+            const string prefix = "GUID:";
+            if (!reference.StartsWith(prefix, StringComparison.Ordinal))
+                return reference;
+
+            string guid = reference.Substring(prefix.Length);
+            return asmdefNamesByGuid.TryGetValue(guid, out string assemblyName)
+                ? assemblyName
+                : reference;
         }
 
         private static string RelativePath(string path)
