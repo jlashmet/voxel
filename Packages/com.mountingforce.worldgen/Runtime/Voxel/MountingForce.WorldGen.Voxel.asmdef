@@ -4,7 +4,6 @@
   "references": [
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Architecture",
-    "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Vegetation.Api",
