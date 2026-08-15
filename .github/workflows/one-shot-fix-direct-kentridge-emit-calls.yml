@@ -19,7 +19,7 @@ jobs:
         with:
           ref: refactor/system-boundaries-foundation-storage
           fetch-depth: 0
-      - name: Canonicalize direct Emit builders
+      - name: Canonicalize direct Emit builders including multiline calls
         run: python .github/scripts/one_shot_fix_direct_kentridge_emit_calls.py
       - name: Verify scope
         run: git diff --stat
