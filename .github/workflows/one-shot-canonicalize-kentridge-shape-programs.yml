@@ -20,7 +20,7 @@ jobs:
           ref: refactor/system-boundaries-foundation-storage
           fetch-depth: 0
       - name: Canonicalize source builders and delete compatibility seam
-        run: python .github/scripts/one_shot_canonicalize_kentridge_shape_programs.py
+        run: python .github/scripts/one_shot_canonicalize_kentridge_shape_programs_v2.py
       - name: Verify compatibility seam is gone
         run: |
           test ! -e Packages/com.mountingforce.worldgen/Runtime/Voxel/KentridgeShapeProgramCompatibility.cs
@@ -29,6 +29,7 @@ jobs:
       - name: Commit and self-clean
         run: |
           rm .github/scripts/one_shot_canonicalize_kentridge_shape_programs.py
+          rm .github/scripts/one_shot_canonicalize_kentridge_shape_programs_v2.py
           rm .github/workflows/one-shot-canonicalize-kentridge-shape-programs.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
