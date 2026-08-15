@@ -58,9 +58,11 @@ class UnityStagingTests(unittest.TestCase):
 
             self.assertEqual(b"fake-fbx", result.fbx.read_bytes())
             self.assertEqual(
-                project
-                / "Assets/Generated/CharacterFactory/clothing/cleric_robe/cleric_robe.fbx",
-                result.fbx,
+                (
+                    project
+                    / "Assets/Generated/CharacterFactory/clothing/cleric_robe/cleric_robe.fbx"
+                ).resolve(),
+                result.fbx.resolve(),
             )
             descriptor = json.loads(result.descriptor.read_text(encoding="utf-8"))
             self.assertEqual(1, descriptor["schemaVersion"])
