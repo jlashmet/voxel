@@ -834,7 +834,7 @@ namespace VoxelEngine.Showcase
             // Record any built content in a form that survives eviction, so the castle and
             // Kentridge stay visible at the distance terrain is drawn rather than popping in at
             // the streaming radius. Regions that are plain terrain store nothing.
-            FarField.CaptureRegion(coord, ref _table, in _pool, Seed);
+            FarField.CaptureRegion(coord, ReadStorage, Seed);
 
             // Neighbours must re-mesh too: faces along the shared border were meshed as the edge
             // of the loaded world and are now interior.
