@@ -1,0 +1,83 @@
+name: Net snapshot pinned acceptance
+
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-snapshot-pinned-acceptance.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  unity-editmode:
+    name: Unity EditMode pinned Net snapshot gate
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout pinned candidate without deleting Unity import cache
+        uses: actions/checkout@v4
+        with:
+          ref: a1715c89d7313d00a7f4376ef2523f48f2f2fd6c
+          clean: false
+          fetch-depth: 1
+      - name: Reset tracked and non-cache files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard a1715c89d7313d00a7f4376ef2523f48f2f2fd6c
+          git clean -ffdx -e Library/
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity editor to become available
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              echo 'Timed out waiting for another Unity editor to exit.' >&2
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+      - name: Run EditMode tests
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/NetSnapshotPinnedCI"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh \
+            -batchmode \
+            -nographics \
+            -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log"
+          status=$?
+          if [[ $status -ne 0 ]]; then
+            echo "Unity EditMode tests exited with $status" >&2
+          fi
+          test -s "$ROOT/results.xml" || exit $status
+          exit $status
+      - name: Upload pinned Net snapshot artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: net-snapshot-pinned-a1715c89
+          path: Artifacts/NetSnapshotPinnedCI/
+          if-no-files-found: warn
+          retention-days: 14
