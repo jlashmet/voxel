@@ -101,9 +101,7 @@ namespace VoxelEngine.Tests.EditMode
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                 content.Blueprint,
-                settlement,
-                new RegionRef("kentridge-region"),
-                new SettlementRef("kentridge"));
+                settlement);
 
             var actors = new ActorHost();
             var player = new Actor(new CutsceneInt3(-999, -999, -999));
@@ -169,9 +167,7 @@ namespace VoxelEngine.Tests.EditMode
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                 content.Blueprint,
-                settlement,
-                new RegionRef("kentridge-region"),
-                new SettlementRef("kentridge"));
+                settlement);
             var actors = new ActorHost();
 
             InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
