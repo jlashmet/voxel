@@ -71,7 +71,7 @@ namespace Game.WorldBuilder.Runtime
                 for (var j = 0; j < blueprint.Sites.Count; j++)
                 {
                     SiteSpec site = blueprint.Sites[j];
-                    if (!HasCapability(site, SiteCapabilityKind.SecretCandidateHost)) continue;
+                    if (!HasAuthoredCapability(site, SiteCapabilityKind.SecretCandidateHost)) continue;
                     AddUnique(dependencies, NodeId("site", site.Ref.Id));
                     var entrances = new SecretEntranceType[policy.EntranceTypes.Count];
                     for (var k = 0; k < entrances.Length; k++) entrances[k] = policy.EntranceTypes[k];
@@ -128,9 +128,14 @@ namespace Game.WorldBuilder.Runtime
             return new PlanningGraph(nodes.ToArray(), stagePlans.ToArray(), secretCandidatePlans.ToArray(), requiredSecretPlans.ToArray());
         }
 
-        private static bool HasCapability(SiteSpec site, SiteCapabilityKind kind)
+        private static bool HasAuthoredCapability(SiteSpec site, SiteCapabilityKind kind)
         {
-            for (var i = 0; i < site.Capabilities.Count; i++) if (site.Capabilities[i].Kind == kind) return true;
+            for (var i = 0; i < site.Capabilities.Count; i++)
+            {
+                SiteCapabilityRequirement capability = site.Capabilities[i];
+                if (capability.Kind == kind && capability.Source == SiteCapabilitySource.Authored)
+                    return true;
+            }
             return false;
         }
 
