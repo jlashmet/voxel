@@ -14,11 +14,12 @@ namespace VoxelEngine.Tests.EditMode
             AssertApiOnly(Path.Combine(root, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel", "MountingForce.WorldGen.Voxel.asmdef"));
 
             string rendering = Path.Combine(root, "Assets", "VoxelEngine", "Rendering");
+            string legacyVegetationNamespace = string.Join(".", "VoxelEngine", "Core", "Vegetation");
             foreach (string path in Directory.EnumerateFiles(rendering, "*.cs", SearchOption.AllDirectories))
             {
                 string source = File.ReadAllText(path);
                 Assert.That(source.Contains("VoxelEngine.Vegetation.Runtime"), Is.False, Path.GetFileName(path));
-                Assert.That(source.Contains("VoxelEngine.Core.Vegetation"), Is.False, Path.GetFileName(path));
+                Assert.That(source.Contains(legacyVegetationNamespace), Is.False, Path.GetFileName(path));
             }
         }
 
