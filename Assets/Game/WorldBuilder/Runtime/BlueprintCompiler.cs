@@ -16,6 +16,7 @@ namespace Game.WorldBuilder.Runtime
                 throw new InvalidOperationException("Campaign blueprint contains validation errors.");
 
             var nodes = new List<PlanningNode>();
+            var siteRolePlans = new List<SiteRolePlan>();
             var stagePlans = new List<CutsceneStagePlan>();
             var secretCandidatePlans = new List<SecretCandidatePlan>();
             var requiredSecretPlans = new List<RequiredSecretCandidatePlan>();
@@ -52,6 +53,17 @@ namespace Game.WorldBuilder.Runtime
                 var dependencies = new List<string>();
                 AddSiteOwnerDependency(blueprint.Hierarchy, site.Ref, dependencies);
                 nodes.Add(new PlanningNode(NodeId("site", site.Ref.Id), PlanningNodeKind.Site, dependencies.ToArray()));
+
+                var capabilities = new SiteCapabilityRequirement[site.Capabilities.Count];
+                for (var j = 0; j < capabilities.Length; j++)
+                    capabilities[j] = site.Capabilities[j];
+
+                siteRolePlans.Add(new SiteRolePlan(
+                    site.Ref,
+                    site.ResolutionMode,
+                    site.Archetype,
+                    site.RequiredCardinality,
+                    capabilities));
             }
 
             for (var i = 0; i < blueprint.LootTables.Count; i++)
@@ -125,7 +137,18 @@ namespace Game.WorldBuilder.Runtime
                 }
             }
 
-            return new PlanningGraph(nodes.ToArray(), stagePlans.ToArray(), secretCandidatePlans.ToArray(), requiredSecretPlans.ToArray());
+            var spatialConstraints = new SpatialConstraintSpec[blueprint.SpatialConstraints.Count];
+            for (var i = 0; i < spatialConstraints.Length; i++)
+                spatialConstraints[i] = blueprint.SpatialConstraints[i];
+
+            return new PlanningGraph(
+                nodes.ToArray(),
+                siteRolePlans.ToArray(),
+                blueprint.Hierarchy,
+                spatialConstraints,
+                stagePlans.ToArray(),
+                secretCandidatePlans.ToArray(),
+                requiredSecretPlans.ToArray());
         }
 
         private static bool HasAuthoredCapability(SiteSpec site, SiteCapabilityKind kind)
