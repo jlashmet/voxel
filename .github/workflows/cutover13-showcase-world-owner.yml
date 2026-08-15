@@ -1,0 +1,122 @@
+name: Cutover 13 showcase world ownership
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-showcase-world-owner.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 1
+      - name: Move Showcase world runtime ownership into Composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          showcase = Path('Assets/Scenes/Showcase')
+          composition = Path('Assets/VoxelEngine/Composition')
+          world = showcase / 'ShowcaseWorld.cs'
+          bridge = showcase / 'ShowcaseWorld.StorageBridge.cs'
+          catalogue = showcase / 'ShowcaseCatalogue.cs'
+          for path in (world, bridge, catalogue):
+              if not path.exists():
+                  raise SystemExit(f'missing expected source: {path}')
+
+          # The scene assembly must not grow another implementation dependency while this
+          # ownership move is in flight. The world is the one remaining concrete owner.
+          runtime_sources = []
+          runtime_re = re.compile(r'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime')
+          for path in showcase.rglob('*.cs'):
+              if runtime_re.search(path.read_text()):
+                  runtime_sources.append(path.as_posix())
+          if runtime_sources != ['Assets/Scenes/Showcase/ShowcaseWorld.cs']:
+              raise SystemExit('unexpected Showcase Runtime sources before cutover: ' + repr(runtime_sources))
+
+          text = world.read_text()
+          text = text.replace('using VoxelEngine.Terrain.Runtime;\n', '')
+          old = '        private const int MaxCollapseComponentVoxels = 1_048_576;\n'
+          new = ('        // Presentation consumes at most sixteen samples per detached chunk. Keep the\n'
+                 '        // authoritative world independent of the scene-side GPU debris implementation.\n'
+                 '        private const int RenderInstancesPerDetachedChunk = 16;\n'
+                 '        private const int MaxCollapseComponentVoxels = 1_048_576;\n')
+          if old not in text:
+              raise SystemExit('could not locate detached-chunk constant anchor')
+          text = text.replace(old, new, 1)
+          if 'GpuDebrisSystem.RenderInstancesPerChunk' not in text:
+              raise SystemExit('expected GpuDebrisSystem coupling not found')
+          text = text.replace('GpuDebrisSystem.RenderInstancesPerChunk', 'RenderInstancesPerDetachedChunk')
+          world.write_text(text)
+
+          asmdef_path = composition / 'VoxelEngine.Composition.asmdef'
+          asmdef = json.loads(asmdef_path.read_text())
+          refs = asmdef['references']
+          if 'MountingForce.WorldGen.Voxel' not in refs:
+              refs.append('MountingForce.WorldGen.Voxel')
+          asmdef_path.write_text(json.dumps(asmdef, indent=2) + '\n')
+
+          guard_path = Path('Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs')
+          guard = guard_path.read_text()
+          marker = '        private static IReadOnlyList<Asmdef> EnumerateVoxelEngineAsmdefs()\n'
+          if marker not in guard:
+              raise SystemExit('architecture guard insertion marker missing')
+          method = r'''        [Test]
+        public void ShowcaseSceneSourcesDoNotReferenceRuntimeImplementations()
+        {
+            string showcaseRoot = Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase");
+            Assert.IsTrue(Directory.Exists(showcaseRoot), "Missing Showcase source root: " + showcaseRoot);
+
+            var runtimeReference = new Regex(
+                @"VoxelEngine\.[A-Za-z0-9_.]+\.Runtime",
+                RegexOptions.Compiled);
+            var violations = Directory.EnumerateFiles(showcaseRoot, "*.cs", SearchOption.AllDirectories)
+                .SelectMany(path => runtimeReference.Matches(File.ReadAllText(path))
+                    .Cast<Match>()
+                    .Select(match => Path.GetFileName(path) + " -> " + match.Value))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(value => value, StringComparer.Ordinal)
+                .ToList();
+
+            Assert.IsEmpty(violations,
+                "Scene/application code must consume subsystem APIs or Composition-owned facades; " +
+                "concrete Runtime ownership belongs in VoxelEngine.Composition.\n\n" +
+                string.Join("\n", violations));
+        }
+
+'''
+          if 'ShowcaseSceneSourcesDoNotReferenceRuntimeImplementations' not in guard:
+              guard = guard.replace(marker, method + marker, 1)
+              guard_path.write_text(guard)
+          PY
+
+          git mv Assets/Scenes/Showcase/ShowcaseWorld.cs Assets/VoxelEngine/Composition/ShowcaseWorld.cs
+          git mv Assets/Scenes/Showcase/ShowcaseWorld.cs.meta Assets/VoxelEngine/Composition/ShowcaseWorld.cs.meta
+          git mv Assets/Scenes/Showcase/ShowcaseWorld.StorageBridge.cs Assets/VoxelEngine/Composition/ShowcaseWorld.StorageBridge.cs
+          git mv Assets/Scenes/Showcase/ShowcaseWorld.StorageBridge.cs.meta Assets/VoxelEngine/Composition/ShowcaseWorld.StorageBridge.cs.meta
+          git mv Assets/Scenes/Showcase/ShowcaseCatalogue.cs Assets/VoxelEngine/Composition/ShowcaseCatalogue.cs
+          git mv Assets/Scenes/Showcase/ShowcaseCatalogue.cs.meta Assets/VoxelEngine/Composition/ShowcaseCatalogue.cs.meta
+
+          if grep -R -n -E 'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime' Assets/Scenes/Showcase --include='*.cs'; then
+            echo 'Showcase still contains direct Runtime references' >&2
+            exit 1
+          fi
+
+          git rm .github/workflows/cutover13-showcase-world-owner.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/Scenes/Showcase Assets/VoxelEngine/Composition Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs
+          git commit -m 'refactor: move showcase world ownership into composition'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
