@@ -1,4 +1,5 @@
 using System;
+using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
@@ -52,6 +53,34 @@ namespace VoxelEngine.Composition
             ProfileBlocks = profileBlocks;
             Width = width;
             Height = height;
+        }
+    }
+
+    /// <summary>Composition-owned incremental castle authoring session.</summary>
+    public interface ICastleBuildSession
+    {
+        bool IsComplete { get; }
+        int StageNumber { get; }
+        long TotalVoxelsWritten { get; }
+        bool Step();
+    }
+
+    /// <summary>Stable retained-profile handle; mutable Runtime storage stays private.</summary>
+    public interface IStructureProfileStore : IProfileBlockReadSource
+    {
+    }
+
+    public readonly struct ReferenceArchBuildResult
+    {
+        public readonly int3 Min;
+        public readonly int3 Max;
+        public readonly int VoxelsWritten;
+
+        public ReferenceArchBuildResult(int3 min, int3 max, int voxelsWritten)
+        {
+            Min = min;
+            Max = max;
+            VoxelsWritten = voxelsWritten;
         }
     }
 
@@ -109,5 +138,96 @@ namespace VoxelEngine.Composition
             storage.PublishAllResidentRegions();
             return new ArchLookdevBuildResult(profiles, width, height);
         }
+        public static IStructureProfileStore CreateProfileStore() => new StructureProfileStore();
+
+        public static ICastleBuildSession BeginCastleBuild(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            in CastlePlan plan,
+            uint terrainSeed,
+            IMaterialAuthoringCatalogue materials)
+        {
+            if (reads == null) throw new ArgumentNullException(nameof(reads));
+            if (mutations == null) throw new ArgumentNullException(nameof(mutations));
+            return new CastleBuildSession(reads, mutations, in plan, terrainSeed, materials);
+        }
+
+        public static ReferenceArchBuildResult BuildReferenceArch(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            IMaterialAuthoringCatalogue materials,
+            ISurfaceStyleAuthoringCatalogue surfaces,
+            ICoatingAuthoringCatalogue coatings,
+            IStructureProfileStore profiles,
+            int3 origin,
+            byte stoneMaterial,
+            ushort pierStyle,
+            ushort ringStyle,
+            byte coating)
+        {
+            if (reads == null) throw new ArgumentNullException(nameof(reads));
+            if (mutations == null) throw new ArgumentNullException(nameof(mutations));
+            if (materials == null) throw new ArgumentNullException(nameof(materials));
+            if (surfaces == null) throw new ArgumentNullException(nameof(surfaces));
+            if (coatings == null) throw new ArgumentNullException(nameof(coatings));
+            if (!(profiles is StructureProfileStore profileStore))
+                throw new ArgumentException("Profiles must be created by StructuresComposition.", nameof(profiles));
+
+            var arch = new ArchFeatureDefinition
+            {
+                ClearSpan = 64,
+                PierHeight = 48,
+                RingThickness = 10,
+                Depth = 12,
+                VoussoirCount = 13,
+                StoneMaterial = stoneMaterial,
+                PierStyle = pierStyle,
+                RingStyle = ringStyle,
+                Coating = coating
+            };
+
+            var primitives = new NativeList<Primitive>(arch.Metadata.MaxPrimitives, Allocator.Temp);
+            try
+            {
+                ArchValidationError validation = arch.Validate(materials, surfaces, coatings);
+                if (validation != ArchValidationError.None || !arch.Emit(origin, primitives, profileStore.Runtime))
+                    throw new InvalidOperationException($"The built-in reference arch is invalid: {validation}.");
+
+                int3 max = origin + arch.Metadata.Footprint;
+                RasterResult result = PrimitiveRasteriser.Rasterise(
+                    primitives.AsArray(), origin, max, reads, mutations);
+                return new ReferenceArchBuildResult(origin, max, result.VoxelsWritten);
+            }
+            finally
+            {
+                primitives.Dispose();
+            }
+        }
+
+        private sealed class CastleBuildSession : ICastleBuildSession
+        {
+            private CastleBuilder.IncrementalBuild _build;
+
+            public CastleBuildSession(
+                IRegionReadSource reads, IRegionMutationStore mutations,
+                in CastlePlan plan, uint terrainSeed, IMaterialAuthoringCatalogue materials)
+            {
+                _build = CastleBuilder.BeginBuild(reads, mutations, in plan, terrainSeed, materials);
+            }
+
+            public bool IsComplete => _build.IsComplete;
+            public int StageNumber => _build.StageNumber;
+            public long TotalVoxelsWritten => _build.TotalVoxelsWritten;
+            public bool Step() => CastleBuilder.StepBuild(ref _build);
+        }
+
+        private sealed class StructureProfileStore : IStructureProfileStore
+        {
+            internal ProfileBlockStore Runtime { get; } = new ProfileBlockStore();
+            public uint Version => Runtime.Version;
+            public int Count => Runtime.Count;
+            public ProfileBlock[] Snapshot() => Runtime.Snapshot();
+        }
+
     }
 }

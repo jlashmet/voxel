@@ -7,7 +7,7 @@ using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
-using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Composition;
 using VoxelEngine.Storage.Runtime.Occupancy;
 using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
@@ -96,14 +96,14 @@ namespace VoxelEngine.Showcase
         private SurfaceCatalogue _surfaceCatalogue;
         private CoatingCatalogue _coatingCatalogue;
         private MaterialAdjacencyCatalogue _materialAdjacencyCatalogue;
-        private readonly ProfileBlockStore _profileBlocks = new();
+        private readonly IStructureProfileStore _profileBlocks = StructuresComposition.CreateProfileStore();
         private uint _editCounter;
         private CastlePlan _castlePlan;
         private bool _hasCastlePlan;
         private bool _castleTrapdoorOpen;
         private bool _castleFrontGateOpen;
         private CastlePlan _pendingCastlePlan;
-        private CastleBuilder.IncrementalBuild _castleBuild;
+        private ICastleBuildSession _castleBuild;
         private readonly List<int3> _castleRegions = new();
         private readonly Queue<int3> _deferredFeatureRegions = new();
         private bool _castleTerrainQueued;
@@ -226,7 +226,7 @@ namespace VoxelEngine.Showcase
                 return ready;
             }
         }
-        public int CastleBuildStage => _castleBuild.IsCreated ? _castleBuild.StageNumber : 0;
+        public int CastleBuildStage => _castleBuild != null ? _castleBuild.StageNumber : 0;
         public int LastCastleStage { get; private set; }
         public double LastCastleStageMs { get; private set; }
         public int MaxCastleStage { get; private set; }
@@ -350,7 +350,7 @@ namespace VoxelEngine.Showcase
             // allocator bookkeeping is published after each stage. No other world writer may
             // allocate between those stages. Give the castle exclusive mutation ownership until
             // its atomic commit, one semantic stage per frame.
-            if (_castleBuild.IsCreated && !_castleBuild.IsComplete)
+            if (_castleBuild != null && !_castleBuild.IsComplete)
             {
                 // Spend the frame's budget, rather than taking a single step and returning.
                 //
@@ -372,7 +372,7 @@ namespace VoxelEngine.Showcase
                     {
                         StepLandmarks();
                     }
-                    while (_castleBuild.IsCreated && !_castleBuild.IsComplete
+                    while (_castleBuild != null && !_castleBuild.IsComplete
                            && Time.realtimeSinceStartupAsDouble < deadline);
                 }
                 LastGenerateMs = (Time.realtimeSinceStartupAsDouble - start) * 1000.0;
@@ -963,7 +963,7 @@ namespace VoxelEngine.Showcase
             int cz = RegionVoxelEdge / 2 + 120;
             int ground = SurfaceHeight(cx, cz);
 
-            var plan = CastleBuilder.Plan(new int3(cx, ground, cz), Seed);
+            var plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), Seed);
             // Every region the castle reaches into must exist *before* it is built. A castle is
             // wider than a region, and terrain generation writes a region's brick pointers
             // wholesale — so a neighbour generated afterwards silently erases the half of the
@@ -994,21 +994,21 @@ namespace VoxelEngine.Showcase
                 if (!_generated.Contains(_castleRegions[i])) return false;
 
             double stageStart = Time.realtimeSinceStartupAsDouble;
-            int stage = _castleBuild.IsCreated ? _castleBuild.StageNumber : 1;
+            int stage = _castleBuild != null ? _castleBuild.StageNumber : 1;
 
-            if (!_castleBuild.IsCreated)
+            if (_castleBuild == null)
             {
-                var reads = new RegionReadSource(in _table, in _pool);
-                var mutations = new RegionMutationStore(in _table, in _pool);
+                _readSource.Refresh(in _table, in _pool);
+                _mutationStore.Refresh(in _table, in _pool);
                 IMaterialAuthoringCatalogue materials = _palette.IsCreated
                     ? (IMaterialAuthoringCatalogue)_palette
                     : null;
-                _castleBuild = CastleBuilder.BeginBuild(
-                    reads, mutations, in _pendingCastlePlan, Seed, materials);
+                _castleBuild = StructuresComposition.BeginCastleBuild(
+                    _readSource, _mutationStore, in _pendingCastlePlan, Seed, materials);
             }
             bool castleComplete;
             using (s_CastleMarker.Auto())
-                castleComplete = CastleBuilder.StepBuild(ref _castleBuild);
+                castleComplete = _castleBuild.Step();
             if (!castleComplete)
             {
                 RecordCastleStage(stage, stageStart);
@@ -1063,48 +1063,22 @@ namespace VoxelEngine.Showcase
         {
             int ground = SurfaceHeight(horizontalOrigin.x, horizontalOrigin.z);
             int3 origin = new(horizontalOrigin.x, ground + 1, horizontalOrigin.z);
-            var arch = new ArchFeatureDefinition
-            {
-                ClearSpan = 64,
-                PierHeight = 48,
-                RingThickness = 10,
-                Depth = 12,
-                VoussoirCount = 13,
-                StoneMaterial = Mat.DarkStone,
-                PierStyle = SurfaceStyles.Rounded,
-                RingStyle = SurfaceStyles.MasonryJoint,
-                Coating = Coatings.Moss
-            };
-
-            var primitives = new NativeList<Primitive>(arch.Metadata.MaxPrimitives, Allocator.Temp);
-            try
-            {
-                ArchValidationError validation = arch.Validate(
-                    in _palette, in _surfaceCatalogue, in _coatingCatalogue);
-                if (validation != ArchValidationError.None
-                    || !arch.Emit(origin, primitives, _profileBlocks))
-                    throw new InvalidOperationException(
-                        $"The built-in reference arch is invalid: {validation}.");
-                int3 max = origin + arch.Metadata.Footprint;
-                _readSource.Refresh(in _table, in _pool);
-                _mutationStore.Refresh(in _table, in _pool);
-                RasterResult result = PrimitiveRasteriser.Rasterise(
-                    primitives.AsArray(), origin, max, _readSource, _mutationStore);
-                ReferenceArchMin = origin;
-                ReferenceArchMax = max;
-                return result.VoxelsWritten;
-            }
-            finally
-            {
-                primitives.Dispose();
-            }
+            _readSource.Refresh(in _table, in _pool);
+            _mutationStore.Refresh(in _table, in _pool);
+            ReferenceArchBuildResult result = StructuresComposition.BuildReferenceArch(
+                _readSource, _mutationStore, _palette, _surfaceCatalogue, _coatingCatalogue,
+                _profileBlocks, origin, Mat.DarkStone, SurfaceStyles.Rounded,
+                SurfaceStyles.MasonryJoint, Coatings.Moss);
+            ReferenceArchMin = result.Min;
+            ReferenceArchMax = result.Max;
+            return result.VoxelsWritten;
         }
 
         /// <summary>Voxels the castle wrote. Reported in the HUD so its cost is visible.</summary>
         public long CastleVoxels { get; private set; }
         public int3 ReferenceArchMin { get; private set; }
         public int3 ReferenceArchMax { get; private set; }
-        public ProfileBlockStore ProfileBlocks => _profileBlocks;
+        public IProfileBlockReadSource ProfileBlocks => _profileBlocks;
 
         public Vector4[] CastlePresentationLights { get; private set; } = Array.Empty<Vector4>();
         public Vector4[] CastlePresentationLightColours { get; private set; } = Array.Empty<Vector4>();
