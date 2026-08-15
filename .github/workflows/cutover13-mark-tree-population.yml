@@ -1,0 +1,53 @@
+name: Cutover 13 mark tree population
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-mark-tree-population.yml
+
+permissions:
+  contents: write
+
+jobs:
+  mark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+      - name: Mark accepted architecture task
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = p.read_text()
+
+          old_row = "current Showcase Runtime-coupled source inventory reduced to five files; 387/374/13 baseline preserved | migrate five remaining Showcase concrete Runtime consumers, enable the final production-wide Runtime dependency guard, remove residual Core documentation literals, final dependency report"
+          new_row = "current Showcase Runtime-coupled source inventory reduced to three files; `ShowcaseTreePopulation` now routes world/structure/vegetation access through Composition; 387/374/13 baseline preserved | migrate three remaining Showcase concrete Runtime consumers, enable the final production-wide Runtime dependency guard, remove residual Core documentation literals, final dependency report"
+          if old_row not in text:
+              raise SystemExit('Cutover 13 status row anchor changed')
+          text = text.replace(old_row, new_row, 1)
+
+          old_gate = "- Latest accepted code gate: `8f7fc088445388059864615d6d5c31a72dcfa722`, run `31904955615` — 387 tests, 374 passed, exactly the same 13 known baseline failures. This accepts the Structures.Api authoring-session migration and stale `ref` repair, VoxelFarTerrain presentation routing through RenderingComposition, TerrainLookdev renderer/world routing through RenderingComposition, deletion of its unused empty `ProfileBlockStore`, and the reduction to five Runtime-coupled Showcase source files."
+          new_gate = "- Latest accepted code gate: `892b8d5d3fd1fb80d9226ffcb1cb4821be22efb7`, run `31906539037` — 387 tests, 374 passed, exactly the same 13 known baseline failures with zero C# compiler errors. This accepts `ShowcaseTreePopulation` routing its world/seed, castle planning, and tree-world publication through Composition/API contracts and reduces the remaining Runtime-coupled Showcase inventory to three files."
+          if old_gate not in text:
+              raise SystemExit('latest accepted gate anchor changed')
+          text = text.replace(old_gate, new_gate, 1)
+
+          anchor = "- [x] Integrated scene-wiring slice accepted at source `a0528159ada889c59190888840523e6fb8c05a10`, run `31899261112`: mixed-brick capacity sizing is Composition-owned, `TerrainLookdev.Environment` delegates renderer globals through Composition, `CompactFpsOverlay` consumes `Rendering.Api.SurfaceTimingDiagnostics`, `VoxelShowcase` uses Storage.Api surface reads instead of `VoxelAccess`, and repeated TerrainLookdev physical storage adapter construction/publication was consolidated into the owning partial. Result: 387 total / 374 passed / exact same 13 known failures."
+          addition = anchor + "\n- [x] `ShowcaseTreePopulation` no longer imports Rendering.Runtime, Structures.Runtime, or Vegetation.Runtime; current world/seed access, castle planning, and tree-world publication route through narrow Composition entry points returning/accepting Api values only. Source `892b8d5d3fd1fb80d9226ffcb1cb4821be22efb7`, run `31906539037`: 387 total / 374 passed / exact same 13 known baseline failures, zero C# compiler errors."
+          if anchor not in text:
+              raise SystemExit('Cutover 13 progress anchor changed')
+          text = text.replace(anchor, addition, 1)
+          p.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git rm .github/workflows/cutover13-mark-tree-population.yml
+          git commit -m "docs(architecture): mark tree population boundary accepted"
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
