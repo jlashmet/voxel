@@ -10,6 +10,7 @@
     "VoxelEngine.Streaming",
     "VoxelEngine.Tiering",
     "VoxelEngine.Structures",
+    "VoxelEngine.Structures.Api",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Architecture",
     "MountingForce.WorldGen.Voxel",
