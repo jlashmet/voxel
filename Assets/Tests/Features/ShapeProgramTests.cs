@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
+using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Tests.Features.Fixtures;
 

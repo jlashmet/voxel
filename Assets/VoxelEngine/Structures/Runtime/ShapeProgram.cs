@@ -1,11 +1,11 @@
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features.Emitters;
+using VoxelEngine.Structures.Runtime.Emitters;
 using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>Why an evaluation stopped short. Anything but Ok is a catalogue defect.</summary>
     public enum EvaluationResult

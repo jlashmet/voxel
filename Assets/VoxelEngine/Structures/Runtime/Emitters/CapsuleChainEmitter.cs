@@ -2,7 +2,7 @@ using Unity.Mathematics;
 
 using VoxelEngine.Structures.Api;
 
-namespace VoxelEngine.Core.Features.Emitters
+namespace VoxelEngine.Structures.Runtime.Emitters
 {
     /// <summary>
     /// Capsules — the segment between two points, thickened.

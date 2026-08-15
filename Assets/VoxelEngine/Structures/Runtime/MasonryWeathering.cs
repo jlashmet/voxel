@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
-namespace VoxelEngine.Structures
+namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Turns clean masonry into weathered masonry by repainting voxels, never by adding geometry.

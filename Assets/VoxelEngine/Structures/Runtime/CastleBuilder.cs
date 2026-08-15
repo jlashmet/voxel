@@ -4,7 +4,7 @@ using VoxelEngine.Structures.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using Random = Unity.Mathematics.Random;
 
-namespace VoxelEngine.Structures
+namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Builds a castle: its site, its walls, its keep, its interiors, and the dungeon beneath it.

@@ -6,13 +6,12 @@ using Unity.Jobs;
 using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Features;
+using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Core.Occupancy;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Streaming;
-using VoxelEngine.Structures;
 using VoxelEngine.Core.Terrain;
 
 using VoxelEngine.Structures.Api;

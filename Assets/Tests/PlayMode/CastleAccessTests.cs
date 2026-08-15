@@ -9,7 +9,7 @@ using UnityEngine.TestTools;
 using VoxelEngine.Core.Storage;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Showcase;
-using VoxelEngine.Structures;
+using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode

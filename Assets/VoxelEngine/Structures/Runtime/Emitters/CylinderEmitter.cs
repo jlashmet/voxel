@@ -2,7 +2,7 @@ using Unity.Mathematics;
 
 using VoxelEngine.Structures.Api;
 
-namespace VoxelEngine.Core.Features.Emitters
+namespace VoxelEngine.Structures.Runtime.Emitters
 {
     /// <summary>Cylinders on a cardinal axis: towers, wells, pillars, tunnels with square ends.</summary>
     public static class CylinderEmitter

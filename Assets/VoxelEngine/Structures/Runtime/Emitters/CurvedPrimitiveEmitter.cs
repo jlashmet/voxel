@@ -3,7 +3,7 @@ using VoxelEngine.Storage.Api;
 
 using VoxelEngine.Structures.Api;
 
-namespace VoxelEngine.Core.Features.Emitters
+namespace VoxelEngine.Structures.Runtime.Emitters
 {
     /// <summary>Integer-only architectural curved primitives.</summary>
     public static class CurvedPrimitiveEmitter

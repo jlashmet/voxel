@@ -3,7 +3,7 @@ using Random = Unity.Mathematics.Random;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
-namespace VoxelEngine.Structures
+namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Drawing primitives for authored structures through Storage.Api capabilities.

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Mutable owner for retained surface primitives. Features add blocks during generation;

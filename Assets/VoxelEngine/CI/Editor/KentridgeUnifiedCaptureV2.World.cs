@@ -4,7 +4,7 @@ using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
+using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;

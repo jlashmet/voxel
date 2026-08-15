@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Showcase;
-using VoxelEngine.Structures;
+using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Rendering;
 using VoxelEngine.Rendering.SurfaceExtraction;
 using VoxelEngine.Structures.Api;

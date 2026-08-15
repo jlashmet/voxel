@@ -1,11 +1,11 @@
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features.Emitters;
+using VoxelEngine.Structures.Runtime.Emitters;
 using VoxelEngine.Storage.Api;
 
 using VoxelEngine.Structures.Api;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Runtime
 {
     public enum ArchRuinDamage : byte
     {

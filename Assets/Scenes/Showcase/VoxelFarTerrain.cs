@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Rendering;
-using VoxelEngine.Structures;
+using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase

@@ -3,8 +3,8 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Runtime.Emitters;
 
 using VoxelEngine.Structures.Api;
 

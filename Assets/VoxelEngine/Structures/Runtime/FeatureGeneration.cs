@@ -4,7 +4,7 @@ using VoxelEngine.Storage.Api;
 
 using VoxelEngine.Structures.Api;
 
-namespace VoxelEngine.Core.Features
+namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>What a region's feature generation produced.</summary>
     public struct FeatureGenerationReport

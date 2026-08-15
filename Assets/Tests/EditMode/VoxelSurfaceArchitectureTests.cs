@@ -3,13 +3,12 @@ using System.Reflection;
 using System.IO;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Features.Emitters;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Runtime.Emitters;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Server;
 using VoxelEngine.Rendering.SurfaceExtraction;
-using VoxelEngine.Structures;
 
 using VoxelEngine.Structures.Api;
 
