@@ -57,3 +57,4 @@ jobs:
           path: Artifacts/ArchitectureFinalNetSelfHosted/
           if-no-files-found: warn
           retention-days: 14
+# Retriggered to validate the pinned final Net Runtime tree after queue cleanup.
