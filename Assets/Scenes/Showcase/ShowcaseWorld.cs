@@ -72,7 +72,7 @@ namespace VoxelEngine.Showcase
         // -- geometry constants --------------------------------------------------
 
         /// <summary>Voxels along a region edge: 512, i.e. 51.2 m.</summary>
-        public const int RegionVoxelEdge = 1 << VoxelDimensions.RegionVoxelEdgeLog2;
+        public const int RegionVoxelEdge = VoxelGrid.RegionVoxelEdge;
 
         /// <summary>Metres along a region edge.</summary>
         public const float RegionMetres = RegionVoxelEdge * 0.1f;
@@ -158,8 +158,6 @@ namespace VoxelEngine.Showcase
         private readonly VoxelChangeJournal _changes = new();
         private readonly List<int3> _pendingLoads = new();
 
-        public ref RegionTable Table => ref _table;
-        public ref BrickPool Pool => ref _pool;
         public IRegionReadSource ReadStorage
         {
             get
@@ -200,13 +198,10 @@ namespace VoxelEngine.Showcase
                 return _snapshotMutationStore;
             }
         }
-        public MaterialPalette Palette => _palette;
-        public SurfaceCatalogue SurfaceRules => _surfaceCatalogue;
-        public CoatingCatalogue CoatingRules => _coatingCatalogue;
-        public MaterialAdjacencyCatalogue MaterialAdjacencyRules =>
-            _materialAdjacencyCatalogue;
-
-        public VoxelChangeJournal Changes => _changes;
+        public MaterialPaletteView Palette => _palette;
+        public SurfaceCatalogueView SurfaceRules => _surfaceCatalogue;
+        public CoatingCatalogueView CoatingRules => _coatingCatalogue;
+        public IVoxelChangeSource Changes => _changes;
 
         public uint Seed { get; }
 
