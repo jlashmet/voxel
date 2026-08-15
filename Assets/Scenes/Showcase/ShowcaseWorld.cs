@@ -1252,8 +1252,7 @@ namespace VoxelEngine.Showcase
             for (int x = centre.x - half; x < centre.x + half; x++)
             {
                 var voxel = new int3(x, y, z);
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel,
-                                         VoxelDimensions.MaterialEmpty))
+                if (SetMaterialApi(voxel, VoxelGrid.MaterialEmpty))
                     MarkDirty(voxel);
             }
             _castleTrapdoorOpen = true;
@@ -1273,7 +1272,7 @@ namespace VoxelEngine.Showcase
         public int Explode(int3 centre, ushort radius, float3 impulseDirection = default)
         {
             var rng = new DeterministicRandom(MixSeed(centre, radius));
-            var voxels = BuildBrushes.PlaceSphere(centre, radius, VoxelDimensions.MaterialEmpty, Seed);
+            var voxels = BuildBrushes.PlaceSphere(centre, radius, VoxelGrid.MaterialEmpty, Seed);
             var removed = new List<FallingVoxel>(math.min(voxels.Length, 8192));
 
             int radiusSq = radius * radius;
@@ -1282,8 +1281,9 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < voxels.Length; i++)
             {
                 var v = voxels[i];
-                var existing = VoxelAccess.GetVoxel(ref _table, in _pool, v);
-                if (existing == VoxelDimensions.MaterialEmpty) continue;
+                if (!TryReadCellApi(v, out VoxelCell cell)) continue;
+                byte existing = cell.BaseMaterialId;
+                if (existing == VoxelGrid.MaterialEmpty) continue;
                 if (!_materialSimulation.IsDestructible(existing)) continue;
 
                 var d = v - centre;
@@ -1293,7 +1293,6 @@ namespace VoxelEngine.Showcase
 
                 if ((int)(rng.NextUint() & 0xFF) < resistance) continue;
 
-                VoxelCell cell = VoxelAccess.GetCell(ref _table, in _pool, v);
                 removed.Add(new FallingVoxel
                 {
                     Position = v,
@@ -1316,10 +1315,10 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public int RemoveAndResolveCollapse(int3 voxel)
         {
-            byte material = VoxelAccess.GetVoxel(ref _table, in _pool, voxel);
-            if (material == VoxelDimensions.MaterialEmpty || !_materialSimulation.IsDestructible(material))
+            if (!TryReadCellApi(voxel, out VoxelCell cell)) return 0;
+            byte material = cell.BaseMaterialId;
+            if (material == VoxelGrid.MaterialEmpty || !_materialSimulation.IsDestructible(material))
                 return 0;
-            VoxelCell cell = VoxelAccess.GetCell(ref _table, in _pool, voxel);
             var removed = new List<FallingVoxel>(1)
             {
                 new()
@@ -1346,7 +1345,7 @@ namespace VoxelEngine.Showcase
             int startY = (int)math.floor((pivotMetres.y - halfHeightMetres)
                                         / VoxelSize) - 1;
             for (int y = math.min(startY, RegionVoxelEdge - 1); y >= 0; y--)
-                if (VoxelAccess.IsSolid(ref _table, in _pool, new int3(x, y, z)))
+                if (IsSolidApi(new int3(x, y, z)))
                     return (y + 1) * VoxelSize + halfHeightMetres;
             return halfHeightMetres;
         }
@@ -2004,7 +2003,7 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < voxels.Length; i++)
             {
                 if (voxels[i].y < 0) continue;
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxels[i], material))
+                if (SetMaterialApi(voxels[i], material))
                 {
                     changed++;
                     MarkDirty(voxels[i]);
@@ -2017,14 +2016,44 @@ namespace VoxelEngine.Showcase
             return changed;
         }
 
+        private bool TryReadCellApi(int3 voxel, out VoxelCell cell) =>
+            _readSource.TryRead(voxel, out cell);
+
+        private byte ReadMaterialApi(int3 voxel) =>
+            TryReadCellApi(voxel, out VoxelCell cell)
+                ? cell.BaseMaterialId
+                : VoxelGrid.MaterialEmpty;
+
+        private bool IsSolidApi(int3 voxel) =>
+            TryReadCellApi(voxel, out VoxelCell cell) && cell.IsSolid;
+
+        /// <summary>
+        /// Voxel-level compatibility helper implemented entirely through Storage.Api. Using the
+        /// cell-authoring block path preserves the legacy first-write region creation behavior,
+        /// while Storage still owns mixed materialisation, occupancy, metadata and collapse.
+        /// </summary>
+        private bool SetMaterialApi(int3 voxel, byte material)
+        {
+            int3 worldBlock = voxel >> VoxelReadGrid.BlockEdgeLog2;
+            if (!_mutationStore.TryBeginCellBlock(worldBlock, false, out VoxelBlockMutation mutation))
+                return false;
+
+            int3 inner = voxel & VoxelReadGrid.BlockEdgeMask;
+            int voxelIndex = inner.x
+                           | (inner.y << VoxelReadGrid.BlockEdgeLog2)
+                           | (inner.z << (VoxelReadGrid.BlockEdgeLog2 * 2));
+            bool payloadChanged = mutation.SetMaterial(voxelIndex, material);
+            return _mutationStore.CompletePartialBlock(ref mutation, payloadChanged);
+        }
+
         /// <summary>
         /// Publishes the exact changed cell. The scheduler expands the extraction halo.
         /// </summary>
         private void MarkDirty(int3 voxel)
         {
-            var rc = new int3(voxel.x >> VoxelDimensions.RegionVoxelEdgeLog2,
-                              voxel.y >> VoxelDimensions.RegionVoxelEdgeLog2,
-                              voxel.z >> VoxelDimensions.RegionVoxelEdgeLog2);
+            var rc = new int3(voxel.x >> VoxelGrid.RegionVoxelEdgeLog2,
+                              voxel.y >> VoxelGrid.RegionVoxelEdgeLog2,
+                              voxel.z >> VoxelGrid.RegionVoxelEdgeLog2);
 
             // Storage may allocate or collapse a mixed brick, but render domains consume only
             // this logical changed range and expand their own extraction halos.
@@ -2043,7 +2072,7 @@ namespace VoxelEngine.Showcase
             for (int z = 0; z < size.z; z++)
             {
                 var v = minCorner + new int3(x, y, z);
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, v, material)) MarkDirty(v);
+                if (SetMaterialApi(v, material)) MarkDirty(v);
             }
         }
 
@@ -2051,7 +2080,7 @@ namespace VoxelEngine.Showcase
         {
             var voxels = BuildBrushes.PlaceCylinder(baseCentre, radius, height, material, Seed);
             for (int i = 0; i < voxels.Length; i++)
-                if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxels[i], material)) MarkDirty(voxels[i]);
+                if (SetMaterialApi(voxels[i], material)) MarkDirty(voxels[i]);
             voxels.Dispose();
         }
 
@@ -2096,8 +2125,7 @@ namespace VoxelEngine.Showcase
         {
             for (int y = RegionVoxelEdge - 1; y >= 0; y--)
             {
-                byte material = VoxelAccess.GetVoxel(ref _table, in _pool, new int3(wx, y, wz));
-                if (material != VoxelDimensions.MaterialEmpty) return y;
+                if (ReadMaterialApi(new int3(wx, y, wz)) != VoxelGrid.MaterialEmpty) return y;
             }
 
             // A generated terrain column always has a surface, but retaining the canonical
