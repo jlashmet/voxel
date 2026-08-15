@@ -413,7 +413,7 @@ namespace VoxelEngine.Vegetation.Runtime
                         count++;
                         break;
                     }
-                    if ((uint)current >= (uint)parents.Length) break;
+                    if ((uint)current >= (uint)parents.Count) break;
                     int parent = parents[current];
                     if (parent == current) break;
                     current = parent;
