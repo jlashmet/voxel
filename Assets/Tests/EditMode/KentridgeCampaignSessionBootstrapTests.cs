@@ -7,6 +7,7 @@ using Game.Composition.Kentridge.Runtime;
 using Game.Composition.WorldBuilderWorldGen;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
+using Game.Cutscenes.Runtime;
 using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
@@ -47,7 +48,6 @@ namespace VoxelEngine.Tests.EditMode
             public readonly List<NpcRef> Prepared = new List<NpcRef>();
 
             public void AddPlayer(int slot, Actor actor) => _players.Add(slot, actor);
-
             public Actor Npc(NpcRef npc) => _npcs[npc];
 
             public void PrepareNpcs(IReadOnlyList<ResolvedNpcWorldPlacement> placements)
@@ -77,18 +77,20 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private sealed class Presentation : ICutscenePresentation
+        private sealed class CameraCueRuntime : ICutsceneCameraCueRuntime
         {
-            public ICutsceneOperation SetCamera(CutsceneCueId cameraCue) =>
-                CompletedCutsceneOperation.Instance;
+            public ICutsceneOperation Execute(CutsceneCueId cue) => CompletedCutsceneOperation.Instance;
+        }
 
-            public ICutsceneOperation ShowDialogue(
-                CutsceneActorId speaker,
-                CutsceneCueId dialogueCue) =>
+        private sealed class DialogueCueRuntime : ICutsceneDialogueCueRuntime
+        {
+            public ICutsceneOperation Execute(CutsceneActorId speaker, CutsceneCueId cue) =>
                 CompletedCutsceneOperation.Instance;
+        }
 
-            public ICutsceneOperation PlaySound(CutsceneCueId soundCue) =>
-                CompletedCutsceneOperation.Instance;
+        private sealed class SoundCueRuntime : ICutsceneSoundCueRuntime
+        {
+            public ICutsceneOperation Execute(CutsceneCueId cue) => CompletedCutsceneOperation.Instance;
         }
 
         [Test]
@@ -112,7 +114,7 @@ namespace VoxelEngine.Tests.EditMode
                 generation,
                 new KentridgeVoxelSiteRealizationFacts(settlement, 1),
                 actors,
-                new Presentation());
+                Presentation());
 
             Assert.That(session.Blueprint, Is.SameAs(content.Blueprint));
             Assert.That(actors.Prepared.Count, Is.EqualTo(4));
@@ -178,12 +180,18 @@ namespace VoxelEngine.Tests.EditMode
                     generation,
                     new KentridgeVoxelSiteRealizationFacts(settlement, 1),
                     actors,
-                    new Presentation()));
+                    Presentation()));
 
             Assert.That(error.Message, Does.Contain("player slot 0"));
             Assert.That(actors.Prepared, Is.Empty,
                 "Player preflight must fail before the authoritative NPC batch is created or repositioned.");
         }
+
+        private static CutscenePresentationRouter Presentation() =>
+            new CutscenePresentationRouter(
+                new CameraCueRuntime(),
+                new DialogueCueRuntime(),
+                new SoundCueRuntime());
 
         private static void DrainActiveCutscene(KentridgeCampaignSession session)
         {
