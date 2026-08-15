@@ -7,6 +7,7 @@ using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction
 {
@@ -225,33 +226,14 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
     /// </summary>
     public sealed class VoxelSurfaceScheduler : IDisposable
     {
-        private static readonly ProfilerMarker s_PrepareMarker =
-            new("Voxel.Surface.SchedulerPrepare");
-        private static readonly ProfilerMarker s_JournalMarker =
-            new("Voxel.Surface.ChangeJournal");
-        private static readonly ProfilerMarker s_InvalidationMarker =
-            new("Voxel.Surface.Invalidation");
-        private static readonly ProfilerMarker s_DiscoveryMarker =
-            new("Voxel.Surface.Discovery");
-        private static readonly ProfilerMarker s_WorkersMarker =
-            new("Voxel.Surface.WorkerAdmission");
-        private static readonly ProfilerMarker s_VisibilityMarker =
-            new("Voxel.Surface.Visibility");
-        // Each lane owns fixed scratch storage and at most one in-flight chunk. Eight overlaps
-        // Burst extraction without saturating the 16-core target as the 12-lane experiment did;
-        // memory remains bounded by this constant rather than dirty or resident chunk count.
+        private static readonly ProfilerMarker s_PrepareMarker = new("Voxel.Surface.SchedulerPrepare");
+        private static readonly ProfilerMarker s_JournalMarker = new("Voxel.Surface.ChangeJournal");
+        private static readonly ProfilerMarker s_InvalidationMarker = new("Voxel.Surface.Invalidation");
+        private static readonly ProfilerMarker s_DiscoveryMarker = new("Voxel.Surface.Discovery");
+        private static readonly ProfilerMarker s_WorkersMarker = new("Voxel.Surface.WorkerAdmission");
+        private static readonly ProfilerMarker s_VisibilityMarker = new("Voxel.Surface.Visibility");
         public const int SolidWorkerCount = 8;
 
-        /// <summary>
-        /// One concentric LOD ring: a shard set that extracts at a fixed stride and serves a
-        /// radial band around the viewer.
-        ///
-        /// Ring N samples every <see cref="CpuTransvoxelChunkCache.SourceStep"/> voxels, so its
-        /// chunks span that many times more world while costing the same 64³ extraction. Chunk
-        /// coordinates are therefore ring-local: the same world position has a different chunk
-        /// coordinate in every ring, which is why each ring owns an independent cache rather
-        /// than sharing one keyed by coordinate.
-        /// </summary>
         private sealed class SurfaceRing : IDisposable
         {
             public readonly int SourceStep;
@@ -273,9 +255,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                         ShardIndex = i,
                         ShardCount = Workers.Length,
                         MaxResidentChunks = maxResidentChunks / Workers.Length,
-                        // A ring only draws its own band. The inner cut is what prevents two
-                        // rings from both rendering the same terrain and z-fighting; the outer
-                        // cut is the ring's share of the total view distance.
                         MinViewDistanceMetres = innerRadiusMetres,
                         MaxViewDistanceMetres = outerRadiusMetres,
                     };
@@ -288,15 +267,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
         }
 
-        /// <summary>
-        /// Ring layout, in metres, for 10 cm voxels. Chunk edges are 6.4 m, 12.8 m, 25.6 m,
-        /// 51.2 m and 102.4 m respectively, so each ring covers roughly the same number of
-        /// chunks despite spanning far more world than the one inside it.
-        ///
-        /// The two innermost rings sample voxels directly and so require resident bricks. The
-        /// outer rings read the mip pyramid, which is what lets them cover ground the client
-        /// holds only as a coarse summary. See <see cref="VoxelMipSampler.LevelForStride"/>.
-        /// </summary>
         private static readonly (int SourceStep, float Inner, float Outer)[] s_RingLayout =
         {
             (1, 0f, 96f),
@@ -305,20 +275,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             (8, 288f, MaxVoxelRingRadiusMetres),
         };
 
-        /// <summary>
-        /// Outer limit of voxel-meshed rings, in metres.
-        ///
-        /// A ring can only mesh chunks whose regions are resident, so this must not exceed the
-        /// streaming radius — roughly 410 m for the showcase's eight-region load radius. Rings
-        /// past it are pure waste: each one allocates eight shard caches with persistent scratch
-        /// and then finds nothing to build. Everything beyond this distance is drawn by the
-        /// analytic far-terrain clipmap, which needs no resident regions at all.
-        /// </summary>
         public const float MaxVoxelRingRadiusMetres = 420f;
-        // Deliberately stops at 1600 m. A ring can only mesh regions that are resident, and a
-        // Region costs 1 MB of brick pointers whatever it contains, so covering 4 km with
-        // resident regions would run to gigabytes. Terrain beyond the streaming radius is drawn
-        // by VoxelFarTerrain from the same analytic height function instead — see its summary.
 
         private readonly SurfaceRing[] _rings;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
@@ -332,6 +289,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly List<int3> _changedWaterBricks = new(64);
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
+        private RegionReadSource _readSource;
         private ulong _changeCursor;
         private VoxelChangeJournal _journal;
         private int _lastChangeRecords;
@@ -353,7 +311,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _invalidationTiming.Snapshot(), _discoveryTiming.Snapshot(),
             _workerPrepareTiming.Snapshot(), _visibilityTiming.Snapshot());
 
-        /// <summary>Flattens every ring's shards for metric aggregation.</summary>
         private CpuTransvoxelChunkCache[] AllWorkers()
         {
             var all = new CpuTransvoxelChunkCache[_rings.Length * SolidWorkerCount];
@@ -380,6 +337,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                             ProfileBlockStore profileBlocks,
                             VoxelChangeJournal journal, Camera camera, float voxelSize, int frame)
         {
+            _readSource ??= new RegionReadSource(in table, in pool);
+            _readSource.Refresh(in table, in pool);
+
             double prepareStart = Time.realtimeSinceStartupAsDouble;
             using var prepareScope = s_PrepareMarker.Auto();
             _changedSolidRegions.Clear();
@@ -390,6 +350,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             _changedWaterBricks.Clear();
             _surfaceDiscoveryRegions.Clear();
             _discoveredSurfaceBricks.Clear();
+
             double journalStart = Time.realtimeSinceStartupAsDouble;
             using (s_JournalMarker.Auto()) if (journal != null)
             {
@@ -402,7 +363,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 _lastChangeRecords = _changeScratch.Count;
                 if (!complete)
                 {
-                    using var resident = table.GetResidentCoords(Allocator.Temp);
+                    using var resident = _readSource.GetResidentRegionCoords(Allocator.Temp);
                     for (int i = 0; i < resident.Length; i++)
                     {
                         _changedSolidRegions.Add(resident[i]);
@@ -422,7 +383,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                             | VoxelChangeKind.BaseMaterial | VoxelChangeKind.Water
                             | VoxelChangeKind.Residency)) != 0;
                         int3 extent = change.MaxVoxelExclusive - change.MinVoxel;
-                        if (math.any(extent >= VoxelDimensions.RegionVoxelEdge))
+                        if (math.any(extent >= VoxelGrid.RegionVoxelEdge))
                         {
                             if (affectsSolids) _changedSolidRegions.Add(change.Region);
                             if (affectsWater) _changedWaterRegions.Add(change.Region);
@@ -430,9 +391,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                             continue;
                         }
 
-                        int3 minBrick = change.MinVoxel >> VoxelDimensions.BrickEdgeLog2;
+                        int3 minBrick = change.MinVoxel >> VoxelReadGrid.BlockEdgeLog2;
                         int3 maxBrick = (change.MaxVoxelExclusive - 1)
-                                      >> VoxelDimensions.BrickEdgeLog2;
+                                      >> VoxelReadGrid.BlockEdgeLog2;
                         for (int z = minBrick.z; z <= maxBrick.z; z++)
                         for (int y = minBrick.y; y <= maxBrick.y; y++)
                         for (int x = minBrick.x; x <= maxBrick.x; x++)
@@ -464,19 +425,17 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 for (int r = 0; r < _rings.Length; r++)
                 for (int i = 0; i < _rings[r].Workers.Length; i++)
                     _rings[r].Workers[i].InvalidateSurfaceBricks(_changedBricks);
-                _water.InvalidateSurfaceBricks(ref table, in pool, _changedWaterBricks);
+                _water.InvalidateSurfaceBricks(_readSource, _changedWaterBricks);
             }
             _invalidationTiming.Add(ElapsedMs(invalidationStart));
+
             double discoveryStart = Time.realtimeSinceStartupAsDouble;
             using (s_DiscoveryMarker.Auto())
-                DiscoverSurfaceBricks(ref table, in pool, _surfaceDiscoveryRegions,
+                DiscoverSurfaceBricks(_readSource, _surfaceDiscoveryRegions,
                                       _discoveredSurfaceBricks);
             _discoveryTiming.Add(ElapsedMs(discoveryStart));
+
             _visibleSolids.Clear();
-            // Jobs overlap on worker threads. Dividing this tiny admission budget by worker
-            // count reduced each shard below timer resolution and serialized post-job stages.
-            // Each worker gets the configured per-worker main-thread slice; the render pass
-            // remains bounded by SolidWorkerCount * SolidBuildBudgetMs in the worst case.
             double workerBudget = SolidBuildBudgetMs;
             double workersStart = Time.realtimeSinceStartupAsDouble;
             double visibilityMs = 0.0;
@@ -488,6 +447,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 {
                     CpuTransvoxelChunkCache worker = ring.Workers[i];
                     worker.InvalidateSurfaceBricks(_discoveredSurfaceBricks);
+                    // Solid extraction is the final remaining physical-storage reader in
+                    // Rendering; it is cut over in the next step of this same branch.
                     worker.Prepare(ref table, in pool, in palette, in surfaceCatalogue,
                                    in coatingCatalogue, profileBlocks, camera, voxelSize, frame,
                                    workerBudget);
@@ -500,42 +461,39 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 }
             }
 
-            _water.InvalidateSurfaceBricks(ref table, in pool, _discoveredSurfaceBricks);
-            _water.Prepare(ref table, in pool, camera, voxelSize, WaterBuildBudgetMs);
+            _water.InvalidateSurfaceBricks(_readSource, _discoveredSurfaceBricks);
+            _water.Prepare(_readSource, camera, voxelSize, WaterBuildBudgetMs);
             _water.CollectVisible(camera, voxelSize);
             _workerPrepareTiming.Add(ElapsedMs(workersStart) - visibilityMs);
             _visibilityTiming.Add(visibilityMs);
             _prepareTiming.Add(ElapsedMs(prepareStart));
         }
 
-        private static void DiscoverSurfaceBricks(ref RegionTable table, in BrickPool pool,
+        private static void DiscoverSurfaceBricks(IRegionReadSource storage,
                                                   HashSet<int3> regions,
                                                   List<int3> destination)
         {
-            using var flags = new NativeArray<byte>(VoxelDimensions.BricksPerRegion,
-                                                    Allocator.TempJob,
+            int edge = VoxelReadGrid.BlocksPerRegionEdge;
+            int blockCount = edge * edge * edge;
+            using var flags = new NativeArray<byte>(blockCount, Allocator.TempJob,
                                                     NativeArrayOptions.UninitializedMemory);
             foreach (int3 regionCoord in regions)
             {
-                if (!table.TryGetRegion(regionCoord, out Region region)) continue;
-                NativeArray<BrickRef> refs = region.BrickRefs;
-                int edge = VoxelDimensions.RegionEdge;
+                if (!storage.TryAcquireRegion(regionCoord, out RegionReadView region)) continue;
                 int3 origin = regionCoord * edge;
                 new SurfaceBrickDiscoveryJob
                 {
-                    Bricks = refs,
-                    Occupancy = pool.Occupancy,
+                    Region = region,
                     IsSurface = flags,
                     Edge = edge,
-                    OccupancyWordsPerBrick = VoxelDimensions.OccupancyWordsPerBrick,
-                }.Schedule(refs.Length, 256).Complete();
-                for (int i = 0; i < refs.Length; i++)
+                }.Schedule(blockCount, 256).Complete();
+                for (int i = 0; i < blockCount; i++)
                 {
                     if (flags[i] == 0) continue;
-                    int bx = i & VoxelDimensions.RegionEdgeMask;
-                    int by = (i >> VoxelDimensions.RegionEdgeLog2)
-                           & VoxelDimensions.RegionEdgeMask;
-                    int bz = i >> (VoxelDimensions.RegionEdgeLog2 * 2);
+                    int bx = i & VoxelReadGrid.BlocksPerRegionEdgeMask;
+                    int by = (i >> VoxelReadGrid.BlocksPerRegionEdgeLog2)
+                           & VoxelReadGrid.BlocksPerRegionEdgeMask;
+                    int bz = i >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2);
                     destination.Add(origin + new int3(bx, by, bz));
                 }
             }
@@ -545,6 +503,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         {
             _water.Dispose();
             for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();
+            _readSource = null;
         }
 
         private static double ElapsedMs(double startSeconds) =>
