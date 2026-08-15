@@ -12,6 +12,12 @@ namespace MountingForce.WorldGen.Content.Kentridge
     /// </summary>
     public static class KentridgeTownPlanner
     {
+        public const string MainSpineId = "north-south-spine";
+        public const string MarketStreetId = "market-street";
+        public const string ResidentialStreetId = "residential-street";
+        public const string EastServiceLaneId = "east-service-lane";
+        public const string MarketSquareId = "market-square";
+
         public const int MainSpineXDm = 1170;
         public const int MarketStreetZDm = 520;
         public const int ResidentialStreetZDm = 900;
@@ -27,28 +33,28 @@ namespace MountingForce.WorldGen.Content.Kentridge
             var streets = new List<PlannedStreet>(4)
             {
                 new PlannedStreet(
-                    "north-south-spine",
+                    MainSpineId,
                     StreetKind.MainRoad,
                     MainRoadWidthDm,
                     new Int2(MainSpineXDm, -80),
                     new Int2(MainSpineXDm, 1080)),
 
                 new PlannedStreet(
-                    "market-street",
+                    MarketStreetId,
                     StreetKind.Secondary,
                     SecondaryRoadWidthDm,
                     new Int2(700, MarketStreetZDm),
                     new Int2(1660, MarketStreetZDm)),
 
                 new PlannedStreet(
-                    "residential-street",
+                    ResidentialStreetId,
                     StreetKind.Secondary,
                     ResidentialRoadWidthDm,
                     new Int2(650, ResidentialStreetZDm),
                     new Int2(1630, ResidentialStreetZDm)),
 
                 new PlannedStreet(
-                    "east-service-lane",
+                    EastServiceLaneId,
                     StreetKind.Service,
                     ServiceRoadWidthDm,
                     new Int2(EastLaneXDm, 60),
@@ -56,7 +62,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
             };
 
             var plaza = new PlannedPlaza(
-                "market-square",
+                MarketSquareId,
                 KentridgeDefinition.TownCentreDm,
                 new Int2(220, 140));
 
@@ -64,72 +70,73 @@ namespace MountingForce.WorldGen.Content.Kentridge
             {
                 AlongVerticalStreet(
                     seed, 0, KentridgeRole.Church, StructureArchetype.Church, DistrictKind.Civic,
-                    MainSpineXDm, 150, FrontageDirection.East, MainRoadWidthDm, 24, 0),
+                    MainSpineId, MainSpineXDm, 150, FrontageDirection.East, MainRoadWidthDm, 24, 0),
 
                 AlongVerticalStreet(
                     seed, 0, KentridgeRole.MayorHouse, StructureArchetype.WideHouse, DistrictKind.Civic,
-                    MainSpineXDm, 150, FrontageDirection.West, MainRoadWidthDm, 24, 0),
+                    MainSpineId, MainSpineXDm, 150, FrontageDirection.West, MainRoadWidthDm, 24, 0),
 
                 AlongVerticalStreet(
                     seed, 0, KentridgeRole.Inn, StructureArchetype.Inn, DistrictKind.Market,
-                    MainSpineXDm, 340, FrontageDirection.East, MainRoadWidthDm, 24, 0),
+                    MainSpineId, MainSpineXDm, 340, FrontageDirection.East, MainRoadWidthDm, 24, 0),
 
                 AlongHorizontalStreet(
                     seed, 0, KentridgeRole.WeaponShop, StructureArchetype.Shop, DistrictKind.Market,
-                    770, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
+                    MarketStreetId, 770, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
 
                 AlongHorizontalStreet(
                     seed, 0, KentridgeRole.ArmorShop, StructureArchetype.Shop, DistrictKind.Market,
-                    910, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
+                    MarketStreetId, 910, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
 
                 AlongHorizontalStreet(
                     seed, 0, KentridgeRole.MagicShop, StructureArchetype.Shop, DistrictKind.Market,
-                    1050, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
+                    MarketStreetId, 1050, MarketStreetZDm, FrontageDirection.South, SecondaryRoadWidthDm, 18, 0),
 
                 AlongHorizontalStreet(
                     seed, 31, KentridgeRole.RebeccaHouse, StructureArchetype.Townhouse, DistrictKind.Residential,
-                    1320, MarketStreetZDm, FrontageDirection.North, SecondaryRoadWidthDm, 18, 6),
+                    MarketStreetId, 1320, MarketStreetZDm, FrontageDirection.North, SecondaryRoadWidthDm, 18, 6),
 
                 AlongVerticalStreet(
                     seed, 32, KentridgeRole.LoganHouse, StructureArchetype.Townhouse, DistrictKind.Residential,
-                    MainSpineXDm, 760, FrontageDirection.East, MainRoadWidthDm, 24, 8),
+                    MainSpineId, MainSpineXDm, 760, FrontageDirection.East, MainRoadWidthDm, 24, 8),
 
                 AlongVerticalStreet(
                     seed, 0, KentridgeRole.Pub, StructureArchetype.Inn, DistrictKind.Market,
-                    MainSpineXDm, 760, FrontageDirection.West, MainRoadWidthDm, 24, 0),
+                    MainSpineId, MainSpineXDm, 760, FrontageDirection.West, MainRoadWidthDm, 24, 0),
 
                 AlongHorizontalStreet(
                     seed, 41, KentridgeRole.SarahHouse, StructureArchetype.WideHouse, DistrictKind.Residential,
-                    720, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
+                    ResidentialStreetId, 720, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
 
                 AlongHorizontalStreet(
                     seed, 42, KentridgeRole.KatieHouse, StructureArchetype.Townhouse, DistrictKind.Residential,
-                    880, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
+                    ResidentialStreetId, 880, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
 
                 AlongHorizontalStreet(
                     seed, 43, KentridgeRole.MedrareHouse, StructureArchetype.WideHouse, DistrictKind.Residential,
-                    1030, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
+                    ResidentialStreetId, 1030, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
 
                 AlongHorizontalStreet(
                     seed, 44, KentridgeRole.AbandonedHouse, StructureArchetype.Townhouse, DistrictKind.Residential,
-                    1300, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
+                    ResidentialStreetId, 1300, ResidentialStreetZDm, FrontageDirection.South, ResidentialRoadWidthDm, 16, 8),
 
                 AlongVerticalStreet(
                     seed, 45, KentridgeRole.AwonHouse, StructureArchetype.WideHouse, DistrictKind.Residential,
-                    EastLaneXDm, 950, FrontageDirection.West, ServiceRoadWidthDm, 22, 8),
+                    EastServiceLaneId, EastLaneXDm, 950, FrontageDirection.West, ServiceRoadWidthDm, 22, 8),
 
                 AlongVerticalStreet(
                     seed, 0, KentridgeRole.Warehouse, StructureArchetype.Warehouse, DistrictKind.Working,
-                    EastLaneXDm, 700, FrontageDirection.West, ServiceRoadWidthDm, 22, 0),
+                    EastServiceLaneId, EastLaneXDm, 700, FrontageDirection.West, ServiceRoadWidthDm, 22, 0),
 
                 AlongVerticalStreet(
                     seed, 0, KentridgeRole.RadcliffeMansion, StructureArchetype.Mansion, DistrictKind.Noble,
-                    EastLaneXDm, 250, FrontageDirection.West, ServiceRoadWidthDm, 22, 0),
+                    EastServiceLaneId, EastLaneXDm, 250, FrontageDirection.West, ServiceRoadWidthDm, 22, 0),
 
                 CentrePlot(
                     KentridgeRole.Well,
                     StructureArchetype.Well,
                     DistrictKind.Market,
+                    MarketSquareId,
                     KentridgeDefinition.TownCentreDm),
             };
 
@@ -145,7 +152,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
 
         private static BuildingPlot AlongHorizontalStreet(
             uint seed, uint salt, KentridgeRole role, StructureArchetype archetype,
-            DistrictKind district, int frontageXDm, int streetZDm,
+            DistrictKind district, string streetId, int frontageXDm, int streetZDm,
             FrontageDirection frontage, int roadWidthDm, int setbackDm, int jitterDm)
         {
             Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
@@ -166,12 +173,17 @@ namespace MountingForce.WorldGen.Content.Kentridge
                         "Horizontal street plots must face north or south.", nameof(frontage));
             }
 
-            return new BuildingPlot((int)role, archetype, district, new Int2(x, z), frontage);
+            var access = new PlannedSiteAccess(
+                SiteAccessKind.Street,
+                streetId,
+                new Int2(along, streetZDm));
+            return new BuildingPlot(
+                (int)role, archetype, district, new Int2(x, z), frontage, access);
         }
 
         private static BuildingPlot AlongVerticalStreet(
             uint seed, uint salt, KentridgeRole role, StructureArchetype archetype,
-            DistrictKind district, int streetXDm, int frontageZDm,
+            DistrictKind district, string streetId, int streetXDm, int frontageZDm,
             FrontageDirection frontage, int roadWidthDm, int setbackDm, int jitterDm)
         {
             Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
@@ -192,19 +204,30 @@ namespace MountingForce.WorldGen.Content.Kentridge
                         "Vertical street plots must face east or west.", nameof(frontage));
             }
 
-            return new BuildingPlot((int)role, archetype, district, new Int2(x, z), frontage);
+            var access = new PlannedSiteAccess(
+                SiteAccessKind.Street,
+                streetId,
+                new Int2(streetXDm, along));
+            return new BuildingPlot(
+                (int)role, archetype, district, new Int2(x, z), frontage, access);
         }
 
         private static BuildingPlot CentrePlot(
-            KentridgeRole role, StructureArchetype archetype, DistrictKind district, Int2 centreDm)
+            KentridgeRole role, StructureArchetype archetype, DistrictKind district,
+            string plazaId, Int2 centreDm)
         {
             Int3 footprint = KentridgeDefinition.FootprintDm(archetype);
+            var access = new PlannedSiteAccess(
+                SiteAccessKind.Plaza,
+                plazaId,
+                centreDm);
             return new BuildingPlot(
                 (int)role,
                 archetype,
                 district,
                 new Int2(centreDm.X - footprint.X / 2, centreDm.Y - footprint.Z / 2),
-                FrontageDirection.South);
+                FrontageDirection.South,
+                access);
         }
 
         private static int SignedJitter(uint seed, uint salt, int magnitude)

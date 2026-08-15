@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace MountingForce.WorldGen
@@ -63,6 +64,43 @@ namespace MountingForce.WorldGen
         West = 1,
         North = 2,
         East = 3,
+    }
+
+    /// <summary>
+    /// The semantic movement network a site is intentionally connected to. None is retained for
+    /// backwards-compatible/unfinished plans; production content should expose an explicit access.
+    /// </summary>
+    public enum SiteAccessKind : byte
+    {
+        None = 0,
+        Street = 1,
+        Plaza = 2,
+    }
+
+    /// <summary>
+    /// Explicit connection from a stable site role to the settlement movement network. NetworkPointDm
+    /// is the authored point on that street/plaza network, not a nearest-road guess made downstream.
+    /// Architectural generation later connects the resolved public entrance to this point.
+    /// </summary>
+    public readonly struct PlannedSiteAccess
+    {
+        public readonly SiteAccessKind Kind;
+        public readonly string TargetId;
+        public readonly Int2 NetworkPointDm;
+
+        public PlannedSiteAccess(SiteAccessKind kind, string targetId, Int2 networkPointDm)
+        {
+            if (kind == SiteAccessKind.None)
+                throw new ArgumentException("A planned site access must target a street or plaza.", nameof(kind));
+            if (string.IsNullOrWhiteSpace(targetId))
+                throw new ArgumentException("A planned site access target id is required.", nameof(targetId));
+
+            Kind = kind;
+            TargetId = targetId;
+            NetworkPointDm = networkPointDm;
+        }
+
+        public bool IsSpecified => Kind != SiteAccessKind.None && !string.IsNullOrEmpty(TargetId);
     }
 
     /// <summary>
@@ -167,7 +205,8 @@ namespace MountingForce.WorldGen
 
     /// <summary>
     /// A street-facing plot allocated to a stable gameplay role. Gameplay binds to RoleId; layout
-    /// can move the plot without changing quest identity.
+    /// can move the plot without changing quest identity. Access records the movement-network target
+    /// chosen by the planner at the same time as the frontage allocation.
     /// </summary>
     public readonly struct BuildingPlot
     {
@@ -176,21 +215,29 @@ namespace MountingForce.WorldGen
         public readonly DistrictKind District;
         public readonly Int2 PositionDm;
         public readonly FrontageDirection Frontage;
+        public readonly PlannedSiteAccess Access;
 
         public BuildingPlot(int roleId, StructureArchetype archetype, DistrictKind district,
                             Int2 positionDm, FrontageDirection frontage)
+            : this(roleId, archetype, district, positionDm, frontage, default(PlannedSiteAccess))
+        {
+        }
+
+        public BuildingPlot(int roleId, StructureArchetype archetype, DistrictKind district,
+                            Int2 positionDm, FrontageDirection frontage, PlannedSiteAccess access)
         {
             RoleId = roleId;
             Archetype = archetype;
             District = district;
             PositionDm = positionDm;
             Frontage = frontage;
+            Access = access;
         }
     }
 
     /// <summary>
     /// Backend-friendly view of a plot. Kept as a separate type so gameplay can continue binding to
-    /// stable role ids while adapters consume a compact position/orientation pair.
+    /// stable role ids while adapters consume a compact position/orientation pair plus semantic access.
     /// </summary>
     public readonly struct PlannedSite
     {
@@ -198,6 +245,7 @@ namespace MountingForce.WorldGen
         public readonly StructureArchetype Archetype;
         public readonly Int2 PositionDm;
         public readonly byte Orientation;
+        public readonly PlannedSiteAccess Access;
 
         public PlannedSite(BuildingPlot plot)
         {
@@ -205,6 +253,7 @@ namespace MountingForce.WorldGen
             Archetype = plot.Archetype;
             PositionDm = plot.PositionDm;
             Orientation = (byte)plot.Frontage;
+            Access = plot.Access;
         }
     }
 
