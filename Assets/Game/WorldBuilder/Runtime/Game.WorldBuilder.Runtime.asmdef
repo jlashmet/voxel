@@ -1,0 +1,16 @@
+{
+  "name": "Game.WorldBuilder.Runtime",
+  "rootNamespace": "Game.WorldBuilder.Runtime",
+  "references": [
+    "Game.WorldBuilder.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

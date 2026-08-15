@@ -12,6 +12,8 @@
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Architecture",
     "MountingForce.WorldGen.Voxel",
+    "Game.WorldBuilder.Api",
+    "Game.WorldBuilder.Runtime",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
@@ -21,12 +23,18 @@
     "Unity.RenderPipelines.Universal.Runtime",
     "Unity.RenderPipelines.Core.Runtime"
   ],
-  "includePlatforms": ["Editor"],
+  "includePlatforms": [
+    "Editor"
+  ],
   "excludePlatforms": [],
   "allowUnsafeCode": true,
   "overrideReferences": true,
-  "precompiledReferences": ["nunit.framework.dll"],
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
   "autoReferenced": false,
-  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
   "versionDefines": []
 }
