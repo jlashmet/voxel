@@ -2,7 +2,7 @@ using System;
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
     /// Sparse map from region coordinate to resident region.

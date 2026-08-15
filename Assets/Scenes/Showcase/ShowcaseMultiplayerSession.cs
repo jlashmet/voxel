@@ -5,7 +5,7 @@ using Unity.Networking.Transport;
 using UnityEngine;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Net.Runtime.Client;
 using VoxelEngine.Net.Runtime.Protocol;
 using VoxelEngine.Net.Runtime.Server;

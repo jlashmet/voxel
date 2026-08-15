@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Terrain.Api;
 
 namespace VoxelEngine.Tests.Parity

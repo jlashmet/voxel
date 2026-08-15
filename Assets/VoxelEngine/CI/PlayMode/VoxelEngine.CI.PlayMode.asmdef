@@ -2,7 +2,7 @@
   "name": "VoxelEngine.CI.PlayMode",
   "rootNamespace": "VoxelEngine.CI",
   "references": [
-    "VoxelEngine.Core",
+    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Showcase",
     "Unity.Mathematics",

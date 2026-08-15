@@ -1,4 +1,4 @@
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;

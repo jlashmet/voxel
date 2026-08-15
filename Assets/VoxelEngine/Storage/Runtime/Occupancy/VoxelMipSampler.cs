@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 
-namespace VoxelEngine.Core.Occupancy
+namespace VoxelEngine.Storage.Runtime.Occupancy
 {
     /// <summary>
     /// Reads occupancy and material at a chosen resolution, from the finest source available.

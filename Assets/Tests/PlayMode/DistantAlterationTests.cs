@@ -5,7 +5,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Streaming.Runtime;
 using VoxelEngine.Tiering.Api;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
 {

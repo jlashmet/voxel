@@ -1,7 +1,7 @@
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>Current Core implementation of the bulk region-generation write boundary.</summary>
     public sealed class RegionGenerationStore : IRegionGenerationStore

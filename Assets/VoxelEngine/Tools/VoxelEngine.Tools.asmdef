@@ -1,7 +1,13 @@
 {
   "name": "VoxelEngine.Tools",
   "rootNamespace": "VoxelEngine.Tools",
-  "references": ["VoxelEngine.Core", "Unity.Burst", "Unity.Collections", "Unity.Mathematics", "VoxelEngine.Net.Runtime"],
+  "references": [
+    "VoxelEngine.Storage.Runtime",
+    "Unity.Burst",
+    "Unity.Collections",
+    "Unity.Mathematics",
+    "VoxelEngine.Net.Runtime"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": true,

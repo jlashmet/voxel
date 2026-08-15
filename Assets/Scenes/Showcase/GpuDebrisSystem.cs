@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.Runtime;
 

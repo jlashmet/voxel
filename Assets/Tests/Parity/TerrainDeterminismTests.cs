@@ -2,7 +2,7 @@ using Unity.Mathematics;
 using NUnit.Framework;
 using Unity.Collections;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Terrain.Api;
 using VoxelEngine.Terrain.Runtime;
 
@@ -133,8 +133,8 @@ namespace VoxelEngine.Tests.Parity
             int count = 0;
             for (int i = 0; i < pool.Voxels.Length && (uint)i < (uint)(pool.Capacity >> 4); i += 16)
             {
-                if (VoxelEngine.Core.Occupancy.OccupancyMask.IsEmpty(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick) == false
-                    || !VoxelEngine.Core.Occupancy.OccupancyMask.IsFull(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick))
+                if (VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.IsEmpty(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick) == false
+                    || !VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.IsFull(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick))
                 {
                     count++;
                 }

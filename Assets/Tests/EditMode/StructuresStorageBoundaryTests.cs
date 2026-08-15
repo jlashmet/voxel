@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -19,7 +19,7 @@ namespace VoxelEngine.Tests.EditMode
             string api = Path.Combine(root, "Assets", "VoxelEngine", "Structures", "Api");
             string asmdef = File.ReadAllText(Path.Combine(api, "VoxelEngine.Structures.Api.asmdef"));
 
-            StringAssert.DoesNotContain("VoxelEngine.Core", asmdef);
+            StringAssert.DoesNotContain("VoxelEngine.Storage.Runtime", asmdef);
             StringAssert.DoesNotContain(".Runtime", asmdef);
             Assert.False(File.Exists(Path.Combine(
                 root, "Assets", "VoxelEngine", "Core", "Features", "CatalogueLoader.cs")),
@@ -53,7 +53,7 @@ namespace VoxelEngine.Tests.EditMode
                 "BrickRef",
                 "VoxelAccess",
                 "VoxelDimensions.",
-                "VoxelEngine.Core.Storage",
+                "VoxelEngine.Storage.Runtime",
             };
             var violations = new List<string>();
 

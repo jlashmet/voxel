@@ -2,7 +2,7 @@
   "name": "VoxelEngine.Showcase",
   "rootNamespace": "VoxelEngine.Showcase",
   "references": [
-    "VoxelEngine.Core",
+    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Net.Runtime",

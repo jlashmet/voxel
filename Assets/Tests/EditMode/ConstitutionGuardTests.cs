@@ -16,9 +16,7 @@ namespace VoxelEngine.Tests.EditMode
     {
         private static readonly string[] DeterministicSourceRoots =
         {
-            // Legacy root remains protected until the final Core deletion cutover.
-            "Core",
-            // Target architecture roots. Non-existent roots are ignored during migration.
+            // Deterministic architecture roots. Non-existent roots are ignored during migration.
             "Foundation",
             "Storage",
             "Terrain",

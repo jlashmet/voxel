@@ -1,7 +1,7 @@
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
     /// Current Storage implementation of authoritative semantic snapshot replacement. This type

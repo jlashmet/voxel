@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
     /// Bounded append-only world-change stream. Consumers own cursors; no consumer clears state

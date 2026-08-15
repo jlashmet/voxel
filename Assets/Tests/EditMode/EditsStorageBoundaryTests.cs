@@ -6,7 +6,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -27,8 +27,8 @@ namespace VoxelEngine.Tests.EditMode
                 "BrickRef",
                 "OccupancyMask",
                 "VoxelDimensions",
-                "VoxelEngine.Core.Storage",
-                "VoxelEngine.Core.Occupancy",
+                "VoxelEngine.Storage.Runtime",
+                "VoxelEngine.Storage.Runtime.Occupancy",
             };
 
             foreach (string token in forbidden)

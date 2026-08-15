@@ -1,9 +1,9 @@
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
-using VoxelEngine.Core.Occupancy;
+using VoxelEngine.Storage.Runtime.Occupancy;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
     /// Voxel-level read and write across the three storage tiers.

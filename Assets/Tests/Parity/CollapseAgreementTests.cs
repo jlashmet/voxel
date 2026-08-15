@@ -3,8 +3,8 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.StructuralIntegrity.Runtime;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Occupancy;
+using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Storage.Runtime.Occupancy;
 
 namespace VoxelEngine.Tests.Parity
 {

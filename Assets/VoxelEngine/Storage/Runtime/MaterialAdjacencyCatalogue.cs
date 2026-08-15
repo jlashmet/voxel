@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     [Flags]
     public enum MaterialAdjacencyEffect : byte

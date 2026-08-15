@@ -1,7 +1,7 @@
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 

@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Terrain.Runtime;
 
@@ -29,7 +29,7 @@ namespace VoxelEngine.Tests.EditMode
                 "BrickPool",
                 "BrickRef",
                 "VoxelDimensions.",
-                "VoxelEngine.Core.Storage",
+                "VoxelEngine.Storage.Runtime",
             };
 
             foreach (string token in forbidden)

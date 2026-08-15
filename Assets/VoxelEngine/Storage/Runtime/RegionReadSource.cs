@@ -2,7 +2,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
     /// Current Storage implementation of the public region-read, semantic-snapshot and focused

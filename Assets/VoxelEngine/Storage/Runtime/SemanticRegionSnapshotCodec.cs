@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
     /// Compact semantic snapshot of one resident region for convergence repair/current-state sync.

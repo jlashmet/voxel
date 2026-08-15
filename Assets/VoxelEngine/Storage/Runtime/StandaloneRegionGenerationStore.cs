@@ -2,7 +2,7 @@ using System;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
     /// Test/offline support for parity harnesses that intentionally own one standalone Region

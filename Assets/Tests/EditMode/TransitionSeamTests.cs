@@ -3,7 +3,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 

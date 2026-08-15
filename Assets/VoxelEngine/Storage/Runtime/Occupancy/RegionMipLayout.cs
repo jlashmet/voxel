@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 
-namespace VoxelEngine.Core.Occupancy
+namespace VoxelEngine.Storage.Runtime.Occupancy
 {
     /// <summary>
     /// Flattened storage layout for a region's mip pyramid.

@@ -2,7 +2,7 @@
   "name": "VoxelEngine.Tests.PlayMode",
   "rootNamespace": "VoxelEngine.Tests.PlayMode",
   "references": [
-    "VoxelEngine.Core",
+    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Net.Api",
     "VoxelEngine.Net.Runtime",

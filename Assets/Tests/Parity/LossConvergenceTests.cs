@@ -1,5 +1,5 @@
 using System;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -239,7 +239,7 @@ namespace VoxelEngine.Tests.Parity
             int maxBricks = pool.Capacity >> 4; // Approximate region-brick allocation ratio
             for (int i = 0; i < maxBricks; i++)
             {
-                if (!VoxelEngine.Core.Occupancy.OccupancyMask.IsEmpty(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick))
+                if (!VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.IsEmpty(pool.Occupancy, i * VoxelDimensions.OccupancyWordsPerBrick))
                     count++;
             }
             return count;

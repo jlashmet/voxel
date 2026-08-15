@@ -4,7 +4,7 @@ using UnityEngine;
 using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Collision.Runtime;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Tiering.Api;
 

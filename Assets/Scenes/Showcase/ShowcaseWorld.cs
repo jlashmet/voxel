@@ -8,8 +8,8 @@ using UnityEngine;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Core.Occupancy;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime.Occupancy;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Streaming.Runtime;
@@ -1377,7 +1377,7 @@ namespace VoxelEngine.Showcase
                     region.BrickRefs[brickIndex] = brick;
                 }
 
-                int voxelIndex = VoxelEngine.Core.Occupancy.OccupancyMask.VoxelIndex(
+                int voxelIndex = VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.VoxelIndex(
                     voxelInBrick.x, voxelInBrick.y, voxelInBrick.z);
                 if (_pool.GetVoxel(brick.PoolIndex, voxelIndex)
                     == VoxelDimensions.MaterialEmpty) continue;
@@ -1665,7 +1665,7 @@ namespace VoxelEngine.Showcase
             for (int y = firstY; y < VoxelDimensions.BrickEdge; y++)
             for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
             {
-                int index = VoxelEngine.Core.Occupancy.OccupancyMask.VoxelIndex(x, y, z);
+                int index = VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.VoxelIndex(x, y, z);
                 byte material = _pool.GetVoxel(brick.PoolIndex, index);
                 if (material == VoxelDimensions.MaterialEmpty
                     || !_palette.IsDestructible(material)) continue;
@@ -1731,7 +1731,7 @@ namespace VoxelEngine.Showcase
                     for (int y = firstY; y < VoxelDimensions.BrickEdge; y++)
                     for (int x = 0; x < VoxelDimensions.BrickEdge; x++)
                     {
-                        int index = VoxelEngine.Core.Occupancy.OccupancyMask.VoxelIndex(x, y, z);
+                        int index = VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.VoxelIndex(x, y, z);
                         byte material = _pool.GetVoxel(brick.PoolIndex, index);
                         if (material == VoxelDimensions.MaterialEmpty
                             || !_palette.IsDestructible(material)) continue;

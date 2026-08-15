@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>Server-side residency. Cold regions live on disk; hot regions carry their event log.</summary>
     public enum RegionResidency : byte

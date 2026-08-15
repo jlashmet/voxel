@@ -1,7 +1,7 @@
 using System;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
     /// Cross-peer semantic fingerprint of region state.

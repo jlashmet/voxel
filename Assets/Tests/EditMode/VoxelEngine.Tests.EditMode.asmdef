@@ -2,7 +2,7 @@
   "name": "VoxelEngine.Tests.EditMode",
   "rootNamespace": "VoxelEngine.Tests.EditMode",
   "references": [
-    "VoxelEngine.Core",
+    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Rendering.Runtime",

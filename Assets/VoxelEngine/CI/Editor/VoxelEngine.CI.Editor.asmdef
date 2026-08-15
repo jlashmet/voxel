@@ -2,7 +2,7 @@
   "name": "VoxelEngine.CI.Editor",
   "rootNamespace": "VoxelEngine.CI",
   "references": [
-    "VoxelEngine.Core",
+    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Rendering.Runtime",
     "MountingForce.WorldGen.Core",

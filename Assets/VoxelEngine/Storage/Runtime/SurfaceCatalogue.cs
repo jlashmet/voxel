@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     public enum SurfaceReconstruction : byte
     {

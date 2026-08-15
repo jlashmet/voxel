@@ -2,7 +2,7 @@
   "name": "VoxelEngine.Tests.Features",
   "rootNamespace": "VoxelEngine.Tests.Features",
   "references": [
-    "VoxelEngine.Core",
+    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",

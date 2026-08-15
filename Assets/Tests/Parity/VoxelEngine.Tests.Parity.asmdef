@@ -2,7 +2,7 @@
   "name": "VoxelEngine.Tests.Parity",
   "rootNamespace": "VoxelEngine.Tests.Parity",
   "references": [
-    "VoxelEngine.Core",
+    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",

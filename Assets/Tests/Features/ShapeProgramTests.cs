@@ -3,7 +3,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Structures.Runtime.Emitters;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Tests.Features.Fixtures;
 
 using VoxelEngine.Structures.Api;

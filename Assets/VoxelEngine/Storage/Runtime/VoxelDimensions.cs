@@ -1,4 +1,4 @@
-namespace VoxelEngine.Core.Storage
+namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
     /// The dimensional constants the whole engine is built on. Everything here is a

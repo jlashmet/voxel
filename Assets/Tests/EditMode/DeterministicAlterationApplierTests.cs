@@ -3,7 +3,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Tests.EditMode

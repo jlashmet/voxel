@@ -2,9 +2,9 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 
-namespace VoxelEngine.Core.Occupancy
+namespace VoxelEngine.Storage.Runtime.Occupancy
 {
     /// <summary>
     /// Builds the voxel mip hierarchy for a region: an occupancy pyramid plus a parallel

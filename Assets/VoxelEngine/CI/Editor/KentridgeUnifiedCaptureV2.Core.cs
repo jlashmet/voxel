@@ -10,7 +10,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 using VoxelEngine.Structures.Api;

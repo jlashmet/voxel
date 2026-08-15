@@ -25,7 +25,7 @@ namespace VoxelEngine.Tests.EditMode
                 "BrickRef",
                 "VoxelAccess",
                 "VoxelDimensions.",
-                "VoxelEngine.Core.Storage",
+                "VoxelEngine.Storage.Runtime",
             };
             var violations = new List<string>();
 
@@ -41,8 +41,8 @@ namespace VoxelEngine.Tests.EditMode
 
             string asmdefPath = Path.Combine(runtime, "VoxelEngine.Streaming.Runtime.asmdef");
             string asmdef = File.ReadAllText(asmdefPath);
-            if (asmdef.IndexOf("\"VoxelEngine.Core\"", StringComparison.Ordinal) >= 0)
-                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> VoxelEngine.Core");
+            if (asmdef.IndexOf("\"VoxelEngine.Storage.Runtime\"", StringComparison.Ordinal) >= 0)
+                violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> VoxelEngine.Storage.Runtime");
             if (asmdef.IndexOf("\"VoxelEngine.Net\"", StringComparison.Ordinal) >= 0)
                 violations.Add("VoxelEngine.Streaming.Runtime.asmdef -> VoxelEngine.Net");
             if (asmdef.IndexOf("\"VoxelEngine.Storage.Api\"", StringComparison.Ordinal) < 0)

@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
-namespace VoxelEngine.Core.Occupancy
+namespace VoxelEngine.Storage.Runtime.Occupancy
 {
     /// <summary>
     /// Bit-per-voxel occupancy for one brick: 512 bits across 8 x 64-bit words.
