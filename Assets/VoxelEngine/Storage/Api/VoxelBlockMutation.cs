@@ -1,15 +1,14 @@
 using System.Runtime.CompilerServices;
 using Unity.Collections;
-using Unity.Mathematics;
 
 namespace VoxelEngine.Storage.Api
 {
     /// <summary>
     /// Borrowed mutable payload for one logical 8^3 block.
     ///
-    /// Physical allocation identity stays internal to Storage. The public hot path exposes logical
-    /// cell/material reads and writes plus the semantic metadata-change bit needed by mutation
-    /// orchestration.
+    /// Physical allocation identity stays entirely inside Storage.Runtime. The public hot path
+    /// exposes only logical cell/material channels plus an opaque lease token that the issuing
+    /// <see cref="IRegionMutationStore"/> consumes when the mutation is completed.
     /// </summary>
     public struct VoxelBlockMutation
     {
@@ -17,63 +16,52 @@ namespace VoxelEngine.Storage.Api
         private NativeArray<ushort> _surfaceSemantics;
         private NativeArray<byte> _boundarySamples;
         private NativeArray<ulong> _occupancy;
-        private int _voxelOffset;
-        private int _occupancyOffset;
+        private ulong _leaseToken;
+        private bool _metadataChanged;
 
-        internal int3 RegionCoord;
-        internal int BlockIndex;
-        internal int OriginalEncodedRef;
-        internal int PoolIndex;
-        internal bool MaterializedUniform;
-        internal bool MetadataChangedInternal;
+        public bool IsCreated => _materials.IsCreated;
+        public bool MetadataChanged => _metadataChanged;
 
-        public bool IsCreated => _materials.IsCreated && PoolIndex >= 0;
-        public bool MetadataChanged => MetadataChangedInternal;
+        /// <summary>
+        /// Opaque issuer-owned lease identity. Callers must not interpret or persist this value;
+        /// it exists only so the issuing mutation store can match completion to private rollback
+        /// state without exposing region, block or pool representation through Storage.Api.
+        /// </summary>
+        public ulong LeaseToken => _leaseToken;
 
-        internal VoxelBlockMutation(
+        /// <summary>
+        /// Provider construction boundary for a borrowed logical block. The native arrays must be
+        /// block-sized slices and remain owned by the issuing Storage implementation.
+        /// </summary>
+        public VoxelBlockMutation(
             NativeArray<byte> materials,
             NativeArray<ushort> surfaceSemantics,
             NativeArray<byte> boundarySamples,
             NativeArray<ulong> occupancy,
-            int voxelOffset,
-            int occupancyOffset,
-            int3 regionCoord,
-            int blockIndex,
-            int originalEncodedRef,
-            int poolIndex,
-            bool materializedUniform,
+            ulong leaseToken,
             bool metadataChanged)
         {
             _materials = materials;
             _surfaceSemantics = surfaceSemantics;
             _boundarySamples = boundarySamples;
             _occupancy = occupancy;
-            _voxelOffset = voxelOffset;
-            _occupancyOffset = occupancyOffset;
-            RegionCoord = regionCoord;
-            BlockIndex = blockIndex;
-            OriginalEncodedRef = originalEncodedRef;
-            PoolIndex = poolIndex;
-            MaterializedUniform = materializedUniform;
-            MetadataChangedInternal = metadataChanged;
+            _leaseToken = leaseToken;
+            _metadataChanged = metadataChanged;
         }
 
-        internal static VoxelBlockMutation MetadataOnly(
-            int3 regionCoord,
-            int blockIndex,
-            int originalEncodedRef,
-            bool metadataChanged) => new VoxelBlockMutation(
-                default, default, default, default,
-                0, 0,
-                regionCoord, blockIndex, originalEncodedRef,
-                -1, false, metadataChanged);
+        /// <summary>
+        /// Creates a valid completion lease with no materialised payload. Storage uses this when
+        /// the requested material is already uniform but semantic metadata may still have changed.
+        /// </summary>
+        public static VoxelBlockMutation MetadataOnly(ulong leaseToken, bool metadataChanged) =>
+            new VoxelBlockMutation(default, default, default, default, leaseToken, metadataChanged);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte GetMaterial(int voxelIndex)
         {
             if (!IsCreated || (uint)voxelIndex >= VoxelReadGrid.VoxelsPerBlock)
                 return VoxelGrid.MaterialEmpty;
-            return _materials[_voxelOffset + voxelIndex];
+            return _materials[voxelIndex];
         }
 
         /// <summary>Reads the complete logical cell stored at one voxel in this block.</summary>
@@ -83,17 +71,16 @@ namespace VoxelEngine.Storage.Api
             if (!IsCreated || (uint)voxelIndex >= VoxelReadGrid.VoxelsPerBlock)
                 return default;
 
-            int offset = _voxelOffset + voxelIndex;
-            byte material = _materials[offset];
+            byte material = _materials[voxelIndex];
             return new VoxelCell
             {
                 BaseMaterialId = material,
                 Surface = material == VoxelGrid.MaterialEmpty
                     ? default
-                    : VoxelSurfaceSemantics.FromStorage(_surfaceSemantics[offset]),
+                    : VoxelSurfaceSemantics.FromStorage(_surfaceSemantics[voxelIndex]),
                 // Authored boundary samples may legitimately survive on the empty side of a
                 // surface, so boundary state is independent from occupancy/material.
-                Boundary = new VoxelBoundarySample { Packed = _boundarySamples[offset] }
+                Boundary = new VoxelBoundarySample { Packed = _boundarySamples[voxelIndex] }
             };
         }
 
@@ -108,15 +95,14 @@ namespace VoxelEngine.Storage.Api
             if (!IsCreated || (uint)voxelIndex >= VoxelReadGrid.VoxelsPerBlock)
                 return false;
 
-            int offset = _voxelOffset + voxelIndex;
-            if (_materials[offset] == material)
+            if (_materials[voxelIndex] == material)
                 return false;
 
-            _materials[offset] = material;
+            _materials[voxelIndex] = material;
             if (material == VoxelGrid.MaterialEmpty)
             {
-                _surfaceSemantics[offset] = 0;
-                _boundarySamples[offset] = 0;
+                _surfaceSemantics[voxelIndex] = 0;
+                _boundarySamples[voxelIndex] = 0;
             }
 
             SetOccupancy(voxelIndex, material != VoxelGrid.MaterialEmpty);
@@ -134,19 +120,18 @@ namespace VoxelEngine.Storage.Api
             if (!IsCreated || (uint)voxelIndex >= VoxelReadGrid.VoxelsPerBlock)
                 return false;
 
-            int offset = _voxelOffset + voxelIndex;
             bool solid = cell.BaseMaterialId != VoxelGrid.MaterialEmpty;
             ushort surface = solid ? cell.Surface.PackedStorage : (ushort)0;
             byte boundary = cell.Boundary.Packed;
 
-            if (_materials[offset] == cell.BaseMaterialId
-                && _surfaceSemantics[offset] == surface
-                && _boundarySamples[offset] == boundary)
+            if (_materials[voxelIndex] == cell.BaseMaterialId
+                && _surfaceSemantics[voxelIndex] == surface
+                && _boundarySamples[voxelIndex] == boundary)
                 return false;
 
-            _materials[offset] = cell.BaseMaterialId;
-            _surfaceSemantics[offset] = surface;
-            _boundarySamples[offset] = boundary;
+            _materials[voxelIndex] = cell.BaseMaterialId;
+            _surfaceSemantics[voxelIndex] = surface;
+            _boundarySamples[voxelIndex] = boundary;
             SetOccupancy(voxelIndex, solid);
             return true;
         }
@@ -154,7 +139,7 @@ namespace VoxelEngine.Storage.Api
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SetOccupancy(int voxelIndex, bool occupied)
         {
-            int wordIndex = _occupancyOffset + (voxelIndex >> 6);
+            int wordIndex = voxelIndex >> 6;
             ulong mask = 1UL << (voxelIndex & 63);
             ulong word = _occupancy[wordIndex];
             _occupancy[wordIndex] = occupied ? word | mask : word & ~mask;
