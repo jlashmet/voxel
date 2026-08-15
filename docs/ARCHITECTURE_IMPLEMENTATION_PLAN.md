@@ -31,7 +31,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
 | 11 — Net | **Complete** | Net.Api/Runtime physical decomposition and Runtime namespaces are complete; Runtime references only approved domain APIs; residency delegates Streaming.Api; semantic repair/snapshots use Storage.Api logical capabilities; structural graph and duplicate edit wrapper are gone; final 384/371/13 behavioral baseline accepted | none |
 | 12 — Rendering | **Complete** | Rendering Api/Runtime physical + namespace + asmdef cutover complete; Runtime consumes Storage.Api/Tiering.Api/Vegetation.Api only; presentation catalogues/change feed use Storage.Api read views; retained profiles use Storage.Api; tree presentation uses Vegetation.Api; dead physical leaks removed; static and 384/371/13 behavioral parity accepted | none |
-| 13 — Composition/Core deletion | **In progress — current** | read-only final-cut inventory may proceed after Rendering acceptance | composition root, final wiring, delete Core |
+| 13 — Composition/Core deletion | **In progress — current** | final inventory complete; semantic WorldGen engine-free and Voxel adapter Api-only accepted | composition root, move remaining Storage/Terrain ownership out of Core, migrate app/tool consumers, delete Core |
 
 ### Checklist discipline
 
@@ -1416,6 +1416,11 @@ VoxelEngine.Vegetation.Api    # vegetation placement/spawn contracts
 
 Only include an Api reference if current source uses it after refactor. No `VoxelEngine.*.Runtime` reference.
 
+### Implementation progress
+
+- [x] `MountingForce.WorldGen.Core` and `MountingForce.WorldGen.Architecture` remain engine-free.
+- [x] `MountingForce.WorldGen.Voxel` broad `VoxelEngine.Core` reference removed at `4599efb83f1ccd95382711be4f229ae2bb344163`; hosted gate `31894519041` verifies its engine references are exactly Storage.Api, Terrain.Api, Structures.Api and Vegetation.Api.
+
 ## 18.2 Delete Core
 
 At this point `Assets/VoxelEngine/Core` must be empty except Unity `.meta` artifacts waiting for cleanup.
@@ -1447,7 +1452,7 @@ Do not retain Core as a forwarding facade.
 - [ ] Core folder and asmdef deleted;
 - [ ] no source namespace begins `VoxelEngine.Core`;
 - [ ] all production asmdefs satisfy dependency guard;
-- [ ] semantic WorldGen assemblies still have no VoxelEngine refs;
+- [x] semantic WorldGen assemblies still have no VoxelEngine refs; hosted Cutover 13 WorldGen gate `31894519041` verified Core/Architecture remain engine-free after source `4599efb83f1ccd95382711be4f229ae2bb344163`;
 - [ ] Composition is the only runtime-wiring exception.
 
 ---
@@ -1573,9 +1578,9 @@ At the end, generate an asmdef dependency report and verify:
 [ ] Streaming has no Net reference
 [ ] Net references Streaming.Api, not Streaming.Runtime
 [ ] Rendering references Storage.Api, Tiering.Api, Vegetation.Api only
-[ ] WorldGen.Core references no VoxelEngine assembly
-[ ] WorldGen.Architecture references no VoxelEngine assembly
-[ ] WorldGen.Voxel references only VoxelEngine Api assemblies
+[x] WorldGen.Core references no VoxelEngine assembly
+[x] WorldGen.Architecture references no VoxelEngine assembly
+[x] WorldGen.Voxel references only VoxelEngine Api assemblies
 [ ] no VoxelEngine.Core assembly remains
 [ ] no VoxelEngine.Core namespace remains
 [ ] no compatibility/legacy adapter was introduced to preserve the old architecture
