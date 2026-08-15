@@ -4,7 +4,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 using VoxelEngine.Structures.Api;
 
@@ -204,7 +204,7 @@ namespace MountingForce.WorldGen.Voxel
             int centreXDm = plot.PositionDm.X + footprint.X / 2;
             int downhillZDm = plot.PositionDm.Y + footprint.Z + NaturalSampleBeyondEdgeDm;
             int shelfSurface = KentridgeVerticalProfile.PlotSurfaceY(plot, seed, scale);
-            int naturalSurface = TerrainSampler.HeightAt(
+            int naturalSurface = TerrainQuery.HeightAt(
                 centreXDm * scale,
                 downhillZDm * scale,
                 seed);
