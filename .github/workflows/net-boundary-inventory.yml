@@ -1,0 +1,31 @@
+name: Net boundary inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-boundary-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== Core Storage imports in Net ==='
+          grep -RIn 'VoxelEngine.Core.Storage' Assets/VoxelEngine/Net --include='*.cs' || true
+          echo '=== RegionHasher calls ==='
+          grep -RIn 'RegionHasher\.' Assets Packages --include='*.cs' || true
+          echo '=== Semantic snapshot calls ==='
+          grep -RIn 'SemanticRegionSnapshotCodec\|SemanticRegionHasher' Assets Packages --include='*.cs' || true
+          echo '=== RegionResidency calls ==='
+          grep -RIn 'ServerRegionResidency\|RegionResidency' Assets Packages --include='*.cs' || true
+          echo '=== RegionStore calls ==='
+          grep -RIn 'RegionStore\|ReplicationRegionStore' Assets Packages --include='*.cs' || true
+          echo '=== Server Storage files ==='
+          find Assets/VoxelEngine/Net/Server/Storage -maxdepth 2 -type f -print 2>/dev/null || true
+          echo '=== Net external imports ==='
+          grep -RInE 'VoxelEngine\.(Core|Storage|Streaming|StructuralIntegrity|Edits|Rendering)\.' Assets/VoxelEngine/Net --include='*.cs' | sort || true
