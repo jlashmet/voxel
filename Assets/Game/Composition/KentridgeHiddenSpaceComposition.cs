@@ -8,9 +8,9 @@ namespace Game.Composition.WorldBuilderWorldGen
 {
     /// <summary>
     /// Post-site-resolution translation from WorldBuilder secret-generation intent into the generic
-    /// WorldGen hidden-space contract. Multiple required/policy requests are first collected by authored
-    /// SiteRef and then merged by the resolved physical WorldGen role, preserving legal site-role aliasing
-    /// while guaranteeing architecture receives exactly one request per physical site.
+    /// WorldGen hidden-space contract. Hard required secrets always contribute their own physical demand;
+    /// procedural policies contribute once per resolved physical site even when multiple authored roles
+    /// alias that site. Architecture therefore receives exactly one aggregated request per WorldGen role.
     /// </summary>
     public static class KentridgeHiddenSpaceRequestComposer
     {
@@ -31,31 +31,6 @@ namespace Game.Composition.WorldBuilderWorldGen
             if (!sites.IsResolved)
                 throw new InvalidOperationException(
                     "Hidden-space generation cannot be composed before site roles resolve successfully.");
-
-            var aggregateByAuthoredRole = new Dictionary<SiteRef, Aggregate>();
-            for (var i = 0; i < graph.SecretCandidates.Count; i++)
-            {
-                SecretCandidatePlan candidate = graph.SecretCandidates[i]
-                    ?? throw new InvalidOperationException(
-                        "Planning graph contains a null secret-candidate plan at index " + i + ".");
-                RequireFalseWall(candidate.AllowedEntrances, candidate.Policy.ToString());
-                Aggregate aggregate = GetOrAdd(aggregateByAuthoredRole, candidate.Site);
-                aggregate.Minimum += candidate.MinimumCandidateCount;
-                aggregate.Target += candidate.PreferredCandidateCount;
-            }
-
-            for (var i = 0; i < graph.RequiredSecrets.Count; i++)
-            {
-                RequiredSecretCandidatePlan required = graph.RequiredSecrets[i]
-                    ?? throw new InvalidOperationException(
-                        "Planning graph contains a null required-secret plan at index " + i + ".");
-                if (required.Entrance != SecretEntranceType.DestroyableFalseWall)
-                    throw new InvalidOperationException(
-                        "Required secret '" + required.Secret + "' uses an entrance unsupported by Kentridge hidden-space generation.");
-                Aggregate aggregate = GetOrAdd(aggregateByAuthoredRole, required.Site);
-                aggregate.Minimum++;
-                aggregate.Target++;
-            }
 
             var resolvedByRole = new Dictionary<SiteRef, ResolvedSiteId>();
             for (var i = 0; i < sites.Bindings.Count; i++)
@@ -78,33 +53,44 @@ namespace Game.Composition.WorldBuilderWorldGen
                         "Settlement plan exposes duplicate resolved site id '" + id + "'.");
             }
 
-            var authoredRoles = new List<SiteRef>(aggregateByAuthoredRole.Keys);
-            authoredRoles.Sort((left, right) => StringComparer.Ordinal.Compare(left.Id, right.Id));
             var aggregateByWorldGenRole = new Dictionary<int, Aggregate>();
-            for (var i = 0; i < authoredRoles.Count; i++)
+            var seenPolicyPhysicalSites = new HashSet<string>(StringComparer.Ordinal);
+
+            for (var i = 0; i < graph.SecretCandidates.Count; i++)
             {
-                SiteRef authoredRole = authoredRoles[i];
-                ResolvedSiteId resolved;
-                if (!resolvedByRole.TryGetValue(authoredRole, out resolved))
-                    throw new InvalidOperationException(
-                        "Secret generation targets site role '" + authoredRole +
-                        "', but that role has no resolved site.");
+                SecretCandidatePlan candidate = graph.SecretCandidates[i]
+                    ?? throw new InvalidOperationException(
+                        "Planning graph contains a null secret-candidate plan at index " + i + ".");
+                RequireFalseWall(candidate.AllowedEntrances, candidate.Policy.ToString());
+                int worldGenRole = ResolveWorldGenRole(
+                    candidate.Site,
+                    resolvedByRole,
+                    worldGenRoleByResolvedSite);
+                string policyKey = candidate.Policy.Id + "\u001f" + worldGenRole;
+                if (!seenPolicyPhysicalSites.Add(policyKey))
+                    continue;
 
-                int worldGenRole;
-                if (!worldGenRoleByResolvedSite.TryGetValue(resolved, out worldGenRole))
-                    throw new InvalidOperationException(
-                        "Resolved site '" + resolved + "' for role '" + authoredRole +
-                        "' does not belong to the supplied settlement plan.");
+                Aggregate aggregate = GetOrAdd(aggregateByWorldGenRole, worldGenRole);
+                aggregate.Minimum += candidate.MinimumCandidateCount;
+                aggregate.Target += candidate.PreferredCandidateCount;
+            }
 
-                Aggregate authored = aggregateByAuthoredRole[authoredRole];
-                Aggregate physical;
-                if (!aggregateByWorldGenRole.TryGetValue(worldGenRole, out physical))
-                {
-                    physical = new Aggregate();
-                    aggregateByWorldGenRole.Add(worldGenRole, physical);
-                }
-                physical.Minimum += authored.Minimum;
-                physical.Target += authored.Target;
+            for (var i = 0; i < graph.RequiredSecrets.Count; i++)
+            {
+                RequiredSecretCandidatePlan required = graph.RequiredSecrets[i]
+                    ?? throw new InvalidOperationException(
+                        "Planning graph contains a null required-secret plan at index " + i + ".");
+                if (required.Entrance != SecretEntranceType.DestroyableFalseWall)
+                    throw new InvalidOperationException(
+                        "Required secret '" + required.Secret + "' uses an entrance unsupported by Kentridge hidden-space generation.");
+
+                int worldGenRole = ResolveWorldGenRole(
+                    required.Site,
+                    resolvedByRole,
+                    worldGenRoleByResolvedSite);
+                Aggregate aggregate = GetOrAdd(aggregateByWorldGenRole, worldGenRole);
+                aggregate.Minimum++;
+                aggregate.Target++;
             }
 
             var worldGenRoles = new List<int>(aggregateByWorldGenRole.Keys);
@@ -131,15 +117,34 @@ namespace Game.Composition.WorldBuilderWorldGen
             SettlementPlan plan) =>
             KentridgeHiddenSpaceBatchPlanner.Resolve(plan, Compose(graph, sites, plan));
 
+        private static int ResolveWorldGenRole(
+            SiteRef authoredRole,
+            Dictionary<SiteRef, ResolvedSiteId> resolvedByRole,
+            Dictionary<ResolvedSiteId, int> worldGenRoleByResolvedSite)
+        {
+            ResolvedSiteId resolved;
+            if (!resolvedByRole.TryGetValue(authoredRole, out resolved))
+                throw new InvalidOperationException(
+                    "Secret generation targets site role '" + authoredRole +
+                    "', but that role has no resolved site.");
+
+            int worldGenRole;
+            if (!worldGenRoleByResolvedSite.TryGetValue(resolved, out worldGenRole))
+                throw new InvalidOperationException(
+                    "Resolved site '" + resolved + "' for role '" + authoredRole +
+                    "' does not belong to the supplied settlement plan.");
+            return worldGenRole;
+        }
+
         private static Aggregate GetOrAdd(
-            Dictionary<SiteRef, Aggregate> values,
-            SiteRef site)
+            Dictionary<int, Aggregate> values,
+            int roleId)
         {
             Aggregate aggregate;
-            if (!values.TryGetValue(site, out aggregate))
+            if (!values.TryGetValue(roleId, out aggregate))
             {
                 aggregate = new Aggregate();
-                values.Add(site, aggregate);
+                values.Add(roleId, aggregate);
             }
             return aggregate;
         }
