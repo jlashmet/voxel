@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Interest;
 using VoxelEngine.Net.Protocol;
 
@@ -115,7 +115,7 @@ namespace VoxelEngine.Net.Server
             {
                 case AlterationEvent.KindExplosion:
                 {
-                    int radiusVoxels = evt.Radius() * VoxelDimensions.BrickEdge;
+                    int radiusVoxels = evt.Radius() * VoxelReadGrid.BlockEdge;
                     int3 padding = new int3(radiusVoxels);
                     minVoxel = evt.origin - padding;
                     maxVoxel = evt.origin + padding;
@@ -133,7 +133,7 @@ namespace VoxelEngine.Net.Server
                 case AlterationEvent.KindRawBatch:
                 default:
                 {
-                    int3 padding = new int3(1 << VoxelDimensions.RegionVoxelEdgeLog2);
+                    int3 padding = new int3(1 << VoxelGrid.RegionVoxelEdgeLog2);
                     minVoxel = evt.origin - padding;
                     maxVoxel = evt.origin + padding;
                     break;
