@@ -104,12 +104,12 @@ namespace Game.WorldBuilder.Runtime
                 nodes.Add(new PlanningNode(NodeId("objective", objective.Ref.Id), PlanningNodeKind.Objective, dependencies.ToArray()));
             }
 
+            // StoryRuleSpec is intentionally absent from this graph. Rules are runtime state
+            // transitions; only the world-bound cutscene instance contributes generation dependencies.
             for (var i = 0; i < blueprint.Cutscenes.Count; i++)
             {
                 CutsceneSpec cutscene = blueprint.Cutscenes[i];
                 var dependencies = new List<string> { NodeId("site", cutscene.Site.Id) };
-                if (cutscene.Trigger is InteractWithNpcTriggerSpec interact)
-                    AddUnique(dependencies, NodeId("npc", interact.Npc.Id));
                 for (var j = 0; j < cutscene.ActorBindings.Count; j++)
                 {
                     CutsceneActorBindingSpec binding = cutscene.ActorBindings[j];
