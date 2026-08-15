@@ -5,12 +5,9 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
-    /// Current Storage implementation of the public region-read, semantic-snapshot and focused
-    /// world-surface boundaries.
-    ///
-    /// This type moves to Storage.Runtime when the physical storage files leave Core. It owns
-    /// no memory: RegionTable/BrickPool native containers are borrowed and remain owned by the
-    /// existing world-storage lifecycle.
+    /// Storage implementation of the public region-read, semantic-snapshot and focused
+    /// world-surface boundaries. It owns no memory: RegionTable/BrickPool native containers are
+    /// borrowed and remain owned by the world-storage lifecycle.
     /// </summary>
     public sealed class RegionReadSource : IRegionReadSource, IVoxelSurfaceQuery, IRegionSnapshotSource
     {
@@ -27,8 +24,7 @@ namespace VoxelEngine.Storage.Runtime
         }
 
         /// <summary>
-        /// Refreshes borrowed owner handles without allocating a new source object. This is used
-        /// by transitional composition/render wiring until Storage.Runtime owns construction.
+        /// Refreshes borrowed owner handles without allocating a new source object.
         /// </summary>
         public void Refresh(in RegionTable table, in BrickPool pool)
         {
@@ -57,10 +53,11 @@ namespace VoxelEngine.Storage.Runtime
                 return false;
             }
 
-            // BrickRef is a private one-int encoding. Reinterpretation avoids a 1 MiB region
-            // copy while keeping the encoding inaccessible to consumers of RegionReadView.
+            // BrickRef is a private one-int encoding. Reinterpretation avoids a 1 MiB region copy;
+            // the API factory accepts the backing descriptor but RegionReadView never exposes it to
+            // consumers.
             NativeArray<int> encodedRefs = region.BrickRefs.Reinterpret<int>();
-            view = new RegionReadView(
+            view = RegionReadViewFactory.CreateBorrowed(
                 region.Coord,
                 Version,
                 encodedRefs,
