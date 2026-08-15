@@ -10,8 +10,10 @@ namespace VoxelEngine.Characters.Editor
 {
     /// <summary>
     /// Turns portable *.characterfactory.json descriptors emitted by the offline factory into
-    /// CharacterPartAsset entries. The descriptor is staged beside its generated FBX, so no browser
-    /// or manual inspector setup is required after the build is copied into Assets/.
+    /// ready-to-use Unity assets. Equippable descriptors create/update CharacterPartAsset entries
+    /// and the shared catalogue; character descriptors create/update a prefab wired to that same
+    /// catalogue. The descriptor is staged beside its generated FBX, so no browser or manual
+    /// inspector setup is required after the build is copied into Assets/.
     /// </summary>
     internal sealed class CharacterFactoryAssetImporter : AssetPostprocessor
     {
@@ -110,13 +112,18 @@ namespace VoxelEngine.Characters.Editor
                 );
             }
 
+            CharacterPartCatalogue catalogue = GetOrCreateCatalogue(descriptor.catalogueAsset);
             string assetType = (descriptor.assetType ?? string.Empty).Trim().ToLowerInvariant();
             if (assetType == "character")
             {
-                // Character bodies are not equipment. Importing the FBX into Assets is sufficient
-                // for now; body/prefab construction is a distinct pipeline contract.
+                string prefabPath = CreateOrUpdateCharacterPrefab(
+                    descriptorDirectory,
+                    descriptor.id,
+                    generatedModel,
+                    catalogue
+                );
                 Debug.Log(
-                    $"Character Factory imported character body '{descriptor.id}' from {fbxAssetPath}."
+                    $"Character Factory imported character '{descriptor.id}' -> {prefabPath}."
                 );
                 return;
             }
@@ -156,27 +163,125 @@ namespace VoxelEngine.Characters.Editor
                 descriptor.runtimePart
             );
 
-            string catalogueAssetPath = NormalizeAssetPath(descriptor.catalogueAsset ?? string.Empty);
-            if (!catalogueAssetPath.StartsWith("Assets/", StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException(
-                    $"Descriptor catalogueAsset must be inside Assets/: {catalogueAssetPath}"
-                );
-            }
-
-            CharacterPartCatalogue catalogue =
-                AssetDatabase.LoadAssetAtPath<CharacterPartCatalogue>(catalogueAssetPath);
-            if (catalogue == null)
-            {
-                catalogue = ScriptableObject.CreateInstance<CharacterPartCatalogue>();
-                catalogue.name = Path.GetFileNameWithoutExtension(catalogueAssetPath);
-                AssetDatabase.CreateAsset(catalogue, catalogueAssetPath);
-            }
-
             UpsertCatalogueEntry(catalogue, part);
             Debug.Log(
                 $"Character Factory imported '{descriptor.id}' ({kind}/{slot}) from {fbxAssetPath}."
             );
+        }
+
+        private static CharacterPartCatalogue GetOrCreateCatalogue(string catalogueAssetPath)
+        {
+            string normalized = NormalizeAssetPath(catalogueAssetPath ?? string.Empty);
+            if (!normalized.StartsWith("Assets/", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Descriptor catalogueAsset must be inside Assets/: {normalized}"
+                );
+            }
+
+            CharacterPartCatalogue catalogue =
+                AssetDatabase.LoadAssetAtPath<CharacterPartCatalogue>(normalized);
+            if (catalogue != null)
+            {
+                return catalogue;
+            }
+
+            string parent = NormalizeAssetPath(Path.GetDirectoryName(normalized) ?? "Assets");
+            if (!AssetDatabase.IsValidFolder(parent))
+            {
+                throw new InvalidOperationException(
+                    $"Catalogue parent folder has not been imported yet: {parent}"
+                );
+            }
+
+            catalogue = ScriptableObject.CreateInstance<CharacterPartCatalogue>();
+            catalogue.name = Path.GetFileNameWithoutExtension(normalized);
+            AssetDatabase.CreateAsset(catalogue, normalized);
+            return catalogue;
+        }
+
+        private static string CreateOrUpdateCharacterPrefab(
+            string descriptorDirectory,
+            string characterId,
+            GameObject generatedModel,
+            CharacterPartCatalogue catalogue)
+        {
+            string prefabPath = NormalizeAssetPath(
+                Path.Combine(descriptorDirectory, characterId + ".prefab")
+            );
+
+            GameObject root = new GameObject(characterId);
+            try
+            {
+                GameObject modelInstance =
+                    PrefabUtility.InstantiatePrefab(generatedModel) as GameObject;
+                if (modelInstance == null)
+                {
+                    modelInstance = UnityEngine.Object.Instantiate(generatedModel);
+                }
+
+                modelInstance.name = generatedModel.name;
+                modelInstance.transform.SetParent(root.transform, false);
+
+                SkinnedMeshRenderer[] renderers =
+                    modelInstance.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                if (renderers.Length == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Generated character '{characterId}' contains no SkinnedMeshRenderer."
+                    );
+                }
+
+                Transform skeletonRoot = FindSkeletonRoot(renderers, modelInstance.transform);
+                GameObject equipment = new GameObject("Equipment");
+                equipment.transform.SetParent(root.transform, false);
+
+                CharacterEquipmentController controller =
+                    root.AddComponent<CharacterEquipmentController>();
+                SerializedObject serialized = new SerializedObject(controller);
+                serialized.FindProperty("skeletonRoot").objectReferenceValue = skeletonRoot;
+                serialized.FindProperty("equipmentRoot").objectReferenceValue = equipment.transform;
+                serialized.FindProperty("catalogue").objectReferenceValue = catalogue;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+
+                GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                if (saved == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to save generated character prefab: {prefabPath}"
+                    );
+                }
+
+                return prefabPath;
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        private static Transform FindSkeletonRoot(
+            SkinnedMeshRenderer[] renderers,
+            Transform fallback)
+        {
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i].rootBone != null)
+                {
+                    return renderers[i].rootBone;
+                }
+            }
+
+            Transform[] transforms = fallback.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < transforms.Length; i++)
+            {
+                if (string.Equals(transforms[i].name, "Armature", StringComparison.Ordinal))
+                {
+                    return transforms[i];
+                }
+            }
+
+            return fallback;
         }
 
         private static CharacterFactoryImportDescriptor ReadDescriptor(string assetPath)
