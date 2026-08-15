@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Client
@@ -28,7 +28,7 @@ namespace VoxelEngine.Net.Client
                     (int)math.round(worldOrigin.y),
                     (int)math.round(worldOrigin.z)),
                 AlterationEvent.KindExplosion,
-                VoxelDimensions.MaterialEmpty,
+                VoxelGrid.MaterialEmpty,
                 AlterationEvent.KindExplosion,
                 radius,
                 GenerateSeed(0, playerInput.sequence),
@@ -54,7 +54,7 @@ namespace VoxelEngine.Net.Client
                 tick,
                 origin,
                 AlterationEvent.KindExplosion,
-                VoxelDimensions.MaterialEmpty,
+                VoxelGrid.MaterialEmpty,
                 AlterationEvent.KindExplosion,
                 radius,
                 GenerateSeed(playerId, sequence),
