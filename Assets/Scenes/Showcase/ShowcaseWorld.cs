@@ -96,6 +96,7 @@ namespace VoxelEngine.Showcase
         private readonly RegionResidencyStore _residencyStore;
         private FeatureCatalogue _catalogue;
         private MaterialPalette _palette;
+        private MaterialSimulationView _materialSimulation;
         private SurfaceCatalogue _surfaceCatalogue;
         private CoatingCatalogue _coatingCatalogue;
         private MaterialAdjacencyCatalogue _materialAdjacencyCatalogue;
@@ -298,6 +299,8 @@ namespace VoxelEngine.Showcase
                               SurfaceStyles.MasonryJoint, weatherCoatings);
             _palette.Register(Mat.MasonryLarge, 220, DestructionClass.Crumble,
                               SurfaceStyles.MasonryJoint, weatherCoatings);
+
+            _materialSimulation = _palette.SimulationView;
 
             _surfaceCatalogue = SurfaceCatalogue.CreateBuiltIns();
             _coatingCatalogue = CoatingCatalogue.CreateBuiltIns();
@@ -1281,12 +1284,12 @@ namespace VoxelEngine.Showcase
                 var v = voxels[i];
                 var existing = VoxelAccess.GetVoxel(ref _table, in _pool, v);
                 if (existing == VoxelDimensions.MaterialEmpty) continue;
-                if (!_palette.IsDestructible(existing)) continue;
+                if (!_materialSimulation.IsDestructible(existing)) continue;
 
                 var d = v - centre;
                 int distSq = d.x * d.x + d.y * d.y + d.z * d.z;
                 int rimFactor = radiusSq == 0 ? 0 : (distSq * 255) / radiusSq;
-                int resistance = (_palette.GetHardness(existing) * rimFactor) / 255;
+                int resistance = (_materialSimulation.GetHardness(existing) * rimFactor) / 255;
 
                 if ((int)(rng.NextUint() & 0xFF) < resistance) continue;
 
@@ -1314,7 +1317,7 @@ namespace VoxelEngine.Showcase
         public int RemoveAndResolveCollapse(int3 voxel)
         {
             byte material = VoxelAccess.GetVoxel(ref _table, in _pool, voxel);
-            if (material == VoxelDimensions.MaterialEmpty || !_palette.IsDestructible(material))
+            if (material == VoxelDimensions.MaterialEmpty || !_materialSimulation.IsDestructible(material))
                 return 0;
             VoxelCell cell = VoxelAccess.GetCell(ref _table, in _pool, voxel);
             var removed = new List<FallingVoxel>(1)
@@ -1483,7 +1486,7 @@ namespace VoxelEngine.Showcase
                     byte material = VoxelAccess.GetVoxel(ref _table, in _pool, current);
                     if (material == VoxelDimensions.MaterialEmpty) continue;
 
-                    if (!_palette.IsDestructible(material) || current.y <= 0)
+                    if (!_materialSimulation.IsDestructible(material) || current.y <= 0)
                     {
                         anchored = true;
                         break;
@@ -1618,7 +1621,7 @@ namespace VoxelEngine.Showcase
                                 // fully supported tower fail after any nearby impact. Material
                                 // hardness still matters, while a one-voxel thread remains far
                                 // too weak for a castle-scale mass.
-                                supportCapacity += 48 + _palette.GetHardness(below);
+                                supportCapacity += 48 + _materialSimulation.GetHardness(below);
                             }
                         }
                     }
@@ -1653,7 +1656,7 @@ namespace VoxelEngine.Showcase
             if (brick.IsUniform)
             {
                 byte material = brick.UniformMaterial;
-                if (!_palette.IsDestructible(material)) return default;
+                if (!_materialSimulation.IsDestructible(material)) return default;
                 return new BrickCollapseInfo
                 {
                     OccupiedCount = (VoxelDimensions.BrickEdge - firstY)
@@ -1671,7 +1674,7 @@ namespace VoxelEngine.Showcase
                 int index = VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.VoxelIndex(x, y, z);
                 byte material = _pool.GetVoxel(brick.PoolIndex, index);
                 if (material == VoxelDimensions.MaterialEmpty
-                    || !_palette.IsDestructible(material)) continue;
+                    || !_materialSimulation.IsDestructible(material)) continue;
                 count++;
                 marker |= IsStructuralMaterial(material);
             }
@@ -1704,7 +1707,7 @@ namespace VoxelEngine.Showcase
                                       - (worldBrick.y << VoxelDimensions.BrickEdgeLog2));
                 var visual = new VisualBucket { Priority = VisualHash(worldBrick) };
 
-                if (brick.IsUniform && firstY == 0 && _palette.IsDestructible(brick.UniformMaterial))
+                if (brick.IsUniform && firstY == 0 && _materialSimulation.IsDestructible(brick.UniformMaterial))
                 {
                     byte material = brick.UniformMaterial;
                     for (int z = 0; z < VoxelDimensions.BrickEdge; z++)
@@ -1723,7 +1726,7 @@ namespace VoxelEngine.Showcase
                 {
                     if (brick.IsUniform)
                     {
-                        if (!_palette.IsDestructible(brick.UniformMaterial)) continue;
+                        if (!_materialSimulation.IsDestructible(brick.UniformMaterial)) continue;
                         int poolIndex = _pool.Allocate();
                         _pool.FillBrick(poolIndex, brick.UniformMaterial);
                         brick = BrickRef.FromPoolIndex(poolIndex);
@@ -1737,7 +1740,7 @@ namespace VoxelEngine.Showcase
                         int index = VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.VoxelIndex(x, y, z);
                         byte material = _pool.GetVoxel(brick.PoolIndex, index);
                         if (material == VoxelDimensions.MaterialEmpty
-                            || !_palette.IsDestructible(material)) continue;
+                            || !_materialSimulation.IsDestructible(material)) continue;
                         int3 position = (worldBrick << VoxelDimensions.BrickEdgeLog2)
                                       + new int3(x, y, z);
                         byte coating = _pool.GetSurface(brick.PoolIndex, index).CoatingId;
