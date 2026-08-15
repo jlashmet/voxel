@@ -87,9 +87,11 @@ namespace Game.Composition.WorldBuilderWorldGen
                 return false;
             }
 
-            CutsceneInt3 inward;
-            CutsceneInt3 right;
-            ResolveAxes(planned.Orientation, out inward, out right);
+            Int2 inward2;
+            Int2 right2;
+            KentridgePlacementAxes.Resolve(planned.Orientation, out inward2, out right2);
+            var inward = new CutsceneInt3(inward2.X, 0, inward2.Y);
+            var right = new CutsceneInt3(right2.X, 0, right2.Y);
 
             geometry = new CutsceneSiteGeometry(
                 entranceDm,
@@ -117,35 +119,6 @@ namespace Game.Composition.WorldBuilderWorldGen
                 value.Y / scale,
                 value.Z / scale);
             return true;
-        }
-
-        // Local Kentridge/WorldGen structures enter along +Z with +X to their right. Apply the
-        // same quarter-turn vector transform as the structure emitter instead of interpreting the
-        // FrontageDirection names as coordinate-system assumptions.
-        private static void ResolveAxes(
-            byte orientation,
-            out CutsceneInt3 inward,
-            out CutsceneInt3 right)
-        {
-            switch (orientation & 3)
-            {
-                case 1:
-                    inward = new CutsceneInt3(-1, 0, 0);
-                    right = new CutsceneInt3(0, 0, 1);
-                    break;
-                case 2:
-                    inward = new CutsceneInt3(0, 0, -1);
-                    right = new CutsceneInt3(-1, 0, 0);
-                    break;
-                case 3:
-                    inward = new CutsceneInt3(1, 0, 0);
-                    right = new CutsceneInt3(0, 0, -1);
-                    break;
-                default:
-                    inward = new CutsceneInt3(0, 0, 1);
-                    right = new CutsceneInt3(1, 0, 0);
-                    break;
-            }
         }
     }
 }
