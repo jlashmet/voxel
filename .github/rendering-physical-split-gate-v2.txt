@@ -1,1 +1,0 @@
-Rendering physical split acceptance gate v2; parent must include split.
