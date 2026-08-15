@@ -150,11 +150,11 @@ namespace VoxelEngine.CI
                 Assert.That(renderer.BatchedTreeCount, Is.EqualTo(expectedBatchedTrees));
                 Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(expectedDynamicTrees),
                             "Healthy batched trees must not retain dynamic per-tree presentations.");
-                Assert.That(renderer.DynamicMeshCount, Is.EqualTo(expectedDynamicTrees * 3));
+                Assert.That(renderer.DynamicMeshCount, Is.EqualTo(expectedDynamicTrees * 4));
                 Assert.That(renderer.GeneratedMeshCount,
                             Is.EqualTo(renderer.BatchMeshCount + renderer.DynamicMeshCount));
                 Assert.That(renderer.ResidentRenderObjectCount,
-                            Is.EqualTo((expectedBatches + expectedDynamicTrees) * 4));
+                            Is.EqualTo((expectedBatches + expectedDynamicTrees) * 5));
                 Assert.That(renderer.EstimatedVisibleDrawCount, Is.LessThan(count * 2));
 
                 double frameTotal = 0.0;
@@ -199,9 +199,9 @@ namespace VoxelEngine.CI
                 ProjectBatchLayout(count, out int projectedBatches, out int projectedBatchedTrees);
                 int projectedDynamicTrees = count - projectedBatchedTrees;
                 long semanticTriangles = (long)Math.Round(trianglesPerTreeAllLods * count);
-                long residentMeshes = (projectedBatches + projectedDynamicTrees) * 3L;
-                long batchMeshes = projectedBatches * 3L;
-                long renderObjects = (projectedBatches + projectedDynamicTrees) * 4L;
+                long residentMeshes = (projectedBatches + projectedDynamicTrees) * 4L;
+                long batchMeshes = projectedBatches * 4L;
+                long renderObjects = (projectedBatches + projectedDynamicTrees) * 5L;
                 long visibleDraws = (projectedBatches + projectedDynamicTrees) * 2L;
 
                 csv.Add(string.Join(",",

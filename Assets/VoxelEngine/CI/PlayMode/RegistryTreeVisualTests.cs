@@ -86,8 +86,8 @@ namespace VoxelEngine.CI
                 Assert.That(renderer.DynamicPresentationCount, Is.EqualTo(0),
                             "A healthy singleton must not retain a per-tree GameObject.");
                 Assert.That(renderer.DynamicMeshCount, Is.EqualTo(0));
-                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(3));
-                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(4));
+                Assert.That(renderer.GeneratedMeshCount, Is.EqualTo(4));
+                Assert.That(renderer.ResidentRenderObjectCount, Is.EqualTo(5));
                 Assert.That(renderer.EstimatedVisibleDrawCount, Is.EqualTo(2));
                 Assert.That(renderer.TryGetDynamicPresentationRoot(0, out _), Is.False);
                 Assert.That(renderer.transform.childCount, Is.EqualTo(1));
@@ -102,8 +102,8 @@ namespace VoxelEngine.CI
 
                 MeshFilter[] filters = batchRoot.GetComponentsInChildren<MeshFilter>(true);
                 MeshRenderer[] treeRenderers = batchRoot.GetComponentsInChildren<MeshRenderer>(true);
-                Assert.That(filters.Length, Is.EqualTo(3), "Singleton batch should create exactly three LOD meshes.");
-                Assert.That(treeRenderers.Length, Is.EqualTo(3), "Singleton batch should create exactly three LOD renderers.");
+                Assert.That(filters.Length, Is.EqualTo(4), "Singleton batch should create LOD0/1/2 plus the ultra-far impostor.");
+                Assert.That(treeRenderers.Length, Is.EqualTo(4), "Singleton batch should create four LOD renderers.");
 
                 int totalVertices = 0;
                 int barkTriangles = 0;
@@ -114,10 +114,10 @@ namespace VoxelEngine.CI
                 {
                     Mesh mesh = filters[i].sharedMesh;
                     Assert.That(mesh, Is.Not.Null, $"LOD{i} has no generated mesh.");
-                    Assert.That(mesh.subMeshCount, Is.EqualTo(2), $"LOD{i} must have bark and leaf submeshes.");
+                    Assert.That(mesh.subMeshCount, Is.EqualTo(i < 3 ? 2 : 1), $"LOD{i} has an unexpected submesh layout.");
                     totalVertices += mesh.vertexCount;
                     barkTriangles += (int)mesh.GetIndexCount(0) / 3;
-                    leafTriangles += (int)mesh.GetIndexCount(1) / 3;
+                    if (mesh.subMeshCount > 1) leafTriangles += (int)mesh.GetIndexCount(1) / 3;
                 }
                 Assert.That(totalVertices, Is.GreaterThan(0));
                 Assert.That(barkTriangles, Is.GreaterThan(0));
