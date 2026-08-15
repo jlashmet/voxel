@@ -1,0 +1,84 @@
+name: Final Edits Runtime move
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+
+          git mv Assets/VoxelEngine/Core/Edits/DeterministicAlterationApplier.cs Assets/VoxelEngine/Edits/Runtime/DeterministicAlterationApplier.cs
+          git mv Assets/VoxelEngine/Core/Edits/DeterministicAlterationApplier.cs.meta Assets/VoxelEngine/Edits/Runtime/DeterministicAlterationApplier.cs.meta
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('Assets/VoxelEngine/Edits/Runtime/DeterministicAlterationApplier.cs')
+          text = p.read_text()
+          old = 'namespace VoxelEngine.Core.Edits\n'
+          if text.count(old) != 1:
+              raise SystemExit(f'applier namespace count {text.count(old)}')
+          p.write_text(text.replace(old, 'namespace VoxelEngine.Edits.Runtime\n', 1))
+
+          changed = []
+          for root in (Path('Assets/Scenes'), Path('Assets/Tests')):
+              for p in root.rglob('*.cs'):
+                  text = p.read_text()
+                  old = 'using VoxelEngine.Core.Edits;\n'
+                  if old not in text:
+                      continue
+                  p.write_text(text.replace(old, 'using VoxelEngine.Edits.Runtime;\n'))
+                  changed.append(p.as_posix())
+
+          expected = 14
+          if len(changed) != expected:
+              raise SystemExit(f'expected {expected} import files, changed {len(changed)}: {changed}')
+
+          p = Path('Assets/Tests/EditMode/EditsStorageBoundaryTests.cs')
+          text = p.read_text()
+          old = 'root, "Assets", "VoxelEngine", "Core", "Edits", "DeterministicAlterationApplier.cs"'
+          new = 'root, "Assets", "VoxelEngine", "Edits", "Runtime", "DeterministicAlterationApplier.cs"'
+          if text.count(old) != 1:
+              raise SystemExit(f'boundary guard path count {text.count(old)}')
+          p.write_text(text.replace(old, new, 1))
+          PY
+
+          git rm .github/workflows/edits-final-move-inventory.yml .github/workflows/edits-final-runtime-move.yml
+
+          git diff --check
+          test -f Assets/VoxelEngine/Edits/Runtime/DeterministicAlterationApplier.cs
+          test ! -e Assets/VoxelEngine/Core/Edits/DeterministicAlterationApplier.cs
+          test -z "$(find Assets/VoxelEngine/Core/Edits -maxdepth 1 -type f -name '*.cs' -print 2>/dev/null || true)"
+          if grep -RIn 'VoxelEngine.Core.Edits' Assets Packages --include='*.cs' --include='*.asmdef'; then
+            echo 'Legacy Core.Edits reference remains' >&2
+            exit 1
+          fi
+          if grep -RIn 'VoxelEngine.Edits.Runtime' Assets/VoxelEngine/Net --include='*.cs' --include='*.asmdef'; then
+            echo 'Net gained forbidden Edits.Runtime dependency' >&2
+            exit 1
+          fi
+          if git status --short | grep '^??'; then
+            echo 'Unexpected untracked files present' >&2
+            git status --short
+            exit 1
+          fi
+
+          git status --short
+          git diff --stat
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Edits/Runtime/DeterministicAlterationApplier.cs Assets/VoxelEngine/Edits/Runtime/DeterministicAlterationApplier.cs.meta Assets/Scenes Assets/Tests
+          git commit -m 'Complete Edits Runtime implementation move'
+          git push origin HEAD:${{ github.ref_name }}
