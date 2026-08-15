@@ -1,0 +1,65 @@
+name: Mark verified guardrail and foundation checklist
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/mark-verified-guardrail-foundation-checklist.yml
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Mark already-accepted checklist work
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin refactor/system-boundaries-foundation-storage
+          git reset --hard origin/refactor/system-boundaries-foundation-storage
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = path.read_text()
+          replacements = {
+              '- [ ] add `VoxelEngineAssemblyBoundaryTests`':
+                  '- [x] add asmdef boundary guard (`ArchitectureBoundaryGuardTests`); introduced at `fcfea314` and still enforced by the accepted integrated architecture gates',
+              '- [ ] convert Constitution determinism scan from Core path to explicit deterministic assembly/path policy':
+                  '- [x] convert Constitution determinism scan from Core path to explicit deterministic assembly/path policy; introduced at `9223509c` and now scans Foundation/Storage/Terrain/Edits/StructuralIntegrity explicitly',
+              '- [ ] create Foundation assembly':
+                  '- [x] create Foundation assembly; `VoxelEngine.Foundation` introduced at `60c3f0abcf8c023a310a473b2e756a2982b1d178`',
+              '- [ ] move `IntMath`':
+                  '- [x] move `IntMath`; clean-moved to `VoxelEngine.Foundation` at `6986b7ccadfa983e6ffec81115f5702d29fbca63`',
+              '- [ ] update references':
+                  '- [x] update Foundation references; all surviving consumers compile against `VoxelEngine.Foundation` and later integrated 387/374/13 gates preserve the accepted boundary',
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count == 0:
+                  # A concurrent accepted marker may already have checked it off. Do not regress it.
+                  checked_prefix = old.replace('- [ ]', '- [x]', 1)
+                  if checked_prefix not in text:
+                      raise SystemExit(f'checklist marker drifted: {old}')
+                  continue
+              if count != 1:
+                  raise SystemExit(f'expected one checklist marker, found {count}: {old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git rm -f .github/workflows/mark-verified-guardrail-foundation-checklist.yml || true
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'docs(architecture): mark verified guardrail and foundation work'
+          git fetch origin refactor/system-boundaries-foundation-storage
+          git rebase origin/refactor/system-boundaries-foundation-storage
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
