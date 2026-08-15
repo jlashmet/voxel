@@ -251,7 +251,8 @@ class RuntimePartConfig:
                 raise CharacterFactoryError(f"runtimePart.{name} must contain exactly 3 numbers")
             return (float(value[0]), float(value[1]), float(value[2]))
 
-        socket = str(data.get("socketBoneName", "")).strip() or None
+        socket_value = data.get("socketBoneName")
+        socket = None if socket_value is None else str(socket_value).strip() or None
         return RuntimePartConfig(
             slot=slot,
             socket_bone_name=socket,
