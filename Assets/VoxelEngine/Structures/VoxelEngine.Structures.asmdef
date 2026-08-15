@@ -8,8 +8,7 @@
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
-    "VoxelEngine.Structures.Api",
-    "VoxelEngine.Structures.Runtime"
+    "VoxelEngine.Structures.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -5,7 +5,6 @@
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
-    "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Net",
     "Unity.Burst",
     "Unity.Collections",
