@@ -2,7 +2,6 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Net.Protocol

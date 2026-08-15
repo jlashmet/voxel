@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Edits;
 
 namespace VoxelEngine.Net.Server
 {

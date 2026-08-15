@@ -1,7 +1,6 @@
 using System;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Edits;
 using VoxelEngine.Net.Interest;
 
 namespace VoxelEngine.Net.Server
