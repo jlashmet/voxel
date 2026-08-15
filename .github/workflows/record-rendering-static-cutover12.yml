@@ -1,0 +1,65 @@
+name: Record Rendering Cutover 12 static acceptance
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/record-rendering-static-cutover12.yml]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Mark accepted Rendering static tasks in implementation plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = p.read_text()
+
+          replacements = {
+              '**Current focus:** Cutover 12 Rendering — Api/Runtime physical move':
+                  '**Current focus:** Cutover 12 Rendering — behavioral parity acceptance',
+              '| 12 — Rendering | **In progress — current** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; vegetation presentation consumes Vegetation.Api only; dead physical `ProbeCache`/`VoxelGpuBuffers` paths removed; parity accepted | final Rendering.Api/Runtime move |':
+                  '| 12 — Rendering | **In progress — current** | render bridge/surface extraction use Storage.Api read views; retained profiles use Storage.Api; vegetation presentation uses Vegetation.Api; dead physical leaks removed; Rendering Api/Runtime physical + namespace + asmdef cutover accepted by static gate | final 384/371/13 behavioral parity gate |',
+              '- [ ] Rendering.Api/Runtime physical move complete.':
+                  '- [x] Rendering.Api/Runtime physical move and Runtime namespace cutover complete; broad root assembly/namespace is gone. Static acceptance run `31894268246` passed against source `f5e0b646102a50305424850a0508d190bae3e44d`.',
+              '- [ ] Rendering.Runtime has no Storage.Runtime/Vegetation.Runtime ref;':
+                  '- [x] Rendering.Runtime has no Storage.Runtime/Vegetation.Runtime ref; static acceptance run `31894268246` verified the Runtime asmdef consumes only Storage.Api, Tiering.Api, Vegetation.Api plus Unity packages;',
+              '- [ ] renderer is not referenced by simulation Runtime assemblies;':
+                  '- [x] renderer is not referenced by simulation Runtime assemblies; dedicated reverse-dependency scan passed in static acceptance run `31894268246`;',
+              '- [ ] artifact/lookdev tests remain explicit/manual unless separately changed.':
+                  '- [x] artifact/lookdev tests remain explicit/manual unless separately changed; static acceptance run `31894268246` verifies the Showcase GPU/lookdev test remains `[Explicit]`.'
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected exactly one plan marker: {old}')
+              text = text.replace(old, new, 1)
+
+          marker = '- Latest accepted code gate: `de24d20ce48e9665f4ab7ab78343e7354601eab0` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Rendering cleanup run `31892956307` produced a complete `results.xml`; its failed-name set matches the accepted 384-test baseline exactly. This gate accepts removal of the unused/physical-storage-leaking `ProbeCache` and `VoxelGpuBuffers` implementations before the Rendering Api/Runtime split.\n'
+          addition = marker + '- Latest accepted Rendering static gate: source `f5e0b646102a50305424850a0508d190bae3e44d`, run `31894268246` — physical Api/Runtime layout, Runtime namespaces, dependency direction, reverse simulation dependency, and explicit/manual lookdev status all passed. Behavioral parity is still pending and is not implied by this static gate.\n'
+          if text.count(marker) != 1:
+              raise SystemExit('latest accepted code gate marker did not match')
+          text = text.replace(marker, addition, 1)
+
+          progress_marker = '- [x] Rendering.Api/Runtime physical move and Runtime namespace cutover complete; broad root assembly/namespace is gone. Static acceptance run `31894268246` passed against source `f5e0b646102a50305424850a0508d190bae3e44d`.\n'
+          extra = progress_marker + '- [x] Rendering catalogue/change-feed consumers and tooling use Storage.Api read-facing views; Rendering.Runtime no longer references `VoxelEngine.Core`.\n'
+          if text.count(progress_marker) != 1:
+              raise SystemExit('Rendering progress marker did not match after replacement')
+          text = text.replace(progress_marker, extra, 1)
+
+          p.write_text(text)
+          PY
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git rm .github/workflows/record-rendering-static-cutover12.yml
+          git commit -m 'docs: mark accepted Rendering static cutover tasks'
+          git push origin HEAD:${{ github.ref_name }}
