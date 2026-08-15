@@ -123,6 +123,9 @@ namespace VoxelEngine.CI
                 MaterialPalette materialPalette = BuildMaterialPalette();
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
+                VoxelEngine.Storage.Api.MaterialPaletteView materialPaletteView = materialPalette;
+                VoxelEngine.Storage.Api.SurfaceCatalogueView surfaceView = surfaces;
+                VoxelEngine.Storage.Api.CoatingCatalogueView coatingView = coatings;
                 cache = new CpuTransvoxelChunkCache
                 {
                     MaxResidentChunks = 32768,
@@ -135,8 +138,8 @@ namespace VoxelEngine.CI
                 int stalled = 0;
                 for (int iteration = 0; iteration < 65536 && cache.DirtyCount > 0; iteration++)
                 {
-                    cache.Prepare(readSource, in materialPalette,
-                        in surfaces, in coatings, null, camera, VoxelSize, 1, 100.0);
+                    cache.Prepare(readSource, in materialPaletteView,
+                        in surfaceView, in coatingView, null, camera, VoxelSize, 1, 100.0);
                     int dirty = cache.DirtyCount;
                     if (dirty == previousDirty)
                     {

@@ -32,8 +32,8 @@ namespace VoxelEngine.Tests.PlayMode
                 "Showcase did not register a valid render-world view.");
             using (var resident = world.Storage.GetResidentRegionCoords(Allocator.Temp))
                 Debug.Log($"GPU test world: regions={resident.Length}, "
-                        + $"surfaceHash={world.SurfaceCatalogue.CatalogueHash}, "
-                        + $"coatingHash={world.CoatingCatalogue.CatalogueHash}");
+                        + $"surfaceHash={world.SurfaceCatalogueView.CatalogueHash}, "
+                        + $"coatingHash={world.CoatingCatalogueView.CatalogueHash}");
             Camera camera = Camera.main;
             Assert.NotNull(camera);
 

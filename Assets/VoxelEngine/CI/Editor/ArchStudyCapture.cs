@@ -238,8 +238,8 @@ namespace VoxelEngine.CI
                 {
                     Storage = readSource,
                     Palette = palette,
-                    SurfaceCatalogue = surfaces,
-                    CoatingCatalogue = coatings,
+                    SurfaceCatalogueView = surfaces,
+                    CoatingCatalogueView = coatings,
                     ProfileBlocks = profileBlocks,
                 };
 

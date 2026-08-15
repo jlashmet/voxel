@@ -168,14 +168,17 @@ namespace VoxelEngine.CI
                 MaterialPalette materialPalette = BuildMaterialPalette();
                 SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
                 CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
+                VoxelEngine.Storage.Api.MaterialPaletteView materialPaletteView = materialPalette;
+                VoxelEngine.Storage.Api.SurfaceCatalogueView surfaceView = surfaces;
+                VoxelEngine.Storage.Api.CoatingCatalogueView coatingView = coatings;
 
                 var readSource = new RegionReadSource(in table, in pool);
                 int previousDirty = int.MaxValue;
                 int stalled = 0;
                 for (int iteration = 0; iteration < 65536 && smoothCache.DirtyCount > 0; iteration++)
                 {
-                    smoothCache.Prepare(readSource, in materialPalette,
-                        in surfaces, in coatings, null, camera, VoxelSize,
+                    smoothCache.Prepare(readSource, in materialPaletteView,
+                        in surfaceView, in coatingView, null, camera, VoxelSize,
                         frame: 1, budgetMs: 100.0);
                     int dirty = smoothCache.DirtyCount;
                     if (dirty == previousDirty)
