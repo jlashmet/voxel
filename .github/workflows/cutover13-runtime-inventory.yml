@@ -1,0 +1,47 @@
+name: Cutover 13 runtime inventory
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-runtime-inventory.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 1
+      - name: Find remaining Showcase Runtime coupling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          root = Path('Assets/Scenes/Showcase')
+          pattern = re.compile(r'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime')
+          coupled = []
+          for path in sorted(root.rglob('*.cs')):
+              text = path.read_text()
+              matches = sorted(set(pattern.findall(text)))
+              if matches:
+                  coupled.append((str(path), matches))
+                  print(f'RUNTIME_SOURCE {path}: {", ".join(matches)}')
+                  for i, line in enumerate(text.splitlines(), 1):
+                      if pattern.search(line):
+                          print(f'  L{i}: {line.strip()}')
+          print(f'RUNTIME_SOURCE_COUNT {len(coupled)}')
+
+          asmdef = json.loads((root / 'VoxelEngine.Showcase.asmdef').read_text())
+          runtime_refs = [r for r in asmdef.get('references', []) if r.endswith('.Runtime')]
+          print('RUNTIME_ASMDEF_REFS ' + ', '.join(runtime_refs))
+          PY
