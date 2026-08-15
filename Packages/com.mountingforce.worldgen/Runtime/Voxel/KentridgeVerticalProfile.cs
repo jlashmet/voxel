@@ -1,6 +1,6 @@
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Mathematics;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
@@ -41,7 +41,7 @@ namespace MountingForce.WorldGen.Voxel
 
         public static int ReferenceSurfaceY(uint seed, int scale)
         {
-            return TerrainSampler.HeightAt(
+            return TerrainQuery.HeightAt(
                 KentridgeDefinition.TownCentreDm.X * scale,
                 KentridgeDefinition.TownCentreDm.Y * scale,
                 seed);
@@ -154,7 +154,7 @@ namespace MountingForce.WorldGen.Voxel
             for (int z = 0; z <= depth; z += sampleStep)
             for (int x = 0; x <= width; x += sampleStep)
             {
-                int h = TerrainSampler.HeightAt(ox + x, oz + z, seed);
+                int h = TerrainQuery.HeightAt(ox + x, oz + z, seed);
                 if (h < lowest) lowest = h;
             }
 
