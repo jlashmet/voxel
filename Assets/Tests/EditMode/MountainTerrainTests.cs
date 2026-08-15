@@ -1,5 +1,5 @@
 using NUnit.Framework;
-using VoxelEngine.Core.Terrain;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace VoxelEngine.Tests.EditMode
 {
