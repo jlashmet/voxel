@@ -199,10 +199,10 @@ namespace VoxelEngine.Net.Server
                 _network.Replication.Subscriptions,
                 _network);
 
+            var storageReadSource = new RegionReadSource(in table, in pool);
             _bulkRegionState.ProcessRequests(
                 serverTick,
-                ref table,
-                in pool,
+                storageReadSource,
                 _network.Replication.Subscriptions,
                 _network);
 
