@@ -1,0 +1,46 @@
+name: One-shot Arch Capture Storage Cutover
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - '.github/workflows/one-shot-arch-capture-storage-cutover.yml'
+      - 'Tools/Refactor/apply_arch_capture_render_storage_cutover.py'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+
+      - name: Apply deterministic capture cutover
+        run: python Tools/Refactor/apply_arch_capture_render_storage_cutover.py
+
+      - name: Verify capture diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'Storage = readSource' Assets/VoxelEngine/CI/Editor/ArchStudyCapture.cs
+          ! grep -n -E 'Table = table|Pool = pool' Assets/VoxelEngine/CI/Editor/ArchStudyCapture.cs
+
+      - name: Commit capture cutover and remove one-shot tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/one-shot-arch-capture-storage-cutover.yml
+          git rm Tools/Refactor/apply_arch_capture_render_storage_cutover.py
+          git add Assets/VoxelEngine/CI/Editor/ArchStudyCapture.cs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'refactor: cut over arch capture storage view'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
