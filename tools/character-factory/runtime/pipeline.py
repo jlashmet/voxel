@@ -4,7 +4,12 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
-from api.models import AssetType, BuildSpec, CharacterFactoryError
+from api.models import (
+    AssetType,
+    BuildSpec,
+    CharacterFactoryError,
+    GeneratorBackend,
+)
 from .pipelines.accessory import AccessoryPipeline
 from .pipelines.base import AssetPipeline
 from .pipelines.character import CharacterPipeline
@@ -27,6 +32,38 @@ def pipeline_type_for(asset_type: AssetType) -> type[AssetPipeline]:
         raise CharacterFactoryError(f"No pipeline registered for {asset_type.value}") from exc
 
 
+def generator_metadata(spec: BuildSpec) -> dict[str, object]:
+    generator = spec.generator
+    common: dict[str, object] = {
+        "backend": generator.backend.value,
+        "preset": generator.preset,
+        "device": generator.device,
+    }
+
+    if generator.backend == GeneratorBackend.TRIPOSR_MPS:
+        common.update(
+            {
+                "mcResolution": generator.mc_resolution,
+                "chunkSize": generator.chunk_size,
+                "removeBackground": generator.remove_background,
+            }
+        )
+        return common
+
+    common.update(
+        {
+            "model": generator.model,
+            "subfolder": generator.subfolder,
+            "seed": generator.seed,
+            "steps": generator.steps,
+            "octreeResolution": generator.octree_resolution,
+            "numChunks": generator.num_chunks,
+            "enableFlashVdm": generator.enable_flashvdm,
+        }
+    )
+    return common
+
+
 class CharacterFactoryRuntime:
     def __init__(self, tool_root: Path):
         self.tool_root = tool_root.resolve()
@@ -45,14 +82,7 @@ class CharacterFactoryRuntime:
             "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
             "output": str(result.output),
             "rawMesh": str(result.raw_mesh),
-            "generator": {
-                "preset": spec.generator.preset,
-                "model": spec.generator.model,
-                "subfolder": spec.generator.subfolder,
-                "steps": spec.generator.steps,
-                "octreeResolution": spec.generator.octree_resolution,
-                "enableFlashVdm": spec.generator.enable_flashvdm,
-            },
+            "generator": generator_metadata(spec),
             "runtimePart": result.runtime_metadata,
             "commands": {
                 "generator": result.generator_command,
