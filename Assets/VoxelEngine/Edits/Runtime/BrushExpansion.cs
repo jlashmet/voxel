@@ -1,13 +1,13 @@
 using System;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Edits.Api;
 
-namespace VoxelEngine.Core.Edits
+namespace VoxelEngine.Edits.Runtime
 {
     /// <summary>
-    /// Compatibility expansion helper for canonical brush events.
+    /// Deterministic expansion helper for canonical brush events.
     ///
     /// Live brush semantics are owned by BrushShapeCodec + DeterministicAlterationApplier. This
     /// helper exposes the same cube voxel coordinates for tooling/tests that still need expansion,
@@ -24,7 +24,7 @@ namespace VoxelEngine.Core.Edits
         public const byte ShapeExtrude = 4;
 
         /// <summary>Expand one canonical cube brush into exact world voxel coordinates.</summary>
-        public static NativeList<int3> Expand(in BrickPool pool, in RegionTable table, AlterationEvent evt)
+        public static NativeList<int3> Expand(AlterationEvent evt)
         {
             if (evt.kind != AlterationEvent.KindBrush ||
                 !BrushShapeCodec.Validate(evt.shapeKind, evt.shapeData))
@@ -38,8 +38,6 @@ namespace VoxelEngine.Core.Edits
         /// rejected until their deterministic packing/application semantics are specified.
         /// </summary>
         public static NativeList<int3> ExpandTyped(
-            in BrickPool pool,
-            in RegionTable table,
             byte shapeType,
             int3 origin,
             int3 extents,
@@ -47,9 +45,9 @@ namespace VoxelEngine.Core.Edits
         {
             if (shapeType != ShapeCube)
                 throw new NotSupportedException("Only canonical axis-aligned cube brushes are supported.");
-            if (extents.x < 1 || extents.x > VoxelDimensions.RegionEdge ||
-                extents.y < 1 || extents.y > VoxelDimensions.RegionEdge ||
-                extents.z < 1 || extents.z > VoxelDimensions.RegionEdge)
+            if (extents.x < 1 || extents.x > VoxelReadGrid.BlocksPerRegionEdge ||
+                extents.y < 1 || extents.y > VoxelReadGrid.BlocksPerRegionEdge ||
+                extents.z < 1 || extents.z > VoxelReadGrid.BlocksPerRegionEdge)
                 throw new ArgumentOutOfRangeException(nameof(extents));
 
             return ExpandCube(origin, extents);

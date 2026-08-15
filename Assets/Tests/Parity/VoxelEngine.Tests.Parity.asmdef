@@ -16,7 +16,8 @@
     "Unity.Mathematics",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
-    "VoxelEngine.Edits.Api"
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Edits.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -1,9 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
-using VoxelEngine.Edits.Api;
 
-namespace VoxelEngine.Core.Edits
+namespace VoxelEngine.Edits.Runtime
 {
     /// <summary>
     /// Per-player voxel allocation budget over a rolling time window.

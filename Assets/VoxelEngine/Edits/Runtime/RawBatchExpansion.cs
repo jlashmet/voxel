@@ -2,10 +2,10 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Edits.Api;
 
-namespace VoxelEngine.Core.Edits
+namespace VoxelEngine.Edits.Runtime
 {
     /// <summary>
     /// Run-length-encoded raw-batch expansion for voxel placement operations.
@@ -35,16 +35,16 @@ namespace VoxelEngine.Core.Edits
         /// <summary>Maximum run length in bricks per entry. Prevents underflow in offset arithmetic.</summary>
         public const ushort MaxRunLength = 65535;
 
+        private const int BlocksPerRegion = VoxelReadGrid.BlocksPerRegionEdge * VoxelReadGrid.BlocksPerRegionEdge * VoxelReadGrid.BlocksPerRegionEdge;
+
         // -- expansion -----------------------------------------------------------
 
         /// <summary>
         /// Expand a raw-batch AlterationEvent's RLE-encoded data into affected brick indices.
         /// </summary>
         /// <param name="rleData">Raw byte slice containing the RLE runs. Must be a multiple of EntrySize bytes.</param>
-        /// <param name="table">The region table for resolving coordinates to regions during execution.</param>
-        /// <param name="pool">The brick pool for allocating mixed bricks as needed.</param>
         /// <returns>A NativeList of int3 brick indices that should be modified. Caller must Dispose.</returns>
-        public static NativeList<int3> Expand(NativeSlice<byte> rleData, RegionTable table, BrickPool pool)
+        public static NativeList<int3> Expand(NativeSlice<byte> rleData)
         {
             if (rleData.Length == 0 || rleData.Length % EntrySize != 0)
                 throw new ArgumentException(
@@ -61,7 +61,7 @@ namespace VoxelEngine.Core.Edits
                 byte material = rleData[i * EntrySize + 6];
 
                 if (count == 0) continue; // skip degenerate runs.
-                if (material > VoxelEngine.Core.Storage.VoxelDimensions.MaterialEmpty &&
+                if (material > VoxelGrid.MaterialEmpty &&
                     count > MaxRunLength)
                 {
                     throw new ArgumentException(
@@ -70,18 +70,18 @@ namespace VoxelEngine.Core.Edits
 
                 // Expand the run: each entry in the RLE represents consecutive bricks.
                 // The offset is relative to some origin — resolve it via region table.
-                for (int j = 0; j < count && result.Length < VoxelEngine.Core.Storage.VoxelDimensions.BricksPerRegion * 4; j++)
+                for (int j = 0; j < count && result.Length < BlocksPerRegion * 4; j++)
                 {
                     int brickIdx = offset + j;
-                    if (brickIdx < 0 || brickIdx >= VoxelEngine.Core.Storage.VoxelDimensions.BricksPerRegion)
+                    if (brickIdx < 0 || brickIdx >= BlocksPerRegion)
                         continue; // clamp to region bounds silently.
 
                     // Convert linear brick index to int3 coordinate.
-                    int x = brickIdx & VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeMask;
-                    int y = (brickIdx >> VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeLog2) &
-                            VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeMask;
-                    int z = (brickIdx >> (VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeLog2 * 2)) &
-                            VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeMask;
+                    int x = brickIdx & VoxelReadGrid.BlocksPerRegionEdgeMask;
+                    int y = (brickIdx >> VoxelReadGrid.BlocksPerRegionEdgeLog2) &
+                            VoxelReadGrid.BlocksPerRegionEdgeMask;
+                    int z = (brickIdx >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2)) &
+                            VoxelReadGrid.BlocksPerRegionEdgeMask;
 
                     result.Add(new int3(x, y, z));
                 }
@@ -134,8 +134,7 @@ namespace VoxelEngine.Core.Edits
         /// the event has already been deserialized and validated.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static NativeList<int3> ExpandParsed(NativeSlice<byte> rleData, RegionTable table,
-            BrickPool pool, int offsetBase)
+        public static NativeList<int3> ExpandParsed(NativeSlice<byte> rleData, int offsetBase)
         {
             if (rleData.Length == 0 || rleData.Length % EntrySize != 0)
                 throw new ArgumentException(
@@ -155,14 +154,14 @@ namespace VoxelEngine.Core.Edits
                 for (int j = 0; j < count; j++)
                 {
                     int brickIdx = offset + j;
-                    if (brickIdx < 0 || brickIdx >= VoxelEngine.Core.Storage.VoxelDimensions.BricksPerRegion)
+                    if (brickIdx < 0 || brickIdx >= BlocksPerRegion)
                         continue;
 
-                    int x = brickIdx & VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeMask;
-                    int y = (brickIdx >> VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeLog2) &
-                            VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeMask;
-                    int z = (brickIdx >> (VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeLog2 * 2)) &
-                            VoxelEngine.Core.Storage.VoxelDimensions.RegionEdgeMask;
+                    int x = brickIdx & VoxelReadGrid.BlocksPerRegionEdgeMask;
+                    int y = (brickIdx >> VoxelReadGrid.BlocksPerRegionEdgeLog2) &
+                            VoxelReadGrid.BlocksPerRegionEdgeMask;
+                    int z = (brickIdx >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2)) &
+                            VoxelReadGrid.BlocksPerRegionEdgeMask;
 
                     result.Add(new int3(x, y, z));
                 }

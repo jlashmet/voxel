@@ -23,7 +23,8 @@
     "UnityEditor.TestRunner",
     "Unity.RenderPipelines.Universal.Runtime",
     "Unity.RenderPipelines.Core.Runtime",
-    "VoxelEngine.Edits.Api"
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Edits.Runtime"
   ],
   "includePlatforms": [
     "Editor"

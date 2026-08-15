@@ -1,12 +1,9 @@
 using System;
-using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Foundation;
-using VoxelEngine.Core.Storage;
-using VoxelEngine.Edits.Api;
 
-namespace VoxelEngine.Core.Edits
+namespace VoxelEngine.Edits.Runtime
 {
     /// <summary>
     /// Generative build brushes that place voxels in various shapes.
@@ -225,61 +222,6 @@ namespace VoxelEngine.Core.Edits
             }
 
             return result;
-        }
-
-        // -- TryApply for EventApplication.ApplyWithArbitration --------------------
-
-        /// <summary>
-        /// Apply a build-brush AlterationEvent to the grid, returning whether any voxels changed.
-        /// Used by <see cref="VoxelEngine.Net.Client.EventApplication.ApplyWithArbitration"/>
-        /// when processing KindBrush events in arbitration order.
-        /// </summary>
-        /// <param name="pool">Brick pool for voxel writes.</param>
-        /// <param name="evt">The build event to apply (must be KindBrush).</param>
-        /// <param name="affectedBricks">Output list of affected brick coordinates.</param>
-        /// <returns>true if any voxels were modified.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool TryApply(
-            ref BrickPool pool,
-            in AlterationEvent evt,
-            out NativeList<int3> affectedBricks)
-        {
-            if (evt.kind != AlterationEvent.KindBrush)
-            {
-                affectedBricks = new NativeList<int3>(0, Allocator.Temp);
-                return false;
-            }
-
-            // Expand the brush shape deterministically.
-            var voxels = PlaceSphere(evt.origin, 8, evt.material, evt.seed);
-
-            if (voxels.Length == 0)
-            {
-                affectedBricks = voxels;
-                return false;
-            }
-
-            affectedBricks = new NativeList<int3>(16, Allocator.Temp);
-
-            // Collect unique brick coordinates from the voxel list.
-            var brickSet = new NativeHashSet<int3>(voxels.Length, Allocator.Temp);
-            for (int i = 0; i < voxels.Length; i++)
-            {
-                int3 brick = new int3(
-                    voxels[i].x >> VoxelDimensions.BrickEdgeLog2,
-                    voxels[i].y >> VoxelDimensions.BrickEdgeLog2,
-                    voxels[i].z >> VoxelDimensions.BrickEdgeLog2);
-                brickSet.Add(brick);
-            }
-
-            // Convert set to list for the output.
-            foreach (var b in brickSet)
-                affectedBricks.Add(b);
-
-            brickSet.Dispose();
-            voxels.Dispose();
-
-            return affectedBricks.Length > 0;
         }
     }
 }

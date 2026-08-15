@@ -1,8 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
-using VoxelEngine.Edits.Api;
 
-namespace VoxelEngine.Core.Edits
+namespace VoxelEngine.Edits.Runtime
 {
     /// <summary>
     /// Seeded integer-only pseudo-random number generator using the xoshiro128** algorithm.

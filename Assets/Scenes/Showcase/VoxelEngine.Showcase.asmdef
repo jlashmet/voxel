@@ -18,7 +18,8 @@
     "Unity.Collections",
     "Unity.Mathematics",
     "Unity.Networking.Transport",
-    "VoxelEngine.Edits.Api"
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Edits.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -6,6 +6,7 @@ using Unity.Jobs;
 using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Core.Occupancy;

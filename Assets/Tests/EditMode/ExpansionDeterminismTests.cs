@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Edits.Api;
+using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
 
@@ -54,8 +55,8 @@ namespace VoxelEngine.Tests.EditMode
                 playerId: 2,
                 sequence: 1);
 
-            var resultA = BrushExpansion.Expand(in poolA, in tableA, evt);
-            var resultB = BrushExpansion.Expand(in poolB, in tableB, evt);
+            var resultA = BrushExpansion.Expand(evt);
+            var resultB = BrushExpansion.Expand(evt);
             CompareExpansions(resultA, resultB, "brush cube");
         }
 
