@@ -88,6 +88,7 @@ namespace VoxelEngine.Showcase
         private RegionTable _table;
         private BrickPool _pool;
         private readonly RegionReadSource _readSource;
+        private readonly RegionMutationStore _mutationStore;
         private readonly RegionResidencyStore _residencyStore;
         private FeatureCatalogue _catalogue;
         private MaterialPalette _palette;
@@ -220,6 +221,7 @@ namespace VoxelEngine.Showcase
             _table = new RegionTable(64, Allocator.Persistent);
             _pool = new BrickPool(brickPoolCapacity, Allocator.Persistent);
             _readSource = new RegionReadSource(in _table, in _pool, _changes);
+            _mutationStore = new RegionMutationStore(in _table, in _pool);
             _residencyStore = new RegionResidencyStore(in _table, in _pool);
 
             _palette = default;
@@ -821,10 +823,12 @@ namespace VoxelEngine.Showcase
             {
                 var featureStart = Time.realtimeSinceStartupAsDouble;
 
+                _readSource.Refresh(in _table, in _pool);
+                _mutationStore.Refresh(in _table, in _pool);
                 FeatureGenerationReport report;
                 using (s_FeatureMarker.Auto())
                     report = FeatureGeneration.GenerateRegion(
-                        in _catalogue, Seed, coord, ref _table, ref _pool);
+                        in _catalogue, Seed, coord, _readSource, _mutationStore);
 
                 FeatureVoxelsBuilt += report.VoxelsWritten;
                 FeatureInstancesBuilt += report.InstancesRasterised;
@@ -1028,8 +1032,10 @@ namespace VoxelEngine.Showcase
                     throw new InvalidOperationException(
                         $"The built-in reference arch is invalid: {validation}.");
                 int3 max = origin + arch.Metadata.Footprint;
+                _readSource.Refresh(in _table, in _pool);
+                _mutationStore.Refresh(in _table, in _pool);
                 RasterResult result = PrimitiveRasteriser.Rasterise(
-                    primitives.AsArray(), origin, max, ref _table, ref _pool);
+                    primitives.AsArray(), origin, max, _readSource, _mutationStore);
                 ReferenceArchMin = origin;
                 ReferenceArchMax = max;
                 return result.VoxelsWritten;

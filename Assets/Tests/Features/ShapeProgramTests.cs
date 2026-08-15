@@ -121,7 +121,7 @@ namespace VoxelEngine.Tests.Features
             // Whole.
             var wholeTable = new RegionTable(4, Allocator.Temp);
             var wholePool = new BrickPool(8192, Allocator.Temp);
-            PrimitiveRasteriser.Rasterise(primitives.AsArray(), min, max, ref wholeTable, ref wholePool);
+            Rasterise(primitives.AsArray(), min, max, ref wholeTable, ref wholePool);
             var whole = SubVolumeEquality.Snapshot(ref wholeTable, in wholePool, min, max);
 
             // Eight disjoint octants that tile the same volume.
@@ -129,7 +129,7 @@ namespace VoxelEngine.Tests.Features
             var piecesPool = new BrickPool(8192, Allocator.Temp);
 
             foreach (var (octantMin, octantMax) in SubVolumeEquality.Octants(min, max))
-                PrimitiveRasteriser.Rasterise(primitives.AsArray(), octantMin, octantMax,
+                Rasterise(primitives.AsArray(), octantMin, octantMax,
                                               ref piecesTable, ref piecesPool);
 
             var pieces = SubVolumeEquality.Snapshot(ref piecesTable, in piecesPool, min, max);
@@ -158,7 +158,7 @@ namespace VoxelEngine.Tests.Features
             var pool = new BrickPool(8192, Allocator.Temp);
 
             var slice = (min: origin, max: origin + new int3(16, 200, 16));
-            PrimitiveRasteriser.Rasterise(primitives.AsArray(), slice.min, slice.max, ref table, ref pool);
+            Rasterise(primitives.AsArray(), slice.min, slice.max, ref table, ref pool);
 
             // One voxel outside the slice on each axis must be untouched.
             Assert.AreEqual(VoxelDimensions.MaterialEmpty,
@@ -183,7 +183,7 @@ namespace VoxelEngine.Tests.Features
             primitives[1] = Core.Features.Emitters.BoxEmitter.Box(
                 new int3(12, 12, 12), new int3(2, 2, 2), 0, PrimitiveMode.Carve, 1);
 
-            PrimitiveRasteriser.Rasterise(primitives, new int3(0, 0, 0), new int3(32, 32, 32),
+            Rasterise(primitives, new int3(0, 0, 0), new int3(32, 32, 32),
                                           ref table, ref pool);
 
             Assert.AreNotEqual(VoxelDimensions.MaterialEmpty,
@@ -203,7 +203,7 @@ namespace VoxelEngine.Tests.Features
 
             var primitives = new NativeArray<Primitive>(FeatureBudget.MaxPrimitivesPerRegion + 1, Allocator.Temp);
 
-            var result = PrimitiveRasteriser.Rasterise(primitives, int3.zero, new int3(8, 8, 8),
+            var result = Rasterise(primitives, int3.zero, new int3(8, 8, 8),
                                                        ref table, ref pool);
 
             Assert.IsTrue(result.BudgetExceeded, "over-budget batch was accepted");
@@ -240,5 +240,20 @@ namespace VoxelEngine.Tests.Features
 
             return primitives;
         }
+
+        private static RasterResult Rasterise(
+            NativeArray<Primitive> primitives,
+            int3 min,
+            int3 max,
+            ref RegionTable table,
+            ref BrickPool pool,
+            bool markHardSurface = false)
+        {
+            var reads = new RegionReadSource(in table, in pool);
+            var mutations = new RegionMutationStore(in table, in pool);
+            return PrimitiveRasteriser.Rasterise(
+                primitives, min, max, reads, mutations, markHardSurface);
+        }
+
     }
 }

@@ -189,7 +189,7 @@ namespace VoxelEngine.Tests.EditMode
                 detail.SurfaceDetail = 31;
                 detail.SurfaceFlags = VoxelSurfaceFlags.IntentionalSeam;
                 primitives[0] = detail;
-                PrimitiveRasteriser.Rasterise(primitives, int3.zero, new int3(8),
+                Rasterise(primitives, int3.zero, new int3(8),
                                               ref table, ref pool);
 
                 VoxelCell result = VoxelAccess.GetCell(ref table, in pool, position);
@@ -219,7 +219,7 @@ namespace VoxelEngine.Tests.EditMode
                 primitives[0] = CurvedPrimitiveEmitter.Annulus(
                     new int3(12, 12, 4), 8, 5, 5, 2, false,
                     6, SurfaceStyles.Planar, PrimitiveMode.Fill, 0);
-                PrimitiveRasteriser.Rasterise(primitives, int3.zero, new int3(25, 25, 9),
+                Rasterise(primitives, int3.zero, new int3(25, 25, 9),
                                               ref table, ref pool);
 
                 VoxelCell outerEdge = VoxelAccess.GetCell(
@@ -450,12 +450,12 @@ namespace VoxelEngine.Tests.EditMode
             var tiledPool = new BrickPool(128, Allocator.Temp);
             try
             {
-                PrimitiveRasteriser.Rasterise(primitives, int3.zero, new int3(32),
+                Rasterise(primitives, int3.zero, new int3(32),
                                               ref wholeTable, ref wholePool);
                 for (int z = 0; z < 32; z += 8)
                 for (int y = 0; y < 32; y += 8)
                 for (int x = 0; x < 32; x += 8)
-                    PrimitiveRasteriser.Rasterise(primitives, new int3(x, y, z),
+                    Rasterise(primitives, new int3(x, y, z),
                         new int3(x + 8, y + 8, z + 8), ref tiledTable, ref tiledPool);
 
                 AssertCellsEqual(ref wholeTable, in wholePool, ref tiledTable, in tiledPool,
@@ -592,7 +592,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.True(hasOpeningCarve);
                 Assert.Greater(veneerBlocks, 8);
 
-                RasterResult result = PrimitiveRasteriser.Rasterise(
+                RasterResult result = Rasterise(
                     primitives.AsArray(), int3.zero, bay.Metadata.Footprint,
                     ref table, ref pool);
                 Assert.False(result.BudgetExceeded);
@@ -935,5 +935,20 @@ namespace VoxelEngine.Tests.EditMode
                 3 => new int3(point.z, point.y, footprint.x - 1 - point.x),
                 _ => point
             };
+
+        private static RasterResult Rasterise(
+            NativeArray<Primitive> primitives,
+            int3 min,
+            int3 max,
+            ref RegionTable table,
+            ref BrickPool pool,
+            bool markHardSurface = false)
+        {
+            var reads = new RegionReadSource(in table, in pool);
+            var mutations = new RegionMutationStore(in table, in pool);
+            return PrimitiveRasteriser.Rasterise(
+                primitives, min, max, reads, mutations, markHardSurface);
+        }
+
     }
 }
