@@ -6,6 +6,7 @@
     "MountingForce.WorldGen.Architecture",
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
+    "VoxelEngine.Terrain.Api",
     "VoxelEngine.Vegetation",
     "VoxelEngine.Structures",
     "Unity.Collections",
