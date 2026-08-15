@@ -75,21 +75,21 @@ namespace VoxelEngine.Core.Storage
             return true;
         }
 
-        public bool TryCaptureSemanticSnapshot(
+        public RegionSnapshotCaptureResult CaptureSemanticSnapshot(
             int3 regionCoord,
             int maxBytes,
             out RegionSemanticSnapshot snapshot)
         {
             snapshot = default;
             if (!_table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
-                return false;
+                return RegionSnapshotCaptureResult.NotResident;
 
             if (!SemanticRegionSnapshotCodec.TryEncode(in region, in _pool, maxBytes, out byte[] bytes))
-                return false;
+                return RegionSnapshotCaptureResult.TooLarge;
 
             uint semanticHash = SemanticRegionHasher.HashRegion(in region, in _pool);
             snapshot = new RegionSemanticSnapshot(regionCoord, semanticHash, bytes);
-            return true;
+            return RegionSnapshotCaptureResult.Ok;
         }
 
         public bool TryRead(int3 worldVoxel, out VoxelCell cell)
