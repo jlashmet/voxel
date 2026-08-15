@@ -43,8 +43,9 @@ namespace MountingForce.WorldGen.Voxel
                     candidate.X, candidate.Z, seed, scale);
                 int maxY = math.max(natural, authored) + SearchMarginDm * scale;
                 int minY = math.max(0, math.min(natural, authored) - SearchMarginDm * scale);
-                if (!surfaceQuery.TryFindTopLandSurface(
-                        worldX, worldZ, minY, maxY, out int surface, out _))
+                if (!surfaceQuery.TryFindTopSolidExcluding(
+                        worldX, worldZ, minY, maxY, Mat.Water, Mat.Cascade,
+                        out int surface, out _))
                     continue;
 
                 AddInstance(candidate, worldX, surface + 1, worldZ,
