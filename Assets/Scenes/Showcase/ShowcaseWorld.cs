@@ -1022,7 +1022,7 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < _castleRegions.Count; i++)
             {
                 _changes.PublishRegion(_castleRegions[i], VoxelChangeKind.All);
-                FarField.CaptureRegion(_castleRegions[i], ref _table, in _pool, Seed);
+                FarField.CaptureRegion(_castleRegions[i], ReadStorage, Seed);
             }
             RecordCastleStage(stage, stageStart);
             return true;
