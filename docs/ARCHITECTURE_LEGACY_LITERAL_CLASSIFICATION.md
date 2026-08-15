@@ -13,13 +13,13 @@ The one-shot inventory run `31909802220` found **181** tracked `VoxelEngine.Core
 - **2** in the permanent architecture boundary test.
 - **1** in an obsolete compile helper targeting the deleted Core project.
 
-## Removed stale references
+## Removed or repaired stale references
 
-The final cleanup removes the categories that can mislead future implementation or tooling:
+The final cleanup removes or repairs the categories that can mislead future implementation or tooling:
 
-- generated `Artifacts/ArchStudy/*-unity.log` and the stale root showcase performance log that captured pre-cutover compiler output;
-- retired cutover/workflow publishers and acceptance helpers whose scripts still named the deleted Core assembly;
-- `tools/check-compile.sh`, which targeted the obsolete `VoxelEngine.Core.csproj`.
+- generated `Artifacts/ArchStudy/*-unity.log` and the stale root showcase performance log that captured pre-cutover compiler output were removed;
+- retired cutover/workflow publishers and acceptance helpers whose scripts still named the deleted Core assembly were removed;
+- `tools/check-compile.sh` was migrated from the obsolete Core-era target to the final Api/Runtime assembly layout and no longer contains a `VoxelEngine.Core` literal.
 
 Generated logs are not architecture documentation. Retired migration workflows are especially unsafe to retain because they can become accidental branch writers or imply that the old dependency graph is still executable.
 
