@@ -1,0 +1,16 @@
+{
+  "name": "Game.Story.Api",
+  "rootNamespace": "Game.Story.Api",
+  "references": [
+    "Game.WorldBuilder.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
