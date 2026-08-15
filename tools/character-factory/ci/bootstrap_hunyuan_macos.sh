@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bootstraps a pinned local Hunyuan3D-2 shape-generation environment on the
-# self-hosted macOS runner. The source checkout, Python venv, and Hugging Face
-# model cache live outside the repository so subsequent CI runs reuse them.
+# self-hosted macOS runner. Source, Python env, and model weights live outside
+# the repository so subsequent CI runs reuse them.
 set -euo pipefail
 
 HUNYUAN_REV="f8db63096c8282cb27354314d896feba5ba6ff8a"
@@ -9,9 +9,10 @@ CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character
 SOURCE_DIR="$CACHE_ROOT/Hunyuan3D-2-$HUNYUAN_REV"
 VENV_DIR="$CACHE_ROOT/hunyuan3d-2-$HUNYUAN_REV-venv"
 STAMP="$VENV_DIR/.voxel-ready-$HUNYUAN_REV"
+MODEL_ROOT="${HY3DGEN_MODELS:-$CACHE_ROOT/models}"
 PYTHON_BIN="${PYTHON_BIN:-$(command -v python3)}"
 
-mkdir -p "$CACHE_ROOT"
+mkdir -p "$CACHE_ROOT" "$MODEL_ROOT"
 
 if [ ! -d "$SOURCE_DIR/.git" ]; then
   rm -rf "$SOURCE_DIR"
@@ -34,6 +35,50 @@ if [ ! -f "$STAMP" ]; then
   "$VENV_DIR/bin/python" -m pip install -e "$SOURCE_DIR"
   touch "$STAMP"
 fi
+
+# hy3dgen does not use HF_HOME as its primary local-model lookup. Its
+# smart_load_model() first checks HY3DGEN_MODELS/<repo>/<subfolder>. Populate
+# that exact persistent directory before the timed inference step so CI never
+# spends its smoke-test timeout downloading weights.
+export HY3DGEN_MODELS="$MODEL_ROOT"
+"$VENV_DIR/bin/python" - <<'PY'
+from pathlib import Path
+import os
+from huggingface_hub import snapshot_download
+
+repo_id = "tencent/Hunyuan3D-2mini"
+subfolders = (
+    "hunyuan3d-dit-v2-mini-turbo",
+    "hunyuan3d-vae-v2-mini-turbo",
+)
+root = Path(os.environ["HY3DGEN_MODELS"]).expanduser()
+repo_root = root / repo_id
+repo_root.mkdir(parents=True, exist_ok=True)
+
+for subfolder in subfolders:
+    target = repo_root / subfolder
+    required = (
+        target / "config.yaml",
+        target / "model.fp16.safetensors",
+    )
+    if all(path.is_file() and path.stat().st_size > 0 for path in required):
+        print(f"hunyuan model cache ready: {target}")
+        continue
+
+    print(f"prefetching {repo_id}/{subfolder} into {repo_root}", flush=True)
+    snapshot_download(
+        repo_id=repo_id,
+        allow_patterns=[
+            f"{subfolder}/config.yaml",
+            f"{subfolder}/model.fp16.safetensors",
+        ],
+        local_dir=str(repo_root),
+    )
+
+    missing = [str(path) for path in required if not path.is_file() or path.stat().st_size == 0]
+    if missing:
+        raise RuntimeError("Hunyuan model prefetch incomplete: " + ", ".join(missing))
+PY
 
 "$VENV_DIR/bin/python" - <<'PY'
 import torch

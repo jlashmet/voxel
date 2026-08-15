@@ -52,7 +52,7 @@ jobs:
   pipeline-smoke:
     needs: compile
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       HF_HOME: ${{ github.workspace }}/../character-factory-hf-cache
       PYTORCH_ENABLE_MPS_FALLBACK: '1'
@@ -78,14 +78,23 @@ jobs:
           test -x "$BLENDER_BIN"
           echo "BLENDER_BIN=$BLENDER_BIN" >> "$GITHUB_ENV"
 
-      - name: Bootstrap local Hunyuan3D
+      - name: Bootstrap and cache local Hunyuan3D
+        timeout-minutes: 20
         shell: bash
         run: |
           set -euo pipefail
+          CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character-factory}"
+          HY3DGEN_MODELS="$CACHE_ROOT/models"
+          export HY3DGEN_MODELS
+
           chmod +x tools/character-factory/ci/bootstrap_hunyuan_macos.sh
           HUNYUAN_PY="$(tools/character-factory/ci/bootstrap_hunyuan_macos.sh | tail -1)"
           test -x "$HUNYUAN_PY"
+          test -f "$HY3DGEN_MODELS/tencent/Hunyuan3D-2mini/hunyuan3d-dit-v2-mini-turbo/model.fp16.safetensors"
+          test -f "$HY3DGEN_MODELS/tencent/Hunyuan3D-2mini/hunyuan3d-vae-v2-mini-turbo/model.fp16.safetensors"
+
           echo "HUNYUAN_PY=$HUNYUAN_PY" >> "$GITHUB_ENV"
+          echo "HY3DGEN_MODELS=$HY3DGEN_MODELS" >> "$GITHUB_ENV"
 
       - name: Build Sunlit Cleric staff through real weapon pipeline
         timeout-minutes: 10
