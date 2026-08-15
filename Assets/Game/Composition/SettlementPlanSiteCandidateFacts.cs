@@ -34,7 +34,8 @@ namespace Game.Composition.WorldBuilderWorldGen
     /// Explicit projection from one WorldGen planned site into the gameplay semantics understood by
     /// WorldBuilder. Geometry is already resolved in world space: the projection provider must supply
     /// the real footprint and public-entrance anchor rather than letting Composition infer them from
-    /// frontage or architectural archetype.
+    /// frontage or architectural archetype. Archetype may remain Unspecified when the WorldGen site
+    /// has no honest mapping into WorldBuilder's semantic taxonomy.
     /// </summary>
     public readonly struct SettlementSiteProjection
     {
@@ -49,11 +50,6 @@ namespace Game.Composition.WorldBuilderWorldGen
             Int2 publicEntranceDm,
             params SiteCapabilityOffer[] capabilities)
         {
-            if (archetype == SiteArchetype.Unspecified)
-                throw new ArgumentException(
-                    "A projected generated site must have a concrete WorldBuilder archetype.",
-                    nameof(archetype));
-
             Archetype = archetype;
             Footprint = footprint;
             PublicEntranceDm = publicEntranceDm;

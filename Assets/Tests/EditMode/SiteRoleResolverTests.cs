@@ -25,7 +25,7 @@ namespace VoxelEngine.Tests.EditMode
             PlanningGraph graph = BlueprintCompiler.Compile(game.Build());
             var facts = new FakeFacts(
                     Candidate("pub-generated", SiteArchetype.Pub, new SiteCapabilityOffer(SiteCapabilityKind.Interior)),
-                    Candidate("destination-generated", SiteArchetype.Ruin, new SiteCapabilityOffer(SiteCapabilityKind.ConversationSpace)))
+                    Candidate("destination-generated", SiteArchetype.Unspecified, new SiteCapabilityOffer(SiteCapabilityKind.ConversationSpace)))
                 .InRegion("pub-generated", region)
                 .InRegion("destination-generated", region)
                 .Reachable("destination-generated", "pub-generated", TraversalProfile.NormalParty);
@@ -35,6 +35,22 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(result.IsResolved, Is.True);
             Assert.That(result.Bindings.Single(binding => binding.Role.Equals(pub)).Site.Value, Is.EqualTo("pub-generated"));
             Assert.That(result.Bindings.Single(binding => binding.Role.Equals(destination)).Site.Value, Is.EqualTo("destination-generated"));
+        }
+
+        [Test]
+        public void UnclassifiedCandidateDoesNotSatisfyRequiredArchetype()
+        {
+            var game = Campaign.Create("required-archetype");
+            SiteRef pub = game.World.RequireSite("pub", site => site.Archetype(SiteArchetype.Pub));
+            PlanningGraph graph = BlueprintCompiler.Compile(game.Build());
+
+            var facts = new FakeFacts(Candidate("unclassified", SiteArchetype.Unspecified));
+
+            SiteResolutionResult result = SiteRoleResolver.Resolve(graph, facts);
+
+            Assert.That(result.IsResolved, Is.False);
+            Assert.That(result.Diagnostics.Single().Kind, Is.EqualTo(SiteResolutionDiagnosticKind.ArchetypeUnsatisfied));
+            Assert.That(result.Diagnostics.Single().Role, Is.EqualTo(pub));
         }
 
         [Test]

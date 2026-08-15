@@ -22,7 +22,7 @@ namespace VoxelEngine.Tests.EditMode
             projections.Add(
                 10,
                 Projection(
-                    SiteArchetype.Pub,
+                    SiteArchetype.Unspecified,
                     0, 0, 100, 100,
                     30, 0,
                     new SiteCapabilityOffer(SiteCapabilityKind.Interior),
@@ -39,7 +39,7 @@ namespace VoxelEngine.Tests.EditMode
             SiteCandidate candidate = facts.Candidates[0];
             Assert.That(candidate.Id, Is.EqualTo(
                 SettlementPlanSiteCandidateFacts.CandidateId("test-town", 10)));
-            Assert.That(candidate.Archetype, Is.EqualTo(SiteArchetype.Pub));
+            Assert.That(candidate.Archetype, Is.EqualTo(SiteArchetype.Unspecified));
             Assert.That(candidate.Capabilities.Count, Is.EqualTo(2));
             Assert.That(facts.IsInRegion(candidate.Id, new RegionRef("region-a")), Is.True);
             Assert.That(facts.IsInRegion(candidate.Id, new RegionRef("region-b")), Is.False);

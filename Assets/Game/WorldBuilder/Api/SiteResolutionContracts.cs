@@ -40,6 +40,12 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// One concrete generated site available to satisfy an authored SiteRef role.
+    /// Archetype may be Unspecified when the generation backend can expose the site's capabilities,
+    /// hierarchy, and spatial facts without mapping it into WorldBuilder's semantic archetype taxonomy.
+    /// Such a candidate may satisfy ConstraintMatch roles but never a RequiredArchetype role.
+    /// </summary>
     public sealed class SiteCandidate
     {
         public ResolvedSiteId Id { get; }
@@ -51,11 +57,6 @@ namespace Game.WorldBuilder.Api
             SiteArchetype archetype,
             SiteCapabilityOffer[] capabilities)
         {
-            if (archetype == SiteArchetype.Unspecified)
-                throw new ArgumentException(
-                    "A generated site candidate must have a concrete archetype.",
-                    nameof(archetype));
-
             Id = id;
             Archetype = archetype;
             Capabilities = capabilities ?? Array.Empty<SiteCapabilityOffer>();
