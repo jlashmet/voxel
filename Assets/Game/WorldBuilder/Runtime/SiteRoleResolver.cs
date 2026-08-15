@@ -163,8 +163,66 @@ namespace Game.WorldBuilder.Runtime
                 return false;
             }
 
+            if (HasCutsceneStagePlan(graph, role.Role))
+            {
+                var stageFacts = facts as ICutsceneStageCandidateFacts;
+                var cutsceneMatches = new List<SiteCandidate>(capabilityMatches.Count);
+                if (stageFacts != null)
+                {
+                    for (var i = 0; i < capabilityMatches.Count; i++)
+                    {
+                        SiteCandidate candidate = capabilityMatches[i];
+                        if (SatisfiesCutsceneStages(graph, stageFacts, role.Role, candidate.Id))
+                            cutsceneMatches.Add(candidate);
+                    }
+                }
+
+                if (cutsceneMatches.Count == 0)
+                {
+                    matches = Array.Empty<SiteCandidate>();
+                    diagnostic = new SiteResolutionDiagnostic(
+                        "WB3005",
+                        SiteResolutionDiagnosticKind.CapabilityUnsatisfied,
+                        role.Role,
+                        default,
+                        $"Site role '{role.Role}' hosts authored cutscene staging, but no generated candidate exposes a stage envelope large enough for every bound cutscene.");
+                    return false;
+                }
+
+                capabilityMatches = cutsceneMatches;
+            }
+
             matches = capabilityMatches.ToArray();
             diagnostic = null;
+            return true;
+        }
+
+        private static bool HasCutsceneStagePlan(PlanningGraph graph, SiteRef role)
+        {
+            for (var i = 0; i < graph.CutsceneStages.Count; i++)
+                if (graph.CutsceneStages[i].Site.Equals(role))
+                    return true;
+            return false;
+        }
+
+        private static bool SatisfiesCutsceneStages(
+            PlanningGraph graph,
+            ICutsceneStageCandidateFacts facts,
+            SiteRef role,
+            ResolvedSiteId candidate)
+        {
+            CutsceneStageEnvelope envelope;
+            if (!facts.TryGetCutsceneStageEnvelope(candidate, out envelope))
+                return false;
+
+            for (var i = 0; i < graph.CutsceneStages.Count; i++)
+            {
+                CutsceneStagePlan stage = graph.CutsceneStages[i];
+                if (!stage.Site.Equals(role)) continue;
+                if (!CutsceneStageFeasibility.CanFit(stage, envelope))
+                    return false;
+            }
+
             return true;
         }
 

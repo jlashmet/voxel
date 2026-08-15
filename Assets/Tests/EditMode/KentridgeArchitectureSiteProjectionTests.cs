@@ -12,7 +12,7 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void GeneratedGeometryUsesFixedEnvelopeAndExactFrontageRotation()
+        public void GeneratedGeometryUsesFixedEnvelopeExactFrontageAndGuaranteedInterior()
         {
             var intent = new StructureIntent(
                 77,
@@ -49,6 +49,12 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(213, geometry.PublicEntranceDm.X);
             Assert.AreEqual(252, geometry.PublicEntranceDm.Y);
             Assert.AreEqual(FrontageDirection.West, geometry.PublicEntranceFacing);
+
+            // Main body spans x=15..109 with four-decimetre walls. The offset door centre x=52
+            // therefore guarantees 33dm laterally to the nearer interior wall. From the door plane
+            // to the inner face of the rear wall there are 70-4 = 66dm of usable depth.
+            Assert.AreEqual(33, geometry.InteriorHalfWidthDm);
+            Assert.AreEqual(66, geometry.InteriorDepthDm);
         }
 
         [Test]
@@ -80,7 +86,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void KentridgeProjectionExposesOnlyGeneratedStructuresAndHonestCapabilities()
+        public void KentridgeProjectionExposesGeneratedInteriorAndStageEnvelopeOnly()
         {
             SettlementPlan plan = KentridgeDefinition.Build(Seed);
             var provider = new KentridgeArchitectureSiteProjectionProvider(plan);
@@ -94,14 +100,21 @@ namespace VoxelEngine.Tests.EditMode
                 if (!provider.TryProject(site, out projection))
                 {
                     excluded++;
+                    CutsceneStageEnvelope excludedEnvelope;
+                    Assert.IsFalse(provider.TryGetCutsceneStageEnvelope(site, out excludedEnvelope));
                     continue;
                 }
 
                 projected++;
                 Assert.IsTrue(HasCapability(projection, SiteCapabilityKind.Interior));
                 Assert.IsTrue(HasCapability(projection, SiteCapabilityKind.PublicExit));
-                Assert.IsFalse(HasCapability(projection, SiteCapabilityKind.ConversationSpace));
-                Assert.IsFalse(HasCapability(projection, SiteCapabilityKind.CutsceneStage));
+                Assert.IsTrue(HasCapability(projection, SiteCapabilityKind.ConversationSpace));
+                Assert.IsTrue(HasCapability(projection, SiteCapabilityKind.CutsceneStage));
+
+                CutsceneStageEnvelope envelope;
+                Assert.IsTrue(provider.TryGetCutsceneStageEnvelope(site, out envelope));
+                Assert.Greater(envelope.InteriorHalfWidthDecimetres, 0);
+                Assert.Greater(envelope.InteriorDepthDecimetres, 0);
 
                 SiteArchetype expectedArchetype = site.RoleId == (int)KentridgeRole.Pub
                     ? SiteArchetype.Pub
