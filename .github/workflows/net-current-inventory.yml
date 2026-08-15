@@ -1,0 +1,24 @@
+name: Net current source inventory
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/net-current-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d5a7973af528ed32cc6d25f601460f33de4b6f0c
+          fetch-depth: 1
+      - shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== CORE IMPORTS / PHYSICAL TYPES IN NET ==='
+          grep -RInE 'VoxelEngine\.Core|\b(RegionTable|BrickPool|BrickRef|VoxelAccess|Region)\b' Assets/VoxelEngine/Net --include='*.cs' | sort || true
+          echo '=== CALLERS OF PHYSICAL-BOUNDARY TYPES ==='
+          grep -RInE 'SessionLifecycle\.(Create|DiscardAllAlterations)|EventApplication\.|SpeculativeOverlay\.|AuthoritativeAlterationValidator\.|LogCompaction\.' Assets Packages --include='*.cs' | grep -v '^Assets/VoxelEngine/Net/' | sort || true
+          echo '=== NET FILES ==='
+          find Assets/VoxelEngine/Net -type f -name '*.cs' | sort
