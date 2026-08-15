@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Storage.Runtime;
+using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
@@ -24,14 +24,8 @@ namespace VoxelEngine.Showcase
         private const byte StoneMaterial = Mat.MasonryMedium;
         private const float PanelWidth = 330f;
 
-        private RegionTable _table;
-        private BrickPool _pool;
-        private RegionReadSource _readSource;
-        private MaterialPalette _palette;
-        private SurfaceCatalogue _surfaces;
-        private CoatingCatalogue _coatings;
+        private IVoxelStorageRuntime _storage;
         private ProfileBlockStore _profileBlocks;
-        private VoxelChangeJournal _changes;
         private Camera _camera;
         private Vector2 _scroll;
         private bool _panelVisible = true;
@@ -140,23 +134,18 @@ namespace VoxelEngine.Showcase
         private void Rebuild()
         {
             var watch = Stopwatch.StartNew();
-            var nextTable = new RegionTable(8, Allocator.Persistent);
-            var nextPool = new BrickPool(24_000, Allocator.Persistent);
-            MaterialPalette nextPalette = default;
+            IVoxelStorageRuntime nextStorage = VoxelEngineBootstrap.CreateStorage(8, 24_000);
             const uint coatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
                                 | (1u << Coatings.Soot) | (1u << Coatings.Wet);
-            nextPalette.Register(StoneMaterial, 210, DestructionClass.Crumble,
-                                 SurfaceStyles.MasonryJoint, coatings);
-            SurfaceCatalogue nextSurfaces = SurfaceCatalogue.CreateBuiltIns();
-            CoatingCatalogue nextCoatings = CoatingCatalogue.CreateBuiltIns();
-            CoatingDefinition moss = nextCoatings.Get(Coatings.Moss);
-            moss.DecorationDensity = (byte)_mossDensity;
-            moss.DecorationRadiusQ4 = (byte)_mossRadiusQ4;
-            moss.DecorationHeightQ4 = (byte)_mossHeightQ4;
-            moss.DecorationDropQ4 = (byte)_mossDropQ4;
-            moss.DecorationSeparation = (byte)_mossSeparation;
-            nextCoatings.Register(in moss);
-            nextCoatings.Seal(nextCoatings.Version, nextCoatings.ComputeHash());
+            nextStorage.RegisterMaterial(StoneMaterial, 210, DestructionClass.Crumble,
+                                         SurfaceStyles.MasonryJoint, coatings);
+            nextStorage.ConfigureCoatingDecoration(
+                Coatings.Moss,
+                (byte)_mossDensity,
+                (byte)_mossRadiusQ4,
+                (byte)_mossHeightQ4,
+                (byte)_mossDropQ4,
+                (byte)_mossSeparation);
 
             var nextProfiles = new ProfileBlockStore();
             var arch = new ArchFeatureDefinition
@@ -190,41 +179,29 @@ namespace VoxelEngine.Showcase
             {
                 if (!bay.Emit(origin, primitives, nextProfiles))
                     throw new InvalidOperationException("Arch parameters did not emit.");
-                var reads = new RegionReadSource(in nextTable, in nextPool);
-                var mutations = new RegionMutationStore(in nextTable, in nextPool);
                 RasterResult result = PrimitiveRasteriser.Rasterise(
                     primitives.AsArray(), origin, origin + bay.Metadata.Footprint,
-                    reads, mutations);
+                    nextStorage.Reads, nextStorage.Mutations);
                 if (result.BudgetExceeded)
                     throw new InvalidOperationException("Arch exceeded the feature budget.");
             }
 
             var brush = new VoxelBrush(
-      new RegionReadSource(in nextTable, in nextPool),
-      new RegionMutationStore(in nextTable, in nextPool),
-      nextPalette, 2_000_000);
+                nextStorage.Reads, nextStorage.Mutations,
+                nextStorage.MaterialAuthoring, 2_000_000);
             MasonryWeathering.CoatExposedSurfaces(ref brush, origin - 2,
                 bay.Metadata.Footprint + 4, Coatings.Moss,
                 0xA341u + (uint)_seedOffset,
                 (byte)_mossCoverage, dripPasses: 0);
 
-            var nextChanges = new VoxelChangeJournal();
-            using (NativeArray<int3> regions = nextTable.GetResidentCoords(Allocator.Temp))
-                for (int i = 0; i < regions.Length; i++) nextChanges.PublishRegion(regions[i]);
+            nextStorage.PublishAllResidentRegions();
 
-            RegionTable oldTable = _table;
-            BrickPool oldPool = _pool;
-            _table = nextTable;
-            _pool = nextPool;
-            _palette = nextPalette;
-            _surfaces = nextSurfaces;
-            _coatings = nextCoatings;
+            IVoxelStorageRuntime oldStorage = _storage;
+            _storage = nextStorage;
             _profileBlocks = nextProfiles;
-            _changes = nextChanges;
-            VoxelRenderBridge.Changes = _changes;
+            VoxelRenderBridge.Changes = _storage.Changes;
             VoxelRenderBridge.Source = WorldView;
-            if (oldTable.IsCreated) oldTable.Dispose();
-            if (oldPool.IsCreated) oldPool.Dispose();
+            oldStorage?.Dispose();
 
             watch.Stop();
             _lastBuildMs = watch.Elapsed.TotalMilliseconds;
@@ -235,25 +212,19 @@ namespace VoxelEngine.Showcase
             _stateDirty = true;
         }
 
-        private VoxelWorldView WorldView()
+        private VoxelWorldView WorldView() => new VoxelWorldView
         {
-            _readSource ??= new RegionReadSource(in _table, in _pool, _changes);
-            _readSource.Refresh(in _table, in _pool);
-            return new VoxelWorldView
-            {
-                Storage = _readSource, Palette = _palette,
-                SurfaceCatalogueView = _surfaces, CoatingCatalogueView = _coatings,
-                ProfileBlocks = _profileBlocks,
-            };
-        }
+            Storage = _storage.Reads,
+            Palette = _storage.MaterialPresentation,
+            SurfaceCatalogueView = _storage.SurfacePresentation,
+            CoatingCatalogueView = _storage.CoatingPresentation,
+            ProfileBlocks = _profileBlocks,
+        };
 
         private void DisposeWorld()
         {
-            if (_table.IsCreated) _table.Dispose();
-            if (_pool.IsCreated) _pool.Dispose();
-            _table = default;
-            _pool = default;
-            _readSource = null;
+            _storage?.Dispose();
+            _storage = null;
         }
 
         private void FrameCamera(int width, int height)
