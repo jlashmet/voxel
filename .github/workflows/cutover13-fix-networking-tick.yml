@@ -1,0 +1,43 @@
+name: Cutover 13 fix networking tick type
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-fix-networking-tick.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Fix networking facade tick-rate type
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Assets/VoxelEngine/Composition/NetworkingComposition.cs')
+          text = path.read_text()
+          old = 'public static int AuthoritativeTickRateHz => AuthoritativeTickConfig.TickRateHz;'
+          new = 'public static uint AuthoritativeTickRateHz => AuthoritativeTickConfig.TickRateHz;'
+          if text.count(old) != 1:
+              raise SystemExit('networking tick-rate anchor changed')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/cutover13-fix-networking-tick.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Composition/NetworkingComposition.cs .github/workflows/cutover13-fix-networking-tick.yml
+          git commit -m 'fix(composition): preserve networking tick-rate type'
+          git fetch origin refactor/system-boundaries-foundation-storage
+          git rebase origin/refactor/system-boundaries-foundation-storage
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
