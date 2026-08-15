@@ -1,7 +1,6 @@
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Features.Emitters;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 using VoxelEngine.Structures.Api;
@@ -97,16 +96,11 @@ namespace VoxelEngine.Core.Features
             && JointRecessDepth >= 0 && JointRecessDepth < Depth
             && VoussoirCount >= 1 && VoussoirCount <= 32 && StoneMaterial != 0;
 
-        public bool IsValidFor(in MaterialPalette palette)
-        {
-            SurfaceCatalogue surfaces = SurfaceCatalogue.CreateBuiltIns();
-            CoatingCatalogue coatings = CoatingCatalogue.CreateBuiltIns();
-            return Validate(in palette, in surfaces, in coatings) == ArchValidationError.None;
-        }
-
-        public ArchValidationError Validate(in MaterialPalette palette,
-                                            in SurfaceCatalogue surfaces,
-                                            in CoatingCatalogue coatings)
+        public ArchValidationError Validate<TMaterial, TSurface, TCoating>(
+            in TMaterial palette, in TSurface surfaces, in TCoating coatings)
+            where TMaterial : struct, IMaterialAuthoringCatalogue
+            where TSurface : struct, ISurfaceStyleAuthoringCatalogue
+            where TCoating : struct, ICoatingAuthoringCatalogue
         {
             ArchValidationError errors = ArchValidationError.None;
             if (ClearSpan < 4 || (ClearSpan & 1) != 0)
@@ -382,9 +376,11 @@ namespace VoxelEngine.Core.Features
             Coating = Arch.Coating,
         };
 
-        public ArchValidationError Validate(in MaterialPalette palette,
-                                            in SurfaceCatalogue surfaces,
-                                            in CoatingCatalogue coatings)
+        public ArchValidationError Validate<TMaterial, TSurface, TCoating>(
+            in TMaterial palette, in TSurface surfaces, in TCoating coatings)
+            where TMaterial : struct, IMaterialAuthoringCatalogue
+            where TSurface : struct, ISurfaceStyleAuthoringCatalogue
+            where TCoating : struct, ICoatingAuthoringCatalogue
         {
             ArchValidationError errors = Arch.Validate(in palette, in surfaces, in coatings);
             if (Metadata.MaxPrimitives > FeatureBudget.MaxPrimitivesPerInstance)
