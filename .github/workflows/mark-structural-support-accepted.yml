@@ -6,18 +6,15 @@ permissions:
   contents: write
 jobs:
   publish:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
-          clean: false
           fetch-depth: 0
       - shell: bash
         run: |
           set -euo pipefail
-          git reset --hard HEAD
-          git clean -ffdx -e Library/
           python3 - <<'PY'
           from pathlib import Path
           p=Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
