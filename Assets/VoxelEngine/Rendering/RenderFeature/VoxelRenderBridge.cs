@@ -2,27 +2,26 @@ using UnityEngine;
 using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering.SurfaceExtraction;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering
 {
     /// <summary>
     /// A read-only snapshot of the world for the render pass.
     ///
-    /// <see cref="RegionTable"/> and <see cref="BrickPool"/> are handle-like: copying them copies
-    /// native container handles, not the data, so the pass reads exactly what the simulation
-    /// holds. The direction is one-way by construction — the pass consumes the brickmap and
-    /// produces pixels, never the reverse (Constitution Principle I).
+    /// Storage is exposed only through the borrowed read-view contract. The render pass never
+    /// receives the physical region table, brick pool, allocator identity, or pool slots. The
+    /// direction remains one-way: rendering consumes authoritative reads and produces pixels.
     /// </summary>
     public struct VoxelWorldView
     {
-        public RegionTable Table;
-        public BrickPool Pool;
+        public IRegionReadSource Storage;
         public MaterialPalette Palette;
         public SurfaceCatalogue SurfaceCatalogue;
         public CoatingCatalogue CoatingCatalogue;
         public ProfileBlockStore ProfileBlocks;
 
-        public bool IsValid => Table.IsCreated && Pool.IsCreated
+        public bool IsValid => Storage != null
             && SurfaceCatalogue.CatalogueHash != 0 && CoatingCatalogue.CatalogueHash != 0;
     }
 

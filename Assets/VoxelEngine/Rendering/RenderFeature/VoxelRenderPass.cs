@@ -193,7 +193,7 @@ namespace VoxelEngine.Rendering
                 Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
             _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
             _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
-            _scheduler.Prepare(ref world.Table, ref world.Pool, in world.Palette,
+            _scheduler.Prepare(world.Storage, in world.Palette,
                                in world.SurfaceCatalogue, in world.CoatingCatalogue,
                                world.ProfileBlocks, VoxelRenderBridge.Changes,
                                camera, VoxelSize, Time.frameCount);

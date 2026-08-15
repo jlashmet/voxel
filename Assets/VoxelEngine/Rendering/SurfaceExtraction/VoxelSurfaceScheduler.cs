@@ -289,7 +289,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly List<int3> _changedWaterBricks = new(64);
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
-        private RegionReadSource _readSource;
         private ulong _changeCursor;
         private VoxelChangeJournal _journal;
         private int _lastChangeRecords;
@@ -331,14 +330,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
         }
 
-        public void Prepare(ref RegionTable table, ref BrickPool pool, in MaterialPalette palette,
+        public void Prepare(IRegionReadSource storage, in MaterialPalette palette,
                             in SurfaceCatalogue surfaceCatalogue,
                             in CoatingCatalogue coatingCatalogue,
                             ProfileBlockStore profileBlocks,
                             VoxelChangeJournal journal, Camera camera, float voxelSize, int frame)
         {
-            _readSource ??= new RegionReadSource(in table, in pool);
-            _readSource.Refresh(in table, in pool);
+            if (storage == null) throw new ArgumentNullException(nameof(storage));
 
             double prepareStart = Time.realtimeSinceStartupAsDouble;
             using var prepareScope = s_PrepareMarker.Auto();
@@ -363,7 +361,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 _lastChangeRecords = _changeScratch.Count;
                 if (!complete)
                 {
-                    using var resident = _readSource.GetResidentRegionCoords(Allocator.Temp);
+                    using var resident = storage.GetResidentRegionCoords(Allocator.Temp);
                     for (int i = 0; i < resident.Length; i++)
                     {
                         _changedSolidRegions.Add(resident[i]);
@@ -425,13 +423,13 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 for (int r = 0; r < _rings.Length; r++)
                 for (int i = 0; i < _rings[r].Workers.Length; i++)
                     _rings[r].Workers[i].InvalidateSurfaceBricks(_changedBricks);
-                _water.InvalidateSurfaceBricks(_readSource, _changedWaterBricks);
+                _water.InvalidateSurfaceBricks(storage, _changedWaterBricks);
             }
             _invalidationTiming.Add(ElapsedMs(invalidationStart));
 
             double discoveryStart = Time.realtimeSinceStartupAsDouble;
             using (s_DiscoveryMarker.Auto())
-                DiscoverSurfaceBricks(_readSource, _surfaceDiscoveryRegions,
+                DiscoverSurfaceBricks(storage, _surfaceDiscoveryRegions,
                                       _discoveredSurfaceBricks);
             _discoveryTiming.Add(ElapsedMs(discoveryStart));
 
@@ -447,7 +445,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 {
                     CpuTransvoxelChunkCache worker = ring.Workers[i];
                     worker.InvalidateSurfaceBricks(_discoveredSurfaceBricks);
-                    worker.Prepare(_readSource, in palette, in surfaceCatalogue,
+                    worker.Prepare(storage, in palette, in surfaceCatalogue,
                                    in coatingCatalogue, profileBlocks, camera, voxelSize, frame,
                                    workerBudget);
                     double visibilityStart = Time.realtimeSinceStartupAsDouble;
@@ -459,8 +457,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 }
             }
 
-            _water.InvalidateSurfaceBricks(_readSource, _discoveredSurfaceBricks);
-            _water.Prepare(_readSource, camera, voxelSize, WaterBuildBudgetMs);
+            _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
+            _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
             _water.CollectVisible(camera, voxelSize);
             _workerPrepareTiming.Add(ElapsedMs(workersStart) - visibilityMs);
             _visibilityTiming.Add(visibilityMs);
@@ -501,7 +499,6 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         {
             _water.Dispose();
             for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();
-            _readSource = null;
         }
 
         private static double ElapsedMs(double startSeconds) =>
