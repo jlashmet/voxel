@@ -81,7 +81,7 @@ def main():
     add_area('Rim', center + Vector((0, radius * 2.0, radius * 1.8)), 900, radius * 1.2)
 
     scene = bpy.context.scene
-    scene.render.engine = 'BLENDER_EEVEE_NEXT'
+    scene.render.engine = 'BLENDER_EEVEE'
     scene.render.resolution_x = 768
     scene.render.resolution_y = 768
     scene.render.resolution_percentage = 100
