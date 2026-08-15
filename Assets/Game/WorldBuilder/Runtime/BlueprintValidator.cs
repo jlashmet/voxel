@@ -61,6 +61,7 @@ namespace Game.WorldBuilder.Runtime
             var npcs = CollectIds(blueprint.Npcs, spec => spec.Ref.Id, "NPC", diagnostics);
             var objectives = CollectIds(blueprint.Objectives, spec => spec.Ref.Id, "objective", diagnostics);
             var cutscenes = CollectIds(blueprint.Cutscenes, spec => spec.Ref.Id, "cutscene", diagnostics);
+            CollectIds(blueprint.StoryRules, spec => spec.Ref.Id, "story rule", diagnostics);
             var lootTables = CollectIds(blueprint.LootTables, spec => spec.Ref.Id, "loot table", diagnostics);
             CollectIds(blueprint.SecretPolicies, spec => spec.Ref.Id, "secret policy", diagnostics);
             CollectIds(blueprint.RequiredSecrets, spec => spec.Ref.Id, "required secret", diagnostics);
@@ -113,11 +114,16 @@ namespace Game.WorldBuilder.Runtime
                 }
 
                 ValidateActorBindings(cutscene, npcs, diagnostics);
-                ValidateTrigger(cutscene.Ref, cutscene.Trigger, npcs, diagnostics);
-                for (var j = 0; j < cutscene.Conditions.Count; j++)
-                    ValidateCondition(cutscene.Ref, cutscene.Conditions[j], objectives, cutscenes, diagnostics);
-                for (var j = 0; j < cutscene.Effects.Count; j++)
-                    ValidateEffect(cutscene.Ref, cutscene.Effects[j], objectives, cutscenes, diagnostics);
+            }
+
+            for (var i = 0; i < blueprint.StoryRules.Count; i++)
+            {
+                StoryRuleSpec rule = blueprint.StoryRules[i];
+                ValidateRuleTrigger(rule.Ref, rule.Trigger, npcs, cutscenes, diagnostics);
+                for (var j = 0; j < rule.Conditions.Count; j++)
+                    ValidateRuleCondition(rule.Ref, rule.Conditions[j], objectives, cutscenes, diagnostics);
+                for (var j = 0; j < rule.Effects.Count; j++)
+                    ValidateRuleEffect(rule.Ref, rule.Effects[j], objectives, cutscenes, diagnostics);
             }
 
             for (var i = 0; i < blueprint.SecretPolicies.Count; i++)
@@ -269,26 +275,43 @@ namespace Game.WorldBuilder.Runtime
             return ids;
         }
 
-        private static void ValidateTrigger(CutsceneRef cutscene, IStoryTriggerSpec trigger, HashSet<string> npcs, List<BlueprintDiagnostic> diagnostics)
+        private static void ValidateRuleTrigger(
+            StoryRuleRef rule,
+            IStoryTriggerSpec trigger,
+            HashSet<string> npcs,
+            HashSet<string> cutscenes,
+            List<BlueprintDiagnostic> diagnostics)
         {
             if (trigger is InteractWithNpcTriggerSpec interact)
-                RequireExists(npcs, interact.Npc.Id, "WB2202", $"Cutscene '{cutscene}' is triggered by unknown NPC '{interact.Npc}'.", diagnostics);
+                RequireExists(npcs, interact.Npc.Id, "WB2501", $"Story rule '{rule}' is triggered by unknown NPC '{interact.Npc}'.", diagnostics);
+            else if (trigger is CutsceneCompletedTriggerSpec completed)
+                RequireExists(cutscenes, completed.Cutscene.Id, "WB2502", $"Story rule '{rule}' is triggered by completion of unknown cutscene '{completed.Cutscene}'.", diagnostics);
         }
 
-        private static void ValidateCondition(CutsceneRef cutscene, IStoryConditionSpec condition, HashSet<string> objectives, HashSet<string> cutscenes, List<BlueprintDiagnostic> diagnostics)
+        private static void ValidateRuleCondition(
+            StoryRuleRef rule,
+            IStoryConditionSpec condition,
+            HashSet<string> objectives,
+            HashSet<string> cutscenes,
+            List<BlueprintDiagnostic> diagnostics)
         {
             if (condition is ObjectiveActiveConditionSpec active)
-                RequireExists(objectives, active.Objective.Id, "WB2203", $"Cutscene '{cutscene}' depends on unknown objective '{active.Objective}'.", diagnostics);
+                RequireExists(objectives, active.Objective.Id, "WB2503", $"Story rule '{rule}' depends on unknown objective '{active.Objective}'.", diagnostics);
             else if (condition is CutsceneNotCompletedConditionSpec notCompleted)
-                RequireExists(cutscenes, notCompleted.Cutscene.Id, "WB2204", $"Cutscene '{cutscene}' depends on unknown cutscene '{notCompleted.Cutscene}'.", diagnostics);
+                RequireExists(cutscenes, notCompleted.Cutscene.Id, "WB2504", $"Story rule '{rule}' depends on unknown cutscene '{notCompleted.Cutscene}'.", diagnostics);
         }
 
-        private static void ValidateEffect(CutsceneRef cutscene, IStoryEffectSpec effect, HashSet<string> objectives, HashSet<string> cutscenes, List<BlueprintDiagnostic> diagnostics)
+        private static void ValidateRuleEffect(
+            StoryRuleRef rule,
+            IStoryEffectSpec effect,
+            HashSet<string> objectives,
+            HashSet<string> cutscenes,
+            List<BlueprintDiagnostic> diagnostics)
         {
             if (effect is StartObjectiveEffectSpec start)
-                RequireExists(objectives, start.Objective.Id, "WB2205", $"Cutscene '{cutscene}' starts unknown objective '{start.Objective}'.", diagnostics);
+                RequireExists(objectives, start.Objective.Id, "WB2505", $"Story rule '{rule}' starts unknown objective '{start.Objective}'.", diagnostics);
             else if (effect is PlayCutsceneEffectSpec play)
-                RequireExists(cutscenes, play.Cutscene.Id, "WB2206", $"Cutscene '{cutscene}' plays unknown cutscene '{play.Cutscene}'.", diagnostics);
+                RequireExists(cutscenes, play.Cutscene.Id, "WB2506", $"Story rule '{rule}' plays unknown cutscene '{play.Cutscene}'.", diagnostics);
         }
 
         private static void RequireExists(HashSet<string> ids, string id, string code, string message, List<BlueprintDiagnostic> diagnostics)
