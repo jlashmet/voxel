@@ -106,30 +106,44 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void TransvoxelCacheReadsStorageOnlyThroughStorageApi()
+        public void RenderingReadPathUsesStorageApiForPhysicalReads()
         {
-            string path = Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Rendering", "SurfaceExtraction",
-                "CpuTransvoxelChunkCache.cs");
-            Assert.IsTrue(File.Exists(path), "Missing Transvoxel cache source: " + path);
-
-            string source = File.ReadAllText(path);
-            string[] forbidden =
+            string renderingRoot = Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Rendering");
+            string[] relativePaths =
             {
-                "RegionTable",
-                "BrickPool",
-                "BrickRef",
-                "VoxelMipSampler",
-                "VoxelDimensions.",
+                Path.Combine("RenderFeature", "VoxelRenderBridge.cs"),
+                Path.Combine("RenderFeature", "VoxelRenderPass.cs"),
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"),
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"),
+                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"),
+                Path.Combine("SurfaceExtraction", "SurfaceBrickDiscoveryJob.cs"),
             };
+            string[] physicalStorageTokens = { "RegionTable", "BrickPool", "BrickRef", "VoxelAccess" };
+            var violations = new List<string>();
 
-            var violations = forbidden
-                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)
-                .ToArray();
+            foreach (string relativePath in relativePaths)
+            {
+                string path = Path.Combine(renderingRoot, relativePath);
+                Assert.IsTrue(File.Exists(path), "Missing Rendering read-path source: " + path);
+                string source = File.ReadAllText(path);
+                foreach (string token in physicalStorageTokens)
+                {
+                    if (source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                        violations.Add(relativePath + " -> " + token);
+                }
+            }
+
+            string transvoxel = File.ReadAllText(Path.Combine(
+                renderingRoot, "SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            if (transvoxel.IndexOf("VoxelMipSampler", StringComparison.Ordinal) >= 0)
+                violations.Add("SurfaceExtraction/CpuTransvoxelChunkCache.cs -> VoxelMipSampler");
+            if (transvoxel.IndexOf("VoxelDimensions.", StringComparison.Ordinal) >= 0)
+                violations.Add("SurfaceExtraction/CpuTransvoxelChunkCache.cs -> VoxelDimensions.");
 
             Assert.IsEmpty(violations,
-                "The solid Rendering cache must consume Storage through Storage.Api read views, " +
-                "not physical Core storage representation.\n\n" + string.Join("\n", violations));
+                "Rendering's authoritative read path must consume Storage through Storage.Api " +
+                "read views, not physical Core storage representation.\n\n" +
+                string.Join("\n", violations));
         }
 
         private static IReadOnlyList<Asmdef> EnumerateVoxelEngineAsmdefs()
