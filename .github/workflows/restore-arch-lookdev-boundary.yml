@@ -1,0 +1,311 @@
+name: Restore ArchLookdev architecture boundary
+
+on:
+  push:
+    branches: [refactor/system-boundaries-finalization-clean]
+    paths: [.github/workflows/restore-arch-lookdev-boundary.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-clean
+          fetch-depth: 0
+      - name: Restore accepted Composition authoring seam
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin refactor/system-boundaries-finalization-clean
+          python3 - <<'PY'
+          from pathlib import Path
+
+          arch = Path('Assets/Scenes/Showcase/ArchLookdev.cs')
+          text = arch.read_text()
+          text = text.replace('using VoxelEngine.Structures.Runtime;\n', '')
+          text = text.replace('        private ProfileBlockStore _profileBlocks;\n', '        private IProfileBlockReadSource _profileBlocks;\n')
+
+          start = text.index('        private void Rebuild()\n        {')
+          end = text.index('        private void DisposeWorld()', start)
+          rebuild = '''        private void Rebuild()
+        {
+            var watch = Stopwatch.StartNew();
+            IVoxelStorageRuntime nextStorage = VoxelEngineBootstrap.CreateStorage(8, 24_000);
+            const uint coatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
+                                | (1u << Coatings.Soot) | (1u << Coatings.Wet);
+            nextStorage.RegisterMaterial(StoneMaterial, 210, DestructionClass.Crumble,
+                                         SurfaceStyles.MasonryJoint, coatings);
+            nextStorage.ConfigureCoatingDecoration(
+                Coatings.Moss,
+                (byte)_mossDensity,
+                (byte)_mossRadiusQ4,
+                (byte)_mossHeightQ4,
+                (byte)_mossDropQ4,
+                (byte)_mossSeparation);
+
+            StructuresComposition.AuthorArchBay(
+                nextStorage,
+                _clearSpan,
+                _pierHeight,
+                _ringThickness,
+                _depth,
+                _voussoirs,
+                _shoulder,
+                _topMargin,
+                _faceRecess,
+                _plinthHeight,
+                _impostHeight,
+                _damage,
+                _damageScale,
+                0xA341u + (uint)_seedOffset,
+                _jointQ4,
+                _bevelQ4,
+                _projectionQ4,
+                _faceDepthQ4,
+                StoneMaterial,
+                SurfaceStyles.MasonryJoint,
+                Coatings.Moss,
+                (byte)_mossCoverage,
+                2_000_000,
+                out IProfileBlockReadSource nextProfiles,
+                out int bayWidth,
+                out int bayHeight);
+
+            nextStorage.PublishAllResidentRegions();
+
+            IVoxelStorageRuntime oldStorage = _storage;
+            _storage = nextStorage;
+            _profileBlocks = nextProfiles;
+            var world = new RenderingWorldBinding(
+                _storage.Reads,
+                _storage.MaterialPresentation,
+                _storage.SurfacePresentation,
+                _storage.CoatingPresentation,
+                _profileBlocks);
+            RenderingComposition.ConfigureWorld(
+                in world, _storage.Changes, 0, _buildBudgetMs, 0, farFieldEnabled: false);
+            oldStorage?.Dispose();
+
+            watch.Stop();
+            _lastBuildMs = watch.Elapsed.TotalMilliseconds;
+            _pendingRebuild = false;
+            _lastBayWidth = bayWidth;
+            _lastBayHeight = bayHeight;
+            if (!_cameraInitialized) FrameCamera(bayWidth, bayHeight);
+            _stateDirty = true;
+        }
+
+'''
+          text = text[:start] + rebuild + text[end:]
+          if 'VoxelEngine.Structures.Runtime' in text:
+              raise SystemExit('ArchLookdev still imports Structures.Runtime')
+          arch.write_text(text)
+
+          Path('Assets/VoxelEngine/Composition/StructuresComposition.cs').write_text('''using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
+
+namespace VoxelEngine.Composition
+{
+    /// <summary>Application wiring for structure planning backed by Structures.Runtime.</summary>
+    public static partial class StructuresComposition
+    {
+        public static CastlePlan PlanCastle(int3 centre, uint seed) =>
+            CastleBuilder.Plan(centre, seed);
+
+        /// <summary>
+        /// Authors one deterministic masonry arch bay while keeping concrete Structures.Runtime
+        /// implementation types behind the Composition boundary.
+        /// </summary>
+        public static void AuthorArchBay(
+            IVoxelStorageRuntime storage,
+            int clearSpan,
+            int pierHeight,
+            int ringThickness,
+            int depth,
+            int voussoirCount,
+            int shoulderWidth,
+            int topMargin,
+            int faceRecess,
+            int plinthHeight,
+            int impostHeight,
+            int damage,
+            int damageScale,
+            uint seed,
+            int profileJointHalfWidthQ4,
+            int profileBevelQ4,
+            int profileProjectionQ4,
+            int profileDepthQ4,
+            byte stoneMaterial,
+            ushort surfaceStyle,
+            byte weatheringCoating,
+            byte weatheringCoverage,
+            int writeBudget,
+            out IProfileBlockReadSource profiles,
+            out int width,
+            out int height)
+        {
+            if (storage == null)
+                throw new System.ArgumentNullException(nameof(storage));
+
+            ArchBayAuthoringPipeline.Author(
+                storage.Reads,
+                storage.Mutations,
+                storage.MaterialAuthoring,
+                clearSpan,
+                pierHeight,
+                ringThickness,
+                depth,
+                voussoirCount,
+                shoulderWidth,
+                topMargin,
+                faceRecess,
+                plinthHeight,
+                impostHeight,
+                damage,
+                damageScale,
+                seed,
+                profileJointHalfWidthQ4,
+                profileBevelQ4,
+                profileProjectionQ4,
+                profileDepthQ4,
+                stoneMaterial,
+                surfaceStyle,
+                weatheringCoating,
+                weatheringCoverage,
+                writeBudget,
+                out profiles,
+                out width,
+                out height);
+        }
+    }
+}
+''')
+
+          pipeline = Path('Assets/VoxelEngine/Structures/Runtime/ArchBayAuthoringPipeline.cs')
+          pipeline.write_text('''using System;
+using Unity.Collections;
+using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
+
+namespace VoxelEngine.Structures.Runtime
+{
+    /// <summary>
+    /// Runtime-only orchestration for the interactive arch authoring path. Application code
+    /// supplies stable values through Composition; concrete emitters and rasterisation stay here.
+    /// </summary>
+    public static class ArchBayAuthoringPipeline
+    {
+        public static void Author(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            IMaterialAuthoringCatalogue materials,
+            int clearSpan,
+            int pierHeight,
+            int ringThickness,
+            int depth,
+            int voussoirCount,
+            int shoulderWidth,
+            int topMargin,
+            int faceRecess,
+            int plinthHeight,
+            int impostHeight,
+            int damage,
+            int damageScale,
+            uint seed,
+            int profileJointHalfWidthQ4,
+            int profileBevelQ4,
+            int profileProjectionQ4,
+            int profileDepthQ4,
+            byte stoneMaterial,
+            ushort surfaceStyle,
+            byte weatheringCoating,
+            byte weatheringCoverage,
+            int writeBudget,
+            out IProfileBlockReadSource profiles,
+            out int width,
+            out int height)
+        {
+            if (reads == null) throw new ArgumentNullException(nameof(reads));
+            if (mutations == null) throw new ArgumentNullException(nameof(mutations));
+            if (materials == null) throw new ArgumentNullException(nameof(materials));
+            if (writeBudget <= 0) throw new ArgumentOutOfRangeException(nameof(writeBudget));
+
+            var profileStore = new ProfileBlockStore();
+            var arch = new ArchFeatureDefinition
+            {
+                ClearSpan = clearSpan,
+                PierHeight = pierHeight,
+                RingThickness = ringThickness,
+                Depth = depth,
+                VoussoirCount = voussoirCount,
+                JointRecessDepth = 1,
+                ProfileJointHalfWidthQ4 = (byte)profileJointHalfWidthQ4,
+                ProfileBevelQ4 = (byte)profileBevelQ4,
+                ProfileProjectionQ4 = (byte)profileProjectionQ4,
+                ProfileDepthQ4 = (byte)profileDepthQ4,
+                StoneMaterial = stoneMaterial,
+                PierStyle = surfaceStyle,
+                RingStyle = surfaceStyle,
+            };
+            var bay = new ArchBayFeatureDefinition
+            {
+                Arch = arch,
+                ShoulderWidth = shoulderWidth,
+                TopMargin = topMargin,
+                FaceRecess = faceRecess,
+                PlinthHeight = plinthHeight,
+                ImpostHeight = impostHeight,
+                Damage = (ArchRuinDamage)damage,
+                DamageSeed = seed,
+                DamageScale = (byte)damageScale,
+            };
+            int3 origin = new(-bay.Width / 2, 0, 0);
+            using (var primitives = new NativeList<Primitive>(bay.Metadata.MaxPrimitives, Allocator.Temp))
+            {
+                if (!bay.Emit(origin, primitives, profileStore))
+                    throw new InvalidOperationException("Arch parameters did not emit.");
+                RasterResult result = PrimitiveRasteriser.Rasterise(
+                    primitives.AsArray(), origin, origin + bay.Metadata.Footprint, reads, mutations);
+                if (result.BudgetExceeded)
+                    throw new InvalidOperationException("Arch exceeded the feature budget.");
+            }
+
+            var brush = new VoxelBrush(reads, mutations, materials, writeBudget);
+            MasonryWeathering.CoatExposedSurfaces(
+                ref brush,
+                origin - 2,
+                bay.Metadata.Footprint + 4,
+                weatheringCoating,
+                seed,
+                weatheringCoverage,
+                dripPasses: 0);
+
+            profiles = profileStore;
+            width = bay.Width;
+            height = bay.Height;
+        }
+    }
+}
+''')
+          Path(str(pipeline) + '.meta').write_text('fileFormatVersion: 2\nguid: 6f1a4c5e8b0d4e219a7f32c6d9b1e405\n')
+          PY
+
+          rm .github/workflows/restore-arch-lookdev-boundary.yml
+          git diff --check
+          if grep -R --line-number --fixed-strings 'VoxelEngine.Structures.Runtime' Assets/Scenes/Showcase/ArchLookdev.cs; then
+            echo 'ArchLookdev Runtime boundary restoration failed' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(architecture): restore ArchLookdev composition boundary'
+          git push origin HEAD:refactor/system-boundaries-finalization-clean
