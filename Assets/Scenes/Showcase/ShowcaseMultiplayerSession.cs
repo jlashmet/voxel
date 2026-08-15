@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using UnityEngine;
+using VoxelEngine.Composition;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Runtime.Client;
 using VoxelEngine.Net.Runtime.Protocol;
@@ -78,7 +78,7 @@ namespace VoxelEngine.Showcase
                 _server = new AuthoritativeServerSession(
                     _world.Seed,
                     new Validation.DensityCap(1f, VoxelReadGrid.BlocksPerRegion),
-                    new DeterministicAlterationApplier(),
+                    EditsComposition.CreateAlterationApplier(),
                     maxConnections: 2);
                 _server.ConnectionOpened += OnServerConnectionOpened;
                 _server.ConnectionClosed += OnServerConnectionClosed;
@@ -239,7 +239,7 @@ namespace VoxelEngine.Showcase
 
         private void CreateClient(ushort localPlayerId)
         {
-            _client = new ClientNetworkRuntime(new DeterministicAlterationApplier());
+            _client = new ClientNetworkRuntime(EditsComposition.CreateAlterationApplier());
             _client.Connected += OnClientConnected;
             _client.Disconnected += OnClientDisconnected;
             _client.PacketRejected += OnClientPacketRejected;

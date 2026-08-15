@@ -11,7 +11,9 @@
     "Unity.Collections",
     "Unity.Mathematics",
     "VoxelEngine.Vegetation.Api",
-    "VoxelEngine.Vegetation.Runtime"
+    "VoxelEngine.Vegetation.Runtime",
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Edits.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
