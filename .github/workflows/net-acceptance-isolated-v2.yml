@@ -12,13 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 84b817635c5282ae958b6166b0c0c8c48cc7d91a
+          ref: 4a8fa6a98967872337f3e945b2663b8c6c8dd5ef
           clean: false
           fetch-depth: 1
       - shell: bash
         run: |
           set -euo pipefail
-          git reset --hard 84b817635c5282ae958b6166b0c0c8c48cc7d91a
+          git reset --hard 4a8fa6a98967872337f3e945b2663b8c6c8dd5ef
           git clean -ffdx -e Library/
       - id: unity
         shell: bash
