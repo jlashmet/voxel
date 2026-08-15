@@ -12,8 +12,6 @@ using VoxelEngine.Storage.Runtime.Occupancy;
 using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
-using VoxelEngine.Streaming.Runtime;
-using VoxelEngine.Terrain.Runtime;
 
 using VoxelEngine.Structures.Api;
 
@@ -23,7 +21,7 @@ namespace VoxelEngine.Showcase
     /// The streamed voxel world behind the showcase scene.
     ///
     /// Regions become resident as the camera approaches and are evicted behind it, using
-    /// <see cref="ResidencyManager"/> for the residency set and eviction policy. A region is
+    /// Storage.Api residency capabilities for allocation and eviction. A region is
     /// 64 bricks on a side — 51.2 m at 10 cm voxels — so flying in a straight line
     /// continuously loads and discards them, which is the thing worth watching in the HUD.
     ///
@@ -242,7 +240,7 @@ namespace VoxelEngine.Showcase
 
         /// <summary>
         /// Load radius in regions. Deliberately far smaller than
-        /// <see cref="ResidencyManager.LoadRadiusMetres_PC"/> (500 m): the shipping engine
+        /// the shipping streaming load radius (500 m): the engine
         /// covers that distance with mip-level far-field data, whereas this demo builds full
         /// voxel detail plus a triangle mesh for every resident region. This is a demo budget,
         /// not a tiering parameter — Constitution Principle IV is about device class, and this
@@ -317,6 +315,14 @@ namespace VoxelEngine.Showcase
             _catalogue = ShowcaseCatalogue.Build(seed, Allocator.Persistent);
         }
 
+        private static int3 PositionToRegion(float3 position)
+        {
+            return new int3(
+                (int)math.floor(position.x / RegionMetres),
+                (int)math.floor(position.y / RegionMetres),
+                (int)math.floor(position.z / RegionMetres));
+        }
+
         // -- streaming -----------------------------------------------------------
 
         /// <summary>
@@ -331,7 +337,7 @@ namespace VoxelEngine.Showcase
         public void StepStreaming(float3 cameraMetres, double budgetMs)
         {
             using var streamingScope = s_StreamingMarker.Auto();
-            var centre = ResidencyManager.PositionToRegion(cameraMetres);
+            var centre = PositionToRegion(cameraMetres);
             using (s_RefreshPendingMarker.Auto()) RefreshPending(centre);
 
             var deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
@@ -470,7 +476,7 @@ namespace VoxelEngine.Showcase
 
         public float ResidentGroundRadiusMetres(float3 cameraMetres)
         {
-            var centre = ResidencyManager.PositionToRegion(cameraMetres);
+            var centre = PositionToRegion(cameraMetres);
 
             for (int shell = 0; shell <= LoadRadiusRegions; shell++)
             {
@@ -580,7 +586,7 @@ namespace VoxelEngine.Showcase
 
         private void QueueRegion(int3 rc)
         {
-            if (_generated.Contains(rc)) { ResidencyManager.TouchRegion(rc); return; }
+            if (_generated.Contains(rc)) return;
             if (_gen.Active && _gen.Coord.Equals(rc)) return;
             if (_pendingLoads.Contains(rc)) return;
             _pendingLoads.Add(rc);
@@ -677,7 +683,7 @@ namespace VoxelEngine.Showcase
 
                 // No write-back: the client owns no truth, so eviction discards and the region
                 // regenerates from the seed on return.
-                ResidencyManager.EvictWithoutWriteBack(rc, _residencyStore);
+                _residencyStore.EvictRegion(rc);
                 _generated.Remove(rc);
                 _changes.PublishRegion(rc, VoxelChangeKind.Residency);
                 RegionsEvicted++;
@@ -840,7 +846,6 @@ namespace VoxelEngine.Showcase
             var coord = _gen.Coord;
 
             _table.CommitRegion(_gen.Region);
-            ResidencyManager.TouchRegion(coord);
 
             _generated.Add(coord);
             _changes.PublishRegion(coord, VoxelChangeKind.All);
