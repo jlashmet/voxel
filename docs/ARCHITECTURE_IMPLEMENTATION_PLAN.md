@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 11 Net — Api/Runtime decomposition and ownership cleanup
+**Current focus:** Cutover 12 Rendering — Api/Runtime physical move
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -29,8 +29,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 8 — Streaming | **Complete** | `Streaming.Api` exposes the real `RegionLoadRequest`/`IRegionStreaming` orchestration contract; all four implementation files live under `Streaming/Runtime` with preserved Unity GUIDs; `RegionStreamingService` hides Storage residency behind the Api; Runtime depends only on Streaming.Api, Storage.Api and Tiering.Api; broad Streaming/Net coupling is gone | none |
 | 9 — Collision | **Complete** | `Collision.Api`/`Collision.Runtime` replace the broad assembly; DDA/raycast/sweep/hull implementation lives in Runtime with preserved Unity GUIDs; Runtime consumes Storage.Api only; final caller inventory found no production subsystem consumer, so Api remains intentionally empty instead of inventing DTOs | none |
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
-| 11 — Net | **In progress — current** | Net.Api/Runtime physical decomposition, Runtime namespace normalization, broad assembly deletion and domain-only Runtime references are accepted by the final static architecture gate; earlier cutovers removed the structural graph and duplicate edit-applier wrapper | baseline revalidation still required for residency/snapshot/protocol behavior before Cutover 11 can close |
-| 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; vegetation presentation consumes Vegetation.Api only; parity accepted | final Rendering.Api/Runtime move |
+| 11 — Net | **Complete** | Net.Api/Runtime physical decomposition and Runtime namespaces are complete; Runtime references only approved domain APIs; residency delegates Streaming.Api; semantic repair/snapshots use Storage.Api logical capabilities; structural graph and duplicate edit wrapper are gone; final 384/371/13 behavioral baseline accepted | none |
+| 12 — Rendering | **In progress — current** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; vegetation presentation consumes Vegetation.Api only; parity accepted | final Rendering.Api/Runtime move |
 | 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
 
 ### Checklist discipline
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Net ownership/decomposition work after this gate is code-landed but remains unaccepted until a full compile/test run returns to this baseline; the Net-specific artifacts inspected during revalidation stopped at compilation and did not produce `results.xml`.
+- Latest accepted code gate: `ed126903cd18dcd62324fab41942d41fdaa37532` — 384 tests, 371 passed, exactly the same 13 known baseline failures. This is the final Net post-repair source; isolated acceptance artifact from run `31892401811` produced a complete `results.xml` with the identical 13 failed test names, so Cutover 11 is accepted.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -1280,7 +1280,7 @@ No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtim
 - [x] Server residency delegates to Streaming.Api and semantic convergence/repair uses Storage.Api capabilities; dedicated hosted ownership gate passed against the final Net source.
 - [x] Net ownership checkpoint re-earned by the dedicated hosted ownership gate: residency delegates to Streaming.Api, semantic repair applies through Storage.Api, and no physical Storage types remain in Net.Runtime.
 - [x] Runtime namespaces are normalized to `VoxelEngine.Net.Runtime.*`; final static architecture gate accepted the physical move, namespace cutover and absence of package Runtime references.
-- [x] Final Net static architecture gate passed at `8dafd264dfd3e228e833da23c258d9e21768ad98`; full 384/371/13 parity revalidation remains intentionally unchecked.
+- [x] Final Net static architecture gate passed at `8dafd264dfd3e228e833da23c258d9e21768ad98`; final post-repair behavioral acceptance passed at `ed126903cd18dcd62324fab41942d41fdaa37532` with 384/371 and the identical 13 known failures.
 
 ### Gate
 
@@ -1289,7 +1289,7 @@ No Storage.Runtime, Streaming.Runtime, StructuralIntegrity.Runtime, Edits.Runtim
 - [x] no duplicate deterministic edit applier wrapper;
 - [x] network residency calls Streaming.Api; dedicated hosted ownership gate passed;
 - [x] semantic repair/snapshot paths use Storage.Api logical data; dedicated hosted ownership gate passed;
-- [ ] protocol/convergence/late-join/reconciliation tests pass against the accepted baseline.
+- [x] protocol/convergence/late-join/reconciliation tests pass against the accepted 384/371/13 baseline at `ed126903cd18dcd62324fab41942d41fdaa37532`.
 
 ---
 
