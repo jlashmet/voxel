@@ -5,7 +5,6 @@ using Unity.Mathematics;
 using Unity.Jobs;
 using Unity.Profiling;
 using UnityEngine;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction
@@ -289,7 +288,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
         private ulong _changeCursor;
-        private VoxelChangeJournal _journal;
+        private IVoxelChangeSource _journal;
         private int _lastChangeRecords;
         private readonly VoxelTimingWindow _prepareTiming = new();
         private readonly VoxelTimingWindow _journalTiming = new();
@@ -329,11 +328,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             }
         }
 
-        public void Prepare(IRegionReadSource storage, in MaterialPalette palette,
-                            in SurfaceCatalogue surfaceCatalogue,
-                            in CoatingCatalogue coatingCatalogue,
+        public void Prepare(IRegionReadSource storage, in MaterialPaletteView palette,
+                            in SurfaceCatalogueView surfaceCatalogue,
+                            in CoatingCatalogueView coatingCatalogue,
                             IProfileBlockReadSource profileBlocks,
-                            VoxelChangeJournal journal, Camera camera, float voxelSize, int frame)
+                            IVoxelChangeSource journal, Camera camera, float voxelSize, int frame)
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
 

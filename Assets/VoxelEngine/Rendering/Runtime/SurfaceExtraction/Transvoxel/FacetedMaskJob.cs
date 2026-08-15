@@ -3,7 +3,6 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
@@ -18,8 +17,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         [ReadOnly] public NativeArray<byte> Materials;
         [ReadOnly] public NativeArray<uint> SurfaceSemantics;
         [ReadOnly] public NativeArray<byte> BoundarySamples;
-        public SurfaceCatalogue Catalogue;
-        public CoatingCatalogue Coatings;
+        public SurfaceCatalogueView Catalogue;
+        public CoatingCatalogueView Coatings;
         public int CellsPerAxis;
         public int GridSize;
         public int Padding;
@@ -36,7 +35,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
             byte material = Materials[sample];
             uint surface = SurfaceSemantics[sample];
             byte boundary = BoundarySamples[sample];
-            SurfaceStyleDefinition style = Catalogue.Get((ushort)surface);
+            SurfaceStyleReadDefinition style = Catalogue.Get((ushort)surface);
             bool displaced = Coatings.Get((byte)(surface >> 16)).Displacement != 0;
             bool solid = IsSolid(material);
             uint encoded = Pack(material, surface) + 1u;

@@ -62,7 +62,7 @@ namespace VoxelEngine.Core.Storage
             materialId < 32 && (AllowedMaterialMask & (1u << materialId)) != 0;
     }
 
-    public unsafe struct CoatingCatalogue : ICoatingAuthoringCatalogue
+    public unsafe struct CoatingCatalogue : ICoatingAuthoringCatalogue, ICoatingPresentationCatalogue
     {
         public const uint BuiltInVersion = 4;
         public const int MaxCoatings = 16;
@@ -113,6 +113,27 @@ namespace VoxelEngine.Core.Storage
                 DecorationFaceMask = _decorationFaceMask[id],
             };
         }
+
+        CoatingReadDefinition ICoatingPresentationCatalogue.GetPresentation(byte coatingId)
+        {
+            CoatingDefinition definition = Get(coatingId);
+            return new CoatingReadDefinition
+            {
+                StableId = definition.StableId,
+                AllowedMaterialMask = definition.AllowedMaterialMask,
+                Displacement = definition.Displacement,
+                DecorationShape = (VoxelEngine.Storage.Api.SurfaceDecorationShape)definition.DecorationShape,
+                DecorationDensity = definition.DecorationDensity,
+                DecorationRadiusQ4 = definition.DecorationRadiusQ4,
+                DecorationHeightQ4 = definition.DecorationHeightQ4,
+                DecorationDropQ4 = definition.DecorationDropQ4,
+                DecorationSeparation = definition.DecorationSeparation,
+                DecorationFaceMask = definition.DecorationFaceMask,
+            };
+        }
+
+        public static implicit operator CoatingCatalogueView(CoatingCatalogue source) =>
+            CoatingCatalogueView.Capture(in source);
 
         public bool Allows(byte coatingId, byte materialId) =>
             coatingId == Coatings.None || Get(coatingId).Allows(materialId);
@@ -209,7 +230,7 @@ namespace VoxelEngine.Core.Storage
     /// Fixed-capacity compiled surface catalogue. Its pair table canonicalizes group order on
     /// both reads and writes, making asymmetric curvature rules unrepresentable.
     /// </summary>
-    public unsafe struct SurfaceCatalogue : ISurfaceStyleAuthoringCatalogue
+    public unsafe struct SurfaceCatalogue : ISurfaceStyleAuthoringCatalogue, ISurfacePresentationCatalogue
     {
         public const uint BuiltInVersion = 1;
         public const int MaxStyles = 32;
@@ -323,6 +344,36 @@ namespace VoxelEngine.Core.Storage
                 PreserveSharpFeature = _joinRules[i + 6] != 0
             };
         }
+
+        SurfaceStyleReadDefinition ISurfacePresentationCatalogue.GetPresentation(ushort styleId)
+        {
+            SurfaceStyleDefinition definition = Get(styleId);
+            return new SurfaceStyleReadDefinition
+            {
+                StableId = definition.StableId,
+                Reconstruction = (VoxelEngine.Storage.Api.SurfaceReconstruction)definition.Reconstruction,
+                Curvature = definition.Curvature,
+                JoinGroup = definition.JoinGroup,
+                PreserveSharpFeatures = definition.PreserveSharpFeatures,
+            };
+        }
+
+        SurfaceJoinReadRule ISurfacePresentationCatalogue.GetPresentationJoin(byte groupA, byte groupB)
+        {
+            SurfaceJoinRule rule = GetJoin(groupA, groupB);
+            return new SurfaceJoinReadRule
+            {
+                Compatibility = (VoxelEngine.Storage.Api.SurfaceCompatibility)rule.Compatibility,
+                Continuity = (VoxelEngine.Storage.Api.SurfaceContinuity)rule.Continuity,
+                BlendWidth = rule.BlendWidth,
+                DominantGroup = rule.DominantGroup,
+                TransitionStyleId = rule.TransitionStyleId,
+                PreserveSharpFeature = rule.PreserveSharpFeature,
+            };
+        }
+
+        public static implicit operator SurfaceCatalogueView(SurfaceCatalogue source) =>
+            SurfaceCatalogueView.Capture(in source);
 
         private static void Canonicalize(ref byte a, ref byte b)
         {

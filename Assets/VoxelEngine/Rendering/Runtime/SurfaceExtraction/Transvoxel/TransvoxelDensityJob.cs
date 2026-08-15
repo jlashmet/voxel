@@ -2,7 +2,6 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
@@ -30,9 +29,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         [ReadOnly] public NativeArray<byte> MixedVoxels;
         [ReadOnly] public NativeArray<ushort> MixedSurfaceSemantics;
         [ReadOnly] public NativeArray<byte> MixedBoundarySamples;
-        public MaterialPalette Palette;
-        public SurfaceCatalogue Catalogue;
-        public CoatingCatalogue Coatings;
+        public MaterialPaletteView Palette;
+        public SurfaceCatalogueView Catalogue;
+        public CoatingCatalogueView Coatings;
 
         [WriteOnly] public NativeArray<float> Density;
         [WriteOnly] public NativeArray<byte> Materials;
@@ -78,7 +77,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
                 return boundary.SignedQ3 * 0.125f + CoatingDisplacement(centreSurface);
             }
             ushort style = (ushort)centreSurface;
-            SurfaceStyleDefinition centreDefinition = Catalogue.Get(style);
+            SurfaceStyleReadDefinition centreDefinition = Catalogue.Get(style);
             if (centreSolid && (centreDefinition.Reconstruction == SurfaceReconstruction.Planar
                                 || centreDefinition.Reconstruction == SurfaceReconstruction.Sharp
                                 || centreDefinition.Reconstruction == SurfaceReconstruction.Cubic))
@@ -128,7 +127,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         }
 
         private float Add(int3 p, float weight, bool centreSolid,
-                          in SurfaceStyleDefinition centreDefinition, ref byte dominantMaterial,
+                          in SurfaceStyleReadDefinition centreDefinition, ref byte dominantMaterial,
                           ref uint dominantSurface)
         {
             byte material = ReadMaterial(p, out uint surface, out _);
@@ -141,8 +140,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
             }
             if (!centreSolid) return weight;
 
-            SurfaceStyleDefinition neighbourDefinition = Catalogue.Get((ushort)surface);
-            SurfaceJoinRule join = Catalogue.GetJoin(centreDefinition.JoinGroup,
+            SurfaceStyleReadDefinition neighbourDefinition = Catalogue.Get((ushort)surface);
+            SurfaceJoinReadRule join = Catalogue.GetJoin(centreDefinition.JoinGroup,
                                                      neighbourDefinition.JoinGroup);
             if (join.Compatibility != SurfaceCompatibility.Join
                 || join.Continuity == SurfaceContinuity.Discontinuous)
@@ -159,7 +158,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         private static bool IsSolidSample(byte material) =>
             material != 0 && material != 11 && material != 16;
 
-        private static float CurvatureFactor(in SurfaceStyleDefinition definition)
+        private static float CurvatureFactor(in SurfaceStyleReadDefinition definition)
         {
             if (definition.Reconstruction == SurfaceReconstruction.Planar
                 || definition.Reconstruction == SurfaceReconstruction.Sharp

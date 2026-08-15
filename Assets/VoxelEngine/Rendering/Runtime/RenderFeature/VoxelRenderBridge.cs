@@ -1,5 +1,4 @@
 using UnityEngine;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
 
@@ -16,13 +15,13 @@ namespace VoxelEngine.Rendering
     public struct VoxelWorldView
     {
         public IRegionReadSource Storage;
-        public MaterialPalette Palette;
-        public SurfaceCatalogue SurfaceCatalogue;
-        public CoatingCatalogue CoatingCatalogue;
+        public MaterialPaletteView Palette;
+        public SurfaceCatalogueView SurfaceCatalogueView;
+        public CoatingCatalogueView CoatingCatalogueView;
         public IProfileBlockReadSource ProfileBlocks;
 
         public bool IsValid => Storage != null
-            && SurfaceCatalogue.CatalogueHash != 0 && CoatingCatalogue.CatalogueHash != 0;
+            && SurfaceCatalogueView.CatalogueHash != 0 && CoatingCatalogueView.CatalogueHash != 0;
     }
 
     /// <summary>
@@ -39,7 +38,7 @@ namespace VoxelEngine.Rendering
         public static System.Func<VoxelWorldView> Source;
 
         /// <summary>Versioned changes consumed independently by every derived render domain.</summary>
-        public static VoxelChangeJournal Changes;
+        public static IVoxelChangeSource Changes;
 
         /// <summary>
         /// Read-only diagnostics from the most recent production surface pass. Offline captures,

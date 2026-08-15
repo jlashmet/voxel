@@ -4,7 +4,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
@@ -29,8 +28,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         [ReadOnly] public NativeArray<byte> GeometryCounts;
         [ReadOnly] public NativeArray<byte> CellVertexIndices;
         [ReadOnly] public NativeArray<ushort> EdgeCodes;
-        public SurfaceCatalogue Catalogue;
-        public CoatingCatalogue Coatings;
+        public SurfaceCatalogueView Catalogue;
+        public CoatingCatalogueView Coatings;
         public int3 ChunkOriginVoxel;
         public int CellsPerAxis;
         public int GridSize;
@@ -78,7 +77,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
             for (int i = 0; i < 8; i++)
             {
                 if (!IsSolid(materials[i])) continue;
-                SurfaceStyleDefinition definition = Catalogue.Get((ushort)surfaces[i]);
+                SurfaceStyleReadDefinition definition = Catalogue.Get((ushort)surfaces[i]);
                 bool include = definition.Reconstruction == SurfaceReconstruction.Smooth
                     || definition.Reconstruction == SurfaceReconstruction.Rounded
                     || definition.Reconstruction == SurfaceReconstruction.Planar

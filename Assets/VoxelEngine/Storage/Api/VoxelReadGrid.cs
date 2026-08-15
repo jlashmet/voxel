@@ -18,6 +18,7 @@ namespace VoxelEngine.Storage.Api
         public const int BlocksPerRegionEdgeLog2 = VoxelGrid.RegionVoxelEdgeLog2 - BlockEdgeLog2;
         public const int BlocksPerRegionEdge = 1 << BlocksPerRegionEdgeLog2;
         public const int BlocksPerRegionEdgeMask = BlocksPerRegionEdge - 1;
+        public const int BlocksPerRegion = BlocksPerRegionEdge * BlocksPerRegionEdge * BlocksPerRegionEdge;
 
         /// <summary>
         /// Mip level whose cells span <paramref name="sourceStep"/> voxels, or -1 when the

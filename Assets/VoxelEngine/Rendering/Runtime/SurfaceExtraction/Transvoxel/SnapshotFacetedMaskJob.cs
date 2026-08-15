@@ -3,7 +3,6 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
@@ -18,9 +17,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         [ReadOnly] public NativeArray<byte> MixedVoxels;
         [ReadOnly] public NativeArray<ushort> MixedSurfaceSemantics;
         [ReadOnly] public NativeArray<byte> MixedBoundarySamples;
-        public MaterialPalette Palette;
-        public SurfaceCatalogue Catalogue;
-        public CoatingCatalogue Coatings;
+        public MaterialPaletteView Palette;
+        public SurfaceCatalogueView Catalogue;
+        public CoatingCatalogueView Coatings;
         public int3 ChunkOriginVoxel;
         public int3 BrickCacheOrigin;
         public int BrickCacheEdge;
@@ -35,7 +34,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
                              index / cellsPerPlane);
             int3 voxel = ChunkOriginVoxel + local;
             byte material = Read(voxel, out uint surface, out byte boundary);
-            SurfaceStyleDefinition style = Catalogue.Get((ushort)surface);
+            SurfaceStyleReadDefinition style = Catalogue.Get((ushort)surface);
             bool displaced = Coatings.Get((byte)(surface >> 16)).Displacement != 0;
             bool solid = IsSolid(material);
             uint encoded = Pack(material, surface) + 1u;
@@ -75,7 +74,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
 
         private byte Read(int3 voxel, out uint surface, out byte boundary)
         {
-            int3 worldBrick = voxel >> VoxelDimensions.BrickEdgeLog2;
+            int3 worldBrick = voxel >> VoxelReadGrid.BlockEdgeLog2;
             int3 localBrick = worldBrick - BrickCacheOrigin;
             if (math.any(localBrick < 0) || math.any(localBrick >= BrickCacheEdge))
             { surface = 0; boundary = 0; return 0; }
@@ -89,7 +88,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
                 surface = Palette.GetDefaultSurfaceStyle(brick.UniformMaterial);
                 return brick.UniformMaterial;
             }
-            int3 local = voxel & VoxelDimensions.BrickEdgeMask;
+            int3 local = voxel & VoxelReadGrid.BlockEdgeMask;
             int voxelIndex = local.x | (local.y << 3) | (local.z << 6);
             int payload = brick.MixedOffset + voxelIndex;
             byte material = MixedVoxels[payload];

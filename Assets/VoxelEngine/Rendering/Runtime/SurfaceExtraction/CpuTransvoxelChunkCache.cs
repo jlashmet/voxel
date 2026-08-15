@@ -6,7 +6,6 @@ using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.SurfaceExtraction.Transvoxel;
 
@@ -289,11 +288,11 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         private readonly List<SmoothSurfaceVertex> _vertices = new(16_384);
         private readonly List<uint> _indices = new(24_576);
         private BuildState _build;
-        private SurfaceCatalogue _surfaceCatalogue;
-        private SurfaceCatalogue _buildSurfaceCatalogue;
-        private CoatingCatalogue _coatingCatalogue;
-        private CoatingCatalogue _buildCoatingCatalogue;
-        private MaterialPalette _buildPalette;
+        private SurfaceCatalogueView _surfaceCatalogue;
+        private SurfaceCatalogueView _buildSurfaceCatalogue;
+        private CoatingCatalogueView _coatingCatalogue;
+        private CoatingCatalogueView _buildCoatingCatalogue;
+        private MaterialPaletteView _buildPalette;
         private uint _materialPaletteVersion;
         private ProfileBlock[] _profileBlocks = Array.Empty<ProfileBlock>();
         private ProfileBlock[] _buildProfileBlocks = Array.Empty<ProfileBlock>();
@@ -331,8 +330,8 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             SamplesFromMips = VoxelReadGrid.LevelForStride(sourceStep) >= 0;
             BrickCacheEdge = SamplesFromMips ? 0 : BricksPerAxis + BrickCachePadding * 2;
             BrickCacheCount = BrickCacheEdge * BrickCacheEdge * BrickCacheEdge;
-            _surfaceCatalogue = SurfaceCatalogue.CreateBuiltIns();
-            _coatingCatalogue = CoatingCatalogue.CreateBuiltIns();
+            _surfaceCatalogue = SurfaceCatalogueView.CreateBuiltIns();
+            _coatingCatalogue = CoatingCatalogueView.CreateBuiltIns();
             _density = new NativeArray<float>(GridSampleCount, Allocator.Persistent,
                                               NativeArrayOptions.UninitializedMemory);
             _materials = new NativeArray<byte>(GridSampleCount, Allocator.Persistent,
@@ -437,7 +436,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// the common case, and every chunk in the innermost ring — does no work here.
         /// </summary>
         private void AppendTransitionFaces(IRegionReadSource source,
-                                           in MaterialPalette palette,
+                                           in MaterialPaletteView palette,
                                            Camera camera, float voxelSize)
         {
             if (MinViewDistanceMetres <= 0f || camera == null) return;
@@ -490,7 +489,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// the surface crosses, which is the whole mechanism by which the seam closes.
         /// </summary>
         private void SnapshotTransitionFace(IRegionReadSource source,
-                                            in MaterialPalette palette, int face)
+                                            in MaterialPaletteView palette, int face)
         {
             int axis = face >> 1;
             bool positive = (face & 1) != 0;
@@ -702,9 +701,9 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             for (int i = 0; i < affected.Count; i++) Invalidate(affected[i]);
         }
 
-        public void Prepare(IRegionReadSource source, in MaterialPalette palette,
-                            in SurfaceCatalogue surfaceCatalogue,
-                            in CoatingCatalogue coatingCatalogue,
+        public void Prepare(IRegionReadSource source, in MaterialPaletteView palette,
+                            in SurfaceCatalogueView surfaceCatalogue,
+                            in CoatingCatalogueView coatingCatalogue,
                             IProfileBlockReadSource profileBlocks,
                             Camera camera,
                             float voxelSize, int frame, double budgetMs = 0.20)
@@ -1066,7 +1065,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             return (int)(hash % (uint)count) == math.clamp(ShardIndex, 0, count - 1);
         }
 
-        private void SetSurfaceCatalogue(in SurfaceCatalogue catalogue)
+        private void SetSurfaceCatalogue(in SurfaceCatalogueView catalogue)
         {
             ulong hash = catalogue.CatalogueHash != 0
                 ? catalogue.CatalogueHash : catalogue.ComputeHash();
@@ -1089,7 +1088,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 
-        private void SetCoatingCatalogue(in CoatingCatalogue catalogue)
+        private void SetCoatingCatalogue(in CoatingCatalogueView catalogue)
         {
             ulong hash = catalogue.CatalogueHash != 0
                 ? catalogue.CatalogueHash : catalogue.ComputeHash();
@@ -1151,7 +1150,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// than inventing geometry the server never sent.
         /// </summary>
         private void ScheduleMipDensityJob(IRegionReadSource source,
-                                           in MaterialPalette palette, float voxelSize)
+                                           in MaterialPaletteView palette, float voxelSize)
         {
             double snapshotStart = Time.realtimeSinceStartupAsDouble;
             using var snapshotScope = s_SnapshotMarker.Auto();
@@ -1222,7 +1221,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         /// gameplay may continue editing/evicting authoritative storage without racing the job.
         /// </summary>
         private void ScheduleDensityJob(IRegionReadSource source,
-                                        in MaterialPalette palette, float voxelSize)
+                                        in MaterialPaletteView palette, float voxelSize)
         {
             if (SamplesFromMips)
             {
@@ -1295,7 +1294,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             {
                 TransvoxelDensityBrick brick = _densityBricks[i];
                 if (brick.Kind != 1 || !IsSolidSurfaceMaterial(brick.UniformMaterial)) continue;
-                SurfaceStyleDefinition style = _buildSurfaceCatalogue.Get(
+                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(
                     palette.GetDefaultSurfaceStyle(brick.UniformMaterial));
                 _build.RequiresContinuousTopology =
                     style.Reconstruction == SurfaceReconstruction.Smooth
@@ -1311,7 +1310,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 ushort styleId = (ushort)surface;
                 if (styleId == SurfaceStyles.MaterialDefault)
                     styleId = palette.GetDefaultSurfaceStyle(material);
-                SurfaceStyleDefinition style = _buildSurfaceCatalogue.Get(styleId);
+                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get(styleId);
                 byte coating = (byte)(surface >> 16);
                 _build.RequiresContinuousTopology = _densityMixedBoundarySamples[i] != 0
                     || _buildCoatingCatalogue.Get(coating).Displacement != 0
@@ -1446,7 +1445,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             for (int i = 0; i < 8; i++)
             {
                 if (!IsSolidSurfaceMaterial(_cellMaterial[i])) continue;
-                SurfaceStyleDefinition definition = _buildSurfaceCatalogue.Get(
+                SurfaceStyleReadDefinition definition = _buildSurfaceCatalogue.Get(
                     (ushort)_cellSurface[i]);
                 if (definition.Reconstruction == SurfaceReconstruction.Smooth
                     || definition.Reconstruction == SurfaceReconstruction.Rounded
@@ -1796,7 +1795,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
             ReadSnapshotCell(voxel, out byte material, out uint surface, out _);
             if (!IsSolidSurfaceMaterial(material)) return;
             byte coating = (byte)(surface >> 16);
-            CoatingDefinition definition = _buildCoatingCatalogue.Get(coating);
+            CoatingReadDefinition definition = _buildCoatingCatalogue.Get(coating);
             if (definition.DecorationShape == SurfaceDecorationShape.None
                 || definition.DecorationDensity == 0) return;
 
@@ -1835,7 +1834,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         }
 
         private void EmitDecorationClump(int3 voxel, byte material, uint surface,
-                                         CoatingDefinition definition, int axis, int sign,
+                                         CoatingReadDefinition definition, int axis, int sign,
                                          uint hash, float voxelSize)
         {
             int axisA = (axis + 1) % 3;
@@ -1988,7 +1987,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
                 int3 voxel = chunkOrigin + local;
                 ReadSnapshotCell(voxel, out byte material, out uint surface,
                                  out byte boundary);
-                SurfaceStyleDefinition style = _buildSurfaceCatalogue.Get((ushort)surface);
+                SurfaceStyleReadDefinition style = _buildSurfaceCatalogue.Get((ushort)surface);
                 byte coating = (byte)(surface >> 16);
                 bool displacedCoating =
                     _buildCoatingCatalogue.Get(coating).Displacement != 0;

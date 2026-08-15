@@ -7,7 +7,6 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering
@@ -194,7 +193,7 @@ namespace VoxelEngine.Rendering
             _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
             _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
             _scheduler.Prepare(world.Storage, in world.Palette,
-                               in world.SurfaceCatalogue, in world.CoatingCatalogue,
+                               in world.SurfaceCatalogueView, in world.CoatingCatalogueView,
                                world.ProfileBlocks, VoxelRenderBridge.Changes,
                                camera, VoxelSize, Time.frameCount);
             VoxelRenderBridge.SurfaceMetrics = _scheduler.Metrics;

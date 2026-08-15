@@ -2,7 +2,6 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
 {
@@ -31,7 +30,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         /// <summary>Representative material per lattice sample, parallel to occupancy.</summary>
         [ReadOnly] public NativeArray<byte> SampleMaterials;
 
-        public MaterialPalette Palette;
+        public MaterialPaletteView Palette;
 
         [WriteOnly] public NativeArray<float> Density;
         [WriteOnly] public NativeArray<byte> Materials;
@@ -43,7 +42,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction.Transvoxel
         public void Execute(int index)
         {
             bool solid = SampleOccupancy[index] != 0;
-            byte material = solid ? SampleMaterials[index] : VoxelDimensions.MaterialEmpty;
+            byte material = solid ? SampleMaterials[index] : VoxelGrid.MaterialEmpty;
 
             // A mip cell is binary, so the field is the plain marching-cubes step: half a cell
             // inside the surface for solid samples, half outside for empty ones. Interpolation
