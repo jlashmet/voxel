@@ -61,6 +61,20 @@ namespace Game.WorldBuilder.Api
         DistanceRange = 2
     }
 
+    /// <summary>
+    /// Exact interpretation of a site-to-site distance constraint.
+    /// BoundaryToBoundaryEuclidean is the minimum horizontal Euclidean distance between the two
+    /// realized site footprint boundaries. PublicEntranceToPublicEntranceEuclidean is straight-line
+    /// horizontal distance between each site's primary public access anchor. TraversalPathLength is
+    /// the shortest valid navigation-graph path between those anchors for the supplied traversal profile.
+    /// </summary>
+    public enum SiteDistanceMetric
+    {
+        BoundaryToBoundaryEuclidean = 0,
+        PublicEntranceToPublicEntranceEuclidean = 1,
+        TraversalPathLength = 2
+    }
+
     public readonly struct DistanceRangeMetres
     {
         public int Minimum { get; }
@@ -82,29 +96,85 @@ namespace Game.WorldBuilder.Api
         public SiteRef Target { get; }
         public TraversalProfile Traversal { get; }
         public DistanceRangeMetres Distance { get; }
+        public SiteDistanceMetric DistanceMetric { get; }
 
         private SpatialConstraintSpec(
             SpatialConstraintKind kind,
             SiteRef subject,
             SiteRef target,
             TraversalProfile traversal,
-            DistanceRangeMetres distance)
+            DistanceRangeMetres distance,
+            SiteDistanceMetric distanceMetric)
         {
             Kind = kind;
             Subject = subject;
             Target = target;
             Traversal = traversal;
             Distance = distance;
+            DistanceMetric = distanceMetric;
         }
 
         public static SpatialConstraintSpec DifferentSite(SiteRef subject, SiteRef target) =>
-            new SpatialConstraintSpec(SpatialConstraintKind.DifferentSite, subject, target, default, default);
+            new SpatialConstraintSpec(
+                SpatialConstraintKind.DifferentSite,
+                subject,
+                target,
+                default,
+                default,
+                default);
 
-        public static SpatialConstraintSpec ReachableFrom(SiteRef subject, SiteRef target, TraversalProfile traversal) =>
-            new SpatialConstraintSpec(SpatialConstraintKind.ReachableFrom, subject, target, traversal, default);
+        /// <summary>
+        /// Requires at least one valid path in the final traversal graph. This does not constrain
+        /// path length; use TraversalDistanceRange when the authored requirement also limits travel distance.
+        /// </summary>
+        public static SpatialConstraintSpec ReachableFrom(
+            SiteRef subject,
+            SiteRef target,
+            TraversalProfile traversal) =>
+            new SpatialConstraintSpec(
+                SpatialConstraintKind.ReachableFrom,
+                subject,
+                target,
+                traversal,
+                default,
+                default);
 
-        public static SpatialConstraintSpec DistanceRange(SiteRef subject, SiteRef target, DistanceRangeMetres distance) =>
-            new SpatialConstraintSpec(SpatialConstraintKind.DistanceRange, subject, target, default, distance);
+        public static SpatialConstraintSpec BoundaryDistanceRange(
+            SiteRef subject,
+            SiteRef target,
+            DistanceRangeMetres distance) =>
+            new SpatialConstraintSpec(
+                SpatialConstraintKind.DistanceRange,
+                subject,
+                target,
+                default,
+                distance,
+                SiteDistanceMetric.BoundaryToBoundaryEuclidean);
+
+        public static SpatialConstraintSpec PublicEntranceDistanceRange(
+            SiteRef subject,
+            SiteRef target,
+            DistanceRangeMetres distance) =>
+            new SpatialConstraintSpec(
+                SpatialConstraintKind.DistanceRange,
+                subject,
+                target,
+                default,
+                distance,
+                SiteDistanceMetric.PublicEntranceToPublicEntranceEuclidean);
+
+        public static SpatialConstraintSpec TraversalDistanceRange(
+            SiteRef subject,
+            SiteRef target,
+            TraversalProfile traversal,
+            DistanceRangeMetres distance) =>
+            new SpatialConstraintSpec(
+                SpatialConstraintKind.DistanceRange,
+                subject,
+                target,
+                traversal,
+                distance,
+                SiteDistanceMetric.TraversalPathLength);
     }
 
     public sealed class SiteSpec
