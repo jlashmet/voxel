@@ -24,7 +24,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
 | 4 — Structures | **Complete** | `Structures.Api` owns canonical authoring/material/layout contracts; all implementation (feature VM/generation/rasterizer/emitters, retained-profile store, CastleBuilder, VoxelBrush, MasonryWeathering) lives under `Structures/Runtime` with Runtime namespaces and preserved Unity GUIDs; Storage dependencies route through Storage.Api; Rendering uses the retained-profile read boundary; WorldGen Voxel is Api-only; broad Structures assembly, legacy `VoxelEngine.Core.Features` namespace, and Kentridge compatibility seam are gone | none |
 | 5 — Edits | **Complete** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; all edit implementation lives under `Edits/Runtime` with Runtime namespace and preserved Unity GUIDs; Net protocol/client/server/validation consume Api only; dead `DensityCap`, redundant Net wrapper, and `VoxelEngine.Core.Edits` are gone; Storage boundaries/parity accepted | none |
-| 6 — StructuralIntegrity | **Not started — current** | — | full cutover |
+| 6 — StructuralIntegrity | **In progress — current** | final inventory found the Net-owned `StructuralGraph` placeholder had zero callers; dead graph removed with parity preserved | create Api/Runtime; move support/connectivity/collapse algorithms behind Storage.Api; expose only result/request values required by real consumers |
 | 7 — Tiering | **Not started** | — | full cutover |
 | 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
 | 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `4477d1cf2b552d84bcf44ccf5bf33b645a32cb70` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate completes Cutover 5 Edits: `DeterministicAlterationApplier` is physically under `Edits/Runtime` with its Unity GUID preserved; all composition/test imports use `VoxelEngine.Edits.Runtime`; no live `VoxelEngine.Core.Edits` namespace remains; Net remains Edits.Api-only.
+- Latest accepted code gate: `50df9bd2b0769905727dad63f167d5f604319b4c` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted first StructuralIntegrity slice: final caller inventory proved `Net/Server/StructuralGraph.cs` was unused; the unbounded placeholder graph was deleted rather than preserved in the new subsystem, with no behavioral regression.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -830,7 +830,7 @@ Net.Runtime serializes/deserializes Edits.Api events. It does not own the canoni
 | `Core/Structure/CollapseDetection.cs` | `StructuralIntegrity/Runtime/CollapseDetection.cs` |
 | `Core/Structure/Connectivity.cs` | `StructuralIntegrity/Runtime/Connectivity.cs` |
 | `Core/Structure/SupportField.cs` | `StructuralIntegrity/Runtime/SupportField.cs` |
-| `Net/Server/StructuralGraph.cs` | `StructuralIntegrity/Runtime/StructuralGraph.cs` |
+| `Net/Server/StructuralGraph.cs` | delete — final inventory found zero callers and the placeholder graph had no persisted bounded state |
 
 Create API types based on actual callers:
 
@@ -857,9 +857,14 @@ voxel edit applied
 
 StructuralIntegrity does not depend on Net. Net does not own the structural graph.
 
+### Implementation progress
+
+- [x] Final StructuralIntegrity caller inventory confirmed `StructuralGraph` had zero callers and no owned persisted graph state; the dead Net placeholder was removed instead of migrated.
+- [x] Dead StructuralGraph removal accepted by CI at `50df9bd2b0769905727dad63f167d5f604319b4c`: 382 total / 369 passed / exact same 13 known baseline failures.
+
 ### Gate
 
-- [ ] `StructuralGraph` no longer lives in Net;
+- [x] `StructuralGraph` no longer lives in Net;
 - [ ] StructuralIntegrity.Runtime has no Net dependency;
 - [ ] collapse/connectivity/support tests pass;
 - [ ] network structural behavior consumes StructuralIntegrity.Api only.
@@ -1588,7 +1593,7 @@ At the end, generate an asmdef dependency report and verify:
 
 - [ ] create Api/Runtime
 - [ ] move collapse/connectivity/support algorithms
-- [ ] move StructuralGraph out of Net
+- [x] move StructuralGraph out of Net
 - [ ] expose structural result domain values
 - [ ] route resulting voxel changes through Edits
 
