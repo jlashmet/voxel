@@ -11,6 +11,7 @@ namespace Game.WorldBuilder.Api
         internal readonly List<NpcSpec> Npcs = new List<NpcSpec>();
         internal readonly List<SpatialConstraintSpec> SpatialConstraints = new List<SpatialConstraintSpec>();
         internal readonly List<CutsceneSpec> Cutscenes = new List<CutsceneSpec>();
+        internal readonly List<StoryRuleSpec> StoryRules = new List<StoryRuleSpec>();
         internal readonly List<ObjectiveSpec> Objectives = new List<ObjectiveSpec>();
         internal readonly List<SecretPolicySpec> SecretPolicies = new List<SecretPolicySpec>();
         internal readonly List<RequiredSecretSpec> RequiredSecrets = new List<RequiredSecretSpec>();
@@ -36,6 +37,7 @@ namespace Game.WorldBuilder.Api
                 Npcs.ToArray(),
                 SpatialConstraints.ToArray(),
                 Cutscenes.ToArray(),
+                StoryRules.ToArray(),
                 Objectives.ToArray(),
                 SecretPolicies.ToArray(),
                 RequiredSecrets.ToArray(),
@@ -187,6 +189,15 @@ namespace Game.WorldBuilder.Api
             _campaign.Cutscenes.Add(builder.Build());
             return cutsceneRef;
         }
+
+        public StoryRuleRef Rule(string id, Action<StoryRuleBuilder> configure)
+        {
+            var ruleRef = new StoryRuleRef(id);
+            var builder = new StoryRuleBuilder(ruleRef);
+            configure?.Invoke(builder);
+            _campaign.StoryRules.Add(builder.Build());
+            return ruleRef;
+        }
     }
 
     public sealed class ObjectiveBuilder
@@ -228,9 +239,6 @@ namespace Game.WorldBuilder.Api
         private readonly List<CutsceneActorBindingSpec> _actorBindings = new List<CutsceneActorBindingSpec>();
         private SiteRef _site;
         private bool _hasSite;
-        private IStoryTriggerSpec _trigger;
-        private readonly List<IStoryConditionSpec> _conditions = new List<IStoryConditionSpec>();
-        private readonly List<IStoryEffectSpec> _effects = new List<IStoryEffectSpec>();
 
         public CutsceneRef Ref => _ref;
         public CutsceneDefinition Definition => _definition;
@@ -254,38 +262,48 @@ namespace Game.WorldBuilder.Api
             return this;
         }
 
-        public CutsceneBuilder Trigger(IStoryTriggerSpec trigger)
+        internal CutsceneSpec Build()
+        {
+            if (!_hasSite)
+                throw new InvalidOperationException($"Cutscene '{_ref}' requires a site.");
+            return new CutsceneSpec(_ref, _definition, _site, _actorBindings.ToArray());
+        }
+    }
+
+    public sealed class StoryRuleBuilder
+    {
+        private readonly StoryRuleRef _ref;
+        private IStoryTriggerSpec _trigger;
+        private readonly List<IStoryConditionSpec> _conditions = new List<IStoryConditionSpec>();
+        private readonly List<IStoryEffectSpec> _effects = new List<IStoryEffectSpec>();
+
+        internal StoryRuleBuilder(StoryRuleRef @ref) => _ref = @ref;
+
+        public StoryRuleBuilder When(IStoryTriggerSpec trigger)
         {
             _trigger = trigger ?? throw new ArgumentNullException(nameof(trigger));
             return this;
         }
 
-        public CutsceneBuilder If(IStoryConditionSpec condition)
+        public StoryRuleBuilder If(IStoryConditionSpec condition)
         {
             _conditions.Add(condition ?? throw new ArgumentNullException(nameof(condition)));
             return this;
         }
 
-        public CutsceneBuilder Then(IStoryEffectSpec effect)
+        public StoryRuleBuilder Then(IStoryEffectSpec effect)
         {
             _effects.Add(effect ?? throw new ArgumentNullException(nameof(effect)));
             return this;
         }
 
-        internal CutsceneSpec Build()
+        internal StoryRuleSpec Build()
         {
-            if (!_hasSite)
-                throw new InvalidOperationException($"Cutscene '{_ref}' requires a site.");
             if (_trigger == null)
-                throw new InvalidOperationException($"Cutscene '{_ref}' requires a trigger.");
-            return new CutsceneSpec(
-                _ref,
-                _definition,
-                _site,
-                _actorBindings.ToArray(),
-                _trigger,
-                _conditions.ToArray(),
-                _effects.ToArray());
+                throw new InvalidOperationException($"Story rule '{_ref}' requires a trigger.");
+            if (_effects.Count == 0)
+                throw new InvalidOperationException($"Story rule '{_ref}' requires at least one effect.");
+            return new StoryRuleSpec(_ref, _trigger, _conditions.ToArray(), _effects.ToArray());
         }
     }
 
