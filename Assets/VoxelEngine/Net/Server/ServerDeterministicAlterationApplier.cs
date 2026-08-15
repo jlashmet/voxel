@@ -1,6 +1,5 @@
-using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Net.Server
 {
@@ -10,11 +9,10 @@ namespace VoxelEngine.Net.Server
     /// </summary>
     public sealed class ServerDeterministicAlterationApplier : IAuthoritativeAlterationApplier
     {
-        public bool TryApplyAlteration(ref RegionTable table, ref BrickPool pool, in AlterationEvent evt)
+        public bool TryApplyAlteration(IRegionMutationStore storage, in AlterationEvent evt)
         {
             bool changed = DeterministicAlterationApplier.TryApply(
-                ref table,
-                ref pool,
+                storage,
                 in evt,
                 out var affectedBricks);
 
