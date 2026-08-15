@@ -4,11 +4,23 @@ on:
   push:
     branches: [refactor/system-boundaries-finalization-stable]
     paths:
-      - ".github/workflows/final-architecture-static.yml"
-      - "Assets/VoxelEngine/**"
-      - "Assets/Scenes/Showcase/**"
-      - "Assets/Tests/EditMode/**"
-      - "Packages/com.mountingforce.worldgen/**"
+      - ".github/workflows/**"
+      - "Assets/**"
+      - "Packages/**"
+      - "docs/**"
+      - "specs/**"
+      - "tools/**"
+      - "Artifacts/**"
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/**"
+      - "Assets/**"
+      - "Packages/**"
+      - "docs/**"
+      - "specs/**"
+      - "tools/**"
+      - "Artifacts/**"
 
 permissions:
   contents: read
@@ -18,13 +30,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify final dependency graph and emit report
+      - name: Verify final dependency graph, legacy-literal classification, and emit report
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p Artifacts/FinalArchitecture
           python3 - <<'PY'
-          import json, re
+          import json, re, subprocess
           from pathlib import Path
 
           root = Path('.')
@@ -93,9 +105,42 @@ jobs:
                       core_hits.append(path.as_posix())
 
           if core_hits:
-              violations.extend(f'VoxelEngine.Core reference: {p}' for p in core_hits)
+              violations.extend(f'VoxelEngine.Core production reference: {p}' for p in core_hits)
           if compatibility_hits:
               violations.extend(f'legacy/compatibility adapter source: {p}' for p in compatibility_hits)
+
+          intentional_core_literal_paths = {
+              '.github/workflows/final-architecture-static.yml',
+              '.github/workflows/stable-final-architecture-acceptance.yml',
+              'Assets/Tests/EditMode/ArchitectureBoundaryGuardTests.cs',
+              'docs/ARCHITECTURE_DEPENDENCY_REPORT.md',
+              'docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md',
+              'docs/ARCHITECTURE_LEGACY_LITERAL_CLASSIFICATION.md',
+              'docs/ARCHITECTURE_MIGRATION_PLAN.md',
+              'specs/001-destructible-voxel-engine/tasks.md',
+              'specs/002-world-feature-authoring/tasks.md',
+          }
+          literal_ext = {
+              '.cs', '.asmdef', '.asmref', '.json', '.md', '.yml', '.yaml',
+              '.sh', '.txt', '.log',
+          }
+          tracked = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          repository_core_hits = []
+          for name in tracked:
+              if not name:
+                  continue
+              path = Path(name)
+              if path.suffix.lower() not in literal_ext:
+                  continue
+              if 'VoxelEngine.Core' in path.read_text(errors='ignore'):
+                  repository_core_hits.append(name)
+
+          unclassified = sorted(set(repository_core_hits) - intentional_core_literal_paths)
+          missing_intentional = sorted(intentional_core_literal_paths - set(repository_core_hits))
+          if unclassified:
+              violations.extend(f'unclassified repository VoxelEngine.Core literal: {p}' for p in unclassified)
+          if missing_intentional:
+              violations.extend(f'stale VoxelEngine.Core allowlist entry: {p}' for p in missing_intentional)
 
           report = []
           report.append('# Final Architecture Dependency Report')
@@ -117,11 +162,17 @@ jobs:
           report.append('- Composition is the only production assembly that wires concrete Runtime assemblies.')
           report.append('- Production Assets/Packages contain no `VoxelEngine.Core` references.')
           report.append('- Production architecture contains no `Legacy*` or `*Compatibility*` adapter source files.')
+          report.append('- Repository-wide legacy Core literals exist only in the explicitly classified history/enforcement allowlist.')
+          report.append('')
+          report.append('## Intentional historical/enforcement Core literals')
+          report.append('')
+          for path in sorted(repository_core_hits):
+              report.append(f'- `{path}`')
           Path('Artifacts/FinalArchitecture/dependency-report.md').write_text('\n'.join(report) + '\n')
 
           if violations:
               raise SystemExit('\n'.join(violations))
-          print('Final architecture static boundary accepted')
+          print(f'Final architecture static boundary accepted; {len(repository_core_hits)} intentional repository Core-literal files classified')
           PY
       - name: Upload dependency report
         if: always()
