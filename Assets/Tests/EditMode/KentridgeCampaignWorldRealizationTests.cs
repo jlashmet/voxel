@@ -1,5 +1,7 @@
 using System.Linq;
+using Game.Composition.WorldBuilderWorldGen;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
+using Game.Cutscenes.Api;
 using Game.Cutscenes.Content.Kentridge;
 using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
@@ -118,6 +120,106 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(realized.Secrets[0].ContainerFloorPoint.Position.Y,
                 Is.EqualTo(realized.Secrets[0].HiddenSpaceBounds.MinInclusive.Y));
         }
+
+        [Test]
+        public void KnownOpeningDestinationResolvesToDifferentReachableKentridgeSiteWithPhysicalNpc()
+        {
+            var game = Campaign.Create("known-opening-destination");
+            SiteRef startingPub = game.World.RequireSite("starting-pub", site => site
+                .Archetype(SiteArchetype.Pub)
+                .RequireCapability(SiteCapability.Interior)
+                .RequireCapability(SiteCapability.PlayerSpawn(4))
+                .RequireCapability(SiteCapability.PublicExit));
+            SiteRef firstDestination = game.World.RequireSite("first-destination", site => site
+                .DifferentSiteFrom(startingPub)
+                .ReachableFrom(startingPub, TraversalProfile.NormalParty));
+
+            NpcRef madeline = game.World.RequireNpc("madeline", npc => npc.PlaceAt(startingPub));
+            NpcRef steven = game.World.RequireNpc("steven", npc => npc.PlaceAt(startingPub));
+            NpcRef logan = game.World.RequireNpc("logan", npc => npc.PlaceAt(startingPub));
+            NpcRef destinationNpc = game.World.RequireNpc("destination-npc", npc => npc
+                .PlaceAt(firstDestination)
+                .RequireConversation());
+
+            ObjectiveRef travelObjective = game.Story.Objective(
+                "travel-to-first-destination",
+                objective => objective
+                    .Target(firstDestination)
+                    .CompleteWhen(ObjectiveCompletion.InteractWith(destinationNpc)));
+            CutsceneRef destinationCutscene = game.Story.Cutscene(
+                DialogueOnly("destination-conversation"),
+                scene => scene.At(firstDestination));
+            CutsceneRef intro = game.Story.Cutscene(KentridgeOpeningCutscene.Definition, scene => scene
+                .At(startingPub)
+                .Bind(KentridgeOpeningCutscene.Lead, CutsceneActorTarget.Player(0))
+                .Bind(KentridgeOpeningCutscene.Madeline, CutsceneActorTarget.Npc(madeline))
+                .Bind(KentridgeOpeningCutscene.Steven, CutsceneActorTarget.Npc(steven))
+                .Bind(KentridgeOpeningCutscene.Logan, CutsceneActorTarget.Npc(logan)));
+
+            game.Story.Rule("start-intro", rule => rule
+                .When(StoryTrigger.NewGame())
+                .Then(StoryEffect.PlayCutscene(intro)));
+            game.Story.Rule("start-travel-after-intro", rule => rule
+                .When(StoryTrigger.CutsceneCompleted(intro))
+                .Then(StoryEffect.StartObjective(travelObjective)));
+            game.Story.Rule("destination-conversation-trigger", rule => rule
+                .When(StoryTrigger.InteractWith(destinationNpc))
+                .If(StoryCondition.ObjectiveActive(travelObjective))
+                .If(StoryCondition.CutsceneNotCompleted(destinationCutscene))
+                .Then(StoryEffect.PlayCutscene(destinationCutscene)));
+
+            CampaignBlueprint blueprint = game.Build();
+            SettlementPlan settlement = KentridgeDefinition.Build(Seed);
+            KentridgeCampaignGenerationPlan generation = KentridgeCampaignWorldPlanner.Plan(
+                blueprint,
+                settlement,
+                new RegionRef("kentridge-region"),
+                new SettlementRef("kentridge"));
+
+            ResolvedSiteId pubSite = generation.Sites.Bindings
+                .Single(value => value.Role.Equals(startingPub)).Site;
+            ResolvedSiteId destinationSite = generation.Sites.Bindings
+                .Single(value => value.Role.Equals(firstDestination)).Site;
+            Assert.That(destinationSite, Is.Not.EqualTo(pubSite));
+
+            var projections = new KentridgeArchitectureSiteProjectionProvider(settlement);
+            var traversal = new SettlementStreetTraversalFacts(settlement, projections);
+            var facts = new SettlementPlanSiteCandidateFacts(
+                settlement,
+                new RegionRef("kentridge-region"),
+                new SettlementRef("kentridge"),
+                projections,
+                traversal);
+            Assert.That(
+                facts.IsReachable(destinationSite, pubSite, TraversalProfile.NormalParty),
+                Is.True,
+                "The constraint-matched destination must be reachable over Kentridge's authored street graph.");
+
+            NpcSiteAssignment destinationAssignment = generation.NpcAssignments
+                .Single(value => value.Npc.Equals(destinationNpc));
+            Assert.That(destinationAssignment.Site, Is.EqualTo(destinationSite));
+            Assert.That(destinationAssignment.RequiresConversation, Is.True);
+
+            KentridgeCampaignWorldRealization realized = KentridgeCampaignWorldRealizer.Realize(
+                generation,
+                new KentridgeVoxelSiteRealizationFacts(settlement, 1));
+            ResolvedNpcWorldPlacement physicalNpc = realized.Npcs
+                .Single(value => value.Npc.Equals(destinationNpc));
+
+            Assert.That(physicalNpc.Site, Is.EqualTo(destinationSite));
+            Assert.That(physicalNpc.RequiresConversation, Is.True);
+            Assert.That(realized.CutsceneStages.Count, Is.EqualTo(1),
+                "Only the opening cutscene has authored stage points; dialogue-only destination presentation needs no fabricated stage.");
+            Assert.That(realized.CutsceneStages[0].Site, Is.EqualTo(startingPub));
+            Assert.That(generation.HiddenSpaces.Count, Is.EqualTo(0));
+            Assert.That(generation.Secrets.Count, Is.EqualTo(0));
+        }
+
+        private static CutsceneDefinition DialogueOnly(string id) =>
+            new CutsceneDefinition(
+                id,
+                CutsceneStageSetupDefinition.Empty,
+                new[] { CutsceneStep.Dialogue(new CutsceneCueId(id + ".dialogue")) });
 
         private static VoxelWorldGenSettings Settings() =>
             new VoxelWorldGenSettings(
