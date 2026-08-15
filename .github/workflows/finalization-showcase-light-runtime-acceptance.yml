@@ -1,4 +1,4 @@
-name: Finalization Showcase light Runtime acceptance
+name: Finalization Showcase Runtime boundary acceptance
 
 on:
   push:
@@ -13,19 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify removed Showcase Runtime dependencies
+      - name: Verify Showcase has no concrete engine Runtime dependency
         shell: bash
         run: |
           set -euo pipefail
-          if grep -R -n -E 'VoxelEngine\.(Streaming|Terrain|Rendering)\.Runtime|ResidencyManager' Assets/Scenes/Showcase --include='*.cs'; then
-            echo 'Showcase still contains a removed light Runtime dependency' >&2
+          if grep -R -n -E 'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime|ResidencyManager' Assets/Scenes/Showcase --include='*.cs'; then
+            echo 'Showcase source still contains a concrete engine Runtime dependency' >&2
             exit 1
           fi
-          if grep -E 'VoxelEngine\.(Streaming|Terrain|Rendering)\.Runtime' Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef; then
-            echo 'Showcase asmdef still contains a removed light Runtime dependency' >&2
+          if grep -E 'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime' Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef; then
+            echo 'Showcase asmdef still contains a concrete engine Runtime dependency' >&2
             exit 1
           fi
-          echo 'Showcase light Runtime boundary accepted'
+          echo 'Showcase Runtime boundary accepted'
 
   editmode:
     runs-on: [self-hosted, macOS]
@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/FinalizationShowcaseLight"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/FinalizationShowcaseRuntime"
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
@@ -115,7 +115,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: finalization-showcase-light-${{ github.sha }}
-          path: Artifacts/FinalizationShowcaseLight/
+          name: finalization-showcase-runtime-${{ github.sha }}
+          path: Artifacts/FinalizationShowcaseRuntime/
           if-no-files-found: warn
           retention-days: 14
