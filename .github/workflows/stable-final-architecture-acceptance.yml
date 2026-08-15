@@ -1,3 +1,4 @@
+# Final baseline includes two passing permanent architecture-guard tests; the known failure set is unchanged.
 name: Stable final architecture acceptance
 
 on:
