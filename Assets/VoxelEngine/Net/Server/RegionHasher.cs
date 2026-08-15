@@ -1,47 +1,36 @@
 using System;
 using System.Runtime.CompilerServices;
-using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Net.Server
 {
     /// <summary>
-    /// Compatibility facade for region hashing. Cross-peer hashes delegate to the shared Core
-    /// semantic implementation so server/client allocation history cannot affect convergence.
+    /// Network-payload hashing helpers only. Authoritative semantic region hashing belongs to
+    /// Storage and must be obtained through a Storage.Api capability; allocator-local Region,
+    /// BrickRef, and BrickPool representation never enter the networking contract.
     /// </summary>
     public static class RegionHasher
     {
-        public static uint HashRegion(in Region region, in BrickPool pool) =>
-            SemanticRegionHasher.HashRegion(in region, in pool);
+        private const uint FnvOffsetBasis = 2166136261u;
+        private const uint FnvPrime = 16777619u;
 
-        [Obsolete("Use HashRegion(in Region, in BrickPool) for cross-peer drift detection.")]
-        public static uint HashRegion(in Region region)
+        public static uint HashBytes(ReadOnlySpan<byte> data)
         {
-            const uint offset = 2166136261u;
-            const uint prime = 16777619u;
-            uint hash = offset;
-            hash = MixInt(hash, region.Coord.x, prime);
-            hash = MixInt(hash, region.Coord.y, prime);
-            hash = MixInt(hash, region.Coord.z, prime);
-            if (region.BrickRefs.IsCreated)
-                for (int i = 0; i < region.BrickRefs.Length; i++)
-                    hash = MixInt(hash, region.BrickRefs[i].Value, prime);
+            uint hash = FnvOffsetBasis;
+            for (int i = 0; i < data.Length; i++)
+                hash = MixByte(hash, data[i]);
             return hash;
         }
 
-        public static uint HashBytes(ReadOnlySpan<byte> data) => SemanticRegionHasher.HashBytes(data);
-
         public static uint HashUintSpan(ReadOnlySpan<uint> values)
         {
-            const uint offset = 2166136261u;
-            const uint prime = 16777619u;
-            uint hash = offset;
+            uint hash = FnvOffsetBasis;
             for (int i = 0; i < values.Length; i++)
             {
                 uint value = values[i];
-                hash = MixByte(hash, (byte)value, prime);
-                hash = MixByte(hash, (byte)(value >> 8), prime);
-                hash = MixByte(hash, (byte)(value >> 16), prime);
-                hash = MixByte(hash, (byte)(value >> 24), prime);
+                hash = MixByte(hash, (byte)value);
+                hash = MixByte(hash, (byte)(value >> 8));
+                hash = MixByte(hash, (byte)(value >> 16));
+                hash = MixByte(hash, (byte)(value >> 24));
             }
             return hash;
         }
@@ -49,19 +38,11 @@ namespace VoxelEngine.Net.Server
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool AreEqual(uint a, uint b) => a == b;
 
-        private static uint MixInt(uint hash, int value, uint prime)
-        {
-            uint v = unchecked((uint)value);
-            hash = MixByte(hash, (byte)v, prime);
-            hash = MixByte(hash, (byte)(v >> 8), prime);
-            hash = MixByte(hash, (byte)(v >> 16), prime);
-            return MixByte(hash, (byte)(v >> 24), prime);
-        }
-
-        private static uint MixByte(uint hash, byte value, uint prime)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static uint MixByte(uint hash, byte value)
         {
             hash ^= value;
-            return hash * prime;
+            return hash * FnvPrime;
         }
     }
 }
