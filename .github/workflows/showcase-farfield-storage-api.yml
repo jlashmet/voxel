@@ -1,8 +1,10 @@
 name: Showcase far-field Storage API cutover
 on:
   push:
-    branches: [refactor/system-boundaries-foundation-storage]
-    paths: [.github/workflows/showcase-farfield-storage-api.yml]
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/showcase-farfield-storage-api.yml
 permissions:
   contents: write
 jobs:
@@ -11,94 +13,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: refactor/system-boundaries-foundation-storage
           fetch-depth: 0
-      - name: Move far-field capture to Storage.Api read source
+      - name: Patch ShowcaseWorld far-field call
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
-          far = Path('Assets/Scenes/Showcase/FarFieldStructureStore.cs')
-          text = far.read_text()
-          if text.count('using VoxelEngine.Storage.Runtime;') != 1:
-              raise SystemExit('expected one Storage.Runtime import in FarFieldStructureStore')
-          text = text.replace('using VoxelEngine.Storage.Runtime;', 'using VoxelEngine.Storage.Api;', 1)
-
-          old_sig = '''        public void CaptureRegion(int3 regionCoord, ref RegionTable table, in BrickPool pool,
-                                  uint seed)
-        {
-            if (!table.TryGetRegion(regionCoord, out Region region)) return;
-'''
-          new_sig = '''        public void CaptureRegion(int3 regionCoord, IRegionReadSource storage, uint seed)
-        {
-            if (storage == null || !storage.TryAcquireRegion(regionCoord, out RegionReadView region))
-                return;
-'''
-          if text.count(old_sig) != 1:
-              raise SystemExit('far-field CaptureRegion signature/body seam did not match')
-          text = text.replace(old_sig, new_sig, 1)
-
-          old_call = '''                int top = TopSolidVoxel(ref table, in pool, voxelX, voxelZ,
-                                        originVoxel.y, ShowcaseWorld.RegionVoxelEdge);'''
-          new_call = '''                int top = TopSolidVoxel(in region, voxelX, voxelZ,
-                                        originVoxel.y, ShowcaseWorld.RegionVoxelEdge);'''
-          if text.count(old_call) != 1:
-              raise SystemExit('far-field TopSolidVoxel call did not match')
-          text = text.replace(old_call, new_call, 1)
-
-          old_helper = '''        private static int TopSolidVoxel(ref RegionTable table, in BrickPool pool,
-                                         int worldX, int worldZ, int baseY, int height)
-        {
-            for (int y = baseY + height - 1; y >= baseY; y--)
-            {
-                byte material = VoxelAccess.GetVoxel(ref table, in pool,
-                                                     new int3(worldX, y, worldZ));
-                if (material != VoxelDimensions.MaterialEmpty) return y;
-            }
-            return int.MinValue;
-        }
-'''
-          new_helper = '''        private static int TopSolidVoxel(in RegionReadView region,
-                                         int worldX, int worldZ, int baseY, int height)
-        {
-            int3 originVoxel = region.RegionCoord * ShowcaseWorld.RegionVoxelEdge;
-            int localX = worldX - originVoxel.x;
-            int localZ = worldZ - originVoxel.z;
-            for (int localY = height - 1; localY >= 0; localY--)
-            {
-                if (!region.TryReadCell(new int3(localX, localY, localZ), out VoxelCell cell))
-                    continue;
-                if (cell.BaseMaterialId != VoxelGrid.MaterialEmpty)
-                    return baseY + localY;
-            }
-            return int.MinValue;
-        }
-'''
-          if text.count(old_helper) != 1:
-              raise SystemExit('far-field physical read helper did not match')
-          text = text.replace(old_helper, new_helper, 1)
-          forbidden = ('RegionTable', 'BrickPool', 'BrickRef', 'VoxelAccess', 'VoxelEngine.Storage.Runtime')
-          for token in forbidden:
-              if token in text:
-                  raise SystemExit(f'far-field still exposes physical Storage token: {token}')
-          far.write_text(text)
-
-          world = Path('Assets/Scenes/Showcase/ShowcaseWorld.cs')
-          text = world.read_text()
+          p = Path('Assets/Scenes/Showcase/ShowcaseWorld.cs')
+          text = p.read_text()
           old = '            FarField.CaptureRegion(coord, ref _table, in _pool, Seed);'
           new = '            FarField.CaptureRegion(coord, ReadStorage, Seed);'
           if text.count(old) != 1:
-              raise SystemExit('ShowcaseWorld far-field physical call did not match exactly once')
-          world.write_text(text.replace(old, new, 1))
+              raise SystemExit('expected exactly one old far-field call')
+          p.write_text(text.replace(old, new, 1))
           PY
           git diff --check
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
-          git add Assets/Scenes/Showcase/FarFieldStructureStore.cs Assets/Scenes/Showcase/ShowcaseWorld.cs
-          git rm .github/workflows/showcase-farfield-storage-api.yml
-          git commit -m 'refactor(showcase): read far-field structures through Storage API'
-          git fetch origin "${GITHUB_REF_NAME}"
-          git rebase "origin/${GITHUB_REF_NAME}"
-          git push origin HEAD:"${GITHUB_REF_NAME}"
+          git add Assets/Scenes/Showcase/ShowcaseWorld.cs
+          git commit -m 'refactor(showcase): call far-field capture through Storage API'
+          git fetch origin refactor/system-boundaries-foundation-storage
+          git rebase origin/refactor/system-boundaries-foundation-storage
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
