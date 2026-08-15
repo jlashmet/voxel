@@ -183,6 +183,17 @@ namespace VoxelEngine.Tests.EditMode
 
         private sealed class RecordingApplier : IAlterationApplier
         {
+            public bool Supports(in AlterationEvent evt) => true;
+            public bool HasRequiredResidency(IRegionMutationStore storage, in AlterationEvent evt) => true;
+            public bool HasRequiredResidencyExcept(
+                IRegionMutationStore storage, in AlterationEvent evt, int3 excludedRegion) => true;
+            public bool TryApplyExceptRegion(
+                IRegionMutationStore storage,
+                in AlterationEvent evt,
+                int3 excludedRegion,
+                out NativeList<int3> affectedBlocks) =>
+                TryApply(storage, in evt, out affectedBlocks);
+
             public int ApplyCount { get; private set; }
             public bool TryApply(IRegionMutationStore storage, in AlterationEvent evt, out NativeList<int3> affectedBlocks)
             {
