@@ -3,7 +3,8 @@
   "rootNamespace": "Game.Composition.WorldBuilderWorldGen",
   "references": [
     "Game.WorldBuilder.Api",
-    "MountingForce.WorldGen.Core"
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Architecture"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
