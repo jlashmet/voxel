@@ -5,8 +5,10 @@ namespace VoxelEngine.Storage.Api
     /// <summary>
     /// Block-granular authoritative mutation capability.
     ///
-    /// Callers choose edit geometry and deterministic voxel order. Storage owns region lookup,
-    /// mixed-block materialisation, allocation/free, rollback, uniform collapse and region commit.
+    /// Callers choose edit/authoring geometry and deterministic voxel order. Storage owns region
+    /// lookup, mixed-block materialisation, allocation/free, rollback, uniform collapse and region
+    /// commit. Hot loops mutate the borrowed block view directly rather than dispatching through an
+    /// interface per voxel.
     /// </summary>
     public interface IRegionMutationStore
     {
@@ -19,10 +21,10 @@ namespace VoxelEngine.Storage.Api
         bool SetWholeBlock(int3 worldBlock, byte material, bool markHardSurface);
 
         /// <summary>
-        /// Begins a partial mutation of one logical 8^3 block. The returned view is borrowed and
-        /// valid only until <see cref="CompletePartialBlock"/>. Returns false when the region is
-        /// unavailable. A created=false view is valid when the requested material is already the
-        /// block's uniform material; MetadataChanged may still require completion/commit.
+        /// Begins a material-oriented partial mutation of one logical 8^3 block. The returned view
+        /// is borrowed and valid only until <see cref="CompletePartialBlock"/>. Returns false when
+        /// the region is unavailable. A created=false view is valid when the requested material is
+        /// already the block's uniform material; MetadataChanged may still require completion.
         /// </summary>
         bool TryBeginPartialBlock(
             int3 worldBlock,
@@ -31,10 +33,21 @@ namespace VoxelEngine.Storage.Api
             out VoxelBlockMutation mutation);
 
         /// <summary>
-        /// Finalises a partial mutation. Storage rolls back unused materialisation, collapses a
-        /// newly uniform block, frees physical storage as needed, and commits semantic metadata.
-        /// Returns true when authoritative block state changed.
+        /// Begins a complete logical-cell mutation for one block. Uniform storage is materialised
+        /// so the caller may author material, surface semantics and boundary samples directly.
+        /// Unused materialisation is rolled back by <see cref="CompletePartialBlock"/>.
         /// </summary>
-        bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool materialChanged);
+        bool TryBeginCellBlock(
+            int3 worldBlock,
+            bool markHardSurface,
+            out VoxelBlockMutation mutation);
+
+        /// <summary>
+        /// Finalises a borrowed block mutation. Storage rolls back unused materialisation,
+        /// collapses a newly uniform block when no authored semantic payload remains, frees physical
+        /// storage as needed, and commits semantic metadata. Returns true when authoritative block
+        /// state changed.
+        /// </summary>
+        bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool payloadChanged);
     }
 }
