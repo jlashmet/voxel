@@ -1,5 +1,5 @@
 using System;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Client
@@ -18,15 +18,13 @@ namespace VoxelEngine.Net.Client
     {
         public static bool TryApply(
             ReadOnlySpan<byte> packet,
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore storage,
             out bool anyChanged) =>
-            TryApply(packet, ref table, ref pool, out anyChanged, null);
+            TryApply(packet, storage, out anyChanged, null);
 
         public static bool TryApply(
             ReadOnlySpan<byte> packet,
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionMutationStore storage,
             out bool anyChanged,
             IClientEventNotificationSink notifications)
         {
@@ -39,8 +37,7 @@ namespace VoxelEngine.Net.Client
                 case ProtocolMessageKind.S_AlterationEventBatch:
                     return AlterationBatchReceiver.TryApply(
                         packet.Slice(payloadOffset),
-                        ref table,
-                        ref pool,
+                        storage,
                         out anyChanged);
 
                 case ProtocolMessageKind.S_AlterationRejected:
