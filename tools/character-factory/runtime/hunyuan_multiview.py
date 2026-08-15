@@ -12,14 +12,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--left")
     parser.add_argument("--right")
     parser.add_argument("--output", required=True)
-    parser.add_argument("--model", default="tencent/Hunyuan3D-2mv")
-    parser.add_argument("--subfolder", default="hunyuan3d-dit-v2-mv")
+    parser.add_argument("--model", default="tencent/Hunyuan3D-2mini")
+    parser.add_argument("--subfolder", default="hunyuan3d-dit-v2-mini-turbo")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, default=12345)
-    parser.add_argument("--steps", type=int, default=50)
-    parser.add_argument("--octree-resolution", type=int, default=380)
+    parser.add_argument("--steps", type=int, default=5)
+    parser.add_argument("--octree-resolution", type=int, default=64)
     parser.add_argument("--num-chunks", type=int, default=20000)
     parser.add_argument("--remove-background", action="store_true")
+    parser.add_argument("--enable-flashvdm", action="store_true")
     return parser.parse_args()
 
 
@@ -31,6 +32,11 @@ def resolve_device(torch, requested: str) -> str:
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return "mps"
     return "cpu"
+
+
+def is_multiview_model(model: str, subfolder: str) -> bool:
+    probe = f"{model} {subfolder}".lower()
+    return "hunyuan3d-2mv" in probe or "-v2-mv" in probe
 
 
 def main() -> int:
@@ -54,11 +60,16 @@ def main() -> int:
             image = remover(image)
         images[name] = image
 
-    # Hunyuan's single-view models expect one PIL image while Hunyuan3D-2mv
-    # expects the keyed view dictionary. Supporting both keeps the production
-    # multiview path while allowing CI to use the much smaller mini model for a
-    # real, fast end-to-end generation smoke test.
-    image_input = images["front"] if len(images) == 1 else images
+    if is_multiview_model(args.model, args.subfolder):
+        image_input = images
+    else:
+        image_input = images["front"]
+        ignored = [name for name in ("back", "left", "right") if name in images]
+        if ignored:
+            print(
+                "single-view generator: ignoring supplemental views " + ",".join(ignored),
+                flush=True,
+            )
 
     print(
         f"loading model={args.model} subfolder={args.subfolder} device={device} "
@@ -69,8 +80,16 @@ def main() -> int:
         args.model,
         subfolder=args.subfolder,
         variant="fp16",
+        use_safetensors=True,
         device=device,
     )
+
+    if args.enable_flashvdm:
+        # Tencent's implementation explicitly selects marching cubes on CPU/MPS.
+        device_type = str(device).split(":", 1)[0]
+        mc_algo = "mc" if device_type in {"cpu", "mps"} else "mc"
+        print(f"enabling FlashVDM mc_algo={mc_algo}", flush=True)
+        pipeline.enable_flashvdm(mc_algo=mc_algo)
 
     print(
         f"generating steps={args.steps} octree={args.octree_resolution} chunks={args.num_chunks}",

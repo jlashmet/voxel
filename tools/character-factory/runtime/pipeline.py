@@ -45,6 +45,14 @@ class CharacterFactoryRuntime:
             "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
             "output": str(result.output),
             "rawMesh": str(result.raw_mesh),
+            "generator": {
+                "preset": spec.generator.preset,
+                "model": spec.generator.model,
+                "subfolder": spec.generator.subfolder,
+                "steps": spec.generator.steps,
+                "octreeResolution": spec.generator.octree_resolution,
+                "enableFlashVdm": spec.generator.enable_flashvdm,
+            },
             "runtimePart": result.runtime_metadata,
             "commands": {
                 "generator": result.generator_command,

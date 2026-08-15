@@ -18,6 +18,29 @@ class AssetType(str, Enum):
     ACCESSORY = "accessory"
 
 
+GENERATOR_PRESETS: dict[str, dict[str, object]] = {
+    # Deliberately low-quality/low-resolution: prove the complete pipeline as fast as possible.
+    # Hunyuan's Turbo model is step-distilled and FlashVDM accelerates mesh decoding.
+    "smoke": {
+        "model": "tencent/Hunyuan3D-2mini",
+        "subfolder": "hunyuan3d-dit-v2-mini-turbo",
+        "steps": 5,
+        "octreeResolution": 64,
+        "numChunks": 20000,
+        "enableFlashVdm": True,
+    },
+    # Higher-quality future default. It consumes all supplied views and avoids smoke-test shortcuts.
+    "quality": {
+        "model": "tencent/Hunyuan3D-2mv",
+        "subfolder": "hunyuan3d-dit-v2-mv",
+        "steps": 50,
+        "octreeResolution": 380,
+        "numChunks": 20000,
+        "enableFlashVdm": False,
+    },
+}
+
+
 @dataclass(frozen=True)
 class ViewSet:
     front: Path
@@ -64,14 +87,16 @@ class ViewSet:
 @dataclass(frozen=True)
 class GeneratorConfig:
     python: str
-    model: str = "tencent/Hunyuan3D-2mv"
-    subfolder: str = "hunyuan3d-dit-v2-mv"
+    preset: str = "smoke"
+    model: str = "tencent/Hunyuan3D-2mini"
+    subfolder: str = "hunyuan3d-dit-v2-mini-turbo"
     device: str = "auto"
     seed: int = 12345
-    steps: int = 50
-    octree_resolution: int = 380
+    steps: int = 5
+    octree_resolution: int = 64
     num_chunks: int = 20000
     remove_background: bool = False
+    enable_flashvdm: bool = True
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> "GeneratorConfig":
@@ -81,16 +106,29 @@ class GeneratorConfig:
                 "generator.python is required and should point at the Python executable "
                 "inside the local Hunyuan3D environment"
             )
+
+        preset = str(data.get("preset", "smoke")).strip().lower()
+        defaults = GENERATOR_PRESETS.get(preset)
+        if defaults is None:
+            allowed = ", ".join(sorted(GENERATOR_PRESETS))
+            raise CharacterFactoryError(f"generator.preset must be one of: {allowed}")
+
         return GeneratorConfig(
             python=str(python_executable),
-            model=str(data.get("model", "tencent/Hunyuan3D-2mv")),
-            subfolder=str(data.get("subfolder", "hunyuan3d-dit-v2-mv")),
+            preset=preset,
+            model=str(data.get("model", defaults["model"])),
+            subfolder=str(data.get("subfolder", defaults["subfolder"])),
             device=str(data.get("device", "auto")),
             seed=int(data.get("seed", 12345)),
-            steps=int(data.get("steps", 50)),
-            octree_resolution=int(data.get("octreeResolution", 380)),
-            num_chunks=int(data.get("numChunks", 20000)),
+            steps=int(data.get("steps", defaults["steps"])),
+            octree_resolution=int(
+                data.get("octreeResolution", defaults["octreeResolution"])
+            ),
+            num_chunks=int(data.get("numChunks", defaults["numChunks"])),
             remove_background=bool(data.get("removeBackground", False)),
+            enable_flashvdm=bool(
+                data.get("enableFlashVdm", defaults["enableFlashVdm"])
+            ),
         )
 
 

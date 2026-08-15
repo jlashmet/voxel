@@ -84,6 +84,8 @@ class AssetPipeline(ABC):
 
         if cfg.remove_background:
             command.append("--remove-background")
+        if cfg.enable_flashvdm:
+            command.append("--enable-flashvdm")
         return command
 
     @abstractmethod

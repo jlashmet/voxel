@@ -36,39 +36,68 @@ There is intentionally no generic `wearable` pipeline. The category is part of t
 we can evolve character fitting, garment fitting, weapon grip/origin processing, and accessory mount
 processing independently.
 
+## Generator presets
+
+For now the factory defaults to the **`smoke`** preset so we can prove every downstream stage quickly:
+
+```text
+smoke
+  tencent/Hunyuan3D-2mini
+  hunyuan3d-dit-v2-mini-turbo
+  FlashVDM enabled
+  5 diffusion steps
+  octree resolution 64
+```
+
+This is intentionally not a quality setting. The Turbo checkpoint is step-distilled and the
+FlashVDM decoder is enabled. Because it is a single-view model, the generator uses the front image
+and ignores supplemental back/left/right views during smoke runs.
+
+A later model swap is configuration-only:
+
+```json
+"generator": {
+  "python": "/path/to/hunyuan/bin/python",
+  "preset": "quality"
+}
+```
+
+`quality` currently resolves to the standard Hunyuan3D-2mv multiview model at 50 steps / octree 380.
+The character/clothing/weapon/accessory pipeline classes do not change when the generator preset
+changes.
+
 ## Pipeline behavior
 
-All four pipelines share only the low-level multiview mesh-generation adapter. The post-processing
-path is different by asset class:
+All four pipelines share only the low-level image-to-mesh adapter. The post-processing path remains
+different by asset class:
 
 ```text
 character
-  4 views -> Hunyuan3D-2mv -> generated body GLB
-          -> Blender character pass
-          -> transfer canonical body weights / canonical armature
-          -> character FBX
+  image(s) -> generator -> generated body GLB
+           -> Blender character pass
+           -> transfer canonical body weights / canonical armature
+           -> character FBX
 
 clothing
-  4 views -> Hunyuan3D-2mv -> garment GLB
-          -> Blender clothing pass
-          -> transfer canonical body weights / canonical armature
-          -> independent clothing FBX
+  image(s) -> generator -> garment GLB
+           -> Blender clothing pass
+           -> transfer canonical body weights / canonical armature
+           -> independent clothing FBX
 
 weapon
-  views -> Hunyuan3D-2mv -> rigid GLB
-        -> Blender rigid weapon pass
-        -> weapon FBX + hand/socket metadata
+  image(s) -> generator -> rigid GLB
+           -> Blender rigid weapon pass
+           -> weapon FBX + hand/socket metadata
 
 accessory
-  views -> Hunyuan3D-2mv -> rigid GLB
-        -> Blender rigid accessory pass
-        -> accessory FBX + bone/socket metadata
+  image(s) -> generator -> rigid GLB
+           -> Blender rigid accessory pass
+           -> accessory FBX + bone/socket metadata
 ```
 
-The manifest records the exact pipeline, output FBX, generator/prepare commands, and runtime-part
-metadata. Clothing is marked `SkinnedToCharacterSkeleton`; weapons/accessories are marked
-`BoneSocket`. Those outputs map to Runtime `CharacterPartAsset` definitions rather than one generic
-wearable type.
+The manifest records the selected generator preset/model plus the exact pipeline, output FBX,
+generator/prepare commands, and runtime-part metadata. Clothing is marked
+`SkinnedToCharacterSkeleton`; weapons/accessories are marked `BoneSocket`.
 
 ## Current limitations
 
@@ -76,8 +105,7 @@ The character and clothing passes currently automate canonical weight transfer, 
 fitting. Generated meshes must already be reasonably aligned to the canonical body. Automatic body
 conforming, loose-garment-aware fitting, collision/poke-through correction, body-region hiding, LODs,
 weapon grip inference, accessory mount inference, and automatic Unity prefab/`CharacterPartAsset`
-creation are subsequent stages. Keeping the pipelines separate means those algorithms can be added
-without turning one generic postprocessor into a pile of category conditionals.
+creation are subsequent stages.
 
 Accessories are currently rigid/socket-mounted. Skinned hair/capes should use the clothing pipeline
 until a dedicated skinned-accessory mode is implemented.
