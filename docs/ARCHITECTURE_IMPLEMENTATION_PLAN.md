@@ -24,7 +24,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; deterministic `TerrainQuery` extracted to `Terrain.Api`; old Core sampler deleted; direct sampling callers migrated; byte/value parity accepted | move `TerrainGenerator` into Terrain.Runtime and finish the final Terrain namespace/asmdef cutover |
 | 4 — Structures | **Complete** | `Structures.Api` owns canonical authoring/material/layout contracts; all implementation (feature VM/generation/rasterizer/emitters, retained-profile store, CastleBuilder, VoxelBrush, MasonryWeathering) lives under `Structures/Runtime` with Runtime namespaces and preserved Unity GUIDs; Storage dependencies route through Storage.Api; Rendering uses the retained-profile read boundary; WorldGen Voxel is Api-only; broad Structures assembly, legacy `VoxelEngine.Core.Features` namespace, and Kentridge compatibility seam are gone | none |
 | 5 — Edits | **Complete** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; all edit implementation lives under `Edits/Runtime` with Runtime namespace and preserved Unity GUIDs; Net protocol/client/server/validation consume Api only; dead `DensityCap`, redundant Net wrapper, and `VoxelEngine.Core.Edits` are gone; Storage boundaries/parity accepted | none |
-| 6 — StructuralIntegrity | **In progress — current** | dead Net `StructuralGraph` removed; StructuralIntegrity.Api/Runtime assemblies created; `SupportField` and `CollapseDetection` moved to Runtime with preserved Unity GUIDs and Storage.Api-only reads; parity preserved | move `Connectivity` behind Storage.Api; expose only result/request values required by real consumers; finish network-facing Api wiring if a real consumer exists |
+| 6 — StructuralIntegrity | **In progress — current** | dead Net `StructuralGraph` removed; StructuralIntegrity.Api/Runtime assemblies created; `SupportField`, `CollapseDetection`, and `Connectivity` all live in Runtime with preserved Unity GUIDs and Storage.Api-only reads; `Core/Structure` is gone; parity preserved | finish final real-consumer inventory; expose only structural Api result/request values actually required; confirm any network-facing structural behavior is Api-only |
 | 7 — Tiering | **Not started** | — | full cutover |
 | 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
 | 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `dbaa43648cb47008a55f27bbd692157e752cd8be` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted StructuralIntegrity support/collapse slice: StructuralIntegrity.Api/Runtime assemblies exist; `SupportField` and `CollapseDetection` are physically under Runtime with their Unity GUIDs preserved; both read through Storage.Api logical region views; the old Core copies are deleted; StructuralIntegrity.Runtime has no Net dependency.
+- Latest accepted code gate: `c07ef2f318a015f7e5dc1952eeeb82d16fd81612` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted StructuralIntegrity algorithm cutover: `SupportField`, `CollapseDetection`, and `Connectivity` are physically under StructuralIntegrity.Runtime with their Unity GUIDs preserved; all read through Storage.Api logical region views; `Core/Structure` no longer exists; StructuralIntegrity.Runtime has no Net dependency.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -863,13 +863,14 @@ StructuralIntegrity does not depend on Net. Net does not own the structural grap
 - [x] Dead StructuralGraph removal accepted by CI at `50df9bd2b0769905727dad63f167d5f604319b4c`: 382 total / 369 passed / exact same 13 known baseline failures.
 - [x] StructuralIntegrity.Api/Runtime assemblies created; `SupportField` and `CollapseDetection` moved to Runtime with their original Unity GUIDs, rewritten to consume Storage.Api `IRegionReadSource`/`RegionReadView`, and old Core copies deleted.
 - [x] Structural support/collapse Runtime slice accepted by CI at `dbaa43648cb47008a55f27bbd692157e752cd8be`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [ ] `Connectivity` still remains under `Core/Structure`; the combined algorithm-move task stays open until it is moved and gated.
+- [x] `Connectivity` moved to StructuralIntegrity.Runtime with its original Unity GUID; deterministic 6-neighbor component analysis now consumes Storage.Api `IRegionReadSource`/`RegionReadView`, and the old Core copy is deleted.
+- [x] Connectivity/final algorithm-move slice accepted by CI at `c07ef2f318a015f7e5dc1952eeeb82d16fd81612`: 382 total / 369 passed / exact same 13 known baseline failures; `Core/Structure` is gone.
 
 ### Gate
 
 - [x] `StructuralGraph` no longer lives in Net;
 - [x] StructuralIntegrity.Runtime has no Net dependency;
-- [ ] collapse/connectivity/support tests pass;
+- [x] collapse/connectivity/support tests pass;
 - [ ] network structural behavior consumes StructuralIntegrity.Api only.
 
 ---
@@ -1595,7 +1596,7 @@ At the end, generate an asmdef dependency report and verify:
 ### 6. StructuralIntegrity
 
 - [x] create Api/Runtime
-- [ ] move collapse/connectivity/support algorithms
+- [x] move collapse/connectivity/support algorithms
 - [x] move StructuralGraph out of Net
 - [ ] expose structural result domain values
 - [ ] route resulting voxel changes through Edits
