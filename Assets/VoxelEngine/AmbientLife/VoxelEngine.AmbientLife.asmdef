@@ -1,0 +1,14 @@
+{
+  "name": "VoxelEngine.AmbientLife",
+  "rootNamespace": "VoxelEngine.Core.AmbientLife",
+  "references": ["Unity.Mathematics"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "noEngineReferences": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": []
+}
