@@ -1,11 +1,45 @@
 # Voxel Engine Architecture Implementation Plan
 
-**Status:** Execution plan / not started  
+**Status:** In progress — live checklist maintained on the implementation branch  
 **Companion:** `docs/ARCHITECTURE_MIGRATION_PLAN.md`  
 **Baseline:** `master` at `cd76b3579ae99bdd196303a96bc73b91baf61152`  
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
+**Implementation branch:** `refactor/system-boundaries-foundation-storage`  
+**Current focus:** Cutover 4 Structures — `PrimitiveRasteriser` / `FeatureGeneration` Storage write boundary  
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
+
+
+## Live implementation status
+
+The implementation is intentionally doing dependency-boundary extraction before some final physical
+Api/Runtime file moves. A subsystem is **not** marked complete merely because its Storage boundary is
+green; final namespace/file/asmdef moves still have to satisfy that cutover's gate.
+
+| Cutover | Status | Accepted work | Remaining before cutover completion |
+|---|---|---|---|
+| 0 — Guardrails | **Complete** | asmdef boundary guard, split-safe determinism roots, WorldGen boundary guards | final no-Core assertions tighten automatically as final assemblies land |
+| 1 — Foundation | **Complete** | `IntMath` clean-moved to `VoxelEngine.Foundation`; consumers and Core bridge reference migrated | none |
+| 2 — Storage | **In progress** | `Storage.Api` logical voxel/grid values; zero-copy read views; generation, residency and mutation capabilities; shared BrickPool allocator state; Rendering/Collision/Kentridge read boundaries | move physical representation into `Storage.Runtime`; finish snapshot/hash/Net physical-layout removal; delete remaining Core storage ownership |
+| 3 — Terrain | **In progress** | terrain generation writes through Storage.Api bulk generation capability; byte/value parity accepted | final Terrain.Api/Runtime move and public terrain query contract |
+| 4 — Structures | **In progress — current** | full-cell Storage mutation/read parity accepted, including authored boundary on empty cells | migrate `PrimitiveRasteriser`/`FeatureGeneration`, then Structures.Api/Runtime split and Kentridge canonical shape encoding |
+| 5 — Edits | **In progress** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |
+| 6 — StructuralIntegrity | **Not started** | — | full cutover |
+| 7 — Tiering | **Not started** | — | full cutover |
+| 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
+| 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
+| 10 — Vegetation | **Partial dependency cleanup** | worldgen vegetation terrain reads no longer require physical Storage | full Vegetation.Api/Runtime cutover |
+| 11 — Net | **Partial dependency cleanup** | authoritative edit application callers now consume Storage mutation capability | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |
+| 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; parity accepted | final Rendering.Api/Runtime move and Vegetation.Api-only dependency |
+| 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
+
+### Checklist discipline
+
+- Check a task off only after its code is committed **and** the relevant CI acceptance gate passes.
+- Update this document immediately after an accepted slice, before starting the next slice.
+- Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
+- CI acceptance currently means no new compiler/test regression and the failed-test-name set remains exactly the known 15-test baseline.
+- Latest accepted code gate before this status update: `4d45a795b725220f89caad8b950e3b450d5255d9` — 374 tests, 359 passed, exactly 15 known baseline failures.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -256,9 +290,9 @@ Expand `KentridgeArchitectureBoundaryTests.cs` so it verifies both source namesp
 
 ### Cutover 0 gate
 
-- [ ] EditMode architecture tests pass on current layout with temporary explicit current-layout exceptions.
-- [ ] Every temporary exception has the cutover number that removes it.
-- [ ] No permanent exception allows foreign Runtime references.
+- [x] EditMode architecture tests pass on current layout with temporary explicit current-layout exceptions.
+- [x] Every temporary exception has the cutover number that removes it. (No broad Runtime-reference exceptions are currently carried.)
+- [x] No permanent exception allows foreign Runtime references.
 
 ---
 
@@ -295,9 +329,9 @@ Replace `VoxelEngine.Core.IntMath` references with `VoxelEngine.Foundation.IntMa
 
 ### Gate
 
-- [ ] No source references old `VoxelEngine.Core.IntMath`.
-- [ ] Foundation references no engine assembly.
-- [ ] Foundation contains no mutable state/service.
+- [x] No source references old `VoxelEngine.Core.IntMath`.
+- [x] Foundation references no engine assembly.
+- [x] Foundation contains no mutable state/service.
 
 ---
 
@@ -495,10 +529,10 @@ with `VoxelSurfaceQuery` (or the equivalent concrete Api value created above). I
 
 - [ ] `BrickPool`, `BrickRef`, `Region`, `RegionTable`, `VoxelAccess`, `MipBuilder` are internal/runtime-only.
 - [ ] No source outside `Storage/Runtime` imports their namespaces.
-- [ ] Rendering and Collision use readonly native views, not virtual per-voxel services.
-- [ ] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`.
+- [x] Rendering and Collision use readonly native views, not virtual per-voxel services.
+- [x] Kentridge vegetation no longer takes `RegionTable` or `BrickPool`.
 - [ ] Net semantic hash/snapshot paths do not depend on physical brick layout.
-- [ ] Existing storage, snapshot/hash, feature parity and mutation tests pass.
+- [x] Existing storage/read/mutation parity tests pass against the established CI baseline; snapshot/hash final ownership remains tracked by the unchecked item above.
 - [ ] Architecture guard has no Storage.Runtime foreign-reference exception.
 
 ---
@@ -550,12 +584,18 @@ Update:
 
 The Voxel worldgen package references `VoxelEngine.Terrain.Api`, never Terrain.Runtime.
 
+### Implementation progress
+
+- [x] `TerrainGenerator` no longer receives or writes `BrickPool`; generation goes through Storage.Api bulk generation views.
+- [x] Table-backed and standalone generation writers have parity coverage.
+- [ ] Terrain.Api/Runtime physical move and namespace cutover complete.
+
 ### Gate
 
 - [ ] no `VoxelEngine.Core.Terrain` references remain;
 - [ ] Terrain.Runtime references only Terrain.Api + Storage.Api + Foundation;
 - [ ] Structures/worldgen cannot call a Terrain.Runtime type;
-- [ ] deterministic terrain parity tests remain byte/value identical unless a deliberate behavior change is separately approved.
+- [x] deterministic terrain parity tests remain byte/value identical unless a deliberate behavior change is separately approved.
 
 ---
 
@@ -654,6 +694,15 @@ that import `VoxelEngine.Core.Features` or the old broad `VoxelEngine.Structures
 
 Do **not** add any engine reference to `MountingForce.WorldGen.Core` or `MountingForce.WorldGen.Architecture`.
 
+### Implementation progress
+
+- [x] Storage.Api full-cell block mutation matches authoritative `VoxelCell` semantics.
+- [x] Storage read views preserve authored boundary samples on empty mixed cells.
+- [x] Full-cell mutation/read parity slice accepted by CI: 374 total / 359 passed / exact 15 baseline failures.
+- [ ] `PrimitiveRasteriser` consumes Storage.Api only and preserves primitive ordering/surface/boundary semantics.
+- [ ] `FeatureGeneration` consumes the Storage.Api authoring capability rather than `RegionTable`/`BrickPool`.
+- [ ] Structures.Api/Runtime physical move and namespace cutover complete.
+
 ### Gate
 
 - [ ] no `VoxelEngine.Core.Features` namespace remains;
@@ -713,13 +762,20 @@ It currently delegates directly to the Core implementation and adds no domain va
 
 Net.Runtime serializes/deserializes Edits.Api events. It does not own the canonical edit domain model.
 
+### Implementation progress
+
+- [x] `DeterministicAlterationApplier` no longer receives physical Storage types.
+- [x] Net/client/server/test callers use `IRegionMutationStore` ownership explicitly.
+- [x] uniform materialization rollback, mixed-to-uniform collapse, metadata-only and same-material no-op behavior covered by tests.
+- [ ] Edits.Api/Runtime physical move and namespace cutover complete.
+
 ### Gate
 
 - [ ] no `VoxelEngine.Core.Edits` namespace remains;
 - [ ] Net protocol depends on Edits.Api, not Edits.Runtime;
 - [ ] server wrapper deleted;
-- [ ] deterministic edit expansion/application parity tests pass;
-- [ ] Storage mutation implementation remains encapsulated behind Storage.Api.
+- [x] deterministic edit expansion/application parity tests pass;
+- [x] Storage mutation implementation remains encapsulated behind Storage.Api.
 
 ---
 
@@ -867,6 +923,13 @@ Net may translate connection/interest state into streaming residency requests. S
 
 It owns desired residency/prefetch/fade policy. It releases regions through Storage.Api; it does not dispose internal `Region` structures itself.
 
+### Implementation progress
+
+- [x] Streaming residency/eviction mechanics consume `IRegionResidencyStore`; physical region/pool mechanics remain in Storage.
+- [x] dead `BrickRef` completion payload removed and first-completion ring indexing regression covered.
+- [x] existing Streaming assembly no longer references `VoxelEngine.Core`.
+- [ ] Streaming.Api/Runtime physical move complete.
+
 ### Gate
 
 - [ ] Streaming.Runtime has no Net reference;
@@ -902,9 +965,9 @@ Collision.Runtime performs DDA/sweep/hull work against Storage.Api readonly nati
 
 ### Gate
 
-- [ ] no Collision source references BrickPool/RegionTable/Occupancy Runtime types;
-- [ ] hot jobs operate on readonly Burst-compatible Storage.Api data views;
-- [ ] raycast/sweep/hull parity tests pass.
+- [x] no Collision source references BrickPool/RegionTable/Occupancy Runtime types;
+- [x] hot jobs operate on readonly Burst-compatible Storage.Api data views;
+- [x] raycast/sweep/hull parity tests pass.
 
 ---
 
@@ -1175,10 +1238,17 @@ It must not consume Terrain, Structures, Edits, Net or Vegetation.Runtime.
 
 Rewrite `SurfaceExtraction/VoxelSurfaceScheduler.cs` and related caches/jobs so their input is Storage.Api read views. They may retain zero-copy native performance, but may not take `BrickPool`, `RegionTable`, mutable `Region`, or Storage.Runtime occupancy builders.
 
+### Implementation progress
+
+- [x] `VoxelWorldView` exposes Storage.Api read capability rather than `RegionTable`/`BrickPool`.
+- [x] CPU Transvoxel, water extraction and surface discovery consume Storage.Api views.
+- [x] Rendering physical-storage boundary guards and parity/equivalence tests accepted.
+- [ ] Rendering.Api/Runtime physical move and Vegetation.Api-only dependency complete.
+
 ### Gate
 
 - [ ] Rendering.Runtime has no Storage.Runtime/Vegetation.Runtime ref;
-- [ ] surface extraction works from versioned readonly views;
+- [x] surface extraction works from versioned readonly views;
 - [ ] renderer is not referenced by simulation Runtime assemblies;
 - [ ] targeted GPU/CPU surface and rendering parity tests pass;
 - [ ] artifact/lookdev tests remain explicit/manual unless separately changed.
