@@ -1,0 +1,14 @@
+{
+  "name": "VoxelEngine.Characters.Api",
+  "rootNamespace": "VoxelEngine.Characters.Api",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

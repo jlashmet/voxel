@@ -45,6 +45,9 @@ crashlytics-build.properties
 Spikes/**/Captures/
 Server/Soak/results/
 
+# Character factory generated meshes/manifests
+tools/character-factory/build/
+
 # OS
 .DS_Store
 Thumbs.db
