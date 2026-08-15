@@ -25,18 +25,37 @@ namespace Game.WorldBuilder.Api
         SecretCandidateHost = 5
     }
 
+    public enum SiteCapabilitySource
+    {
+        Authored = 0,
+        Derived = 1
+    }
+
     public readonly struct SiteCapabilityRequirement
     {
         public SiteCapabilityKind Kind { get; }
         public int MinimumCapacity { get; }
+        public SiteCapabilitySource Source { get; }
 
         public SiteCapabilityRequirement(SiteCapabilityKind kind, int minimumCapacity = 1)
+            : this(kind, minimumCapacity, SiteCapabilitySource.Authored)
+        {
+        }
+
+        internal SiteCapabilityRequirement(
+            SiteCapabilityKind kind,
+            int minimumCapacity,
+            SiteCapabilitySource source)
         {
             if (minimumCapacity < 1)
                 throw new ArgumentOutOfRangeException(nameof(minimumCapacity));
             Kind = kind;
             MinimumCapacity = minimumCapacity;
+            Source = source;
         }
+
+        internal SiteCapabilityRequirement AsDerived() =>
+            new SiteCapabilityRequirement(Kind, MinimumCapacity, SiteCapabilitySource.Derived);
     }
 
     public static class SiteCapability
