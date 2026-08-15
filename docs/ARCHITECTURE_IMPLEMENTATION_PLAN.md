@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 7 Tiering — Api-only ownership cutover
+**Current focus:** Cutover 8 Streaming — final Api/Runtime ownership cutover
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -25,8 +25,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 4 — Structures | **Complete** | `Structures.Api` owns canonical authoring/material/layout contracts; all implementation (feature VM/generation/rasterizer/emitters, retained-profile store, CastleBuilder, VoxelBrush, MasonryWeathering) lives under `Structures/Runtime` with Runtime namespaces and preserved Unity GUIDs; Storage dependencies route through Storage.Api; Rendering uses the retained-profile read boundary; WorldGen Voxel is Api-only; broad Structures assembly, legacy `VoxelEngine.Core.Features` namespace, and Kentridge compatibility seam are gone | none |
 | 5 — Edits | **Complete** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; all edit implementation lives under `Edits/Runtime` with Runtime namespace and preserved Unity GUIDs; Net protocol/client/server/validation consume Api only; dead `DensityCap`, redundant Net wrapper, and `VoxelEngine.Core.Edits` are gone; Storage boundaries/parity accepted | none |
 | 6 — StructuralIntegrity | **Complete** | dead Net `StructuralGraph` removed; StructuralIntegrity.Api/Runtime assemblies created; `SupportField`, `CollapseDetection`, and `Connectivity` all live in Runtime with preserved Unity GUIDs and Storage.Api-only reads; `Core/Structure` is gone; final inventory found no production/network structural consumer, so Api remains intentionally empty rather than inventing DTOs; parity accepted | none |
-| 7 — Tiering | **Not started — current** | — | full cutover |
-| 8 — Streaming | **In progress** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
+| 7 — Tiering | **Complete** | `DeviceTier`/`DeviceTierBudget` live under `Tiering/Api` with preserved Unity GUIDs; broad Tiering assembly replaced by dependency-free `VoxelEngine.Tiering.Api`; Streaming, Rendering, Showcase and tests consume Api; no Tiering.Runtime exists; parity accepted | none |
+| 8 — Streaming | **In progress — current** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |
 | 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
 | 10 — Vegetation | **Partial dependency cleanup** | Kentridge top-surface reads use Storage.Api and terrain sampling uses Terrain.Api | full Vegetation.Api/Runtime cutover |
 | 11 — Net | **Partial dependency cleanup** | authoritative edit application callers now consume Storage mutation capability | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `c07ef2f318a015f7e5dc1952eeeb82d16fd81612` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted StructuralIntegrity algorithm cutover: `SupportField`, `CollapseDetection`, and `Connectivity` are physically under StructuralIntegrity.Runtime with their Unity GUIDs preserved; all read through Storage.Api logical region views; `Core/Structure` no longer exists; StructuralIntegrity.Runtime has no Net dependency.
+- Latest accepted code gate: `a0e123454878c81b9a0f2a03db2d2c9f7e1cf89e` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Cutover 7 Tiering: `DeviceTier`/`DeviceTierBudget` are physically under `Tiering/Api` with their Unity GUIDs preserved; `VoxelEngine.Tiering.Api` has no engine references; the broad Tiering assembly is gone; Streaming, Rendering, Showcase and tests reference Tiering.Api; no Tiering.Runtime exists.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -890,11 +890,18 @@ Do not create Tiering.Runtime until there is actual stateful/runtime policy impl
 
 Update Streaming and Rendering to reference Tiering.Api only.
 
+### Implementation progress
+
+- [x] `DeviceTier` and `DeviceTierBudget` moved to `Tiering/Api` with the original script Unity GUID preserved and namespace changed to `VoxelEngine.Tiering.Api`.
+- [x] The broad `VoxelEngine.Tiering` asmdef was replaced by `VoxelEngine.Tiering.Api` with its asmdef Unity GUID preserved, no engine references, `allowUnsafeCode: false`, and `autoReferenced: false`; no Tiering.Runtime was created.
+- [x] Streaming, Rendering, Showcase, EditMode/Parity/PlayMode test assemblies and Tiering source consumers were migrated to Tiering.Api in the same cutover.
+- [x] Tiering Api cutover accepted by CI at `a0e123454878c81b9a0f2a03db2d2c9f7e1cf89e`: 382 total / 369 passed / exact same 13 known baseline failures.
+
 ### Gate
 
-- [ ] only Tiering.Api exists;
-- [ ] no Tiering assembly references Core;
-- [ ] device-tier tests compile/pass.
+- [x] only Tiering.Api exists;
+- [x] no Tiering assembly references Core;
+- [x] device-tier tests compile/pass.
 
 ---
 
@@ -1591,13 +1598,13 @@ At the end, generate an asmdef dependency report and verify:
 - [x] move collapse/connectivity/support algorithms
 - [x] move StructuralGraph out of Net
 - [x] resolve structural result-domain Api from real consumers — none exist today, so do not invent DTOs
-- [ ] route resulting voxel changes through Edits
+- [x] resolve resulting voxel-change routing — no production StructuralIntegrity application path exists today; any future structural mutation application must route through Edits.Api
 
 ### 7. Tiering
 
-- [ ] create Tiering.Api
-- [ ] move DeviceTierBudget
-- [ ] delete old Tiering asmdef
+- [x] create Tiering.Api
+- [x] move DeviceTierBudget
+- [x] delete old Tiering asmdef
 
 ### 8. Streaming
 
