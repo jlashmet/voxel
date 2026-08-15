@@ -1,5 +1,4 @@
 using System;
-using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
@@ -69,80 +68,49 @@ namespace VoxelEngine.Composition
         /// <summary>
         /// Executes the hero-arch lookdev authoring pass without exposing concrete structure
         /// feature definitions, profile storage, rasterizers, brushes, or weathering helpers to
-        /// scene code. Per-voxel work still executes directly inside Structures.Runtime.
+        /// scene code. Domain work stays in Structures.Runtime; Composition only wires capabilities.
         /// </summary>
         public static ArchLookdevBuildResult BuildArchLookdev(
             IVoxelStorageRuntime storage,
             in ArchLookdevBuildRequest request)
         {
-            if (storage == null) throw new ArgumentNullException(nameof(storage));
+            if (storage == null)
+                throw new ArgumentNullException(nameof(storage));
             if (request.BrushBudget <= 0)
                 throw new ArgumentOutOfRangeException(nameof(request.BrushBudget));
 
-            var profiles = new ProfileBlockStore();
-            var arch = new ArchFeatureDefinition
-            {
-                ClearSpan = request.ClearSpan,
-                PierHeight = request.PierHeight,
-                RingThickness = request.RingThickness,
-                Depth = request.Depth,
-                VoussoirCount = request.VoussoirCount,
-                JointRecessDepth = 1,
-                ProfileJointHalfWidthQ4 = (byte)request.ProfileJointHalfWidthQ4,
-                ProfileBevelQ4 = (byte)request.ProfileBevelQ4,
-                ProfileProjectionQ4 = (byte)request.ProfileProjectionQ4,
-                ProfileDepthQ4 = (byte)request.ProfileDepthQ4,
-                StoneMaterial = request.StoneMaterial,
-                PierStyle = request.SurfaceStyle,
-                RingStyle = request.SurfaceStyle,
-            };
-            var bay = new ArchBayFeatureDefinition
-            {
-                Arch = arch,
-                ShoulderWidth = request.ShoulderWidth,
-                TopMargin = request.TopMargin,
-                FaceRecess = request.FaceRecess,
-                PlinthHeight = request.PlinthHeight,
-                ImpostHeight = request.ImpostHeight,
-                Damage = (ArchRuinDamage)request.Damage,
-                DamageSeed = request.DamageSeed,
-                DamageScale = (byte)request.DamageScale,
-            };
-
-            int3 origin = new(-bay.Width / 2, 0, 0);
-            using (var primitives = new NativeList<Primitive>(
-                       bay.Metadata.MaxPrimitives,
-                       Allocator.Temp))
-            {
-                if (!bay.Emit(origin, primitives, profiles))
-                    throw new InvalidOperationException("Arch parameters did not emit.");
-
-                RasterResult result = PrimitiveRasteriser.Rasterise(
-                    primitives.AsArray(),
-                    origin,
-                    origin + bay.Metadata.Footprint,
-                    storage.Reads,
-                    storage.Mutations);
-                if (result.BudgetExceeded)
-                    throw new InvalidOperationException("Arch exceeded the feature budget.");
-            }
-
-            var brush = new VoxelBrush(
+            ArchBayAuthoringPipeline.Author(
                 storage.Reads,
                 storage.Mutations,
                 storage.MaterialAuthoring,
-                request.BrushBudget);
-            MasonryWeathering.CoatExposedSurfaces(
-                ref brush,
-                origin - 2,
-                bay.Metadata.Footprint + 4,
-                request.Coating,
+                request.ClearSpan,
+                request.PierHeight,
+                request.RingThickness,
+                request.Depth,
+                request.VoussoirCount,
+                request.ShoulderWidth,
+                request.TopMargin,
+                request.FaceRecess,
+                request.PlinthHeight,
+                request.ImpostHeight,
+                request.Damage,
+                request.DamageScale,
                 request.DamageSeed,
+                request.ProfileJointHalfWidthQ4,
+                request.ProfileBevelQ4,
+                request.ProfileProjectionQ4,
+                request.ProfileDepthQ4,
+                request.StoneMaterial,
+                request.SurfaceStyle,
+                request.Coating,
                 (byte)request.CoatingCoverage,
-                dripPasses: 0);
+                request.BrushBudget,
+                out IProfileBlockReadSource profiles,
+                out int width,
+                out int height);
 
             storage.PublishAllResidentRegions();
-            return new ArchLookdevBuildResult(profiles, bay.Width, bay.Height);
+            return new ArchLookdevBuildResult(profiles, width, height);
         }
     }
 }
