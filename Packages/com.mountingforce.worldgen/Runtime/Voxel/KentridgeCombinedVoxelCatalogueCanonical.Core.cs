@@ -52,7 +52,7 @@ namespace MountingForce.WorldGen.Voxel
                     parameters += stage.Parameters.Length;
                     anchors += stage.Anchors.Length;
                     slots += stage.Slots.Length;
-                    programs += KentridgeShapeProgramCompatibility.CanonicalLength(in stage);
+                    programs += stage.Program.Length;
                     materials += stage.Materials.Length;
                     placements += stage.ExplicitPlacements.Length;
                     overrides += stage.ParameterOverrides.Length;

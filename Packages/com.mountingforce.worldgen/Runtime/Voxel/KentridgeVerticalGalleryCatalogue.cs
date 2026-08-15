@@ -231,7 +231,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                    material, (int)PrimitiveMode.Fill);
+                    material, 0, 0, (int)PrimitiveMode.Fill);
             }
 
             public int[] Finish()

@@ -438,7 +438,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                    material, (int)mode);
+                    material, 0, 0, (int)mode);
             }
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz)
@@ -454,7 +454,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 if (sx <= 0 || sy <= 0 || sz <= 0) return;
                 Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
-                    (int)profile, material, (int)PrimitiveMode.Fill);
+                    (int)profile, material, 0, 0, (int)PrimitiveMode.Fill);
             }
 
             public int[] Finish()
