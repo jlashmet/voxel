@@ -1,0 +1,71 @@
+name: Net Runtime namespace cut
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'VoxelEngine.Net.Client': 'VoxelEngine.Net.Runtime.Client',
+              'VoxelEngine.Net.Interest': 'VoxelEngine.Net.Runtime.Interest',
+              'VoxelEngine.Net.Protocol': 'VoxelEngine.Net.Runtime.Protocol',
+              'VoxelEngine.Net.Server': 'VoxelEngine.Net.Runtime.Server',
+              'VoxelEngine.Net.Transport': 'VoxelEngine.Net.Runtime.Transport',
+          }
+
+          changed = []
+          for root in (Path('Assets'), Path('Packages')):
+              if not root.exists():
+                  continue
+              for path in root.rglob('*.cs'):
+                  text = path.read_text()
+                  new = text
+                  for old, replacement in replacements.items():
+                      new = new.replace(old, replacement)
+                  if new != text:
+                      path.write_text(new)
+                      changed.append(str(path))
+
+          if not changed:
+              raise SystemExit('No Net namespace references changed; branch may already be migrated.')
+
+          leftovers = []
+          for root in (Path('Assets'), Path('Packages')):
+              if not root.exists():
+                  continue
+              for path in root.rglob('*.cs'):
+                  text = path.read_text()
+                  for old in replacements:
+                      if old in text:
+                          leftovers.append(f'{path}: {old}')
+          if leftovers:
+              raise SystemExit('Legacy Net namespace references remain:\n' + '\n'.join(leftovers[:100]))
+
+          print(f'Updated {len(changed)} C# files')
+          for path in changed:
+              print(path)
+          PY
+          git rm .github/workflows/net-runtime-namespace-cut.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets Packages
+          git add -u .github/workflows/net-runtime-namespace-cut.yml
+          git commit -m 'refactor(net): normalize Runtime namespaces'
+          git push origin HEAD:${{ github.ref_name }}
