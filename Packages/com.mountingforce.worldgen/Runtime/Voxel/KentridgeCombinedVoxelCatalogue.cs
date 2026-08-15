@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MountingForce.WorldGen.Architecture;
 using Unity.Collections;
 using VoxelEngine.Core.Features;
 
@@ -13,8 +14,9 @@ namespace MountingForce.WorldGen.Voxel
             KentridgeCombinedVoxelCatalogueCanonical.Build(seed, settings, allocator);
 
         /// <summary>
-        /// Opt-in generation path used after a higher-level site solver has requested physical hidden
-        /// spaces. Existing callers remain unchanged and generate the exact legacy combined catalogue.
+        /// Convenience path for callers that still have semantic requests. Architecture realization is
+        /// deterministic, but higher-level campaign composition should prefer the geometry overload so
+        /// the exact hidden spaces used for gameplay selection are also the ones emitted as voxels.
         /// </summary>
         public static FeatureCatalogue Build(
             uint seed,
@@ -22,6 +24,21 @@ namespace MountingForce.WorldGen.Voxel
             IReadOnlyList<SiteHiddenSpaceRequest> hiddenSpaces,
             Allocator allocator) =>
             KentridgeCombinedVoxelCatalogueCanonical.BuildWithHiddenSpaces(
+                seed,
+                settings,
+                hiddenSpaces,
+                allocator);
+
+        /// <summary>
+        /// Emits the exact architecture-realized hidden spaces selected during campaign planning.
+        /// No WorldBuilder types cross this boundary; Voxel consumes only WorldGen Architecture data.
+        /// </summary>
+        public static FeatureCatalogue Build(
+            uint seed,
+            VoxelWorldGenSettings settings,
+            IReadOnlyList<KentridgeHiddenSpaceGeometry> hiddenSpaces,
+            Allocator allocator) =>
+            KentridgeCombinedVoxelCatalogueCanonical.BuildWithHiddenSpaceGeometry(
                 seed,
                 settings,
                 hiddenSpaces,
