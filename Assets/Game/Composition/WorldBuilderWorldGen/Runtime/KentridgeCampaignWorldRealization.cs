@@ -114,6 +114,7 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
             IReadOnlyList<ResolvedSecretPlan> secrets = SecretPlanner.ResolveCampaign(
                 blueprint,
                 graph,
+                sites,
                 secretCandidates,
                 settlement.Seed);
 
