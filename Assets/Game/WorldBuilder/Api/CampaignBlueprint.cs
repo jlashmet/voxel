@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Cutscenes.Api;
 
 namespace Game.WorldBuilder.Api
 {
@@ -62,12 +63,11 @@ namespace Game.WorldBuilder.Api
             for (var i = 0; i < sites.Length; i++)
             {
                 SiteSpec site = sites[i];
-                var capabilities = new List<SiteCapabilityRequirement>(site.Capabilities.Count + 3);
+                var capabilities = new List<SiteCapabilityRequirement>(site.Capabilities.Count + 6);
                 for (var j = 0; j < site.Capabilities.Count; j++)
                     capabilities.Add(site.Capabilities[j]);
 
-                if (RequiresCutsceneStage(site.Ref, cutscenes))
-                    AddDerivedCapabilityIfMissing(capabilities, SiteCapability.CutsceneStage);
+                DeriveCutsceneCapabilities(site.Ref, cutscenes, capabilities);
 
                 if (RequiresConversationSpace(site.Ref, npcs))
                     AddDerivedCapabilityIfMissing(capabilities, SiteCapability.ConversationSpace);
@@ -86,18 +86,51 @@ namespace Game.WorldBuilder.Api
             return result;
         }
 
-        private static bool RequiresCutsceneStage(
+        private static void DeriveCutsceneCapabilities(
             SiteRef site,
-            IReadOnlyList<CutsceneSpec> cutscenes)
+            IReadOnlyList<CutsceneSpec> cutscenes,
+            List<SiteCapabilityRequirement> capabilities)
         {
+            bool requiresStage = false;
+            bool requiresInterior = false;
+            bool requiresPublicExit = false;
+            bool requiresPlayerSpawn = false;
+
             for (var i = 0; i < cutscenes.Count; i++)
             {
                 CutsceneSpec cutscene = cutscenes[i];
-                if (cutscene.Site.Equals(site)
-                    && cutscene.Definition.StageRequirements.Count > 0)
-                    return true;
+                if (!cutscene.Site.Equals(site)) continue;
+
+                for (var j = 0; j < cutscene.Definition.StageRequirements.Count; j++)
+                {
+                    CutsceneStagePointRequirement requirement = cutscene.Definition.StageRequirements[j];
+                    requiresStage = true;
+
+                    switch (requirement.Region)
+                    {
+                        case CutsceneStageRegion.SiteInterior:
+                        case CutsceneStageRegion.InteriorGatheringArea:
+                            requiresInterior = true;
+                            break;
+                        case CutsceneStageRegion.PublicEntrance:
+                        case CutsceneStageRegion.EntranceApproach:
+                            requiresPublicExit = true;
+                            break;
+                        case CutsceneStageRegion.PlayerSpawnArea:
+                            requiresPlayerSpawn = true;
+                            break;
+                    }
+                }
             }
-            return false;
+
+            if (requiresStage)
+                AddDerivedCapabilityIfMissing(capabilities, SiteCapability.CutsceneStage);
+            if (requiresInterior)
+                AddDerivedCapabilityIfMissing(capabilities, SiteCapability.Interior);
+            if (requiresPublicExit)
+                AddDerivedCapabilityIfMissing(capabilities, SiteCapability.PublicExit);
+            if (requiresPlayerSpawn)
+                AddDerivedCapabilityIfMissing(capabilities, SiteCapability.PlayerSpawn(1));
         }
 
         private static bool RequiresConversationSpace(
