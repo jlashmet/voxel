@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -41,6 +42,45 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsEmpty(violations,
                 "Feature authoring hot paths must consume Storage.Api and must not reacquire " +
                 "physical table/pool vocabulary.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
+        public void FeatureCallersDoNotUseRemovedTablePoolSignatures()
+        {
+            string root = FindRepoRoot();
+            string self = Path.GetFullPath(Path.Combine(
+                root, "Assets", "Tests", "EditMode", "StructuresStorageBoundaryTests.cs"));
+            string[] scanRoots =
+            {
+                Path.Combine(root, "Assets", "Scenes"),
+                Path.Combine(root, "Assets", "VoxelEngine", "CI"),
+                Path.Combine(root, "Assets", "Tests"),
+            };
+            var raster = new Regex(
+                @"PrimitiveRasteriser\.Rasterise\([\s\S]{0,400}?ref\s+\w+\s*,\s*ref\s+\w+\s*\)",
+                RegexOptions.CultureInvariant);
+            var generation = new Regex(
+                @"FeatureGeneration\.GenerateRegion\([\s\S]{0,300}?ref\s+\w+\s*,\s*ref\s+\w+\s*\)",
+                RegexOptions.CultureInvariant);
+            var violations = new List<string>();
+
+            foreach (string scanRoot in scanRoots)
+            {
+                if (!Directory.Exists(scanRoot)) continue;
+                foreach (string path in Directory.EnumerateFiles(scanRoot, "*.cs", SearchOption.AllDirectories))
+                {
+                    if (string.Equals(Path.GetFullPath(path), self, StringComparison.Ordinal)) continue;
+                    string source = File.ReadAllText(path);
+                    if (raster.IsMatch(source))
+                        violations.Add(Path.GetRelativePath(root, path) + " -> legacy rasteriser table/pool signature");
+                    if (generation.IsMatch(source))
+                        violations.Add(Path.GetRelativePath(root, path) + " -> legacy feature-generation table/pool signature");
+                }
+            }
+
+            Assert.IsEmpty(violations,
+                "Feature callers must pass Storage.Api capabilities instead of keeping removed " +
+                "table/pool signatures alive.\n\n" + string.Join("\n", violations));
         }
 
         [Test]
