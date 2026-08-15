@@ -12,7 +12,6 @@
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Tiering.Api",
     "VoxelEngine.Streaming.Runtime",
-    "VoxelEngine.Net.Runtime",
     "MountingForce.WorldGen.Voxel",
     "Unity.Burst",
     "Unity.Collections",
