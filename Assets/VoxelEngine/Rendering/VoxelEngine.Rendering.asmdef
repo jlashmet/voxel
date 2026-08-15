@@ -2,7 +2,6 @@
   "name": "VoxelEngine.Rendering",
   "rootNamespace": "VoxelEngine.Rendering",
   "references": [
-    "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
     "Unity.Burst",
     "Unity.Collections",
