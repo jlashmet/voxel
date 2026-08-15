@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Net.Interest
 {
@@ -17,7 +17,7 @@ namespace VoxelEngine.Net.Interest
         public const float UnloadRadiusMeters = 420f;
         public const float VoxelScaleMeters = 0.1f;
 
-        private const int RegionVoxelEdge = 1 << VoxelDimensions.RegionVoxelEdgeLog2;
+        private const int RegionVoxelEdge = 1 << VoxelGrid.RegionVoxelEdgeLog2;
 
         /// <summary>Collect every 3D region whose AABB intersects the common simulation load radius.</summary>
         public static void CollectLoadRegions(int3 playerVoxelPosition, List<int3> destination)
@@ -35,9 +35,9 @@ namespace VoxelEngine.Net.Interest
         public static int3 WorldVoxelToRegion(int3 worldVoxelPosition)
         {
             return new int3(
-                worldVoxelPosition.x >> VoxelDimensions.RegionVoxelEdgeLog2,
-                worldVoxelPosition.y >> VoxelDimensions.RegionVoxelEdgeLog2,
-                worldVoxelPosition.z >> VoxelDimensions.RegionVoxelEdgeLog2);
+                worldVoxelPosition.x >> VoxelGrid.RegionVoxelEdgeLog2,
+                worldVoxelPosition.y >> VoxelGrid.RegionVoxelEdgeLog2,
+                worldVoxelPosition.z >> VoxelGrid.RegionVoxelEdgeLog2);
         }
 
         private static void CollectRegions(int3 playerVoxelPosition, float radiusMeters, List<int3> destination)
@@ -72,7 +72,7 @@ namespace VoxelEngine.Net.Interest
 
         private static long DistanceSqToRegionAabb(int3 point, int3 regionCoord)
         {
-            int3 min = regionCoord << VoxelDimensions.RegionVoxelEdgeLog2;
+            int3 min = regionCoord << VoxelGrid.RegionVoxelEdgeLog2;
             int3 max = min + new int3(RegionVoxelEdge - 1);
 
             long dx = AxisDistance(point.x, min.x, max.x);
