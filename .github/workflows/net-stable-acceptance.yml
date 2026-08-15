@@ -1,0 +1,78 @@
+name: Net stable acceptance
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: read
+jobs:
+  unity-editmode:
+    name: Pinned Unity EditMode suite
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout pinned final Net tree
+        uses: actions/checkout@v4
+        with:
+          ref: e29f801978747a23e6a73a1ceb85c6b37132ee7f
+          clean: false
+          fetch-depth: 1
+      - name: Reset tracked and non-cache files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard e29f801978747a23e6a73a1ceb85c6b37132ee7f
+          git clean -ffdx -e Library/
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "${UNITY_PATH}"
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity editor to become available
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              echo 'Timed out waiting for another Unity editor to exit.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+      - name: Run EditMode tests
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/NetStableAcceptance"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh \
+            -batchmode \
+            -nographics \
+            -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform EditMode \
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log"
+          status=$?
+          if [[ $status -ne 0 ]]; then
+            echo "Unity EditMode tests exited $status; artifact is still uploaded for baseline comparison." >&2
+          fi
+          test -s "$ROOT/results.xml"
+          exit 0
+      - name: Upload pinned acceptance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: net-stable-e29f8019
+          path: Artifacts/NetStableAcceptance/
+          if-no-files-found: warn
+          retention-days: 14
