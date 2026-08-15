@@ -1,17 +1,16 @@
 using Unity.Mathematics;
 using Random = Unity.Mathematics.Random;
-using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Structures
 {
     /// <summary>
-    /// Drawing primitives for authored structures, writing straight into the brickmap.
+    /// Drawing primitives for authored structures through Storage.Api capabilities.
     ///
-    /// This is offline-scale tooling, not the streaming path: it writes voxel by voxel through
-    /// <see cref="VoxelAccess"/> so brick allocation, uniform collapse and dirty tracking behave
-    /// exactly as they do for a player's edits. Slow per voxel, but it runs once per castle rather
-    /// than once per frame, and correctness of the storage invariants matters more here than speed.
+    /// Storage owns region lookup, physical block representation, allocation/free, uniform
+    /// materialisation/collapse and commit. The brush owns only authored geometry and write
+    /// accounting. Hot column paths still borrow one mutable 8^3 block at a time, so they retain
+    /// the old one-collapse-check-per-block behaviour without exposing pool or table identity.
     ///
     /// Float arithmetic is fine in this assembly. The constitution forbids float where *clients
     /// independently re-derive* a result; a structure baked once and shipped as identical bytes is
@@ -20,45 +19,38 @@ namespace VoxelEngine.Structures
     /// </summary>
     public struct VoxelBrush
     {
-        private RegionTable _table;
-        private BrickPool _pool;
-        private MaterialPalette _palette;
+        private IRegionReadSource _reads;
+        private IRegionMutationStore _mutations;
+        private IMaterialAuthoringCatalogue _materials;
 
         /// <summary>Per-voxel writes — the expensive kind, and what the budget governs.</summary>
         public int VoxelsWritten;
 
-        /// <summary>Whole-brick writes. One pointer each, so they are counted but not budgeted.</summary>
+        /// <summary>Whole-block writes. One Storage operation each, counted but not budgeted.</summary>
         public int BricksWritten;
 
         /// <summary>
         /// Voxels changed through batched column writes. These do not consume
         /// <see cref="WriteBudget"/> because a column segment performs one collapse scan per
-        /// brick, rather than one scan per voxel.
+        /// block, rather than one scan per voxel.
         /// </summary>
         public long BulkVoxelsWritten;
 
         /// <summary>
-        /// Hard ceiling on writes. Once crossed, every further write is dropped and
-        /// <see cref="BudgetExceeded"/> latches.
-        ///
-        /// This exists because a generator with one bad radius took the machine down. The Site
-        /// loop was costed afterwards at 38–137 million writes, each triggering a 512-voxel
-        /// collapse scan — twenty to seventy billion operations inside play mode. Nothing in the
-        /// engine objected, because every individual write was legitimate.
-        ///
-        /// A budget here is not defensive programming, it is the difference between a bug that
-        /// fails and a bug that takes the machine with it. Refusing to write is always
-        /// recoverable; running for an hour is not.
+        /// Hard ceiling on slow-path writes. Once crossed, every further slow write is dropped and
+        /// <see cref="BudgetExceeded"/> latches. Batched whole-block and column operations are
+        /// counted separately because they avoid the per-voxel collapse scan this ceiling guards.
         /// </summary>
         public int WriteBudget;
 
         public bool BudgetExceeded { get; private set; }
 
-        public VoxelBrush(RegionTable table, BrickPool pool, int writeBudget = DefaultWriteBudget)
+        public VoxelBrush(IRegionReadSource reads, IRegionMutationStore mutations,
+                          int writeBudget = DefaultWriteBudget)
         {
-            _table = table;
-            _pool = pool;
-            _palette = default;
+            _reads = reads;
+            _mutations = mutations;
+            _materials = null;
             VoxelsWritten = 0;
             BricksWritten = 0;
             BulkVoxelsWritten = 0;
@@ -66,21 +58,20 @@ namespace VoxelEngine.Structures
             BudgetExceeded = false;
         }
 
-        public VoxelBrush(RegionTable table, BrickPool pool, in MaterialPalette palette,
+        public VoxelBrush(IRegionReadSource reads, IRegionMutationStore mutations,
+                          IMaterialAuthoringCatalogue materials,
                           int writeBudget = DefaultWriteBudget)
-            : this(table, pool, writeBudget)
+            : this(reads, mutations, writeBudget)
         {
-            _palette = palette;
+            _materials = materials;
         }
 
         /// <summary>
-        /// Twelve million slow-path voxel changes. Batched whole-brick and column operations are
+        /// Twelve million slow-path voxel changes. Batched whole-block and column operations are
         /// counted separately because they avoid the per-voxel collapse scan this ceiling guards.
         /// </summary>
         public const int DefaultWriteBudget = 12_000_000;
 
-        public RegionTable Table => _table;
-        public BrickPool Pool => _pool;
         public long TotalVoxelsWritten => VoxelsWritten + BulkVoxelsWritten;
 
         // -- primitives ----------------------------------------------------------
@@ -94,20 +85,20 @@ namespace VoxelEngine.Structures
             }
 
             int3 voxel = new(x, y, z);
+            VoxelCell current = ReadCell(voxel);
             // Moss is an overlay when it lands on an existing structure. This preserves stone's
             // destruction/collision identity while still allowing legacy free-standing foliage
             // volumes to be authored into empty space.
-            if (material == Mat.Moss && VoxelAccess.IsSolid(ref _table, in _pool, voxel))
+            if (material == Mat.Moss && current.IsSolid)
             {
                 Coat(x, y, z, Coatings.Moss);
                 return;
             }
 
-            VoxelCell current = VoxelAccess.GetCell(ref _table, in _pool, voxel);
             ushort style = DefaultStructureStyle(material);
             if (!current.IsSolid && style != SurfaceStyles.MaterialDefault)
                 SetStyled(x, y, z, material, style);
-            else if (VoxelAccess.SetVoxel(ref _table, ref _pool, voxel, material))
+            else if (WriteMaterial(voxel, material))
                 VoxelsWritten++;
         }
 
@@ -115,8 +106,8 @@ namespace VoxelEngine.Structures
                               byte coating = Coatings.None,
                               VoxelSurfaceFlags flags = VoxelSurfaceFlags.None)
         {
-            if (coating != Coatings.None && _palette.IsCreated
-                && !_palette.AllowsCoating(material, coating)) return;
+            if (coating != Coatings.None && _materials != null
+                && !_materials.AllowsCoating(material, coating)) return;
             if (VoxelsWritten >= WriteBudget)
             {
                 BudgetExceeded = true;
@@ -133,7 +124,7 @@ namespace VoxelEngine.Structures
                     Flags = flags
                 }
             };
-            if (VoxelAccess.SetCell(ref _table, ref _pool, new int3(x, y, z), in cell))
+            if (WriteCell(new int3(x, y, z), in cell))
                 VoxelsWritten++;
         }
 
@@ -141,21 +132,17 @@ namespace VoxelEngine.Structures
         public void Coat(int x, int y, int z, byte coating)
         {
             int3 voxel = new(x, y, z);
-            VoxelCell cell = VoxelAccess.GetCell(ref _table, in _pool, voxel);
+            VoxelCell cell = ReadCell(voxel);
             if (!cell.IsSolid || cell.Surface.CoatingId == coating) return;
-            if (coating != Coatings.None && _palette.IsCreated
-                && !_palette.AllowsCoating(cell.BaseMaterialId, coating)) return;
+            if (coating != Coatings.None && _materials != null
+                && !_materials.AllowsCoating(cell.BaseMaterialId, coating)) return;
             cell.Surface.CoatingId = coating;
-            if (VoxelAccess.SetCell(ref _table, ref _pool, voxel, in cell)) VoxelsWritten++;
+            if (WriteCell(voxel, in cell)) VoxelsWritten++;
         }
 
         /// <summary>
-        /// Fills a box, writing whole bricks as uniform references where the box covers them.
-        ///
-        /// A solid volume written voxel by voxel pays a 512-voxel collapse scan on every write
-        /// until the brick happens to become uniform — quadratic-feeling work for a result that
-        /// is one pointer. Setting the pointer directly is thousands of times cheaper and is what
-        /// makes sculpting terrain-scale volumes affordable at all.
+        /// Fills a box, replacing complete logical blocks where the box covers them and using the
+        /// normal authored-cell path only for edge voxels.
         /// </summary>
         public void FillBulk(int3 min, int3 size, byte material)
         {
@@ -170,15 +157,15 @@ namespace VoxelEngine.Structures
 
             int3 max = min + size;
 
-            int3 brickMin = new int3(min.x >> 3, min.y >> 3, min.z >> 3);
-            int3 brickMax = new int3((max.x - 1) >> 3, (max.y - 1) >> 3, (max.z - 1) >> 3);
+            int3 brickMin = min >> VoxelReadGrid.BlockEdgeLog2;
+            int3 brickMax = (max - 1) >> VoxelReadGrid.BlockEdgeLog2;
 
             for (int bz = brickMin.z; bz <= brickMax.z; bz++)
             for (int by = brickMin.y; by <= brickMax.y; by++)
             for (int bx = brickMin.x; bx <= brickMax.x; bx++)
             {
-                int3 blockMin = new int3(bx << 3, by << 3, bz << 3);
-                int3 blockMax = blockMin + 8;
+                int3 blockMin = new int3(bx, by, bz) << VoxelReadGrid.BlockEdgeLog2;
+                int3 blockMax = blockMin + VoxelReadGrid.BlockEdge;
 
                 bool covered = blockMin.x >= min.x && blockMax.x <= max.x
                             && blockMin.y >= min.y && blockMax.y <= max.y
@@ -201,86 +188,58 @@ namespace VoxelEngine.Structures
         }
 
         /// <summary>
-        /// Fills one vertical column, batching all writes in a brick before checking whether the
-        /// brick collapsed to a uniform reference.
-        ///
-        /// A one-voxel-wide call to <see cref="FillBulk"/> cannot cover an 8x8x8 brick and falls
-        /// back to <see cref="Set"/> for every voxel. Site sculpting issues hundreds of thousands
-        /// of such columns, so that fallback turns a cheap height-volume rewrite into millions of
-        /// 512-byte collapse scans. This is the column-shaped equivalent of the whole-brick path.
+        /// Fills one vertical column, borrowing one mutable logical block for each vertical
+        /// segment. Storage performs materialisation and one final collapse/commit per block.
         /// </summary>
         public void FillColumnBulk(int x, int minY, int maxYExclusive, int z, byte material)
         {
-            if (maxYExclusive <= minY) return;
+            if (maxYExclusive <= minY || _mutations == null) return;
 
-            int firstBrickY = minY >> VoxelDimensions.BrickEdgeLog2;
-            int lastBrickY = (maxYExclusive - 1) >> VoxelDimensions.BrickEdgeLog2;
+            int firstBlockY = minY >> VoxelReadGrid.BlockEdgeLog2;
+            int lastBlockY = (maxYExclusive - 1) >> VoxelReadGrid.BlockEdgeLog2;
+            int localX = x & VoxelReadGrid.BlockEdgeMask;
+            int localZ = z & VoxelReadGrid.BlockEdgeMask;
 
-            for (int brickY = firstBrickY; brickY <= lastBrickY; brickY++)
+            for (int blockY = firstBlockY; blockY <= lastBlockY; blockY++)
             {
-                int brickOriginY = brickY << VoxelDimensions.BrickEdgeLog2;
-                int fromY = math.max(minY, brickOriginY);
-                int toY = math.min(maxYExclusive, brickOriginY + VoxelDimensions.BrickEdge);
+                int blockOriginY = blockY << VoxelReadGrid.BlockEdgeLog2;
+                int fromY = math.max(minY, blockOriginY);
+                int toY = math.min(maxYExclusive, blockOriginY + VoxelReadGrid.BlockEdge);
+                int3 worldBlock = new(x >> VoxelReadGrid.BlockEdgeLog2,
+                                      blockY,
+                                      z >> VoxelReadGrid.BlockEdgeLog2);
 
-                var world = new int3(x, brickOriginY, z);
-                VoxelAccess.Decompose(world, out var regionCoord, out var brickInRegion,
-                                      out var voxelInBrick);
+                if (TryReadBlock(worldBlock, out VoxelReadBlock block)
+                    && block.Kind == VoxelReadBlockKind.Uniform
+                    && block.UniformMaterial == material)
+                    continue;
 
-                var region = _table.LoadRegion(regionCoord);
-                int brickIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y, brickInRegion.z);
-                var brick = region.BrickRefs[brickIndex];
-
-                if (brick.IsUniform && brick.UniformMaterial == material) continue;
-
-                int poolIndex;
-                if (brick.IsUniform)
-                {
-                    poolIndex = _pool.Allocate();
-                    _pool.FillBrick(poolIndex, brick.UniformMaterial);
-                    region.BrickRefs[brickIndex] = BrickRef.FromPoolIndex(poolIndex);
-                }
-                else
-                {
-                    poolIndex = brick.PoolIndex;
-                }
+                if (!_mutations.TryBeginCellBlock(worldBlock, false,
+                                                  out VoxelBlockMutation mutation))
+                    continue;
 
                 int changed = 0;
                 for (int y = fromY; y < toY; y++)
                 {
-                    int voxelIndex = VoxelEngine.Core.Occupancy.OccupancyMask.VoxelIndex(
-                        voxelInBrick.x, y - brickOriginY, voxelInBrick.z);
-
-                    if (_pool.GetVoxel(poolIndex, voxelIndex) == material) continue;
-                    _pool.SetVoxel(poolIndex, voxelIndex, material);
-                    changed++;
+                    int localY = y - blockOriginY;
+                    int voxelIndex = localX
+                                   | (localY << VoxelReadGrid.BlockEdgeLog2)
+                                   | (localZ << (VoxelReadGrid.BlockEdgeLog2 * 2));
+                    if (mutation.SetMaterial(voxelIndex, material)) changed++;
                 }
 
-                if (changed == 0)
-                {
-                    // This can only occur after materialising a uniform brick whose requested
-                    // segment already matched. Avoid retaining a needless mixed allocation.
-                    if (brick.IsUniform)
-                    {
-                        _pool.Free(poolIndex);
-                        region.BrickRefs[brickIndex] = brick;
-                    }
-                    continue;
-                }
+                _mutations.CompletePartialBlock(ref mutation, changed != 0);
+                if (changed == 0) continue;
 
-                if (_pool.TryGetUniformMaterial(poolIndex, out var uniform))
-                {
-                    _pool.Free(poolIndex);
-                    region.BrickRefs[brickIndex] = BrickRef.Uniform(uniform);
-                }
-
-                region.Dirty = true;
-                _table.CommitRegion(region);
                 BulkVoxelsWritten += changed;
                 BricksWritten++;
             }
         }
 
-        /// <summary>Replaces one brick with a uniform reference, returning any pool slot it held.</summary>
+        /// <summary>
+        /// Replaces one logical block. Storage owns region creation, representation choice and any
+        /// physical allocation/free needed to preserve authored surface semantics.
+        /// </summary>
         private void SetWholeBrick(int3 brickOrigin, byte material)
         {
             if (VoxelsWritten >= WriteBudget)
@@ -288,49 +247,78 @@ namespace VoxelEngine.Structures
                 BudgetExceeded = true;
                 return;
             }
-
-            var regionCoord = new int3(
-                brickOrigin.x >> VoxelDimensions.RegionVoxelEdgeLog2,
-                brickOrigin.y >> VoxelDimensions.RegionVoxelEdgeLog2,
-                brickOrigin.z >> VoxelDimensions.RegionVoxelEdgeLog2);
-
-            var region = _table.LoadRegion(regionCoord);
-
-            int bx = (brickOrigin.x >> 3) & VoxelDimensions.RegionEdgeMask;
-            int by = (brickOrigin.y >> 3) & VoxelDimensions.RegionEdgeMask;
-            int bz = (brickOrigin.z >> 3) & VoxelDimensions.RegionEdgeMask;
-
-            int index = Region.BrickIndex(bx, by, bz);
-            var existing = region.BrickRefs[index];
-
-            // Hand back the pool slot, or the brick leaks for the life of the session.
-            if (existing.IsMixed) _pool.Free(existing.PoolIndex);
+            if (_mutations == null) return;
 
             ushort style = DefaultStructureStyle(material);
-            if (material == Mat.Empty || style == SurfaceStyles.MaterialDefault)
+            var cell = new VoxelCell
             {
-                region.BrickRefs[index] = material == Mat.Empty
-                    ? BrickRef.Empty : BrickRef.Uniform(material);
-            }
-            else
-            {
-                int poolIndex = _pool.Allocate();
-                var cell = new VoxelCell
-                {
-                    BaseMaterialId = material,
-                    Surface = new VoxelSurfaceSemantics { StyleId = style }
-                };
-                _pool.FillBrick(poolIndex, in cell);
-                region.BrickRefs[index] = BrickRef.FromPoolIndex(poolIndex);
-            }
+                BaseMaterialId = material,
+                Surface = style == SurfaceStyles.MaterialDefault
+                    ? default
+                    : new VoxelSurfaceSemantics { StyleId = style }
+            };
+            int3 worldBlock = brickOrigin >> VoxelReadGrid.BlockEdgeLog2;
+            _mutations.SetWholeCellBlock(worldBlock, in cell, false);
 
-            region.Dirty = true;
-            _table.CommitRegion(region);
-
-            // Counted separately: this is one pointer write, not 512 voxel writes, and charging
+            // Counted separately: this is one block operation, not 512 voxel writes, and charging
             // it as 512 would make the cheap path look expensive and push callers back onto the
             // expensive one.
             BricksWritten++;
+        }
+
+        private VoxelCell ReadCell(int3 worldVoxel)
+        {
+            if (_reads == null) return default;
+            int3 worldBlock = worldVoxel >> VoxelReadGrid.BlockEdgeLog2;
+            if (!_reads.TryAcquireRegionContainingBlock(worldBlock, out RegionReadView region))
+                return default;
+
+            int3 localVoxel = worldVoxel - region.RegionCoord * VoxelGrid.RegionVoxelEdge;
+            return region.TryReadCell(localVoxel, out VoxelCell cell) ? cell : default;
+        }
+
+        private bool TryReadBlock(int3 worldBlock, out VoxelReadBlock block)
+        {
+            if (_reads != null
+                && _reads.TryAcquireRegionContainingBlock(worldBlock, out RegionReadView region)
+                && region.TryGetWorldBlock(worldBlock, out block))
+                return true;
+            block = default;
+            return false;
+        }
+
+        private bool WriteMaterial(int3 worldVoxel, byte material)
+        {
+            if (_mutations == null) return false;
+            int3 worldBlock = worldVoxel >> VoxelReadGrid.BlockEdgeLog2;
+            if (!_mutations.TryBeginCellBlock(worldBlock, false,
+                                              out VoxelBlockMutation mutation))
+                return false;
+
+            bool changed = mutation.SetMaterial(VoxelIndex(worldVoxel), material);
+            return _mutations.CompletePartialBlock(ref mutation, changed);
+        }
+
+        private bool WriteCell(int3 worldVoxel, in VoxelCell cell)
+        {
+            if (_mutations == null) return false;
+            int3 worldBlock = worldVoxel >> VoxelReadGrid.BlockEdgeLog2;
+            if (!_mutations.TryBeginCellBlock(worldBlock, false,
+                                              out VoxelBlockMutation mutation))
+                return false;
+
+            bool changed = mutation.SetCell(VoxelIndex(worldVoxel), in cell);
+            return _mutations.CompletePartialBlock(ref mutation, changed);
+        }
+
+        private static int VoxelIndex(int3 worldVoxel)
+        {
+            int localX = worldVoxel.x & VoxelReadGrid.BlockEdgeMask;
+            int localY = worldVoxel.y & VoxelReadGrid.BlockEdgeMask;
+            int localZ = worldVoxel.z & VoxelReadGrid.BlockEdgeMask;
+            return localX
+                 | (localY << VoxelReadGrid.BlockEdgeLog2)
+                 | (localZ << (VoxelReadGrid.BlockEdgeLog2 * 2));
         }
 
         private static ushort DefaultStructureStyle(byte material)
@@ -342,10 +330,10 @@ namespace VoxelEngine.Structures
         }
 
         public byte Get(int x, int y, int z) =>
-            VoxelAccess.GetVoxel(ref _table, in _pool, new int3(x, y, z));
+            ReadCell(new int3(x, y, z)).BaseMaterialId;
 
         public byte GetCoating(int x, int y, int z) =>
-            VoxelAccess.GetCell(ref _table, in _pool, new int3(x, y, z)).Surface.CoatingId;
+            ReadCell(new int3(x, y, z)).Surface.CoatingId;
 
         public bool IsSolid(int x, int y, int z) => Get(x, y, z) != Mat.Empty;
 
