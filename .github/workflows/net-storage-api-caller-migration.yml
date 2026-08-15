@@ -1,4 +1,5 @@
 name: Net Storage API caller migration
+# Retry after fixing staging of the self-removing workflow.
 on:
   push:
     branches: [refactor/system-boundaries-foundation-storage]
