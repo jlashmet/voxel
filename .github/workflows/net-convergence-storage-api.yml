@@ -1,0 +1,50 @@
+name: Net convergence Storage Api cut
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: true
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('Assets/VoxelEngine/Net/Server/ServerConvergenceManager.cs')
+          s=p.read_text()
+          old='using VoxelEngine.Core.Storage;'
+          assert s.count(old)==1, s.count(old)
+          s=s.replace(old,'using VoxelEngine.Storage.Api;')
+          old_sig='''        public int EmitHashes(\n            uint serverTick,\n            ref RegionTable table,\n            in BrickPool pool,\n            RegionSubscriptionIndex subscriptions,\n            ServerNetworkRuntime network)\n        {\n            if (subscriptions == null) throw new ArgumentNullException(nameof(subscriptions));\n            if (network == null) throw new ArgumentNullException(nameof(network));\n            if (serverTick == 0) return 0;\n\n            PruneCheckpoints(serverTick);\n            NativeArray<int3> regions = table.GetResidentCoords(Allocator.Temp);\n            int sent = 0;\n            try\n            {\n                for (int i = 0; i < regions.Length; i++)\n                {\n                    int3 coord = regions[i];'''
+          new_sig='''        public int EmitHashes(\n            uint serverTick,\n            IRegionReadSource regionReads,\n            IRegionSnapshotSource snapshotSource,\n            RegionSubscriptionIndex subscriptions,\n            ServerNetworkRuntime network)\n        {\n            if (regionReads == null) throw new ArgumentNullException(nameof(regionReads));\n            if (snapshotSource == null) throw new ArgumentNullException(nameof(snapshotSource));\n            if (subscriptions == null) throw new ArgumentNullException(nameof(subscriptions));\n            if (network == null) throw new ArgumentNullException(nameof(network));\n            if (serverTick == 0) return 0;\n\n            PruneCheckpoints(serverTick);\n            NativeArray<int3> residentRegions = regionReads.GetResidentRegionCoords(Allocator.Temp);\n            int sent = 0;\n            try\n            {\n                for (int i = 0; i < residentRegions.Length; i++)\n                {\n                    int3 coord = residentRegions[i];'''
+          assert s.count(old_sig)==1, s.count(old_sig)
+          s=s.replace(old_sig,new_sig)
+          old_capture='''                    if (_subscriberScratch.Count == 0) continue;\n                    if (!table.TryGetRegion(coord, out Region region) || !region.BrickRefs.IsCreated) continue;\n\n                    if (!SemanticRegionSnapshotCodec.TryEncode(\n                            in region,\n                            in pool,\n                            SemanticRegionSnapshotCodec.DefaultMaxSnapshotBytes,\n                            out byte[] snapshot) ||\n                        _retainedSnapshotBytes + snapshot.Length > MaxRetainedSnapshotBytes)\n                    {\n                        HashesSkippedNoSnapshot++;\n                        continue;\n                    }\n\n                    uint semanticHash = SemanticRegionHasher.HashRegion(in region, in pool);'''
+          new_capture='''                    if (_subscriberScratch.Count == 0) continue;\n\n                    RegionSnapshotCaptureResult captureResult = snapshotSource.CaptureSemanticSnapshot(\n                        coord,\n                        RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,\n                        out RegionSemanticSnapshot semanticSnapshot);\n                    if (captureResult != RegionSnapshotCaptureResult.Ok ||\n                        semanticSnapshot.Bytes == null ||\n                        _retainedSnapshotBytes + semanticSnapshot.Bytes.Length > MaxRetainedSnapshotBytes)\n                    {\n                        HashesSkippedNoSnapshot++;\n                        continue;\n                    }\n\n                    byte[] snapshot = semanticSnapshot.Bytes;\n                    uint semanticHash = semanticSnapshot.SemanticHash;'''
+          assert s.count(old_capture)==1, s.count(old_capture)
+          s=s.replace(old_capture,new_capture)
+          old_final='''            finally\n            {\n                regions.Dispose();\n            }'''
+          new_final='''            finally\n            {\n                residentRegions.Dispose();\n            }'''
+          assert s.count(old_final)==1, s.count(old_final)
+          s=s.replace(old_final,new_final)
+          assert 'RegionTable' not in s
+          assert 'BrickPool' not in s
+          assert 'SemanticRegionSnapshotCodec' not in s
+          assert 'SemanticRegionHasher' not in s
+          p.write_text(s)
+          PY
+          git diff --check
+          git diff -- Assets/VoxelEngine/Net/Server/ServerConvergenceManager.cs
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Net/Server/ServerConvergenceManager.cs
+          git commit -m 'refactor: move Net convergence to Storage semantic Api'
+          git push origin HEAD:${{ github.ref_name }}
