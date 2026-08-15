@@ -8,7 +8,6 @@
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Vegetation",
-    "VoxelEngine.Structures",
     "Unity.Collections",
     "Unity.Mathematics",
     "VoxelEngine.Structures.Api"
