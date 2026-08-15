@@ -1,4 +1,4 @@
-name: Showcase storage capacity Composition cutover
+name: Showcase storage capacity Composition publisher
 on:
   push:
     branches:
@@ -15,116 +15,16 @@ jobs:
         with:
           ref: refactor/system-boundaries-foundation-storage
           fetch-depth: 0
-      - name: Move physical storage sizing into Composition
+      - name: Route Showcase capacity sizing through Composition
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import json
-
-          bootstrap = Path('Assets/VoxelEngine/Composition/VoxelEngineBootstrap.cs')
-          text = bootstrap.read_text()
-          marker = '''    public static class VoxelEngineBootstrap
-    {
-        public static IVoxelStorageRuntime CreateStorage(
-'''
-          method = '''    public static class VoxelEngineBootstrap
-    {
-        /// <summary>
-        /// Converts an application memory budget into a mixed-brick capacity without exposing
-        /// Storage.Runtime physical byte layout to scene/application code.
-        /// </summary>
-        public static int ClampMixedBrickCapacityToBudget(
-            int requestedCapacity,
-            int budgetBytes,
-            int minimumCapacity = 4096)
-        {
-            if (minimumCapacity <= 0)
-                throw new ArgumentOutOfRangeException(nameof(minimumCapacity));
-
-            int budgetCapacity = Math.Max(
-                minimumCapacity,
-                budgetBytes / VoxelDimensions.BytesPerMixedBrick);
-            return Math.Min(Math.Max(requestedCapacity, minimumCapacity), budgetCapacity);
-        }
-
-        public static IVoxelStorageRuntime CreateStorage(
-'''
-          if 'ClampMixedBrickCapacityToBudget' in text:
-              raise SystemExit('Composition capacity helper already exists unexpectedly')
-          if text.count(marker) != 1:
-              raise SystemExit('VoxelEngineBootstrap insertion marker did not match exactly once')
-          bootstrap.write_text(text.replace(marker, method, 1))
-
-          showcase = Path('Assets/Scenes/Showcase/VoxelShowcase.cs')
-          text = showcase.read_text()
-          runtime_using = 'using VoxelEngine.Storage.Runtime;\n'
-          if text.count(runtime_using) != 1:
-              raise SystemExit('VoxelShowcase Storage.Runtime import did not match exactly once')
-          text = text.replace(runtime_using, 'using VoxelEngine.Composition;\n', 1)
-          old = '''            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
-            int tierSlots = Mathf.Max(4096, tierBytes / VoxelDimensions.BytesPerMixedBrick);
-            int capacity = Mathf.Clamp(m_BrickPoolCapacity, 4096, tierSlots);
-'''
-          new = '''            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
-            int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
-                m_BrickPoolCapacity, tierBytes);
-'''
-          if text.count(old) != 1:
-              raise SystemExit('VoxelShowcase physical capacity calculation did not match exactly once')
-          text = text.replace(old, new, 1)
-          if 'VoxelDimensions.BytesPerMixedBrick' in text:
-              raise SystemExit('VoxelShowcase still knows physical mixed-brick byte size')
-          showcase.write_text(text)
-
-          tests = Path('Assets/Tests/EditMode/CompositionBootstrapTests.cs')
-          text = tests.read_text()
-          marker = '''        [Test]
-        public void PublicStorageLifetimeSurfaceDoesNotExposeRuntimeTypes()
-'''
-          test = '''        [Test]
-        public void StorageCapacityBudgetingKeepsPhysicalLayoutInsideComposition()
-        {
-            int oneThousandBricks = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
-                requestedCapacity: 262144,
-                budgetBytes: VoxelDimensions.BytesPerMixedBrick * 1000,
-                minimumCapacity: 8);
-            Assert.That(oneThousandBricks, Is.EqualTo(1000));
-
-            int minimum = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
-                requestedCapacity: 1,
-                budgetBytes: 0,
-                minimumCapacity: 8);
-            Assert.That(minimum, Is.EqualTo(8));
-        }
-
-        [Test]
-        public void PublicStorageLifetimeSurfaceDoesNotExposeRuntimeTypes()
-'''
-          if 'StorageCapacityBudgetingKeepsPhysicalLayoutInsideComposition' in text:
-              raise SystemExit('Composition capacity test already exists unexpectedly')
-          if text.count(marker) != 1:
-              raise SystemExit('Composition test insertion marker did not match exactly once')
-          tests.write_text(text.replace(marker, test, 1))
-
-          asm_path = Path('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef')
-          asm = json.loads(asm_path.read_text())
-          refs = asm['references']
-          if 'VoxelEngine.Composition' in refs:
-              raise SystemExit('Showcase already references Composition unexpectedly')
-          insert_at = refs.index('VoxelEngine.Storage.Api') + 1
-          refs.insert(insert_at, 'VoxelEngine.Composition')
-          asm_path.write_text(json.dumps(asm, indent=2) + '\n')
-          PY
+          python3 -c "from pathlib import Path; p=Path('Assets/Scenes/Showcase/VoxelShowcase.cs'); s=p.read_text(); u='using VoxelEngine.Storage.Runtime;\\n'; old='            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;\\n            int tierSlots = Mathf.Max(4096, tierBytes / VoxelDimensions.BytesPerMixedBrick);\\n            int capacity = Mathf.Clamp(m_BrickPoolCapacity, 4096, tierSlots);\\n'; new='            int tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;\\n            int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(\\n                m_BrickPoolCapacity, tierBytes);\\n'; assert s.count(u)==1; assert s.count(old)==1; s=s.replace(u,'using VoxelEngine.Composition;\\n',1).replace(old,new,1); assert 'VoxelDimensions.BytesPerMixedBrick' not in s; p.write_text(s)"
           git diff --check
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
-          git add Assets/VoxelEngine/Composition/VoxelEngineBootstrap.cs \
-                  Assets/Scenes/Showcase/VoxelShowcase.cs \
-                  Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef \
-                  Assets/Tests/EditMode/CompositionBootstrapTests.cs
-          git commit -m 'refactor(composition): own Showcase storage capacity sizing'
+          git add Assets/Scenes/Showcase/VoxelShowcase.cs
+          git commit -m 'refactor(showcase): delegate storage capacity sizing to Composition'
           git fetch origin refactor/system-boundaries-foundation-storage
           git rebase origin/refactor/system-boundaries-foundation-storage
           git push origin HEAD:refactor/system-boundaries-foundation-storage
