@@ -1,0 +1,47 @@
+name: Refactor one-shot accepted checklist history repair
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-finalization-clean
+    paths:
+      - .github/workflows/refactor-one-shot-plan-history.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-finalization-clean
+          fetch-depth: 0
+      - name: Restore already accepted Cutover 13 rows
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          lines = path.read_text().splitlines()
+          anchor = next((i for i, line in enumerate(lines) if '8780cffe66a0e3e4ba75b524957d00b481ace971' in line), None)
+          if anchor is None:
+              raise SystemExit('Cutover 13 accepted rendering anchor missing')
+          additions = []
+          if not any('31907948874' in line for line in lines):
+              additions.append('- [x] route `ArchLookdev` structure authoring through `StructuresComposition`; accepted in the `05de54c3` slice, run `31907948874` with exact 387/374/13 baseline and zero compiler errors')
+          if not any('31908243915' in line for line in lines):
+              additions.append('- [x] route `ShowcaseMultiplayerSession` through Composition-owned network facades; accepted in the `28a3fda2` slice, run `31908243915` with exact 387/374/13 baseline and zero compiler errors')
+          if additions:
+              lines[anchor + 1:anchor + 1] = additions
+              path.write_text('\n'.join(lines) + '\n')
+      - name: Self-delete and commit
+        run: |
+          rm .github/workflows/refactor-one-shot-plan-history.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'docs(architecture): restore accepted Cutover 13 history'
+          git push origin HEAD:refactor/system-boundaries-finalization-clean
