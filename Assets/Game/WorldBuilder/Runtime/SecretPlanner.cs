@@ -14,20 +14,36 @@ namespace Game.WorldBuilder.Runtime
         }
 
         /// <summary>
-        /// Resolves every hard and policy-driven secret for a compiled campaign without reusing one
-        /// physical hidden-space candidate for multiple gameplay secrets. Required secrets allocate
-        /// first in stable id order; procedural policy work then consumes only the remaining physical
-        /// candidates in stable policy/site order.
+        /// Resolves every hard and policy-driven secret for a compiled/resolved campaign without
+        /// reusing one physical hidden-space candidate. Required secrets allocate first in stable id
+        /// order. Procedural policy work then runs once per resolved physical site, so legal SiteRef
+        /// aliasing never doubles a scattered-secret policy on one generated building.
         /// </summary>
         public static IReadOnlyList<ResolvedSecretPlan> ResolveCampaign(
             CampaignBlueprint blueprint,
             PlanningGraph graph,
+            SiteResolutionResult sites,
             ISecretCandidateProvider provider,
             uint worldSeed)
         {
             if (blueprint == null) throw new ArgumentNullException(nameof(blueprint));
             if (graph == null) throw new ArgumentNullException(nameof(graph));
+            if (sites == null) throw new ArgumentNullException(nameof(sites));
             if (provider == null) throw new ArgumentNullException(nameof(provider));
+            if (!sites.IsResolved)
+                throw new InvalidOperationException(
+                    "Campaign secrets cannot resolve before site roles resolve successfully.");
+
+            var resolvedByRole = new Dictionary<SiteRef, ResolvedSiteId>();
+            for (var i = 0; i < sites.Bindings.Count; i++)
+            {
+                SiteRoleBinding binding = sites.Bindings[i]
+                    ?? throw new InvalidOperationException(
+                        "Site resolution contains a null binding at index " + i + ".");
+                if (!resolvedByRole.TryAdd(binding.Role, binding.Site))
+                    throw new InvalidOperationException(
+                        "Site resolution binds authored role '" + binding.Role + "' more than once.");
+            }
 
             var reserved = new HashSet<SecretCandidateId>();
             var result = new List<ResolvedSecretPlan>();
@@ -42,6 +58,7 @@ namespace Game.WorldBuilder.Runtime
 
             for (var i = 0; i < required.Length; i++)
             {
+                RequireResolvedSite(required[i].Site, resolvedByRole);
                 ResolvedSecretPlan resolved = ResolveRequiredInternal(
                     required[i], provider, worldSeed, reserved);
                 Reserve(reserved, resolved);
@@ -66,15 +83,14 @@ namespace Game.WorldBuilder.Runtime
                         "Planning graph contains a null secret-candidate plan at index " + i + ".");
             Array.Sort(work, ComparePolicyWork);
 
-            var seenPolicySites = new HashSet<string>(StringComparer.Ordinal);
+            var seenPolicyPhysicalSites = new HashSet<string>(StringComparer.Ordinal);
             for (var i = 0; i < work.Length; i++)
             {
                 SecretCandidatePlan plan = work[i];
-                string key = plan.Policy.Id + "\u001f" + plan.Site.Id;
-                if (!seenPolicySites.Add(key))
-                    throw new InvalidOperationException(
-                        "Planning graph schedules secret policy '" + plan.Policy +
-                        "' more than once for site '" + plan.Site + "'.");
+                ResolvedSiteId physicalSite = RequireResolvedSite(plan.Site, resolvedByRole);
+                string key = plan.Policy.Id + "\u001f" + physicalSite.Value;
+                if (!seenPolicyPhysicalSites.Add(key))
+                    continue;
 
                 SecretPolicySpec policy;
                 if (!policiesByRef.TryGetValue(plan.Policy, out policy))
@@ -209,6 +225,18 @@ namespace Game.WorldBuilder.Runtime
                 selected.Entrance.Id,
                 secret.Container,
                 secret.Reward);
+        }
+
+        private static ResolvedSiteId RequireResolvedSite(
+            SiteRef role,
+            Dictionary<SiteRef, ResolvedSiteId> resolvedByRole)
+        {
+            ResolvedSiteId resolved;
+            if (resolvedByRole.TryGetValue(role, out resolved))
+                return resolved;
+            throw new InvalidOperationException(
+                "Secret generation targets site role '" + role +
+                "', but that role has no resolved physical site.");
         }
 
         private static void Reserve(
