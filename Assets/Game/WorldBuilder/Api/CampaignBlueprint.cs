@@ -11,6 +11,7 @@ namespace Game.WorldBuilder.Api
         public IReadOnlyList<NpcSpec> Npcs { get; }
         public IReadOnlyList<SpatialConstraintSpec> SpatialConstraints { get; }
         public IReadOnlyList<CutsceneSpec> Cutscenes { get; }
+        public IReadOnlyList<StoryRuleSpec> StoryRules { get; }
         public IReadOnlyList<ObjectiveSpec> Objectives { get; }
         public IReadOnlyList<SecretPolicySpec> SecretPolicies { get; }
         public IReadOnlyList<RequiredSecretSpec> RequiredSecrets { get; }
@@ -23,6 +24,7 @@ namespace Game.WorldBuilder.Api
             NpcSpec[] npcs,
             SpatialConstraintSpec[] spatialConstraints,
             CutsceneSpec[] cutscenes,
+            StoryRuleSpec[] storyRules,
             ObjectiveSpec[] objectives,
             SecretPolicySpec[] secretPolicies,
             RequiredSecretSpec[] requiredSecrets,
@@ -34,6 +36,7 @@ namespace Game.WorldBuilder.Api
             Npcs = npcs ?? Array.Empty<NpcSpec>();
             SpatialConstraints = spatialConstraints ?? Array.Empty<SpatialConstraintSpec>();
             Cutscenes = cutscenes ?? Array.Empty<CutsceneSpec>();
+            StoryRules = storyRules ?? Array.Empty<StoryRuleSpec>();
             Objectives = objectives ?? Array.Empty<ObjectiveSpec>();
             SecretPolicies = secretPolicies ?? Array.Empty<SecretPolicySpec>();
             RequiredSecrets = requiredSecrets ?? Array.Empty<RequiredSecretSpec>();
