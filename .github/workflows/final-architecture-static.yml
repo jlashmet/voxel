@@ -3,7 +3,12 @@ name: Final architecture static acceptance
 on:
   push:
     branches: [refactor/system-boundaries-finalization-stable]
-    paths: [.github/workflows/final-architecture-static.yml]
+    paths:
+      - ".github/workflows/final-architecture-static.yml"
+      - "Assets/VoxelEngine/**"
+      - "Assets/Scenes/Showcase/**"
+      - "Assets/Tests/EditMode/**"
+      - "Packages/com.mountingforce.worldgen/**"
 
 permissions:
   contents: read
@@ -68,17 +73,29 @@ jobs:
                           violations.append(f'production Runtime wiring outside Composition: {name} -> {ref} ({path})')
 
           core_hits = []
+          compatibility_hits = []
           allowed_ext = {'.cs', '.asmdef', '.asmref', '.json'}
           for base in search_roots:
               if not base.exists():
                   continue
               for path in base.rglob('*'):
-                  if not path.is_file() or path.suffix.lower() not in allowed_ext or not production(path.as_posix()):
+                  if not path.is_file() or not production(path.as_posix()):
+                      continue
+
+                  if path.suffix.lower() == '.cs':
+                      lowered_name = path.name.lower()
+                      if 'compatibility' in lowered_name or 'legacy' in lowered_name:
+                          compatibility_hits.append(path.as_posix())
+
+                  if path.suffix.lower() not in allowed_ext:
                       continue
                   if 'VoxelEngine.Core' in path.read_text(errors='ignore'):
                       core_hits.append(path.as_posix())
+
           if core_hits:
               violations.extend(f'VoxelEngine.Core reference: {p}' for p in core_hits)
+          if compatibility_hits:
+              violations.extend(f'legacy/compatibility adapter source: {p}' for p in compatibility_hits)
 
           report = []
           report.append('# Final Architecture Dependency Report')
@@ -99,6 +116,7 @@ jobs:
           report.append('- Runtime assemblies reference no foreign Runtime assemblies.')
           report.append('- Composition is the only production assembly that wires concrete Runtime assemblies.')
           report.append('- Production Assets/Packages contain no `VoxelEngine.Core` references.')
+          report.append('- Production architecture contains no `Legacy*` or `*Compatibility*` adapter source files.')
           Path('Artifacts/FinalArchitecture/dependency-report.md').write_text('\n'.join(report) + '\n')
 
           if violations:
