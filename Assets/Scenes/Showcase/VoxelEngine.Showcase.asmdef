@@ -6,7 +6,6 @@
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Vegetation",
-    "VoxelEngine.Collision",
     "VoxelEngine.Net",
     "VoxelEngine.Rendering",
     "VoxelEngine.Structures.Api",
@@ -19,7 +18,8 @@
     "Unity.Networking.Transport",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",
-    "VoxelEngine.Streaming.Runtime"
+    "VoxelEngine.Streaming.Runtime",
+    "VoxelEngine.Collision.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

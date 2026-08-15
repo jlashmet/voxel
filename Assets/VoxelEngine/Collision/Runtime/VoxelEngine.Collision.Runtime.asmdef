@@ -1,0 +1,19 @@
+{
+  "name": "VoxelEngine.Collision.Runtime",
+  "rootNamespace": "VoxelEngine.Collision.Runtime",
+  "references": [
+    "VoxelEngine.Collision.Api",
+    "VoxelEngine.Storage.Api",
+    "Unity.Collections",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

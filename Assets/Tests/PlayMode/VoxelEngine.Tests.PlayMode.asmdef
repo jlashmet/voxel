@@ -5,7 +5,6 @@
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Net",
-    "VoxelEngine.Collision",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Tiering.Api",
@@ -18,7 +17,8 @@
     "VoxelEngine.Showcase",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Edits.Api",
-    "VoxelEngine.Streaming.Runtime"
+    "VoxelEngine.Streaming.Runtime",
+    "VoxelEngine.Collision.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

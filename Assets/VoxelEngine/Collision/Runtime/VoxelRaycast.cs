@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Collision
+namespace VoxelEngine.Collision.Runtime
 {
     /// <summary>Result of an authoritative voxel raycast.</summary>
     public struct HitInfo

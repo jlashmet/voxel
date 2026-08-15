@@ -13,7 +13,7 @@ namespace VoxelEngine.Showcase
     /// brickmap. Collision reads the same storage the renderer meshes (Constitution
     /// Principle II), so what you stand on is exactly what you see.
     ///
-    /// This does *not* use <see cref="Collision.SweptAabb"/>, and that is worth explaining:
+    /// This does *not* use <see cref="VoxelEngine.Collision.Runtime.SweptAabb"/>, and that is worth explaining:
     /// that helper interprets its AABB in **brick** coordinates, so its finest resolution is
     /// 0.8 m. A character at 10 cm voxels would stop nearly a metre from walls and could not
     /// stand on anything smaller than a brick. Resolution here is per voxel. The engine helper

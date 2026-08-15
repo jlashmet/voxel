@@ -3,7 +3,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Collision
+namespace VoxelEngine.Collision.Runtime
 {
     /// <summary>Converts authoritative Storage read views into simple physics hulls.</summary>
     public static class HullExport

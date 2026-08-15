@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 
-namespace VoxelEngine.Collision
+namespace VoxelEngine.Collision.Runtime
 {
     /// <summary>
     /// Read-only view of a speculative overlay, supplied by the caller. Implementations remain
