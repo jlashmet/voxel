@@ -35,8 +35,8 @@ namespace VoxelEngine.Showcase
 
             // Re-author the semantic features after the shell recolour so the path and flower
             // rhythm remain legible. These still use the normal production voxel authoring path.
-            BuildPath(ref writer);
-            BuildFlowers(ref writer);
+            BuildPath(writer);
+            BuildFlowers(writer);
 
             if (writer.BudgetExceeded)
                 throw new System.InvalidOperationException("Terrain vegetated cap exceeded voxel authoring budget.");
