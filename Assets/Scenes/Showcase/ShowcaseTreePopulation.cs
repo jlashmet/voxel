@@ -1,10 +1,10 @@
 using MountingForce.WorldGen.Voxel;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Core.Terrain;
 using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Rendering;
 using VoxelEngine.Structures;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace VoxelEngine.Showcase
 {
