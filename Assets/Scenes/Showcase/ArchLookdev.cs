@@ -242,7 +242,7 @@ namespace VoxelEngine.Showcase
             return new VoxelWorldView
             {
                 Storage = _readSource, Palette = _palette,
-                SurfaceCatalogue = _surfaces, CoatingCatalogue = _coatings,
+                SurfaceCatalogueView = _surfaces, CoatingCatalogueView = _coatings,
                 ProfileBlocks = _profileBlocks,
             };
         }

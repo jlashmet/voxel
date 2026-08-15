@@ -154,8 +154,8 @@ namespace VoxelEngine.Showcase
             {
                 Storage = _world.ReadStorage,
                 Palette = _world.Palette,
-                SurfaceCatalogue = _world.SurfaceRules,
-                CoatingCatalogue = _world.CoatingRules,
+                SurfaceCatalogueView = _world.SurfaceRules,
+                CoatingCatalogueView = _world.CoatingRules,
                 ProfileBlocks = _world.ProfileBlocks,
             };
             _spawned = false;
