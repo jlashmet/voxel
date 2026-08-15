@@ -20,6 +20,8 @@
     "Game.Composition.Campaign",
     "Game.Composition.Campaign.Content",
     "Game.Composition.Campaign.Runtime",
+    "Game.Composition.Kentridge.Api",
+    "Game.Composition.Kentridge.Runtime",
     "Game.Composition.WorldBuilderWorldGen",
     "Game.Composition.WorldBuilderWorldGen.Runtime",
     "Game.Story.Api",
