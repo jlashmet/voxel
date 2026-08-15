@@ -79,6 +79,46 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ShowcaseConcreteWorldOwnershipLivesInComposition()
+        {
+            string sceneRoot = Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase");
+            string compositionRoot = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase");
+            string[] ownedFiles =
+            {
+                "ShowcaseWorld.cs",
+                "ShowcaseWorld.StorageBridge.cs",
+                "FarFieldStructureStore.cs",
+                "ShowcaseCatalogue.cs",
+                "ShowcaseHeightJob.cs",
+            };
+            var violations = new List<string>();
+
+            foreach (string fileName in ownedFiles)
+            {
+                string compositionPath = Path.Combine(compositionRoot, fileName);
+                if (!File.Exists(compositionPath))
+                    violations.Add("missing Composition-owned file: " + RelativePath(compositionPath));
+
+                string scenePath = Path.Combine(sceneRoot, fileName);
+                if (File.Exists(scenePath))
+                    violations.Add("concrete world owner leaked back into scene assembly: " + RelativePath(scenePath));
+
+                string transitionalPath = Path.Combine(sceneRoot, "CompositionOwned", fileName);
+                if (File.Exists(transitionalPath))
+                    violations.Add("transitional CompositionOwned shim returned: " + RelativePath(transitionalPath));
+            }
+
+            string asmrefPath = Path.Combine(sceneRoot, "CompositionOwned", "VoxelEngine.Composition.asmref");
+            if (File.Exists(asmrefPath))
+                violations.Add("transitional Composition asmref returned: " + RelativePath(asmrefPath));
+
+            Assert.IsEmpty(violations,
+                "Concrete Showcase world wiring must be physically owned by Composition; the scene assembly " +
+                "must remain an API-only application shell.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
         public void DeletedCoreNamespaceDoesNotReappearInProductionSourceOrAsmdefs()
         {
             var violations = new List<string>();
