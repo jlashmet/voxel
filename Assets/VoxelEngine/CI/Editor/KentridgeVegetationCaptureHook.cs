@@ -3,7 +3,7 @@ using MountingForce.WorldGen.Voxel;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Rendering.Vegetation;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
@@ -57,7 +57,7 @@ namespace VoxelEngine.CI
             for (int i = 0; i < instances.Count; i++)
             {
                 TreeInstance instance = instances[i];
-                ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                 Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, DiagnosticLod);
                 mesh.name = $"CI Kentridge Tree {i:00} {instance.Species}";
                 mesh.hideFlags = HideFlags.DontSave;

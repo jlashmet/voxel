@@ -5,7 +5,7 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.TestTools;
-using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Rendering.Vegetation;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
@@ -76,7 +76,7 @@ namespace VoxelEngine.CI
                             "Healthy singleton should begin batch-only.");
                 Assert.That(renderer.TryGetDynamicPresentationRoot(0, out _), Is.False);
 
-                ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                 baselineMesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 0);
                 int barkBefore = (int)baselineMesh.GetIndexCount(0) / 3;
                 int leavesBefore = (int)baselineMesh.GetIndexCount(1) / 3;
@@ -255,7 +255,7 @@ namespace VoxelEngine.CI
             }
         }
 
-        private static int SelectLeafBearingUpperBranch(ProceduralTreeSkeleton skeleton)
+        private static int SelectLeafBearingUpperBranch(TreeSkeletonSnapshot skeleton)
         {
             int bestBranch = -1;
             int bestLeaves = -1;
@@ -263,7 +263,7 @@ namespace VoxelEngine.CI
             for (int branchIndex = 0; branchIndex < skeleton.Branches.Count; branchIndex++)
             {
                 if (skeleton.Branches[branchIndex].Level <= 0) continue;
-                ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
+                TreeSkeletonTopology.ResolveRemovedBranches(
                     skeleton, new[] { branchIndex }, resolved);
                 int leaves = 0;
                 for (int leafIndex = 0; leafIndex < skeleton.Leaves.Count; leafIndex++)
@@ -278,7 +278,7 @@ namespace VoxelEngine.CI
             return bestLeaves > 0 ? bestBranch : -1;
         }
 
-        private static int SelectLowerTrunkBranch(ProceduralTreeSkeleton skeleton)
+        private static int SelectLowerTrunkBranch(TreeSkeletonSnapshot skeleton)
         {
             int best = -1;
             float bestDistance = float.PositiveInfinity;

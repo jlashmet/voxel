@@ -5,7 +5,7 @@ using Random = Unity.Mathematics.Random;
 using VoxelEngine.Vegetation.Api;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
-namespace VoxelEngine.Core.Vegetation
+namespace VoxelEngine.Vegetation.Runtime
 {
     /// <summary>
     /// Render-independent collision and damage service for semantic trees. Gameplay supplies metre-
@@ -25,7 +25,7 @@ namespace VoxelEngine.Core.Vegetation
 
         private sealed class CachedTree
         {
-            public ProceduralTreeSkeleton Skeleton;
+            public TreeSkeletonSnapshot Skeleton;
             public float3 BoundsMin;
             public float3 BoundsMax;
             public float HeightMetres;
@@ -96,7 +96,7 @@ namespace VoxelEngine.Core.Vegetation
                     continue;
 
                 TreeInstance instance = instances[i];
-                ProceduralTreeSkeleton skeleton = EnsureSkeleton(i, in instance);
+                TreeSkeletonSnapshot skeleton = EnsureSkeleton(i, in instance);
                 if (skeleton == null) continue;
                 if (!BoundsOverlap(segmentMin, segmentMax,
                                    cached.BoundsMin - sweepRadius,
@@ -108,7 +108,7 @@ namespace VoxelEngine.Core.Vegetation
 
                 for (int branchIndex = 0; branchIndex < skeleton.Branches.Count; branchIndex++)
                 {
-                    if (ProceduralTreeSkeletonBuilder.IsBranchRemoved(
+                    if (TreeSkeletonTopology.IsBranchRemoved(
                             skeleton, directCuts, branchIndex))
                         continue;
 
@@ -127,9 +127,9 @@ namespace VoxelEngine.Core.Vegetation
                 for (int leafIndex = 0; leafIndex < skeleton.Leaves.Count; leafIndex++)
                 {
                     int parent = skeleton.LeafParents != null
-                              && leafIndex < skeleton.LeafParents.Length
+                              && leafIndex < skeleton.LeafParents.Count
                         ? skeleton.LeafParents[leafIndex] : -1;
-                    if (parent >= 0 && ProceduralTreeSkeletonBuilder.IsBranchRemoved(
+                    if (parent >= 0 && TreeSkeletonTopology.IsBranchRemoved(
                             skeleton, directCuts, parent))
                         continue;
 
@@ -152,7 +152,7 @@ namespace VoxelEngine.Core.Vegetation
                                       float3 impulse)
         {
             IReadOnlyList<TreeInstance> instances = TreeWorldState.Instances;
-            IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
+            IReadOnlyList<TreeDamageState> damage = TreeWorldState.Damage;
             if (instances.Count == 0) return;
 
             EnsureCache(instances);
@@ -178,7 +178,7 @@ namespace VoxelEngine.Core.Vegetation
                                             cached.BoundsMin, cached.BoundsMax))
                     continue;
 
-                ProceduralTreeSkeleton skeleton = EnsureSkeleton(treeIndex, in instance);
+                TreeSkeletonSnapshot skeleton = EnsureSkeleton(treeIndex, in instance);
                 if (skeleton == null) continue;
                 float3 root = instance.PositionMetres;
                 float fallbackRadius = math.max(
@@ -199,7 +199,7 @@ namespace VoxelEngine.Core.Vegetation
 
                 for (int branchIndex = 0; branchIndex < skeleton.Branches.Count; branchIndex++)
                 {
-                    if (ProceduralTreeSkeletonBuilder.IsBranchRemoved(
+                    if (TreeSkeletonTopology.IsBranchRemoved(
                             skeleton, existingCuts, branchIndex))
                         continue;
 
@@ -240,9 +240,9 @@ namespace VoxelEngine.Core.Vegetation
                 for (int leafIndex = 0; leafIndex < skeleton.Leaves.Count; leafIndex++)
                 {
                     int parent = skeleton.LeafParents != null
-                              && leafIndex < skeleton.LeafParents.Length
+                              && leafIndex < skeleton.LeafParents.Count
                         ? skeleton.LeafParents[leafIndex] : -1;
-                    if (parent >= 0 && ProceduralTreeSkeletonBuilder.IsBranchRemoved(
+                    if (parent >= 0 && TreeSkeletonTopology.IsBranchRemoved(
                             skeleton, existingCuts, parent))
                         continue;
 
@@ -314,7 +314,7 @@ namespace VoxelEngine.Core.Vegetation
                         int candidate = s_CutCandidates[i];
                         bool coveredByAnotherCandidate = false;
                         int parent = skeleton.BranchParents != null
-                                  && candidate < skeleton.BranchParents.Length
+                                  && candidate < skeleton.BranchParents.Count
                             ? skeleton.BranchParents[candidate] : -1;
                         while (parent >= 0)
                         {
@@ -324,7 +324,7 @@ namespace VoxelEngine.Core.Vegetation
                                 break;
                             }
                             parent = skeleton.BranchParents != null
-                                  && parent < skeleton.BranchParents.Length
+                                  && parent < skeleton.BranchParents.Count
                                 ? skeleton.BranchParents[parent] : -1;
                         }
                         if (coveredByAnotherCandidate) continue;
@@ -352,7 +352,7 @@ namespace VoxelEngine.Core.Vegetation
             }
         }
 
-        public static ProceduralTreeSkeleton SkeletonFor(int treeIndex)
+        public static TreeSkeletonSnapshot SkeletonFor(int treeIndex)
         {
             IReadOnlyList<TreeInstance> instances = TreeWorldState.Instances;
             if ((uint)treeIndex >= (uint)instances.Count) return null;
@@ -362,7 +362,7 @@ namespace VoxelEngine.Core.Vegetation
         }
 
         private static void PromoteCutCandidatesToVisibleLimbs(
-            ProceduralTreeSkeleton skeleton, List<int> cutCandidates)
+            TreeSkeletonSnapshot skeleton, List<int> cutCandidates)
         {
             s_PromotedCandidates.Clear();
             for (int i = 0; i < cutCandidates.Count; i++)
@@ -376,7 +376,7 @@ namespace VoxelEngine.Core.Vegetation
         }
 
         private static int PromoteCutCandidateToVisibleLimb(
-            ProceduralTreeSkeleton skeleton, int candidate)
+            TreeSkeletonSnapshot skeleton, int candidate)
         {
             if ((uint)candidate >= (uint)skeleton.Branches.Count) return candidate;
             if (skeleton.Branches[candidate].Level <= 0) return candidate;
@@ -386,7 +386,7 @@ namespace VoxelEngine.Core.Vegetation
                    < MinimumVisibleDetachedSegments)
             {
                 int parent = skeleton.BranchParents != null
-                          && promoted < skeleton.BranchParents.Length
+                          && promoted < skeleton.BranchParents.Count
                     ? skeleton.BranchParents[promoted] : -1;
                 if ((uint)parent >= (uint)skeleton.Branches.Count) break;
                 if (skeleton.Branches[parent].Level <= 0) break;
@@ -396,7 +396,7 @@ namespace VoxelEngine.Core.Vegetation
         }
 
         private static int CountConnectedSubtreeBranches(
-            ProceduralTreeSkeleton skeleton, int branchIndex)
+            TreeSkeletonSnapshot skeleton, int branchIndex)
         {
             if ((uint)branchIndex >= (uint)skeleton.Branches.Count) return 0;
             int[] parents = skeleton.BranchParents;
@@ -462,7 +462,7 @@ namespace VoxelEngine.Core.Vegetation
             s_CachedRegistryVersion = version;
         }
 
-        private static ProceduralTreeSkeleton EnsureSkeleton(int treeIndex,
+        private static TreeSkeletonSnapshot EnsureSkeleton(int treeIndex,
                                                               in TreeInstance instance)
         {
             if ((uint)treeIndex >= (uint)s_Cache.Count) return null;
@@ -602,7 +602,7 @@ namespace VoxelEngine.Core.Vegetation
         }
 
         private static void CalculateBounds(in TreeInstance instance,
-                                            ProceduralTreeSkeleton skeleton,
+                                            TreeSkeletonSnapshot skeleton,
                                             out float3 min, out float3 max)
         {
             float3 root = instance.PositionMetres;

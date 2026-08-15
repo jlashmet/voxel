@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Vegetation.Api;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
@@ -45,26 +44,26 @@ namespace VoxelEngine.Rendering.Vegetation
             s_Instance = this;
         }
 
-        private void OnEnable() => TreeWorldState.BranchCut += OnBranchCut;
-        private void OnDisable() => TreeWorldState.BranchCut -= OnBranchCut;
+        private void OnEnable() => TreeWorldReadRegistry.Current.BranchCut += OnBranchCut;
+        private void OnDisable() => TreeWorldReadRegistry.Current.BranchCut -= OnBranchCut;
 
         private void OnBranchCut(TreeBranchCutEvent cut)
         {
-            if ((uint)cut.TreeIndex >= (uint)TreeWorldState.Instances.Count) return;
+            if ((uint)cut.TreeIndex >= (uint)TreeWorldReadRegistry.Current.Instances.Count) return;
             if (!ProceduralTreeMaterials.Ensure()) return;
 
-            TreeInstance instance = TreeWorldState.Instances[cut.TreeIndex];
-            ProceduralTreeSkeleton skeleton = ProceduralTreeDamageService.SkeletonFor(cut.TreeIndex);
+            TreeInstance instance = TreeWorldReadRegistry.Current.Instances[cut.TreeIndex];
+            TreeSkeletonSnapshot skeleton = TreeWorldReadRegistry.Current.SkeletonFor(cut.TreeIndex);
             if (skeleton == null || (uint)cut.BranchIndex >= (uint)skeleton.Branches.Count) return;
 
             TreeBranchSegment cutBranch = skeleton.Branches[cut.BranchIndex];
             bool levelZeroCut = cutBranch.Level == 0;
 
-            // BranchCut is fired after the direct cut has entered TreeWorldState. Build the debris
+            // BranchCut is fired after the direct cut has entered TreeWorldReadRegistry.Current. Build the debris
             // from the current cut's connected subtree, then subtract geometry that had already been
             // removed by previous cuts. This matters when a player comes back and destroys a stump:
             // the already-fallen crown must never be spawned a second time.
-            var previousCuts = new HashSet<int>(TreeWorldState.RemovedBranches(cut.TreeIndex));
+            var previousCuts = new HashSet<int>(TreeWorldReadRegistry.Current.RemovedBranches(cut.TreeIndex));
             previousCuts.Remove(cut.BranchIndex);
             bool hadPreviousTrunkCut = false;
             foreach (int previousCut in previousCuts)
@@ -91,7 +90,7 @@ namespace VoxelEngine.Rendering.Vegetation
             if (previousCuts.Count > 0)
             {
                 subtree.RemoveWhere(branchIndex =>
-                    ProceduralTreeSkeletonBuilder.IsBranchRemoved(
+                    TreeSkeletonTopology.IsBranchRemoved(
                         skeleton, previousCuts, branchIndex));
             }
             if (subtree.Count == 0) return;

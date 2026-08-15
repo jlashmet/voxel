@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Vegetation.Api;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
@@ -36,16 +35,16 @@ namespace VoxelEngine.Rendering.Vegetation
             s_Instance = this;
         }
 
-        private void OnEnable() => TreeWorldState.TreeSevered += OnTreeSevered;
-        private void OnDisable() => TreeWorldState.TreeSevered -= OnTreeSevered;
+        private void OnEnable() => TreeWorldReadRegistry.Current.TreeSevered += OnTreeSevered;
+        private void OnDisable() => TreeWorldReadRegistry.Current.TreeSevered -= OnTreeSevered;
 
         private void OnTreeSevered(TreeSeveredEvent severed)
         {
-            if ((uint)severed.TreeIndex >= (uint)TreeWorldState.Instances.Count) return;
+            if ((uint)severed.TreeIndex >= (uint)TreeWorldReadRegistry.Current.Instances.Count) return;
             if (!ProceduralTreeMaterials.Ensure()) return;
 
-            TreeInstance instance = TreeWorldState.Instances[severed.TreeIndex];
-            ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+            TreeInstance instance = TreeWorldReadRegistry.Current.Instances[severed.TreeIndex];
+            TreeSkeletonSnapshot skeleton = TreeWorldReadRegistry.Current.SkeletonFor(in instance);
             float rootY = instance.PositionMetres.y;
             float hitY = math.clamp(severed.HitPointMetres.y,
                                     rootY + 0.08f,

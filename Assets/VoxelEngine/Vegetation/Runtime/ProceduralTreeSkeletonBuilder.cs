@@ -3,32 +3,9 @@ using Unity.Mathematics;
 using Random = Unity.Mathematics.Random;
 using VoxelEngine.Vegetation.Api;
 
-namespace VoxelEngine.Core.Vegetation
+namespace VoxelEngine.Vegetation.Runtime
 {
-    public struct TreeBranchSegment
-    {
-        public float3 Start;
-        public float3 End;
-        public float RadiusStart;
-        public float RadiusEnd;
-        public int Level;
-    }
-
-    public struct TreeLeafAnchor
-    {
-        public float3 Position;
-        public float3 Direction;
-        public float Size;
-        public float Rotation;
-        public float4 Colour;
-        public TreeLeafStyle Style;
-    }
-
-    /// <summary>
-    /// Render-independent deterministic tree skeleton. Gameplay collision, damage topology and
-    /// presentation all derive from this same semantic structure.
-    /// </summary>
-    public sealed class ProceduralTreeSkeleton
+    internal sealed class TreeSkeletonBuildState
     {
         public readonly List<TreeBranchSegment> Branches = new(256);
         public readonly List<TreeLeafAnchor> Leaves = new(768);
@@ -45,12 +22,12 @@ namespace VoxelEngine.Core.Vegetation
         private const float Deg2Rad = math.PI / 180f;
         private static readonly float GoldenAngle = math.PI * (3f - math.sqrt(5f));
 
-        public static ProceduralTreeSkeleton Generate(in TreeInstance instance)
+        public static TreeSkeletonSnapshot Generate(in TreeInstance instance)
         {
             TreeSpeciesProfile profile = TreeSpeciesProfiles.Get(instance.Species);
             float scale = math.max(0.05f, instance.Scale <= 0f ? 1f : instance.Scale);
             var rng = new Random(instance.Seed == 0 ? 1u : instance.Seed);
-            var skeleton = new ProceduralTreeSkeleton { Profile = profile };
+            var skeleton = new TreeSkeletonBuildState { Profile = profile };
 
             float height = rng.NextFloat(profile.HeightMin, profile.HeightMax) * scale;
             float trunkRadius = rng.NextFloat(profile.TrunkRadiusMin, profile.TrunkRadiusMax) * scale;
@@ -119,48 +96,12 @@ namespace VoxelEngine.Core.Vegetation
             }
 
             ResolveTopology(skeleton);
-            return skeleton;
+            return new TreeSkeletonSnapshot(
+                skeleton.Branches.ToArray(), skeleton.Leaves.ToArray(), skeleton.Profile,
+                skeleton.Height, skeleton.BranchParents, skeleton.LeafParents);
         }
 
-        public static void ResolveRemovedBranches(ProceduralTreeSkeleton skeleton,
-                                                  IReadOnlyCollection<int> directCuts,
-                                                  HashSet<int> resolved)
-        {
-            resolved.Clear();
-            if (directCuts == null || directCuts.Count == 0) return;
-
-            foreach (int cut in directCuts)
-                if ((uint)cut < (uint)skeleton.Branches.Count)
-                    resolved.Add(cut);
-
-            int[] parents = skeleton.BranchParents;
-            if (parents == null || parents.Length != skeleton.Branches.Count) return;
-            for (int i = 0; i < parents.Length; i++)
-            {
-                int parent = parents[i];
-                if (parent >= 0 && resolved.Contains(parent)) resolved.Add(i);
-            }
-        }
-
-        public static bool IsBranchRemoved(ProceduralTreeSkeleton skeleton,
-                                           IReadOnlyCollection<int> directCuts,
-                                           int branchIndex)
-        {
-            if (directCuts == null || directCuts.Count == 0) return false;
-            int current = branchIndex;
-            while (current >= 0)
-            {
-                if (Contains(directCuts, current)) return true;
-                if (skeleton.BranchParents == null || current >= skeleton.BranchParents.Length)
-                    break;
-                int parent = skeleton.BranchParents[current];
-                if (parent == current) break;
-                current = parent;
-            }
-            return false;
-        }
-
-        private static void GrowBranch(ProceduralTreeSkeleton skeleton, ref Random rng,
+        private static void GrowBranch(TreeSkeletonBuildState skeleton, ref Random rng,
                                        in TreeSpeciesProfile profile, TreeSpecies species,
                                        float3 start, float3 direction, float length,
                                        float radius, int level, float scale)
@@ -251,7 +192,7 @@ namespace VoxelEngine.Core.Vegetation
             }
         }
 
-        private static void AddLeafCluster(ProceduralTreeSkeleton skeleton, ref Random rng,
+        private static void AddLeafCluster(TreeSkeletonBuildState skeleton, ref Random rng,
                                            in TreeSpeciesProfile profile,
                                            float3 centre, float3 direction,
                                            float scale, int count)
@@ -290,7 +231,7 @@ namespace VoxelEngine.Core.Vegetation
             }
         }
 
-        private static void ResolveTopology(ProceduralTreeSkeleton skeleton)
+        private static void ResolveTopology(TreeSkeletonBuildState skeleton)
         {
             int branchCount = skeleton.Branches.Count;
             skeleton.BranchParents = new int[branchCount];

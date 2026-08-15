@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Vegetation.Api;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
@@ -23,7 +22,7 @@ namespace VoxelEngine.Rendering.Vegetation
         {
             public int Index;
             public TreeInstance Instance;
-            public ProceduralTreeSkeleton Skeleton;
+            public TreeSkeletonSnapshot Skeleton;
             public GameObject Root;
             public MeshFilter[] LodFilters;
             public MeshRenderer[] LodRenderers;
@@ -148,17 +147,17 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private void OnEnable()
         {
-            TreeWorldState.SnapshotChanged += OnSnapshotChanged;
-            TreeWorldState.BranchCut += OnBranchCut;
-            TreeWorldState.DamageChanged += OnDamageChanged;
+            TreeWorldReadRegistry.Current.SnapshotChanged += OnSnapshotChanged;
+            TreeWorldReadRegistry.Current.BranchCut += OnBranchCut;
+            TreeWorldReadRegistry.Current.DamageChanged += OnDamageChanged;
             _snapshotDirty = true;
         }
 
         private void OnDisable()
         {
-            TreeWorldState.SnapshotChanged -= OnSnapshotChanged;
-            TreeWorldState.BranchCut -= OnBranchCut;
-            TreeWorldState.DamageChanged -= OnDamageChanged;
+            TreeWorldReadRegistry.Current.SnapshotChanged -= OnSnapshotChanged;
+            TreeWorldReadRegistry.Current.BranchCut -= OnBranchCut;
+            TreeWorldReadRegistry.Current.DamageChanged -= OnDamageChanged;
         }
 
         private void OnSnapshotChanged()
@@ -209,8 +208,8 @@ namespace VoxelEngine.Rendering.Vegetation
             if ((uint)treeIndex >= (uint)_trees.Count) return false;
 
             TreePresentation tree = _trees[treeIndex];
-            ProceduralTreeSkeleton skeleton = tree.Skeleton
-                ?? ProceduralTreeSkeletonBuilder.Generate(in tree.Instance);
+            TreeSkeletonSnapshot skeleton = tree.Skeleton
+                ?? TreeWorldReadRegistry.Current.SkeletonFor(in tree.Instance);
             Vector3 root = (Vector3)tree.Instance.PositionMetres;
             bool hasPoint = false;
             Vector3 min = root;
@@ -241,7 +240,7 @@ namespace VoxelEngine.Rendering.Vegetation
 
             for (int i = 0; i < skeleton.Leaves.Count; i++)
             {
-                int parent = skeleton.LeafParents != null && i < skeleton.LeafParents.Length
+                int parent = skeleton.LeafParents != null && i < skeleton.LeafParents.Count
                     ? skeleton.LeafParents[i] : -1;
                 if (parent >= 0 && tree.ResolvedRemovedBranches.Contains(parent)) continue;
                 TreeLeafAnchor leaf = skeleton.Leaves[i];
@@ -277,7 +276,7 @@ namespace VoxelEngine.Rendering.Vegetation
             TotalTriangleCountAllLods = 0;
             PeakResidentSkeletonCountDuringLastRebuild = 0;
 
-            IReadOnlyList<TreeInstance> instances = TreeWorldState.Instances;
+            IReadOnlyList<TreeInstance> instances = TreeWorldReadRegistry.Current.Instances;
             for (int i = 0; i < instances.Count; i++)
             {
                 TreeInstance instance = instances[i];
@@ -286,7 +285,7 @@ namespace VoxelEngine.Rendering.Vegetation
                     Index = i,
                     Instance = instance,
                     Skeleton = null,
-                    DirectCutCount = TreeWorldState.RemovedBranches(i).Count,
+                    DirectCutCount = TreeWorldReadRegistry.Current.RemovedBranches(i).Count,
                 });
             }
 
@@ -427,13 +426,13 @@ namespace VoxelEngine.Rendering.Vegetation
             // damage, however, the damage service has already generated this exact skeleton, so
             // share it instead of deterministically regenerating the same tree a second time.
             tree.Skeleton = _countSnapshotTriangles
-                ? ProceduralTreeSkeletonBuilder.Generate(in tree.Instance)
-                : ProceduralTreeDamageService.SkeletonFor(tree.Index);
+                ? TreeWorldReadRegistry.Current.SkeletonFor(in tree.Instance)
+                : TreeWorldReadRegistry.Current.SkeletonFor(tree.Index);
             if (tree.Skeleton == null)
-                tree.Skeleton = ProceduralTreeSkeletonBuilder.Generate(in tree.Instance);
+                tree.Skeleton = TreeWorldReadRegistry.Current.SkeletonFor(in tree.Instance);
 
-            IReadOnlyCollection<int> directCuts = TreeWorldState.RemovedBranches(tree.Index);
-            ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
+            IReadOnlyCollection<int> directCuts = TreeWorldReadRegistry.Current.RemovedBranches(tree.Index);
+            TreeSkeletonTopology.ResolveRemovedBranches(
                 tree.Skeleton, directCuts, tree.ResolvedRemovedBranches);
             tree.DirectCutCount = directCuts.Count;
             if (_countSnapshotTriangles)
@@ -467,7 +466,7 @@ namespace VoxelEngine.Rendering.Vegetation
         private void RebuildBatches()
         {
             ClearBatches();
-            IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
+            IReadOnlyList<TreeDamageState> damage = TreeWorldReadRegistry.Current.Damage;
             var groups = new Dictionary<Vector2Int, List<int>>();
             for (int i = 0; i < _trees.Count; i++)
             {
@@ -501,9 +500,9 @@ namespace VoxelEngine.Rendering.Vegetation
         }
 
         private bool IsHealthyForBatch(int treeIndex,
-                                       IReadOnlyList<TreeWorldState.TreeDamageState> damage)
+                                       IReadOnlyList<TreeDamageState> damage)
         {
-            if (TreeWorldState.RemovedBranches(treeIndex).Count > 0) return false;
+            if (TreeWorldReadRegistry.Current.RemovedBranches(treeIndex).Count > 0) return false;
             if (treeIndex >= damage.Count) return true;
             if (damage[treeIndex].Severed) return false;
             float damageAmount = 1f - Mathf.Clamp01(damage[treeIndex].FoliageHealth);
@@ -566,7 +565,7 @@ namespace VoxelEngine.Rendering.Vegetation
             {
                 TreePresentation tree = _trees[treeIndices[i]];
                 EnsureSkeleton(tree);
-                ProceduralTreeSkeleton skeleton = tree.Skeleton;
+                TreeSkeletonSnapshot skeleton = tree.Skeleton;
                 if (_countSnapshotTriangles)
                     TotalTriangleCountAllLods += EstimateTriangleCountAllLods(skeleton);
 
@@ -674,7 +673,7 @@ namespace VoxelEngine.Rendering.Vegetation
             _zeroIndices32 = new uint[Mathf.NextPowerOfTwo(count)];
         }
 
-        private static long EstimateTriangleCountAllLods(ProceduralTreeSkeleton skeleton)
+        private static long EstimateTriangleCountAllLods(TreeSkeletonSnapshot skeleton)
         {
             long total = 0;
             for (int lod = 0; lod < 3; lod++)
@@ -694,7 +693,7 @@ namespace VoxelEngine.Rendering.Vegetation
             return total;
         }
 
-        private static int[] BuildBarkOwners(ProceduralTreeSkeleton skeleton,
+        private static int[] BuildBarkOwners(TreeSkeletonSnapshot skeleton,
                                              int lod, int indexCount)
         {
             int radialSides = lod == 0 ? 8 : lod == 1 ? 5 : 3;
@@ -714,7 +713,7 @@ namespace VoxelEngine.Rendering.Vegetation
             return owners;
         }
 
-        private static int[] BuildLeafOwners(ProceduralTreeSkeleton skeleton,
+        private static int[] BuildLeafOwners(TreeSkeletonSnapshot skeleton,
                                              int lod, int indexCount)
         {
             int leafStride = lod == 0 ? 1 : lod == 1 ? 2 : 4;
@@ -727,7 +726,7 @@ namespace VoxelEngine.Rendering.Vegetation
                  leafIndex += leafStride)
             {
                 int parent = skeleton.LeafParents != null
-                          && leafIndex < skeleton.LeafParents.Length
+                          && leafIndex < skeleton.LeafParents.Count
                     ? skeleton.LeafParents[leafIndex] : -1;
                 int end = Mathf.Min(indexCount, cursor + indicesPerLeaf);
                 for (; cursor < end; cursor++) owners[cursor] = parent;
@@ -774,7 +773,7 @@ namespace VoxelEngine.Rendering.Vegetation
         private void ApplyDamageMaterial(TreePresentation tree)
         {
             if (tree.LodRenderers == null) return;
-            IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
+            IReadOnlyList<TreeDamageState> damage = TreeWorldReadRegistry.Current.Damage;
             float damageAmount = tree.Index < damage.Count
                 ? 1f - Mathf.Clamp01(damage[tree.Index].FoliageHealth)
                 : 0f;
@@ -798,17 +797,17 @@ namespace VoxelEngine.Rendering.Vegetation
             {
                 if ((uint)index >= (uint)_trees.Count) continue;
                 TreePresentation tree = _trees[index];
-                IReadOnlyCollection<int> directCuts = TreeWorldState.RemovedBranches(index);
+                IReadOnlyCollection<int> directCuts = TreeWorldReadRegistry.Current.RemovedBranches(index);
                 bool geometryChanged = tree.DirectCutCount != directCuts.Count;
                 if (geometryChanged)
                 {
                     EnsureSkeleton(tree);
-                    ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
+                    TreeSkeletonTopology.ResolveRemovedBranches(
                         tree.Skeleton, directCuts, tree.ResolvedRemovedBranches);
                     tree.DirectCutCount = directCuts.Count;
                 }
 
-                IReadOnlyList<TreeWorldState.TreeDamageState> damage = TreeWorldState.Damage;
+                IReadOnlyList<TreeDamageState> damage = TreeWorldReadRegistry.Current.Damage;
                 float damageAmount = index < damage.Count
                     ? 1f - Mathf.Clamp01(damage[index].FoliageHealth)
                     : 0f;

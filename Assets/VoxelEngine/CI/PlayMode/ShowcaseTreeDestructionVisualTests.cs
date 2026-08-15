@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Rendering.Vegetation;
 using VoxelEngine.Showcase;
@@ -71,7 +71,7 @@ namespace VoxelEngine.CI
             int treeIndex = SelectTreeForDestruction();
             Assert.That(treeIndex, Is.GreaterThanOrEqualTo(0));
             TreeInstance instance = TreeWorldState.Instances[treeIndex];
-            ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+            TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
             int branchTargetIndex = SelectStructuralUpperBranch(skeleton);
             int trunkTargetIndex = SelectLowerTrunkBranch(skeleton);
             Assert.That(branchTargetIndex, Is.GreaterThanOrEqualTo(0));
@@ -306,7 +306,7 @@ namespace VoxelEngine.CI
             {
                 if (TreeWorldState.Damage[i].Severed) continue;
                 TreeInstance instance = TreeWorldState.Instances[i];
-                ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                 if (SelectStructuralUpperBranch(skeleton) < 0) continue;
                 if (SelectLowerTrunkBranch(skeleton) < 0) continue;
                 return i;
@@ -314,7 +314,7 @@ namespace VoxelEngine.CI
             return -1;
         }
 
-        private static int SelectStructuralUpperBranch(ProceduralTreeSkeleton skeleton)
+        private static int SelectStructuralUpperBranch(TreeSkeletonSnapshot skeleton)
         {
             int bestBranch = -1;
             int bestScore = -1;
@@ -322,7 +322,7 @@ namespace VoxelEngine.CI
             for (int branchIndex = 0; branchIndex < skeleton.Branches.Count; branchIndex++)
             {
                 if (skeleton.Branches[branchIndex].Level != 1) continue;
-                ProceduralTreeSkeletonBuilder.ResolveRemovedBranches(
+                TreeSkeletonTopology.ResolveRemovedBranches(
                     skeleton, new[] { branchIndex }, resolved);
                 int leaves = 0;
                 for (int leafIndex = 0; leafIndex < skeleton.Leaves.Count; leafIndex++)
@@ -338,7 +338,7 @@ namespace VoxelEngine.CI
             return bestBranch;
         }
 
-        private static int SelectLowerTrunkBranch(ProceduralTreeSkeleton skeleton)
+        private static int SelectLowerTrunkBranch(TreeSkeletonSnapshot skeleton)
         {
             int best = -1;
             float bestDistance = float.PositiveInfinity;

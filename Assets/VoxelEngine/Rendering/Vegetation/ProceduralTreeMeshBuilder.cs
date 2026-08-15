@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Vegetation.Api;
 
 namespace VoxelEngine.Rendering.Vegetation
@@ -40,12 +39,12 @@ namespace VoxelEngine.Rendering.Vegetation
 
         private static readonly MeshScratch s_Scratch = new();
 
-        public static Mesh BuildMesh(ProceduralTreeSkeleton skeleton, int lod,
+        public static Mesh BuildMesh(TreeSkeletonSnapshot skeleton, int lod,
                                      HashSet<int> removedBranches = null) =>
             BuildMeshInternal(skeleton, lod, removedBranches, null, Vector3.zero);
 
         /// <summary>Builds only one detached connected branch subtree.</summary>
-        public static Mesh BuildSubsetMesh(ProceduralTreeSkeleton skeleton, int lod,
+        public static Mesh BuildSubsetMesh(TreeSkeletonSnapshot skeleton, int lod,
                                            HashSet<int> includedBranches) =>
             BuildMeshInternal(skeleton, lod, null, includedBranches, Vector3.zero);
 
@@ -53,7 +52,7 @@ namespace VoxelEngine.Rendering.Vegetation
         /// Builds one detached subtree already rebased around a requested local-space pivot. This
         /// avoids reading and rewriting Mesh.vertices just to move a severed limb's Rigidbody origin.
         /// </summary>
-        public static Mesh BuildSubsetMesh(ProceduralTreeSkeleton skeleton, int lod,
+        public static Mesh BuildSubsetMesh(TreeSkeletonSnapshot skeleton, int lod,
                                            HashSet<int> includedBranches,
                                            Vector3 positionOffset) =>
             BuildMeshInternal(skeleton, lod, null, includedBranches, positionOffset);
@@ -62,7 +61,7 @@ namespace VoxelEngine.Rendering.Vegetation
         /// Appends one tree directly into caller-owned mesh buffers. Batch rendering uses this path
         /// so healthy trees never need transient Unity Mesh objects merely to be combined again.
         /// </summary>
-        public static void AppendMeshData(ProceduralTreeSkeleton skeleton, int lod,
+        public static void AppendMeshData(TreeSkeletonSnapshot skeleton, int lod,
                                           Vector3 positionOffset,
                                           List<Vector3> vertices,
                                           List<Vector3> normals,
@@ -93,7 +92,7 @@ namespace VoxelEngine.Rendering.Vegetation
 
             for (int i = 0; i < skeleton.Leaves.Count; i += leafStride)
             {
-                int parent = skeleton.LeafParents != null && i < skeleton.LeafParents.Length
+                int parent = skeleton.LeafParents != null && i < skeleton.LeafParents.Count
                     ? skeleton.LeafParents[i] : -1;
                 if (removedBranches != null && parent >= 0 && removedBranches.Contains(parent))
                     continue;
@@ -105,7 +104,7 @@ namespace VoxelEngine.Rendering.Vegetation
             }
         }
 
-        private static Mesh BuildMeshInternal(ProceduralTreeSkeleton skeleton, int lod,
+        private static Mesh BuildMeshInternal(TreeSkeletonSnapshot skeleton, int lod,
                                               HashSet<int> removedBranches,
                                               HashSet<int> includedBranches,
                                               Vector3 positionOffset)

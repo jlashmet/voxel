@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Rendering.Vegetation;
 using VoxelEngine.Showcase;
@@ -84,13 +84,13 @@ namespace VoxelEngine.CI
             {
                 if (i < damageCount)
                 {
-                    TreeWorldState.TreeDamageState damage = TreeWorldState.Damage[i];
+                    TreeDamageState damage = TreeWorldState.Damage[i];
                     if (damage.Severed) severedCount++;
                     if (damage.FoliageHealth < 0.999f) foliageDamagedCount++;
                 }
 
                 TreeInstance instance = TreeWorldState.Instances[i];
-                ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                 if (!HasUprightTrunk(skeleton)) sidewaysSkeletonCount++;
 
                 if (treeRenderer.TryGetDynamicPresentationRoot(i, out Transform root)
@@ -218,7 +218,7 @@ namespace VoxelEngine.CI
             if (cameraObject != null) Object.Destroy(cameraObject);
         }
 
-        private static bool HasUprightTrunk(ProceduralTreeSkeleton skeleton)
+        private static bool HasUprightTrunk(TreeSkeletonSnapshot skeleton)
         {
             float highestY = 0f;
             float maxHorizontal = 0f;

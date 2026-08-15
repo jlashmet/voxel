@@ -9,7 +9,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.TestTools;
-using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Rendering.Vegetation;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
@@ -58,7 +58,7 @@ namespace VoxelEngine.CI
             };
 
             TreeInstance warm = MakeInstance(0);
-            ProceduralTreeSkeleton warmSkeleton = ProceduralTreeSkeletonBuilder.Generate(in warm);
+            TreeSkeletonSnapshot warmSkeleton = ProceduralTreeSkeletonBuilder.Generate(in warm);
             Mesh warmMesh = ProceduralTreeMeshBuilder.BuildMesh(warmSkeleton, 2);
             Object.Destroy(warmMesh);
             yield return null;
@@ -72,7 +72,7 @@ namespace VoxelEngine.CI
                 for (int i = 0; i < count; i++)
                 {
                     TreeInstance instance = MakeInstance(i);
-                    ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                    TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                     branches += skeleton.Branches.Count;
                     leaves += skeleton.Leaves.Count;
                 }
@@ -95,7 +95,7 @@ namespace VoxelEngine.CI
                 for (int i = 0; i < count; i++)
                 {
                     TreeInstance instance = MakeInstance(i);
-                    ProceduralTreeSkeleton skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
+                    TreeSkeletonSnapshot skeleton = ProceduralTreeSkeletonBuilder.Generate(in instance);
                     Mesh mesh = ProceduralTreeMeshBuilder.BuildMesh(skeleton, 2);
                     triangles += (long)mesh.GetIndexCount(0) / 3L;
                     triangles += (long)mesh.GetIndexCount(1) / 3L;

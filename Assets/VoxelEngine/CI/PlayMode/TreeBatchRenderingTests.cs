@@ -4,7 +4,7 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.TestTools;
-using VoxelEngine.Core.Vegetation;
+using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Rendering.Vegetation;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
@@ -187,7 +187,7 @@ namespace VoxelEngine.CI
                     Scale = 1f,
                 };
                 TreeWorldState.Replace(new[] { destructibleTree });
-                ProceduralTreeSkeleton skeleton = ProceduralTreeDamageService.SkeletonFor(0);
+                TreeSkeletonSnapshot skeleton = ProceduralTreeDamageService.SkeletonFor(0);
                 Assert.That(skeleton, Is.Not.Null);
                 Assert.That(skeleton.Branches.Count, Is.GreaterThan(4));
 
@@ -223,7 +223,7 @@ namespace VoxelEngine.CI
                 IReadOnlyCollection<int> finalCuts = TreeWorldState.RemovedBranches(0);
                 for (int branch = 0; branch < skeleton.Branches.Count; branch++)
                 {
-                    Assert.That(ProceduralTreeSkeletonBuilder.IsBranchRemoved(
+                    Assert.That(TreeSkeletonTopology.IsBranchRemoved(
                                     skeleton, finalCuts, branch), Is.True,
                                 $"Branch {branch} survived the root-most stump destruction.");
                 }
@@ -247,7 +247,7 @@ namespace VoxelEngine.CI
             }
         }
 
-        private static int FindLowerTrunkSegment(ProceduralTreeSkeleton skeleton, int minimumIndex)
+        private static int FindLowerTrunkSegment(TreeSkeletonSnapshot skeleton, int minimumIndex)
         {
             int result = -1;
             for (int i = minimumIndex; i < skeleton.Branches.Count; i++)
@@ -262,12 +262,12 @@ namespace VoxelEngine.CI
         }
 
         private static int FindLowestStandingTrunkSegment(
-            ProceduralTreeSkeleton skeleton, IReadOnlyCollection<int> cuts)
+            TreeSkeletonSnapshot skeleton, IReadOnlyCollection<int> cuts)
         {
             for (int i = 0; i < skeleton.Branches.Count; i++)
             {
                 if (skeleton.Branches[i].Level != 0) continue;
-                if (!ProceduralTreeSkeletonBuilder.IsBranchRemoved(skeleton, cuts, i)) return i;
+                if (!TreeSkeletonTopology.IsBranchRemoved(skeleton, cuts, i)) return i;
             }
             return -1;
         }

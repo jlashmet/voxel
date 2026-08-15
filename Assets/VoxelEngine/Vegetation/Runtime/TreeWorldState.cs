@@ -5,56 +5,8 @@ using UnityEngine;
 using VoxelEngine.Vegetation.Api;
 using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
-namespace VoxelEngine.Core.Vegetation
+namespace VoxelEngine.Vegetation.Runtime
 {
-    public readonly struct TreeBranchCutEvent
-    {
-        public readonly int TreeIndex;
-        public readonly int BranchIndex;
-        public readonly float3 HitPointMetres;
-        public readonly float3 Impulse;
-
-        public TreeBranchCutEvent(int treeIndex, int branchIndex,
-                                  float3 hitPointMetres, float3 impulse)
-        {
-            TreeIndex = treeIndex;
-            BranchIndex = branchIndex;
-            HitPointMetres = hitPointMetres;
-            Impulse = impulse;
-        }
-    }
-
-    public readonly struct TreeDamageChangedEvent
-    {
-        public readonly int TreeIndex;
-        public readonly float FoliageHealth;
-        public readonly bool Severed;
-
-        public TreeDamageChangedEvent(int treeIndex, float foliageHealth, bool severed)
-        {
-            TreeIndex = treeIndex;
-            FoliageHealth = foliageHealth;
-            Severed = severed;
-        }
-    }
-
-    public readonly struct TreeSeveredEvent
-    {
-        public readonly int TreeIndex;
-        public readonly int BreakBranchIndex;
-        public readonly float3 HitPointMetres;
-        public readonly float3 Impulse;
-
-        public TreeSeveredEvent(int treeIndex, int breakBranchIndex,
-                                float3 hitPointMetres, float3 impulse)
-        {
-            TreeIndex = treeIndex;
-            BreakBranchIndex = breakBranchIndex;
-            HitPointMetres = hitPointMetres;
-            Impulse = impulse;
-        }
-    }
-
     /// <summary>
     /// Authoritative semantic state for procedural vegetation. World generation publishes immutable
     /// tree identities here; gameplay mutates branch/damage state here. Rendering is a subscriber,
@@ -62,12 +14,6 @@ namespace VoxelEngine.Core.Vegetation
     /// </summary>
     public static class TreeWorldState
     {
-        public struct TreeDamageState
-        {
-            public float FoliageHealth;
-            public bool Severed;
-        }
-
         private const float RootQuantizationMetres = 0.1f;
 
         private static readonly List<TreeInstance> s_Instances = new();
@@ -101,10 +47,12 @@ namespace VoxelEngine.Core.Vegetation
                 s_Version++;
                 s_DamageVersion++;
             }
+            TreeWorldReadRegistry.Register(TreeWorldReadSource.Instance);
         }
 
         public static void Replace(IReadOnlyList<TreeInstance> instances)
         {
+            TreeWorldReadRegistry.Register(TreeWorldReadSource.Instance);
             s_Instances.Clear();
             s_Damage.Clear();
             s_RemovedBranches.Clear();
@@ -124,11 +72,7 @@ namespace VoxelEngine.Core.Vegetation
                     }
 
                     s_Instances.Add(instance);
-                    s_Damage.Add(new TreeDamageState
-                    {
-                        FoliageHealth = 1f,
-                        Severed = false,
-                    });
+                    s_Damage.Add(new TreeDamageState(1f, false));
                     s_RemovedBranches.Add(new HashSet<int>());
                 }
             }
@@ -179,11 +123,7 @@ namespace VoxelEngine.Core.Vegetation
                 && math.abs(previous.FoliageHealth - nextFoliageHealth) < 0.025f)
                 return;
 
-            s_Damage[index] = new TreeDamageState
-            {
-                FoliageHealth = nextFoliageHealth,
-                Severed = nextSevered,
-            };
+            s_Damage[index] = new TreeDamageState(nextFoliageHealth, nextSevered);
             unchecked { s_DamageVersion++; }
 
             DamageChanged?.Invoke(new TreeDamageChangedEvent(index,

@@ -5,7 +5,6 @@
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
-    "VoxelEngine.Vegetation",
     "VoxelEngine.Net",
     "VoxelEngine.Rendering",
     "VoxelEngine.Structures.Api",
@@ -20,7 +19,8 @@
     "VoxelEngine.Edits.Runtime",
     "VoxelEngine.Streaming.Runtime",
     "VoxelEngine.Collision.Runtime",
-    "VoxelEngine.Vegetation.Api"
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.Vegetation.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -4,7 +4,6 @@
   "references": [
     "VoxelEngine.Core",
     "VoxelEngine.Storage.Api",
-    "VoxelEngine.Vegetation",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
