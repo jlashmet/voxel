@@ -295,6 +295,7 @@ namespace Game.WorldBuilder.Api
         private SecretDistribution _distribution;
         private bool _hasDistribution;
         private bool _requiresHiddenSpace;
+        private ContainerArchetype _container = ContainerArchetype.TreasureChest;
         private LootTableRef _reward;
         private bool _hasReward;
 
@@ -325,6 +326,12 @@ namespace Game.WorldBuilder.Api
             return this;
         }
 
+        public SecretPolicyBuilder Container(ContainerArchetype container)
+        {
+            _container = container;
+            return this;
+        }
+
         public SecretPolicyBuilder RewardWith(LootTableRef reward)
         {
             _reward = reward;
@@ -347,6 +354,7 @@ namespace Game.WorldBuilder.Api
                 _entranceTypes.ToArray(),
                 _distribution,
                 _requiresHiddenSpace,
+                _container,
                 _reward);
         }
     }
@@ -373,7 +381,9 @@ namespace Game.WorldBuilder.Api
         private int _maximumRolls;
         private bool _hasRollCount;
         private readonly List<LootCategory> _guaranteed = new List<LootCategory>();
+        private readonly List<GuaranteedLootItem> _guaranteedItems = new List<GuaranteedLootItem>();
         private readonly List<WeightedLootCategory> _weighted = new List<WeightedLootCategory>();
+        private readonly List<WeightedLootItem> _weightedItems = new List<WeightedLootItem>();
 
         internal LootTableBuilder(LootTableRef @ref) => _ref = @ref;
 
@@ -393,9 +403,37 @@ namespace Game.WorldBuilder.Api
             return this;
         }
 
+        public LootTableBuilder Guaranteed(LootItemId item, int quantity)
+            => Guaranteed(item, LootQuantityRange.Exactly(quantity));
+
+        public LootTableBuilder Guaranteed(LootItemId item, int minimumQuantity, int maximumQuantity)
+            => Guaranteed(item, new LootQuantityRange(minimumQuantity, maximumQuantity));
+
+        public LootTableBuilder Guaranteed(LootItemId item, LootQuantityRange quantity)
+        {
+            _guaranteedItems.Add(new GuaranteedLootItem(item, quantity));
+            return this;
+        }
+
         public LootTableBuilder Weighted(LootCategory category, int weight)
         {
             _weighted.Add(new WeightedLootCategory(category, weight));
+            return this;
+        }
+
+        public LootTableBuilder Weighted(LootItemId item, int weight, int quantity = 1)
+            => Weighted(item, weight, LootQuantityRange.Exactly(quantity));
+
+        public LootTableBuilder Weighted(
+            LootItemId item,
+            int weight,
+            int minimumQuantity,
+            int maximumQuantity)
+            => Weighted(item, weight, new LootQuantityRange(minimumQuantity, maximumQuantity));
+
+        public LootTableBuilder Weighted(LootItemId item, int weight, LootQuantityRange quantity)
+        {
+            _weightedItems.Add(new WeightedLootItem(item, weight, quantity));
             return this;
         }
 
@@ -403,7 +441,14 @@ namespace Game.WorldBuilder.Api
         {
             if (!_hasRollCount)
                 throw new InvalidOperationException($"Loot table '{_ref}' requires a roll count.");
-            return new LootTableSpec(_ref, _minimumRolls, _maximumRolls, _guaranteed.ToArray(), _weighted.ToArray());
+            return new LootTableSpec(
+                _ref,
+                _minimumRolls,
+                _maximumRolls,
+                _guaranteed.ToArray(),
+                _guaranteedItems.ToArray(),
+                _weighted.ToArray(),
+                _weightedItems.ToArray());
         }
     }
 }
