@@ -162,6 +162,7 @@ namespace Game.WorldBuilder.Api
         public IReadOnlyList<SiteRolePlan> SiteRoles { get; }
         public WorldHierarchyBlueprint Hierarchy { get; }
         public IReadOnlyList<SpatialConstraintSpec> SpatialConstraints { get; }
+        public IReadOnlyList<NpcPlacementPlan> NpcPlacements { get; }
         public IReadOnlyList<CutsceneStagePlan> CutsceneStages { get; }
         public IReadOnlyList<SecretCandidatePlan> SecretCandidates { get; }
         public IReadOnlyList<RequiredSecretCandidatePlan> RequiredSecrets { get; }
@@ -172,6 +173,7 @@ namespace Game.WorldBuilder.Api
                 Array.Empty<SiteRolePlan>(),
                 EmptyHierarchy(),
                 Array.Empty<SpatialConstraintSpec>(),
+                Array.Empty<NpcPlacementPlan>(),
                 cutsceneStages,
                 null,
                 null)
@@ -187,6 +189,7 @@ namespace Game.WorldBuilder.Api
                 Array.Empty<SiteRolePlan>(),
                 EmptyHierarchy(),
                 Array.Empty<SpatialConstraintSpec>(),
+                Array.Empty<NpcPlacementPlan>(),
                 cutsceneStages,
                 secretCandidates,
                 null)
@@ -203,6 +206,7 @@ namespace Game.WorldBuilder.Api
                 Array.Empty<SiteRolePlan>(),
                 EmptyHierarchy(),
                 Array.Empty<SpatialConstraintSpec>(),
+                Array.Empty<NpcPlacementPlan>(),
                 cutsceneStages,
                 secretCandidates,
                 requiredSecrets)
@@ -217,11 +221,33 @@ namespace Game.WorldBuilder.Api
             CutsceneStagePlan[] cutsceneStages,
             SecretCandidatePlan[] secretCandidates,
             RequiredSecretCandidatePlan[] requiredSecrets)
+            : this(
+                nodes,
+                siteRoles,
+                hierarchy,
+                spatialConstraints,
+                Array.Empty<NpcPlacementPlan>(),
+                cutsceneStages,
+                secretCandidates,
+                requiredSecrets)
+        {
+        }
+
+        public PlanningGraph(
+            PlanningNode[] nodes,
+            SiteRolePlan[] siteRoles,
+            WorldHierarchyBlueprint hierarchy,
+            SpatialConstraintSpec[] spatialConstraints,
+            NpcPlacementPlan[] npcPlacements,
+            CutsceneStagePlan[] cutsceneStages,
+            SecretCandidatePlan[] secretCandidates,
+            RequiredSecretCandidatePlan[] requiredSecrets)
         {
             Nodes = nodes ?? Array.Empty<PlanningNode>();
             SiteRoles = siteRoles ?? Array.Empty<SiteRolePlan>();
             Hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
             SpatialConstraints = spatialConstraints ?? Array.Empty<SpatialConstraintSpec>();
+            NpcPlacements = npcPlacements ?? Array.Empty<NpcPlacementPlan>();
             CutsceneStages = cutsceneStages ?? Array.Empty<CutsceneStagePlan>();
             SecretCandidates = secretCandidates ?? Array.Empty<SecretCandidatePlan>();
             RequiredSecrets = requiredSecrets ?? Array.Empty<RequiredSecretCandidatePlan>();
