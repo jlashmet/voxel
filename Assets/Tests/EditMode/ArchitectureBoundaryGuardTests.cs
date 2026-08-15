@@ -143,6 +143,80 @@ namespace VoxelEngine.Tests.EditMode
                 string.Join("\n", violations));
         }
 
+        [Test]
+        public void ArchLookdevDoesNotReachIntoStructuresRuntime()
+        {
+            string path = Path.Combine(RepoRoot, "Assets", "Scenes", "Showcase", "ArchLookdev.cs");
+            Assert.IsTrue(File.Exists(path), "Missing ArchLookdev source: " + path);
+
+            string source = File.ReadAllText(path);
+            string[] forbiddenTokens =
+            {
+                "VoxelEngine.Structures.Runtime",
+                "ProfileBlockStore",
+                "ArchFeatureDefinition",
+                "ArchBayFeatureDefinition",
+                "ArchRuinDamage",
+                "PrimitiveRasteriser",
+                "VoxelBrush",
+                "MasonryWeathering",
+                "NativeList<Primitive>",
+            };
+            var violations = forbiddenTokens
+                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                .ToList();
+
+            Assert.IsEmpty(violations,
+                "ArchLookdev must consume stable Api/Composition contracts and must not reach into " +
+                "Structures.Runtime implementation details.\n\n" + string.Join("\n", violations));
+        }
+
+        [Test]
+        public void ShowcaseMultiplayerDoesNotReachIntoNetworkingRuntime()
+        {
+            string sourcePath = Path.Combine(
+                RepoRoot, "Assets", "Scenes", "Showcase", "ShowcaseMultiplayerSession.cs");
+            Assert.IsTrue(File.Exists(sourcePath),
+                "Missing Showcase multiplayer source: " + sourcePath);
+
+            string source = File.ReadAllText(sourcePath);
+            string[] forbiddenSourceTokens =
+            {
+                "VoxelEngine.Net.Runtime",
+                "VoxelEngine.Edits.Runtime",
+                "Unity.Networking.Transport",
+                "AuthoritativeServerSession",
+                "ClientNetworkRuntime",
+                "C_PlayerInput",
+                "S_PlayerState",
+            };
+            var violations = forbiddenSourceTokens
+                .Where(token => source.IndexOf(token, StringComparison.Ordinal) >= 0)
+                .Select(token => "ShowcaseMultiplayerSession.cs -> " + token)
+                .ToList();
+
+            string showcaseAsmdefPath = Path.Combine(
+                RepoRoot, "Assets", "Scenes", "Showcase", "VoxelEngine.Showcase.asmdef");
+            string showcaseAsmdef = File.ReadAllText(showcaseAsmdefPath);
+            if (showcaseAsmdef.IndexOf(
+                    "\"VoxelEngine.Net.Runtime\"", StringComparison.Ordinal) >= 0)
+                violations.Add("VoxelEngine.Showcase.asmdef -> VoxelEngine.Net.Runtime");
+            if (showcaseAsmdef.IndexOf(
+                    "\"Unity.Networking.Transport\"", StringComparison.Ordinal) >= 0)
+                violations.Add("VoxelEngine.Showcase.asmdef -> Unity.Networking.Transport");
+
+            string compositionAsmdefPath = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "VoxelEngine.Composition.asmdef");
+            string compositionAsmdef = File.ReadAllText(compositionAsmdefPath);
+            if (compositionAsmdef.IndexOf(
+                    "\"VoxelEngine.Net.Runtime\"", StringComparison.Ordinal) < 0)
+                violations.Add("VoxelEngine.Composition.asmdef must own VoxelEngine.Net.Runtime wiring");
+
+            Assert.IsEmpty(violations,
+                "Showcase multiplayer must consume stable Composition contracts; concrete Net/UTP " +
+                "wiring belongs in Composition.\n\n" + string.Join("\n", violations));
+        }
+
         private static IReadOnlyList<Asmdef> EnumerateVoxelEngineAsmdefs()
         {
             string root = Path.Combine(RepoRoot, "Assets", "VoxelEngine");
