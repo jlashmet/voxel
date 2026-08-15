@@ -34,7 +34,11 @@ namespace Game.WorldBuilder.Runtime
 
             var plans = new NpcPlacementPlan[graph.NpcPlacements.Count];
             for (var i = 0; i < plans.Length; i++)
-                plans[i] = graph.NpcPlacements[i];
+            {
+                plans[i] = graph.NpcPlacements[i]
+                    ?? throw new InvalidOperationException(
+                        "Planning graph contains a null NPC placement at index " + i + ".");
+            }
             Array.Sort(plans, (left, right) =>
                 StringComparer.Ordinal.Compare(left.Npc.Id, right.Npc.Id));
 
@@ -42,9 +46,7 @@ namespace Game.WorldBuilder.Runtime
             var result = new List<NpcSiteAssignment>(plans.Length);
             for (var i = 0; i < plans.Length; i++)
             {
-                NpcPlacementPlan plan = plans[i]
-                    ?? throw new InvalidOperationException(
-                        "Planning graph contains a null NPC placement at index " + i + ".");
+                NpcPlacementPlan plan = plans[i];
                 if (!seenNpcs.Add(plan.Npc))
                     throw new InvalidOperationException(
                         "Planning graph contains duplicate NPC placement for '" + plan.Npc + "'.");
