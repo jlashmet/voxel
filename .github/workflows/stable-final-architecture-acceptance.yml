@@ -65,6 +65,7 @@ jobs:
                   asmdefs.append((path, data.get('name', ''), data.get('references', [])))
 
           violations = []
+          by_name = {name: (path, refs) for path, name, refs in asmdefs}
           for path, name, refs in asmdefs:
               if name.endswith('.Api'):
                   bad = [r for r in refs if r.startswith('VoxelEngine.') and r.endswith('.Runtime')]
@@ -97,12 +98,14 @@ jobs:
           if scene_runtime_refs:
               violations.append('Showcase Runtime refs: ' + ', '.join(scene_runtime_refs))
 
-          worldgen_core = json.loads(Path('Packages/com.mountingforce.worldgen/Runtime/Core/MountingForce.WorldGen.Core.asmdef').read_text())
-          worldgen_arch = json.loads(Path('Packages/com.mountingforce.worldgen/Runtime/Architecture/MountingForce.WorldGen.Architecture.asmdef').read_text())
-          for label, data in [('WorldGen.Core', worldgen_core), ('WorldGen.Architecture', worldgen_arch)]:
-              bad = [r for r in data.get('references', []) if r.startswith('VoxelEngine.')]
+          for assembly_name in ('MountingForce.WorldGen.Core', 'MountingForce.WorldGen.Architecture'):
+              if assembly_name not in by_name:
+                  violations.append(f'missing expected assembly: {assembly_name}')
+                  continue
+              path, refs = by_name[assembly_name]
+              bad = [r for r in refs if r.startswith('VoxelEngine.')]
               if bad:
-                  violations.append(f'{label} engine refs: {bad}')
+                  violations.append(f'{path}: engine refs {bad}')
 
           if violations:
               raise SystemExit('\n'.join(violations))
