@@ -9,7 +9,7 @@
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
     "VoxelEngine.Streaming",
-    "VoxelEngine.Tiering",
+    "VoxelEngine.Tiering.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "MountingForce.WorldGen.Core",

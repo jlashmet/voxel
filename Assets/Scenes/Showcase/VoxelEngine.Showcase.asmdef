@@ -12,7 +12,7 @@
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Streaming",
-    "VoxelEngine.Tiering",
+    "VoxelEngine.Tiering.Api",
     "MountingForce.WorldGen.Voxel",
     "Unity.Burst",
     "Unity.Collections",

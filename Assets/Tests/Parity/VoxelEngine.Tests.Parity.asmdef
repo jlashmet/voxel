@@ -10,7 +10,7 @@
     "VoxelEngine.Net",
     "VoxelEngine.Collision",
     "VoxelEngine.Streaming",
-    "VoxelEngine.Tiering",
+    "VoxelEngine.Tiering.Api",
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",

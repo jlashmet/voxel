@@ -7,7 +7,7 @@
     "Unity.Collections",
     "Unity.Mathematics",
     "VoxelEngine.Net",
-    "VoxelEngine.Tiering"
+    "VoxelEngine.Tiering.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

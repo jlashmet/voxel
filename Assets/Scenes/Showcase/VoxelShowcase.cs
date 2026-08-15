@@ -5,7 +5,7 @@ using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Collision;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Rendering;
-using VoxelEngine.Tiering;
+using VoxelEngine.Tiering.Api;
 
 namespace VoxelEngine.Showcase
 {

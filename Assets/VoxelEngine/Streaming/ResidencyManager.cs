@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Tiering;
+using VoxelEngine.Tiering.Api;
 
 namespace VoxelEngine.Streaming
 {

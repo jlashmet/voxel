@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
-namespace VoxelEngine.Tiering
+namespace VoxelEngine.Tiering.Api
 {
     /// <summary>
     /// Device tier classification used to select presentation-only rendering budgets.
