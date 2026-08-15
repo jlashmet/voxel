@@ -18,291 +18,52 @@ jobs:
           set -euo pipefail
           git reset --hard HEAD
           git clean -ffdx -e Library/
-
           mkdir -p Assets/VoxelEngine/StructuralIntegrity/Api Assets/VoxelEngine/StructuralIntegrity/Runtime
           git mv Assets/VoxelEngine/Core/Structure/SupportField.cs Assets/VoxelEngine/StructuralIntegrity/Runtime/SupportField.cs
           git mv Assets/VoxelEngine/Core/Structure/SupportField.cs.meta Assets/VoxelEngine/StructuralIntegrity/Runtime/SupportField.cs.meta
           git mv Assets/VoxelEngine/Core/Structure/CollapseDetection.cs Assets/VoxelEngine/StructuralIntegrity/Runtime/CollapseDetection.cs
           git mv Assets/VoxelEngine/Core/Structure/CollapseDetection.cs.meta Assets/VoxelEngine/StructuralIntegrity/Runtime/CollapseDetection.cs.meta
-
           python3 - <<'PY'
           from pathlib import Path
-          import json, uuid
-
+          import base64, json, uuid
           def meta(path, folder=False):
               guid=uuid.uuid4().hex
               if folder:
-                  Path(path).write_text(f'''fileFormatVersion: 2\nguid: {guid}\nfolderAsset: yes\nDefaultImporter:\n  externalObjects: {{}}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n''')
+                  Path(path).write_text(f"fileFormatVersion: 2\nguid: {guid}\nfolderAsset: yes\nDefaultImporter:\n  externalObjects: {{}}\n  userData: \n  assetBundleName: \n  assetBundleVariant: \n")
               else:
-                  Path(path).write_text(f'fileFormatVersion: 2\nguid: {guid}\n')
-
-          # New subsystem assembly roots. Api is intentionally empty until an actual cross-system
-          # result/request consumer exists; we do not invent speculative domain payloads.
-          if not Path('Assets/VoxelEngine/StructuralIntegrity.meta').exists(): meta('Assets/VoxelEngine/StructuralIntegrity.meta', True)
-          meta('Assets/VoxelEngine/StructuralIntegrity/Api.meta', True)
-          meta('Assets/VoxelEngine/StructuralIntegrity/Runtime.meta', True)
-          api_asm={
-              'name':'VoxelEngine.StructuralIntegrity.Api',
-              'rootNamespace':'VoxelEngine.StructuralIntegrity.Api',
-              'references':[],
-              'includePlatforms':[], 'excludePlatforms':[],
-              'allowUnsafeCode':False, 'overrideReferences':False,
-              'precompiledReferences':[], 'autoReferenced':False,
-              'defineConstraints':[], 'versionDefines':[], 'noEngineReferences':False,
-          }
-          runtime_asm={
-              'name':'VoxelEngine.StructuralIntegrity.Runtime',
-              'rootNamespace':'VoxelEngine.StructuralIntegrity.Runtime',
-              'references':['VoxelEngine.StructuralIntegrity.Api','VoxelEngine.Storage.Api','Unity.Collections','Unity.Mathematics'],
-              'includePlatforms':[], 'excludePlatforms':[],
-              'allowUnsafeCode':True, 'overrideReferences':False,
-              'precompiledReferences':[], 'autoReferenced':False,
-              'defineConstraints':[], 'versionDefines':[], 'noEngineReferences':False,
-          }
+                  Path(path).write_text(f"fileFormatVersion: 2\nguid: {guid}\n")
+          if not Path('Assets/VoxelEngine/StructuralIntegrity.meta').exists():
+              meta('Assets/VoxelEngine/StructuralIntegrity.meta', True)
+          if not Path('Assets/VoxelEngine/StructuralIntegrity/Api.meta').exists():
+              meta('Assets/VoxelEngine/StructuralIntegrity/Api.meta', True)
+          if not Path('Assets/VoxelEngine/StructuralIntegrity/Runtime.meta').exists():
+              meta('Assets/VoxelEngine/StructuralIntegrity/Runtime.meta', True)
+          api_asm={'name':'VoxelEngine.StructuralIntegrity.Api','rootNamespace':'VoxelEngine.StructuralIntegrity.Api','references':[],'includePlatforms':[],'excludePlatforms':[],'allowUnsafeCode':False,'overrideReferences':False,'precompiledReferences':[],'autoReferenced':False,'defineConstraints':[],'versionDefines':[],'noEngineReferences':False}
+          runtime_asm={'name':'VoxelEngine.StructuralIntegrity.Runtime','rootNamespace':'VoxelEngine.StructuralIntegrity.Runtime','references':['VoxelEngine.StructuralIntegrity.Api','VoxelEngine.Storage.Api','Unity.Collections','Unity.Mathematics'],'includePlatforms':[],'excludePlatforms':[],'allowUnsafeCode':True,'overrideReferences':False,'precompiledReferences':[],'autoReferenced':False,'defineConstraints':[],'versionDefines':[],'noEngineReferences':False}
           Path('Assets/VoxelEngine/StructuralIntegrity/Api/VoxelEngine.StructuralIntegrity.Api.asmdef').write_text(json.dumps(api_asm,indent=2)+'\n')
           meta('Assets/VoxelEngine/StructuralIntegrity/Api/VoxelEngine.StructuralIntegrity.Api.asmdef.meta')
           Path('Assets/VoxelEngine/StructuralIntegrity/Runtime/VoxelEngine.StructuralIntegrity.Runtime.asmdef').write_text(json.dumps(runtime_asm,indent=2)+'\n')
           meta('Assets/VoxelEngine/StructuralIntegrity/Runtime/VoxelEngine.StructuralIntegrity.Runtime.asmdef.meta')
-
-          # Preserve support semantics while replacing physical BrickRef/BrickPool ownership with
-          # the logical Storage.Api read contract.
-          Path('Assets/VoxelEngine/StructuralIntegrity/Runtime/SupportField.cs').write_text(r'''using System;
-using System.Runtime.CompilerServices;
-using Unity.Collections;
-using Unity.Mathematics;
-using VoxelEngine.Storage.Api;
-
-namespace VoxelEngine.StructuralIntegrity.Runtime
-{
-    /// <summary>
-    /// Deterministic support propagation over logical Storage read blocks. Physical voxel storage
-    /// stays owned by Storage; this algorithm only asks whether logical blocks are occupied.
-    /// </summary>
-    public static class SupportField
-    {
-        public const byte NBrickReach = 128;
-        private const int BlocksPerRegion = VoxelReadGrid.BlocksPerRegionEdge
-                                          * VoxelReadGrid.BlocksPerRegionEdge
-                                          * VoxelReadGrid.BlocksPerRegionEdge;
-
-        public static void ComputeSupport(
-            IRegionReadSource storage,
-            int3 regionCoord,
-            NativeArray<byte> supportValues,
-            Allocator allocator)
-        {
-            if (supportValues.Length != BlocksPerRegion)
-                throw new ArgumentException(
-                    $"supportValues must have length {BlocksPerRegion}.", nameof(supportValues));
-            if (storage == null || !storage.TryAcquireRegion(regionCoord, out RegionReadView region))
-                return;
-
-            for (int i = 0; i < BlocksPerRegion; i++) supportValues[i] = 0;
-
-            var visited = new NativeBitArray(BlocksPerRegion, Allocator.Temp);
-            var bfsQueue = new NativeList<int>(BlocksPerRegion >> 2, allocator);
-            var bfsSupport = new NativeList<byte>(BlocksPerRegion >> 2, allocator);
-
-            // Preserve the existing algorithm exactly: ground blocks are distance-zero anchors,
-            // while every occupied region-border block is a conservative maximum-strength anchor.
-            if (regionCoord.y == 0)
-            {
-                for (int x = 0; x < VoxelReadGrid.BlocksPerRegionEdge; x++)
-                for (int z = 0; z < VoxelReadGrid.BlocksPerRegionEdge; z++)
-                {
-                    int idx = BlockIndex(x, 0, z);
-                    if (visited.IsSet(idx) || !region.IsBlockOccupied(new int3(x, 0, z))) continue;
-                    visited.Set(idx, true);
-                    supportValues[idx] = 0;
-                    bfsQueue.Add(idx);
-                    bfsSupport.Add(0);
-                }
-            }
-
-            for (int axis = 0; axis < 3; axis++)
-            for (int dir = -1; dir <= 1; dir += 2)
-            for (int i = 0; i < BlocksPerRegion; i++)
-            {
-                if (visited.IsSet(i) || !BlockTouchesBorder(i, axis, dir)) continue;
-                int3 block = BlockCoords(i);
-                if (!region.IsBlockOccupied(block)) continue;
-                visited.Set(i, true);
-                supportValues[i] = NBrickReach;
-                bfsQueue.Add(i);
-                bfsSupport.Add(NBrickReach);
-            }
-
-            int head = 0;
-            while (head < bfsQueue.Length)
-            {
-                int curIdx = bfsQueue[head];
-                byte curSupport = bfsSupport[head];
-                head++;
-                if (curSupport == 0) continue;
-
-                int3 c = BlockCoords(curIdx);
-                byte next = (byte)(curSupport - 1);
-                if (c.x < VoxelReadGrid.BlocksPerRegionEdgeMask) Push(curIdx + 1, next);
-                if (c.x > 0) Push(curIdx - 1, next);
-                int yStride = VoxelReadGrid.BlocksPerRegionEdge;
-                if (c.y < VoxelReadGrid.BlocksPerRegionEdgeMask) Push(curIdx + yStride, next);
-                if (c.y > 0) Push(curIdx - yStride, next);
-                int zStride = VoxelReadGrid.BlocksPerRegionEdge << VoxelReadGrid.BlocksPerRegionEdgeLog2;
-                if (c.z < VoxelReadGrid.BlocksPerRegionEdgeMask) Push(curIdx + zStride, next);
-                if (c.z > 0) Push(curIdx - zStride, next);
-            }
-
-            visited.Dispose();
-            bfsQueue.Dispose();
-            bfsSupport.Dispose();
-
-            void Push(int index, byte value)
-            {
-                if (visited.IsSet(index) || !region.IsBlockOccupied(BlockCoords(index))) return;
-                visited.Set(index, true);
-                supportValues[index] = value;
-                bfsQueue.Add(index);
-                bfsSupport.Add(value);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte MinBrickSupport(int blockIndex, in NativeArray<byte> supportValues) =>
-            supportValues[blockIndex];
-
-        public static bool HasUnsupportedBricks(
-            int regionCoordX, int regionCoordY, int regionCoordZ,
-            in NativeArray<byte> supportValues,
-            byte threshold)
-        {
-            if (supportValues.Length != BlocksPerRegion) return false;
-            for (int i = 0; i < BlocksPerRegion; i++)
-                if (supportValues[i] <= threshold) return true;
-            return false;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int BlockIndex(int x, int y, int z) =>
-            x | (y << VoxelReadGrid.BlocksPerRegionEdgeLog2)
-              | (z << (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2));
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int3 BlockCoords(int index) => new int3(
-            index & VoxelReadGrid.BlocksPerRegionEdgeMask,
-            (index >> VoxelReadGrid.BlocksPerRegionEdgeLog2) & VoxelReadGrid.BlocksPerRegionEdgeMask,
-            (index >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2)) & VoxelReadGrid.BlocksPerRegionEdgeMask);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool BlockTouchesBorder(int index, int axis, int dir)
-        {
-            int3 c = BlockCoords(index);
-            switch (axis)
-            {
-                case 0: return dir > 0 ? c.x == VoxelReadGrid.BlocksPerRegionEdgeMask : c.x == 0;
-                case 1: return dir > 0 ? c.y == VoxelReadGrid.BlocksPerRegionEdgeMask : c.y == 0;
-                case 2: return dir > 0 ? c.z == VoxelReadGrid.BlocksPerRegionEdgeMask : c.z == 0;
-                default: return false;
-            }
-        }
-    }
-}
-''')
-
-          # CollapseDetection is evaluation only. The old ApplyCollapse method directly mutated
-          # BrickPool/RegionTable, had no callers, and violates the documented Edits-owned mutation flow.
-          Path('Assets/VoxelEngine/StructuralIntegrity/Runtime/CollapseDetection.cs').write_text(r'''using System;
-using System.Runtime.CompilerServices;
-using Unity.Collections;
-using Unity.Mathematics;
-using VoxelEngine.Storage.Api;
-
-namespace VoxelEngine.StructuralIntegrity.Runtime
-{
-    /// <summary>Identifies unsupported logical blocks; applying resulting mutations belongs to Edits.</summary>
-    public static class CollapseDetection
-    {
-        public const byte DefaultThreshold = 2;
-        private const int BlocksPerRegion = VoxelReadGrid.BlocksPerRegionEdge
-                                          * VoxelReadGrid.BlocksPerRegionEdge
-                                          * VoxelReadGrid.BlocksPerRegionEdge;
-
-        public static NativeList<int3> FindCollapseTargets(
-            IRegionReadSource storage,
-            int3 regionCoord,
-            in NativeArray<byte> supportValues,
-            byte threshold)
-        {
-            if (supportValues.Length != BlocksPerRegion)
-                throw new ArgumentException(
-                    $"supportValues must have length {BlocksPerRegion}.", nameof(supportValues));
-
-            var result = new NativeList<int3>(64, Allocator.Temp);
-            if (storage == null || !storage.TryAcquireRegion(regionCoord, out RegionReadView region))
-                return result;
-
-            for (int i = 0; i < BlocksPerRegion; i++)
-            {
-                int3 blockCoord = BlockCoords(i);
-                if (!region.TryGetBlock(blockCoord, out VoxelReadBlock block)
-                    || block.Kind != VoxelReadBlockKind.Mixed
-                    || supportValues[i] > threshold)
-                    continue;
-                result.Add(blockCoord);
-            }
-            return result;
-        }
-
-        public static NativeList<int3> FindUnsupportedBuilds(
-            IRegionReadSource storage,
-            int3 regionCoord,
-            in NativeArray<byte> supportValues) =>
-            FindCollapseTargets(storage, regionCoord, in supportValues, 1);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int3 BlockCoords(int index) => new int3(
-            index & VoxelReadGrid.BlocksPerRegionEdgeMask,
-            (index >> VoxelReadGrid.BlocksPerRegionEdgeLog2) & VoxelReadGrid.BlocksPerRegionEdgeMask,
-            (index >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2)) & VoxelReadGrid.BlocksPerRegionEdgeMask);
-    }
-}
-''')
-
-          # Parity test owns construction of the transitional physical Storage adapter.
+          Path('Assets/VoxelEngine/StructuralIntegrity/Runtime/SupportField.cs').write_bytes(base64.b64decode('dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUnVudGltZS5Db21waWxlclNlcnZpY2VzOwp1c2luZyBVbml0eS5Db2xsZWN0aW9uczsKdXNpbmcgVW5pdHkuTWF0aGVtYXRpY3M7CnVzaW5nIFZveGVsRW5naW5lLlN0b3JhZ2UuQXBpOwoKbmFtZXNwYWNlIFZveGVsRW5naW5lLlN0cnVjdHVyYWxJbnRlZ3JpdHkuUnVudGltZQp7CiAgICAvLy8gPHN1bW1hcnk+CiAgICAvLy8gRGV0ZXJtaW5pc3RpYyBzdXBwb3J0IHByb3BhZ2F0aW9uIG92ZXIgbG9naWNhbCBTdG9yYWdlIHJlYWQgYmxvY2tzLiBQaHlzaWNhbCB2b3hlbCBzdG9yYWdlCiAgICAvLy8gc3RheXMgb3duZWQgYnkgU3RvcmFnZTsgdGhpcyBhbGdvcml0aG0gb25seSBhc2tzIHdoZXRoZXIgbG9naWNhbCBibG9ja3MgYXJlIG9jY3VwaWVkLgogICAgLy8vIDwvc3VtbWFyeT4KICAgIHB1YmxpYyBzdGF0aWMgY2xhc3MgU3VwcG9ydEZpZWxkCiAgICB7CiAgICAgICAgcHVibGljIGNvbnN0IGJ5dGUgTkJyaWNrUmVhY2ggPSAxMjg7CiAgICAgICAgcHJpdmF0ZSBjb25zdCBpbnQgQmxvY2tzUGVyUmVnaW9uID0gVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICogVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICogVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlOwoKICAgICAgICBwdWJsaWMgc3RhdGljIHZvaWQgQ29tcHV0ZVN1cHBvcnQoCiAgICAgICAgICAgIElSZWdpb25SZWFkU291cmNlIHN0b3JhZ2UsCiAgICAgICAgICAgIGludDMgcmVnaW9uQ29vcmQsCiAgICAgICAgICAgIE5hdGl2ZUFycmF5PGJ5dGU+IHN1cHBvcnRWYWx1ZXMsCiAgICAgICAgICAgIEFsbG9jYXRvciBhbGxvY2F0b3IpCiAgICAgICAgewogICAgICAgICAgICBpZiAoc3VwcG9ydFZhbHVlcy5MZW5ndGggIT0gQmxvY2tzUGVyUmVnaW9uKQogICAgICAgICAgICAgICAgdGhyb3cgbmV3IEFyZ3VtZW50RXhjZXB0aW9uKAogICAgICAgICAgICAgICAgICAgICQic3VwcG9ydFZhbHVlcyBtdXN0IGhhdmUgbGVuZ3RoIHtCbG9ja3NQZXJSZWdpb259LiIsIG5hbWVvZihzdXBwb3J0VmFsdWVzKSk7CiAgICAgICAgICAgIGlmIChzdG9yYWdlID09IG51bGwgfHwgIXN0b3JhZ2UuVHJ5QWNxdWlyZVJlZ2lvbihyZWdpb25Db29yZCwgb3V0IFJlZ2lvblJlYWRWaWV3IHJlZ2lvbikpCiAgICAgICAgICAgICAgICByZXR1cm47CgogICAgICAgICAgICBmb3IgKGludCBpID0gMDsgaSA8IEJsb2Nrc1BlclJlZ2lvbjsgaSsrKSBzdXBwb3J0VmFsdWVzW2ldID0gMDsKCiAgICAgICAgICAgIHZhciB2aXNpdGVkID0gbmV3IE5hdGl2ZUJpdEFycmF5KEJsb2Nrc1BlclJlZ2lvbiwgQWxsb2NhdG9yLlRlbXApOwogICAgICAgICAgICB2YXIgYmZzUXVldWUgPSBuZXcgTmF0aXZlTGlzdDxpbnQ+KEJsb2Nrc1BlclJlZ2lvbiA+PiAyLCBhbGxvY2F0b3IpOwogICAgICAgICAgICB2YXIgYmZzU3VwcG9ydCA9IG5ldyBOYXRpdmVMaXN0PGJ5dGU+KEJsb2Nrc1BlclJlZ2lvbiA+PiAyLCBhbGxvY2F0b3IpOwoKICAgICAgICAgICAgLy8gUHJlc2VydmUgdGhlIGV4aXN0aW5nIGFsZ29yaXRobSBleGFjdGx5OiBncm91bmQgYmxvY2tzIGFyZSBkaXN0YW5jZS16ZXJvIGFuY2hvcnMsCiAgICAgICAgICAgIC8vIHdoaWxlIGV2ZXJ5IG9jY3VwaWVkIHJlZ2lvbi1ib3JkZXIgYmxvY2sgaXMgYSBjb25zZXJ2YXRpdmUgbWF4aW11bS1zdHJlbmd0aCBhbmNob3IuCiAgICAgICAgICAgIGlmIChyZWdpb25Db29yZC55ID09IDApCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIGZvciAoaW50IHggPSAwOyB4IDwgVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlOyB4KyspCiAgICAgICAgICAgICAgICBmb3IgKGludCB6ID0gMDsgeiA8IFZveGVsUmVhZEdyaWQuQmxvY2tzUGVyUmVnaW9uRWRnZTsgesrKQogICAgICAgICAgICAgICAgewogICAgICAgICAgICAgICAgICAgIGludCBpZHggPSBCbG9ja0luZGV4KHgsIDAsIHopOwogICAgICAgICAgICAgICAgICAgIGlmICh2aXNpdGVkLklzU2V0KGlkeCkgfHwgIXJlZ2lvbi5Jc0Jsb2NrT2NjdXBpZWQobmV3IGludDMoeCwgMCwgeikpKSBjb250aW51ZTsKICAgICAgICAgICAgICAgICAgICB2aXNpdGVkLlNldChpZHgsIHRydWUpOwogICAgICAgICAgICAgICAgICAgIHN1cHBvcnRWYWx1ZXNbaWR4XSA9IDA7CiAgICAgICAgICAgICAgICAgICAgYmZzUXVldWUuQWRkKGlkeCk7CiAgICAgICAgICAgICAgICAgICAgYmZzU3VwcG9ydC5BZGQoMCk7CiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIGZvciAoaW50IGF4aXMgPSAwOyBheGlzIDwgMzsgYXhpcySrKQogICAgICAgICAgICBmb3IgKGludCBkaXIgPSAtMTsgZGlyIDw9IDE7IGRpciArPSAyKQogICAgICAgICAgICBmb3IgKGludCBpID0gMDsgaSA8IEJsb2Nrc1BlclJlZ2lvbjsgaSsrKQogICAgICAgICAgICB7CiAgICAgICAgICAgICAgICBpZiAodmlzaXRlZC5Jc1NldChpKSB8fCAhQmxvY2tUb3VjaGVzQm9yZGVyKGksIGF4aXMsIGRpcikpIGNvbnRpbnVlOwogICAgICAgICAgICAgICAgaW50MyBibG9jayA9IEJsb2NrQ29vcmRzKGkpOwogICAgICAgICAgICAgICAgaWYgKCFyZWdpb24uSXNCbG9ja09jY3VwaWVkKGJsb2NrKSkgY29udGludWU7CiAgICAgICAgICAgICAgICB2aXNpdGVkLlNldChpLCB0cnVlKTsKICAgICAgICAgICAgICAgIHN1cHBvcnRWYWx1ZXNbaV0gPSBOQnJpY2tSZWFjaDsKICAgICAgICAgICAgICAgIGJmc1F1ZXVlLkFkZChpKTsKICAgICAgICAgICAgICAgIGJmc1N1cHBvcnQuQWRkKE5Ccmlja1JlYWNoKTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgaW50IGhlYWQgPSAwOwogICAgICAgICAgICB3aGlsZSAoaGVhZCA8IGJmc1F1ZXVlLkxlbmd0aCkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgaW50IGN1cklkeCA9IGJmc1F1ZXVlW2hlYWRdOwogICAgICAgICAgICAgICAgYnl0ZSBjdXJTdXBwb3J0ID0gYmZzU3VwcG9ydFtoZWFkXTsKICAgICAgICAgICAgICAgIGhlYWQrKzsKICAgICAgICAgICAgICAgIGlmIChjdXJTdXBwb3J0ID09IDApIGNvbnRpbnVlOwoKICAgICAgICAgICAgICAgIGludDMgYyA9IEJsb2NrQ29vcmRzKGN1cklkeCk7CiAgICAgICAgICAgICAgICBieXRlIG5leHQgPSAoYnl0ZSkoY3VyU3VwcG9ydCAtIDEpOwogICAgICAgICAgICAgICAgaWYgKGMueCA8IFZveGVsUmVhZEdyaWQuQmxvY2tzUGVyUmVnaW9uRWRnZU1hc2spIFB1c2goY3VySWR4ICsgMSwgbmV4dCk7CiAgICAgICAgICAgICAgICBpZiAoYy54ID4gMCkgUHVzaChjdXJJZHggLSAxLCBuZXh0KTsKICAgICAgICAgICAgICAgIGludCB5U3RyaWRlID0gVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlOwogICAgICAgICAgICAgICAgaWYgKGMueSA8IFZveGVsUmVhZEdyaWQuQmxvY2tzUGVyUmVnaW9uRWRnZU1hc2spIFB1c2goY3VySWR4ICsgeVN0cmlkZSwgbmV4dCk7CiAgICAgICAgICAgICAgICBpZiAoYy55ID4gMCkgUHVzaChjdXJJZHggLSB5U3RyaWRlLCBuZXh0KTsKICAgICAgICAgICAgICAgIGludHpTdHJpZGUgPSBWb3hlbFJlYWRHcmlkLkJsb2Nrc1BlclJlZ2lvbkVkZ2UgPDwgVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlTG9nMjsKICAgICAgICAgICAgICAgIGlmIChjLnogPCBWb3hlbFJlYWRHcmlkLkJsb2Nrc1BlclJlZ2lvbkVkZ2VNYXNrKSBQdXNoKGN1cklkeCArIHpTdHJpZGUsIG5leHQpOwogICAgICAgICAgICAgICAgaWYgKGMueiA+IDApIFB1c2goY3VySWR4IC0gelN0cmlkZSwgbmV4dCk7CiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIHZpc2l0ZWQuRGlzcG9zZSgpOwogICAgICAgICAgICBiZnNRdWV1ZS5EaXNwb3NlKCk7CiAgICAgICAgICAgIGJmc1N1cHBvcnQuRGlzcG9zZSgpOwoKICAgICAgICAgICAgdm9pZCBQdXNoKGludCBpbmRleCwgYnl0ZSB2YWx1ZSkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgaWYgKHZpc2l0ZWQuSXNTZXQoaW5kZXgpIHx8ICFyZWdpb24uSXNCbG9ja09jY3VwaWVkKEJsb2NrQ29vcmRzKGluZGV4KSkpIHJldHVybjsKICAgICAgICAgICAgICAgIHZpc2l0ZWQuU2V0KGluZGV4LCB0cnVlKTsKICAgICAgICAgICAgICAgIHN1cHBvcnRWYWx1ZXNbaW5kZXhdID0gdmFsdWU7CiAgICAgICAgICAgICAgICBiZnNRdWV1ZS5BZGQoaW5kZXgpOwogICAgICAgICAgICAgICAgYmZzU3VwcG9ydC5BZGQodmFsdWUpOwogICAgICAgICAgICB9CiAgICAgICAgfQoKICAgICAgICBbTWV0aG9kSW1wbChNZXRob2RJbXBsT3B0aW9ucy5BZ2dyZXNzaXZlSW5saW5pbmcpXQogICAgICAgIHB1YmxpYyBzdGF0aWMgYnl0ZSBNaW5Ccmlja1N1cHBvcnQoaW50IGJsb2NrSW5kZXgsIGluIE5hdGl2ZUFycmF5PGJ5dGU+IHN1cHBvcnRWYWx1ZXMpID0+CiAgICAgICAgICAgIHN1cHBvcnRWYWx1ZXNbYmxvY2tJbmRleF07CgogICAgICAgIHB1YmxpYyBzdGF0aWMgYm9vbCBIYXNVbnN1cHBvcnRlZEJyaWNrcygKICAgICAgICAgICAgaW50IHJlZ2lvbkNvb3JkWCwgaW50IHJlZ2lvbkNvb3JkWSwgaW50IHJlZ2lvbkNvb3JkWiwKICAgICAgICAgICAgaW4gTmF0aXZlQXJyYXk8Ynl0ZT4gc3VwcG9ydFZhbHVlcywKICAgICAgICAgICAgYnl0ZSB0aHJlc2hvbGQpCiAgICAgICAgewogICAgICAgICAgICBpZiAoc3VwcG9ydFZhbHVlcy5MZW5ndGggIT0gQmxvY2tzUGVyUmVnaW9uKSByZXR1cm4gZmFsc2U7CiAgICAgICAgICAgIGZvciAoaW50IGkgPSAwOyBpIDwgQmxvY2tzUGVyUmVnaW9uOyBpKyspCiAgICAgICAgICAgICAgICBpZiAoc3VwcG9ydFZhbHVlc1tpXSA8PSB0aHJlc2hvbGQpIHJldHVybiB0cnVlOwogICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgfQoKICAgICAgICBbTWV0aG9kSW1wbChNZXRob2RJbXBsT3B0aW9ucy5BZ2dyZXNzaXZlSW5saW5pbmcpXQogICAgICAgIHByaXZhdGUgc3RhdGljIGludCBCbG9ja0luZGV4KGludCB4LCBpbnQgeSwgaW50IHopID0+CiAgICAgICAgICAgIHggfCAoeSA8PCBWb3hlbFJlYWRHcmlkLkJsb2Nrc1BlclJlZ2lvbkVkZ2VMb2cyKQogICAgICAgICAgICAgIHwgKHogPDwgKFZveGVsUmVhZEdyaWQuQmxvY2tzUGVyUmVnaW9uRWRnZUxvZzIgKiAyKSk7CgogICAgICAgIFtNZXRob2RJbXBsKE1ldGhvZEltcGxPcHRpb25zLkFnZ3Jlc3NpdmVJbmxpbmluZyldCiAgICAgICAgcHJpdmF0ZSBzdGF0aWMgaW50MyBCbG9ja0Nvb3JkcyhpbnQgaW5kZXgpID0+IG5ldyBpbnQzKAogICAgICAgICAgICBpbmRleCAmIFZveGVsUmVhZEdyaWQuQmxvY2tzUGVyUmVnaW9uRWRnZU1hc2ssCiAgICAgICAgICAgIChpbmRleCA+PiBWb3hlbFJlYWRHcmlkLkJsb2Nrc1BlclJlZ2lvbkVkZ2VMb2cyKSAmIFZveGVsUmVhZEdyaWQuQmxvY2tzUGVyUmVnaW9uRWRnZU1hc2ssCiAgICAgICAgICAgIChpbmRleCA+PiAoVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlTG9nMiAqIDIpKSAmIFZveGVsUmVhZEdyaWQuQmxvY2tzUGVyUmVnaW9uRWRnZU1hc2spOwoKICAgICAgICBbTWV0aG9kSW1wbChNZXRob2RJbXBsT3B0aW9ucy5BZ2dyZXNzaXZlSW5saW5pbmcpXQogICAgICAgIHByaXZhdGUgc3RhdGljIGJvb2wgQmxvY2tUb3VjaGVzQm9yZGVyKGludCBpbmRleCwgaW50IGF4aXMsIGludCBkaXIpCiAgICAgICAgewogICAgICAgICAgICBpbnQzIGMgPSBCbG9ja0Nvb3JkcyhpbmRleCk7CiAgICAgICAgICAgIHN3aXRjaCAoYXhpcykKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgY2FzZSAwOiByZXR1cm4gZGlyID4gMCA/IGMueCA9PSBWb3hlbFJlYWRHcmlkLkJsb2Nrc1BlclJlZ2lvbkVkZ2VNYXNrIDogYy54ID09IDA7CiAgICAgICAgICAgICAgICBjYXNlIDE6IHJldHVybiBkaXIgPiAwID8gYy55ID09IFZveGVsUmVhZEdyaWQuQmxvY2tzUGVyUmVnaW9uRWRnZU1hc2sgOiBjLnkgPT0gMDsKICAgICAgICAgICAgICAgIGNhc2UgMjogcmV0dXJuIGRpciA+IDAgPyBjLnogPT0gVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlTWFzayA6IGMueiA9PSAwOwogICAgICAgICAgICAgICAgZGVmYXVsdDogcmV0dXJuIGZhbHNlOwogICAgICAgICAgICB9CiAgICAgICAgfQogICAgfQp9Cg=='))
+          Path('Assets/VoxelEngine/StructuralIntegrity/Runtime/CollapseDetection.cs').write_bytes(base64.b64decode('dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUnVudGltZS5Db21waWxlclNlcnZpY2VzOwp1c2luZyBVbml0eS5Db2xsZWN0aW9uczsKdXNpbmcgVW5pdHkuTWF0aGVtYXRpY3M7CnVzaW5nIFZveGVsRW5naW5lLlN0b3JhZ2UuQXBpOwoKbmFtZXNwYWNlIFZveGVsRW5naW5lLlN0cnVjdHVyYWxJbnRlZ3JpdHkuUnVudGltZQp7CiAgICAvLy8gPHN1bW1hcnk+SWRlbnRpZmllcyB1bnN1cHBvcnRlZCBsb2dpY2FsIGJsb2NrczsgYXBwbHlpbmcgcmVzdWx0aW5nIG11dGF0aW9ucyBiZWxvbmdzIHRvIEVkaXRzLjwvc3VtbWFyeT4KICAgIHB1YmxpYyBzdGF0aWMgY2xhc3MgQ29sbGFwc2VEZXRlY3Rpb24KICAgIHsKICAgICAgICBwdWJsaWMgY29uc3QgYnl0ZSBEZWZhdWx0VGhyZXNob2xkID0gMjsKICAgICAgICBwcml2YXRlIGNvbnN0IGludCBCbG9ja3NQZXJSZWdpb24gPSBWb3hlbFJlYWRHcmlkLkJsb2Nrc1BlclJlZ2lvbkVkZ2UKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICogVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICogVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlOwoKICAgICAgICBwdWJsaWMgc3RhdGljIE5hdGl2ZUxpc3Q8aW50Mz4gRmluZENvbGxhcHNlVGFyZ2V0cygKICAgICAgICAgICAgSVJlZ2lvblJlYWRTb3VyY2Ugc3RvcmFnZSwKICAgICAgICAgICAgaW50MyByZWdpb25Db29yZCwKICAgICAgICAgICAgaW4gTmF0aXZlQXJyYXk8Ynl0ZT4gc3VwcG9ydFZhbHVlcywKICAgICAgICAgICAgYnl0ZSB0aHJlc2hvbGQpCiAgICAgICAgewogICAgICAgICAgICBpZiAoc3VwcG9ydFZhbHVlcy5MZW5ndGggIT0gQmxvY2tzUGVyUmVnaW9uKQogICAgICAgICAgICAgICAgdGhyb3cgbmV3IEFyZ3VtZW50RXhjZXB0aW9uKAogICAgICAgICAgICAgICAgICAgICQic3VwcG9ydFZhbHVlcyBtdXN0IGhhdmUgbGVuZ3RoIHtCbG9ja3NQZXJSZWdpb259LiIsIG5hbWVvZihzdXBwb3J0VmFsdWVzKSk7CgogICAgICAgICAgICB2YXIgcmVzdWx0ID0gbmV3IE5hdGl2ZUxpc3Q8aW50Mz4oNjQsIEFsbG9jYXRvci5UZW1wKTsKICAgICAgICAgICAgaWYgKHN0b3JhZ2UgPT0gbnVsbCB8fCAhc3RvcmFnZS5UcnlBY3F1aXJlUmVnaW9uKHJlZ2lvbkNvb3JkLCBvdXQgUmVnaW9uUmVhZFZpZXcgcmVnaW9uKSkKICAgICAgICAgICAgICAgIHJldHVybiByZXN1bHQ7CgogICAgICAgICAgICBmb3IgKGludCBpID0gMDsgaSA8IEJsb2Nrc1BlclJlZ2lvbjsgaSsrKQogICAgICAgICAgICB7CiAgICAgICAgICAgICAgICBpbnQzIGJsb2NrQ29vcmQgPSBCbG9ja0Nvb3JkcyhpKTsKICAgICAgICAgICAgICAgIGlmICghcmVnaW9uLlRyeUdldEJsb2NrKGJsb2NrQ29vcmQsIG91dCBWb3hlbFJlYWRCbG9jayBibG9jaykKICAgICAgICAgICAgICAgICAgICB8fCBibG9jay5LaW5kICE9IFZveGVsUmVhZEJsb2NrS2luZC5NaXhlZAogICAgICAgICAgICAgICAgICAgIHx8IHN1cHBvcnRWYWx1ZXNbaV0gPiB0aHJlc2hvbGQpCiAgICAgICAgICAgICAgICAgICAgY29udGludWU7CiAgICAgICAgICAgICAgICByZXN1bHQuQWRkKGJsb2NrQ29vcmQpOwogICAgICAgICAgICB9CiAgICAgICAgICAgIHJldHVybiByZXN1bHQ7CiAgICAgICAgfQoKICAgICAgICBwdWJsaWMgc3RhdGljIE5hdGl2ZUxpc3Q8aW50Mz4gRmluZFVuc3VwcG9ydGVkQnVpbGRzKAogICAgICAgICAgICBJUmVnaW9uUmVhZFNvdXJjZSBzdG9yYWdlLAogICAgICAgICAgICBpbnQzIHJlZ2lvbkNvb3JkLAogICAgICAgICAgICBpbiBOYXRpdmVBcnJheTxieXRlPiBzdXBwb3J0VmFsdWVzKSA9PgogICAgICAgICAgICBGaW5kQ29sbGFwc2VUYXJnZXRzKHN0b3JhZ2UsIHJlZ2lvbkNvb3JkLCBpbiBzdXBwb3J0VmFsdWVzLCAxKTsKCiAgICAgICAgW01ldGhvZEltcGwoTWV0aG9kSW1wbE9wdGlvbnMuQWdncmVzc2l2ZUlubGluaW5nKV0KICAgICAgICBwcml2YXRlIHN0YXRpYyBpbnQzIEJsb2NrQ29vcmRzKGludCBpbmRleCkgPT4gbmV3IGludDMoCiAgICAgICAgICAgIGluZGV4ICYgVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlTWFzaywKICAgICAgICAgICAgKGluZGV4ID4+IFZveGVsUmVhZEdyaWQuQmxvY2tzUGVyUmVnaW9uRWRnZUxvZzIpICYgVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlTWFzaywKICAgICAgICAgICAgKGluZGV4ID4+IChWb3hlbFJlYWRHcmlkLkJsb2Nrc1BlclJlZ2lvbkVkZ2VMb2cyICogMikpICYgVm94ZWxSZWFkR3JpZC5CbG9ja3NQZXJSZWdpb25FZGdlTWFzayk7CiAgICB9Cn0K'))
           p=Path('Assets/Tests/Parity/CollapseAgreementTests.cs')
           text=p.read_text().replace('using VoxelEngine.Core.Structure;\n','using VoxelEngine.StructuralIntegrity.Runtime;\n')
-          replacements={
-              'SupportField.ComputeSupport(in tableA, in poolA, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportA, Allocator.Temp);':
-                  'SupportField.ComputeSupport(new RegionReadSource(in tableA, in poolA), GetRegion(origin.x, origin.y, origin.z), supportA, Allocator.Temp);',
-              'SupportField.ComputeSupport(in tableB, in poolB, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportB, Allocator.Temp);':
-                  'SupportField.ComputeSupport(new RegionReadSource(in tableB, in poolB), GetRegion(origin.x, origin.y, origin.z), supportB, Allocator.Temp);',
-              'SupportField.ComputeSupport(in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);':
-                  'SupportField.ComputeSupport(new RegionReadSource(in table, in pool), regionCoord, support, Allocator.Temp);',
-              'var targets = CollapseDetection.FindUnsupportedBuilds(in region.BrickRefs, in pool, in support);':
-                  'var targets = CollapseDetection.FindUnsupportedBuilds(new RegionReadSource(in table, in pool), regionCoord, in support);',
-              '''            SupportField.ComputeSupport(
-                in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);
-
-            var targets = CollapseDetection.FindCollapseTargets(
-                in region.BrickRefs, in pool, in support, threshold);''':
-                  '''            var readSource = new RegionReadSource(in table, in pool);
-            SupportField.ComputeSupport(readSource, regionCoord, support, Allocator.Temp);
-
-            var targets = CollapseDetection.FindCollapseTargets(
-                readSource, regionCoord, in support, threshold);''',
-          }
+          replacements={'SupportField.ComputeSupport(in tableA, in poolA, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportA, Allocator.Temp);':'SupportField.ComputeSupport(new RegionReadSource(in tableA, in poolA), GetRegion(origin.x, origin.y, origin.z), supportA, Allocator.Temp);','SupportField.ComputeSupport(in tableB, in poolB, GetRegion(origin.x, origin.y, origin.z).x, GetRegion(origin.x, origin.y, origin.z).y, GetRegion(origin.x, origin.y, origin.z).z, supportB, Allocator.Temp);':'SupportField.ComputeSupport(new RegionReadSource(in tableB, in poolB), GetRegion(origin.x, origin.y, origin.z), supportB, Allocator.Temp);','SupportField.ComputeSupport(in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);':'SupportField.ComputeSupport(new RegionReadSource(in table, in pool), regionCoord, support, Allocator.Temp);','var targets = CollapseDetection.FindUnsupportedBuilds(in region.BrickRefs, in pool, in support);':'var targets = CollapseDetection.FindUnsupportedBuilds(new RegionReadSource(in table, in pool), regionCoord, in support);'}
           for old,new in replacements.items():
               if text.count(old)!=1:
-                  raise SystemExit(f'CollapseAgreement replacement count {text.count(old)}: {old[:80]}')
+                  raise SystemExit(f"CollapseAgreement replacement count {text.count(old)}: {old[:80]}")
               text=text.replace(old,new,1)
-          p.write_text(text)
-
+          old="            SupportField.ComputeSupport(\n                in table, in pool, regionCoord.x, regionCoord.y, regionCoord.z, support, Allocator.Temp);\n\n            var targets = CollapseDetection.FindCollapseTargets(\n                in region.BrickRefs, in pool, in support, threshold);"
+          new="            var readSource = new RegionReadSource(in table, in pool);\n            SupportField.ComputeSupport(readSource, regionCoord, support, Allocator.Temp);\n\n            var targets = CollapseDetection.FindCollapseTargets(\n                readSource, regionCoord, in support, threshold);"
+          if text.count(old)!=1:
+              raise SystemExit(f"CollapseTargetsFor replacement count {text.count(old)}")
+          p.write_text(text.replace(old,new,1))
           p=Path('Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef')
           data=json.loads(p.read_text())
           if 'VoxelEngine.StructuralIntegrity.Runtime' not in data['references']:
               data['references'].append('VoxelEngine.StructuralIntegrity.Runtime')
           p.write_text(json.dumps(data,indent=2)+'\n')
           PY
-
           git rm .github/workflows/structural-support-move-inventory.yml .github/workflows/structural-support-runtime-move.yml
           git diff --check
           test -f Assets/VoxelEngine/StructuralIntegrity/Runtime/SupportField.cs
@@ -310,14 +71,16 @@ namespace VoxelEngine.StructuralIntegrity.Runtime
           test ! -e Assets/VoxelEngine/Core/Structure/SupportField.cs
           test ! -e Assets/VoxelEngine/Core/Structure/CollapseDetection.cs
           if grep -RInE 'VoxelEngine\.Core\.Storage|\b(RegionTable|BrickPool|BrickRef|VoxelDimensions|VoxelAccess)\b' Assets/VoxelEngine/StructuralIntegrity --include='*.cs'; then
-            echo 'StructuralIntegrity Runtime leaks physical Storage' >&2; exit 1
+            echo 'StructuralIntegrity Runtime leaks physical Storage' >&2
+            exit 1
           fi
           if grep -RIn 'VoxelEngine.Net' Assets/VoxelEngine/StructuralIntegrity --include='*.cs' --include='*.asmdef'; then
-            echo 'StructuralIntegrity depends on Net' >&2; exit 1
+            echo 'StructuralIntegrity depends on Net' >&2
+            exit 1
           fi
           git status --short
           git config user.name architecture-refactor-ci
           git config user.email architecture-refactor-ci@users.noreply.github.com
-          git add Assets/VoxelEngine/StructuralIntegrity Assets/Tests/Parity/CollapseAgreementTests.cs Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef
+          git add Assets/VoxelEngine/StructuralIntegrity.meta Assets/VoxelEngine/StructuralIntegrity Assets/Tests/Parity/CollapseAgreementTests.cs Assets/Tests/Parity/VoxelEngine.Tests.Parity.asmdef
           git commit -m 'Move structural support evaluation behind Storage API'
           git push origin HEAD:${{ github.ref_name }}
