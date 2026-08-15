@@ -31,24 +31,56 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void GameRuntimeAssembliesReferenceOtherGameSystemsOnlyThroughApis()
+        public void OrdinaryGameRuntimeAssembliesReferenceOtherGameSystemsOnlyThroughApis()
         {
-            foreach (string path in GameAsmdefs().Where(IsRuntimeAssemblyPath))
+            foreach (string path in GameAsmdefs().Where(path =>
+                         IsRuntimeAssemblyPath(path) && !IsCompositionAssemblyPath(path)))
             {
                 foreach (string reference in References(path).Where(value => value.StartsWith("Game.", StringComparison.Ordinal)))
                 {
                     Assert.That(reference.EndsWith(".Api", StringComparison.Ordinal), Is.True,
                         path + " is Runtime code and references Game assembly '" + reference +
-                        "'. Cross-system Game dependencies must go through Api assemblies.");
+                        "'. Cross-system Game dependencies must go through Api assemblies; only Composition may wire runtimes together.");
                 }
             }
+        }
+
+        [Test]
+        public void CompositionIsTheOnlyProductionLayerAllowedToReferenceGameRuntimes()
+        {
+            foreach (string path in GameAsmdefs().Where(path => !IsCompositionAssemblyPath(path)))
+            {
+                foreach (string reference in References(path).Where(value =>
+                             value.StartsWith("Game.", StringComparison.Ordinal)
+                             && value.EndsWith(".Runtime", StringComparison.Ordinal)))
+                {
+                    Assert.Fail(
+                        path + " references Runtime assembly '" + reference +
+                        "'. Runtime-to-runtime wiring is reserved for Assets/Game/Composition.");
+                }
+            }
+        }
+
+        [Test]
+        public void CampaignRuntimeCompositionOwnsStoryAndCutsceneRuntimeWiring()
+        {
+            string path = GameAsmdefs().Single(value =>
+                string.Equals(AssemblyName(value), "Game.Composition.Campaign.Runtime", StringComparison.Ordinal));
+            string[] references = References(path).ToArray();
+
+            CollectionAssert.Contains(references, "Game.Cutscenes.Runtime");
+            CollectionAssert.Contains(references, "Game.Story.Runtime");
+            CollectionAssert.DoesNotContain(references, "Game.WorldBuilder.Runtime",
+                "Campaign runtime should consume compiled WorldBuilder API data, not WorldBuilder implementation code.");
         }
 
         [Test]
         public void GameContentAssembliesDoNotReachIntoRuntime()
         {
             foreach (string path in GameAsmdefs().Where(path =>
-                         !IsApiAssemblyPath(path) && !IsRuntimeAssemblyPath(path)))
+                         !IsApiAssemblyPath(path)
+                         && !IsRuntimeAssemblyPath(path)
+                         && !IsCompositionAssemblyPath(path)))
             {
                 foreach (string reference in References(path))
                 {
@@ -89,6 +121,9 @@ namespace VoxelEngine.Tests.EditMode
 
         private static bool IsRuntimeAssemblyPath(string path) =>
             Normalize(path).Contains("/Runtime/", StringComparison.Ordinal);
+
+        private static bool IsCompositionAssemblyPath(string path) =>
+            Normalize(path).Contains("/Assets/Game/Composition/", StringComparison.Ordinal);
 
         private static string Normalize(string path) => path.Replace('\\', '/');
 
