@@ -6,7 +6,7 @@
 **Baseline date:** 2026-08-14  
 **Planning branch:** `architecture-system-boundaries-plan`  
 **Implementation branch:** `refactor/system-boundaries-foundation-storage`  
-**Current focus:** Cutover 8 Streaming — final Api/Runtime ownership cutover
+**Current focus:** Cutover 9 Collision — final Api/Runtime ownership cutover
 **Implementation stance:** clean subsystem cutovers; no compatibility layer phase
 
 
@@ -26,8 +26,8 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 5 — Edits | **Complete** | Edits.Api owns canonical vocabulary and `IAlterationApplier`; all edit implementation lives under `Edits/Runtime` with Runtime namespace and preserved Unity GUIDs; Net protocol/client/server/validation consume Api only; dead `DensityCap`, redundant Net wrapper, and `VoxelEngine.Core.Edits` are gone; Storage boundaries/parity accepted | none |
 | 6 — StructuralIntegrity | **Complete** | dead Net `StructuralGraph` removed; StructuralIntegrity.Api/Runtime assemblies created; `SupportField`, `CollapseDetection`, and `Connectivity` all live in Runtime with preserved Unity GUIDs and Storage.Api-only reads; `Core/Structure` is gone; final inventory found no production/network structural consumer, so Api remains intentionally empty rather than inventing DTOs; parity accepted | none |
 | 7 — Tiering | **Complete** | `DeviceTier`/`DeviceTierBudget` live under `Tiering/Api` with preserved Unity GUIDs; broad Tiering assembly replaced by dependency-free `VoxelEngine.Tiering.Api`; Streaming, Rendering, Showcase and tests consume Api; no Tiering.Runtime exists; parity accepted | none |
-| 8 — Streaming | **In progress — current** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core or Net | final Streaming.Api/Runtime move and orchestration API |
-| 9 — Collision | **In progress** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
+| 8 — Streaming | **Complete** | `Streaming.Api` exposes the real `RegionLoadRequest`/`IRegionStreaming` orchestration contract; all four implementation files live under `Streaming/Runtime` with preserved Unity GUIDs; `RegionStreamingService` hides Storage residency behind the Api; Runtime depends only on Streaming.Api, Storage.Api and Tiering.Api; broad Streaming/Net coupling is gone | none |
+| 9 — Collision | **In progress — current** | raycast/sweep/hull physical-storage dependency removed; pool-slot hit leak removed; parity accepted | final Collision.Api/Runtime file + namespace move |
 | 10 — Vegetation | **Partial dependency cleanup** | Kentridge top-surface reads use Storage.Api and terrain sampling uses Terrain.Api | full Vegetation.Api/Runtime cutover |
 | 11 — Net | **Partial dependency cleanup** | authoritative edit application callers now consume Storage mutation capability | full Net.Api/Runtime decomposition, structural/residency/snapshot ownership cleanup |
 | 12 — Rendering | **In progress** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; parity accepted | final Rendering.Api/Runtime move and Vegetation.Api-only dependency |
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `ea092bc0358043cea458fceeb5054210ed6781ca` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Streaming dependency slice: the broad Streaming assembly no longer references Net, matching the source inventory that found no legitimate Streaming networking dependency.
+- Latest accepted code gate: `9a3702d4a7e5127a3573a5aaa185c9fced344e63` — 383 tests, 370 passed, exactly the same 13 known baseline failures. Accepted Cutover 8 Streaming: `Streaming.Api`/`Streaming.Runtime` replace the broad assembly; all four implementation files moved with Unity GUIDs preserved; `RegionLoadRequest` + `IRegionStreaming` are the real application contract; `RegionStreamingService` hides Storage residency; Runtime has no Net or foreign Runtime reference. The additional passing test is the new no-network instantiation guard.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -920,17 +920,14 @@ Move all four to `Streaming/Runtime/` and create a deliberately small `Streaming
 
 ### Streaming.Api
 
-Create:
+Final caller inventory showed only two real public orchestration concepts today:
 
 ```text
 Streaming/Api/RegionLoadRequest.cs
-Streaming/Api/RegionResidencyRequest.cs
-Streaming/Api/RegionResidencyState.cs
-Streaming/Api/RegionLoadPriority.cs
 Streaming/Api/IRegionStreaming.cs
 ```
 
-`IRegionStreaming` is orchestration-level and is appropriate here; streaming operations are not inner-loop Burst voxel reads.
+`RegionResidencyRequest`, `RegionResidencyState`, and `RegionLoadPriority` were not created because no live consumer or behavior requires them. `IRegionStreaming` is implemented by Runtime `RegionStreamingService`, which owns the Storage residency dependency internally.
 
 ## 13.1 `RegionLoader` rewrite
 
@@ -980,14 +977,18 @@ It owns desired residency/prefetch/fade policy. It releases regions through Stor
 - [x] existing Streaming assembly no longer references `VoxelEngine.Core`.
 - [x] existing Streaming assembly no longer references Net; source inventory found no legitimate networking dependency.
 - [x] Streaming -> Net dependency-removal slice accepted by CI at `ea092bc0358043cea458fceeb5054210ed6781ca`: 382 total / 369 passed / exact same 13 known baseline failures.
-- [ ] Streaming.Api/Runtime physical move complete.
+- [x] `Streaming.Api`/`Streaming.Runtime` created; `MipRefinement`, `Prefetch`, `RegionLoader`, and `ResidencyManager` moved under Runtime with their original Unity GUIDs, and the broad Streaming assembly is gone.
+- [x] `RegionLoadRequest` + `IRegionStreaming` are the real Api contract; `RegionStreamingService` injects `IRegionResidencyStore` and delegates queue/publish orchestration without exposing Storage to Api callers.
+- [x] Final Net-interest inventory found no live Streaming caller in Net; no speculative Net dependency was added. Any future Net interest integration must consume `Streaming.Api`, never Runtime.
+- [x] Streaming Api/Runtime cutover accepted by CI at `9a3702d4a7e5127a3573a5aaa185c9fced344e63`: 383 total / 370 passed / exact same 13 known baseline failures; the additional passing test is `StreamingServiceCanBeInstantiatedWithoutNetworking`.
+- [x] Streaming.Api/Runtime physical move complete.
 
 ### Gate
 
-- [ ] Streaming.Runtime has no Net reference;
-- [ ] RegionLoader has no Storage.Runtime/Terrain.Runtime/Structures.Runtime compile reference;
-- [ ] streaming can be instantiated without Net;
-- [ ] residency/prefetch/mip refinement tests pass.
+- [x] Streaming.Runtime has no Net reference;
+- [x] RegionLoader has no Storage.Runtime/Terrain.Runtime/Structures.Runtime compile reference;
+- [x] streaming can be instantiated without Net;
+- [x] residency/prefetch/mip refinement tests pass.
 
 ---
 
@@ -1610,11 +1611,11 @@ At the end, generate an asmdef dependency report and verify:
 
 ### 8. Streaming
 
-- [ ] create Streaming.Api/Runtime
-- [ ] move four implementation files
-- [ ] rewrite RegionLoader as API-driven orchestration
+- [x] create Streaming.Api/Runtime
+- [x] move four implementation files
+- [x] expose RegionLoader queue/publish behavior through `IRegionStreaming` + Runtime `RegionStreamingService`
 - [x] remove Streaming -> Net
-- [ ] make Net interest call Streaming.Api
+- [x] resolve Net interest -> Streaming.Api coupling — no live caller exists today; future integration must target Api
 
 ### 9. Collision
 
