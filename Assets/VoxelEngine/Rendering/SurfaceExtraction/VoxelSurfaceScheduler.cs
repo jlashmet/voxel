@@ -5,7 +5,6 @@ using Unity.Mathematics;
 using Unity.Jobs;
 using Unity.Profiling;
 using UnityEngine;
-using VoxelEngine.Core.Features;
 using VoxelEngine.Core.Storage;
 using VoxelEngine.Storage.Api;
 
@@ -333,7 +332,7 @@ namespace VoxelEngine.Rendering.SurfaceExtraction
         public void Prepare(IRegionReadSource storage, in MaterialPalette palette,
                             in SurfaceCatalogue surfaceCatalogue,
                             in CoatingCatalogue coatingCatalogue,
-                            ProfileBlockStore profileBlocks,
+                            IProfileBlockReadSource profileBlocks,
                             VoxelChangeJournal journal, Camera camera, float voxelSize, int frame)
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
