@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Core.Features
 {
@@ -54,7 +54,7 @@ namespace VoxelEngine.Core.Features
 
         public void Add(in ProfileBlock block)
         {
-            if (block.Axis > 2 || block.Material == VoxelDimensions.MaterialEmpty
+            if (block.Axis > 2 || block.Material == VoxelGrid.MaterialEmpty
                 || block.OuterRadiusQ4 <= block.InnerRadiusQ4
                 || block.BackQ4 <= block.FrontQ4)
                 throw new ArgumentException("Invalid profile block.", nameof(block));
