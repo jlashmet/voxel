@@ -12,7 +12,6 @@ namespace MountingForce.WorldGen.Voxel
     /// </summary>
     public sealed class KentridgeVoxelSiteRealizationFacts : ISettlementSiteRealizationFacts
     {
-        private const int FoundationSinkDm = 5;
         private const int FrontInsetDm = 10;
         private const int ResidentialDoorWidthDm = 13;
         private const int ShopDoorWidthDm = 17;
@@ -70,23 +69,10 @@ namespace MountingForce.WorldGen.Voxel
                 return false;
             }
 
-            Int3 envelope = new Int3(
-                intent.EnvelopeDm.X * _scale,
-                intent.EnvelopeDm.Y * _scale,
-                intent.EnvelopeDm.Z * _scale);
-            Int3 rotated = RotatePoint(local, envelope, (byte)intent.Frontage);
-
-            int surfaceY = KentridgeVerticalProfile.PlotSurfaceY(
+            entrance = KentridgeVoxelPlacementTransform.TransformPoint(
+                _plan,
                 plot,
-                _plan.Seed,
-                _scale);
-            int placementY = surfaceY - FoundationSinkDm * _scale;
-
-            entrance = new RealizedWorldPoint(
-                new Int3(
-                    intent.PositionDm.X * _scale + rotated.X,
-                    placementY + local.Y,
-                    intent.PositionDm.Y * _scale + rotated.Z),
+                local,
                 _scale);
             return true;
         }
@@ -146,20 +132,6 @@ namespace MountingForce.WorldGen.Voxel
                     "Generated Kentridge structure is too narrow for its public entrance.");
             if (value < minimum) return minimum;
             return value > maximum ? maximum : value;
-        }
-
-        // Exact integer equivalent of VoxelEngine ShapeProgram.RotatePoint.
-        private static Int3 RotatePoint(Int3 point, Int3 footprint, byte orientation)
-        {
-            int maxX = footprint.X - 1;
-            int maxZ = footprint.Z - 1;
-            switch (orientation & 3)
-            {
-                case 1: return new Int3(maxZ - point.Z, point.Y, point.X);
-                case 2: return new Int3(maxX - point.X, point.Y, maxZ - point.Z);
-                case 3: return new Int3(point.Z, point.Y, maxX - point.X);
-                default: return point;
-            }
         }
     }
 }
