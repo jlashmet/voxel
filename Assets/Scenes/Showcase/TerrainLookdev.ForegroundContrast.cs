@@ -33,7 +33,7 @@ namespace VoxelEngine.Showcase
                 int rz = rng.NextInt(5, 12);
                 int ry = rng.NextFloat() < 0.32f ? 2 : 1;
                 int top = HeightVoxel(x, z);
-                StampEllipsoid(ref writer, new int3(x, top + ry, z),
+                StampEllipsoid(writer, new int3(x, top + ry, z),
                     new int3(rx, ry, rz), Mat.Moss, SurfaceStyles.Smooth);
 
                 int rocks = rng.NextInt(2, 6);
@@ -45,7 +45,7 @@ namespace VoxelEngine.Showcase
                     int hz = rng.NextInt(2, 6);
                     int hy = rng.NextInt(2, 5);
                     int y = HeightVoxel(xx, zz) + hy;
-                    StampRoundedBox(ref writer, new int3(xx, y, zz), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(xx, y, zz), new int3(hx, hy, hz),
                         1, TerrainLimestoneAccent, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.58f);
                 }
@@ -73,7 +73,7 @@ namespace VoxelEngine.Showcase
                     int hz = rng.NextInt(2, maxHalf + 1);
                     int hy = rng.NextInt(1, 3);
                     int y = HeightVoxel(xx, zz) + hy;
-                    StampRoundedBox(ref writer, new int3(xx, y, zz), new int3(hx, hy, hz),
+                    StampRoundedBox(writer, new int3(xx, y, zz), new int3(hx, hy, hz),
                         1, TerrainLimestoneAccent, SurfaceStyles.Planar,
                         rng.NextFloat() < 0.38f);
                 }
