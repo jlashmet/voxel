@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Terrain.Api;
 using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Structures;
@@ -12,9 +12,10 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Realization adapter for Kentridge's pure semantic vegetation layout.
     ///
-    /// Normal runtime generation samples the already-generated voxel column, so trees sit on the
-    /// same district terraces, plot grading, and natural terrain the player sees. The analytic path
-    /// exists for deterministic editor diagnostics that do not expose their temporary RegionTable.
+    /// Normal runtime generation samples the already-generated voxel column through Storage.Api,
+    /// so trees sit on the same district terraces, plot grading, and natural terrain the player
+    /// sees. The analytic path exists for deterministic editor diagnostics without resident world
+    /// storage.
     /// </summary>
     public static class KentridgeVegetationPlanner
     {
@@ -22,7 +23,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int SearchMarginDm = 80;
 
         public static bool TryBuild(uint seed, VoxelWorldGenSettings settings,
-                                    ref RegionTable table, in BrickPool pool,
+                                    IVoxelSurfaceQuery surfaceQuery,
                                     out List<TreeInstance> instances)
         {
             SettlementPlan plan = KentridgeDefinition.Build(seed);
@@ -42,8 +43,9 @@ namespace MountingForce.WorldGen.Voxel
                     candidate.X, candidate.Z, seed, scale);
                 int maxY = math.max(natural, authored) + SearchMarginDm * scale;
                 int minY = math.max(0, math.min(natural, authored) - SearchMarginDm * scale);
-                int surface = FindSurface(ref table, in pool, worldX, worldZ, maxY, minY);
-                if (surface == int.MinValue) continue;
+                if (!surfaceQuery.TryFindTopLandSurface(
+                        worldX, worldZ, minY, maxY, out int surface, out _))
+                    continue;
 
                 AddInstance(candidate, worldX, surface + 1, worldZ,
                             voxelSize, seed, instances);
@@ -110,18 +112,6 @@ namespace MountingForce.WorldGen.Voxel
                 Seed = seed,
                 Scale = scale,
             });
-        }
-
-        private static int FindSurface(ref RegionTable table, in BrickPool pool,
-                                       int x, int z, int maxY, int minY)
-        {
-            for (int y = maxY; y >= minY; y--)
-            {
-                byte material = VoxelAccess.GetVoxel(ref table, in pool, new int3(x, y, z));
-                if (material != Mat.Empty && material != Mat.Water && material != Mat.Cascade)
-                    return y;
-            }
-            return int.MinValue;
         }
 
         private static TreeSpecies ToRuntimeSpecies(SemanticTreeSpecies species) => species switch
