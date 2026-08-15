@@ -1,0 +1,70 @@
+name: Cutover 13 final gap inventory
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-final-gap-inventory.yml
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0f7f410f370b085605367cd7d0683bb7639c717d
+          fetch-depth: 1
+      - name: Report Core literals and Runtime asmdef edges
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          print('=== VoxelEngine.Core source/asmdef matches ===')
+          core=[]
+          for root_name in ('Assets','Packages'):
+              root=Path(root_name)
+              if not root.exists(): continue
+              for p in root.rglob('*'):
+                  if not p.is_file() or p.suffix not in ('.cs','.asmdef','.md','.json','.yml','.yaml'): continue
+                  try: text=p.read_text()
+                  except UnicodeDecodeError: continue
+                  if 'VoxelEngine.Core' in text:
+                      core.append(p)
+                      print(p)
+          print('CORE_MATCH_FILES=',len(core))
+
+          print('=== production asmdef Runtime references ===')
+          edges=[]
+          roots=[Path('Assets'),Path('Packages')]
+          for root in roots:
+              if not root.exists(): continue
+              for p in sorted(root.rglob('*.asmdef')):
+                  if '/Tests/' in p.as_posix() or p.as_posix().startswith('Assets/Tests/'):
+                      continue
+                  data=json.loads(p.read_text())
+                  name=data.get('name',p.stem)
+                  refs=data.get('references',[])
+                  runtime=[r for r in refs if isinstance(r,str) and '.Runtime' in r]
+                  if runtime:
+                      print(name, '->', ', '.join(runtime))
+                      edges.append((name,runtime,p))
+          print('PRODUCTION_ASMDEFS_WITH_RUNTIME_REFS=',len(edges))
+
+          print('=== foreign Storage.Runtime source imports ===')
+          storage=[]
+          for root_name in ('Assets','Packages'):
+              root=Path(root_name)
+              if not root.exists(): continue
+              for p in sorted(root.rglob('*.cs')):
+                  pos=p.as_posix()
+                  if pos.startswith('Assets/VoxelEngine/Storage/Runtime/'):
+                      continue
+                  text=p.read_text(errors='ignore')
+                  if 'using VoxelEngine.Storage.Runtime;' in text:
+                      storage.append(p); print(p)
+          print('FOREIGN_STORAGE_RUNTIME_IMPORTS=',len(storage))
+          PY
