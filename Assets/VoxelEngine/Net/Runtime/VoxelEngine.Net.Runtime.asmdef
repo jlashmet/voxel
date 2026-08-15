@@ -1,0 +1,24 @@
+{
+  "name": "VoxelEngine.Net.Runtime",
+  "rootNamespace": "VoxelEngine.Net.Runtime",
+  "references": [
+    "VoxelEngine.Net.Api",
+    "VoxelEngine.Foundation",
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Streaming.Api",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.StructuralIntegrity.Api",
+    "Unity.Collections",
+    "Unity.Mathematics",
+    "Unity.Networking.Transport"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
