@@ -1,0 +1,46 @@
+name: Vegetation readonly-list compile fix
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs')
+          s = p.read_text()
+          old = '''            int[] parents = skeleton.BranchParents;\n            if (parents == null || parents.Length != skeleton.Branches.Count) return 1;'''
+          new = '''            IReadOnlyList<int> parents = skeleton.BranchParents;\n            if (parents == null || parents.Count != skeleton.Branches.Count) return 1;'''
+          if s.count(old) != 1:
+              raise SystemExit('damage-service parent list pattern drifted')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs')
+          s = p.read_text()
+          old = '''            int[] parents = skeleton.BranchParents;\n            if (parents != null)\n            {\n                for (int i = cut.BranchIndex + 1; i < parents.Length; i++)'''
+          new = '''            IReadOnlyList<int> parents = skeleton.BranchParents;\n            if (parents != null)\n            {\n                for (int i = cut.BranchIndex + 1; i < parents.Count; i++)'''
+          if s.count(old) != 1:
+              raise SystemExit('detached-limb parent list pattern drifted')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git rm .github/workflows/vegetation-readonly-list-fix.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git add -u .github/workflows
+          git commit -m 'fix: consume Vegetation snapshot lists as readonly'
+          git push origin HEAD:${{ github.ref_name }}
