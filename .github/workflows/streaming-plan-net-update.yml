@@ -1,0 +1,43 @@
+name: Record Streaming Net decoupling
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  update-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          s = p.read_text()
+          replacements = {
+            '| 8 — Streaming | **In progress — current** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core | final Streaming.Api/Runtime move and orchestration API |':
+            '| 8 — Streaming | **In progress — current** | residency/eviction mechanics use Storage.Api; fake `BrickRef` completion payload removed; completion ring regression fixed; existing Streaming assembly no longer references Core or Net | final Streaming.Api/Runtime move and orchestration API |',
+            '- Latest accepted code gate: `a0e123454878c81b9a0f2a03db2d2c9f7e1cf89e` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Cutover 7 Tiering: `DeviceTier`/`DeviceTierBudget` are physically under `Tiering/Api` with their Unity GUIDs preserved; `VoxelEngine.Tiering.Api` has no engine references; the broad Tiering assembly is gone; Streaming, Rendering, Showcase and tests reference Tiering.Api; no Tiering.Runtime exists.':
+            '- Latest accepted code gate: `ea092bc0358043cea458fceeb5054210ed6781ca` — 382 tests, 369 passed, exactly the same 13 known baseline failures. Accepted Streaming dependency slice: the broad Streaming assembly no longer references Net, matching the source inventory that found no legitimate Streaming networking dependency.',
+            '- [x] existing Streaming assembly no longer references `VoxelEngine.Core`.\n- [ ] Streaming.Api/Runtime physical move complete.':
+            '- [x] existing Streaming assembly no longer references `VoxelEngine.Core`.\n- [x] existing Streaming assembly no longer references Net; source inventory found no legitimate networking dependency.\n- [x] Streaming -> Net dependency-removal slice accepted by CI at `ea092bc0358043cea458fceeb5054210ed6781ca`: 382 total / 369 passed / exact same 13 known baseline failures.\n- [ ] Streaming.Api/Runtime physical move complete.',
+            '- [ ] remove Streaming -> Net': '- [x] remove Streaming -> Net',
+          }
+          for old, new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f'missing expected plan text: {old}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+          git rm .github/workflows/streaming-plan-net-update.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'Record accepted Streaming Net decoupling'
+          git push origin HEAD:${{ github.ref_name }}
