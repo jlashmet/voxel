@@ -128,72 +128,70 @@ namespace VoxelEngine.Showcase
         }
 
         private void Rebuild()
-        {
-            var watch = Stopwatch.StartNew();
-            IVoxelStorageRuntime nextStorage = VoxelEngineBootstrap.CreateStorage(8, 24_000);
-            const uint coatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
-                                | (1u << Coatings.Soot) | (1u << Coatings.Wet);
-            nextStorage.RegisterMaterial(StoneMaterial, 210, DestructionClass.Crumble,
-                                         SurfaceStyles.MasonryJoint, coatings);
-            nextStorage.ConfigureCoatingDecoration(
-                Coatings.Moss,
-                (byte)_mossDensity,
-                (byte)_mossRadiusQ4,
-                (byte)_mossHeightQ4,
-                (byte)_mossDropQ4,
-                (byte)_mossSeparation);
+{
+    var watch = Stopwatch.StartNew();
+    IVoxelStorageRuntime nextStorage = VoxelEngineBootstrap.CreateStorage(8, 24_000);
+    const uint coatings = (1u << Coatings.Moss) | (1u << Coatings.Snow)
+                        | (1u << Coatings.Soot) | (1u << Coatings.Wet);
+    nextStorage.RegisterMaterial(StoneMaterial, 210, DestructionClass.Crumble,
+                                 SurfaceStyles.MasonryJoint, coatings);
+    nextStorage.ConfigureCoatingDecoration(
+        Coatings.Moss,
+        (byte)_mossDensity,
+        (byte)_mossRadiusQ4,
+        (byte)_mossHeightQ4,
+        (byte)_mossDropQ4,
+        (byte)_mossSeparation);
 
-            StructuresComposition.AuthorArchBay(
-                nextStorage,
-                _clearSpan,
-                _pierHeight,
-                _ringThickness,
-                _depth,
-                _voussoirs,
-                _shoulder,
-                _topMargin,
-                _faceRecess,
-                _plinthHeight,
-                _impostHeight,
-                _damage,
-                _damageScale,
-                0xA341u + (uint)_seedOffset,
-                _jointQ4,
-                _bevelQ4,
-                _projectionQ4,
-                _faceDepthQ4,
-                StoneMaterial,
-                SurfaceStyles.MasonryJoint,
-                Coatings.Moss,
-                (byte)_mossCoverage,
-                2_000_000,
-                out IProfileBlockReadSource nextProfiles,
-                out int bayWidth,
-                out int bayHeight);
+    var request = new ArchLookdevBuildRequest
+    {
+        ClearSpan = _clearSpan,
+        PierHeight = _pierHeight,
+        RingThickness = _ringThickness,
+        Depth = _depth,
+        VoussoirCount = _voussoirs,
+        ShoulderWidth = _shoulder,
+        TopMargin = _topMargin,
+        FaceRecess = _faceRecess,
+        PlinthHeight = _plinthHeight,
+        ImpostHeight = _impostHeight,
+        Damage = _damage,
+        DamageSeed = 0xA341u + (uint)_seedOffset,
+        DamageScale = _damageScale,
+        ProfileJointHalfWidthQ4 = _jointQ4,
+        ProfileBevelQ4 = _bevelQ4,
+        ProfileProjectionQ4 = _projectionQ4,
+        ProfileDepthQ4 = _faceDepthQ4,
+        StoneMaterial = StoneMaterial,
+        SurfaceStyle = SurfaceStyles.MasonryJoint,
+        Coating = Coatings.Moss,
+        CoatingCoverage = _mossCoverage,
+        BrushBudget = 2_000_000,
+    };
+    ArchLookdevBuildResult build = StructuresComposition.BuildArchLookdev(
+        nextStorage, in request);
 
-            nextStorage.PublishAllResidentRegions();
+    IVoxelStorageRuntime oldStorage = _storage;
+    _storage = nextStorage;
+    _profileBlocks = build.ProfileBlocks;
+    var world = new RenderingWorldBinding(
+        _storage.Reads,
+        _storage.MaterialPresentation,
+        _storage.SurfacePresentation,
+        _storage.CoatingPresentation,
+        _profileBlocks);
+    RenderingComposition.ConfigureWorld(
+        in world, _storage.Changes, 0, _buildBudgetMs, 0, farFieldEnabled: false);
+    oldStorage?.Dispose();
 
-            IVoxelStorageRuntime oldStorage = _storage;
-            _storage = nextStorage;
-            _profileBlocks = nextProfiles;
-            var world = new RenderingWorldBinding(
-                _storage.Reads,
-                _storage.MaterialPresentation,
-                _storage.SurfacePresentation,
-                _storage.CoatingPresentation,
-                _profileBlocks);
-            RenderingComposition.ConfigureWorld(
-                in world, _storage.Changes, 0, _buildBudgetMs, 0, farFieldEnabled: false);
-            oldStorage?.Dispose();
-
-            watch.Stop();
-            _lastBuildMs = watch.Elapsed.TotalMilliseconds;
-            _pendingRebuild = false;
-            _lastBayWidth = bayWidth;
-            _lastBayHeight = bayHeight;
-            if (!_cameraInitialized) FrameCamera(bayWidth, bayHeight);
-            _stateDirty = true;
-        }
+    watch.Stop();
+    _lastBuildMs = watch.Elapsed.TotalMilliseconds;
+    _pendingRebuild = false;
+    _lastBayWidth = build.Width;
+    _lastBayHeight = build.Height;
+    if (!_cameraInitialized) FrameCamera(build.Width, build.Height);
+    _stateDirty = true;
+}
 
         private void DisposeWorld()
         {
