@@ -3,7 +3,6 @@
   "rootNamespace": "VoxelEngine.Showcase",
   "references": [
     "VoxelEngine.Storage.Api",
-    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Composition",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Terrain.Runtime",
