@@ -88,7 +88,7 @@ jobs:
           echo "TRIPOSR_PY=$TRIPOSR_PY" >> "$GITHUB_ENV"
           echo "TRIPOSR_WEIGHTS=$TRIPOSR_WEIGHTS" >> "$GITHUB_ENV"
 
-      - name: Build and render Sunlit Cleric staff through real weapon pipeline
+      - name: Build and render Sunlit Cleric staff with TripoSR defaults
         timeout-minutes: 10
         shell: bash
         run: |
@@ -113,9 +113,9 @@ jobs:
               "weights": "$TRIPOSR_WEIGHTS",
               "preset": "smoke",
               "device": "auto",
-              "mcResolution": 64,
+              "mcResolution": 256,
               "chunkSize": 8192,
-              "removeBackground": false
+              "removeBackground": true
             },
             "rigid": {
               "blender": "$BLENDER_BIN"
