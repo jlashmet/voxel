@@ -3,7 +3,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Vegetation.Runtime;
 using VoxelEngine.Vegetation.Api;
-using VoxelEngine.Collision.Runtime;
+using VoxelEngine.Collision.Api;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Tiering.Api;

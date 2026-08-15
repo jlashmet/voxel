@@ -1,7 +1,7 @@
 using System;
 using Unity.Mathematics;
 
-namespace VoxelEngine.Collision.Runtime
+namespace VoxelEngine.Collision.Api
 {
     /// <summary>
     /// Shared deterministic integer line traversal used by authoritative collision queries.

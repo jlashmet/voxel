@@ -1,7 +1,9 @@
 {
   "name": "VoxelEngine.Collision.Api",
   "rootNamespace": "VoxelEngine.Collision.Api",
-  "references": [],
+  "references": [
+    "Unity.Mathematics"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

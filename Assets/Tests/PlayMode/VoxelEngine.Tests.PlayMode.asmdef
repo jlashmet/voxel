@@ -19,7 +19,8 @@
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Streaming.Runtime",
-    "VoxelEngine.Collision.Runtime"
+    "VoxelEngine.Collision.Runtime",
+    "VoxelEngine.Collision.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
