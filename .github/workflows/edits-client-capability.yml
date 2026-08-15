@@ -1,0 +1,169 @@
+name: Edits client capability injection
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Expand the already-accepted application capability to cover the deterministic
+          # support/residency semantics Net needs without knowing the Runtime implementation.
+          p=Path('Assets/VoxelEngine/Edits/Api/IAlterationApplier.cs')
+          p.write_text('''using Unity.Collections;\nusing Unity.Mathematics;\nusing VoxelEngine.Storage.Api;\n\nnamespace VoxelEngine.Edits.Api\n{\n    /// <summary>Deterministic validation/residency/application capability for canonical alteration events.</summary>\n    public interface IAlterationApplier\n    {\n        bool Supports(in AlterationEvent evt);\n        bool HasRequiredResidency(IRegionMutationStore storage, in AlterationEvent evt);\n        bool HasRequiredResidencyExcept(\n            IRegionMutationStore storage, in AlterationEvent evt, int3 excludedRegion);\n        bool TryApply(\n            IRegionMutationStore storage,\n            in AlterationEvent evt,\n            out NativeList<int3> affectedBlocks);\n        bool TryApplyExceptRegion(\n            IRegionMutationStore storage,\n            in AlterationEvent evt,\n            int3 excludedRegion,\n            out NativeList<int3> affectedBlocks);\n    }\n}\n''')
+
+          p=Path('Assets/VoxelEngine/Core/Edits/DeterministicAlterationApplier.cs')
+          text=p.read_text()
+          anchor='''        bool IAlterationApplier.TryApply(\n            IRegionMutationStore storage,\n            in AlterationEvent evt,\n            out NativeList<int3> affectedBlocks) =>\n            TryApply(storage, in evt, out affectedBlocks);\n\n'''
+          if text.count(anchor)!=1: raise SystemExit('IAlterationApplier TryApply anchor mismatch')
+          impl='''        bool IAlterationApplier.Supports(in AlterationEvent evt) => Supports(in evt);\n\n        bool IAlterationApplier.HasRequiredResidency(\n            IRegionMutationStore storage, in AlterationEvent evt) =>\n            HasRequiredResidency(storage, in evt);\n\n        bool IAlterationApplier.HasRequiredResidencyExcept(\n            IRegionMutationStore storage, in AlterationEvent evt, int3 excludedRegion) =>\n            HasRequiredResidencyExcept(storage, in evt, excludedRegion);\n\n'''+anchor+'''        bool IAlterationApplier.TryApplyExceptRegion(\n            IRegionMutationStore storage,\n            in AlterationEvent evt,\n            int3 excludedRegion,\n            out NativeList<int3> affectedBlocks) =>\n            TryApplyExceptRegion(storage, in evt, excludedRegion, out affectedBlocks);\n\n'''
+          p.write_text(text.replace(anchor,impl,1))
+
+          # Queue owns only the Api capability.
+          p=Path('Assets/VoxelEngine/Net/Client/ClientAuthoritativeEventQueue.cs')
+          text=p.read_text().replace('using VoxelEngine.Core.Edits;\n','')
+          text=text.replace('''        private readonly Queue<PendingAuthority> _authority = new Queue<PendingAuthority>(64);\n        private readonly int _maxPendingEvents;''','''        private readonly Queue<PendingAuthority> _authority = new Queue<PendingAuthority>(64);\n        private readonly IAlterationApplier _applier;\n        private readonly int _maxPendingEvents;''',1)
+          old='''        public ClientAuthoritativeEventQueue(int maxPendingEvents = DefaultMaxPendingEvents)\n        {\n            if (maxPendingEvents <= 0)\n                throw new ArgumentOutOfRangeException(nameof(maxPendingEvents));\n            _maxPendingEvents = maxPendingEvents;\n        }'''
+          new='''        public ClientAuthoritativeEventQueue(\n            IAlterationApplier applier,\n            int maxPendingEvents = DefaultMaxPendingEvents)\n        {\n            _applier = applier ?? throw new ArgumentNullException(nameof(applier));\n            if (maxPendingEvents <= 0)\n                throw new ArgumentOutOfRangeException(nameof(maxPendingEvents));\n            _maxPendingEvents = maxPendingEvents;\n        }'''
+          if text.count(old)!=1: raise SystemExit('queue ctor mismatch')
+          text=text.replace(old,new,1)
+          text=text.replace('DeterministicAlterationApplier.Supports(in evt)','_applier.Supports(in evt)')
+          text=text.replace('DeterministicAlterationApplier.TryApplyExceptRegion(','_applier.TryApplyExceptRegion(')
+          text=text.replace('DeterministicAlterationApplier.TryApply(','_applier.TryApply(')
+          text=text.replace('private static bool HasRequiredResidency(','private bool HasRequiredResidency(')
+          text=text.replace('DeterministicAlterationApplier.HasRequiredResidencyExcept(storage, in evt, excludedRegion)','_applier.HasRequiredResidencyExcept(storage, in evt, excludedRegion)')
+          text=text.replace('DeterministicAlterationApplier.HasRequiredResidency(storage, in evt)','_applier.HasRequiredResidency(storage, in evt)')
+          p.write_text(text)
+
+          # Client composition receives the capability from its caller.
+          p=Path('Assets/VoxelEngine/Net/Client/ClientNetworkRuntime.cs')
+          text=p.read_text()
+          if 'using VoxelEngine.Edits.Api;\n' not in text:
+              text=text.replace('using Unity.Networking.Transport;\n','using Unity.Networking.Transport;\nusing VoxelEngine.Edits.Api;\n',1)
+          old='''        public ClientNetworkRuntime(\n            IClientEventNotificationSink notifications = null,\n            int maxPendingAuthoritativeEvents = ClientAuthoritativeEventQueue.DefaultMaxPendingEvents,'''
+          new='''        public ClientNetworkRuntime(\n            IAlterationApplier alterationApplier,\n            IClientEventNotificationSink notifications = null,\n            int maxPendingAuthoritativeEvents = ClientAuthoritativeEventQueue.DefaultMaxPendingEvents,'''
+          if text.count(old)!=1: raise SystemExit('client runtime ctor mismatch')
+          text=text.replace(old,new,1)
+          text=text.replace('_events = new ClientAuthoritativeEventQueue(maxPendingAuthoritativeEvents);','_events = new ClientAuthoritativeEventQueue(alterationApplier, maxPendingAuthoritativeEvents);',1)
+          p.write_text(text)
+
+          # Static application helpers take the Api capability explicitly.
+          p=Path('Assets/VoxelEngine/Net/Client/EventApplication.cs')
+          text=p.read_text().replace('using VoxelEngine.Core.Edits;\n','')
+          text=text.replace('''        public static bool Apply(\n            IRegionMutationStore storage,''','''        public static bool Apply(\n            IAlterationApplier applier,\n            IRegionMutationStore storage,''',1)
+          text=text.replace('return DeterministicAlterationApplier.TryApply(storage, in evt, out affectedBricks);','return applier.TryApply(storage, in evt, out affectedBricks);',1)
+          text=text.replace('''        public static bool ApplyWithArbitration(\n            IRegionMutationStore storage,''','''        public static bool ApplyWithArbitration(\n            IAlterationApplier applier,\n            IRegionMutationStore storage,''',1)
+          text=text.replace('''                bool changed = DeterministicAlterationApplier.TryApply(\n                    storage, in evt, out NativeList<int3> affectedBricks);''','''                bool changed = applier.TryApply(\n                    storage, in evt, out NativeList<int3> affectedBricks);''',1)
+          p.write_text(text)
+
+          p=Path('Assets/VoxelEngine/Net/Client/AlterationBatchReceiver.cs')
+          text=p.read_text()
+          old='''        public static bool TryApply(\n            ReadOnlySpan<byte> payload,\n            IRegionMutationStore storage,'''
+          new='''        public static bool TryApply(\n            ReadOnlySpan<byte> payload,\n            IAlterationApplier applier,\n            IRegionMutationStore storage,'''
+          if text.count(old)!=1: raise SystemExit('batch receiver signature mismatch')
+          text=text.replace(old,new,1)
+          text=text.replace('anyChanged = EventApplication.ApplyWithArbitration(storage, in events);','anyChanged = EventApplication.ApplyWithArbitration(applier, storage, in events);',1)
+          p.write_text(text)
+
+          p=Path('Assets/VoxelEngine/Net/Client/EventPacketReceiver.cs')
+          text=p.read_text()
+          if 'using VoxelEngine.Edits.Api;\n' not in text:
+              text=text.replace('using System;\n','using System;\nusing VoxelEngine.Edits.Api;\n',1)
+          text=text.replace('''        public static bool TryApply(\n            ReadOnlySpan<byte> packet,\n            IRegionMutationStore storage,\n            out bool anyChanged) =>\n            TryApply(packet, storage, out anyChanged, null);''','''        public static bool TryApply(\n            ReadOnlySpan<byte> packet,\n            IAlterationApplier applier,\n            IRegionMutationStore storage,\n            out bool anyChanged) =>\n            TryApply(packet, applier, storage, out anyChanged, null);''',1)
+          text=text.replace('''        public static bool TryApply(\n            ReadOnlySpan<byte> packet,\n            IRegionMutationStore storage,''','''        public static bool TryApply(\n            ReadOnlySpan<byte> packet,\n            IAlterationApplier applier,\n            IRegionMutationStore storage,''',1)
+          text=text.replace('''                    return AlterationBatchReceiver.TryApply(\n                        packet.Slice(payloadOffset),\n                        storage,''','''                    return AlterationBatchReceiver.TryApply(\n                        packet.Slice(payloadOffset),\n                        applier,\n                        storage,''',1)
+          p.write_text(text)
+
+          # Server validation also uses only the Api capability.
+          p=Path('Assets/VoxelEngine/Net/Server/AuthoritativeAlterationValidator.cs')
+          text=p.read_text().replace('using VoxelEngine.Core.Edits;\n','')
+          text=text.replace('''            IRegionMutationStore mutationStorage,\n            ref RegionTable table,''','''            IRegionMutationStore mutationStorage,\n            IAlterationApplier applier,\n            ref RegionTable table,''',1)
+          text=text.replace('!DeterministicAlterationApplier.Supports(in evt)','!applier.Supports(in evt)')
+          text=text.replace('!DeterministicAlterationApplier.HasRequiredResidency(mutationStorage, in evt)','!applier.HasRequiredResidency(mutationStorage, in evt)')
+          p.write_text(text)
+
+          for name in ['Assets/VoxelEngine/Net/Server/ServerCommandProcessor.cs','Assets/VoxelEngine/Net/Server/DestructionHandler.cs']:
+              p=Path(name); text=p.read_text()
+              needle='''                        mutationStorage,\n                        ref table,'''
+              if name.endswith('DestructionHandler.cs'):
+                  needle='''                mutationStorage,\n                ref table,'''
+                  repl='''                mutationStorage,\n                applier,\n                ref table,'''
+              else:
+                  repl='''                        mutationStorage,\n                        applier,\n                        ref table,'''
+              if text.count(needle)!=1: raise SystemExit(f'validator caller mismatch in {name}')
+              p.write_text(text.replace(needle,repl,1))
+
+          # Direct validator test supplies deterministic implementation.
+          p=Path('Assets/Tests/EditMode/CanonicalBrushValidationTests.cs')
+          text=p.read_text()
+          if 'using VoxelEngine.Core.Edits;\n' not in text:
+              if 'using VoxelEngine.Core.Storage;\n' in text:
+                  text=text.replace('using VoxelEngine.Core.Storage;\n','using VoxelEngine.Core.Edits;\nusing VoxelEngine.Core.Storage;\n',1)
+              else: text='using VoxelEngine.Core.Edits;\n'+text
+          needle='''                    mutationStorage,\n                    ref table,'''
+          if text.count(needle)!=1: raise SystemExit('validator test caller mismatch')
+          p.write_text(text.replace(needle,'''                    mutationStorage,\n                    new DeterministicAlterationApplier(),\n                    ref table,''',1))
+
+          # All concrete client composition points live in Showcase/tests, which may own Runtime implementation wiring.
+          client_runtime_files=[]
+          queue_files=[]
+          for root in (Path('Assets/Scenes'), Path('Assets/Tests')):
+              for p in root.rglob('*.cs'):
+                  text=p.read_text()
+                  changed=False
+                  if 'new ClientNetworkRuntime()' in text:
+                      text=text.replace('new ClientNetworkRuntime()','new ClientNetworkRuntime(new DeterministicAlterationApplier())')
+                      client_runtime_files.append(p.as_posix()); changed=True
+                  if 'new ClientAuthoritativeEventQueue()' in text:
+                      text=text.replace('new ClientAuthoritativeEventQueue()','new ClientAuthoritativeEventQueue(new DeterministicAlterationApplier())')
+                      queue_files.append(p.as_posix()); changed=True
+                  if changed:
+                      if 'using VoxelEngine.Core.Edits;\n' not in text:
+                          if 'using VoxelEngine.Core.Storage;\n' in text:
+                              text=text.replace('using VoxelEngine.Core.Storage;\n','using VoxelEngine.Core.Edits;\nusing VoxelEngine.Core.Storage;\n',1)
+                          else:
+                              # insert alongside other VoxelEngine imports
+                              idx=text.find('namespace ')
+                              text=text[:idx]+'using VoxelEngine.Core.Edits;\n\n'+text[idx:]
+                      p.write_text(text)
+
+          # Parity helper application callers explicitly supply implementation.
+          p=Path('Assets/Tests/Parity/SharedDestructionTests.cs')
+          text=p.read_text()
+          if 'EventApplication.Apply(' in text:
+              text=text.replace('EventApplication.Apply(storageA,','EventApplication.Apply(new DeterministicAlterationApplier(), storageA,')
+              text=text.replace('EventApplication.Apply(storageB,','EventApplication.Apply(new DeterministicAlterationApplier(), storageB,')
+              text=text.replace('EventApplication.Apply(storage,','EventApplication.Apply(new DeterministicAlterationApplier(), storage,')
+              if 'using VoxelEngine.Core.Edits;\n' not in text:
+                  if 'using VoxelEngine.Core.Storage;\n' in text:
+                      text=text.replace('using VoxelEngine.Core.Storage;\n','using VoxelEngine.Core.Edits;\nusing VoxelEngine.Core.Storage;\n',1)
+                  else: text='using VoxelEngine.Core.Edits;\n'+text
+              p.write_text(text)
+          PY
+          git rm .github/workflows/edits-client-final-inventory.yml .github/workflows/edits-client-capability.yml
+          git diff --check
+          if grep -RIn 'using VoxelEngine.Core.Edits;' Assets/VoxelEngine/Net --include='*.cs'; then
+            echo 'Net still imports Core.Edits' >&2; exit 1
+          fi
+          if grep -RIn 'DeterministicAlterationApplier' Assets/VoxelEngine/Net --include='*.cs'; then
+            echo 'Net still names deterministic implementation' >&2; exit 1
+          fi
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Edits/Api/IAlterationApplier.cs Assets/VoxelEngine/Core/Edits/DeterministicAlterationApplier.cs Assets/VoxelEngine/Net Assets/Scenes Assets/Tests
+          git commit -m 'Inject Edits alteration capability into client and validation'
+          git push origin HEAD:${{ github.ref_name }}
