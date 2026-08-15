@@ -145,6 +145,59 @@ jobs:
             --input "$OUT/sunlit_cleric_staff_ci.fbx" \
             --output "$RENDER"
           test -s "$RENDER"
+
+      - name: Reconstruct staff head at high image coverage
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/Artifacts/CharacterFactorySmoke"
+          HEAD_INPUT="$OUT/sunlit_cleric_staff_head_ci.source.png"
+          "$TRIPOSR_PY" tools/character-factory/ci/prepare_staff_head_crop.py \
+            --input "$GITHUB_WORKSPACE/tools/character-factory/ci/fixtures/sunlit_cleric_staff.jpg" \
+            --output "$HEAD_INPUT"
+          test -s "$HEAD_INPUT"
+
+          HEAD_SPEC="$RUNNER_TEMP/sunlit-cleric-staff-head-ci.json"
+          cat > "$HEAD_SPEC" <<JSON
+          {
+            "id": "sunlit_cleric_staff_head_ci",
+            "assetType": "weapon",
+            "views": {
+              "front": "$HEAD_INPUT"
+            },
+            "outputDir": "$OUT",
+            "generator": {
+              "python": "$TRIPOSR_PY",
+              "backend": "triposr-mps",
+              "source": "$TRIPOSR_SOURCE",
+              "weights": "$TRIPOSR_WEIGHTS",
+              "preset": "smoke",
+              "device": "auto",
+              "mcResolution": 320,
+              "chunkSize": 8192,
+              "removeBackground": true
+            },
+            "rigid": {
+              "blender": "$BLENDER_BIN"
+            },
+            "runtimePart": {
+              "slot": "MainHand",
+              "socketBoneName": "RightHand",
+              "socketLocalPosition": [0, 0, 0],
+              "socketLocalEulerAngles": [0, 0, 0],
+              "socketLocalScale": [1, 1, 1]
+            }
+          }
+          JSON
+
+          python3 tools/character-factory/character_factory.py build "$HEAD_SPEC"
+          HEAD_RENDER="$OUT/sunlit_cleric_staff_head_ci.render.png"
+          "$BLENDER_BIN" --background \
+            --python tools/character-factory/ci/render_pipeline_artifact.py -- \
+            --input "$OUT/sunlit_cleric_staff_head_ci.fbx" \
+            --output "$HEAD_RENDER"
+          test -s "$HEAD_RENDER"
           ls -lh "$OUT"
 
       - name: Upload generated pipeline smoke artifact
