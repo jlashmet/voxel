@@ -1,0 +1,31 @@
+name: Force-cancel stale post-caller Net validation
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/force-cancel-stale-net-post-caller.yml]
+permissions:
+  actions: write
+  contents: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$REPO/actions/runs/31891579740/force-cancel" >/dev/null || true
+          git rm .github/workflows/force-cancel-stale-net-post-caller.yml
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git commit -m 'chore(ci): remove force-cancel helper'
+          git push origin HEAD:${GITHUB_REF_NAME}
