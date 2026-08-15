@@ -1,0 +1,44 @@
+name: One-shot Edits Guard Self Scan Fix
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - '.github/workflows/one-shot-edits-guard-self-scan-fix.yml'
+      - 'Tools/Refactor/fix_edits_guard_self_scan.py'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+      - name: Apply guard fix
+        run: python Tools/Refactor/fix_edits_guard_self_scan.py
+      - name: Verify diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'The guard necessarily contains' Assets/Tests/EditMode/EditsStorageBoundaryTests.cs
+          grep -q 'Guard definitions necessarily contain' Assets/Tests/EditMode/EditsMutationCallerGuardTests.cs
+      - name: Commit and remove one-shot tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/one-shot-edits-guard-self-scan-fix.yml
+          git rm Tools/Refactor/fix_edits_guard_self_scan.py
+          git add Assets/Tests/EditMode/EditsStorageBoundaryTests.cs
+          git add Assets/Tests/EditMode/EditsMutationCallerGuardTests.cs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'test: exclude edits guards from self scan'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
