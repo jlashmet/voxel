@@ -94,7 +94,7 @@ namespace VoxelEngine.Tests.EditMode
                 DialogueOnly("destination-conversation"));
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
-                content,
+                content.Blueprint,
                 settlement,
                 new RegionRef("kentridge-region"),
                 new SettlementRef("kentridge"));
@@ -104,12 +104,13 @@ namespace VoxelEngine.Tests.EditMode
             actors.AddPlayer(0, player);
 
             KentridgeCampaignSession session = KentridgeCampaignSessionBootstrap.CreateSession(
-                content,
+                content.Blueprint,
                 generation,
                 new KentridgeVoxelSiteRealizationFacts(settlement, 1),
                 actors,
                 new Presentation());
 
+            Assert.That(session.Blueprint, Is.SameAs(content.Blueprint));
             Assert.That(actors.Prepared.Count, Is.EqualTo(4));
             CollectionAssert.AreEquivalent(
                 session.World.Npcs.Select(value => value.Npc).ToArray(),
@@ -146,7 +147,7 @@ namespace VoxelEngine.Tests.EditMode
                 DialogueOnly("destination-conversation"));
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
-                content,
+                content.Blueprint,
                 settlement,
                 new RegionRef("kentridge-region"),
                 new SettlementRef("kentridge"));
@@ -154,7 +155,7 @@ namespace VoxelEngine.Tests.EditMode
 
             InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
                 KentridgeCampaignSessionBootstrap.CreateSession(
-                    content,
+                    content.Blueprint,
                     generation,
                     new KentridgeVoxelSiteRealizationFacts(settlement, 1),
                     actors,
