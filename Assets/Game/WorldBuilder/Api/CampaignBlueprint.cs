@@ -13,6 +13,7 @@ namespace Game.WorldBuilder.Api
         public IReadOnlyList<CutsceneSpec> Cutscenes { get; }
         public IReadOnlyList<ObjectiveSpec> Objectives { get; }
         public IReadOnlyList<SecretPolicySpec> SecretPolicies { get; }
+        public IReadOnlyList<RequiredSecretSpec> RequiredSecrets { get; }
         public IReadOnlyList<LootTableSpec> LootTables { get; }
 
         internal CampaignBlueprint(
@@ -24,6 +25,7 @@ namespace Game.WorldBuilder.Api
             CutsceneSpec[] cutscenes,
             ObjectiveSpec[] objectives,
             SecretPolicySpec[] secretPolicies,
+            RequiredSecretSpec[] requiredSecrets,
             LootTableSpec[] lootTables)
         {
             Id = WorldIdRules.Require(id, nameof(id));
@@ -34,6 +36,7 @@ namespace Game.WorldBuilder.Api
             Cutscenes = cutscenes ?? Array.Empty<CutsceneSpec>();
             Objectives = objectives ?? Array.Empty<ObjectiveSpec>();
             SecretPolicies = secretPolicies ?? Array.Empty<SecretPolicySpec>();
+            RequiredSecrets = requiredSecrets ?? Array.Empty<RequiredSecretSpec>();
             LootTables = lootTables ?? Array.Empty<LootTableSpec>();
         }
     }
