@@ -46,4 +46,5 @@ jobs:
           git add Assets/Tests/PlayMode
           git add -u .github/workflows
           git commit -m 'test(net): align PlayMode coverage with API ownership'
+          git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin HEAD:"${GITHUB_REF_NAME}"
