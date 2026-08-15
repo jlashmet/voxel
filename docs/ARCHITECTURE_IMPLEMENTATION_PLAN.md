@@ -30,7 +30,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 | 9 — Collision | **Complete** | `Collision.Api`/`Collision.Runtime` replace the broad assembly; DDA/raycast/sweep/hull implementation lives in Runtime with preserved Unity GUIDs; Runtime consumes Storage.Api only; final caller inventory found no production subsystem consumer, so Api remains intentionally empty instead of inventing DTOs | none |
 | 10 — Vegetation | **Complete** | `Vegetation.Api` owns stable placement/profile plus immutable presentation/damage/topology contracts; mutable tree state, skeleton generation and damage implementation live in `Vegetation.Runtime`; WorldGen Voxel and Rendering consume Vegetation.Api only; Kentridge surface/terrain boundaries remain Storage.Api/Terrain.Api | none |
 | 11 — Net | **Complete** | Net.Api/Runtime physical decomposition and Runtime namespaces are complete; Runtime references only approved domain APIs; residency delegates Streaming.Api; semantic repair/snapshots use Storage.Api logical capabilities; structural graph and duplicate edit wrapper are gone; final 384/371/13 behavioral baseline accepted | none |
-| 12 — Rendering | **In progress — current** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; vegetation presentation consumes Vegetation.Api only; parity accepted | final Rendering.Api/Runtime move |
+| 12 — Rendering | **In progress — current** | render bridge, scheduler, solid Transvoxel and water extraction consume Storage.Api read views; physical table/pool view removed; retained-profile consumers take Storage.Api `IProfileBlockReadSource`; vegetation presentation consumes Vegetation.Api only; dead physical `ProbeCache`/`VoxelGpuBuffers` paths removed; parity accepted | final Rendering.Api/Runtime move |
 | 13 — Composition/Core deletion | **Not started** | — | composition root, final wiring, delete Core |
 
 ### Checklist discipline
@@ -39,7 +39,7 @@ green; final namespace/file/asmdef moves still have to satisfy that cutover's ga
 - Update this document immediately after an accepted slice, before starting the next slice.
 - Do not check off final cutover gates for boundary-only work when file/namespace/asmdef moves remain.
 - CI acceptance means no new compiler/test regression and the failed-test-name set matches the currently documented known baseline. The baseline may shrink only when an intended cutover change directly fixes an existing failure; that reduction must be investigated and documented here before accepting the slice.
-- Latest accepted code gate: `871fd663ac9c57d8e001ce2ff11f5ac30df242f0` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated acceptance run `31892491967` tested this source-equivalent final Net tree with the standard Unity harness and produced a complete `results.xml`; the 13 failed test names match accepted gate `363ea1838c42d9d01e04fd0b74b6aa8f600c35f4` exactly, so Cutover 11 is accepted.
+- Latest accepted code gate: `de24d20ce48e9665f4ab7ab78343e7354601eab0` — 384 tests, 371 passed, exactly the same 13 known baseline failures. Isolated Rendering cleanup run `31892956307` produced a complete `results.xml`; its failed-name set matches the accepted 384-test baseline exactly. This gate accepts removal of the unused/physical-storage-leaking `ProbeCache` and `VoxelGpuBuffers` implementations before the Rendering Api/Runtime split.
 
 This document turns the architecture specification into a repository-specific execution plan. The architecture document explains the rules and desired boundaries; this document says what to move, what to create, what to delete, which consumers change in the same cutover, and what must pass before moving to the next cutover.
 
@@ -1346,6 +1346,8 @@ Rewrite `SurfaceExtraction/VoxelSurfaceScheduler.cs` and related caches/jobs so 
 - [x] CPU Transvoxel, water extraction and surface discovery consume Storage.Api views.
 - [x] Rendering physical-storage boundary guards and parity/equivalence tests accepted.
 - [x] Rendering retained-profile readers consume Storage.Api `IProfileBlockReadSource`; no direct `ProfileBlockStore` dependency remains.
+- [x] Unused/representation-leaking `ProbeCache` and `VoxelGpuBuffers` implementations removed; Rendering no longer carries those `RegionTable`/`BrickPool`/`BrickRef` paths.
+- [x] Rendering dead-leak cleanup accepted at `de24d20ce48e9665f4ab7ab78343e7354601eab0`: 384 total / 371 passed / exact 13 known baseline failures.
 - [ ] Rendering.Api/Runtime physical move complete.
 
 ### Gate
