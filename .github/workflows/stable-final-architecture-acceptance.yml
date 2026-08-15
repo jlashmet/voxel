@@ -1,3 +1,4 @@
+# Permanent exact-head acceptance gate for the completed system-boundary refactor.
 # Final baseline includes two passing permanent architecture-guard tests; the known failure set is unchanged.
 name: Stable final architecture acceptance
 
