@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Core.Features
 {
@@ -8,7 +9,7 @@ namespace VoxelEngine.Core.Features
     /// Mutable owner for retained surface primitives. Features add blocks during generation;
     /// read-only consumers observe them through <see cref="IProfileBlockReadSource"/>.
     /// </summary>
-    public sealed class ProfileBlockStore : IProfileBlockReadSource
+    public sealed class ProfileBlockStore : IProfileBlockReadSource, IProfileBlockWriter
     {
         private readonly List<ProfileBlock> _blocks = new();
 
