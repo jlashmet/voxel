@@ -43,7 +43,14 @@ FILTER="${1:-}"
 
 # Assemblies built from source here. Their prebuilt copies in Library/ScriptAssemblies are
 # excluded from the reference set so a stale DLL can never shadow the sources under test.
+# Keep Api assemblies before their Runtime implementations so filtered subsystem checks can
+# compile without relying on stale Unity-generated DLLs.
 ASSEMBLIES=(
+    "VoxelEngine.Foundation:Assets/VoxelEngine/Foundation"
+    "VoxelEngine.Storage.Api:Assets/VoxelEngine/Storage/Api"
+    "VoxelEngine.Storage.Runtime:Assets/VoxelEngine/Storage/Runtime"
+    "VoxelEngine.Characters.Api:Assets/VoxelEngine/Characters/Api"
+    "VoxelEngine.Characters.Runtime:Assets/VoxelEngine/Characters/Runtime"
     "VoxelEngine.Core:Assets/VoxelEngine/Core"
     "VoxelEngine.Vegetation:Assets/VoxelEngine/Vegetation"
     "VoxelEngine.Tiering:Assets/VoxelEngine/Tiering"
@@ -85,6 +92,7 @@ for entry in "${ASSEMBLIES[@]}"; do
         [ -n "$NUNIT" ] && echo "-r:$NUNIT"
 
         for dll in Library/ScriptAssemblies/*.dll; do
+            [ -f "$dll" ] || continue
             base="$(basename "$dll" .dll)"
             rebuilt_names | grep -qx "$base" && continue
             echo "-r:$PROJECT/$dll"

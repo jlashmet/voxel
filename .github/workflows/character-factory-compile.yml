@@ -1,0 +1,50 @@
+name: Character Factory compile
+
+on:
+  push:
+    branches: [feature/character-factory-runtime-api]
+    paths:
+      - 'Assets/VoxelEngine/Characters/**'
+      - 'tools/character-factory/**'
+      - 'tools/check-compile.sh'
+      - '.github/workflows/character-factory-compile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: character-factory-compile
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 1
+
+      - name: Resolve Unity installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_ROOT="/Applications/Unity/Hub/Editor/${UNITY_VERSION}"
+          test -x "$UNITY_ROOT/Unity.app/Contents/MacOS/Unity"
+          echo "UNITY_ROOT=$UNITY_ROOT" >> "$GITHUB_ENV"
+
+      - name: Compile Characters Api and Runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x tools/check-compile.sh
+          tools/check-compile.sh VoxelEngine.Characters
+
+      - name: Run Character Factory unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tools/character-factory/tests -p 'test_*.py'
