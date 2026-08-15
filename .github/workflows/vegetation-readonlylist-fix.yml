@@ -1,0 +1,54 @@
+name: Vegetation readonly-list compiler fix
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx
+          python3 - <<'PY'
+          from pathlib import Path
+
+          damage = Path('Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs')
+          s = damage.read_text()
+          replacements = [
+              ('int[] parents = skeleton.BranchParents;', 'IReadOnlyList<int> parents = skeleton.BranchParents;'),
+              ('if (parents == null || parents.Length != skeleton.Branches.Count) return 1;', 'if (parents == null || parents.Count != skeleton.Branches.Count) return 1;'),
+              ('if ((uint)current >= (uint)parents.Length) break;', 'if ((uint)current >= (uint)parents.Count) break;'),
+          ]
+          for old, new in replacements:
+              if s.count(old) != 1:
+                  raise SystemExit(f'damage replacement count for {old!r}: {s.count(old)}')
+              s = s.replace(old, new, 1)
+          damage.write_text(s)
+
+          detached = Path('Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs')
+          s = detached.read_text()
+          replacements = [
+              ('int[] parents = skeleton.BranchParents;', 'IReadOnlyList<int> parents = skeleton.BranchParents;'),
+              ('i < parents.Length;', 'i < parents.Count;'),
+          ]
+          for old, new in replacements:
+              if s.count(old) != 1:
+                  raise SystemExit(f'detached replacement count for {old!r}: {s.count(old)}')
+              s = s.replace(old, new, 1)
+          detached.write_text(s)
+          PY
+          git rm .github/workflows/vegetation-readonlylist-fix.yml
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/VoxelEngine/Vegetation/Runtime/ProceduralTreeDamageService.cs Assets/VoxelEngine/Rendering/Vegetation/ProceduralTreeDetachedLimbPresenter.cs
+          git commit -m 'fix: use Vegetation immutable topology lists'
+          git push origin HEAD:${{ github.ref_name }}
