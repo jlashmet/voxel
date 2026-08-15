@@ -1,0 +1,1 @@
+trigger Net acceptance on the unchanged source tree
