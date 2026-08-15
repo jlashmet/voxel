@@ -1,3 +1,4 @@
+# Final Cutover 13 gate: this workflow validates the exact branch head.
 name: Stable final architecture acceptance
 
 on:
@@ -188,23 +189,23 @@ jobs:
           }
           root = ET.parse(sys.argv[1]).getroot()
           failed = {
-              tc.get('fullname') or tc.get('name')
-              for tc in root.iter('test-case')
-              if (tc.get('result') or '').lower() in ('failed', 'failure')
+              case.attrib.get('fullname')
+              for case in root.iter('test-case')
+              if case.attrib.get('result') in ('Failed', 'Error')
           }
+          total = int(root.attrib['total'])
+          passed = int(root.attrib['passed'])
+          failed_count = int(root.attrib['failed'])
+          if (total, passed, failed_count) != (387, 374, 13):
+              raise SystemExit(f'Unexpected counts: {(total, passed, failed_count)}')
           if failed != expected:
-              print('Unexpected failures:', sorted(failed - expected))
-              print('Missing baseline failures:', sorted(expected - failed))
-              raise SystemExit(1)
-          if root.get('total') != '387' or root.get('passed') != '374' or root.get('failed') != '13':
-              raise SystemExit(f"Unexpected totals: total={root.get('total')} passed={root.get('passed')} failed={root.get('failed')}")
-          print('Exact accepted 387/374/13 baseline matched')
+              raise SystemExit('Unexpected failed test set:\n' + '\n'.join(sorted(failed ^ expected)))
+          print('Stable final architecture exact baseline accepted: 387/374/13')
           PY
-      - name: Upload acceptance artifact
+      - name: Upload final acceptance artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: stable-final-architecture-${{ github.event.pull_request.head.sha || github.sha }}
-          path: Artifacts/StableFinalArchitecture/
-          if-no-files-found: warn
-          retention-days: 14
+          path: Artifacts/StableFinalArchitecture
+          if-no-files-found: ignore
