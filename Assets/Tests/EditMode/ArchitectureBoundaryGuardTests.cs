@@ -108,22 +108,29 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void CompositionIsOnlyProductionRuntimeWiringAssembly()
         {
-            var violations = new List<string>();
+            Asmdef[] production = EnumerateProjectAsmdefs()
+                .Where(a => IsProductionPath(a.RelativePath))
+                .ToArray();
 
-            foreach (Asmdef asmdef in EnumerateProjectAsmdefs())
+            Asmdef composition = production.SingleOrDefault(
+                a => string.Equals(a.Name, "VoxelEngine.Composition", StringComparison.Ordinal));
+            Assert.NotNull(composition,
+                "VoxelEngine.Composition must exist as the single concrete runtime wiring root.");
+
+            string[] compositionRuntimeReferences = composition.References
+                .Where(IsVoxelEngineRuntimeReference)
+                .ToArray();
+            Assert.IsNotEmpty(compositionRuntimeReferences,
+                "VoxelEngine.Composition must actually wire concrete Runtime assemblies; the exception may not pass vacuously.");
+
+            var violations = new List<string>();
+            foreach (Asmdef asmdef in production)
             {
-                if (!IsProductionPath(asmdef.RelativePath)
-                    || string.Equals(asmdef.Name, "VoxelEngine.Composition", StringComparison.Ordinal))
+                if (string.Equals(asmdef.Name, "VoxelEngine.Composition", StringComparison.Ordinal))
                     continue;
 
-                foreach (string reference in asmdef.References)
-                {
-                    if (reference.StartsWith("VoxelEngine.", StringComparison.Ordinal)
-                        && reference.EndsWith(".Runtime", StringComparison.Ordinal))
-                    {
-                        violations.Add(asmdef.Name + " -> " + reference + " (" + asmdef.RelativePath + ")");
-                    }
-                }
+                foreach (string reference in asmdef.References.Where(IsVoxelEngineRuntimeReference))
+                    violations.Add(asmdef.Name + " -> " + reference + " (" + asmdef.RelativePath + ")");
             }
 
             Assert.IsEmpty(violations,
@@ -209,6 +216,12 @@ namespace VoxelEngine.Tests.EditMode
                 "Rendering's authoritative read path must consume Storage through Storage.Api " +
                 "read views, not physical storage representation.\n\n" +
                 string.Join("\n", violations));
+        }
+
+        private static bool IsVoxelEngineRuntimeReference(string reference)
+        {
+            return reference.StartsWith("VoxelEngine.", StringComparison.Ordinal)
+                   && reference.EndsWith(".Runtime", StringComparison.Ordinal);
         }
 
         private static IReadOnlyList<Asmdef> EnumerateVoxelEngineAsmdefs()
