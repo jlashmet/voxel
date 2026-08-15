@@ -1,0 +1,732 @@
+name: Cutover 13 multiplayer composition
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+    paths:
+      - .github/workflows/cutover13-multiplayer-composition.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/system-boundaries-foundation-storage
+          fetch-depth: 0
+
+      - name: Route showcase networking through Composition
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > Assets/VoxelEngine/Composition/NetworkingComposition.cs <<'CS'
+          using System;
+          using Unity.Mathematics;
+          using Unity.Networking.Transport;
+          using VoxelEngine.Edits.Api;
+          using VoxelEngine.Net.Runtime.Client;
+          using VoxelEngine.Net.Runtime.Protocol;
+          using VoxelEngine.Net.Runtime.Server;
+          using VoxelEngine.Storage.Api;
+
+          namespace VoxelEngine.Composition
+          {
+              /// <summary>
+              /// Canonical, application-facing player input after the networking protocol has
+              /// quantized it. Gameplay replay consumes this value so prediction semantics remain
+              /// identical without exposing Net.Runtime protocol types to scene assemblies.
+              /// </summary>
+              public readonly struct NetworkPlayerInput
+              {
+                  public readonly uint Tick;
+                  public readonly ushort Sequence;
+                  public readonly float2 Movement;
+                  public readonly float3 ViewDirection;
+                  public readonly ushort ViewYaw;
+                  public readonly byte Flags;
+
+                  internal NetworkPlayerInput(in C_PlayerInput input)
+                  {
+                      Tick = input.tick;
+                      Sequence = input.sequence;
+                      Movement = input.Movement();
+                      ViewDirection = input.ViewDirection();
+                      ViewYaw = input.viewYaw;
+                      Flags = input.flags;
+                  }
+              }
+
+              /// <summary>Stable player snapshot presented to application prediction code.</summary>
+              public readonly struct NetworkPlayerState
+              {
+                  public readonly ushort PlayerId;
+                  public readonly uint Tick;
+                  public readonly float3 PositionVoxels;
+                  public readonly float3 VelocityVoxelsPerSecond;
+
+                  internal NetworkPlayerState(in S_PlayerState state)
+                  {
+                      PlayerId = state.playerId;
+                      Tick = state.tick;
+                      PositionVoxels = state.PositionVoxels();
+                      VelocityVoxelsPerSecond = state.VelocityVoxelsPerSecond();
+                  }
+              }
+
+              /// <summary>Interpolated remote-player presentation sample.</summary>
+              public readonly struct NetworkRemotePlayerSample
+              {
+                  public readonly float3 PositionVoxels;
+                  public readonly float ViewYawRadians;
+
+                  internal NetworkRemotePlayerSample(in RemotePlayerSample sample)
+                  {
+                      PositionVoxels = sample.PositionVoxels;
+                      ViewYawRadians = sample.ViewYawRadians;
+                  }
+              }
+
+              public interface IAuthoritativeNetworkInputSink
+              {
+                  void ApplyInput(ushort playerId, in NetworkPlayerInput input, uint serverTick);
+              }
+
+              public interface IClientNetworkPredictionAdapter
+              {
+                  void ApplyAuthoritativeState(in NetworkPlayerState state);
+                  void ReplayInput(in NetworkPlayerInput input);
+              }
+
+              /// <summary>
+              /// Composition-owned authoritative networking lifetime. Scene/application code sees
+              /// only stable values and Storage.Api capabilities; Net.Runtime and UTP stay here.
+              /// </summary>
+              public sealed class NetworkServerFacade : IDisposable, IAuthoritativePlayerInputSink
+              {
+                  private readonly AuthoritativeServerSession _runtime;
+                  private IAuthoritativeNetworkInputSink _inputSink;
+                  private bool _disposed;
+
+                  internal NetworkServerFacade(AuthoritativeServerSession runtime)
+                  {
+                      _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+                      _runtime.ConnectionOpened += OnConnectionOpened;
+                      _runtime.ConnectionClosed += OnConnectionClosed;
+                      _runtime.ProtocolError += OnProtocolError;
+                      _runtime.SendError += OnSendError;
+                  }
+
+                  public event Action<uint> ConnectionOpened;
+                  public event Action<uint> ConnectionClosed;
+                  public event Action<uint> ProtocolError;
+                  public event Action<uint, int> SendError;
+
+                  public bool Listen(ushort port)
+                  {
+                      ThrowIfDisposed();
+                      return _runtime.Listen(NetworkEndpoint.AnyIpv4.WithPort(port)) == 0;
+                  }
+
+                  public void PumpTransport()
+                  {
+                      ThrowIfDisposed();
+                      _runtime.PumpTransport();
+                  }
+
+                  public bool AuthenticateConnection(
+                      uint connectionId,
+                      ushort playerId,
+                      int3 authoritativePositionVoxels,
+                      int reachVoxels,
+                      bool canAlterWorld)
+                  {
+                      ThrowIfDisposed();
+                      return _runtime.AuthenticateConnection(
+                          connectionId,
+                          playerId,
+                          authoritativePositionVoxels,
+                          reachVoxels,
+                          canAlterWorld);
+                  }
+
+                  public bool UpdateAuthoritativePlayerKinematics(
+                      uint connectionId,
+                      float3 positionVoxels,
+                      float3 velocityVoxelsPerSecond,
+                      ushort viewYaw,
+                      bool grounded)
+                  {
+                      ThrowIfDisposed();
+                      S_PlayerState.StateFlags flags = grounded
+                          ? S_PlayerState.StateFlags.Grounded
+                          : S_PlayerState.StateFlags.None;
+                      return _runtime.UpdateAuthoritativePlayerKinematics(
+                          connectionId,
+                          positionVoxels,
+                          velocityVoxelsPerSecond,
+                          viewYaw,
+                          flags);
+                  }
+
+                  public void ProcessAuthoritativeTick(
+                      uint serverTick,
+                      IRegionReadSource readStorage,
+                      IRegionMutationStore mutationStorage,
+                      IRegionSnapshotSource snapshots,
+                      IAuthoritativeNetworkInputSink inputSink)
+                  {
+                      ThrowIfDisposed();
+                      if (inputSink == null) throw new ArgumentNullException(nameof(inputSink));
+
+                      ProtectedZones zones = default;
+                      _inputSink = inputSink;
+                      try
+                      {
+                          _runtime.ProcessAuthoritativeTick(
+                              serverTick,
+                              readStorage,
+                              mutationStorage,
+                              snapshots,
+                              in zones,
+                              this);
+                      }
+                      finally
+                      {
+                          _inputSink = null;
+                      }
+                  }
+
+                  public bool Disconnect(uint connectionId)
+                  {
+                      ThrowIfDisposed();
+                      return _runtime.Disconnect(connectionId);
+                  }
+
+                  void IAuthoritativePlayerInputSink.ApplyInput(
+                      ushort playerId,
+                      in C_PlayerInput input,
+                      uint serverTick)
+                  {
+                      IAuthoritativeNetworkInputSink sink = _inputSink;
+                      if (sink == null) return;
+                      var publicInput = new NetworkPlayerInput(in input);
+                      sink.ApplyInput(playerId, in publicInput, serverTick);
+                  }
+
+                  private void OnConnectionOpened(uint connectionId, NetworkEndpoint _) =>
+                      ConnectionOpened?.Invoke(connectionId);
+                  private void OnConnectionClosed(uint connectionId) => ConnectionClosed?.Invoke(connectionId);
+                  private void OnProtocolError(uint connectionId) => ProtocolError?.Invoke(connectionId);
+                  private void OnSendError(uint connectionId, int errorCode) => SendError?.Invoke(connectionId, errorCode);
+
+                  private void ThrowIfDisposed()
+                  {
+                      if (_disposed) throw new ObjectDisposedException(nameof(NetworkServerFacade));
+                  }
+
+                  public void Dispose()
+                  {
+                      if (_disposed) return;
+                      _runtime.ConnectionOpened -= OnConnectionOpened;
+                      _runtime.ConnectionClosed -= OnConnectionClosed;
+                      _runtime.ProtocolError -= OnProtocolError;
+                      _runtime.SendError -= OnSendError;
+                      _runtime.Dispose();
+                      _inputSink = null;
+                      _disposed = true;
+                  }
+              }
+
+              /// <summary>
+              /// Composition-owned client networking lifetime. Protocol packets, prediction
+              /// history and UTP endpoints remain Net.Runtime details.
+              /// </summary>
+              public sealed class NetworkClientFacade : IDisposable, IClientPredictionAdapter
+              {
+                  private readonly ClientNetworkRuntime _runtime;
+                  private IClientNetworkPredictionAdapter _predictionAdapter;
+                  private bool _disposed;
+
+                  internal NetworkClientFacade(ClientNetworkRuntime runtime)
+                  {
+                      _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+                      _runtime.Connected += OnConnected;
+                      _runtime.Disconnected += OnDisconnected;
+                      _runtime.PacketRejected += OnPacketRejected;
+                      _runtime.SendError += OnSendError;
+                      _runtime.PlayerStateReceived += OnPlayerStateReceived;
+                      _runtime.RegionRepairApplied += OnRegionRepairApplied;
+                      _runtime.FullRegionStateApplied += OnFullRegionStateApplied;
+                  }
+
+                  public event Action Connected;
+                  public event Action Disconnected;
+                  public event Action PacketRejected;
+                  public event Action<int> SendError;
+                  public event Action<NetworkPlayerState> PlayerStateReceived;
+                  public event Action<int3, uint> RegionRepairApplied;
+                  public event Action<int3, uint> FullRegionStateApplied;
+
+                  public bool IsConnected => !_disposed && _runtime.IsConnected;
+
+                  public bool Connect(string address, ushort port)
+                  {
+                      ThrowIfDisposed();
+                      return NetworkingComposition.TryParseEndpoint(address, port, out NetworkEndpoint endpoint) &&
+                             _runtime.Connect(endpoint);
+                  }
+
+                  public bool ConnectLoopback(ushort port)
+                  {
+                      ThrowIfDisposed();
+                      return _runtime.Connect(NetworkEndpoint.LoopbackIpv4.WithPort(port));
+                  }
+
+                  public void ConfigureLocalPrediction(
+                      ushort localPlayerId,
+                      IClientNetworkPredictionAdapter adapter)
+                  {
+                      ThrowIfDisposed();
+                      _predictionAdapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
+                      _runtime.ConfigureLocalPrediction(localPlayerId, this);
+                  }
+
+                  public bool TrySendPlayerInput(
+                      uint tick,
+                      ushort sequence,
+                      float2 movement,
+                      float3 viewDirection,
+                      byte flags,
+                      out NetworkPlayerInput canonicalInput)
+                  {
+                      ThrowIfDisposed();
+                      C_PlayerInput.ActionBits actions = C_PlayerInput.ActionBits.Aim;
+                      if (math.lengthsq(movement) > 1e-6f)
+                          actions |= C_PlayerInput.ActionBits.Move;
+
+                      var input = new C_PlayerInput(
+                          tick,
+                          sequence,
+                          movement,
+                          viewDirection,
+                          actions,
+                          toolMaterial: 0,
+                          flags: flags);
+                      canonicalInput = new NetworkPlayerInput(in input);
+                      return _runtime.TrySendPlayerInput(in input);
+                  }
+
+                  public bool TrySendExplosionRequest(
+                      uint tick,
+                      int3 originVoxel,
+                      uint radiusBricks,
+                      ushort sequence)
+                  {
+                      ThrowIfDisposed();
+                      var request = new C_AlterationRequest(
+                          tick,
+                          originVoxel,
+                          AlterationEvent.KindExplosion,
+                          VoxelGrid.MaterialEmpty,
+                          AlterationEvent.KindExplosion,
+                          radiusBricks,
+                          seed: 0,
+                          sequence: sequence);
+                      return _runtime.TrySendAlterationRequest(in request);
+                  }
+
+                  public void PumpTransport()
+                  {
+                      ThrowIfDisposed();
+                      _runtime.PumpTransport();
+                  }
+
+                  public int ApplyPlayerStateUpdates(out int replayedLocalInputs)
+                  {
+                      ThrowIfDisposed();
+                      return _runtime.ApplyPlayerStateUpdates(out replayedLocalInputs);
+                  }
+
+                  public int ApplyReadyAuthoritativeEvents(
+                      IRegionMutationStore mutations,
+                      IRegionSnapshotSource snapshots,
+                      IRegionSnapshotMutationStore snapshotMutations,
+                      out int appliedEvents)
+                  {
+                      ThrowIfDisposed();
+                      return _runtime.ApplyReadyAuthoritativeEvents(
+                          mutations,
+                          snapshots,
+                          snapshotMutations,
+                          out appliedEvents);
+                  }
+
+                  public bool TrySampleRemotePlayer(
+                      ushort playerId,
+                      float interpolationAlpha,
+                      out NetworkRemotePlayerSample sample)
+                  {
+                      ThrowIfDisposed();
+                      if (_runtime.TrySampleRemotePlayer(playerId, interpolationAlpha, out RemotePlayerSample runtimeSample))
+                      {
+                          sample = new NetworkRemotePlayerSample(in runtimeSample);
+                          return true;
+                      }
+
+                      sample = default;
+                      return false;
+                  }
+
+                  public void FlushSends()
+                  {
+                      ThrowIfDisposed();
+                      _runtime.FlushSends();
+                  }
+
+                  public void Disconnect()
+                  {
+                      ThrowIfDisposed();
+                      _runtime.Disconnect();
+                  }
+
+                  void IClientPredictionAdapter.ApplyAuthoritativeState(in S_PlayerState state)
+                  {
+                      IClientNetworkPredictionAdapter adapter = _predictionAdapter;
+                      if (adapter == null) return;
+                      var publicState = new NetworkPlayerState(in state);
+                      adapter.ApplyAuthoritativeState(in publicState);
+                  }
+
+                  void IClientPredictionAdapter.ReplayInput(in C_PlayerInput input)
+                  {
+                      IClientNetworkPredictionAdapter adapter = _predictionAdapter;
+                      if (adapter == null) return;
+                      var publicInput = new NetworkPlayerInput(in input);
+                      adapter.ReplayInput(in publicInput);
+                  }
+
+                  private void OnConnected() => Connected?.Invoke();
+                  private void OnDisconnected() => Disconnected?.Invoke();
+                  private void OnPacketRejected() => PacketRejected?.Invoke();
+                  private void OnSendError(int errorCode) => SendError?.Invoke(errorCode);
+                  private void OnPlayerStateReceived(S_PlayerState state)
+                  {
+                      var publicState = new NetworkPlayerState(in state);
+                      PlayerStateReceived?.Invoke(publicState);
+                  }
+                  private void OnRegionRepairApplied(int3 regionCoord, uint tick) =>
+                      RegionRepairApplied?.Invoke(regionCoord, tick);
+                  private void OnFullRegionStateApplied(int3 regionCoord, uint tick) =>
+                      FullRegionStateApplied?.Invoke(regionCoord, tick);
+
+                  private void ThrowIfDisposed()
+                  {
+                      if (_disposed) throw new ObjectDisposedException(nameof(NetworkClientFacade));
+                  }
+
+                  public void Dispose()
+                  {
+                      if (_disposed) return;
+                      _runtime.Connected -= OnConnected;
+                      _runtime.Disconnected -= OnDisconnected;
+                      _runtime.PacketRejected -= OnPacketRejected;
+                      _runtime.SendError -= OnSendError;
+                      _runtime.PlayerStateReceived -= OnPlayerStateReceived;
+                      _runtime.RegionRepairApplied -= OnRegionRepairApplied;
+                      _runtime.FullRegionStateApplied -= OnFullRegionStateApplied;
+                      _runtime.Dispose();
+                      _predictionAdapter = null;
+                      _disposed = true;
+                  }
+              }
+
+              /// <summary>Composition entry point for the concrete Net.Runtime implementation.</summary>
+              public static class NetworkingComposition
+              {
+                  public static int AuthoritativeTickRateHz => AuthoritativeTickConfig.TickRateHz;
+
+                  public static NetworkServerFacade CreateServer(uint serverSeed, int maxConnections = 64)
+                  {
+                      var runtime = new AuthoritativeServerSession(
+                          serverSeed,
+                          new Validation.DensityCap(1f, VoxelReadGrid.BlocksPerRegion),
+                          EditsComposition.CreateAlterationApplier(),
+                          maxConnections);
+                      return new NetworkServerFacade(runtime);
+                  }
+
+                  public static NetworkClientFacade CreateClient() =>
+                      new NetworkClientFacade(
+                          new ClientNetworkRuntime(EditsComposition.CreateAlterationApplier()));
+
+                  public static bool IsValidAddress(string address, ushort port) =>
+                      TryParseEndpoint(address, port, out _);
+
+                  internal static bool TryParseEndpoint(
+                      string address,
+                      ushort port,
+                      out NetworkEndpoint endpoint)
+                  {
+                      address = string.IsNullOrWhiteSpace(address) ? "127.0.0.1" : address.Trim();
+                      if (string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase))
+                          address = "127.0.0.1";
+
+                      return NetworkEndpoint.TryParse(address, port, out endpoint, NetworkFamily.Ipv4) ||
+                             NetworkEndpoint.TryParse(address, port, out endpoint, NetworkFamily.Ipv6);
+                  }
+              }
+          }
+          CS
+
+          cat > Assets/VoxelEngine/Composition/NetworkingComposition.cs.meta <<'META'
+          fileFormatVersion: 2
+          guid: 9cd44d2ca3b5444e94a4a44bb0334d4b
+          META
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          path = Path('Assets/Scenes/Showcase/ShowcaseMultiplayerSession.cs')
+          text = path.read_text()
+
+          def replace(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace('using Unity.Networking.Transport;\n', '', 'remove UTP import')
+          replace('using VoxelEngine.Edits.Api;\n', '', 'remove Edits import')
+          replace('using VoxelEngine.Net.Runtime.Client;\nusing VoxelEngine.Net.Runtime.Protocol;\nusing VoxelEngine.Net.Runtime.Server;\n', '', 'remove Net.Runtime imports')
+          replace('internal sealed class ShowcaseMultiplayerSession : IDisposable,\n        IAuthoritativePlayerInputSink, IClientPredictionAdapter',
+                  'internal sealed class ShowcaseMultiplayerSession : IDisposable,\n        IAuthoritativeNetworkInputSink, IClientNetworkPredictionAdapter',
+                  'public composition interfaces')
+          replace('private const float FixedDeltaSeconds = 1f / AuthoritativeTickConfig.TickRateHz;',
+                  'private static readonly float FixedDeltaSeconds =\n            1f / NetworkingComposition.AuthoritativeTickRateHz;',
+                  'tick rate')
+          replace('private AuthoritativeServerSession _server;\n        private ClientNetworkRuntime _client;',
+                  'private NetworkServerFacade _server;\n        private NetworkClientFacade _client;',
+                  'facade fields')
+
+          replace('''                _server = new AuthoritativeServerSession(
+                    _world.Seed,
+                    new Validation.DensityCap(1f, VoxelReadGrid.BlocksPerRegion),
+                    EditsComposition.CreateAlterationApplier(),
+                    maxConnections: 2);''',
+                  '''                _server = NetworkingComposition.CreateServer(_world.Seed, maxConnections: 2);''',
+                  'server construction')
+          replace('''                NetworkEndpoint listen = NetworkEndpoint.AnyIpv4.WithPort(networkPort);
+                if (_server.Listen(listen) != 0)''',
+                  '''                if (!_server.Listen(networkPort))''',
+                  'server listen')
+          replace('''                if (!_client.Connect(NetworkEndpoint.LoopbackIpv4.WithPort(networkPort)))''',
+                  '''                if (!_client.ConnectLoopback(networkPort))''',
+                  'loopback connect')
+          replace('''            if (!NetworkEndpoint.TryParse(address, networkPort, out NetworkEndpoint endpoint, NetworkFamily.Ipv4) &&
+                !NetworkEndpoint.TryParse(address, networkPort, out endpoint, NetworkFamily.Ipv6))''',
+                  '''            if (!NetworkingComposition.IsValidAddress(address, networkPort))''',
+                  'address validation')
+          replace('''                if (!_client.Connect(endpoint))''',
+                  '''                if (!_client.Connect(address, networkPort))''',
+                  'client connect')
+
+          replace('''            var request = new C_AlterationRequest(
+                _clientTick,
+                originVoxel,
+                AlterationEvent.KindExplosion,
+                VoxelGrid.MaterialEmpty,
+                AlterationEvent.KindExplosion,
+                radiusBricks,
+                seed: 0,
+                sequence: _nextAlterationSequence);
+
+            if (!_client.TrySendAlterationRequest(in request))''',
+                  '''            if (!_client.TrySendExplosionRequest(
+                    _clientTick,
+                    originVoxel,
+                    radiusBricks,
+                    _nextAlterationSequence))''',
+                  'explosion request')
+          replace('''            _client = new ClientNetworkRuntime(EditsComposition.CreateAlterationApplier());''',
+                  '''            _client = NetworkingComposition.CreateClient();''',
+                  'client construction')
+          replace('''            ProtectedZones zones = default;
+            _server.ProcessAuthoritativeTick(
+                _serverTick,
+                _world.ReadStorage,
+                _world.MutationStorage,
+                _world.SnapshotStorage,
+                in zones,
+                this);''',
+                  '''            _server.ProcessAuthoritativeTick(
+                _serverTick,
+                _world.ReadStorage,
+                _world.MutationStorage,
+                _world.SnapshotStorage,
+                this);''',
+                  'authoritative tick')
+
+          start = text.index('        private void SendPredictedLocalInput()\n')
+          end = text.index('        private void PumpEndpointsAndApply()\n', start)
+          text = text[:start] + '''        private void SendPredictedLocalInput()
+        {
+            byte flags = 0;
+            if (_sprint) flags |= InputFlagSprint;
+            if (_jump) flags |= InputFlagJump;
+
+            uint tick = _clientTick;
+            _clientTick = unchecked(_clientTick + 1);
+            if (_clientTick == 0) _clientTick = 1;
+
+            if (!_client.TrySendPlayerInput(
+                    tick,
+                    _nextInputSequence,
+                    _movement,
+                    _viewDirection,
+                    flags,
+                    out NetworkPlayerInput input))
+                return;
+
+            _nextInputSequence = unchecked((ushort)(_nextInputSequence + 1));
+            ReplayInput(in input);
+            _client.FlushSends();
+        }
+
+''' + text[end:]
+
+          replace('''        void IAuthoritativePlayerInputSink.ApplyInput(
+            ushort playerId,
+            in C_PlayerInput input,
+            uint serverTick)''',
+                  '''        void IAuthoritativeNetworkInputSink.ApplyInput(
+            ushort playerId,
+            in NetworkPlayerInput input,
+            uint serverTick)''',
+                  'server input callback')
+          replace('''            S_PlayerState.StateFlags stateFlags = motor.Grounded
+                ? S_PlayerState.StateFlags.Grounded
+                : S_PlayerState.StateFlags.None;
+
+            _server.UpdateAuthoritativePlayerKinematics(
+                connectionId,
+                (float3)motor.Position / ShowcaseWorld.VoxelSize,
+                (float3)motor.Velocity / ShowcaseWorld.VoxelSize,
+                input.viewYaw,
+                stateFlags);''',
+                  '''            _server.UpdateAuthoritativePlayerKinematics(
+                connectionId,
+                (float3)motor.Position / ShowcaseWorld.VoxelSize,
+                (float3)motor.Velocity / ShowcaseWorld.VoxelSize,
+                input.ViewYaw,
+                motor.Grounded);''',
+                  'server kinematics')
+          replace('''        void IClientPredictionAdapter.ApplyAuthoritativeState(in S_PlayerState state)
+        {
+            _localMotor.Position = (Vector3)(state.PositionVoxels() * ShowcaseWorld.VoxelSize);
+            _localMotor.Velocity = (Vector3)(state.VelocityVoxelsPerSecond() * ShowcaseWorld.VoxelSize);
+        }
+
+        public void ReplayInput(in C_PlayerInput input)''',
+                  '''        void IClientNetworkPredictionAdapter.ApplyAuthoritativeState(in NetworkPlayerState state)
+        {
+            _localMotor.Position = (Vector3)(state.PositionVoxels * ShowcaseWorld.VoxelSize);
+            _localMotor.Velocity = (Vector3)(state.VelocityVoxelsPerSecond * ShowcaseWorld.VoxelSize);
+        }
+
+        public void ReplayInput(in NetworkPlayerInput input)''',
+                  'client prediction callback')
+          replace('''        private void SimulateMotor(CharacterMotor motor, in C_PlayerInput input)''',
+                  '''        private void SimulateMotor(CharacterMotor motor, in NetworkPlayerInput input)''',
+                  'simulate input type')
+          replace('''            float2 movement = input.Movement();
+            float3 view = input.ViewDirection();''',
+                  '''            float2 movement = input.Movement;
+            float3 view = input.ViewDirection;''',
+                  'input values')
+          replace('''            bool sprint = (input.flags & InputFlagSprint) != 0;
+            bool jump = (input.flags & InputFlagJump) != 0;''',
+                  '''            bool sprint = (input.Flags & InputFlagSprint) != 0;
+            bool jump = (input.Flags & InputFlagJump) != 0;''',
+                  'input flags')
+          replace('''        private void OnServerConnectionOpened(uint connectionId, NetworkEndpoint endpoint)''',
+                  '''        private void OnServerConnectionOpened(uint connectionId)''',
+                  'server connection callback')
+          replace('''                viewYaw: 0,
+                stateFlags: S_PlayerState.StateFlags.None);''',
+                  '''                viewYaw: 0,
+                grounded: false);''',
+                  'initial kinematics')
+          replace('''        private void OnPlayerStateReceived(S_PlayerState state)
+        {
+            if (state.playerId != _localPlayerId)''',
+                  '''        private void OnPlayerStateReceived(NetworkPlayerState state)
+        {
+            if (state.PlayerId != _localPlayerId)''',
+                  'player state callback')
+          replace('''            uint nextAuthoritativeTick = unchecked(state.tick + 1);''',
+                  '''            uint nextAuthoritativeTick = unchecked(state.Tick + 1);''',
+                  'player state tick')
+          replace('''            if (!_client.TrySampleRemotePlayer(remoteId, 1f, out RemotePlayerSample sample))''',
+                  '''            if (!_client.TrySampleRemotePlayer(remoteId, 1f, out NetworkRemotePlayerSample sample))''',
+                  'remote sample')
+
+          forbidden = [
+              'VoxelEngine.Net.Runtime',
+              'Unity.Networking.Transport',
+              'C_PlayerInput',
+              'S_PlayerState',
+              'NetworkEndpoint',
+              'ProtectedZones',
+              'ClientNetworkRuntime',
+              'AuthoritativeServerSession',
+          ]
+          for value in forbidden:
+              if value in text:
+                  raise SystemExit(f'Showcase multiplayer still leaks concrete networking symbol: {value}')
+          path.write_text(text)
+
+          showcase_asm = Path('Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef')
+          showcase = json.loads(showcase_asm.read_text())
+          showcase['references'] = [
+              r for r in showcase['references'] if r != 'Unity.Networking.Transport'
+          ]
+          showcase_asm.write_text(json.dumps(showcase, indent=2) + '\n')
+
+          composition_asm = Path('Assets/VoxelEngine/Composition/VoxelEngine.Composition.asmdef')
+          composition = json.loads(composition_asm.read_text())
+          for ref in ('VoxelEngine.Net.Runtime', 'Unity.Networking.Transport'):
+              if ref not in composition['references']:
+                  composition['references'].append(ref)
+          composition_asm.write_text(json.dumps(composition, indent=2) + '\n')
+
+          # This slice must reduce Showcase's concrete Runtime namespace inventory from two files
+          # to exactly one: ShowcaseWorld.cs. The final scene-runtime cutover owns that file.
+          runtime_files = []
+          for source in sorted(Path('Assets/Scenes/Showcase').rglob('*.cs')):
+              source_text = source.read_text(errors='ignore')
+              if '.Runtime' in source_text and 'VoxelEngine.' in source_text:
+                  import re
+                  if re.search(r'VoxelEngine\.[A-Za-z0-9_.]+\.Runtime(?:\.[A-Za-z0-9_.]+)*', source_text):
+                      runtime_files.append(str(source))
+          if runtime_files != ['Assets/Scenes/Showcase/ShowcaseWorld.cs']:
+              raise SystemExit(f'Unexpected remaining Showcase Runtime files: {runtime_files}')
+          PY
+
+          rm .github/workflows/cutover13-multiplayer-composition.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Composition/NetworkingComposition.cs \
+                  Assets/VoxelEngine/Composition/NetworkingComposition.cs.meta \
+                  Assets/VoxelEngine/Composition/VoxelEngine.Composition.asmdef \
+                  Assets/Scenes/Showcase/ShowcaseMultiplayerSession.cs \
+                  Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef \
+                  .github/workflows/cutover13-multiplayer-composition.yml
+          git commit -m 'refactor: route showcase networking through composition'
+          git push origin HEAD:refactor/system-boundaries-foundation-storage
