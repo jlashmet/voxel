@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Core.Edits;
 using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Server;
 
@@ -39,6 +40,7 @@ namespace VoxelEngine.Tests.EditMode
             try
             {
                 table.LoadRegion(int3.zero);
+                var mutationStorage = new RegionMutationStore(in table, in pool);
 
                 // Canonical 1-brick brush centered at (4,4,4) occupies [0..7]^3. The only support
                 // is at (8,0,0), on the +X face corner rather than its center.
@@ -71,6 +73,7 @@ namespace VoxelEngine.Tests.EditMode
                     in evt,
                     in player,
                     players,
+                    mutationStorage,
                     ref table,
                     in pool,
                     new Validation.DensityCap(1f, 0));
