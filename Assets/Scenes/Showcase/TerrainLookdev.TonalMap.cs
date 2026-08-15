@@ -31,10 +31,10 @@ namespace VoxelEngine.Showcase
         private void ConfigureTurfPresentation()
         {
             const uint weather = (1u << Coatings.Moss) | (1u << Coatings.Wet);
-            _palette.Register(TerrainTurfNear, 24, default, SurfaceStyles.Smooth, weather);
-            _palette.Register(TerrainTurfMid, 24, default, SurfaceStyles.Smooth, weather);
-            _palette.Register(TerrainTurfFar, 24, default, SurfaceStyles.Smooth, weather);
-            _palette.Register(TerrainLimestoneAccent, 210, default, SurfaceStyles.Planar, weather);
+            _storage.RegisterMaterial(TerrainTurfNear, 24, default, SurfaceStyles.Smooth, weather);
+            _storage.RegisterMaterial(TerrainTurfMid, 24, default, SurfaceStyles.Smooth, weather);
+            _storage.RegisterMaterial(TerrainTurfFar, 24, default, SurfaceStyles.Smooth, weather);
+            _storage.RegisterMaterial(TerrainLimestoneAccent, 210, default, SurfaceStyles.Planar, weather);
 
             Vector4 grassSampling = VoxelPresentationCatalogue.MaterialSampling[Mat.Grass];
             Vector4 grassSurface = VoxelPresentationCatalogue.MaterialSurface[Mat.Grass];
