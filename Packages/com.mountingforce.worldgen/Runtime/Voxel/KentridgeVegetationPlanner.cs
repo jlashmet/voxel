@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Mathematics;
 using VoxelEngine.Core.Storage;
-using VoxelEngine.Core.Terrain;
+using VoxelEngine.Terrain.Api;
 using VoxelEngine.Core.Vegetation;
 using VoxelEngine.Structures;
 using TreeInstance = VoxelEngine.Core.Vegetation.TreeInstance;
@@ -37,7 +37,7 @@ namespace MountingForce.WorldGen.Voxel
                 VegetationCandidate candidate = candidates[i];
                 int worldX = candidate.X * scale;
                 int worldZ = candidate.Z * scale;
-                int natural = TerrainSampler.HeightAt(worldX, worldZ, seed);
+                int natural = TerrainQuery.HeightAt(worldX, worldZ, seed);
                 int authored = KentridgeVerticalProfile.SurfaceYAtDm(
                     candidate.X, candidate.Z, seed, scale);
                 int maxY = math.max(natural, authored) + SearchMarginDm * scale;
@@ -73,7 +73,7 @@ namespace MountingForce.WorldGen.Voxel
                 int surface = IsUrban(candidate)
                     ? KentridgeVerticalProfile.SurfaceYAtDm(
                         candidate.X, candidate.Z, seed, voxelsPerDecimetre)
-                    : TerrainSampler.HeightAt(worldX, worldZ, seed);
+                    : TerrainQuery.HeightAt(worldX, worldZ, seed);
 
                 AddInstance(candidate, worldX, surface + 1, worldZ,
                             voxelSize, seed, instances);
