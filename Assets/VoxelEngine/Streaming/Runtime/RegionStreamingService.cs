@@ -1,4 +1,5 @@
 using System;
+using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Streaming.Api;
 
@@ -23,5 +24,9 @@ namespace VoxelEngine.Streaming.Runtime
         {
             return RegionLoader.PublishLoaded(_storage, mainThreadBudgetMs);
         }
+
+        public bool IsResident(int3 regionCoord) => _storage.IsRegionResident(regionCoord);
+
+        public bool Evict(int3 regionCoord) => _storage.EvictRegion(regionCoord);
     }
 }
