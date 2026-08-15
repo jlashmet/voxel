@@ -182,7 +182,7 @@ namespace VoxelEngine.Composition
             out int residentChunks,
             out long residentGeometryBytes)
         {
-            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+            var metrics = VoxelRenderBridge.SurfaceMetrics;
             knownChunks = metrics.SolidKnownChunks;
             dirtyChunks = metrics.SolidDirtyChunks;
             residentChunks = metrics.SolidResidentChunks;
