@@ -1,0 +1,100 @@
+name: Record completed Structures cutover
+
+on:
+  push:
+    branches:
+      - refactor/system-boundaries-foundation-storage
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          clean: false
+          fetch-depth: 0
+      - name: Mark Structures complete in implementation plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md')
+          text = p.read_text()
+
+          replacements = [
+              (
+                  '**Current focus:** Cutover 4 Structures — Runtime dependency migration / physical Runtime move  ',
+                  '**Current focus:** Cutover 5 Edits — final Api/Runtime move and obsolete wrapper cleanup  ',
+                  'current focus'
+              ),
+              (
+                  '''| 4 — Structures | **In progress — current** | Storage authoring boundary + `Structures.Api` extraction accepted; canonical authoring/encoding contracts live in `VoxelEngine.Structures.Api`; `Structures.Runtime` assembly created with the allowed dependency set; feature VM/generation/rasterizer/Arch/Bonded/emitters plus CastleBuilder/VoxelBrush/MasonryWeathering are physically under `Structures/Runtime` with GUIDs preserved; feature-runtime Storage validation dependencies route through Storage.Api; retained-profile writes route through `Structures.Api.IProfileBlockWriter`; retained-profile reads exposed through Storage.Api `IProfileBlockReadSource` and Rendering consumes that read-only boundary; `VoxelBrush` consumes Storage.Api read/mutation/catalogue capabilities with no physical Storage handle escape; mutable `ProfileBlockStore` is physically under `Structures/Runtime`; stale `VoxelEngine.Core.Features` imports are removed from the WorldGen Voxel adapter; CastleBuilder orchestration consumes Storage.Api read/mutation/material-authoring capabilities and no longer accepts physical Storage handles; semantic `Mat` IDs plus `CastlePlan`/`CastleLayout` landmark geometry live in Structures.Api and WorldGen Voxel no longer references the broad Structures assembly; the empty broad `VoxelEngine.Structures` assembly and all stale asmdef references are removed; canonical ramp direction bits and first directional Kentridge consumers use Structures.Api; retained-profile logical value/read contract extracted to Storage.Api; Kentridge compatibility seam deleted | finish Runtime namespaces |''',
+                  '''| 4 — Structures | **Complete** | `Structures.Api` owns canonical authoring/material/layout contracts; all implementation (feature VM/generation/rasterizer/emitters, retained-profile store, CastleBuilder, VoxelBrush, MasonryWeathering) lives under `Structures/Runtime` with Runtime namespaces and preserved Unity GUIDs; Storage dependencies route through Storage.Api; Rendering uses the retained-profile read boundary; WorldGen Voxel is Api-only; broad Structures assembly, legacy `VoxelEngine.Core.Features` namespace, and Kentridge compatibility seam are gone | none |''',
+                  'Structures status row'
+              ),
+              (
+                  '| 5 — Edits | **In progress** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |',
+                  '| 5 — Edits | **In progress — current** | deterministic alteration application is behind Storage.Api; Net/test mutation callers migrated; mutation transition parity accepted | final Edits.Api/Runtime file + namespace move and obsolete wrapper cleanup |',
+                  'Edits status row'
+              ),
+              (
+                  '''- Latest accepted code gate: `6209dfd3ffe2210073395ee610c9a5907cf2d767` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate removes the now-empty broad `VoxelEngine.Structures` assembly and its meta file, plus the four stale broad-assembly references from Showcase, EditMode tests, PlayMode tests, and CI Editor; those consumers already reference the explicit Structures.Api/Runtime assemblies they actually use. The preceding accepted gate `b4e6ec2812a33c4efda2cd27488826cfde5b4339` accepted the top-level Structures implementation move at the same 382/369/13 baseline.''',
+                  '''- Latest accepted code gate: `2d35d46a3e74935e224e70ee2038c5b0629322b5` — 382 tests, 369 passed, exactly the same 13 known baseline failures. This gate completes the Structures cutover: Runtime declarations and implementation consumers now use `VoxelEngine.Structures.Runtime` / `.Emitters`; the last two fully-qualified legacy emitter references were repaired; no live `VoxelEngine.Core.Features` or broad `VoxelEngine.Structures` namespace remains; WorldGen still has no Structures.Runtime dependency. The preceding accepted gate `6209dfd3ffe2210073395ee610c9a5907cf2d767` removed the empty broad Structures assembly at the same 382/369/13 baseline.''',
+                  'latest accepted gate'
+              ),
+              (
+                  '- [ ] normalize Structures Runtime namespaces',
+                  '- [x] normalize Structures Runtime namespaces',
+                  'execution checklist namespace item'
+              ),
+              (
+                  '- [ ] Structures.Api/Runtime physical move and namespace cutover complete.',
+                  '- [x] Structures.Api/Runtime physical move and namespace cutover complete.',
+                  'cutover physical/namespace gate'
+              ),
+              (
+                  '- [ ] no `VoxelEngine.Core.Features` namespace remains;',
+                  '- [x] no `VoxelEngine.Core.Features` namespace remains;',
+                  'legacy namespace gate'
+              ),
+              (
+                  '- [ ] CastleBuilder is Runtime implementation, not public cross-system vocabulary;',
+                  '- [x] CastleBuilder is Runtime implementation, not public cross-system vocabulary;',
+                  'CastleBuilder gate'
+              ),
+              (
+                  '- [ ] no external package references Structures.Runtime.',
+                  '- [x] no external package references Structures.Runtime.',
+                  'external Runtime gate'
+              ),
+          ]
+
+          for old, new, label in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              text = text.replace(old, new, 1)
+
+          accepted_anchor = '- [x] Profile-store Runtime move + WorldGen import cleanup accepted by CI at `00f1ddfc89af4fa52aa03c79c4b922bf5a9dd70d`: 382 total / 369 passed / exact same 13 known baseline failures.\n'
+          accepted_line = '- [x] Final Structures Runtime namespace cutover accepted by CI at `2d35d46a3e74935e224e70ee2038c5b0629322b5`: 382 total / 369 passed / exact same 13 known baseline failures.\n'
+          if text.count(accepted_anchor) != 1:
+              raise SystemExit(f'accepted-gate anchor: expected 1 match, found {text.count(accepted_anchor)}')
+          text = text.replace(accepted_anchor, accepted_anchor + accepted_line, 1)
+
+          p.write_text(text)
+          PY
+          git rm .github/workflows/complete-structures-plan.yml
+          git diff --check
+          git diff -- docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md .github/workflows/complete-structures-plan.yml
+          git config user.name 'architecture-refactor-ci'
+          git config user.email 'architecture-refactor-ci@users.noreply.github.com'
+          git add docs/ARCHITECTURE_IMPLEMENTATION_PLAN.md
+          git commit -m 'Mark Structures cutover complete'
+          git push origin HEAD:${{ github.ref_name }}
