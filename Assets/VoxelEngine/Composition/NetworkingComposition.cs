@@ -421,7 +421,7 @@ namespace VoxelEngine.Composition
     /// <summary>Composition entry point for the concrete Net.Runtime implementation.</summary>
     public static class NetworkingComposition
     {
-        public static int AuthoritativeTickRateHz => AuthoritativeTickConfig.TickRateHz;
+        public static uint AuthoritativeTickRateHz => AuthoritativeTickConfig.TickRateHz;
 
         public static NetworkServerFacade CreateServer(uint serverSeed, int maxConnections = 64)
         {
