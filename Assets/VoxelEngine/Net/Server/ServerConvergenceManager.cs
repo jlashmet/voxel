@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Interest;
 using VoxelEngine.Net.Protocol;
 using VoxelEngine.Net.Transport;
@@ -93,9 +93,6 @@ namespace VoxelEngine.Net.Server
                         ? serverTick - CheckpointRetentionTicks
                         : 0u;
 
-                    // Inside the retention window, absence proves this checkpoint was never issued
-                    // to this connection (wrong phase/region or fabricated report). Only history old
-                    // enough to have legitimately fallen out of retention may escalate to BULK state.
                     if (report.hashTick >= oldestRetained)
                     {
                         RejectedMismatchCount++;
@@ -206,17 +203,19 @@ namespace VoxelEngine.Net.Server
 
         public int EmitHashes(
             uint serverTick,
-            ref RegionTable table,
-            in BrickPool pool,
+            IRegionReadSource regionSource,
+            IRegionSnapshotSource snapshots,
             RegionSubscriptionIndex subscriptions,
             ServerNetworkRuntime network)
         {
+            if (regionSource == null) throw new ArgumentNullException(nameof(regionSource));
+            if (snapshots == null) throw new ArgumentNullException(nameof(snapshots));
             if (subscriptions == null) throw new ArgumentNullException(nameof(subscriptions));
             if (network == null) throw new ArgumentNullException(nameof(network));
             if (serverTick == 0) return 0;
 
             PruneCheckpoints(serverTick);
-            NativeArray<int3> regions = table.GetResidentCoords(Allocator.Temp);
+            NativeArray<int3> regions = regionSource.GetResidentRegionCoords(Allocator.Temp);
             int sent = 0;
             try
             {
@@ -229,20 +228,22 @@ namespace VoxelEngine.Net.Server
                     _subscriberScratch.Clear();
                     subscriptions.AddSubscribers(coord, _subscriberScratch);
                     if (_subscriberScratch.Count == 0) continue;
-                    if (!table.TryGetRegion(coord, out Region region) || !region.BrickRefs.IsCreated) continue;
 
-                    if (!SemanticRegionSnapshotCodec.TryEncode(
-                            in region,
-                            in pool,
-                            SemanticRegionSnapshotCodec.DefaultMaxSnapshotBytes,
-                            out byte[] snapshot) ||
-                        _retainedSnapshotBytes + snapshot.Length > MaxRetainedSnapshotBytes)
+                    RegionSnapshotCaptureResult captureResult = snapshots.CaptureSemanticSnapshot(
+                        coord,
+                        RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,
+                        out RegionSemanticSnapshot semanticSnapshot);
+
+                    if (captureResult != RegionSnapshotCaptureResult.Ok ||
+                        semanticSnapshot.Bytes == null ||
+                        _retainedSnapshotBytes + semanticSnapshot.Bytes.Length > MaxRetainedSnapshotBytes)
                     {
                         HashesSkippedNoSnapshot++;
                         continue;
                     }
 
-                    uint semanticHash = SemanticRegionHasher.HashRegion(in region, in pool);
+                    byte[] snapshot = semanticSnapshot.Bytes;
+                    uint semanticHash = semanticSnapshot.SemanticHash;
                     var message = new S_RegionHash(coord, serverTick, semanticHash);
                     int regionSent = 0;
 
