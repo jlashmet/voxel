@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Core;
+using VoxelEngine.Foundation;
 using VoxelEngine.Core.Storage;
 
 namespace VoxelEngine.Core.Edits
