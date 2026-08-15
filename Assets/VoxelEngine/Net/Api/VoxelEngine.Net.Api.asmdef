@@ -1,13 +1,7 @@
 {
   "name": "VoxelEngine.Net.Api",
   "rootNamespace": "VoxelEngine.Net.Api",
-  "references": [
-    "VoxelEngine.Foundation",
-    "VoxelEngine.Edits.Api",
-    "VoxelEngine.Streaming.Api",
-    "VoxelEngine.Storage.Api",
-    "VoxelEngine.StructuralIntegrity.Api"
-  ],
+  "references": [],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
