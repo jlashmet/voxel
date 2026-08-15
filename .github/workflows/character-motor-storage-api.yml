@@ -1,0 +1,88 @@
+name: CharacterMotor Storage API cutover
+on:
+  push:
+    branches: [refactor/system-boundaries-foundation-storage]
+    paths: [.github/workflows/character-motor-storage-api.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Move CharacterMotor off physical Storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          motor = Path('Assets/Scenes/Showcase/CharacterMotor.cs')
+          text = motor.read_text()
+          if text.count('using VoxelEngine.Storage.Runtime;') != 1:
+              raise SystemExit('CharacterMotor Storage.Runtime import did not match exactly once')
+          text = text.replace('using VoxelEngine.Storage.Runtime;', 'using VoxelEngine.Storage.Api;', 1)
+          text = text.replace(
+              'This does *not* use <see cref="VoxelEngine.Collision.Runtime.SweptAabb"/>, and that is worth explaining:',
+              'This does *not* use the existing brick-space swept-AABB helper, and that is worth explaining:',
+              1)
+          old = '''            for (int y = minY; y <= maxY; y++)
+            for (int z = minZ; z <= maxZ; z++)
+            for (int x = minX; x <= maxX; x++)
+            {
+                if (VoxelAccess.IsSolid(ref world.Table, in world.Pool, new int3(x, y, z)))
+                    return true;
+            }
+'''
+          new = '''            IVoxelSurfaceQuery surface = world.SurfaceQuery;
+            for (int y = minY; y <= maxY; y++)
+            for (int z = minZ; z <= maxZ; z++)
+            for (int x = minX; x <= maxX; x++)
+            {
+                if (surface.TryRead(new int3(x, y, z), out VoxelCell cell) &&
+                    cell.BaseMaterialId != VoxelGrid.MaterialEmpty)
+                    return true;
+            }
+'''
+          if text.count(old) != 1:
+              raise SystemExit('CharacterMotor physical blocked-query seam did not match')
+          text = text.replace(old, new, 1)
+          forbidden = ('VoxelEngine.Storage.Runtime', 'VoxelEngine.Collision.Runtime', 'VoxelAccess', 'world.Table', 'world.Pool')
+          for token in forbidden:
+              if token in text:
+                  raise SystemExit(f'CharacterMotor still contains Runtime/physical token: {token}')
+          motor.write_text(text)
+
+          world = Path('Assets/Scenes/Showcase/ShowcaseWorld.cs')
+          text = world.read_text()
+          marker = '''        public IRegionMutationStore MutationStorage
+        {
+'''
+          prop = '''        public IVoxelSurfaceQuery SurfaceQuery
+        {
+            get
+            {
+                _readSource.Refresh(in _table, in _pool);
+                return _readSource;
+            }
+        }
+'''
+          if 'public IVoxelSurfaceQuery SurfaceQuery' in text:
+              raise SystemExit('ShowcaseWorld SurfaceQuery property already exists unexpectedly')
+          if text.count(marker) != 1:
+              raise SystemExit('ShowcaseWorld MutationStorage marker did not match')
+          text = text.replace(marker, prop + marker, 1)
+          world.write_text(text)
+          PY
+
+          git diff --check
+          git config user.name architecture-refactor-ci
+          git config user.email architecture-refactor-ci@users.noreply.github.com
+          git add Assets/Scenes/Showcase/CharacterMotor.cs Assets/Scenes/Showcase/ShowcaseWorld.cs
+          git commit -m 'refactor(showcase): query character collision through Storage API'
+          git fetch origin "${GITHUB_REF_NAME}"
+          git rebase "origin/${GITHUB_REF_NAME}"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
