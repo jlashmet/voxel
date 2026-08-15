@@ -81,7 +81,11 @@ namespace VoxelEngine.Tests.EditMode
         public void SecretCampaignRequiresGameplayHostAndPassesExactFalseWallBounds()
         {
             var game = Campaign.Create("secret-session");
-            SiteRef pub = game.World.RequireSite("starting-pub", site => site
+            RegionRef region = game.World.RequireRegion("kentridge-region", _ => { });
+            SettlementRef kentridge = game.World.RequireSettlement("kentridge", settlement => settlement
+                .InRegion(region)
+                .Archetype(SettlementArchetype.Town));
+            SiteRef pub = game.World.RequireSite("starting-pub", kentridge, site => site
                 .Archetype(SiteArchetype.Pub));
             game.World.RequireNpc("keeper", npc => npc.PlaceAt(pub));
             LootTableRef loot = game.Loot.Table("cache-loot", table => table
@@ -98,9 +102,7 @@ namespace VoxelEngine.Tests.EditMode
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                 blueprint,
-                settlement,
-                new RegionRef("kentridge-region"),
-                new SettlementRef("kentridge"));
+                settlement);
             var siteFacts = new KentridgeVoxelSiteRealizationFacts(settlement, 1);
             var hiddenFacts = new KentridgeHiddenSpaceVoxelRealizationFacts(
                 settlement,
