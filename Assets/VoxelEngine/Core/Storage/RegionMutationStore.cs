@@ -89,7 +89,11 @@ namespace VoxelEngine.Core.Storage
             out VoxelBlockMutation mutation)
         {
             DecomposeBlock(worldBlock, out int3 regionCoord, out int blockIndex);
-            if (!_table.TryGetRegion(regionCoord, out Region region) || !region.BrickRefs.IsCreated)
+            // Full-cell mutation is the authoring/generation path. The legacy authoritative cell
+            // write made a region resident on the first authored voxel, so preserve that behavior
+            // here while material-oriented gameplay edits remain resident-only above.
+            Region region = _table.LoadRegion(regionCoord);
+            if (!region.BrickRefs.IsCreated)
             {
                 mutation = default;
                 return false;
