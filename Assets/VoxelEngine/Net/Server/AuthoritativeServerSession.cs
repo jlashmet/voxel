@@ -2,7 +2,7 @@ using System;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
-using VoxelEngine.Core.Storage;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Net.Protocol;
 
 namespace VoxelEngine.Net.Server
@@ -145,8 +145,9 @@ namespace VoxelEngine.Net.Server
 
         public void ProcessAuthoritativeTick(
             uint serverTick,
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionReadSource readStorage,
+            IRegionMutationStore mutationStorage,
+            IRegionSnapshotSource snapshots,
             in ProtectedZones zones,
             IAuthoritativePlayerInputSink inputSink)
         {
@@ -154,8 +155,9 @@ namespace VoxelEngine.Net.Server
                 throw new InvalidOperationException("An Edits alteration applier must be supplied for the default authoritative tick path.");
             ProcessAuthoritativeTick(
                 serverTick,
-                ref table,
-                ref pool,
+                readStorage,
+                mutationStorage,
+                snapshots,
                 in zones,
                 inputSink,
                 _defaultAlterationApplier);
@@ -163,13 +165,17 @@ namespace VoxelEngine.Net.Server
 
         public void ProcessAuthoritativeTick(
             uint serverTick,
-            ref RegionTable table,
-            ref BrickPool pool,
+            IRegionReadSource readStorage,
+            IRegionMutationStore mutationStorage,
+            IRegionSnapshotSource snapshots,
             in ProtectedZones zones,
             IAuthoritativePlayerInputSink inputSink,
             IAlterationApplier applier)
         {
             ThrowIfDisposed();
+            if (readStorage == null) throw new ArgumentNullException(nameof(readStorage));
+            if (mutationStorage == null) throw new ArgumentNullException(nameof(mutationStorage));
+            if (snapshots == null) throw new ArgumentNullException(nameof(snapshots));
             if (inputSink == null) throw new ArgumentNullException(nameof(inputSink));
             if (applier == null) throw new ArgumentNullException(nameof(applier));
 
@@ -179,8 +185,8 @@ namespace VoxelEngine.Net.Server
 
             _processor.ProcessTick(
                 serverTick,
-                ref table,
-                ref pool,
+                readStorage,
+                mutationStorage,
                 in zones,
                 inputSink,
                 applier,
@@ -192,17 +198,16 @@ namespace VoxelEngine.Net.Server
             _playerStates.Emit(serverTick, _network.Replication.Subscriptions, _network);
 
             _network.FlushReplication();
-            var storageReadSource = new RegionReadSource(in table, in pool);
             _convergence.EmitHashes(
                 serverTick,
-                storageReadSource,
-                storageReadSource,
+                readStorage,
+                snapshots,
                 _network.Replication.Subscriptions,
                 _network);
 
             _bulkRegionState.ProcessRequests(
                 serverTick,
-                storageReadSource,
+                snapshots,
                 _network.Replication.Subscriptions,
                 _network);
 
