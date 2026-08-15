@@ -12,14 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: c11db51c17c247caeee9adb51e006c0697b926f3
+          ref: 4a6e161f09e95e2459ead088b4d3b6d531758b00
           clean: true
           fetch-depth: 1
       - name: Reset pinned Rendering source
         shell: bash
         run: |
           set -euo pipefail
-          git reset --hard c11db51c17c247caeee9adb51e006c0697b926f3
+          git reset --hard 4a6e161f09e95e2459ead088b4d3b6d531758b00
           git clean -ffdx -e Library/
       - id: unity
         shell: bash
@@ -60,7 +60,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rendering-acceptance-c11db51c
+          name: rendering-acceptance-4a6e161f
           path: Artifacts/RenderingAcceptance/
           if-no-files-found: warn
           retention-days: 14
