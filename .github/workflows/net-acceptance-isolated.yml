@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   unity-editmode:
-    runs-on: [self-hosted, macOS, X64]
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -35,4 +35,3 @@ jobs:
           name: NetworkingCI
           path: Artifacts/NetworkingCI/
           if-no-files-found: warn
-# retry after stale Net drain cleanup
