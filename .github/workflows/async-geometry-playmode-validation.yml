@@ -5,6 +5,7 @@ on:
     branches: [refactor/async-geometry-pipeline]
     paths:
       - .github/workflows/async-geometry-playmode-validation.yml
+      - Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef
       - Assets/Tests/PlayMode/LodRenderingTests.cs
       - Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
       - Assets/VoxelEngine/Rendering/**
