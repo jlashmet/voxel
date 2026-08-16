@@ -25,6 +25,9 @@ namespace VoxelEngine.Structures.Api
         UnexpectedCavePlan,
         InvalidCavePlan,
         CaveEntranceMismatch,
+        MissingCaveDecorationPlan,
+        UnexpectedCaveDecorationPlan,
+        InvalidCaveDecorationPlan,
     }
 
     /// <summary>Pure result of checking whether a castle plan is safe to realize.</summary>
@@ -87,19 +90,11 @@ namespace VoxelEngine.Structures.Api
         public bool IsValid => Issue == CastleBuildPreflightIssue.None;
     }
 
-    /// <summary>
-    /// Runtime-independent castle preflight. Planning policy owns the estimate; voxel realization
-    /// owns the actual writes and remains protected by its hard brush budget as a second guard.
-    /// </summary>
     public static class CastleBuildPreflight
     {
         private const double LegacyUndergroundEstimate = 1_500_000.0;
         private const double UnplannedCaveAllowance = 400_000.0;
 
-        /// <summary>
-        /// Historical rectangular estimate retained byte-for-byte for compatibility callers.
-        /// Spatial builds should use the overload that accepts CastleSpatialPlan.
-        /// </summary>
         public static long EstimateWrites(in CastlePlan plan)
         {
             double plateauArea = math.PI_DBL * plan.PlateauRadius * plan.PlateauRadius;
@@ -120,11 +115,6 @@ namespace VoxelEngine.Structures.Api
                         + LegacyUndergroundEstimate);
         }
 
-        /// <summary>
-        /// Estimates the realized topology rather than the legacy rectangular recipe. The result
-        /// is an expensive-write equivalent used only as a conservative admission budget; bulk
-        /// realization still enforces its hard brush budget independently.
-        /// </summary>
         public static long EstimateWrites(in CastlePlan plan, CastleSpatialPlan spatialPlan)
         {
             if (spatialPlan == null) throw new ArgumentNullException(nameof(spatialPlan));
@@ -221,11 +211,6 @@ namespace VoxelEngine.Structures.Api
             return BudgetResult(EstimateWrites(in plan, spatialPlan), writeBudget);
         }
 
-        /// <summary>
-        /// Admission check used by Runtime. Unlike general spatial evaluation, this requires
-        /// site-aware planning completion, explicit keep-floor semantics, a valid dungeon anchored
-        /// to the projected trapdoor, and a complete designed-dungeon to natural-cave handoff.
-        /// </summary>
         public static CastleBuildPreflightResult EvaluateRuntimeReady(
             in CastlePlan plan,
             CastleSpatialPlan spatialPlan,
@@ -325,6 +310,12 @@ namespace VoxelEngine.Structures.Api
                     return CastleSpatialBuildReadinessIssue.InvalidCavePlan;
                 case CastleCaveBuildReadinessIssue.CaveEntranceMismatch:
                     return CastleSpatialBuildReadinessIssue.CaveEntranceMismatch;
+                case CastleCaveBuildReadinessIssue.MissingCaveDecorationPlan:
+                    return CastleSpatialBuildReadinessIssue.MissingCaveDecorationPlan;
+                case CastleCaveBuildReadinessIssue.UnexpectedCaveDecorationPlan:
+                    return CastleSpatialBuildReadinessIssue.UnexpectedCaveDecorationPlan;
+                case CastleCaveBuildReadinessIssue.InvalidCaveDecorationPlan:
+                    return CastleSpatialBuildReadinessIssue.InvalidCaveDecorationPlan;
                 default:
                     return CastleSpatialBuildReadinessIssue.None;
             }
