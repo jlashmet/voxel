@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Game.Structures.Api;
 using Game.Structures.Runtime;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Storage.Runtime;
@@ -17,11 +18,12 @@ namespace VoxelEngine.Showcase
     /// then publishes only the touched 8^3 logical blocks back to the live world in bounded
     /// batches. The live RegionTable/BrickPool are never read or written by the worker.
     ///
-    /// The legacy ICastleBuildSession.IsComplete flag is also used by ShowcaseWorld's scheduler
-    /// to decide whether it may immediately call Step again in the same frame. YieldRequested is
-    /// therefore deliberately reported as complete between slices; Step() remains the authority
-    /// for terminal completion. This keeps the old world scheduler to one small castle slice per
-    /// player-loop iteration without making the live storage concurrent.
+    /// ShowcaseWorld's legacy castle loop tests IsComplete after every Step and would otherwise
+    /// poll a waiting worker until the entire frame budget expires. IsComplete therefore also
+    /// reports true after this session has already been stepped in the current Unity frame. On
+    /// the next frame it becomes false again automatically until terminal completion. That keeps
+    /// the existing scheduler to one bounded castle slice per player-loop iteration without
+    /// conflating worker completion with live-world completion across frames.
     /// </summary>
     internal sealed class AsyncCastleBuildSession : ICastleBuildSession
     {
@@ -41,7 +43,7 @@ namespace VoxelEngine.Showcase
         private Task<BuildResult> _worker;
         private BuildResult _result;
         private int _publishCursor;
-        private bool _yieldRequested;
+        private int _lastStepFrame = -1;
         private bool _terminalComplete;
 
         public AsyncCastleBuildSession(
@@ -73,10 +75,10 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// True either after terminal completion or while the scheduler must yield this frame.
-        /// See class comment: terminal completion is the bool returned by Step().
+        /// Terminally true after publication, and transiently true after this session already
+        /// consumed its one allowed slice in the current frame so ShowcaseWorld cannot busy-poll.
         /// </summary>
-        public bool IsComplete => _terminalComplete || _yieldRequested || IsWorkerRunning;
+        public bool IsComplete => _terminalComplete || _lastStepFrame == Time.frameCount;
 
         public int StageNumber
         {
@@ -91,12 +93,10 @@ namespace VoxelEngine.Showcase
 
         public long TotalVoxelsWritten => _result?.TotalVoxelsWritten ?? 0L;
 
-        private bool IsWorkerRunning => _worker != null && !_worker.IsCompleted;
-
         public bool Step()
         {
             if (_terminalComplete) return true;
-            _yieldRequested = false;
+            _lastStepFrame = Time.frameCount;
 
             // Snapshot exactly one already-generated castle region per frame. This is the only
             // live read needed by the worker and keeps snapshot encoding from becoming a single
@@ -113,22 +113,17 @@ namespace VoxelEngine.Showcase
                         $"Could not snapshot castle region {region}: {captured}.");
 
                 _sourceSnapshots[_captureCursor++] = snapshot;
-                _yieldRequested = true;
                 return false;
             }
 
             if (_worker == null)
             {
                 _worker = Task.Run(BuildOnPrivateStore);
-                _yieldRequested = true;
                 return false;
             }
 
             if (!_worker.IsCompleted)
-            {
-                _yieldRequested = true;
                 return false;
-            }
 
             if (_result == null)
             {
@@ -143,10 +138,7 @@ namespace VoxelEngine.Showcase
                 PublishBlock(_result.Blocks[_publishCursor]);
 
             if (_publishCursor < _result.Blocks.Count)
-            {
-                _yieldRequested = true;
                 return false;
-            }
 
             _terminalComplete = true;
             return true;
