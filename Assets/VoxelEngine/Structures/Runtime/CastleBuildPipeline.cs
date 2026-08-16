@@ -18,6 +18,7 @@ namespace VoxelEngine.Structures.Runtime
         private int _stage;
         private int _keepStage;
         private CastleSiteRealizer.State _site;
+        private CastleSitePlan _sitePlan;
 
         private bool _hasSpatialFortifications;
         private bool _hasSpatialKeep;
@@ -108,6 +109,7 @@ namespace VoxelEngine.Structures.Runtime
 
             _plan = plan;
             _spatialKeepPlan = plan;
+            _sitePlan = default;
             _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _innerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
@@ -145,7 +147,12 @@ namespace VoxelEngine.Structures.Runtime
                 {
                     bool siteComplete = _hasSpatialFortifications
                         ? CastleSiteRealizer.StepPlanned(
-                            ref _brush, in _plan, _terrainSeed, in _approach, ref _site)
+                            ref _brush,
+                            in _plan,
+                            _terrainSeed,
+                            in _approach,
+                            in _sitePlan,
+                            ref _site)
                         : CastleSiteRealizer.Step(
                             ref _brush, in _plan, _terrainSeed, ref _site);
                     if (!siteComplete)
@@ -316,6 +323,7 @@ namespace VoxelEngine.Structures.Runtime
             _innerWardVertices = (int2[])spatialPlan.InnerWardVertices.Clone();
             _primaryGate = spatialPlan.PrimaryGate;
             _approach = CastleApproachFrame.FromGate(in _primaryGate);
+            _sitePlan = spatialPlan.Topology.Site;
             _hasPosternGate = spatialPlan.HasPosternGate;
             _posternGate = spatialPlan.PosternGate;
             _hasInnerGate = spatialPlan.HasInnerGate;
