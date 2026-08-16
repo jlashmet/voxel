@@ -5,6 +5,7 @@ namespace VoxelEngine.Structures.Runtime
     /// <summary>
     /// Trust-boundary adapter for planned keep annex realization. Spatial planning owns which
     /// annexes exist; Runtime validates the snapshot and realizes exactly those selected pieces.
+    /// Keep exterior features such as the rear oriel are realized in the preceding exterior stage.
     /// </summary>
     internal static class CastlePlannedKeepAnnexRealizer
     {
@@ -15,8 +16,6 @@ namespace VoxelEngine.Structures.Runtime
         {
             CastleKeepAnnexPlanValidator.RequireValid(in annexes);
             CastleKeepAnnexRealizer.BuildPlanned(ref brush, in plan, in annexes);
-            if (annexes.HasRearOriel)
-                CastleRearOrielRealizer.Build(ref brush, in plan);
         }
     }
 }
