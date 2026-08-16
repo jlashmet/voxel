@@ -4,6 +4,7 @@
   "references": [
     "VoxelEngine.Core",
     "VoxelEngine.Vegetation",
+    "VoxelEngine.AmbientLife",
     "VoxelEngine.Rendering",
     "VoxelEngine.Showcase",
     "Unity.Mathematics"
