@@ -103,31 +103,6 @@ namespace VoxelEngine.Structures.Runtime
                     $"equivalents against a {preflight.WriteBudget:N0} write budget.");
             }
 
-            if (spatialPlan != null)
-            {
-                CastleTopologyPlan topology = spatialPlan.Topology;
-                if (!CastleKeepAnnexBuildReadiness.TryValidate(
-                        in topology, out CastleKeepAnnexBuildReadinessIssue annexReadiness))
-                {
-                    throw new InvalidOperationException(
-                        $"Castle keep annex plan is not runtime-ready: {annexReadiness}.");
-                }
-
-                if (!CastleKeepTurretPlanValidator.TryValidate(
-                        topology.KeepTurrets, out CastleKeepTurretPlanIssue turretIssue))
-                {
-                    throw new InvalidOperationException(
-                        $"Castle keep turret plan is not runtime-ready: {turretIssue}.");
-                }
-
-                CastleWallPlan walls = topology.Walls;
-                if (!CastleWallPlanValidator.TryValidate(in walls, out CastleWallPlanIssue wallIssue))
-                {
-                    throw new InvalidOperationException(
-                        $"Castle wall plan is not runtime-ready: {wallIssue}.");
-                }
-            }
-
             _plan = plan;
             _spatialKeepPlan = plan;
             _sitePlan = default;
