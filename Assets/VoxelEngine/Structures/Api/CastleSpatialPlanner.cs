@@ -374,30 +374,15 @@ namespace VoxelEngine.Structures.Api
                 return RetractKeepToWard(int2.zero, in dimensions, keepWard);
 
             float2 inward = -gate.Outward;
-            int insetX = placement == CastleKeepPlacement.WallIntegrated
-                ? math.max(0, dimensions.BaileyHalfX - dimensions.KeepHalfX)
-                : math.max(0, dimensions.BaileyHalfX - dimensions.KeepHalfX
-                              - dimensions.WallThickness - 24);
-            int insetZ = placement == CastleKeepPlacement.WallIntegrated
-                ? math.max(0, dimensions.BaileyHalfZ - dimensions.KeepHalfZ)
-                : math.max(0, dimensions.BaileyHalfZ - dimensions.KeepHalfZ
-                              - dimensions.WallThickness - 24);
+            int2 integrated = CastleKeepPlacementGeometry.FarthestKeepCentreAlong(
+                in dimensions, inward, keepWard);
+            if (placement == CastleKeepPlacement.WallIntegrated)
+                return integrated;
 
-            float distance = float.MaxValue;
-            if (math.abs(inward.x) > 0.001f)
-                distance = math.min(distance, insetX / math.abs(inward.x));
-            if (math.abs(inward.y) > 0.001f)
-                distance = math.min(distance, insetZ / math.abs(inward.y));
-            if (distance == float.MaxValue)
-                distance = 0f;
-
-            if (placement == CastleKeepPlacement.Rear)
-                distance *= 0.78f;
-
-            int2 desired = new int2(
-                (int)math.round(inward.x * distance),
-                (int)math.round(inward.y * distance));
-            return RetractKeepToWard(desired, in dimensions, keepWard);
+            int2 desiredRear = new int2(
+                (int)math.round(integrated.x * 0.78f),
+                (int)math.round(integrated.y * 0.78f));
+            return RetractKeepToWard(desiredRear, in dimensions, keepWard);
         }
 
         private static int2 RetractKeepToWard(
