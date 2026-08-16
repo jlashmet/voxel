@@ -117,7 +117,9 @@ namespace VoxelEngine.Rendering.Runtime.AmbientLife
         }
 
         /// <summary>
-        /// Deterministic draw entry point used by visual tests and capture tooling.
+        /// Deterministic draw entry point used by visual tests and capture tooling. The timestamp
+        /// drives both reconstructed locomotion and shader-side flutter/emission so a capture is
+        /// fully reproducible.
         /// </summary>
         public void DrawAtTime(float timeSeconds)
         {
@@ -136,6 +138,7 @@ namespace VoxelEngine.Rendering.Runtime.AmbientLife
 
                 _properties.Clear();
                 ProceduralAmbientLifeMaterials.Configure(_properties, pair.Key);
+                _properties.SetFloat("_AnimationTime", timeSeconds);
                 for (int start = 0; start < agents.Count; start += MaxInstancesPerDraw)
                 {
                     int count = Mathf.Min(MaxInstancesPerDraw, agents.Count - start);
