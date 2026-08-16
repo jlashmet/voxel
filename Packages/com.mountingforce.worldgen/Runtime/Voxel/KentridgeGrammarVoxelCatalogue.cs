@@ -302,12 +302,12 @@ namespace MountingForce.WorldGen.Voxel
                 AddTimberFrame(b, upperX, upperZ, upperW, upperD,
                     f + floor, upperH, beam, timber);
 
-            // Public entrances own a short exterior air landing as well as the wall aperture. The
-            // previous inward-only carve could leave the first terrain/infrastructure voxel directly
-            // outside the facade at body height; a 0.3 m-radius character then stopped with its centre
-            // about 0.2 m inside the doorway. Four decimetres clears that leading-edge volume while
-            // starting at threshold height, so the walkable ground below remains intact.
-            int doorExteriorClearance = 4 * s;
+            // A public entrance owns the whole gameplay approach corridor, not just the wall
+            // aperture. Keep this tied to the access resolver contract: if gameplay is asked to reach
+            // ExteriorApproach, generation must guarantee body-height air all the way to that point.
+            // The carve begins at threshold height so walkable ground below remains intact.
+            int doorExteriorClearance =
+                KentridgeGameplaySiteAccessResolver.ApproachDistanceDecimetres * s;
             int doorFacadeDepth = math.max(t + s, 2 * beam);
             b.Carve(
                 doorX,
