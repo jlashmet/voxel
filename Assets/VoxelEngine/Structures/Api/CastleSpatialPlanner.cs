@@ -11,6 +11,8 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public static class CastleSpatialPlanner
     {
+        private const uint PrimaryGateSeedElement = 0x47415445u; // "GATE"
+
         public static CastleSpatialPlan Create(
             in CastlePlan dimensions,
             in CastleTopologyPlan topology)
@@ -20,10 +22,10 @@ namespace VoxelEngine.Structures.Api
                 ? BuildInnerWard(in dimensions, outer)
                 : Array.Empty<int2>();
 
-            CastleGatePlacementSpec gate = PlacePrimaryGate(outer);
+            CastleGatePlacementSpec gate = PlacePrimaryGate(in dimensions, outer);
             bool hasPosternGate = topology.HasPosternGate;
             CastleGatePlacementSpec posternGate = hasPosternGate
-                ? PlacePosternGate(outer, gate.EdgeIndex, gate.Outward)
+                ? PlacePosternGate(in dimensions, outer, gate.EdgeIndex, gate.Outward)
                 : default;
             bool hasInnerGate = inner.Length != 0;
             CastleGatePlacementSpec innerGate = hasInnerGate
@@ -275,50 +277,74 @@ namespace VoxelEngine.Structures.Api
             return inner;
         }
 
-        private static CastleGatePlacementSpec PlacePrimaryGate(int2[] perimeter)
+        private static CastleGatePlacementSpec PlacePrimaryGate(
+            in CastlePlan dimensions,
+            int2[] perimeter)
         {
-            int bestEdge = 0;
-            int bestMidZ = int.MaxValue;
+            int minimumLength = CastleGatePlanningRules.PrimaryMinimumEdgeLength(in dimensions);
+            int bestEdge = -1;
+            uint bestScore = 0u;
 
-            for (int i = 0; i < perimeter.Length; i++)
+            for (int edge = 0; edge < perimeter.Length; edge++)
             {
-                int2 a = perimeter[i];
-                int2 b = perimeter[(i + 1) % perimeter.Length];
-                int midZ = a.y + b.y;
-                if (midZ >= bestMidZ) continue;
-                bestMidZ = midZ;
-                bestEdge = i;
+                if (!CastleGatePlanningRules.EdgeCanHostOpening(
+                        perimeter, edge, minimumLength))
+                    continue;
+
+                uint score = CastleSeedPartition.Derive(
+                    dimensions.Seed,
+                    CastleSeedDomain.Layout,
+                    PrimaryGateSeedElement + (uint)edge);
+                if (bestEdge >= 0 && score <= bestScore) continue;
+                bestEdge = edge;
+                bestScore = score;
             }
 
-            return PlaceGateOnEdge(perimeter, bestEdge, new float2(0f, -1f));
+            if (bestEdge < 0)
+                bestEdge = LongestEdge(perimeter, -1);
+
+            return PlaceGateOnEdge(
+                perimeter,
+                bestEdge,
+                EdgeOutwardPreference(perimeter, bestEdge));
         }
 
         private static CastleGatePlacementSpec PlacePosternGate(
+            in CastlePlan dimensions,
             int2[] perimeter,
             int primaryEdge,
             float2 primaryOutward)
         {
+            int minimumLength = CastleGatePlanningRules.PosternMinimumEdgeLength(in dimensions);
             int bestEdge = -1;
             float bestScore = float.MinValue;
             float2 inward = -primaryOutward;
+            float2 centroid = VertexCentroid(perimeter);
 
             for (int edge = 0; edge < perimeter.Length; edge++)
             {
-                if (edge == primaryEdge) continue;
+                if (edge == primaryEdge || !CastleGatePlanningRules.EdgeCanHostOpening(
+                        perimeter, edge, minimumLength))
+                    continue;
+
                 int2 a = perimeter[edge];
                 int2 b = perimeter[(edge + 1) % perimeter.Length];
                 float2 midpoint = new float2(
                     (a.x + b.x) * 0.5f,
                     (a.y + b.y) * 0.5f);
-                float score = math.dot(midpoint, inward);
+                float score = math.dot(midpoint - centroid, inward);
                 if (score <= bestScore) continue;
                 bestScore = score;
                 bestEdge = edge;
             }
 
             if (bestEdge < 0)
-                bestEdge = (primaryEdge + perimeter.Length / 2) % perimeter.Length;
-            return PlaceGateOnEdge(perimeter, bestEdge, -primaryOutward);
+                bestEdge = LongestEdge(perimeter, primaryEdge);
+
+            return PlaceGateOnEdge(
+                perimeter,
+                bestEdge,
+                EdgeOutwardPreference(perimeter, bestEdge));
         }
 
         private static CastleGatePlacementSpec PlaceGateOnEdge(
@@ -342,6 +368,45 @@ namespace VoxelEngine.Structures.Api
                 Centre = centre,
                 Outward = outward,
             };
+        }
+
+        private static int LongestEdge(int2[] perimeter, int excludedEdge)
+        {
+            int bestEdge = -1;
+            long bestLengthSquared = -1;
+            for (int edge = 0; edge < perimeter.Length; edge++)
+            {
+                if (edge == excludedEdge) continue;
+                int2 a = perimeter[edge];
+                int2 b = perimeter[(edge + 1) % perimeter.Length];
+                long dx = (long)b.x - a.x;
+                long dz = (long)b.y - a.y;
+                long lengthSquared = dx * dx + dz * dz;
+                if (lengthSquared <= bestLengthSquared) continue;
+                bestLengthSquared = lengthSquared;
+                bestEdge = edge;
+            }
+            return bestEdge >= 0 ? bestEdge : 0;
+        }
+
+        private static float2 EdgeOutwardPreference(int2[] perimeter, int edgeIndex)
+        {
+            int2 a = perimeter[edgeIndex];
+            int2 b = perimeter[(edgeIndex + 1) % perimeter.Length];
+            float2 midpoint = new float2(
+                (a.x + b.x) * 0.5f,
+                (a.y + b.y) * 0.5f);
+            float2 outward = midpoint - VertexCentroid(perimeter);
+            float length = math.length(outward);
+            return length > 0.001f ? outward / length : new float2(0f, -1f);
+        }
+
+        private static float2 VertexCentroid(int2[] perimeter)
+        {
+            float2 centroid = float2.zero;
+            for (int i = 0; i < perimeter.Length; i++)
+                centroid += new float2(perimeter[i].x, perimeter[i].y);
+            return centroid / perimeter.Length;
         }
 
         private static CastleTowerPlacementSpec[] PlaceTowers(
