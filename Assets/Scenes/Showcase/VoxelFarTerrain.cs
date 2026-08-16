@@ -5,8 +5,8 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Composition;
+using VoxelEngine.Composition.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
-using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
 {
@@ -56,6 +56,12 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public FarFieldStructureStore Structures { get; set; }
 
+        /// <summary>
+        /// Opaque application-owned material roles shared with the near-field showcase world.
+        /// The far renderer decides only whether a sample is terrain or built structure.
+        /// </summary>
+        public ShowcaseMaterialSet MaterialRoles { get; set; }
+
         private readonly List<Mesh> _ringMeshes = new();
         private readonly List<int> _ringSpacing = new();
         private readonly List<int2> _ringOrigin = new();
@@ -104,6 +110,8 @@ namespace VoxelEngine.Showcase
             // The mesh is drawn with Graphics.DrawMesh, not through this renderer; the
             // component is required only so the object carries sane bounds in the editor.
             if (_renderer != null) _renderer.enabled = false;
+            if (ShowcaseMaterialComposition.TryGet(out ShowcaseMaterialSet roles))
+                MaterialRoles = roles;
             EnsureMaterial();
         }
 
@@ -278,13 +286,11 @@ namespace VoxelEngine.Showcase
 
                 positions[i] = new Vector3(voxelX * 0.1f, height * 0.1f, voxelZ * 0.1f);
 
-                // Material, from the same two tables the near field uses: ShowcaseWorld decides
-                // what the surface voxel is, VoxelPresentationCatalogue decides what colour that
-                // material is. Going through both is the point — a colour invented here would be
-                // a second source of truth and the ground would change hue at the handover.
+                // Material identity comes from the same application-owned role set as the near
+                // world. Rendering only resolves the opaque index to the installed presentation.
                 byte material = isStructure
-                    ? Mat.Stone
-                    : ShowcaseWorld.SurfaceMaterialAt(height);
+                    ? MaterialRoles.FarStructure
+                    : MaterialRoles.SurfaceAt(height, ShowcaseWorld.BaseHeightVoxels);
                 Vector4 albedo = RenderingComposition.GetMaterialAlbedo(material);
                 colours[i] = new Color(albedo.x, albedo.y, albedo.z, 1f);
             }
