@@ -271,7 +271,12 @@ namespace MountingForce.WorldGen.Content.Kentridge
         public bool ChimneyOnRight => _form.ChimneyOnRight;
         public bool AnnexOnRight => _form.AnnexOnRight;
 
-        internal UrbanFabricForm Inner => _form;
+        /// <summary>
+        /// Immutable generic architecture value behind this transitional compatibility wrapper.
+        /// Backends can consume it without accessing Architecture internals or depending on a
+        /// Kentridge-specific geometry policy.
+        /// </summary>
+        public UrbanFabricForm Inner => _form;
     }
 
     public static class KentridgeUrbanFabricGrammar
