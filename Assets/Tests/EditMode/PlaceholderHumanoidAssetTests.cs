@@ -134,7 +134,7 @@ namespace VoxelEngine.Tests.EditMode
                 .ToArray();
 
             Assert.That(clips.Length, Is.GreaterThanOrEqualTo(1), $"{path} exposes no animation clip");
-            Assert.That(clips.All(clip => clip.isHumanMotion), Is.True,
+            Assert.That(clips.All(clip => clip.humanMotion), Is.True,
                 $"{path} contains motion that Unity cannot retarget through a Humanoid Avatar");
         }
 
