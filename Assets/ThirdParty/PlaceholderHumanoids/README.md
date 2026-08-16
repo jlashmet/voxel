@@ -8,6 +8,9 @@ This folder contains temporary third-party humanoid assets for character/NPC dev
 - `Models/Female_Adult_01.fbx` — Microsoft Rocketbox adult female placeholder.
 - `Models/placeholder_male.characterfactory.json` — routes the male FBX through the normal Character Factory Unity importer.
 - `Models/placeholder_female.characterfactory.json` — routes the female FBX through the normal Character Factory Unity importer.
+- `Models/placeholder_male.prefab` — generated Character Factory male prefab with a committed Unity GUID.
+- `Models/placeholder_female.prefab` — generated Character Factory female prefab with a committed Unity GUID.
+- `PlaceholderCharacterParts.asset` — shared Character Factory part catalogue used by both placeholder prefabs.
 - `Animations/Idle.fbx` — neutral breathing idle.
 - `Animations/Walk.fbx` — neutral walking locomotion with translated root motion from Rocketbox's XY extraction set.
 - `Animations/Run.fbx` — neutral running locomotion with translated root motion from Rocketbox's XY extraction set.
@@ -19,15 +22,15 @@ This folder contains temporary third-party humanoid assets for character/NPC dev
 
 ## Using the placeholders
 
-Open/import the project normally. The two `*.characterfactory.json` descriptors are consumed by the existing `CharacterFactoryAssetImporter`, which derives:
+The two `*.characterfactory.json` descriptors are consumed by the existing `CharacterFactoryAssetImporter`, which creates/updates:
 
 - `Models/placeholder_male.prefab`
 - `Models/placeholder_female.prefab`
 - `PlaceholderCharacterParts.asset`
 
-These three files are **generated import products, gitignored, and intentionally not committed**. The committed FBXs, descriptors, importer, licenses, and their `.meta` files are the source of truth. This follows the existing Character Factory ownership model and avoids source-controlling generated prefab/catalogue churn.
+The descriptors and Rocketbox FBXs remain the reproducible source inputs, but these three Unity outputs and their `.meta` files are committed as well. That gives scenes, NPC definitions, Addressables, and other serialized Unity assets stable GUIDs when they reference the temporary character prefabs. Reimporting a descriptor intentionally regenerates the corresponding prefab through the same Character Factory path.
 
-The generated prefabs use the normal Character Factory character-prefab shape: the imported skinned model is nested under a stable character root, an `Equipment` child is created, and `CharacterEquipmentController` is wired to the imported skeleton plus the shared part catalogue. Prototype gameplay should use those generated prefabs instead of depending directly on Rocketbox bone names or FBX hierarchy details.
+The generated prefabs use the normal Character Factory character-prefab shape: the imported skinned model is nested under a stable character root, an `Equipment` child is created, and `CharacterEquipmentController` is wired to the imported skeleton plus the shared part catalogue. Prototype gameplay should use these prefabs instead of depending directly on Rocketbox bone names or FBX hierarchy details.
 
 The animation FBXs are imported as Unity Humanoid clips. They can therefore be retargeted onto either placeholder prefab and later onto generated Humanoid characters without changing gameplay animation semantics.
 
