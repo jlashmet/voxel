@@ -1,3 +1,4 @@
+using System;
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Composition;
@@ -66,6 +67,38 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.IsTrue(sawRotatedFacade,
                 "Seed coverage did not exercise a non-south keep entrance/window facade.");
+        }
+
+        [Test]
+        public void RuntimeReadinessRejectsInternallyValidWindowsOnWrongFacade()
+        {
+            for (uint seed = 1; seed <= 256; seed++)
+            {
+                CastlePlan plan = CastlePlanner.Create(new int3(320, 180, 420), seed);
+                CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                topology.KeepPlacement = CastleKeepPlacement.Central;
+                CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+                CastleSpatialPlan completed = CastleTerrainPlanning.Resolve(
+                    in plan, spatial, seed ^ 0x57494E44u);
+                CastleKeepFace entranceFace = completed.KeepCirculation.EntranceFace;
+                if (entranceFace == CastleKeepFace.South)
+                    continue;
+
+                CastleKeepWindowSpec[] wrong =
+                    CastleKeepWindowPlanner.Create(in plan, CastleKeepFace.South).SnapshotWindows();
+                Assert.IsTrue(
+                    CastleKeepWindowPlanner.TryValidate(in plan, wrong, out string standaloneError),
+                    $"corruption fixture should be internally valid: {standaloneError}");
+
+                Array.Copy(wrong, completed.KeepWindows, wrong.Length);
+                Assert.IsFalse(
+                    CastleSpatialBuildReadiness.TryValidate(
+                        in plan, completed, out CastleSpatialBuildReadinessIssue issue));
+                Assert.AreEqual(CastleSpatialBuildReadinessIssue.InvalidKeepWindowPlan, issue);
+                return;
+            }
+
+            Assert.Fail("Seed coverage did not produce a rotated keep entrance for corruption testing.");
         }
 
         private static CastleKeepFace Opposite(CastleKeepFace face)
