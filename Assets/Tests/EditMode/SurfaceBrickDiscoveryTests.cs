@@ -212,6 +212,64 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ClipmapMotionReadmitsAlreadyResidentSurfaceIntoFinerLod()
+        {
+            // Region 5 starts at 256 m. It is initially in the step-4 band but outside step-1.
+            // After moving the camera to x=200 m the same unchanged surface is ~57 m away and
+            // belongs to step-1. No second journal publication is allowed: clipmap admission must
+            // request compact discovery for the newly exposed region itself.
+            int3 regionCoord = new(5, 0, 0);
+            MakeRegion(regionCoord, new int3(1, 10, 10));
+            var source = new RegionReadSource(in _table, in _pool, _journal);
+
+            var cameraObject = new GameObject("ClipmapReadmissionCamera");
+            var camera = cameraObject.AddComponent<Camera>();
+            var scheduler = new VoxelSurfaceScheduler();
+            try
+            {
+                MaterialPaletteView palette = default;
+                SurfaceCatalogueView surfaceCatalogue = default;
+                CoatingCatalogueView coatingCatalogue = default;
+                camera.transform.position = Vector3.zero;
+
+                bool discoveredByOuterLod = false;
+                for (int frame = 1; frame <= 256 && !discoveredByOuterLod; frame++)
+                {
+                    scheduler.Prepare(source, in palette, in surfaceCatalogue,
+                                      in coatingCatalogue, null, _journal,
+                                      camera, 0.1f, frame);
+                    discoveredByOuterLod = scheduler.KnownChunkCountForSourceStep(4) > 0;
+                    if (!discoveredByOuterLod) System.Threading.Thread.Yield();
+                }
+
+                Assert.True(discoveredByOuterLod,
+                    "Initial discovery never reached the step-4 ring, so the re-admission setup is invalid.");
+                Assert.AreEqual(0, scheduler.KnownChunkCountForSourceStep(1),
+                    "The target surface must begin outside the fine-ring clipmap.");
+
+                camera.transform.position = new Vector3(200f, 0f, 0f);
+                bool admittedToFineLod = false;
+                for (int frame = 257; frame <= 640 && !admittedToFineLod; frame++)
+                {
+                    scheduler.Prepare(source, in palette, in surfaceCatalogue,
+                                      in coatingCatalogue, null, _journal,
+                                      camera, 0.1f, frame);
+                    admittedToFineLod = scheduler.KnownChunkCountForSourceStep(1) > 0;
+                    if (!admittedToFineLod) System.Threading.Thread.Yield();
+                }
+
+                Assert.True(admittedToFineLod,
+                    "Camera motion entered an already-resident surface region but the fine LOD "
+                  + "never re-ran surface discovery. This would create an LOD handoff hole.");
+            }
+            finally
+            {
+                scheduler.Dispose();
+                Object.DestroyImmediate(cameraObject);
+            }
+        }
+
+        [Test]
         public void SchedulerPrepareDiscoversSurfaceBricksWithoutMips()
         {
             // The reported failure was raised from VoxelSurfaceScheduler.Prepare inside render

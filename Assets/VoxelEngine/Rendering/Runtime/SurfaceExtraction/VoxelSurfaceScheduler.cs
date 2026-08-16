@@ -292,6 +292,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public int3 ClipmapCentre { get; private set; }
             public int ClipmapRadius { get; private set; }
             public bool HasClipmapWindow { get; private set; }
+            public int3 ClipmapRegionMin { get; private set; }
+            public int3 ClipmapRegionMaxExclusive { get; private set; }
 
             public SurfaceRing(int sourceStep, float innerRadiusMetres, float outerRadiusMetres,
                                int maxResidentChunks, SurfaceGeometryArena geometryArena,
@@ -317,17 +319,47 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             public void UpdateClipmapWindow(Vector3 cameraPosition, float voxelSize)
             {
+                UpdateClipmapWindow(cameraPosition, voxelSize, out _, out _, out _, out _, out _);
+            }
+
+            public bool UpdateClipmapWindow(Vector3 cameraPosition, float voxelSize,
+                                            out bool hadPrevious,
+                                            out int3 previousRegionMin,
+                                            out int3 previousRegionMaxExclusive,
+                                            out int3 currentRegionMin,
+                                            out int3 currentRegionMaxExclusive)
+            {
+                hadPrevious = HasClipmapWindow;
+                previousRegionMin = ClipmapRegionMin;
+                previousRegionMaxExclusive = ClipmapRegionMaxExclusive;
+
                 float chunkMetres = CpuTransvoxelChunkCache.CellsPerAxis * SourceStep * voxelSize;
                 int radius = Mathf.CeilToInt(OuterRadiusMetres / chunkMetres) + 1;
                 int3 centre = new(
                     Mathf.FloorToInt(cameraPosition.x / chunkMetres),
                     Mathf.FloorToInt(cameraPosition.y / chunkMetres),
                     Mathf.FloorToInt(cameraPosition.z / chunkMetres));
+                int voxelsPerChunk = CpuTransvoxelChunkCache.CellsPerAxis * SourceStep;
+                int3 minChunk = centre - radius;
+                int3 maxChunkExclusive = centre + radius + 1;
+                int3 minVoxel = minChunk * voxelsPerChunk;
+                int3 maxVoxelExclusive = maxChunkExclusive * voxelsPerChunk;
+
+                currentRegionMin = FloorDiv(minVoxel, VoxelGrid.RegionVoxelEdge);
+                currentRegionMaxExclusive = FloorDiv(
+                    maxVoxelExclusive - 1, VoxelGrid.RegionVoxelEdge) + 1;
+
                 ClipmapCentre = centre;
                 ClipmapRadius = radius;
+                ClipmapRegionMin = currentRegionMin;
+                ClipmapRegionMaxExclusive = currentRegionMaxExclusive;
                 HasClipmapWindow = true;
                 for (int i = 0; i < Workers.Length; i++)
                     Workers[i].SetClipmapWindow(centre, radius);
+
+                return !hadPrevious
+                    || math.any(previousRegionMin != currentRegionMin)
+                    || math.any(previousRegionMaxExclusive != currentRegionMaxExclusive);
             }
 
             public void Dispose()
@@ -385,6 +417,24 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Queue<int3> _surfaceDiscoveryQueue = new();
         private readonly HashSet<int3> _queuedSurfaceDiscoveryRegions = new();
         private readonly HashSet<int3> _surfaceDiscoveryRescanRegions = new();
+
+        private readonly struct ClipmapRegionBox
+        {
+            public readonly int3 Min;
+            public readonly int3 MaxExclusive;
+
+            public ClipmapRegionBox(int3 min, int3 maxExclusive)
+            {
+                Min = min;
+                MaxExclusive = maxExclusive;
+            }
+        }
+
+        private const int ClipmapAdmissionRegionsPerFrame = 64;
+        private readonly Queue<ClipmapRegionBox> _clipmapAdmissionQueue = new();
+        private ClipmapRegionBox _activeClipmapAdmissionBox;
+        private int _activeClipmapAdmissionCursor;
+        private bool _hasActiveClipmapAdmission;
         private NativeArray<ulong> _surfaceDiscoveryOccupiedWords;
         private NativeArray<ulong> _surfaceDiscoveryFullySolidWords;
         private NativeArray<byte> _surfaceDiscoveryFlags;
@@ -436,6 +486,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int LastAdvancedFrame => _lastAdvancedFrame;
         public int SolidBuildWorkspaceCount => _allWorkers.Length;
         public int LastVisibilityCandidateChecks => _lastVisibilityCandidateChecks;
+        internal int KnownChunkCountForSourceStep(int sourceStep)
+        {
+            int count = 0;
+            for (int r = 0; r < _rings.Length; r++)
+            {
+                if (_rings[r].SourceStep != sourceStep) continue;
+                for (int w = 0; w < _rings[r].Workers.Length; w++)
+                    count += _rings[r].Workers[w].KnownCount;
+            }
+            return count;
+        }
         public bool ChangeFeedBacklogged => _changeFeedHasMore
             || _changeRecordIndex < _changeScratch.Count || _changeExpansionActive;
         public bool RecoveringChangeFeedOverflow => _recoveringChangeOverflow;
@@ -538,8 +599,27 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (camera != null)
             {
                 Vector3 cameraPosition = camera.transform.position;
+                bool clipmapMoved = false;
                 for (int r = 0; r < _rings.Length; r++)
-                    _rings[r].UpdateClipmapWindow(cameraPosition, voxelSize);
+                {
+                    SurfaceRing ring = _rings[r];
+                    bool changed = ring.UpdateClipmapWindow(
+                        cameraPosition, voxelSize,
+                        out bool hadPrevious,
+                        out int3 previousMin,
+                        out int3 previousMaxExclusive,
+                        out int3 currentMin,
+                        out int3 currentMaxExclusive);
+                    if (!changed || !hadPrevious) continue;
+                    clipmapMoved = true;
+                    EnqueueClipmapRegionDifference(
+                        previousMin, previousMaxExclusive,
+                        currentMin, currentMaxExclusive);
+                }
+
+                if (clipmapMoved)
+                    AddImmediateCameraDiscoveryRegions(storage, cameraPosition, voxelSize);
+                StepClipmapAdmissionDiscovery(storage);
             }
 
             double journalStart = Time.realtimeSinceStartupAsDouble;
@@ -743,6 +823,109 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _water.CollectVisible(camera, voxelSize);
             }
             _visibilityTiming.Add(ElapsedMs(visibilityStart));
+        }
+
+        private static int FloorDiv(int value, int divisor)
+        {
+            int quotient = value / divisor;
+            int remainder = value % divisor;
+            return remainder < 0 ? quotient - 1 : quotient;
+        }
+
+        private static int3 FloorDiv(int3 value, int divisor) => new(
+            FloorDiv(value.x, divisor),
+            FloorDiv(value.y, divisor),
+            FloorDiv(value.z, divisor));
+
+        private void AddImmediateCameraDiscoveryRegions(IRegionReadSource storage,
+                                                        Vector3 cameraPosition,
+                                                        float voxelSize)
+        {
+            float safeVoxelSize = math.max(1e-6f, voxelSize);
+            int3 cameraVoxel = new(
+                Mathf.FloorToInt(cameraPosition.x / safeVoxelSize),
+                Mathf.FloorToInt(cameraPosition.y / safeVoxelSize),
+                Mathf.FloorToInt(cameraPosition.z / safeVoxelSize));
+            int3 cameraRegion = FloorDiv(cameraVoxel, VoxelGrid.RegionVoxelEdge);
+            for (int z = -1; z <= 1; z++)
+            for (int y = -1; y <= 1; y++)
+            for (int x = -1; x <= 1; x++)
+            {
+                int3 region = cameraRegion + new int3(x, y, z);
+                if (storage.IsRegionResident(region))
+                    _surfaceDiscoveryRegions.Add(region);
+            }
+        }
+
+        private void EnqueueClipmapRegionDifference(int3 oldMin, int3 oldMaxExclusive,
+                                                    int3 newMin, int3 newMaxExclusive)
+        {
+            int3 overlapMin = math.max(oldMin, newMin);
+            int3 overlapMax = math.min(oldMaxExclusive, newMaxExclusive);
+            if (math.any(overlapMin >= overlapMax))
+            {
+                EnqueueClipmapRegionBox(newMin, newMaxExclusive);
+                return;
+            }
+
+            // X slabs own the full Y/Z span. Y slabs are restricted to the overlapping X span,
+            // and Z slabs to overlapping X/Y, making the six boxes disjoint.
+            EnqueueClipmapRegionBox(
+                newMin, new int3(overlapMin.x, newMaxExclusive.y, newMaxExclusive.z));
+            EnqueueClipmapRegionBox(
+                new int3(overlapMax.x, newMin.y, newMin.z), newMaxExclusive);
+            EnqueueClipmapRegionBox(
+                new int3(overlapMin.x, newMin.y, newMin.z),
+                new int3(overlapMax.x, overlapMin.y, newMaxExclusive.z));
+            EnqueueClipmapRegionBox(
+                new int3(overlapMin.x, overlapMax.y, newMin.z),
+                new int3(overlapMax.x, newMaxExclusive.y, newMaxExclusive.z));
+            EnqueueClipmapRegionBox(
+                new int3(overlapMin.x, overlapMin.y, newMin.z),
+                new int3(overlapMax.x, overlapMax.y, overlapMin.z));
+            EnqueueClipmapRegionBox(
+                new int3(overlapMin.x, overlapMin.y, overlapMax.z),
+                new int3(overlapMax.x, overlapMax.y, newMaxExclusive.z));
+        }
+
+        private void EnqueueClipmapRegionBox(int3 min, int3 maxExclusive)
+        {
+            if (math.any(min >= maxExclusive)) return;
+            _clipmapAdmissionQueue.Enqueue(new ClipmapRegionBox(min, maxExclusive));
+        }
+
+        private void StepClipmapAdmissionDiscovery(IRegionReadSource storage)
+        {
+            int remaining = ClipmapAdmissionRegionsPerFrame;
+            while (remaining > 0)
+            {
+                if (!_hasActiveClipmapAdmission)
+                {
+                    if (_clipmapAdmissionQueue.Count == 0) return;
+                    _activeClipmapAdmissionBox = _clipmapAdmissionQueue.Dequeue();
+                    _activeClipmapAdmissionCursor = 0;
+                    _hasActiveClipmapAdmission = true;
+                }
+
+                int3 counts = _activeClipmapAdmissionBox.MaxExclusive
+                            - _activeClipmapAdmissionBox.Min;
+                int total = counts.x * counts.y * counts.z;
+                while (remaining > 0 && _activeClipmapAdmissionCursor < total)
+                {
+                    int linear = _activeClipmapAdmissionCursor++;
+                    int x = linear % counts.x;
+                    int y = (linear / counts.x) % counts.y;
+                    int z = linear / (counts.x * counts.y);
+                    int3 region = _activeClipmapAdmissionBox.Min + new int3(x, y, z);
+                    remaining--;
+                    if (storage.IsRegionResident(region))
+                        _surfaceDiscoveryRegions.Add(region);
+                }
+
+                if (_activeClipmapAdmissionCursor < total) return;
+                _hasActiveClipmapAdmission = false;
+                _activeClipmapAdmissionCursor = 0;
+            }
         }
 
         private void ProcessChangeFeed(IRegionReadSource storage, IVoxelChangeSource journal)
