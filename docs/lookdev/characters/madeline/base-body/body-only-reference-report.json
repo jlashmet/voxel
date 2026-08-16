@@ -1,0 +1,59 @@
+{
+  "views": {
+    "front": {
+      "source": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/raw/front.jpg",
+      "output": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/body-only/front.jpg",
+      "width": 384,
+      "height": 576,
+      "base_layer_pixels_before": 10176,
+      "base_layer_pixels_after": 2854,
+      "base_layer_reduction_diagnostic": 0.7195361635220126,
+      "masked_pixels": 16160,
+      "region_pixels": 21822,
+      "sampled_skin_rgb": [
+        243.0,
+        205.0,
+        174.0
+      ]
+    },
+    "back": {
+      "source": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/raw/back.jpg",
+      "output": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/body-only/back.jpg",
+      "width": 384,
+      "height": 576,
+      "base_layer_pixels_before": 10573,
+      "base_layer_pixels_after": 8107,
+      "base_layer_reduction_diagnostic": 0.23323560011349664,
+      "masked_pixels": 14324,
+      "region_pixels": 23400,
+      "sampled_skin_rgb": [
+        227.0,
+        196.0,
+        169.0
+      ]
+    },
+    "left": {
+      "source": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/raw/left.jpg",
+      "output": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/body-only/left.jpg",
+      "width": 384,
+      "height": 576,
+      "base_layer_pixels_before": 6608,
+      "base_layer_pixels_after": 2024,
+      "base_layer_reduction_diagnostic": 0.6937046004842615,
+      "masked_pixels": 11739,
+      "region_pixels": 18642,
+      "sampled_skin_rgb": [
+        234.0,
+        197.0,
+        170.0
+      ]
+    },
+    "right": {
+      "source": "/Users/jlashmet/tmp/_work/voxel/voxel/tools/character-factory/production/madeline/views-bodyonly/right.jpg",
+      "output": "/Users/jlashmet/tmp/_work/voxel/voxel/Artifacts/MadelineProduction/reference/body-only/right.jpg",
+      "width": 384,
+      "height": 576,
+      "precleaned_override": true
+    }
+  }
+}
