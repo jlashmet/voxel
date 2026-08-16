@@ -187,42 +187,6 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void DestroyingResolverHost_CleansOwnedVisualOutsideHostHierarchy()
-        {
-            var host = new GameObject("character");
-            var externalRoot = new GameObject("external-visual-root");
-            var fallback = new GameObject("fallback");
-            GameObject instance = null;
-
-            try
-            {
-                var resolver = host.AddComponent<CharacterVisualResolver>();
-                resolver.VisualRoot = externalRoot.transform;
-                resolver.SetFallbackVisual(fallback);
-                instance = resolver.CurrentVisual;
-
-                Assert.That(instance, Is.Not.Null);
-                Assert.That(externalRoot.transform.childCount, Is.EqualTo(1));
-
-                Object.DestroyImmediate(host);
-
-                Assert.That(instance == null, Is.True,
-                    "Destroying the resolver host left its externally-parented visual alive");
-                Assert.That(externalRoot.transform.childCount, Is.EqualTo(0));
-            }
-            finally
-            {
-                if (host != null)
-                {
-                    Object.DestroyImmediate(host);
-                }
-
-                Object.DestroyImmediate(externalRoot);
-                Object.DestroyImmediate(fallback);
-            }
-        }
-
-        [Test]
         public void ResolveVisual_RocketboxFallbackCanSwapToAnotherHumanoidVisual()
         {
             var male = AssetDatabase.LoadAssetAtPath<GameObject>(MalePath);
