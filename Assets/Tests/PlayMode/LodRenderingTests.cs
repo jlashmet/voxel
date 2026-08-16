@@ -165,7 +165,11 @@ namespace VoxelEngine.Tests.PlayMode
                       + $"leases={metrics.SolidArenaActiveLeases} "
                       + $"arenaFailures={metrics.SolidArenaAllocationFailures} "
                       + $"pressureEvictions={metrics.SolidArenaPressureEvictions} "
-                      + $"capacityEvents={metrics.SolidCapacityPressureEvents}.");
+                      + $"capacityEvents={metrics.SolidCapacityPressureEvents} "
+                      + $"step4=known:{metrics.Step4KnownChunks}/resident:{metrics.Step4ResidentChunks}/"
+                      + $"dirty:{metrics.Step4DirtyChunks}/missing:{metrics.Step4MissingVisibleChunks}/"
+                      + $"jobs:{metrics.Step4RunningJobs}/phaseMask:0x{metrics.Step4BuildPhaseMask:X}/"
+                      + $"jobMask:0x{metrics.Step4ActiveJobMask:X}.");
                     Assert.Greater(metrics.VisibleSolidChunks, 0,
                         $"LOD step {band.step} produced no visible voxel geometry; "
                       + $"known={metrics.SolidKnownChunks} resident={metrics.SolidResidentChunks} "

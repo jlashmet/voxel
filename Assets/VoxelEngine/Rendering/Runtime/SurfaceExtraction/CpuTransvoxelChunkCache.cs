@@ -778,6 +778,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                    || _topologyJobScheduled || _facetedMaskJobScheduled
                                    || _transitionJobScheduled
                                     ? 1 : 0;
+        // Allocation-free diagnostics used by renderer telemetry/tests to distinguish a genuinely
+        // active coarse build from a known chunk that fell out of the work lifecycle. Bits are
+        // deliberately stable and local to this cache; they do not influence scheduling.
+        public int ActiveBuildPhase => _build.Active ? _build.Phase : -1;
+        public uint ActiveJobMask =>
+            (_exactMetadataJobScheduled ? 1u << 0 : 0u)
+          | (_exactClassificationJobScheduled ? 1u << 1 : 0u)
+          | (_hlodJobScheduled ? 1u << 2 : 0u)
+          | (_densityJobScheduled ? 1u << 3 : 0u)
+          | (_topologyJobScheduled || _topologyCompactJobScheduled ? 1u << 4 : 0u)
+          | (_facetedMaskJobScheduled || _facetedMergeJobScheduled ? 1u << 5 : 0u)
+          | (_transitionJobScheduled ? 1u << 6 : 0u);
         public int PendingUploadCount => _pendingUpload ? 1 : 0;
         public int PendingUploadBytes
         {

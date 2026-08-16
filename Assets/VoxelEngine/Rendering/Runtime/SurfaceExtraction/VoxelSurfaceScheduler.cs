@@ -31,6 +31,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly ulong SolidDecorationClumps;
         public readonly ulong SolidCapacityPressureEvents;
         public readonly int RunningSolidJobs;
+        public readonly int Step4KnownChunks;
+        public readonly int Step4ResidentChunks;
+        public readonly int Step4DirtyChunks;
+        public readonly int Step4MissingVisibleChunks;
+        public readonly int Step4RunningJobs;
+        public readonly uint Step4BuildPhaseMask;
+        public readonly uint Step4ActiveJobMask;
         public readonly int RunningGeometryJobs;
         public readonly ulong FramePathBlockingCompletionViolations;
         public readonly long LastFrameManagedAllocationBytes;
@@ -92,6 +99,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidDecorationClumps = solids.CompletedDecorationClumps;
             SolidCapacityPressureEvents = solids.CapacityPressureCount;
             RunningSolidJobs = solids.RunningJobCount;
+            bool isStep4 = solids.SourceStep == 4;
+            Step4KnownChunks = isStep4 ? solids.KnownCount : 0;
+            Step4ResidentChunks = isStep4 ? solids.ResidentCount : 0;
+            Step4DirtyChunks = isStep4 ? solids.DirtyCount : 0;
+            Step4MissingVisibleChunks = isStep4 ? solids.MissingVisibleCount : 0;
+            Step4RunningJobs = isStep4 ? solids.RunningJobCount : 0;
+            Step4BuildPhaseMask = isStep4 && solids.ActiveBuildPhase >= 0
+                ? 1u << solids.ActiveBuildPhase : 0u;
+            Step4ActiveJobMask = isStep4 ? solids.ActiveJobMask : 0u;
             RunningGeometryJobs = solids.RunningJobCount + water.RunningJobCount;
             FramePathBlockingCompletionViolations =
                 solids.FramePathBlockingCompletionViolations
@@ -164,6 +180,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             VisibleSolidChunks = visibleSolidChunks;
             VisibleDetailSolidChunks = 0;
             int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;
+            int step4Known = 0, step4Resident = 0, step4Dirty = 0, step4Missing = 0, step4Running = 0;
+            uint step4BuildPhaseMask = 0, step4ActiveJobMask = 0;
             long pendingUploadBytes = 0;
             ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;
             ulong decorations = 0, pressure = 0;
@@ -178,6 +196,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 dirty += worker.DirtyCount;
                 missing += worker.MissingVisibleCount;
                 running += worker.RunningJobCount;
+                if (worker.SourceStep == 4)
+                {
+                    step4Known += worker.KnownCount;
+                    step4Resident += worker.ResidentCount;
+                    step4Dirty += worker.DirtyCount;
+                    step4Missing += worker.MissingVisibleCount;
+                    step4Running += worker.RunningJobCount;
+                    if (worker.ActiveBuildPhase >= 0)
+                        step4BuildPhaseMask |= 1u << worker.ActiveBuildPhase;
+                    step4ActiveJobMask |= worker.ActiveJobMask;
+                }
                 uploads += worker.PendingUploadCount;
                 pendingUploadBytes += worker.PendingUploadBytes;
                 completed += worker.CompletedBuildCount;
@@ -196,6 +225,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidDirtyChunks = dirty;
             MissingVisibleSolidChunks = missing;
             RunningSolidJobs = running;
+            Step4KnownChunks = step4Known;
+            Step4ResidentChunks = step4Resident;
+            Step4DirtyChunks = step4Dirty;
+            Step4MissingVisibleChunks = step4Missing;
+            Step4RunningJobs = step4Running;
+            Step4BuildPhaseMask = step4BuildPhaseMask;
+            Step4ActiveJobMask = step4ActiveJobMask;
             RunningGeometryJobs = running + water.RunningJobCount + schedulerRunningJobs;
             FramePathBlockingCompletionViolations =
                 completionViolations + schedulerCompletionViolations;
