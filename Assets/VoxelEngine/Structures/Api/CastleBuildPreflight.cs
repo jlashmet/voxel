@@ -38,6 +38,8 @@ namespace VoxelEngine.Structures.Api
         UnexpectedCaveDecorationPlan,
         InvalidCaveDecorationPlan,
         MissingSpatialPlan,
+        MissingKeepTurretPlan,
+        InvalidKeepTurretPlan,
     }
 
     /// <summary>Pure result of checking whether a castle plan is safe to realize.</summary>
