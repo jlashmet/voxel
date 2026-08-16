@@ -38,8 +38,18 @@ namespace VoxelEngine.Tests.EditMode
                 "Runtime must not repeat annex admission after EvaluateRuntimeReady.");
             StringAssert.DoesNotContain("CastleKeepTurretPlanValidator.TryValidate(", pipeline,
                 "Runtime must not repeat keep-turret admission after EvaluateRuntimeReady.");
+            StringAssert.DoesNotContain("CastleKeepCirculationPlanValidator.TryValidate(", pipeline,
+                "Runtime snapshots must not repeat keep-circulation admission after EvaluateRuntimeReady.");
+            StringAssert.DoesNotContain("CastleKeepWindowPlanValidator.TryValidate(", pipeline,
+                "Runtime snapshots must not repeat keep-window admission after EvaluateRuntimeReady.");
             StringAssert.DoesNotContain("CastleWallPlanValidator.TryValidate(", pipeline,
                 "Runtime must not repeat wall admission after spatial/preflight validation.");
+            StringAssert.DoesNotContain("CastleWallPlanValidator.RequireValid(", pipeline,
+                "Runtime snapshots must consume the preflight-approved wall plan without a second validator.");
+            StringAssert.DoesNotContain("CastleWallDoorPlanValidator.RequireValid(", pipeline,
+                "Runtime snapshots must consume preflight-approved wall-door plans without a second validator.");
+            StringAssert.DoesNotContain("CastleGatehousePlanValidator.RequireValid(", pipeline,
+                "Runtime snapshots must consume the preflight-approved gatehouse without a second validator.");
         }
     }
 }
