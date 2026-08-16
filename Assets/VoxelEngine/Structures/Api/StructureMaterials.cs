@@ -1,45 +1,73 @@
+using System;
+
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
-    /// Legacy compatibility palette retained while semantic material ownership migrates to the game.
-    /// Engine modules must not treat these names as authoritative material definitions. Numeric values
-    /// remain frozen during migration because they participate in existing world/catalogue identity.
+    /// Temporary compatibility facade for structure code that has not yet been rewritten to use
+    /// purpose-based material roles directly. These names no longer define numeric material IDs;
+    /// Composition binds them from an application-owned <see cref="StructureMaterialSet"/>.
     /// </summary>
     public static class Mat
     {
-        public const byte Empty = 0;
-        public const byte Stone = 1;
-        public const byte Wood = 2;
-        public const byte Sand = 3;
-        public const byte Glass = 4;
-        public const byte Bedrock = 5;
-        public const byte DarkStone = 6;
-        public const byte Slate = 7;
-        public const byte Tile = 8;
-        public const byte Cloth = 9;
-        public const byte Grass = 10;
-        public const byte Water = 11;
-        public const byte Gold = 12;
-        public const byte Dirt = 13;
-        public const byte Moss = 14;
-        public const byte LitWindow = 15;
-        public const byte Cascade = 16;
-        public const byte Crystal = 17;
-        public const byte MasonrySmall = 18;
-        public const byte MasonryMedium = 19;
-        public const byte MasonryLarge = 20;
-        public const byte FlowerWhite = 21;
+        private static StructureMaterialSet s_Roles;
+        private static bool s_Configured;
 
-        // Terrain aliases keep authored terrain and structures on the same semantic material rows.
-        public const byte TerrainTurf = Grass;
-        public const byte TerrainLimestone = MasonryMedium;
-        public const byte TerrainEarth = Dirt;
-        public const byte TerrainPathStone = MasonrySmall;
+        public static bool IsConfigured => s_Configured;
 
-        // Transitional aliases: these currently share presentation rows. They must receive distinct
-        // game-owned IDs before their gameplay properties diverge from the aliased material.
-        public const byte FlowerYellow = Gold;
-        public const byte FlowerPink = Cloth;
-        public const byte FlowerBlue = Cascade;
+        internal static void ConfigureCompatibility(in StructureMaterialSet roles)
+        {
+            s_Roles = roles;
+            s_Configured = true;
+        }
+
+        internal static void ResetCompatibility()
+        {
+            s_Roles = default;
+            s_Configured = false;
+        }
+
+        private static ref readonly StructureMaterialSet Roles
+        {
+            get
+            {
+                if (!s_Configured)
+                    throw new InvalidOperationException(
+                        "Structure material roles have not been configured by the application composition root.");
+                return ref s_Roles;
+            }
+        }
+
+        public static byte Empty => Roles.Void;
+        public static byte Stone => Roles.PrimaryMasonry;
+        public static byte Wood => Roles.Timber;
+        public static byte Sand => Roles.LooseAggregate;
+        public static byte Glass => Roles.TransparentInfill;
+        public static byte Bedrock => Roles.IndestructibleBase;
+        public static byte DarkStone => Roles.DarkMasonry;
+        public static byte Slate => Roles.SlateRoof;
+        public static byte Tile => Roles.TileRoof;
+        public static byte Cloth => Roles.TextileAccent;
+        public static byte Grass => Roles.GroundCover;
+        public static byte Water => Roles.Water;
+        public static byte Gold => Roles.MetalAccent;
+        public static byte Dirt => Roles.Earth;
+        public static byte Moss => Roles.Overgrowth;
+        public static byte LitWindow => Roles.WarmWindow;
+        public static byte Cascade => Roles.AeratedWater;
+        public static byte Crystal => Roles.CoolEmissiveAccent;
+        public static byte MasonrySmall => Roles.FineMasonry;
+        public static byte MasonryMedium => Roles.MediumMasonry;
+        public static byte MasonryLarge => Roles.LargeMasonry;
+        public static byte FlowerWhite => Roles.PaleFlora;
+
+        public static byte TerrainTurf => Roles.GroundCover;
+        public static byte TerrainLimestone => Roles.MediumMasonry;
+        public static byte TerrainEarth => Roles.Earth;
+        public static byte TerrainPathStone => Roles.FineMasonry;
+
+        // Transitional aliases still share identity, but the choice now belongs to game content.
+        public static byte FlowerYellow => Roles.MetalAccent;
+        public static byte FlowerPink => Roles.TextileAccent;
+        public static byte FlowerBlue => Roles.AeratedWater;
     }
 }
