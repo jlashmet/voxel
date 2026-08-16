@@ -329,12 +329,6 @@ namespace VoxelEngine.Structures.Api
             }
 
             CastleSiteGeometryPlan geometry = plan.Geometry;
-            if (IsDefaultGeometry(in geometry))
-            {
-                issue = CastleSitePlanIssue.InvalidGeometry;
-                return false;
-            }
-
             if (!PositiveFinite(geometry.EdgeFrequencyA) || geometry.EdgeAmplitudeA < 0f ||
                 !PositiveFinite(geometry.EdgeFrequencyB) || geometry.EdgeAmplitudeB < 0f ||
                 !PositiveFinite(geometry.EdgeFrequencyC) || geometry.EdgeAmplitudeC < 0f ||
@@ -393,16 +387,6 @@ namespace VoxelEngine.Structures.Api
             issue = CastleSitePlanIssue.None;
             return true;
         }
-
-        private static bool IsDefaultGeometry(in CastleSiteGeometryPlan geometry) =>
-            geometry.EdgeFrequencyA == 0f &&
-            geometry.EdgeFrequencyB == 0f &&
-            geometry.EdgeFrequencyC == 0f &&
-            geometry.CliffFalloffExponent == 0f &&
-            geometry.RiverOffset == 0 &&
-            geometry.RiverHalfWidth == 0 &&
-            geometry.WaterHalfWidth == 0 &&
-            geometry.RiverDepth == 0;
 
         private static bool PositiveFinite(float value) => value > 0f && math.isfinite(value);
 
