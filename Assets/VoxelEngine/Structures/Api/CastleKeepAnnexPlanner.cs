@@ -11,15 +11,18 @@ namespace VoxelEngine.Structures.Api
         public readonly bool HasGreatHallWing;
         public readonly bool HasChapelWing;
         public readonly bool HasBellTower;
+        public readonly bool HasRearOriel;
 
         public CastleKeepAnnexPlan(
             bool hasGreatHallWing,
             bool hasChapelWing,
-            bool hasBellTower)
+            bool hasBellTower,
+            bool hasRearOriel = true)
         {
             HasGreatHallWing = hasGreatHallWing;
             HasChapelWing = hasChapelWing;
             HasBellTower = hasBellTower;
+            HasRearOriel = hasRearOriel;
         }
     }
 
@@ -32,8 +35,8 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Freezes the current keep-annex recipe into explicit planning data. The initial planner is
     /// intentionally behavior-preserving: every castle receives the Great Hall wing, chapel wing,
-    /// and chapel bell tower that Runtime historically built unconditionally. Future variation can
-    /// change these choices without moving policy back into realization.
+    /// chapel bell tower, and rear timber oriel that Runtime historically built unconditionally.
+    /// Future variation can change these choices without moving policy back into realization.
     /// </summary>
     public static class CastleKeepAnnexPlanner
     {
@@ -45,7 +48,8 @@ namespace VoxelEngine.Structures.Api
             new CastleKeepAnnexPlan(
                 hasGreatHallWing: true,
                 hasChapelWing: true,
-                hasBellTower: true);
+                hasBellTower: true,
+                hasRearOriel: true);
 
         public static CastleKeepAnnexPlan Create(in CastlePlan plan)
         {
