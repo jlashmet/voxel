@@ -12,10 +12,10 @@ namespace VoxelEngine.Structures.Runtime
     {
         internal static void Build(ref VoxelBrush brush, in CastlePlan plan)
         {
-            int baseY = plan.Centre.y + plan.PlateauHeight;
+            int3 min = CastleSpatialProjection.KeepMinimum(in plan);
+            int baseY = min.y;
             int hx = plan.KeepHalfX;
             int hz = plan.KeepHalfZ;
-            var min = new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz + 60);
             var size = new int3(hx * 2, plan.KeepHeight, hz * 2);
             int topY = baseY + plan.Floors * plan.FloorHeight;
 
@@ -45,10 +45,10 @@ namespace VoxelEngine.Structures.Runtime
         {
             CastleKeepAnnexPlanValidator.RequireValid(in annexes);
 
-            int baseY = plan.Centre.y + plan.PlateauHeight;
+            int3 min = CastleSpatialProjection.KeepMinimum(in plan);
+            int baseY = min.y;
             int hx = plan.KeepHalfX;
             int hz = plan.KeepHalfZ;
-            var min = new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz + 60);
             var size = new int3(hx * 2, plan.KeepHeight, hz * 2);
             int topY = baseY + plan.Floors * plan.FloorHeight;
 
