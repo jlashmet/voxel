@@ -26,7 +26,7 @@ namespace VoxelEngine.Structures.Runtime
         private int2[] _outerWardVertices;
         private int2[] _innerWardVertices;
         private CastleTowerPlacementSpec[] _outerTowerSpecs;
-        private int2[] _innerTowerCentres;
+        private CastleTowerPlacementSpec[] _innerTowerSpecs;
         private CastleGatePlacementSpec _primaryGate;
         private CastleApproachFrame _approach;
         private bool _hasPosternGate;
@@ -108,7 +108,7 @@ namespace VoxelEngine.Structures.Runtime
             _plan = plan;
             _spatialKeepPlan = plan;
             _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
-            _innerTowerCentres = Array.Empty<int2>();
+            _innerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
             _keepFloorPlans = Array.Empty<CastleKeepFloorPlan>();
             _spatialDungeonPlan = null;
@@ -164,7 +164,7 @@ namespace VoxelEngine.Structures.Runtime
                         CastlePlannedTowerRealizer.BuildAll(
                             ref _brush, in _plan, _outerTowerSpecs);
                         CastleInnerWardTowerRealizer.BuildAll(
-                            ref _brush, in _plan, _innerTowerCentres);
+                            ref _brush, in _plan, _innerTowerSpecs);
                     }
                     else
                     {
@@ -299,11 +299,7 @@ namespace VoxelEngine.Structures.Runtime
                 ? CavePlanSnapshot.CloneValidated(spatialPlan.Cave)
                 : null;
             _outerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.Towers.Clone();
-
-            CastleTowerPlacementSpec[] innerTowers = spatialPlan.InnerTowers;
-            _innerTowerCentres = new int2[innerTowers.Length];
-            for (int i = 0; i < innerTowers.Length; i++)
-                _innerTowerCentres[i] = innerTowers[i].Centre;
+            _innerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.InnerTowers.Clone();
 
             CastleSpatialProjection projection = CastleSpatialProjection.Create(
                 in plan, spatialPlan);
