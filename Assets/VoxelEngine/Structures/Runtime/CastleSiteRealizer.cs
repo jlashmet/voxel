@@ -23,9 +23,10 @@ namespace VoxelEngine.Structures.Runtime
         internal static bool Step(ref VoxelBrush brush, in CastlePlan plan, uint terrainSeed,
                                   ref State state)
         {
-            CastleApproachFrame unused = default;
+            CastleApproachFrame unusedApproach = default;
+            CastleSitePlan unusedSite = default;
             return StepCore(
-                ref brush, in plan, terrainSeed, false, in unused, ref state);
+                ref brush, in plan, terrainSeed, false, in unusedApproach, in unusedSite, ref state);
         }
 
         internal static bool StepPlanned(
@@ -33,8 +34,10 @@ namespace VoxelEngine.Structures.Runtime
             in CastlePlan plan,
             uint terrainSeed,
             in CastleApproachFrame approach,
+            in CastleSitePlan sitePlan,
             ref State state) =>
-            StepCore(ref brush, in plan, terrainSeed, true, in approach, ref state);
+            StepCore(
+                ref brush, in plan, terrainSeed, true, in approach, in sitePlan, ref state);
 
         private static bool StepCore(
             ref VoxelBrush brush,
@@ -42,6 +45,7 @@ namespace VoxelEngine.Structures.Runtime
             uint terrainSeed,
             bool hasPlannedApproach,
             in CastleApproachFrame approach,
+            in CastleSitePlan sitePlan,
             ref State state)
         {
             int top = plan.Centre.y + plan.PlateauHeight;
@@ -50,7 +54,7 @@ namespace VoxelEngine.Structures.Runtime
 
             if (state.Phase == 0)
             {
-                if (state.Cursor == 0)
+                if (state.Cursor == 0 && !hasPlannedApproach)
                 {
                     uint siteSeed = CastleSeedPartition.Derive(
                         plan.Seed, CastleSeedDomain.Decor, SiteRandomElementId);
@@ -104,7 +108,10 @@ namespace VoxelEngine.Structures.Runtime
                             brush.FillColumnBulk(wx, stoneBottom, target + 1, wz, Mat.Stone);
                         }
 
-                        if (d < edge - 12 && state.Random.NextInt(0, 100) < 92)
+                        bool grassCap = hasPlannedApproach
+                            ? sitePlan.ShouldGrassCap(x, z)
+                            : state.Random.NextInt(0, 100) < 92;
+                        if (d < edge - 12 && grassCap)
                             brush.FillColumnBulk(wx, target, target + 1, wz, Mat.Grass);
                     }
                 }
