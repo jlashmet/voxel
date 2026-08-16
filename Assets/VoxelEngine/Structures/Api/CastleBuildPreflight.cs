@@ -87,6 +87,8 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public static class CastleBuildPreflight
     {
+        private const double LegacyUndergroundEstimate = 1_500_000.0;
+
         /// <summary>
         /// Historical rectangular estimate retained byte-for-byte for compatibility callers.
         /// Spatial builds should use the overload that accepts CastleSpatialPlan.
@@ -106,7 +108,7 @@ namespace VoxelEngine.Structures.Api
             double towers = 6.0 * math.PI_DBL * plan.TowerRadius * plan.TowerRadius * 30.0;
             double keep = plan.KeepHalfX * (double)plan.KeepHalfZ * plan.Floors * 4.0;
             double courtyard = plateauArea * 0.2;
-            double underground = 1_500_000.0;
+            double underground = LegacyUndergroundEstimate;
 
             return (long)(siteCap + cliffCap + walls + towers + keep + courtyard + underground);
         }
@@ -144,7 +146,7 @@ namespace VoxelEngine.Structures.Api
             double keep = plan.KeepHalfX * (double)plan.KeepHalfZ * plan.Floors * 4.0;
             double courtyard = PolygonArea(spatialPlan.OuterWardVertices) * 0.2;
             double courtyardBuildings = CourtyardBuildingCost(spatialPlan.CourtyardBuildings);
-            double underground = 1_500_000.0;
+            double underground = DungeonCost(spatialPlan.Dungeon);
 
             double primaryGateLeaf = CastleLayout.FrontGateWidth
                                    * (double)CastleLayout.FrontGateHeight
@@ -291,6 +293,61 @@ namespace VoxelEngine.Structures.Api
                 CastleSpatialPlanIssue.None,
                 estimate,
                 writeBudget);
+        }
+
+        private static double DungeonCost(DungeonPlan dungeon)
+        {
+            if (dungeon == null)
+                return LegacyUndergroundEstimate;
+            if (!DungeonPlanValidator.TryValidate(dungeon, out _))
+                return LegacyUndergroundEstimate;
+
+            DungeonRoomPlan[] rooms = dungeon.Rooms;
+            double roomCost = 0.0;
+            for (int i = 0; i < rooms.Length; i++)
+            {
+                int sx = math.max(0, rooms[i].Size.x);
+                int sy = math.max(0, rooms[i].Size.y);
+                int sz = math.max(0, rooms[i].Size.z);
+                double volume = sx * (double)sy * sz;
+                double floorArea = sx * (double)sz;
+
+                // Room excavation is emitted through bulk primitives, while floor skins and later
+                // semantic furnishing still carry per-voxel work. Price a conservative fraction
+                // of the excavated volume plus several floor-area equivalents so larger planned
+                // chambers increase admission cost without pretending every bulk-cleared voxel is
+                // a slow-path write.
+                roomCost += volume * 0.20 + floorArea * 4.0;
+            }
+
+            double connectionCost = 0.0;
+            DungeonConnectionPlan[] connections = dungeon.Connections;
+            for (int i = 0; i < connections.Length; i++)
+            {
+                DungeonConnectionPlan connection = connections[i];
+                DungeonRoomPlan from = rooms[connection.FromRoomId];
+                DungeonRoomPlan to = rooms[connection.ToRoomId];
+                int3 delta = math.abs(to.Centre - from.Centre);
+
+                if (connection.Kind == DungeonConnectionKind.Stair)
+                {
+                    // Spiral stairs include authored solid steps inside a cleared shaft, so the
+                    // vertical run is intentionally priced more heavily than a bulk corridor.
+                    connectionCost += delta.y * 1_000.0;
+                    connectionCost += (delta.x + delta.z) * 20.0 * 30.0 * 0.18;
+                    continue;
+                }
+
+                int width = connection.Kind == DungeonConnectionKind.SecretPassage ? 28 : 20;
+                int height = connection.Kind == DungeonConnectionKind.SecretPassage ? 32 : 30;
+                int horizontalLength = delta.x + delta.z;
+                connectionCost += horizontalLength * (double)width * height * 0.18;
+            }
+
+            // Natural cave topology deliberately remains outside DungeonPlan, but a planned cave
+            // threshold means CastleCaveRealizer will still author that continuation in stage 7.
+            double caveCost = dungeon.HasCaveExit ? 400_000.0 : 0.0;
+            return roomCost + connectionCost + caveCost;
         }
 
         private static double CourtyardBuildingCost(CastleCourtyardBuildingSpec[] buildings)
