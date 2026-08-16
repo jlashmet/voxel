@@ -1,0 +1,123 @@
+schema_version: 1
+status: usable_verified_visual_asset_inventory
+purpose: >-
+  Generator-facing interpretation of the original Mounting Force visual asset usage. This
+  separates verified authored asset references from optional palette/biome interpretation so
+  a procedural generator can reuse, substitute, or remap the original visual language without
+  turning tileset co-usage into false geography constraints.
+
+source: docs/world-visual-assets.yaml
+validator: tools/validate-world-visual-assets.py
+
+verified_summary:
+  packaged_level_count: 99
+  indexed_level_count: 99
+  distinct_tileset_reference_count: 7
+  distinct_image_asset_count: 7
+  distinct_background_music_reference_count: 11
+  exact_tileset_signature_group_count: 17
+  missing_tmx_count: 0
+  missing_or_unparseable_tileset_reference_count: 0
+  missing_image_reference_count: 0
+  missing_music_reference_count: 0
+
+shared_external_tilesets:
+  - source: Art/interior.tsx
+    image: Art/interior.png
+    authored_level_count: 80
+    role_hint: broadly reused interior/dungeon/building vocabulary
+    role_hint_confidence: inferred_from_usage_only
+  - source: Art/Farm_Village_Exterior.tsx
+    image: Art/Farm_Village_Exterior.png
+    authored_level_count: 39
+    role_hint: broadly reused exterior/settlement vocabulary
+    role_hint_confidence: inferred_from_usage_only
+  - source: Art/terrain_atlas.tsx
+    image: Art/terrain_atlas.png
+    authored_level_count: 37
+    role_hint: broadly reused terrain/cave/world vocabulary
+    role_hint_confidence: inferred_from_usage_only
+  - source: Art/walls.tsx
+    image: Art/walls.png
+    authored_level_count: 28
+    role_hint: broadly reused wall/structure vocabulary
+    role_hint_confidence: inferred_from_usage_only
+
+special_embedded_visual_sets:
+  - level: forest-maze
+    tileset: embedded:forest-maze
+    image: Art/forest-maze.png
+    evidence: verified_unique_embedded_tileset_reference
+  - level: fairy-village-treehouse
+    tileset: embedded:fairy-village
+    image: Art/fairy-village.png
+    evidence: verified_unique_embedded_tileset_reference
+  - level: mountains
+    tileset: embedded:sky_lightblue
+    image: Art/sky_lightblue.jpg
+    evidence: verified_unique_embedded_tileset_reference
+
+music_palette:
+  distinct_authored_tracks: 11
+  evidence: verified_backgroundMusic_map_properties
+  policy: >-
+    Music reuse is useful aesthetic/region guidance but does not prove physical adjacency,
+    political region membership, biome boundaries, or travel distance.
+  notable_usage_groups:
+    - track: PleasantCreekLoop.mp3
+      authored_level_count: 17
+      dominant_named_area: Kentridge and related interiors
+      dominant_named_area_confidence: inferred_from_level_names
+    - track: hightown.mp3
+      authored_level_count: 9
+      dominant_named_area: Hightown and related interiors
+      dominant_named_area_confidence: inferred_from_level_names
+    - track: CastleTheme.mp3
+      authored_level_count: 6
+      dominant_named_area: Rossdam and related interiors
+      dominant_named_area_confidence: inferred_from_level_names
+    - track: EnchantedFestivalLoop.mp3
+      authored_level_count: 7
+      dominant_named_area: Moordell and related interiors
+      dominant_named_area_confidence: inferred_from_level_names
+    - track: orc-music.mp3
+      authored_level_count: 5
+      dominant_named_area: Orc Village and related interiors
+      dominant_named_area_confidence: inferred_from_level_names
+    - track: Caketown_1.mp3
+      authored_level_count: 8
+      dominant_named_area: Fairy Village Treehouse and child interiors
+      dominant_named_area_confidence: inferred_from_level_names
+
+hard_generator_rules:
+  - id: visual_assets_are_not_topology
+    statement: >-
+      Tileset/image/music co-usage must never create, remove, or invalidate a hard physical or
+      story edge. Topology remains governed by the traversal/story contracts.
+  - id: preserve_or_intentionally_remap_special_sets
+    statement: >-
+      Forest Maze, Fairy Village Treehouse, and Mountains have verified unique embedded visual
+      sets. A replacement generator may substitute new assets, but should do so deliberately
+      rather than accidentally flattening these authored visual outliers into the generic set.
+  - id: compact_palette_is_a_generation_opportunity
+    statement: >-
+      The authored world relies heavily on four shared external tilesets. A procedural rebuild
+      can therefore expose a small palette/material abstraction and map many generated level
+      archetypes onto it, while still supporting custom palettes for exceptional spaces.
+  - id: asset_resolution_is_regression_checked
+    statement: >-
+      The current source has zero missing packaged maps, tilesets, images, or background-music
+      references. Future source changes should keep tools/validate-world-visual-assets.py green.
+
+recommended_procgen_abstraction:
+  palette_interface:
+    required_capabilities:
+      - assign one or more reusable visual/material palettes to a generated level
+      - allow multiple palette layers in one level
+      - allow a level-specific custom palette override
+      - keep visual palette selection independent from hard traversal graph generation
+      - allow music/aesthetic tags to influence scoring without becoming topology constraints
+  migration_strategy:
+    - first reproduce authored palette signatures from docs/world-visual-assets.yaml
+    - then replace original PNG/TSX assets with new materials/textures behind the same palette abstraction if desired
+    - preserve special visual outliers explicitly while allowing incidental geometry to change

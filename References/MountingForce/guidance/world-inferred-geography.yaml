@@ -1,0 +1,237 @@
+schema_version: 1
+source_commit: e9a46d9efdcbe27552780c827a078c3f9c1dded0
+source_extractor_schema_version: 4
+status: inferred_guidance_only
+policy:
+  hard_topology_source: validated Warp/Portal/scripted transition evidence
+  may_inform_generation_scoring: true
+  may_create_required_edge: false
+  may_remove_or_invalidate_verified_edge: false
+  sign_directions_are_local_map_orientation: true
+  dialogue_mentions_are_not_distance_or_adjacency_proof: true
+place_aliases:
+  kentridge:
+  - Kentridge
+  hightown:
+  - Hightown
+  moordell:
+  - Moordell
+  rossdam:
+  - Rossdam
+  fairy-village:
+  - Fairy Village
+  orc-village:
+  - Orc Village
+  graveyard:
+  - Graveyard
+  forest:
+  - Forest
+  mountains:
+  - Mountains
+  logan-castle:
+  - Logan Castle
+  - Logan's Castle
+  stanley-house:
+  - Stanley's house
+  - Stanley house
+summary:
+  sign_hint_count: 5
+  dialogue_directional_hint_count: 6
+  dialogue_multi_place_hint_count: 2
+  dialogue_place_pair_count: 2
+sign_hints:
+- level: overworld-moordell
+  source: Art/overworld-moordell.tmx
+  group_path: &id001
+  - Object Layer 1
+  name: Sign4
+  x: 2316
+  y: 2766
+  text: ↑ Moordell, Rossdam\n↓ Kentridge
+  parsed_lines:
+  - raw: ↑ Moordell, Rossdam
+    direction: up
+    places:
+    - moordell
+    - rossdam
+  - raw: ↓ Kentridge
+    direction: down
+    places:
+    - kentridge
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+- level: overworld-moordell
+  source: Art/overworld-moordell.tmx
+  group_path: *id001
+  name: Sign7
+  x: 488
+  y: 563
+  text: ← Rossdam\n↑ Moordell
+  parsed_lines:
+  - raw: ← Rossdam
+    direction: left
+    places:
+    - rossdam
+  - raw: ↑ Moordell
+    direction: up
+    places:
+    - moordell
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+- level: overworld-to-rossdam
+  source: Art/overworld-to-rossdam.tmx
+  group_path: &id002
+  - Object Layer 1
+  name: Sign5
+  x: 3360
+  y: 3200
+  text: ← Rossdam\n→ Moordell
+  parsed_lines:
+  - raw: ← Rossdam
+    direction: left
+    places:
+    - rossdam
+  - raw: → Moordell
+    direction: right
+    places:
+    - moordell
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+- level: overworld-to-rossdam
+  source: Art/overworld-to-rossdam.tmx
+  group_path: *id002
+  name: Sign6
+  x: 1024
+  y: 608
+  text: ↑ Rossdam\n↓ Moordell
+  parsed_lines:
+  - raw: ↑ Rossdam
+    direction: up
+    places:
+    - rossdam
+  - raw: ↓ Moordell
+    direction: down
+    places:
+    - moordell
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+- level: overworld
+  source: Art/overworld.tmx
+  group_path:
+  - Object Layer 2
+  name: Sign5
+  x: 2016
+  y: 2048
+  text: ← Hightown\n↑ Moordell\n→ Stanley's house\n↓ Kentridge
+  parsed_lines:
+  - raw: ← Hightown
+    direction: left
+    places:
+    - hightown
+  - raw: ↑ Moordell
+    direction: up
+    places:
+    - moordell
+  - raw: → Stanley's house
+    direction: right
+    places:
+    - stanley-house
+  - raw: ↓ Kentridge
+    direction: down
+    places:
+    - kentridge
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+dialogue_directional_hints:
+- source: Art/AttackMoordell.txt
+  line: 12
+  places:
+  - moordell
+  snippet: 'Logan: There is a town to the north called Moordell. Its full of Lords and nobles, and is known as a puppet of
+    the empire.'
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+  direction_words:
+  - north
+- source: Art/RadcliffeDefeated.txt
+  line: 26
+  places: &id003
+  - forest
+  - hightown
+  snippet: 'Logan: Let''s get going, more guards will be here shortly. We can reach hightown through the forest to the west.'
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+  direction_words:
+  - west
+- source: Art/fairy-village-character-text.txt
+  line: 4
+  places:
+  - orc-village
+  snippet: There is an orc village to the east. Although I'm sure you've already been there.
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+  direction_words:
+  - east
+- source: Art/kentridge-character-text.txt
+  line: 7
+  places:
+  - graveyard
+  snippet: The graveyard to the north is scary. Sometimes I hear noises coming from one of the tombstones.
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+  direction_words:
+  - north
+- source: Art/kentridge-character-text.txt
+  line: 9
+  places:
+  - moordell
+  snippet: Moordell is a rich town to the north. I'm sure they have food up there.
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+  direction_words:
+  - north
+- source: Art/orc-village-character-text.txt
+  line: 2
+  places:
+  - forest
+  snippet: I was hunting last week in the forest to the east when I stepped on some sharp metal thing. Had I been a weak human,
+    I'd have probably died.
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+  direction_words:
+  - east
+dialogue_multi_place_hints:
+- source: Art/AttackMoordell.txt
+  line: 24
+  places:
+  - hightown
+  - kentridge
+  snippet: 'Logan: If it looks like they are giving out much larger portions than Kentridge or Hightown get, we will as I
+    said, even things out a bit.'
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+- source: Art/RadcliffeDefeated.txt
+  line: 26
+  places: *id003
+  snippet: 'Logan: Let''s get going, more guards will be here shortly. We can reach hightown through the forest to the west.'
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+dialogue_place_pairs:
+- places:
+  - forest
+  - hightown
+  mention_count: 1
+  sources:
+  - source: Art/RadcliffeDefeated.txt
+    line: 26
+  evidence_level: inferred_guidance
+  hard_topology_edge: false
+- places:
+  - hightown
+  - kentridge
+  mention_count: 1
+  sources:
+  - source: Art/AttackMoordell.txt
+    line: 24
+  evidence_level: inferred_guidance
+  hard_topology_edge: false

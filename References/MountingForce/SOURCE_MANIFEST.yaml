@@ -1,0 +1,75 @@
+schema_version: 1
+snapshot_kind: mounting_force_legacy_world_reference
+source_repository: jlashmet/mounting-force
+source_branch: agent/original-world-content-inventory
+source_branch_head_at_import: 875701cd0419ea1443a671ef04f246c2004ecb80
+target_repository: jlashmet/voxel
+target_branch: agent/mounting-force-content-handoff
+import_policy:
+  original_repo_remains_deep_source_of_truth: true
+  imported_files_are_snapshots: true
+  raw_reference_files_live_outside_unity_assets: true
+  exhaustive_indexes_import_on_demand: true
+  preserve_source_confidence_classes: true
+  inferred_guidance_must_not_override_verified_constraints: true
+imported_files:
+  - source_path: docs/world-actor-population-handoff.yaml
+    source_blob_sha: 2cb280dc6100f256f9134848862a4fe9305b6fe7
+    target_path: References/MountingForce/contracts/world-actor-population-handoff.yaml
+    role: actor_population_generation_policy
+  - source_path: docs/world-object-handoff.yaml
+    source_blob_sha: bc7d27c2c88633a019032095527580f60eda9aaf
+    target_path: References/MountingForce/contracts/world-object-handoff.yaml
+    role: gameplay_object_and_reward_generation_policy
+  - source_path: docs/world-progression-handoff.yaml
+    source_blob_sha: 88bacfcaee5d9b4516e1fc04ae626e0e6a8a991f
+    target_path: References/MountingForce/contracts/world-progression-handoff.yaml
+    role: verified_story_progression_policy
+  - source_path: docs/world-visual-handoff.yaml
+    source_blob_sha: 61f49bc9893ccf66c52629c6323c451a1002d6b7
+    target_path: References/MountingForce/contracts/world-visual-handoff.yaml
+    role: visual_palette_and_asset_policy
+  - source_path: docs/world-inferred-geography.yaml
+    source_blob_sha: eba73fdfcd28325ad6e5ddf27c04cb3a6277075d
+    target_path: References/MountingForce/guidance/world-inferred-geography.yaml
+    role: soft_geography_guidance
+  - source_path: docs/world-procgen-clusters.yaml
+    source_blob_sha: 741303fa0516d847094bfaea4f2bb726011f511c
+    target_path: References/MountingForce/guidance/world-procgen-clusters.yaml
+    role: soft_generation_locality_guidance
+available_upstream_not_yet_imported:
+  - docs/world-semantic-character-place-contract.yaml
+  - docs/world-story-graph.yaml
+  - docs/world-event-implementations.yaml
+  - docs/world-generator-level-contracts.yaml
+  - docs/world-generation-population-contract.yaml
+  - docs/world-defeat-encounter-index.yaml
+  - docs/world-character-map-index.yaml
+  - docs/world-character-role-index.yaml
+  - docs/world-map-character-function-index.yaml
+  - docs/world-actor-regeneration-boundary.yaml
+  - docs/world-social-role-evidence.yaml
+  - docs/world-social-role-evidence-expansion.yaml
+  - docs/world-traversal-graph.yaml
+known_upstream_state_at_import:
+  packaged_level_count: 99
+  traversal_object_count: 205
+  unique_directed_traversal_edge_count: 192
+  story_scene_count: 168
+  positive_story_dependency_edge_count: 63
+  cross_level_story_dependency_count: 43
+  authored_actor_count: 1523
+  protected_actor_occurrence_count: 342
+  incidental_actor_candidate_count: 1181
+  explicit_character_identity_count: 22
+  runtime_seller_count: 22
+  curated_social_entity_count: 29
+  curated_social_relationship_count: 69
+  wait_for_death_encounter_count: 30
+  major_locked_actor_encounter_candidate_count: 12
+known_gaps:
+  - complete_ordered_cutscene_dialogue_and_choreography_is_not_yet_a_generator_contract
+  - multi_occurrence_character_identity_linkage_still_needs_expansion_for_cases_like_billy_and_timmy
+  - some social_lore_roles_remain_uncurated
+  - unresolved_authored_scene_state_orc_village_spike_trap_is_retained_as_non_constraining
+  - authored_story_actor_token_Bdiff_is_a_known_source_mismatch_and_must_not_be_silently_rewritten

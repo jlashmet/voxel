@@ -1,0 +1,155 @@
+schema_version: 1
+status: usable_verified_object_role_handoff
+purpose: >-
+  Generator-facing interpretation of exhaustive authored TMX object usage. This handoff
+  separates raw object/type evidence from source-reviewed runtime roles so procedural generation
+  can reproduce gameplay affordances without guessing from object names.
+
+sources:
+  exhaustive_objects: docs/world-object-archetypes.yaml
+  runtime_class_cross_reference: docs/world-object-type-runtime.yaml
+  reviewed_gameplay_roles: docs/world-gameplay-object-roles.yaml
+validators:
+  exhaustive_objects: tools/validate-world-object-archetypes.py
+  runtime_classes: tools/validate-world-object-type-runtime.py
+  reviewed_roles: tools/validate-world-gameplay-object-roles.py
+
+verified_inventory:
+  authored_object_count: 2149
+  semantic_type_count: 50
+  object_property_key_count: 62
+  runtime_class_resolved_type_count: 49
+  runtime_class_unresolved_type_count: 1
+  unresolved_semantic_types:
+    - <untyped>
+  reviewed_gameplay_role_type_count: 10
+  reviewed_gameplay_role_object_count: 252
+
+verified_runtime_families:
+  RPGCutScene_family: 30
+  RPGEnemy_family: 4
+  RPGFriend_family: 1
+  RPGCharacter_family: 1
+  RPGLevelObject_family: 10
+  RPGWarp_family: 3
+  policy: >-
+    These counts are class-family evidence only. A family name does not by itself assign a
+    specific reusable gameplay role; concrete behavior must be source-reviewed before becoming
+    a hard procgen semantic.
+
+reviewed_non_story_roles:
+  - semantic_type: Chest
+    role: reward_container
+    authored_count: 88
+    level_count: 32
+    generator_requirements:
+      - provide an interactable/attack-opened solid reward container or equivalent affordance
+      - emit one item when opened
+      - preserve explicit item intent when an authored item property exists
+      - preserve deterministic-random/fallback reward behavior for ordinary chests when exact original loot is not required
+  - semantic_type: RPGTrigger
+    role: one_shot_player_overlap_trigger_volume
+    authored_count: 14
+    level_count: 14
+    generator_requirements:
+      - preserve a usable player-overlap trigger volume
+      - preserve one-shot firing semantics
+      - preserve linkage to authored trigger actions
+  - semantic_type: RPGTriggerAddEnemies
+    role: trigger_linked_delayed_enemy_spawner_action
+    authored_count: 53
+    level_count: 14
+    generator_requirements:
+      - preserve authored enemy profile/stats/count/delay behavior where used
+      - preserve parent trigger linkage where parentId is authored
+      - reserve valid spawn space for the generated enemy sequence
+  - semantic_type: EnemyGroup
+    role: immediate_procedural_enemy_group_spawner
+    authored_count: 2
+    level_count: 1
+    generator_requirements:
+      - preserve large-group spawn semantics when regenerating overworld_big or equivalent stress/encounter content
+      - do not interpret map scale or EnemyGroup count as additional topology
+  - semantic_type: Sign
+    role: readable_text_anchor
+    authored_count: 5
+    level_count: 3
+    generator_requirements:
+      - preserve readable sign interaction when sign text is retained
+      - sign arrows/directions remain inferred local-geography guidance, not hard world topology
+  - semantic_type: PoisonArrowProjectile
+    role: persistent_poison_projectile_hazard
+    authored_count: 1
+    level: orc-village
+    generator_requirements:
+      - preserve an equivalent damaging + repeated-poison projectile hazard if this authored hazard is retained
+  - semantic_type: StunningSpearProjectile
+    role: persistent_stunning_projectile_hazard
+    authored_count: 1
+    level: overworld-cave
+    generator_requirements:
+      - preserve an equivalent damaging + stun-attempt projectile hazard if this authored hazard is retained
+  - semantic_type: RPGProjectile
+    role: generic_projectile_runtime_object
+    authored_count: 1
+    level: kentridge
+    caveat: >-
+      Base RPGProjectile behavior is verified, but the single authored direct instance may rely
+      on local context. Do not assign a more specific trap role without additional source evidence.
+  - semantic_type: ConstantFlame
+    role: projectile_derived_constant_flame_object
+    authored_count: 78
+    level: kentridge
+    caveat: >-
+      ConstantFlame inherits projectile ancestry but overrides update with an empty method.
+      Preserve the authored constant-flame object/visual role where needed; do not classify it
+      as a damaging hazard solely from inheritance.
+  - semantic_type: RPGLevelObject
+    role: generic_level_anchor
+    authored_count: 9
+    caveat: >-
+      Names such as marker, Seat, WalkTo, Hole, and Blackness may be consumed by individual
+      scripts. The generic base type does not prove a universal gameplay role; preserve named
+      anchors when referenced by event/cinematic constraints.
+
+reward_container_inventory:
+  chest_count: 88
+  fixed_item_intent_chest_count: 7
+  random_or_fallback_chest_count: 81
+  runtime_rule: >-
+    Chest first resolves its authored item property through ItemDatabase. If absent or invalid,
+    it falls back to ItemDatabase.getRandomItem(globalId). Therefore explicit item properties
+    prove named reward intent but runtime validity of a newly discovered item name should not be
+    asserted without ItemDatabase evidence.
+  explicit_item_intents:
+    - {level: fighting-area-2-cave-1, item: Serpentine Belt}
+    - {level: forest-maze, item: Ancient Elemental Pendant}
+    - {level: hightown-timmy-house-back-room, item: Boots of Speed}
+    - {level: kentridge-awon-house, item: Incinerating Staff}
+    - {level: overworld-logan-castle-cave-chamber, item: Dagger of Shadows}
+    - {level: overworld-moordell-excalibur-cave-chamber, item: Excalibur}
+    - {level: south-fighting-area-1-cave-chamber, item: Turtle Shell}
+  generator_policy:
+    - explicit-item chests are intentional authored reward anchors and should retain equivalent named-reward semantics when rebuilding original content
+    - ordinary random/fallback chests may be redistributed within their generated gameplay space unless another story/spatial constraint requires a specific anchor
+    - the curated story-critical reward list in docs/world-generation-constraints.yaml remains authoritative for rewards already proven to drive story/progression
+    - Serpentine Belt and Ancient Elemental Pendant are newly surfaced explicit-item chest intents and should be included by consumers that aim to preserve all authored fixed rewards, even though no additional quest dependency is currently proven for them
+
+trigger_spawner_inventory:
+  trigger_volume_count: 14
+  enemy_spawn_action_count: 53
+  enemy_spawn_actions_with_parentId_count: 31
+  enemy_spawn_actions_without_parentId_count: 22
+  levels_with_both_trigger_and_enemy_spawn_actions: 14
+  generator_policy: >-
+    Preserve trigger/action linkage as behavior rather than fixed coordinates. Generated layouts
+    may relocate trigger volumes and spawn points together as long as overlap reachability,
+    parent linkage, spawn clearance, count/delay/profile semantics, and encounter progression
+    remain feasible.
+
+hard_confidence_rules:
+  - object names never create a runtime role by themselves
+  - Objective-C inheritance proves family membership but does not automatically prove a specific hazard/service/reward role
+  - only the reviewed roles in docs/world-gameplay-object-roles.yaml are promoted to concrete non-story generator semantics in this handoff
+  - unreviewed custom cutscene types continue to use docs/world-event-implementations.yaml and story/cinematic contracts rather than this object-role taxonomy
+  - the lone untyped TMX object remains unresolved and must not be mapped to a guessed runtime class
