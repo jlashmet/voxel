@@ -44,6 +44,7 @@ namespace VoxelEngine.Storage.Runtime
                 if (current.IsMixed)
                     _pool.Free(current.PoolIndex);
                 region.BrickRefs[blockIndex] = BrickRef.Uniform(material);
+                RefreshBlockSummary(ref region, blockIndex);
                 changed = true;
             }
 
@@ -97,6 +98,7 @@ namespace VoxelEngine.Storage.Runtime
             if (!changed)
                 return false;
 
+            RefreshBlockSummary(ref region, blockIndex);
             region.Dirty = true;
             _table.CommitRegion(in region);
             return true;
@@ -179,6 +181,9 @@ namespace VoxelEngine.Storage.Runtime
                 region.BrickRefs[mutation.BlockIndex] = BrickRef.Uniform(uniform);
             }
 
+            if (payloadChanged)
+                RefreshBlockSummary(ref region, mutation.BlockIndex);
+
             if (changed)
             {
                 region.Dirty = true;
@@ -224,6 +229,28 @@ namespace VoxelEngine.Storage.Runtime
                 poolIndex,
                 materializedUniform,
                 metadataChanged);
+        }
+
+        private void RefreshBlockSummary(ref Region region, int blockIndex)
+        {
+            BrickRef block = region.BrickRefs[blockIndex];
+            if (block.IsUniform)
+            {
+                bool solid = block.UniformMaterial != VoxelGrid.MaterialEmpty;
+                region.SetBlockOccupancySummary(blockIndex, solid, solid);
+                return;
+            }
+
+            int occupancyOffset = _pool.OccupancyOffset(block.PoolIndex);
+            bool occupied = false;
+            bool fullySolid = true;
+            for (int i = 0; i < VoxelReadGrid.OccupancyWordsPerBlock; i++)
+            {
+                ulong word = _pool.Occupancy[occupancyOffset + i];
+                occupied |= word != 0UL;
+                fullySolid &= word == ulong.MaxValue;
+            }
+            region.SetBlockOccupancySummary(blockIndex, occupied, fullySolid);
         }
 
         private static byte DecodeUniformMaterial(int encoded)
