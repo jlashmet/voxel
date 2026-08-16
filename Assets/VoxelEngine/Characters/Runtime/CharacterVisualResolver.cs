@@ -46,7 +46,8 @@ namespace VoxelEngine.Characters.Runtime
 
         /// <summary>
         /// Re-evaluates the visual source. Reuses the owned instance when the selected
-        /// source has not changed; otherwise replaces only the instance owned here.
+        /// source has not changed, while still enforcing the configured visual root.
+        /// Otherwise replaces only the instance owned here.
         /// </summary>
         public GameObject ResolveVisual()
         {
@@ -60,19 +61,18 @@ namespace VoxelEngine.Characters.Runtime
                 return null;
             }
 
+            Transform root = VisualRoot;
             if (currentVisual != null && currentSourcePrefab == source)
             {
+                NormalizeVisualTransform(currentVisual.transform, root);
                 return currentVisual;
             }
 
             ClearVisual();
 
-            Transform root = VisualRoot;
             currentVisual = Instantiate(source, root, false);
             currentVisual.name = source.name;
-            currentVisual.transform.localPosition = Vector3.zero;
-            currentVisual.transform.localRotation = Quaternion.identity;
-            currentVisual.transform.localScale = Vector3.one;
+            NormalizeVisualTransform(currentVisual.transform, root);
             currentSourcePrefab = source;
             return currentVisual;
         }
@@ -108,6 +108,18 @@ namespace VoxelEngine.Characters.Runtime
 
             currentVisual = null;
             currentSourcePrefab = null;
+        }
+
+        private static void NormalizeVisualTransform(Transform instance, Transform root)
+        {
+            if (instance.parent != root)
+            {
+                instance.SetParent(root, false);
+            }
+
+            instance.localPosition = Vector3.zero;
+            instance.localRotation = Quaternion.identity;
+            instance.localScale = Vector3.one;
         }
 
         private static void DestroyInstance(GameObject instance)
