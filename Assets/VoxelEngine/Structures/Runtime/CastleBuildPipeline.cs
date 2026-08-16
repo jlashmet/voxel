@@ -36,6 +36,7 @@ namespace VoxelEngine.Structures.Runtime
         private bool _hasSpatialWell;
         private int2 _spatialWellCentre;
         private CastleCourtyardBuildingSpec[] _courtyardBuildings;
+        private CastleKeepFloorPlan[] _keepFloorPlans;
         private DungeonPlan _spatialDungeonPlan;
         private CavePlan _spatialCavePlan;
 
@@ -109,6 +110,7 @@ namespace VoxelEngine.Structures.Runtime
             _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _innerTowerCentres = Array.Empty<int2>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
+            _keepFloorPlans = Array.Empty<CastleKeepFloorPlan>();
             _spatialDungeonPlan = null;
             _spatialCavePlan = null;
 
@@ -214,13 +216,15 @@ namespace VoxelEngine.Structures.Runtime
                 case 6:
                 {
                     CastlePlan keepPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
-
-                    // Preserve the historical seven keep substages so streaming cadence remains
-                    // unchanged while the realization responsibilities are now decomposed.
                     if (_keepStage < 6)
                     {
                         string keepStage = $"keep {_keepStage + 1}";
-                        if (!CastleKeepRealizer.TryStep(ref _brush, in keepPlan, ref _keepStage))
+                        bool realized = _hasSpatialKeep
+                            ? CastleKeepRealizer.TryStep(
+                                ref _brush, in keepPlan, _keepFloorPlans, ref _keepStage)
+                            : CastleKeepRealizer.TryStep(
+                                ref _brush, in keepPlan, ref _keepStage);
+                        if (!realized)
                         {
                             throw new InvalidOperationException(
                                 "CastleKeepRealizer refused a migrated keep substage.");
@@ -287,6 +291,7 @@ namespace VoxelEngine.Structures.Runtime
             _hasSpatialWell = spatialPlan.HasWell;
             _spatialWellCentre = spatialPlan.WellCentre;
             _courtyardBuildings = (CastleCourtyardBuildingSpec[])spatialPlan.CourtyardBuildings.Clone();
+            _keepFloorPlans = (CastleKeepFloorPlan[])spatialPlan.KeepFloors.Clone();
             _spatialDungeonPlan = spatialPlan.Dungeon != null
                 ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
                 : null;
