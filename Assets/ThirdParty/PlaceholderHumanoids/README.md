@@ -44,6 +44,8 @@ The generated local prefabs use the normal Character Factory shape: the imported
 
 The animation FBXs are imported as Unity Humanoid clips and use semantic clip names (`Idle`, `Walk`, `Run`, `CrouchIdle`, `Wave`, `Shrug`). Idle/locomotion clips loop; Wave and Shrug are one-shot clips. They can be retargeted onto either placeholder body and later onto generated Humanoid characters without changing gameplay animation semantics.
 
+Walk/Run preserve their imported motion curves, and EditMode coverage verifies those curves survive the Unity import path. Walk is also evaluated through a `PlayableGraph` against both placeholder avatars to prove that the Humanoid clip actually drives a retargeted pose rather than only passing importer metadata checks.
+
 No temporary Animator state machine is defined here. Gameplay should consume these through the project's existing Unity Humanoid/Animator seam. Root motion remains opt-in at the gameplay Animator/controller layer.
 
 ## Intended use
