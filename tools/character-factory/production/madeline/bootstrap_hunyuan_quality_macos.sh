@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Reuse the existing Character Factory Hunyuan environment, then cache the multiview
-# quality checkpoint needed by the Madeline production body build.
+# Reuse the existing Character Factory Hunyuan environment, then cache only the
+# multiview turbo checkpoint needed by the Madeline production body build.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,31 +19,40 @@ export HY3DGEN_MODELS="$MODEL_ROOT"
 export HF_XET_HIGH_PERFORMANCE="${HF_XET_HIGH_PERFORMANCE:-1}"
 mkdir -p "$MODEL_ROOT"
 
-# Keep the model in hy3dgen's expected local repository layout. Downloading the
-# complete multiview repository avoids depending on undocumented internal VAE file
-# names while still remaining a persistent one-time cache on the self-hosted Mac.
+# The upstream Hunyuan3D-2mv repository contains multiple ~5 GB checkpoints.
+# Downloading the whole snapshot can exceed the CI timeout even though Madeline
+# only uses the turbo multiview safetensors checkpoint. Restrict the persistent
+# cache to the exact files the runtime loads; snapshot_download resumes partial
+# downloads on the self-hosted runner.
 "$HUNYUAN_PY" - <<'PY'
 from pathlib import Path
 import os
 from huggingface_hub import snapshot_download
 
 repo_id = "tencent/Hunyuan3D-2mv"
+subfolder = "hunyuan3d-dit-v2-mv-turbo"
 root = Path(os.environ["HY3DGEN_MODELS"]).expanduser()
 repo_root = root / repo_id
 repo_root.mkdir(parents=True, exist_ok=True)
+required_relpaths = [
+    f"{subfolder}/config.yaml",
+    f"{subfolder}/model.fp16.safetensors",
+]
 
 snapshot_download(
     repo_id=repo_id,
     local_dir=str(repo_root),
+    allow_patterns=required_relpaths,
 )
 
-required = repo_root / "hunyuan3d-dit-v2-mv" / "config.yaml"
-if not required.is_file() or required.stat().st_size == 0:
-    raise RuntimeError(
-        "Hunyuan3D-2mv cache is incomplete; missing " + str(required)
-    )
+for relpath in required_relpaths:
+    required = repo_root / relpath
+    if not required.is_file() or required.stat().st_size == 0:
+        raise RuntimeError(
+            "Hunyuan3D-2mv cache is incomplete; missing " + str(required)
+        )
 
-print("Madeline Hunyuan quality cache ready: " + str(repo_root))
+print("Madeline Hunyuan turbo cache ready: " + str(repo_root / subfolder))
 PY
 
 printf '%s\n' "$HUNYUAN_PY"

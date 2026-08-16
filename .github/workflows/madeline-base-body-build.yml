@@ -26,7 +26,9 @@ concurrency:
 jobs:
   build-madeline-base:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 90
+    # The first successful run may need to resume/download the ~5 GB turbo
+    # checkpoint into the runner's persistent cache. Subsequent runs reuse it.
+    timeout-minutes: 180
     env:
       PYTORCH_ENABLE_MPS_FALLBACK: '1'
       PYTHONUNBUFFERED: '1'
