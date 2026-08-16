@@ -23,6 +23,60 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ValidatorRejectsSelfIntersectingOuterWardWithNonzeroSignedArea()
+        {
+            CastlePlan dimensions = CastlePlanner.Create(int3.zero, 101u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(101u);
+            topology.Perimeter = CastlePerimeterKind.IrregularPolygon;
+            topology.Wards = CastleWardPattern.SingleWard;
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            topology.DesiredTowerCount = 5;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
+
+            int2[] bowTie =
+            {
+                new int2(-100, -100),
+                new int2(100, 100),
+                new int2(100, -100),
+                new int2(0, 140),
+                new int2(-100, 100),
+            };
+            for (int i = 0; i < bowTie.Length; i++)
+                spatial.OuterWardVertices[i] = bowTie[i];
+
+            Assert.IsFalse(
+                CastleSpatialPlanValidator.TryValidate(in dimensions, spatial, out CastleSpatialPlanIssue issue));
+            Assert.AreEqual(CastleSpatialPlanIssue.SelfIntersectingOuterWard, issue);
+        }
+
+        [Test]
+        public void ValidatorRejectsSelfIntersectingInnerWardBeforeInterpretingItsGate()
+        {
+            CastlePlan dimensions = CastlePlanner.Create(int3.zero, 103u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(103u);
+            topology.Perimeter = CastlePerimeterKind.IrregularPolygon;
+            topology.Wards = CastleWardPattern.InnerAndOuterWards;
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            topology.DesiredTowerCount = 5;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
+
+            int2[] bowTie =
+            {
+                new int2(-50, -50),
+                new int2(50, 50),
+                new int2(50, -50),
+                new int2(0, 70),
+                new int2(-50, 50),
+            };
+            for (int i = 0; i < bowTie.Length; i++)
+                spatial.InnerWardVertices[i] = bowTie[i];
+
+            Assert.IsFalse(
+                CastleSpatialPlanValidator.TryValidate(in dimensions, spatial, out CastleSpatialPlanIssue issue));
+            Assert.AreEqual(CastleSpatialPlanIssue.SelfIntersectingInnerWard, issue);
+        }
+
+        [Test]
         public void ValidatorRejectsGateDetachedFromItsChosenEdge()
         {
             CastlePlan dimensions = CastlePlanner.Create(int3.zero, 17u);
