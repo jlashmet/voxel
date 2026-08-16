@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
-using Unity.Jobs;
 using Unity.Profiling;
 using UnityEngine;
 using VoxelEngine.Storage.Api;
@@ -230,6 +229,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private static readonly ProfilerMarker s_DiscoveryMarker = new("Voxel.Surface.Discovery");
         private static readonly ProfilerMarker s_WorkersMarker = new("Voxel.Surface.WorkerAdmission");
         private static readonly ProfilerMarker s_VisibilityMarker = new("Voxel.Surface.Visibility");
+        private const int SurfaceDiscoveryBlocksPerBatch = 256;
         public const int SolidWorkerCount = 8;
 
         private sealed class SurfaceRing : IDisposable
@@ -288,6 +288,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<int3> _changedWaterBricks = new(64);
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
+        private readonly Queue<int3> _surfaceDiscoveryQueue = new();
+        private readonly HashSet<int3> _queuedSurfaceDiscoveryRegions = new();
+        private bool _hasActiveSurfaceDiscovery;
+        private int3 _activeSurfaceDiscoveryRegion;
+        private int _activeSurfaceDiscoveryIndex;
         private ulong _changeCursor;
         private IVoxelChangeSource _journal;
         private int _lastChangeRecords;
@@ -304,6 +309,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// every LOD ring and worker; it is not multiplied by worker count.
         /// </summary>
         public double SolidBuildBudgetMs { get; set; } = 0.20;
+        /// <summary>
+        /// Main-thread budget for initial/full-region surface discovery. Ordinary edits bypass
+        /// this scan through the fine-grained change journal, so a large region can safely
+        /// converge over several frames instead of forcing a JobHandle.Complete stall.
+        /// </summary>
+        public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
         public double WaterBuildBudgetMs { get; set; } = 0.15;
 
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
@@ -426,8 +437,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             double discoveryStart = Time.realtimeSinceStartupAsDouble;
             using (s_DiscoveryMarker.Auto())
-                DiscoverSurfaceBricks(storage, _surfaceDiscoveryRegions,
-                                      _discoveredSurfaceBricks);
+            {
+                EnqueueSurfaceDiscovery(_surfaceDiscoveryRegions);
+                ProcessSurfaceDiscovery(storage, _discoveredSurfaceBricks,
+                                        SurfaceDiscoveryBudgetMs);
+            }
             _discoveryTiming.Add(ElapsedMs(discoveryStart));
 
             // Discovery is correctness work rather than build admission: every worker must learn
@@ -484,37 +498,99 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _prepareTiming.Add(ElapsedMs(prepareStart));
         }
 
-        private static void DiscoverSurfaceBricks(IRegionReadSource storage,
-                                                  HashSet<int3> regions,
-                                                  List<int3> destination)
+        private void EnqueueSurfaceDiscovery(HashSet<int3> regions)
         {
+            foreach (int3 region in regions)
+            {
+                if (!_queuedSurfaceDiscoveryRegions.Add(region)) continue;
+                _surfaceDiscoveryQueue.Enqueue(region);
+            }
+        }
+
+        /// <summary>
+        /// Incrementally classifies region blocks without retaining a borrowed RegionReadView
+        /// across frames. Each batch reacquires the current view and finishes synchronously on
+        /// the caller thread; no JobHandle is ever waited here. Fine-grained mutations that race
+        /// a multi-frame scan are independently covered by the change journal.
+        /// </summary>
+        private void ProcessSurfaceDiscovery(IRegionReadSource storage,
+                                             List<int3> destination,
+                                             double budgetMs)
+        {
+            if (budgetMs <= 0.0) return;
+
+            double deadline = Time.realtimeSinceStartupAsDouble
+                            + Math.Max(0.0, budgetMs) * 0.001;
             int edge = VoxelReadGrid.BlocksPerRegionEdge;
             int blockCount = edge * edge * edge;
-            using var flags = new NativeArray<byte>(blockCount, Allocator.TempJob,
-                                                    NativeArrayOptions.UninitializedMemory);
-            foreach (int3 regionCoord in regions)
+
+            while (Time.realtimeSinceStartupAsDouble < deadline)
             {
-                if (!storage.TryAcquireRegion(regionCoord, out RegionReadView region)) continue;
-                // A resident-but-uninitialised region would fail job scheduling and abort the
-                // whole render pass; skipping costs one frame of discovery for that region.
-                if (!region.IsCreated) continue;
-                int3 origin = regionCoord * edge;
-                new SurfaceBrickDiscoveryJob
+                if (!_hasActiveSurfaceDiscovery)
                 {
-                    Region = region,
-                    IsSurface = flags,
-                    Edge = edge,
-                }.Schedule(blockCount, 256).Complete();
-                for (int i = 0; i < blockCount; i++)
+                    if (_surfaceDiscoveryQueue.Count == 0) break;
+                    _activeSurfaceDiscoveryRegion = _surfaceDiscoveryQueue.Dequeue();
+                    _activeSurfaceDiscoveryIndex = 0;
+                    _hasActiveSurfaceDiscovery = true;
+                }
+
+                if (!storage.TryAcquireRegion(_activeSurfaceDiscoveryRegion,
+                                              out RegionReadView region))
                 {
-                    if (flags[i] == 0) continue;
-                    int bx = i & VoxelReadGrid.BlocksPerRegionEdgeMask;
-                    int by = (i >> VoxelReadGrid.BlocksPerRegionEdgeLog2)
+                    // The region left residency before its scan completed. A future residency
+                    // record will enqueue it again if it becomes relevant.
+                    _queuedSurfaceDiscoveryRegions.Remove(_activeSurfaceDiscoveryRegion);
+                    _hasActiveSurfaceDiscovery = false;
+                    continue;
+                }
+                if (!region.IsCreated)
+                {
+                    // Keep membership but rotate this not-yet-initialised region to the back so
+                    // another region can make progress this frame.
+                    _surfaceDiscoveryQueue.Enqueue(_activeSurfaceDiscoveryRegion);
+                    _hasActiveSurfaceDiscovery = false;
+                    break;
+                }
+
+                int end = Math.Min(blockCount,
+                                   _activeSurfaceDiscoveryIndex + SurfaceDiscoveryBlocksPerBatch);
+                int3 origin = _activeSurfaceDiscoveryRegion * edge;
+                for (int index = _activeSurfaceDiscoveryIndex; index < end; index++)
+                {
+                    if (!IsSurfaceBlock(region, index, edge)) continue;
+                    int bx = index & VoxelReadGrid.BlocksPerRegionEdgeMask;
+                    int by = (index >> VoxelReadGrid.BlocksPerRegionEdgeLog2)
                            & VoxelReadGrid.BlocksPerRegionEdgeMask;
-                    int bz = i >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2);
+                    int bz = index >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2);
                     destination.Add(origin + new int3(bx, by, bz));
                 }
+                _activeSurfaceDiscoveryIndex = end;
+
+                if (_activeSurfaceDiscoveryIndex < blockCount) continue;
+                _queuedSurfaceDiscoveryRegions.Remove(_activeSurfaceDiscoveryRegion);
+                _hasActiveSurfaceDiscovery = false;
             }
+        }
+
+        private static bool IsSurfaceBlock(RegionReadView region, int index, int edge)
+        {
+            int bx = index & (edge - 1);
+            int by = (index / edge) & (edge - 1);
+            int bz = index / (edge * edge);
+            int3 block = new(bx, by, bz);
+
+            if (!region.TryGetBlock(block, out VoxelReadBlock self) || !self.IsSolid)
+                return false;
+
+            return !region.IsBlockFullySolid(block)
+                || bx == 0 || by == 0 || bz == 0
+                || bx + 1 == edge || by + 1 == edge || bz + 1 == edge
+                || !region.IsBlockFullySolid(block + new int3(-1, 0, 0))
+                || !region.IsBlockFullySolid(block + new int3(1, 0, 0))
+                || !region.IsBlockFullySolid(block + new int3(0, -1, 0))
+                || !region.IsBlockFullySolid(block + new int3(0, 1, 0))
+                || !region.IsBlockFullySolid(block + new int3(0, 0, -1))
+                || !region.IsBlockFullySolid(block + new int3(0, 0, 1));
         }
 
         public void Dispose()
