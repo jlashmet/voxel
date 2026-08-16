@@ -106,4 +106,4 @@ jobs:
           git commit -m 'docs(characters): publish Madeline base-body proof [madeline-base-review]'
           git push origin HEAD:feature/character-weapon-asset-pipeline
 
-# CI trigger: rerun after Madeline face-reference repair.
+# CI trigger: run the fully repaired Madeline source/texture/face pipeline.
