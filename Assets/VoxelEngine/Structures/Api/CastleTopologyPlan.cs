@@ -66,7 +66,9 @@ namespace VoxelEngine.Structures.Api
         InvalidSitePlan,
         InvalidWallPlan,
         InvalidPosternDoorPlan,
+        UnexpectedPosternDoorPlan,
         InvalidInnerWardDoorPlan,
+        UnexpectedInnerWardDoorPlan,
     }
 
     /// <summary>
@@ -154,6 +156,11 @@ namespace VoxelEngine.Structures.Api
                     return false;
                 }
             }
+            else if (HasWallDoorRecipe(in plan.PosternDoor))
+            {
+                issue = CastleTopologyPlanIssue.UnexpectedPosternDoorPlan;
+                return false;
+            }
 
             if (plan.Wards == CastleWardPattern.InnerAndOuterWards)
             {
@@ -163,6 +170,11 @@ namespace VoxelEngine.Structures.Api
                     issue = CastleTopologyPlanIssue.InvalidInnerWardDoorPlan;
                     return false;
                 }
+            }
+            else if (HasWallDoorRecipe(in plan.InnerWardDoor))
+            {
+                issue = CastleTopologyPlanIssue.UnexpectedInnerWardDoorPlan;
+                return false;
             }
 
             if (plan.HasKeepAnnexPlan)
@@ -203,5 +215,17 @@ namespace VoxelEngine.Structures.Api
             issue = CastleTopologyPlanIssue.None;
             return true;
         }
+
+        private static bool HasWallDoorRecipe(in CastleWallDoorPlan plan) =>
+            plan.Width != 0 ||
+            plan.Height != 0 ||
+            plan.Depth != 0 ||
+            plan.OpeningDepthExtra != 0 ||
+            plan.LeafWidthReduction != 0 ||
+            plan.LeafHeightReduction != 0 ||
+            plan.StrapFirstY != 0 ||
+            plan.StrapSpacing != 0 ||
+            plan.StrapThickness != 0 ||
+            plan.StrapDepthExtra != 0;
     }
 }
