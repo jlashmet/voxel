@@ -87,6 +87,13 @@ namespace VoxelEngine.Structures.Runtime
                         $"Castle spatial plan is structurally invalid: {spatialIssue}.");
                 }
 
+                if (spatialPlan.KeepRequiresTerrainResolution)
+                {
+                    throw new InvalidOperationException(
+                        "Castle spatial plan still requires terrain resolution for its keep. " +
+                        "Resolve HighestGround placement before starting runtime realization.");
+                }
+
                 SnapshotSpatialPlan(in plan, spatialPlan);
             }
 
@@ -230,12 +237,9 @@ namespace VoxelEngine.Structures.Runtime
                 _towerCentres[cursor++] = towers[i].Centre;
             }
 
-            if (!spatialPlan.KeepRequiresTerrainResolution)
-            {
-                _spatialKeepPlan = CastleKeepPlacementAdapter.Place(
-                    in plan, spatialPlan.KeepCentre);
-                _hasSpatialKeep = true;
-            }
+            _spatialKeepPlan = CastleKeepPlacementAdapter.Place(
+                in plan, spatialPlan.KeepCentre);
+            _hasSpatialKeep = true;
         }
 
         private void BuildPlannedWalls()

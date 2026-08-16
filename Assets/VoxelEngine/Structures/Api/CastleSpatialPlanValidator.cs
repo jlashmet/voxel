@@ -178,21 +178,22 @@ namespace VoxelEngine.Structures.Api
 
             bool highestGround =
                 spatial.Topology.KeepPlacement == CastleKeepPlacement.HighestGround;
-            if (spatial.KeepRequiresTerrainResolution != highestGround ||
-                (highestGround && !spatial.KeepCentre.Equals(int2.zero)))
+            if ((!highestGround && spatial.KeepRequiresTerrainResolution) ||
+                (spatial.KeepRequiresTerrainResolution && !spatial.KeepCentre.Equals(int2.zero)))
             {
                 issue = CastleSpatialPlanIssue.InvalidKeepResolution;
                 return false;
             }
 
-            if (!highestGround && !CastlePolygonGeometry.KeepFootprintFits(
+            if (!spatial.KeepRequiresTerrainResolution && !CastlePolygonGeometry.KeepFootprintFits(
                     in dimensions, spatial.KeepCentre, outer))
             {
                 issue = CastleSpatialPlanIssue.KeepOutsideOuterWard;
                 return false;
             }
 
-            if (!highestGround && expectsInner && !CastlePolygonGeometry.KeepFootprintFits(
+            if (!spatial.KeepRequiresTerrainResolution && expectsInner &&
+                !CastlePolygonGeometry.KeepFootprintFits(
                     in dimensions, spatial.KeepCentre, inner))
             {
                 issue = CastleSpatialPlanIssue.KeepOutsideInnerWard;

@@ -44,6 +44,61 @@ namespace VoxelEngine.Structures.Api
                 requiresTerrainResolution);
         }
 
+        /// <summary>
+        /// Finishes an unresolved HighestGround placement after a site-aware caller has selected a
+        /// concrete local X/Z centre. The resolver does not query terrain itself; it only validates
+        /// that the supplied centre fits the ward and returns a new immutable planning result.
+        /// </summary>
+        public static CastleSpatialPlan ResolveHighestGroundKeep(
+            in CastlePlan dimensions,
+            CastleSpatialPlan spatial,
+            int2 localKeepCentre)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.Topology.KeepPlacement != CastleKeepPlacement.HighestGround)
+            {
+                throw new InvalidOperationException(
+                    "Only HighestGround castle plans require terrain keep resolution.");
+            }
+
+            if (!spatial.KeepRequiresTerrainResolution)
+                return spatial;
+
+            int2[] keepWard = spatial.InnerWardVertices != null && spatial.InnerWardVertices.Length != 0
+                ? spatial.InnerWardVertices
+                : spatial.OuterWardVertices;
+            if (!CastlePolygonGeometry.ContainsKeepFootprint(
+                    in dimensions, localKeepCentre, keepWard))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(localKeepCentre),
+                    "Resolved keep footprint must fit completely inside its assigned ward.");
+            }
+
+            CastleTopologyPlan topology = spatial.Topology;
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            CastleGatePlacementSpec innerGate = spatial.InnerGate;
+            var resolved = new CastleSpatialPlan(
+                in topology,
+                (int2[])spatial.OuterWardVertices.Clone(),
+                (int2[])spatial.InnerWardVertices.Clone(),
+                (CastleTowerPlacementSpec[])spatial.Towers.Clone(),
+                in primaryGate,
+                spatial.HasInnerGate,
+                in innerGate,
+                localKeepCentre,
+                false);
+
+            if (!CastleSpatialPlanValidator.TryValidate(
+                    in dimensions, resolved, out CastleSpatialPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Resolved highest-ground keep produced an invalid spatial plan: {issue}.");
+            }
+
+            return resolved;
+        }
+
         private static int2[] BuildOuterWard(
             in CastlePlan dimensions,
             in CastleTopologyPlan topology)

@@ -13,6 +13,13 @@ namespace VoxelEngine.Structures.Api
         public static bool ContainsPoint(int2 point, int2[] polygon) =>
             PointInOrOnPolygon(point, polygon);
 
+        /// <summary>Returns true when the complete axis-aligned keep footprint fits in the polygon.</summary>
+        public static bool ContainsKeepFootprint(
+            in CastlePlan dimensions,
+            int2 centre,
+            int2[] polygon) =>
+            KeepFootprintFits(in dimensions, centre, polygon);
+
         internal static bool PointOnPerimeter(int2 point, int2[] polygon)
         {
             if (polygon == null || polygon.Length < 2) return false;
