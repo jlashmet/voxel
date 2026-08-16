@@ -54,6 +54,15 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            CastleSpatialProjection keepProjection = CastleSpatialProjection.Create(in plan, spatial);
+            CastlePlan keepPlan = keepProjection.KeepPlan;
+            if (!CastleKeepTurretPlanValidator.TryValidateSlits(
+                    in keepPlan, topology.KeepTurrets, out _))
+            {
+                issue = CastleSpatialBuildReadinessIssue.InvalidKeepTurretPlan;
+                return false;
+            }
+
             CastleKeepFloorPlan[] floors = spatial.KeepFloors;
             if (!CastleKeepFloorPlanValidator.TryValidate(
                     in plan, floors, out CastleKeepFloorPlanIssue floorIssue))
