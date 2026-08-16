@@ -11,13 +11,17 @@ namespace VoxelEngine.Tests.EditMode
         {
             CavePlan small = Plan(17u, 1);
             CavePlan large = Plan(17u, 5);
+            CastleCaveDecorationPlan smallDecoration = CastleCaveDecorationPlanner.Create(small);
+            CastleCaveDecorationPlan largeDecoration = CastleCaveDecorationPlanner.Create(large);
 
-            long smallCost = CastleCaveDecorationEstimate.Estimate(small);
-            long largeCost = CastleCaveDecorationEstimate.Estimate(large);
+            long smallCost = CastleCaveDecorationEstimate.Estimate(small, smallDecoration);
+            long largeCost = CastleCaveDecorationEstimate.Estimate(large, largeDecoration);
 
             Assert.Greater(smallCost, 0);
             Assert.Greater(largeCost, smallCost,
                 "Additional planned chambers must increase slow-path cave decoration cost.");
+            Assert.AreEqual(smallCost, CastleCaveDecorationEstimate.Estimate(small),
+                "Compatibility estimator must match explicit planned decoration.");
         }
 
         private static CavePlan Plan(uint seed, int secondaryChambers)
