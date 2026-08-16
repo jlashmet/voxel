@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
@@ -229,7 +230,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private static readonly ProfilerMarker s_DiscoveryMarker = new("Voxel.Surface.Discovery");
         private static readonly ProfilerMarker s_WorkersMarker = new("Voxel.Surface.WorkerAdmission");
         private static readonly ProfilerMarker s_VisibilityMarker = new("Voxel.Surface.Visibility");
-        private const int SurfaceDiscoveryBlocksPerBatch = 256;
+        private const int SurfaceDiscoveryPublishBatch = 512;
         public const int SolidWorkerCount = 8;
 
         private sealed class SurfaceRing : IDisposable
@@ -290,9 +291,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
         private readonly Queue<int3> _surfaceDiscoveryQueue = new();
         private readonly HashSet<int3> _queuedSurfaceDiscoveryRegions = new();
+        private readonly HashSet<int3> _surfaceDiscoveryRescanRegions = new();
+        private NativeArray<ulong> _surfaceDiscoveryOccupiedWords;
+        private NativeArray<ulong> _surfaceDiscoveryFullySolidWords;
+        private NativeArray<byte> _surfaceDiscoveryFlags;
+        private NativeList<int3> _surfaceDiscoveryResults;
+        private JobHandle _surfaceDiscoveryJobHandle;
+        private bool _surfaceDiscoveryJobScheduled;
         private bool _hasActiveSurfaceDiscovery;
         private int3 _activeSurfaceDiscoveryRegion;
-        private int _activeSurfaceDiscoveryIndex;
+        private int _surfaceDiscoveryPublishIndex;
         private ulong _changeCursor;
         private IVoxelChangeSource _journal;
         private int _lastChangeRecords;
@@ -310,9 +318,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         public double SolidBuildBudgetMs { get; set; } = 0.20;
         /// <summary>
-        /// Main-thread budget for initial/full-region surface discovery. Ordinary edits bypass
-        /// this scan through the fine-grained change journal, so a large region can safely
-        /// converge over several frames instead of forcing a JobHandle.Complete stall.
+        /// Main-thread budget for snapshotting and publishing full-region surface discovery.
+        /// Classification and compaction themselves run on Burst jobs and never borrow Storage
+        /// memory. Ordinary edits bypass this path through the fine-grained change journal.
         /// </summary>
         public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
         public double WaterBuildBudgetMs { get; set; } = 0.15;
@@ -338,6 +346,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 for (int worker = 0; worker < ring.Workers.Length; worker++)
                     _allWorkers[workerIndex++] = ring.Workers[worker];
             }
+
+            _surfaceDiscoveryOccupiedWords = new NativeArray<ulong>(
+                VoxelReadGrid.BlockSummaryWordCount, Allocator.Persistent,
+                NativeArrayOptions.UninitializedMemory);
+            _surfaceDiscoveryFullySolidWords = new NativeArray<ulong>(
+                VoxelReadGrid.BlockSummaryWordCount, Allocator.Persistent,
+                NativeArrayOptions.UninitializedMemory);
+            _surfaceDiscoveryFlags = new NativeArray<byte>(
+                VoxelReadGrid.BlocksPerRegion, Allocator.Persistent,
+                NativeArrayOptions.UninitializedMemory);
+            _surfaceDiscoveryResults = new NativeList<int3>(
+                VoxelReadGrid.BlocksPerRegion, Allocator.Persistent);
         }
 
         public void Prepare(IRegionReadSource storage, in MaterialPaletteView palette,
@@ -502,17 +522,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             foreach (int3 region in regions)
             {
-                if (!_queuedSurfaceDiscoveryRegions.Add(region)) continue;
-                _surfaceDiscoveryQueue.Enqueue(region);
+                if (_queuedSurfaceDiscoveryRegions.Add(region))
+                {
+                    _surfaceDiscoveryQueue.Enqueue(region);
+                    continue;
+                }
+
+                // A second full-region publication while this region is already being processed
+                // invalidates the in-flight snapshot. Queued-but-not-started regions need no extra
+                // entry because their snapshot has not been captured yet.
+                if (_hasActiveSurfaceDiscovery && region.Equals(_activeSurfaceDiscoveryRegion))
+                    _surfaceDiscoveryRescanRegions.Add(region);
             }
         }
 
-        /// <summary>
-        /// Incrementally classifies region blocks without retaining a borrowed RegionReadView
-        /// across frames. Each batch reacquires the current view and finishes synchronously on
-        /// the caller thread; no JobHandle is ever waited here. Fine-grained mutations that race
-        /// a multi-frame scan are independently covered by the change journal.
-        /// </summary>
         private void ProcessSurfaceDiscovery(IRegionReadSource storage,
                                              List<int3> destination,
                                              double budgetMs)
@@ -522,79 +545,112 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             double deadline = Time.realtimeSinceStartupAsDouble
                             + Math.Max(0.0, budgetMs) * 0.001;
             int edge = VoxelReadGrid.BlocksPerRegionEdge;
-            int blockCount = edge * edge * edge;
+            int blockCount = VoxelReadGrid.BlocksPerRegion;
 
             while (Time.realtimeSinceStartupAsDouble < deadline)
             {
-                if (!_hasActiveSurfaceDiscovery)
+                if (_surfaceDiscoveryJobScheduled)
                 {
-                    if (_surfaceDiscoveryQueue.Count == 0) break;
-                    _activeSurfaceDiscoveryRegion = _surfaceDiscoveryQueue.Dequeue();
-                    _activeSurfaceDiscoveryIndex = 0;
-                    _hasActiveSurfaceDiscovery = true;
+                    if (!_surfaceDiscoveryJobHandle.IsCompleted)
+                        return;
+
+                    // IsCompleted guarantees this Complete is a synchronization acknowledgement,
+                    // not a frame stall waiting for worker execution.
+                    _surfaceDiscoveryJobHandle.Complete();
+                    _surfaceDiscoveryJobScheduled = false;
+                    _surfaceDiscoveryPublishIndex = 0;
                 }
 
-                if (!storage.TryAcquireRegion(_activeSurfaceDiscoveryRegion,
-                                              out RegionReadView region))
+                if (_hasActiveSurfaceDiscovery
+                    && _surfaceDiscoveryRescanRegions.Contains(_activeSurfaceDiscoveryRegion))
                 {
-                    // The region left residency before its scan completed. A future residency
-                    // record will enqueue it again if it becomes relevant.
-                    _queuedSurfaceDiscoveryRegions.Remove(_activeSurfaceDiscoveryRegion);
-                    _hasActiveSurfaceDiscovery = false;
+                    FinishSurfaceDiscovery(requeue: true);
                     continue;
                 }
-                if (!region.IsCreated)
+
+                if (_hasActiveSurfaceDiscovery)
                 {
-                    // Keep membership but rotate this not-yet-initialised region to the back so
-                    // another region can make progress this frame.
-                    _surfaceDiscoveryQueue.Enqueue(_activeSurfaceDiscoveryRegion);
-                    _hasActiveSurfaceDiscovery = false;
+                    int end = Math.Min(_surfaceDiscoveryResults.Length,
+                                       _surfaceDiscoveryPublishIndex + SurfaceDiscoveryPublishBatch);
+                    int3 origin = _activeSurfaceDiscoveryRegion * edge;
+                    for (int i = _surfaceDiscoveryPublishIndex; i < end; i++)
+                        destination.Add(origin + _surfaceDiscoveryResults[i]);
+                    _surfaceDiscoveryPublishIndex = end;
+
+                    if (_surfaceDiscoveryPublishIndex < _surfaceDiscoveryResults.Length)
+                        continue;
+
+                    FinishSurfaceDiscovery(requeue: false);
+                    continue;
+                }
+
+                if (_surfaceDiscoveryQueue.Count == 0)
                     break;
-                }
 
-                int end = Math.Min(blockCount,
-                                   _activeSurfaceDiscoveryIndex + SurfaceDiscoveryBlocksPerBatch);
-                int3 origin = _activeSurfaceDiscoveryRegion * edge;
-                for (int index = _activeSurfaceDiscoveryIndex; index < end; index++)
+                _activeSurfaceDiscoveryRegion = _surfaceDiscoveryQueue.Dequeue();
+                _hasActiveSurfaceDiscovery = true;
+                _surfaceDiscoveryPublishIndex = 0;
+                _surfaceDiscoveryResults.Clear();
+
+                if (!storage.TryCopyBlockSummary(
+                        _activeSurfaceDiscoveryRegion,
+                        _surfaceDiscoveryOccupiedWords,
+                        _surfaceDiscoveryFullySolidWords,
+                        out _))
                 {
-                    if (!IsSurfaceBlock(region, index, edge)) continue;
-                    int bx = index & VoxelReadGrid.BlocksPerRegionEdgeMask;
-                    int by = (index >> VoxelReadGrid.BlocksPerRegionEdgeLog2)
-                           & VoxelReadGrid.BlocksPerRegionEdgeMask;
-                    int bz = index >> (VoxelReadGrid.BlocksPerRegionEdgeLog2 * 2);
-                    destination.Add(origin + new int3(bx, by, bz));
+                    bool retry = storage.IsRegionResident(_activeSurfaceDiscoveryRegion);
+                    FinishSurfaceDiscovery(retry);
+                    continue;
                 }
-                _activeSurfaceDiscoveryIndex = end;
 
-                if (_activeSurfaceDiscoveryIndex < blockCount) continue;
-                _queuedSurfaceDiscoveryRegions.Remove(_activeSurfaceDiscoveryRegion);
-                _hasActiveSurfaceDiscovery = false;
+                JobHandle classify = new SurfaceBrickDiscoveryJob
+                {
+                    OccupiedWords = _surfaceDiscoveryOccupiedWords,
+                    FullySolidWords = _surfaceDiscoveryFullySolidWords,
+                    IsSurface = _surfaceDiscoveryFlags,
+                    Edge = edge,
+                }.Schedule(blockCount, 256);
+                _surfaceDiscoveryJobHandle = new SurfaceBrickCompactJob
+                {
+                    IsSurface = _surfaceDiscoveryFlags,
+                    SurfaceBlocks = _surfaceDiscoveryResults,
+                    Edge = edge,
+                }.Schedule(classify);
+                _surfaceDiscoveryJobScheduled = true;
+
+                // Never spin on newly scheduled work. It may finish this frame, but publication
+                // happens only when a later Prepare observes IsCompleted.
+                return;
             }
         }
 
-        private static bool IsSurfaceBlock(RegionReadView region, int index, int edge)
+        private void FinishSurfaceDiscovery(bool requeue)
         {
-            int bx = index & (edge - 1);
-            int by = (index / edge) & (edge - 1);
-            int bz = index / (edge * edge);
-            int3 block = new(bx, by, bz);
+            int3 region = _activeSurfaceDiscoveryRegion;
+            _surfaceDiscoveryRescanRegions.Remove(region);
+            _queuedSurfaceDiscoveryRegions.Remove(region);
+            _hasActiveSurfaceDiscovery = false;
+            _surfaceDiscoveryPublishIndex = 0;
+            _surfaceDiscoveryResults.Clear();
 
-            if (!region.TryGetBlock(block, out VoxelReadBlock self) || !self.IsSolid)
-                return false;
-
-            return !region.IsBlockFullySolid(block)
-                || bx == 0 || by == 0 || bz == 0
-                || bx + 1 == edge || by + 1 == edge || bz + 1 == edge
-                || !region.IsBlockFullySolid(block + new int3(-1, 0, 0))
-                || !region.IsBlockFullySolid(block + new int3(1, 0, 0))
-                || !region.IsBlockFullySolid(block + new int3(0, -1, 0))
-                || !region.IsBlockFullySolid(block + new int3(0, 1, 0))
-                || !region.IsBlockFullySolid(block + new int3(0, 0, -1))
-                || !region.IsBlockFullySolid(block + new int3(0, 0, 1));
+            if (requeue && _queuedSurfaceDiscoveryRegions.Add(region))
+                _surfaceDiscoveryQueue.Enqueue(region);
         }
 
         public void Dispose()
         {
+            // Teardown is allowed to synchronize; the per-frame Prepare path never waits for an
+            // unfinished discovery job.
+            if (_surfaceDiscoveryJobScheduled)
+            {
+                _surfaceDiscoveryJobHandle.Complete();
+                _surfaceDiscoveryJobScheduled = false;
+            }
+            if (_surfaceDiscoveryResults.IsCreated) _surfaceDiscoveryResults.Dispose();
+            if (_surfaceDiscoveryFlags.IsCreated) _surfaceDiscoveryFlags.Dispose();
+            if (_surfaceDiscoveryOccupiedWords.IsCreated) _surfaceDiscoveryOccupiedWords.Dispose();
+            if (_surfaceDiscoveryFullySolidWords.IsCreated) _surfaceDiscoveryFullySolidWords.Dispose();
+
             _water.Dispose();
             for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();
         }
