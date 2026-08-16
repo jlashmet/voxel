@@ -44,7 +44,8 @@ jobs:
           # This workflow checks out the triggering SHA, so queued validation remains a real
           # checkpoint even while later async-geometry commits continue landing.
           # Current checkpoint includes toroidal slot ownership, outgoing-edge retirement,
-          # newly exposed region readmission, stale-build rejection, and non-blocking completion instrumentation.
+          # newly exposed region readmission, dense active-slot visibility, stale-build rejection,
+          # and non-blocking completion instrumentation.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
