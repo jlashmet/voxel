@@ -128,8 +128,8 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(tree.Standing, Is.True);
             Assert.That(treeVisual, Is.Not.Null,
                 "The impacted authoritative tree must have a corresponding live scene visual.");
-            Assert.That(Quaternion.Angle(treeVisual.transform.rotation, Quaternion.identity), Is.LessThan(1f),
-                "The tree should still be visually standing before Grom's finisher.");
+            Assert.That(Vector3.Angle(treeVisual.transform.up, Vector3.up), Is.LessThan(20f),
+                "The unresolved tree-impact marker may visibly shake the standing tree, but it must remain upright before Grom's finisher.");
 
             guide.AdvanceOneStep();
             yield return null;
@@ -142,8 +142,12 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(board.LastCascadeSteps, Is.EqualTo(4));
             Assert.That(board.LastCascadePlayers, Is.EqualTo(4));
             Assert.That(board.LastHandoffs, Is.EqualTo(3));
-            Assert.That(Quaternion.Angle(treeVisual.transform.rotation, Quaternion.identity), Is.GreaterThan(45f),
-                "The controller presentation must visibly sync the fallen-tree state, not only mutate invisible board data.");
+
+            // Motion playback intentionally animates the authoritative 90-degree fall rather than snapping it in one frame.
+            // Give the presentation enough real time to demonstrate a visibly fallen tree, then inspect the actual scene object.
+            yield return new WaitForSecondsRealtime(0.35f);
+            Assert.That(Vector3.Angle(treeVisual.transform.up, Vector3.up), Is.GreaterThan(45f),
+                "The controller presentation must visibly animate the fallen-tree state, not only mutate invisible board data.");
 
             UnityEngine.Object.Destroy(root);
             yield return null;
