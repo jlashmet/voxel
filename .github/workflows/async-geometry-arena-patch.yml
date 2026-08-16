@@ -19,7 +19,7 @@ jobs:
           ref: refactor/async-geometry-pipeline
           fetch-depth: 0
       - name: Apply guarded patch
-        run: python3 .github/scripts/async_geometry_arena_pressure_patch.py
+        run: python3 .github/scripts/async_geometry_arena_pressure_patch_v2.py
       - name: Commit renderer changes
         run: |
           git config user.name 'github-actions[bot]'
