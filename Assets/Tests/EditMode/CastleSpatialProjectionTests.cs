@@ -33,6 +33,23 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void KeepProjectionHelpersRoundTripSemanticCentre()
+        {
+            CastlePlan plan = CastlePlanner.Create(new int3(180, 210, 410), 47u);
+            var localKeepCentre = new int2(73, -54);
+
+            CastlePlan projected = CastleSpatialProjection.ProjectKeepPlan(
+                in plan, localKeepCentre);
+            int2 actual = CastleSpatialProjection.ActualKeepCentre(in projected);
+
+            Assert.AreEqual(
+                new int2(plan.Centre.x + localKeepCentre.x,
+                         plan.Centre.z + localKeepCentre.y),
+                actual);
+            Assert.AreEqual(plan.Centre.y, projected.Centre.y);
+        }
+
+        [Test]
         public void ProjectionUsesAuthoritativePrimaryGateGeometry()
         {
             CastlePlan plan = CastlePlanner.Create(new int3(90, 180, 270), 52u);
