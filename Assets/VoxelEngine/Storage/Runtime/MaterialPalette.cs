@@ -15,6 +15,7 @@ namespace VoxelEngine.Storage.Runtime
     /// remains a separate property so a material can, for example, splinter and also catch fire.
     /// </summary>
     public unsafe struct MaterialPalette : IMaterialAuthoringCatalogue,
+                                           IMaterialPlacementCatalogue,
                                            IMaterialPresentationCatalogue,
                                            IMaterialSimulationCatalogue
     {
@@ -31,6 +32,7 @@ namespace VoxelEngine.Storage.Runtime
         private fixed byte _flammable[MaxMaterials];
         private fixed ushort _defaultSurfaceStyle[MaxMaterials];
         private fixed uint _allowedCoatings[MaxMaterials];
+        private fixed byte _placementCoating[MaxMaterials];
         private fixed byte _registered[MaxMaterials];
 
         public bool IsCreated => _count > 0;
@@ -46,7 +48,8 @@ namespace VoxelEngine.Storage.Runtime
         }
 
         public void Register(byte index, byte hardness, DestructionClass destructionClass,
-                             ushort defaultSurfaceStyle, uint allowedCoatings)
+                             ushort defaultSurfaceStyle, uint allowedCoatings,
+                             byte placementCoating = Coatings.None)
         {
             if ((uint)index >= (uint)MaxMaterials)
                 return; // Silently ignore — palette entries beyond capacity are undefined.
@@ -59,6 +62,7 @@ namespace VoxelEngine.Storage.Runtime
                              || destructionClass == DestructionClass.Splinter ? (byte)1 : (byte)0;
             _defaultSurfaceStyle[index] = defaultSurfaceStyle;
             _allowedCoatings[index] = allowedCoatings;
+            _placementCoating[index] = placementCoating;
             _registered[index] = 1;
             Version++;
             if (index + 1 > _count) _count = (byte)(index + 1);
@@ -68,7 +72,8 @@ namespace VoxelEngine.Storage.Runtime
         public void Register(in MaterialDefinition definition)
         {
             Register(definition.MaterialId, definition.Hardness, definition.DestructionClass,
-                     definition.DefaultSurfaceStyle, definition.AllowedCoatings);
+                     definition.DefaultSurfaceStyle, definition.AllowedCoatings,
+                     definition.PlacementCoating);
             SetFlammable(definition.MaterialId, definition.Flammable);
         }
 
@@ -90,6 +95,9 @@ namespace VoxelEngine.Storage.Runtime
         public ushort GetDefaultSurfaceStyle(byte materialIndex) =>
             IsRegistered(materialIndex)
                 ? _defaultSurfaceStyle[materialIndex] : SurfaceStyles.Smooth;
+
+        public byte GetPlacementCoating(byte materialIndex) =>
+            IsRegistered(materialIndex) ? _placementCoating[materialIndex] : Coatings.None;
 
         public bool IsRegistered(byte materialIndex) =>
             materialIndex < _count && _registered[materialIndex] != 0;
