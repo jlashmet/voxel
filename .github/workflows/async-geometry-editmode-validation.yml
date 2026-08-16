@@ -39,9 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Validate the raw 34^3/eight-region exact-metadata dependency chain independently of
-          # world streaming so the Metal convergence counters can distinguish dead jobs from
-          # optimistic Storage-revision retry churn.
+          # Discovery is admission-only after first sighting. Repeated 512-brick publication
+          # slices from the same unchanged region must not advance an already-known chunk source
+          # generation, while real edit invalidation keeps its previous semantics.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
