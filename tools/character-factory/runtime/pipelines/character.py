@@ -38,7 +38,20 @@ class CharacterPipeline(AssetPipeline):
         if cfg.armature_object:
             command.extend(["--armature-object", cfg.armature_object])
 
-        if spec.generator.backend == GeneratorBackend.TRIPOSR_MPS:
+        if spec.generator.backend == GeneratorBackend.HUNYUAN_PYTORCH:
+            # Hunyuan multiview emits a standard glTF-space character: X is
+            # horizontal, Y is vertical, and Z is depth. Blender's glTF importer
+            # converts that to canonical Blender X=horizontal, Y=depth, Z=vertical.
+            # For T-poses, arm span and body height are close enough that generic
+            # extent inference can incorrectly swap X/Z, so pin the known generator
+            # convention instead of guessing from bounds.
+            command.extend([
+                "--axis-mapping",
+                "0,1,2",
+                "--axis-flips",
+                "0,0,0",
+            ])
+        elif spec.generator.backend == GeneratorBackend.TRIPOSR_MPS:
             # TripoSR's source-conditioned image plane is exported as glTF X/Y,
             # which Blender imports as X/Z. For a T-pose, arm span and body
             # height are similar enough that purely extent-based inference can
