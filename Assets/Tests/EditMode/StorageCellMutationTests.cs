@@ -96,11 +96,11 @@ namespace VoxelEngine.Tests.EditMode
         {
             var table = new RegionTable(1, Allocator.TempJob);
             var pool = new BrickPool(8, Allocator.TempJob);
-            using var materials = new NativeArray<byte>(
+            var materials = new NativeArray<byte>(
                 VoxelReadGrid.VoxelsPerBlock, Allocator.TempJob);
-            using var surfaces = new NativeArray<ushort>(
+            var surfaces = new NativeArray<ushort>(
                 VoxelReadGrid.VoxelsPerBlock, Allocator.TempJob);
-            using var boundaries = new NativeArray<byte>(
+            var boundaries = new NativeArray<byte>(
                 VoxelReadGrid.VoxelsPerBlock, Allocator.TempJob);
             try
             {
@@ -162,6 +162,9 @@ namespace VoxelEngine.Tests.EditMode
             }
             finally
             {
+                if (materials.IsCreated) materials.Dispose();
+                if (surfaces.IsCreated) surfaces.Dispose();
+                if (boundaries.IsCreated) boundaries.Dispose();
                 table.Dispose();
                 pool.Dispose();
             }
