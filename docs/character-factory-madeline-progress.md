@@ -43,6 +43,7 @@ This checklist is the source of truth for the production Madeline base-character
 - [x] Add an equipment controller that equips/unequips catalogue parts through the existing modular-character assembler.
 - [x] Stage completed Character Factory manifests into Unity as FBX + portable `.characterfactory.json` import descriptors.
 - [x] Auto-import staged equipment descriptors into the shared `CharacterPartCatalogue` without manual Inspector setup.
+- [x] Auto-create a generated character prefab wired to the shared catalogue, canonical skeleton root, and dedicated equipment root.
 - [x] Configure staged FBX animation import mode automatically for character, clothing, and rigid weapon assets.
 - [x] Preserve clothing skeleton-rebind metadata and rigid weapon socket metadata through the staging/import bridge.
 - [x] Preserve generated weapon socket local position/rotation/scale and apply it when equipping the weapon.
