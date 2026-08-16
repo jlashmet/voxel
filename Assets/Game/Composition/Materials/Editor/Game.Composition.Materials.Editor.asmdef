@@ -2,8 +2,7 @@
   "name": "Game.Composition.Materials.Editor",
   "rootNamespace": "Game.Composition.Materials.Editor",
   "references": [
-    "Game.Materials.Runtime",
-    "VoxelEngine.Composition"
+    "Game.Composition.Materials"
   ],
   "includePlatforms": [
     "Editor"
