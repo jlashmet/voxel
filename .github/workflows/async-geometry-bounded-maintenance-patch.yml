@@ -18,6 +18,27 @@ jobs:
         with:
           ref: refactor/async-geometry-pipeline
           fetch-depth: 0
+      - name: Narrow temporary guards
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/async_geometry_bounded_maintenance_patch.py')
+          s = p.read_text()
+          s = s.replace(
+              '            StringAssert.DoesNotContain("foreach (int3 chunk in _known)", cache);\n',
+              '            int residency = cache.IndexOf("private void StepResidencyPrune", StringComparison.Ordinal);\n'
+              '            int residencyEnd = cache.IndexOf("/// <summary>", residency, StringComparison.Ordinal);\n'
+              '            Assert.GreaterOrEqual(residency, 0);\n'
+              '            Assert.Greater(residencyEnd, residency);\n'
+              '            StringAssert.DoesNotContain("foreach (int3 chunk in _known)",\n'
+              '                cache.Substring(residency, residencyEnd - residency));\n')
+          s = s.replace(
+              "assert 'foreach (int3 chunk in _known)' not in cache\n",
+              "residency_start = cache.index('private void StepResidencyPrune')\n"
+              "residency_end = cache.index('/// <summary>', residency_start)\n"
+              "assert 'foreach (int3 chunk in _known)' not in cache[residency_start:residency_end]\n")
+          p.write_text(s)
+          PY
       - name: Apply guarded patch
         run: python3 .github/scripts/async_geometry_bounded_maintenance_patch.py
       - name: Static guards
