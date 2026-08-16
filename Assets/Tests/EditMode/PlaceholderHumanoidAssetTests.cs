@@ -136,13 +136,16 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(clips.Length, Is.GreaterThanOrEqualTo(1), $"{path} exposes no animation clip");
         }
 
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Idle.fbx", true)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx", true)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx", true)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/CrouchIdle.fbx", true)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Wave.fbx", false)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Shrug.fbx", false)]
-        public void AnimationFile_HasExpectedLoopingContract(string path, bool expectedLoop)
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Idle.fbx", true, false)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx", true, true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx", true, true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/CrouchIdle.fbx", true, false)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Wave.fbx", false, false)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Shrug.fbx", false, false)]
+        public void AnimationFile_HasExpectedGameplayImportContract(
+            string path,
+            bool expectedLoop,
+            bool expectedHorizontalRootMotion)
         {
             AssetDatabase.ImportAsset(
                 path,
@@ -158,6 +161,14 @@ namespace VoxelEngine.Tests.EditMode
                 $"{path} exposes Rocketbox source take names instead of semantic clip name {expectedName}");
             Assert.That(importer.clipAnimations.All(clip => clip.loopTime == expectedLoop), Is.True,
                 $"{path} loopTime does not match expected gameplay semantics ({expectedLoop})");
+            Assert.That(importer.clipAnimations.All(clip => clip.loopPose == expectedLoop), Is.True,
+                $"{path} loopPose does not match expected gameplay semantics ({expectedLoop})");
+            Assert.That(importer.clipAnimations.All(clip =>
+                    clip.lockRootPositionXZ == !expectedHorizontalRootMotion), Is.True,
+                $"{path} horizontal root-motion bake policy does not match expected semantics ({expectedHorizontalRootMotion})");
+            Assert.That(importer.clipAnimations.All(clip =>
+                    clip.keepOriginalPositionXZ == expectedHorizontalRootMotion), Is.True,
+                $"{path} authored XZ root-position policy does not match expected semantics ({expectedHorizontalRootMotion})");
         }
 
         private static void FlushCharacterFactoryPendingImports()
