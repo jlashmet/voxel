@@ -1,0 +1,32 @@
+name: Async geometry stress iterator compile fix
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/fix-async-geometry-stress-iterator.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded compile fix
+        run: python3 .github/scripts/fix_async_geometry_stress_iterator.py
+      - name: Static guards
+        run: |
+          ! grep -q 'IEnumerator LoadShowcase(out' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          grep -q 'IEnumerator LoadShowcaseScene()' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          grep -q 'void GetShowcaseContext(out VoxelShowcase' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+      - name: Commit stress test repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          git commit -m 'Repair async geometry stress test iterator helper'
+          git push origin HEAD:refactor/async-geometry-pipeline
