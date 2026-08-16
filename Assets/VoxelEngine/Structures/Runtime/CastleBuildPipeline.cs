@@ -161,6 +161,16 @@ namespace VoxelEngine.Structures.Runtime
                             ref _brush, in _plan, _primaryGate.Centre, _primaryGate.Outward);
                         if (_hasPosternGate)
                             CastlePosternRealizer.BuildDoor(ref _brush, in _plan, in _posternGate);
+                        if (_hasInnerGate)
+                        {
+                            CastleWallDoorRealizer.BuildArchedDoor(
+                                ref _brush,
+                                in _plan,
+                                in _innerGate,
+                                CastleLayout.FrontGateWidth,
+                                CastleLayout.FrontGateHeight,
+                                CastleLayout.FrontGateDepth);
+                        }
                     }
                     else
                     {
@@ -286,16 +296,16 @@ namespace VoxelEngine.Structures.Runtime
             if (!_hasInnerGate || _innerWardVertices.Length == 0)
                 return;
 
-            int innerGateWidth = math.max(
-                CastleLayout.FrontGateWidth,
-                _plan.WallThickness * 2);
             CastlePerimeterRealizer.Walls(
                 ref _brush,
                 in _plan,
-                _innerWardVertices,
-                _innerGate.EdgeIndex,
-                _innerGate.Centre,
-                innerGateWidth);
+                _innerWardVertices);
+            CastleWallDoorRealizer.CarveArchedOpening(
+                ref _brush,
+                in _plan,
+                in _innerGate,
+                CastleLayout.FrontGateWidth,
+                CastleLayout.FrontGateHeight);
         }
 
         private bool CompleteStage(string stage)
