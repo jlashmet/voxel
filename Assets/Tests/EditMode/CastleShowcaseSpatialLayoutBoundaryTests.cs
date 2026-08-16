@@ -25,8 +25,8 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
                 "ShowcaseCastleSpatialLayout.cs"));
 
-            StringAssert.Contains("CastleSpatialLayoutProjection", helper);
-            StringAssert.Contains("projection.PrimaryGate.InteractionPointVoxels", helper);
+            StringAssert.Contains("CastleSpatialProjection", helper);
+            StringAssert.Contains("projection.PrimaryGateGeometry.InteractionPointVoxels", helper);
             StringAssert.Contains("geometry.ContainsArchVoxel", helper);
             StringAssert.Contains("geometry.WorldVoxel", helper);
             StringAssert.Contains("projection.TrapdoorCentre", helper);
