@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -47,32 +49,101 @@ namespace VoxelGame.Editor
             }
 
             // Unity invokes this callback once for each imported root hierarchy, not once
-            // for every node. Rocketbox's LOD nodes can therefore be nested below the root.
-            // Select the development-friendly midpoly branch before avatar/skinned-mesh
-            // generation, while the source FBX node names are still available.
-            SelectMidpoly(root.transform);
+            // for every node. Collect every Rocketbox LOD node while source FBX names are
+            // still available, then choose one LOD for the whole hierarchy. Prefer midpoly
+            // for development when it exists, but some Rocketbox Export FBXs contain only
+            // hipoly; in that case never deactivate the only usable body mesh.
+            SelectPreferredLod(root.transform);
         }
 
-        private static void SelectMidpoly(Transform transform)
+        private static void SelectPreferredLod(Transform root)
         {
-            var name = transform.name.ToLowerInvariant();
-            if (IsRocketboxLodName(name))
+            var lodNodes = new List<Transform>();
+            CollectLodNodes(root, lodNodes);
+            if (lodNodes.Count == 0)
             {
-                transform.gameObject.SetActive(name.Contains("midpoly"));
+                return;
+            }
+
+            var preferred = lodNodes.Select(node => GetLod(node.name))
+                .Where(lod => lod != RocketboxLod.None)
+                .OrderBy(GetPreferenceRank)
+                .First();
+
+            foreach (var node in lodNodes)
+            {
+                node.gameObject.SetActive(GetLod(node.name) == preferred);
+            }
+        }
+
+        private static void CollectLodNodes(Transform transform, List<Transform> lodNodes)
+        {
+            if (GetLod(transform.name) != RocketboxLod.None)
+            {
+                lodNodes.Add(transform);
             }
 
             foreach (Transform child in transform)
             {
-                SelectMidpoly(child);
+                CollectLodNodes(child, lodNodes);
             }
         }
 
-        private static bool IsRocketboxLodName(string name)
+        private static RocketboxLod GetLod(string name)
         {
-            return name.Contains("midpoly") ||
-                   name.Contains("hipoly") ||
-                   name.Contains("ultralowpoly") ||
-                   name.Contains("lowpoly");
+            if (string.IsNullOrEmpty(name))
+            {
+                return RocketboxLod.None;
+            }
+
+            name = name.ToLowerInvariant();
+            if (name.Contains("midpoly"))
+            {
+                return RocketboxLod.Midpoly;
+            }
+
+            if (name.Contains("hipoly"))
+            {
+                return RocketboxLod.Hipoly;
+            }
+
+            if (name.Contains("ultralowpoly"))
+            {
+                return RocketboxLod.Ultralowpoly;
+            }
+
+            if (name.Contains("lowpoly"))
+            {
+                return RocketboxLod.Lowpoly;
+            }
+
+            return RocketboxLod.None;
+        }
+
+        private static int GetPreferenceRank(RocketboxLod lod)
+        {
+            switch (lod)
+            {
+                case RocketboxLod.Midpoly:
+                    return 0;
+                case RocketboxLod.Hipoly:
+                    return 1;
+                case RocketboxLod.Lowpoly:
+                    return 2;
+                case RocketboxLod.Ultralowpoly:
+                    return 3;
+                default:
+                    return int.MaxValue;
+            }
+        }
+
+        private enum RocketboxLod
+        {
+            None,
+            Midpoly,
+            Hipoly,
+            Lowpoly,
+            Ultralowpoly
         }
     }
 }
