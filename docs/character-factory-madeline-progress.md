@@ -72,6 +72,6 @@ This checklist is the source of truth for the production Madeline base-character
 - Madeline run #28 (`31931575922`) proved the repaired reference preprocessing path, then spent the remainder of its 90-minute window downloading the full Hunyuan multiview repository and was cancelled before reconstruction.
 - The Hunyuan bootstrap now downloads only `hunyuan3d-dit-v2-mv-turbo/config.yaml` and `model.fp16.safetensors` into the persistent self-hosted-runner cache.
 - Madeline base-body workflow: run #29 (`31936579943`) from `a4046b503f3edf3644d228168a81fa5f750d74fb`, currently queued for the self-hosted macOS runner.
-- Repaired robe workflow: run #3 (`31936661842`) from `1f8f16596702b8f94458ef0f3ccc5a691d03d6de`, currently using the self-hosted macOS runner to perform the first shared turbo-checkpoint cache fill.
-- Latest Unity catalogue/equipment/importer validation: run #10 (`31937486302`) from `b73cc69766e14b2fbccb10b0115694eb215b790f`, currently queued behind the same self-hosted runner workload.
+- Repaired robe workflow: run #3 (`31936661842`) from `1f8f16596702b8f94458ef0f3ccc5a691d03d6de`, currently using the self-hosted macOS runner in the shared turbo-checkpoint cache-fill step.
+- Latest Unity catalogue/equipment/importer validation: run #11 (`31937528878`) from `00242daafba440d5af03e97ba8ec49ec0bc9a3d3`, currently pending behind the same self-hosted runner workload. Superseded validation runs are being cancelled by the workflow concurrency group.
 - Current branch: `feature/character-weapon-asset-pipeline`.
