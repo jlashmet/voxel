@@ -39,13 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # tools/unity-run.sh deliberately refuses any second Unity editor because concurrent
-          # editors previously froze this runner. Match that policy instead of bypassing it.
-          # This workflow checks out the triggering SHA, so queued validation remains a real
-          # checkpoint even while later async-geometry commits continue landing.
-          # Frozen merge checkpoint: toroidal/active-slot clipmaps, stale-build + non-blocking
-          # completion gates, zero-allocation + arena backpressure gates, fixed draw staging,
-          # integrated step-8 feature-preserving HLOD, and trimmed outer-ring workspace scratch.
+          # Final corrected merge checkpoint: toroidal/active-slot clipmaps, stale-build and
+          # non-blocking completion gates, zero-allocation + arena backpressure, fixed draw staging,
+          # step-8 HLOD with trimmed workspace, and COW pins retained through profile emission.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
