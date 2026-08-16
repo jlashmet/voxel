@@ -166,5 +166,40 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("while (_entries.Count >= MaxResidentChunks", cache);
         }
 
+
+        [Test]
+        public void GeometryMaintenanceDoesNotScanAllKnownChunksEachFrame()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            StringAssert.Contains("ResidencyChecksPerPrepare", cache);
+            StringAssert.Contains("RegionInvalidationCandidatesPerPrepare", cache);
+            StringAssert.Contains("private readonly Queue<int3> _residencyQueue", cache);
+            StringAssert.Contains("private readonly Queue<int3> _regionInvalidationQueue", cache);
+            StringAssert.DoesNotContain("private void DropNoLongerResident", cache);
+            StringAssert.DoesNotContain("List<int3> affected", cache);
+            int residency = cache.IndexOf("private void StepResidencyPrune", StringComparison.Ordinal);
+            int residencyEnd = cache.IndexOf("/// <summary>", residency, StringComparison.Ordinal);
+            Assert.GreaterOrEqual(residency, 0);
+            Assert.Greater(residencyEnd, residency);
+            StringAssert.DoesNotContain("foreach (int3 chunk in _known)",
+                cache.Substring(residency, residencyEnd - residency));
+        }
+
+        [Test]
+        public void GameplaySurfaceDiagnosticsAndIndirectArgsAvoidManagedFrameGarbage()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string arena = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "SurfaceGeometryArena.cs"));
+            string renderPass = ReadRenderingSource(
+                Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
+            StringAssert.DoesNotContain("new uint[4]", cache);
+            StringAssert.Contains("NativeArray<uint> _argsScratch", arena);
+            StringAssert.Contains("VerboseSurfaceDiagnostics", renderPass);
+            StringAssert.Contains("LastSurfacePassState = \"feature-aware\"", renderPass);
+        }
+
     }
 }

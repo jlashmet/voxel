@@ -111,7 +111,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             private int _stagingVertexCursor;
             private int _stagingIndexCursor;
-            private readonly uint[] _indirectArgs = new uint[4];
             internal bool WaitingForArena { get; private set; }
 
             internal int RemainingUploadBytes(int vertexCount, int indexCount)
@@ -165,11 +164,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     || remainingBudget < argsBytes)
                     return false;
 
-                _indirectArgs[0] = (uint)indices.Length;
-                _indirectArgs[1] = 1u;
-                _indirectArgs[2] = 0u;
-                _indirectArgs[3] = 0u;
-                _arena.UploadArgs(_indirectArgs, in _stagingLease);
+                _arena.UploadArgs((uint)indices.Length, in _stagingLease);
                 uploadedBytes += argsBytes;
 
                 SurfaceGeometryLease previous = _liveLease;
@@ -271,6 +266,25 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private readonly Dictionary<int3, Entry> _entries = new();
         private readonly HashSet<int3> _known = new();
+        // Known-chunk liveness is maintained incrementally. A full HashSet scan in every worker
+        // turns residency pressure into O(world-residency) frame work, so each known chunk owns
+        // one round-robin queue record instead.
+        private readonly Queue<int3> _residencyQueue = new();
+        private readonly HashSet<int3> _queuedResidency = new();
+        private const int ResidencyChecksPerPrepare = 32;
+
+        // Full-region invalidations (journal overflow, residency publication, atomic world swap)
+        // are also incremental. Fine-grained edits continue to use the brick path immediately.
+        private readonly Queue<int3> _regionInvalidationQueue = new();
+        private readonly HashSet<int3> _queuedRegionInvalidations = new();
+        private readonly HashSet<int3> _rescanRegionInvalidations = new();
+        private const int RegionInvalidationCandidatesPerPrepare = 64;
+        private bool _hasActiveRegionInvalidation;
+        private int3 _activeRegionInvalidation;
+        private int3 _activeRegionMinChunk;
+        private int3 _activeRegionChunkCounts;
+        private int _activeRegionCandidateCursor;
+
         private readonly HashSet<int3> _dirty = new();
         // Dirty work is also kept in a persistent FIFO. The HashSet remains the authoritative
         // membership/coalescing structure; the queue gives build admission bounded incremental
@@ -836,7 +850,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 {
                     int3 chunk = baseChunk + new int3(x, y, z);
                     if (!OwnsShard(chunk)) continue;
-                    _known.Add(chunk);
+                    TrackKnown(chunk);
                     Invalidate(chunk);
                 }
             }
@@ -849,22 +863,76 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         public void InvalidateDirtyRegions(HashSet<int3> dirtyRegions)
         {
-            if (dirtyRegions == null || dirtyRegions.Count == 0 || _known.Count == 0) return;
-
-            List<int3> affected = null;
-            foreach (int3 chunk in _known)
+            if (dirtyRegions != null)
             {
-                foreach (int3 dirtyRegion in dirtyRegions)
+                foreach (int3 region in dirtyRegions)
                 {
-                    if (!ChunkOverlapsRegion(chunk, dirtyRegion, VoxelsPerAxis, SourceStep))
+                    if (_hasActiveRegionInvalidation && region.Equals(_activeRegionInvalidation))
+                    {
+                        _rescanRegionInvalidations.Add(region);
                         continue;
-                    (affected ??= new List<int3>()).Add(chunk);
-                    break;
+                    }
+                    if (_queuedRegionInvalidations.Add(region))
+                        _regionInvalidationQueue.Enqueue(region);
                 }
             }
 
-            if (affected == null) return;
-            for (int i = 0; i < affected.Count; i++) Invalidate(affected[i]);
+            StepRegionInvalidation();
+        }
+
+        private void StepRegionInvalidation()
+        {
+            int remaining = RegionInvalidationCandidatesPerPrepare;
+            while (remaining > 0)
+            {
+                if (!_hasActiveRegionInvalidation)
+                {
+                    if (_regionInvalidationQueue.Count == 0) return;
+                    _activeRegionInvalidation = _regionInvalidationQueue.Dequeue();
+                    _hasActiveRegionInvalidation = true;
+                    _activeRegionCandidateCursor = 0;
+
+                    int halo = Padding * SourceStep;
+                    int3 regionMin = _activeRegionInvalidation * VoxelGrid.RegionVoxelEdge;
+                    int3 regionMax = regionMin + VoxelGrid.RegionVoxelEdge;
+                    _activeRegionMinChunk = new int3(
+                        FloorDiv(regionMin.x - halo, VoxelsPerAxis),
+                        FloorDiv(regionMin.y - halo, VoxelsPerAxis),
+                        FloorDiv(regionMin.z - halo, VoxelsPerAxis));
+                    int3 maxChunk = new int3(
+                        FloorDiv(regionMax.x + halo - 1, VoxelsPerAxis),
+                        FloorDiv(regionMax.y + halo - 1, VoxelsPerAxis),
+                        FloorDiv(regionMax.z + halo - 1, VoxelsPerAxis));
+                    _activeRegionChunkCounts = maxChunk - _activeRegionMinChunk + 1;
+                }
+
+                int total = _activeRegionChunkCounts.x
+                          * _activeRegionChunkCounts.y
+                          * _activeRegionChunkCounts.z;
+                while (remaining > 0 && _activeRegionCandidateCursor < total)
+                {
+                    int linear = _activeRegionCandidateCursor++;
+                    int x = linear % _activeRegionChunkCounts.x;
+                    int y = (linear / _activeRegionChunkCounts.x) % _activeRegionChunkCounts.y;
+                    int z = linear / (_activeRegionChunkCounts.x * _activeRegionChunkCounts.y);
+                    int3 chunk = _activeRegionMinChunk + new int3(x, y, z);
+                    remaining--;
+                    if (!OwnsShard(chunk) || !_known.Contains(chunk)) continue;
+                    if (ChunkOverlapsRegion(chunk, _activeRegionInvalidation,
+                                            VoxelsPerAxis, SourceStep))
+                        Invalidate(chunk);
+                }
+
+                if (_activeRegionCandidateCursor < total) return;
+
+                int3 completed = _activeRegionInvalidation;
+                bool rescan = _rescanRegionInvalidations.Remove(completed);
+                _queuedRegionInvalidations.Remove(completed);
+                _hasActiveRegionInvalidation = false;
+                _activeRegionCandidateCursor = 0;
+                if (rescan && _queuedRegionInvalidations.Add(completed))
+                    _regionInvalidationQueue.Enqueue(completed);
+            }
         }
 
         public void Prepare(IRegionReadSource source, in MaterialPaletteView palette,
@@ -882,7 +950,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SetProfileBlocks(profileBlocks);
             _ruleSyncTiming.Add(ElapsedMs(sectionStart));
             sectionStart = Time.realtimeSinceStartupAsDouble;
-            DropNoLongerResident(source);
+            StepResidencyPrune(source);
             _residencyPruneTiming.Add(ElapsedMs(sectionStart));
             if (_pendingUpload) return;
             sectionStart = Time.realtimeSinceStartupAsDouble;
@@ -2623,18 +2691,36 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _transitionAppendIndexCursor = 0;
         }
 
-        private void DropNoLongerResident(IRegionReadSource source)
+        private void TrackKnown(int3 chunk)
         {
-            if (_known.Count == 0) return;
-            List<int3> gone = null;
-            foreach (int3 chunk in _known)
-            {
-                if (AnyOverlappedRegionResident(source, chunk)) continue;
-                (gone ??= new List<int3>()).Add(chunk);
-            }
+            if (_known.Add(chunk)) RequeueResidency(chunk);
+        }
 
-            if (gone == null) return;
-            for (int i = 0; i < gone.Count; i++) TryRemoveChunk(gone[i]);
+        private void RequeueResidency(int3 chunk)
+        {
+            if (!_known.Contains(chunk) || !_queuedResidency.Add(chunk)) return;
+            _residencyQueue.Enqueue(chunk);
+        }
+
+        private void StepResidencyPrune(IRegionReadSource source)
+        {
+            int checks = math.min(ResidencyChecksPerPrepare, _residencyQueue.Count);
+            for (int i = 0; i < checks; i++)
+            {
+                int3 chunk = _residencyQueue.Dequeue();
+                _queuedResidency.Remove(chunk);
+                if (!_known.Contains(chunk)) continue;
+
+                if (AnyOverlappedRegionResident(source, chunk))
+                {
+                    RequeueResidency(chunk);
+                    continue;
+                }
+
+                // In-flight geometry is never waited on. If removal is deferred, put the chunk
+                // back in the liveness queue and recheck it on a later frame.
+                if (!TryRemoveChunk(chunk)) RequeueResidency(chunk);
+            }
         }
 
         /// <summary>
@@ -2828,6 +2914,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 return false;
 
             _known.Remove(chunk);
+            _queuedResidency.Remove(chunk);
             _dirty.Remove(chunk);
             _queuedDirty.Remove(chunk);
             _desiredVersions.Remove(chunk);

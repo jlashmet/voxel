@@ -185,7 +185,8 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelRenderBridge.LastSurfacePassState = "waiting-for-atomic-world";
                 return;
             }
-            VoxelRenderBridge.LastSurfacePassState = $"preparing-{camera.cameraType}";
+            VoxelRenderBridge.LastSurfacePassState = VoxelRenderBridge.VerboseSurfaceDiagnostics
+                ? $"preparing-{camera.cameraType}" : "preparing";
             IReadOnlyList<CpuTransvoxelChunkCache.Entry> transvoxelVisible =
                 Array.Empty<CpuTransvoxelChunkCache.Entry>();
             IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> waterVisible =
@@ -203,23 +204,30 @@ namespace VoxelEngine.Rendering.Runtime
             VoxelRenderBridge.SurfaceMetrics = _scheduler.Metrics;
             transvoxelVisible = _scheduler.VisibleSolids;
             waterVisible = _scheduler.VisibleWater;
-            VoxelRenderBridge.LastSurfacePassState =
-                $"feature-aware resident={VoxelRenderBridge.SurfaceMetrics.SolidResidentChunks}/"
-              + $"{VoxelRenderBridge.SurfaceMetrics.SolidKnownChunks} "
-              + $"dirty={VoxelRenderBridge.SurfaceMetrics.SolidDirtyChunks} "
-              + $"visible={VoxelRenderBridge.SurfaceMetrics.VisibleSolidChunks} "
-              + $"missingVisible={VoxelRenderBridge.SurfaceMetrics.MissingVisibleSolidChunks} "
-              + $"jobs={VoxelRenderBridge.SurfaceMetrics.RunningSolidJobs} "
-              + $"prepare.p95={VoxelRenderBridge.SurfaceMetrics.SchedulerPrepareTiming.P95Ms:0.00}ms "
-              + $"discover.p95={VoxelRenderBridge.SurfaceMetrics.SurfaceDiscoveryTiming.P95Ms:0.00}ms "
-              + $"select.p95={VoxelRenderBridge.SurfaceMetrics.BuildSelectionTiming.P95Ms:0.00}ms "
-              + $"visibility.p95={VoxelRenderBridge.SurfaceMetrics.VisibilityTiming.P95Ms:0.00}ms "
-              + $"queue.p95={VoxelRenderBridge.SurfaceMetrics.QueueLatencyTiming.P95Ms:0.0}ms "
-              + $"build.p95={VoxelRenderBridge.SurfaceMetrics.BuildLatencyTiming.P95Ms:0.0}ms "
-              + $"snapshot.p95={VoxelRenderBridge.SurfaceMetrics.SnapshotTiming.P95Ms:0.00}ms "
-              + $"compact.p95={VoxelRenderBridge.SurfaceMetrics.TopologyCompactTiming.P95Ms:0.00}ms "
-              + $"merge.p95={VoxelRenderBridge.SurfaceMetrics.FacetedMergeTiming.P95Ms:0.00}ms "
-              + $"upload.p95={VoxelRenderBridge.SurfaceMetrics.UploadTiming.P95Ms:0.00}ms";
+            if (VoxelRenderBridge.VerboseSurfaceDiagnostics)
+            {
+                VoxelRenderBridge.LastSurfacePassState =
+                    $"feature-aware resident={VoxelRenderBridge.SurfaceMetrics.SolidResidentChunks}/"
+                  + $"{VoxelRenderBridge.SurfaceMetrics.SolidKnownChunks} "
+                  + $"dirty={VoxelRenderBridge.SurfaceMetrics.SolidDirtyChunks} "
+                  + $"visible={VoxelRenderBridge.SurfaceMetrics.VisibleSolidChunks} "
+                  + $"missingVisible={VoxelRenderBridge.SurfaceMetrics.MissingVisibleSolidChunks} "
+                  + $"jobs={VoxelRenderBridge.SurfaceMetrics.RunningSolidJobs} "
+                  + $"prepare.p95={VoxelRenderBridge.SurfaceMetrics.SchedulerPrepareTiming.P95Ms:0.00}ms "
+                  + $"discover.p95={VoxelRenderBridge.SurfaceMetrics.SurfaceDiscoveryTiming.P95Ms:0.00}ms "
+                  + $"select.p95={VoxelRenderBridge.SurfaceMetrics.BuildSelectionTiming.P95Ms:0.00}ms "
+                  + $"visibility.p95={VoxelRenderBridge.SurfaceMetrics.VisibilityTiming.P95Ms:0.00}ms "
+                  + $"queue.p95={VoxelRenderBridge.SurfaceMetrics.QueueLatencyTiming.P95Ms:0.0}ms "
+                  + $"build.p95={VoxelRenderBridge.SurfaceMetrics.BuildLatencyTiming.P95Ms:0.0}ms "
+                  + $"snapshot.p95={VoxelRenderBridge.SurfaceMetrics.SnapshotTiming.P95Ms:0.00}ms "
+                  + $"compact.p95={VoxelRenderBridge.SurfaceMetrics.TopologyCompactTiming.P95Ms:0.00}ms "
+                  + $"merge.p95={VoxelRenderBridge.SurfaceMetrics.FacetedMergeTiming.P95Ms:0.00}ms "
+                  + $"upload.p95={VoxelRenderBridge.SurfaceMetrics.UploadTiming.P95Ms:0.00}ms";
+            }
+            else
+            {
+                VoxelRenderBridge.LastSurfacePassState = "feature-aware";
+            }
 
             EnsureCapacity(ref _transvoxelDrawEntries, transvoxelVisible.Count);
             for (int i = 0; i < transvoxelVisible.Count; i++)

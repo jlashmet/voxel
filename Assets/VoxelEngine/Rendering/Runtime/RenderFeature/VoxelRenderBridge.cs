@@ -50,6 +50,11 @@ namespace VoxelEngine.Rendering.Runtime
         public static int RenderFeatureEnqueueCount { get; internal set; }
         public static int SurfacePassRecordCount { get; internal set; }
         public static string LastSurfacePassState { get; internal set; } = "not-recorded";
+        /// <summary>
+        /// Full human-readable per-frame diagnostic strings allocate. Keep them disabled in
+        /// gameplay; structured SurfaceMetrics carries the same data without formatting garbage.
+        /// </summary>
+        public static bool VerboseSurfaceDiagnostics;
 
         public static void ResetSurfacePassDiagnostics(string state = "not-recorded")
         {

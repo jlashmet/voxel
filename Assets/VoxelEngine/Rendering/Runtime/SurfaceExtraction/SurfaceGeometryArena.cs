@@ -46,6 +46,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly RangeAllocator _vertexRanges;
         private readonly RangeAllocator _indexRanges;
         private readonly RangeAllocator _argsRanges;
+        private NativeArray<uint> _argsScratch;
         private bool _disposed;
 
         public ComputeBuffer Vertices { get; }
@@ -80,6 +81,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _vertexRanges = new RangeAllocator(vertexCapacity, 4096);
             _indexRanges = new RangeAllocator(indexCapacity, 4096);
             _argsRanges = new RangeAllocator(argsRecordCapacity * ArgsWordsPerDraw, 4096);
+            _argsScratch = new NativeArray<uint>(ArgsWordsPerDraw, Allocator.Persistent,
+                                                 NativeArrayOptions.UninitializedMemory);
 
             ComputeBuffer vertices = null;
             ComputeBuffer indices = null;
@@ -155,9 +158,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Indices.SetData(source, sourceStart, lease.IndexStart + sourceStart, count);
         }
 
-        public void UploadArgs(uint[] source, in SurfaceGeometryLease lease)
+        public void UploadArgs(uint indexCount, in SurfaceGeometryLease lease)
         {
-            Args.SetData(source, 0, lease.ArgsWordStart, ArgsWordsPerDraw);
+            _argsScratch[0] = indexCount;
+            _argsScratch[1] = 1u;
+            _argsScratch[2] = 0u;
+            _argsScratch[3] = 0u;
+            Args.SetData(_argsScratch, 0, lease.ArgsWordStart, ArgsWordsPerDraw);
         }
 
         public long ReservedBytes(in SurfaceGeometryLease lease) => !lease.IsValid ? 0L :
@@ -172,6 +179,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Vertices?.Release();
             Indices?.Release();
             Args?.Release();
+            if (_argsScratch.IsCreated) _argsScratch.Dispose();
         }
 
         private static int Align(int value, int alignment) =>
