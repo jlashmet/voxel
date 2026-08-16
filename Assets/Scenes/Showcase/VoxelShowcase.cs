@@ -158,6 +158,11 @@ namespace VoxelEngine.Showcase
 
         private void OnDisable()
         {
+            // The castle worker borrows this world's read-only material catalogue even though its
+            // heavy mutation target is private. Cancel/join it while this world is still alive;
+            // a global render clear must never be responsible for another world's task lifetime.
+            _world?.StopBackgroundWork();
+
             RenderingComposition.ResetTransientPresentation();
             RenderingComposition.ClearWorld();
             RenderingComposition.SetSurfaceBuildEnabled(true);
