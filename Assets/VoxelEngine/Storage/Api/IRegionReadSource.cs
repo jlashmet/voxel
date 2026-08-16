@@ -28,6 +28,18 @@ namespace VoxelEngine.Storage.Api
         bool TryAcquireRegion(int3 regionCoord, out RegionReadView view);
 
         /// <summary>
+        /// Copies compact per-block occupancy state into caller-owned memory. Unlike a borrowed
+        /// <see cref="RegionReadView"/>, the copied words are immutable from Storage's point of
+        /// view and may safely outlive the frame or be consumed by jobs after later world edits.
+        /// Each destination requires at least <see cref="VoxelReadGrid.BlockSummaryWordCount"/>
+        /// words. <paramref name="version"/> identifies the world state captured by the copy.
+        /// </summary>
+        bool TryCopyBlockSummary(int3 regionCoord,
+                                 NativeArray<ulong> occupiedWords,
+                                 NativeArray<ulong> fullySolidWords,
+                                 out ulong version);
+
+        /// <summary>
         /// Acquires the resident region containing a world-space logical read block. This keeps
         /// region/block partitioning inside Storage rather than duplicating layout math in every
         /// collision or rendering consumer.
