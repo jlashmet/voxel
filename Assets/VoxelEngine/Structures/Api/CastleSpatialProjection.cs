@@ -50,6 +50,20 @@ namespace VoxelEngine.Structures.Api
                 projectedKeepPlan.Centre.z + CastleLayout.LegacyKeepCentreZOffset);
 
         /// <summary>
+        /// Returns the world-space minimum corner of the authored keep volume represented by a
+        /// projected plan. Runtime components should consume this instead of reconstructing the
+        /// temporary legacy keep anchor themselves.
+        /// </summary>
+        public static int3 KeepMinimum(in CastlePlan projectedKeepPlan)
+        {
+            int2 centre = ActualKeepCentre(in projectedKeepPlan);
+            return new int3(
+                centre.x - projectedKeepPlan.KeepHalfX,
+                projectedKeepPlan.Centre.y + projectedKeepPlan.PlateauHeight,
+                centre.y - projectedKeepPlan.KeepHalfZ);
+        }
+
+        /// <summary>
         /// Projects one fully resolved spatial plan into geometry shared by runtime realization and
         /// application-side interaction/presentation. No voxel or terrain work occurs here.
         /// </summary>
@@ -120,6 +134,9 @@ namespace VoxelEngine.Structures.Api
 
         /// <summary>Actual world-space X/Z centre of the projected keep.</summary>
         public int2 KeepCentreWorld => ActualKeepCentre(in KeepPlan);
+
+        /// <summary>World-space minimum corner of the projected keep volume.</summary>
+        public int3 KeepMinimumWorld => KeepMinimum(in KeepPlan);
 
         /// <summary>World-space secret-hatch centre for the projected keep/dungeon recipe.</summary>
         public int3 TrapdoorCentre => CastleLayout.TrapdoorCentre(in KeepPlan);
