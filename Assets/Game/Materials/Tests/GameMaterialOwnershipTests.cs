@@ -1,6 +1,7 @@
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
+using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Api;
@@ -133,8 +134,10 @@ namespace Game.Materials.Tests
         }
 
         [Test]
-        public void LegacyStructurePalette_RemainsNumericallyAlignedDuringMigration()
+        public void LegacyStructurePalette_ResolvesTheGameOwnedRoleBindingDuringMigration()
         {
+            StructureMaterialComposition.Configure(in GameStructureMaterials.Default);
+
             Assert.That(Mat.Empty, Is.EqualTo(GameMaterialIds.Empty));
             Assert.That(Mat.Stone, Is.EqualTo(GameMaterialIds.Stone));
             Assert.That(Mat.Wood, Is.EqualTo(GameMaterialIds.Wood));
