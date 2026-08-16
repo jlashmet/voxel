@@ -40,9 +40,13 @@ namespace VoxelEngine.Tests.EditMode
                     Centre = new int2(0, 30),
                     Outward = new float2(0f, 1f),
                 };
+                CastleWallDoorPlan door = CastleWallDoorRecipe.PosternHistorical();
+                CastleWallDoorGeometry geometry = CastleWallDoorGeometryResolver.Resolve(
+                    in plan, in postern, in door);
 
                 CastlePerimeterRealizer.Walls(ref brush, in plan, perimeter);
-                CastlePosternRealizer.CarveOpening(ref brush, in plan, in postern);
+                CastlePosternRealizer.CarveOpening(
+                    ref brush, in plan, in postern, in door);
 
                 int baseY = plan.Centre.y + plan.PlateauHeight;
                 int gateX = plan.Centre.x + postern.Centre.x;
@@ -53,7 +57,8 @@ namespace VoxelEngine.Tests.EditMode
                     brush.Get(gateX, baseY + CastleLayout.PosternGateHeight + 6, gateZ),
                     "Postern must preserve masonry above the doorway.");
 
-                CastlePosternRealizer.BuildDoor(ref brush, in plan, in postern);
+                CastlePosternRealizer.BuildDoor(
+                    ref brush, in plan, in postern, in door);
 
                 Assert.AreEqual(Mat.Wood, brush.Get(gateX, baseY + 6, gateZ),
                     "Postern should receive a wooden door leaf.");
@@ -62,6 +67,15 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(Mat.Stone,
                     brush.Get(gateX, baseY + CastleLayout.PosternGateHeight + 6, gateZ),
                     "Building the door must not erase the wall above it.");
+
+                int3[] interactionLeaf = geometry.LeafVoxels();
+                Assert.Greater(interactionLeaf.Length, 0);
+                for (int i = 0; i < interactionLeaf.Length; i++)
+                {
+                    Assert.AreNotEqual(Mat.Empty, brush.Get(
+                        interactionLeaf[i].x, interactionLeaf[i].y, interactionLeaf[i].z),
+                        $"shared interaction geometry missed authored leaf voxel {interactionLeaf[i]}");
+                }
 
                 Assert.AreEqual(0, brush.VoxelsWritten,
                     "Postern realization should stay on bulk wall writes.");
