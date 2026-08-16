@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Game.Structures.Api;
 using Game.Structures.Runtime;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Composition;
@@ -28,7 +29,8 @@ namespace VoxelEngine.Showcase
     internal sealed class AsyncCastleBuildSession : ICastleBuildSession, IDisposable
     {
         private const int BlocksPerPublishSlice = 32;
-        private const int PrivateMixedBrickCapacity = 1 << 17;
+        private const int MinimumPrivateMixedBrickCapacity = 8 * 1024;
+        private const int PrivateMixedBrickSafetyReserve = 4 * 1024;
 
         private readonly IRegionSnapshotSource _liveSnapshots;
         private readonly IRegionMutationStore _liveMutations;
@@ -67,14 +69,9 @@ namespace VoxelEngine.Showcase
             _regions = CastleRegions(in plan);
             _sourceSnapshots = new RegionSemanticSnapshot[_regions.Length];
 
-            // Allocate the isolated native store on the Unity/main thread. Worker execution below
-            // only mutates this private lifetime; Unity objects and the live allocator never cross
-            // the thread boundary. WorldClearing owns the teardown handshake so a scene replacement
-            // cannot orphan this comparatively large pool while the worker is still authoring.
-            _privateStorage = VoxelEngineBootstrap.CreateStorage(
-                math.max(16, _regions.Length * 2),
-                PrivateMixedBrickCapacity,
-                1024);
+            // The private BrickPool is deliberately not allocated here. Construction happens on
+            // the worker after the compact terrain snapshots are captured, so creating the castle
+            // session cannot synchronously reserve hundreds of MB on the player-loop thread.
             RenderingComposition.WorldClearing += Dispose;
         }
 
@@ -133,10 +130,8 @@ namespace VoxelEngine.Showcase
 
             if (_result == null)
             {
-                // Propagate worker exceptions on the main thread with their original stack. The
-                // worker owns/disposes the private store in finally, including failure paths.
+                // Propagate worker exceptions on the main thread with their original stack.
                 _result = _worker.GetAwaiter().GetResult();
-                _privateStorage = null;
                 if (_result == null)
                     throw new OperationCanceledException("Castle build was cancelled before publication.");
             }
@@ -149,6 +144,10 @@ namespace VoxelEngine.Showcase
             if (_publishCursor < _result.Blocks.Count)
                 return false;
 
+            // Native staging is needed only until the final live block is copied. Retain the small
+            // BuildResult shell so TotalVoxelsWritten remains available to ShowcaseWorld when this
+            // terminal Step returns true.
+            _result.DisposePayloads();
             _terminalComplete = true;
             RenderingComposition.WorldClearing -= Dispose;
             return true;
@@ -156,8 +155,15 @@ namespace VoxelEngine.Showcase
 
         private BuildResult BuildOnPrivateStore()
         {
-            IVoxelStorageRuntime storage = _privateStorage
-                ?? throw new ObjectDisposedException(nameof(AsyncCastleBuildSession));
+            if (_cancelRequested) return null;
+
+            int privateMixedCapacity = EstimatePrivateMixedBrickCapacity(in _plan, _regions.Length);
+            IVoxelStorageRuntime storage = VoxelEngineBootstrap.CreateStorage(
+                math.max(16, _regions.Length * 2),
+                privateMixedCapacity,
+                1024);
+            _privateStorage = storage;
+
             try
             {
                 for (int i = 0; i < _sourceSnapshots.Length; i++)
@@ -187,15 +193,40 @@ namespace VoxelEngine.Showcase
                 }
                 if (_cancelRequested) return null;
 
+                // First classify the touched blocks. The result holds only compact descriptors;
+                // mixed payloads are copied into three contiguous native staging arrays below.
+                // No VoxelCell[512] objects enter the managed heap.
                 var blocks = new List<BlockImage>(tracking.Touched.Count);
+                int mixedCount = 0;
                 foreach (KeyValuePair<int3, bool> touched in tracking.Touched)
                 {
                     if (_cancelRequested) return null;
-                    blocks.Add(CaptureBlock(storage.Reads, touched.Key, touched.Value));
+                    if (!storage.Reads.TryPinWorldBlock(touched.Key, out PinnedVoxelReadBlock block))
+                        throw new InvalidOperationException(
+                            $"Private castle block {touched.Key} was not readable after authoring.");
+
+                    try
+                    {
+                        int payloadOffset = block.Kind == VoxelReadBlockKind.Mixed
+                            ? mixedCount++ * VoxelReadGrid.VoxelsPerBlock
+                            : -1;
+                        blocks.Add(new BlockImage(
+                            touched.Key,
+                            block.Kind,
+                            block.UniformMaterial,
+                            payloadOffset,
+                            touched.Value));
+                    }
+                    finally
+                    {
+                        if (block.HasPinnedPayload)
+                            storage.Reads.ReleasePinnedWorldBlock(in block.Pin);
+                    }
                 }
 
                 // Stable order keeps publication deterministic and makes frame-budget regressions
-                // reproducible rather than dependent on Dictionary iteration order.
+                // reproducible rather than dependent on Dictionary iteration order. PayloadOffset
+                // remains stable because it addresses the staging arrays rather than list order.
                 blocks.Sort(static (a, b) =>
                 {
                     int c = a.WorldBlock.z.CompareTo(b.WorldBlock.z);
@@ -203,11 +234,94 @@ namespace VoxelEngine.Showcase
                     c = a.WorldBlock.y.CompareTo(b.WorldBlock.y);
                     return c != 0 ? c : a.WorldBlock.x.CompareTo(b.WorldBlock.x);
                 });
-                return new BuildResult(build.TotalVoxelsWritten, blocks);
+
+                int payloadVoxels = mixedCount * VoxelReadGrid.VoxelsPerBlock;
+                NativeArray<byte> mixedMaterials = payloadVoxels > 0
+                    ? new NativeArray<byte>(payloadVoxels, Allocator.Persistent,
+                                            NativeArrayOptions.UninitializedMemory)
+                    : default;
+                NativeArray<ushort> mixedSurfaceSemantics = payloadVoxels > 0
+                    ? new NativeArray<ushort>(payloadVoxels, Allocator.Persistent,
+                                              NativeArrayOptions.UninitializedMemory)
+                    : default;
+                NativeArray<byte> mixedBoundarySamples = payloadVoxels > 0
+                    ? new NativeArray<byte>(payloadVoxels, Allocator.Persistent,
+                                            NativeArrayOptions.UninitializedMemory)
+                    : default;
+
+                try
+                {
+                    for (int i = 0; i < blocks.Count; i++)
+                    {
+                        if (_cancelRequested)
+                        {
+                            DisposeStaging(
+                                ref mixedMaterials,
+                                ref mixedSurfaceSemantics,
+                                ref mixedBoundarySamples);
+                            return null;
+                        }
+
+                        BlockImage image = blocks[i];
+                        if (image.Kind != VoxelReadBlockKind.Mixed) continue;
+                        if (!storage.Reads.TryPinWorldBlock(
+                                image.WorldBlock, out PinnedVoxelReadBlock block))
+                            throw new InvalidOperationException(
+                                $"Private castle block {image.WorldBlock} disappeared during staging.");
+
+                        try
+                        {
+                            if (block.Kind != VoxelReadBlockKind.Mixed || !block.HasPinnedPayload)
+                                throw new InvalidOperationException(
+                                    $"Private castle block {image.WorldBlock} changed kind during staging.");
+
+                            NativeArray<byte>.Copy(
+                                block.MixedVoxels,
+                                block.MixedOffset,
+                                mixedMaterials,
+                                image.PayloadOffset,
+                                VoxelReadGrid.VoxelsPerBlock);
+                            NativeArray<ushort>.Copy(
+                                block.MixedSurfaceSemantics,
+                                block.MixedOffset,
+                                mixedSurfaceSemantics,
+                                image.PayloadOffset,
+                                VoxelReadGrid.VoxelsPerBlock);
+                            NativeArray<byte>.Copy(
+                                block.MixedBoundarySamples,
+                                block.MixedOffset,
+                                mixedBoundarySamples,
+                                image.PayloadOffset,
+                                VoxelReadGrid.VoxelsPerBlock);
+                        }
+                        finally
+                        {
+                            if (block.HasPinnedPayload)
+                                storage.Reads.ReleasePinnedWorldBlock(in block.Pin);
+                        }
+                    }
+
+                    return new BuildResult(
+                        build.TotalVoxelsWritten,
+                        blocks,
+                        mixedMaterials,
+                        mixedSurfaceSemantics,
+                        mixedBoundarySamples);
+                }
+                catch
+                {
+                    DisposeStaging(
+                        ref mixedMaterials,
+                        ref mixedSurfaceSemantics,
+                        ref mixedBoundarySamples);
+                    throw;
+                }
             }
             finally
             {
                 storage.Dispose();
+                if (ReferenceEquals(_privateStorage, storage))
+                    _privateStorage = null;
             }
         }
 
@@ -226,7 +340,8 @@ namespace VoxelEngine.Showcase
                 // worker's finally block owns the private native storage on every exit path.
                 try
                 {
-                    worker.GetAwaiter().GetResult();
+                    BuildResult pending = worker.GetAwaiter().GetResult();
+                    pending?.DisposePayloads();
                 }
                 catch
                 {
@@ -243,6 +358,7 @@ namespace VoxelEngine.Showcase
                 _privateStorage = null;
             }
 
+            _result?.DisposePayloads();
             _result = null;
         }
 
@@ -267,55 +383,57 @@ namespace VoxelEngine.Showcase
                 throw new InvalidOperationException(
                     $"Could not publish castle block {image.WorldBlock}.");
 
-            bool changed = mutation.MetadataChanged;
-            for (int i = 0; i < VoxelReadGrid.VoxelsPerBlock; i++)
+            bool copied = mutation.CopyStoragePayload(
+                _result.MixedMaterials,
+                _result.MixedSurfaceSemantics,
+                _result.MixedBoundarySamples,
+                image.PayloadOffset);
+            if (!copied)
             {
-                VoxelCell cell = image.Cells[i];
-                changed |= mutation.SetCell(i, in cell);
+                _liveMutations.CompletePartialBlock(ref mutation, false);
+                throw new InvalidOperationException(
+                    $"Could not bulk-publish castle block {image.WorldBlock}.");
             }
-            _liveMutations.CompletePartialBlock(ref mutation, changed);
+
+            _liveMutations.CompletePartialBlock(ref mutation, true);
         }
 
-        private static BlockImage CaptureBlock(
-            IRegionReadSource reads, int3 worldBlock, bool markHardSurface)
+        internal static int EstimatePrivateMixedBrickCapacity(
+            in GameCastlePlan plan, int sourceRegionCount)
         {
-            if (!reads.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock block))
+            // A height-field terrain needs at most one mixed surface block per x/z block column in
+            // each captured source region. CastlePlanner.EstimateWrites is intentionally a generous
+            // content-policy estimate; two mixed blocks per 512 write-equivalents covers partial
+            // authoring edges while whole interior fills remain uniform. Keep a fixed reserve for
+            // presentation details and future plan variance without returning to a 131k-brick pool.
+            long regionColumns = (long)sourceRegionCount
+                               * VoxelReadGrid.BlocksPerRegionEdge
+                               * VoxelReadGrid.BlocksPerRegionEdge;
+            long authoredBlocks =
+                (CastlePlanner.EstimateWrites(in plan) + VoxelReadGrid.VoxelsPerBlock - 1)
+                / VoxelReadGrid.VoxelsPerBlock;
+            long estimate = regionColumns
+                          + authoredBlocks * 2L
+                          + PrivateMixedBrickSafetyReserve;
+            if (estimate < MinimumPrivateMixedBrickCapacity)
+                estimate = MinimumPrivateMixedBrickCapacity;
+            if (estimate > int.MaxValue)
                 throw new InvalidOperationException(
-                    $"Private castle block {worldBlock} was not readable after authoring.");
+                    $"Castle plan requires an unsupported private mixed-brick capacity: {estimate}.");
+            return (int)estimate;
+        }
 
-            try
-            {
-                if (block.Kind == VoxelReadBlockKind.Empty)
-                    return BlockImage.Empty(worldBlock, markHardSurface);
-                if (block.Kind == VoxelReadBlockKind.Uniform)
-                    return BlockImage.Uniform(
-                        worldBlock, block.UniformMaterial, markHardSurface);
-
-                var cells = new VoxelCell[VoxelReadGrid.VoxelsPerBlock];
-                for (int i = 0; i < cells.Length; i++)
-                {
-                    int offset = block.MixedOffset + i;
-                    byte material = block.MixedVoxels[offset];
-                    cells[i] = new VoxelCell
-                    {
-                        BaseMaterialId = material,
-                        Surface = material == VoxelGrid.MaterialEmpty
-                            ? default
-                            : VoxelSurfaceSemantics.FromStorage(
-                                block.MixedSurfaceSemantics[offset]),
-                        Boundary = new VoxelBoundarySample
-                        {
-                            Packed = block.MixedBoundarySamples[offset]
-                        }
-                    };
-                }
-                return BlockImage.Mixed(worldBlock, cells, markHardSurface);
-            }
-            finally
-            {
-                if (block.HasPinnedPayload)
-                    reads.ReleasePinnedWorldBlock(in block.Pin);
-            }
+        private static void DisposeStaging(
+            ref NativeArray<byte> materials,
+            ref NativeArray<ushort> surfaceSemantics,
+            ref NativeArray<byte> boundarySamples)
+        {
+            if (materials.IsCreated) materials.Dispose();
+            if (surfaceSemantics.IsCreated) surfaceSemantics.Dispose();
+            if (boundarySamples.IsCreated) boundarySamples.Dispose();
+            materials = default;
+            surfaceSemantics = default;
+            boundarySamples = default;
         }
 
         private static int3[] CastleRegions(in CastlePlan plan)
@@ -400,39 +518,59 @@ namespace VoxelEngine.Showcase
         {
             public readonly long TotalVoxelsWritten;
             public readonly List<BlockImage> Blocks;
+            public NativeArray<byte> MixedMaterials;
+            public NativeArray<ushort> MixedSurfaceSemantics;
+            public NativeArray<byte> MixedBoundarySamples;
+            private bool _payloadsDisposed;
 
-            public BuildResult(long totalVoxelsWritten, List<BlockImage> blocks)
+            public BuildResult(
+                long totalVoxelsWritten,
+                List<BlockImage> blocks,
+                NativeArray<byte> mixedMaterials,
+                NativeArray<ushort> mixedSurfaceSemantics,
+                NativeArray<byte> mixedBoundarySamples)
             {
                 TotalVoxelsWritten = totalVoxelsWritten;
                 Blocks = blocks;
+                MixedMaterials = mixedMaterials;
+                MixedSurfaceSemantics = mixedSurfaceSemantics;
+                MixedBoundarySamples = mixedBoundarySamples;
+            }
+
+            public void DisposePayloads()
+            {
+                if (_payloadsDisposed) return;
+                _payloadsDisposed = true;
+                if (MixedMaterials.IsCreated) MixedMaterials.Dispose();
+                if (MixedSurfaceSemantics.IsCreated) MixedSurfaceSemantics.Dispose();
+                if (MixedBoundarySamples.IsCreated) MixedBoundarySamples.Dispose();
+                MixedMaterials = default;
+                MixedSurfaceSemantics = default;
+                MixedBoundarySamples = default;
             }
         }
 
-        private sealed class BlockImage
+        private readonly struct BlockImage
         {
             public readonly int3 WorldBlock;
             public readonly VoxelReadBlockKind Kind;
             public readonly byte UniformMaterial;
-            public readonly VoxelCell[] Cells;
+            public readonly int PayloadOffset;
             public readonly bool MarkHardSurface;
 
-            private BlockImage(
-                int3 worldBlock, VoxelReadBlockKind kind, byte uniformMaterial,
-                VoxelCell[] cells, bool markHardSurface)
+            public BlockImage(
+                int3 worldBlock,
+                VoxelReadBlockKind kind,
+                byte uniformMaterial,
+                int payloadOffset,
+                bool markHardSurface)
             {
                 WorldBlock = worldBlock;
                 Kind = kind;
                 UniformMaterial = uniformMaterial;
-                Cells = cells;
+                PayloadOffset = payloadOffset;
                 MarkHardSurface = markHardSurface;
             }
-
-            public static BlockImage Empty(int3 block, bool hard) =>
-                new(block, VoxelReadBlockKind.Empty, 0, null, hard);
-            public static BlockImage Uniform(int3 block, byte material, bool hard) =>
-                new(block, VoxelReadBlockKind.Uniform, material, null, hard);
-            public static BlockImage Mixed(int3 block, VoxelCell[] cells, bool hard) =>
-                new(block, VoxelReadBlockKind.Mixed, 0, cells, hard);
         }
     }
 }
