@@ -68,8 +68,15 @@ namespace VoxelEngine.Tests.PlayMode
                                          TextureFormat.RGB24, false, true);
             bool oldOrthographic = camera.orthographic;
             float oldOrthographicSize = camera.orthographicSize;
+            double oldSolidBuildBudgetMs = VoxelRenderBridge.SolidBuildBudgetMs;
             try
             {
+                // This fixture is an offline visual-fidelity capture, not the frame-budget gate.
+                // Its 70 m orthographic half-height exposes roughly the whole near clipmap at
+                // once, far more surface chunks than a gameplay perspective view. Give extraction
+                // enough CPU admission to make the existing 8-second hole-free precondition
+                // meaningful; the separate budget/stress fixtures keep production constraints.
+                VoxelRenderBridge.SolidBuildBudgetMs = 8.0;
                 camera.targetTexture = target;
                 camera.orthographic = true;
                 camera.orthographicSize = 70f;
@@ -112,7 +119,11 @@ namespace VoxelEngine.Tests.PlayMode
                       + $"dirty={metrics.SolidDirtyChunks} visible={metrics.VisibleSolidChunks} "
                       + $"missing={metrics.MissingVisibleSolidChunks} jobs={metrics.RunningSolidJobs} "
                       + $"pendingUpload={metrics.SolidPendingUploadBytes} "
-                      + $"completed={metrics.CompletedSolidBuilds} uploaded={metrics.UploadedGeometryBytes}.");
+                      + $"completed={metrics.CompletedSolidBuilds} uploaded={metrics.UploadedGeometryBytes} "
+                      + $"prepareP95={metrics.SchedulerPrepareTiming.P95Ms:F2}ms "
+                      + $"queueP95={metrics.QueueLatencyTiming.P95Ms:F1}ms "
+                      + $"buildP95={metrics.BuildLatencyTiming.P95Ms:F1}ms "
+                      + $"snapshotP95={metrics.SnapshotTiming.P95Ms:F2}ms.");
                     Assert.Greater(metrics.VisibleSolidChunks, 0,
                         $"LOD step {band.step} produced no visible voxel geometry.");
                     Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
@@ -145,6 +156,7 @@ namespace VoxelEngine.Tests.PlayMode
             }
             finally
             {
+                VoxelRenderBridge.SolidBuildBudgetMs = oldSolidBuildBudgetMs;
                 camera.targetTexture = null;
                 camera.orthographic = oldOrthographic;
                 camera.orthographicSize = oldOrthographicSize;
