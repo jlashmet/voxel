@@ -240,7 +240,6 @@ namespace MountingForce.WorldGen.Voxel
 
             var b = new ProgramBuilder();
 
-            // Ground floor remains tied to the plot frontage while upper floors may project over it.
             b.Box(x0, 0, z0, w, f, d, foundation);
             EmitShell(b, x0, f, z0, w, floor, d, t, wall);
 
@@ -253,8 +252,6 @@ namespace MountingForce.WorldGen.Voxel
                 EmitShell(b, upperX, f + floor, upperZ,
                     upperW, upperH, upperD, t, wall);
 
-            // Wings are one-storey service/workshop volumes. They intentionally overlap the main
-            // shell slightly; their interior carve opens the connection instead of leaving two boxes.
             bool hasWing = form.Footprint == KentridgeFootprintForm.RearWing
                         || form.Footprint == KentridgeFootprintForm.SideWing;
             int wingX = 0, wingZ = 0, wingW = 0, wingD = 0;
@@ -280,8 +277,6 @@ namespace MountingForce.WorldGen.Voxel
                 AddFrontageWindows(b, form, x0, z0, w, f, t, floor, 0,
                     glass, s, doorX, doorW);
 
-            // Upper facade uses the potentially projecting storey width, producing visible changes
-            // in silhouette rather than changing only window decoration.
             for (int storey = 1; storey < form.Storeys; storey++)
             {
                 int y = f + storey * floor + theme.WindowBaseDm * s;
@@ -307,12 +302,12 @@ namespace MountingForce.WorldGen.Voxel
                 AddTimberFrame(b, upperX, upperZ, upperW, upperD,
                     f + floor, upperH, beam, timber);
 
-            // Public entrances are gameplay apertures, not facade decoration. The front timber rails
-            // are two beams deep (6 dm in the Kentridge theme), one voxel deeper than the shell's
-            // historical doorway carve. Shopfront sills also project two decimetres outside the wall.
-            // Clear the entire decorated facade depth after every facade primitive so no later rail or
-            // sill can leave a collision strip inside an otherwise visible doorway.
-            int doorExteriorClearance = form.IsShop ? 2 * s : 0;
+            // Public entrances own a short exterior air landing as well as the wall aperture. The
+            // previous inward-only carve could leave the first terrain/infrastructure voxel directly
+            // outside the facade at body height; a 0.3 m-radius character then stopped with its centre
+            // about 0.2 m inside the doorway. Four decimetres clears that leading-edge volume while
+            // starting at threshold height, so the walkable ground below remains intact.
+            int doorExteriorClearance = 4 * s;
             int doorFacadeDepth = math.max(t + s, 2 * beam);
             b.Carve(
                 doorX,
