@@ -40,12 +40,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Focused EditMode is green 85/85. In addition to owned-dirty admission and renderer-world
-          # teardown, a vanished mixed COW payload now rejects the optimistic exact snapshot and
-          # requeues through the existing bounded pin-release path instead of retrying one cursor
-          # forever. The prior Metal coarse failure ended with three visible holes and three active
-          # jobs for >20 seconds with no upload backlog; this run validates that concrete stall fix.
-          # Visual LOD remains subject/image-scoped; stress remains 2 workers with production budgets.
+          # Focused EditMode is green after adding allocation-free coarse phase telemetry. Prior
+          # fixes removed unowned dirty work and infinite mixed-pin retry, but step 4 still ended
+          # with three visible holes and active aggregate jobs. This Metal run records step-4-only
+          # known/resident/dirty/missing/running plus build-phase and job-type masks so the next
+          # change targets the actual stalled phase. Stress remains 2 workers with production budgets.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
