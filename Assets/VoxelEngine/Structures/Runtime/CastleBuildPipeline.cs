@@ -33,8 +33,10 @@ namespace VoxelEngine.Structures.Runtime
         private CastleGatehousePlan _gatehousePlan;
         private bool _hasPosternGate;
         private CastleGatePlacementSpec _posternGate;
+        private CastleWallDoorPlan _posternDoorPlan;
         private bool _hasInnerGate;
         private CastleGatePlacementSpec _innerGate;
+        private CastleWallDoorPlan _innerWardDoorPlan;
         private bool _hasSpatialWell;
         private int2 _spatialWellCentre;
         private CastleCourtyardBuildingSpec[] _courtyardBuildings;
@@ -130,6 +132,8 @@ namespace VoxelEngine.Structures.Runtime
             _spatialKeepPlan = plan;
             _sitePlan = default;
             _wallPlan = default;
+            _posternDoorPlan = default;
+            _innerWardDoorPlan = default;
             _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _innerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
@@ -219,16 +223,20 @@ namespace VoxelEngine.Structures.Runtime
                             in _wallPlan);
 
                         if (_hasPosternGate)
-                            CastlePosternRealizer.BuildDoor(ref _brush, in _plan, in _posternGate);
+                        {
+                            CastlePosternRealizer.BuildDoor(
+                                ref _brush,
+                                in _plan,
+                                in _posternGate,
+                                in _posternDoorPlan);
+                        }
                         if (_hasInnerGate)
                         {
                             CastleWallDoorRealizer.BuildArchedDoor(
                                 ref _brush,
                                 in _plan,
                                 in _innerGate,
-                                CastleLayout.FrontGateWidth,
-                                CastleLayout.FrontGateHeight,
-                                CastleLayout.FrontGateDepth);
+                                in _innerWardDoorPlan);
                         }
                     }
                     else
@@ -410,6 +418,16 @@ namespace VoxelEngine.Structures.Runtime
             CastleTopologyPlan topology = spatialPlan.Topology;
             _wallPlan = topology.Walls;
             CastleWallPlanValidator.RequireValid(in _wallPlan);
+            if (_hasPosternGate)
+            {
+                _posternDoorPlan = topology.PosternDoor;
+                CastleWallDoorPlanValidator.RequireValid(in _posternDoorPlan);
+            }
+            if (_hasInnerGate)
+            {
+                _innerWardDoorPlan = topology.InnerWardDoor;
+                CastleWallDoorPlanValidator.RequireValid(in _innerWardDoorPlan);
+            }
             _keepAnnexes = topology.KeepAnnexes;
             _keepTurrets = topology.KeepTurrets.Snapshot();
             CastleGatehousePlan gatehouse = topology.Gatehouse;
@@ -449,7 +467,13 @@ namespace VoxelEngine.Structures.Runtime
                 in _wallPlan);
 
             if (_hasPosternGate)
-                CastlePosternRealizer.CarveOpening(ref _brush, in _plan, in _posternGate);
+            {
+                CastlePosternRealizer.CarveOpening(
+                    ref _brush,
+                    in _plan,
+                    in _posternGate,
+                    in _posternDoorPlan);
+            }
 
             if (!_hasInnerGate || _innerWardVertices.Length == 0)
                 return;
@@ -463,9 +487,7 @@ namespace VoxelEngine.Structures.Runtime
                 ref _brush,
                 in _plan,
                 in _innerGate,
-                CastleLayout.FrontGateWidth,
-                CastleLayout.FrontGateHeight,
-                CastleLayout.FrontGateDepth);
+                in _innerWardDoorPlan);
         }
 
         private bool CompleteStage(string stage)
