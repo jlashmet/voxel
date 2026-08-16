@@ -41,5 +41,20 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleTopologyPlanValidator.TryValidate(", layoutPlanner,
                 "Generated topology must validate before spatial planning begins.");
         }
+
+        [Test]
+        public void ResolvedKeepPlacementModesHaveSemanticValidation()
+        {
+            string validator = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialPlanValidator.cs"));
+
+            StringAssert.Contains("CastleKeepPlacement.Central", validator);
+            StringAssert.Contains("CastleSpatialPlanIssue.CentralKeepPlacementMismatch", validator);
+            StringAssert.Contains("CastleKeepPlacement.Rear", validator);
+            StringAssert.Contains("CastleSpatialPlanIssue.RearKeepPlacementMismatch", validator);
+            StringAssert.Contains("CastleKeepPlacement.WallIntegrated", validator);
+            StringAssert.Contains("CastleSpatialPlanIssue.WallIntegratedKeepNotAgainstWard", validator);
+        }
     }
 }
