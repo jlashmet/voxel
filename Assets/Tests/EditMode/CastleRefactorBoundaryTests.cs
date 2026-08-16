@@ -40,8 +40,22 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleFortificationRealizer.CornerTowers(", pipeline);
             StringAssert.Contains("CastleFortificationRealizer.Gatehouse(", pipeline);
             StringAssert.Contains("CastleCourtyardRealizer.Build(", pipeline);
+            StringAssert.Contains("CastleKeepRealizer.TryStep(", pipeline);
             StringAssert.Contains("CastleBuilder.StepBuild(ref _legacy)", pipeline,
-                "Keep, dungeon, and landscape are intentionally still on the migration fallback.");
+                "The final keep roof/annex substage, dungeon, and landscape remain on the migration fallback.");
+        }
+
+        [Test]
+        public void KeepRealizerUsesReusableTowerAndRoomComponents()
+        {
+            string keep = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepRealizer.cs"));
+
+            StringAssert.Contains("CastleTowerRealizer.Build(", keep);
+            StringAssert.Contains("CastleRoomFurnisher.Furnish(", keep);
+            StringAssert.DoesNotContain("BedroomBuilder", keep);
+            StringAssert.DoesNotContain("LibraryBuilder", keep);
         }
     }
 }
