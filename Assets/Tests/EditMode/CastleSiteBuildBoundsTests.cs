@@ -31,7 +31,7 @@ namespace VoxelEngine.Tests.EditMode
                 original.CliffGroundInset,
                 original.GrassEdgeInset,
                 original.ApproachReachInset,
-                riverOffset: 1200,
+                1200,
                 original.RiverHalfWidth,
                 original.WaterHalfWidth,
                 original.RiverDepth,
