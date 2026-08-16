@@ -143,6 +143,22 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
+        public void StepEightHlodWorkspaceDoesNotAllocateUnusedTransvoxelScratch()
+        {
+            string workspace = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "TransvoxelBuildWorkspace.cs"));
+            StringAssert.Contains("if (usesBlockHlod)", workspace);
+            StringAssert.Contains("Density = default;", workspace);
+            StringAssert.Contains("CompactedTopologyVertices = default;", workspace);
+            StringAssert.Contains("FacetedMasks = default;", workspace);
+            StringAssert.Contains("FaceDensity = default;", workspace);
+            StringAssert.Contains("TransitionVertices = default;", workspace);
+            StringAssert.Contains("int legacyMixedCapacity = usesBlockHlod ? 1 : 64 * 1024", workspace);
+            StringAssert.Contains("SnapshotClassificationFlags = usesBlockHlod", workspace);
+        }
+
+
+        [Test]
         public void StepEightHlodRunsAsReadinessGatedBurstJobs()
         {
             string cache = ReadRenderingSource(

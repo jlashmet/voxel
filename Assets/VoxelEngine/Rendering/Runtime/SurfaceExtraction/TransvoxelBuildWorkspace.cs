@@ -59,14 +59,27 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                           int hlodCoreBrickEdge, int cellsPerAxis,
                                           int faceSamplesPerAxis)
         {
-            Density = new NativeArray<float>(gridSampleCount, Allocator.Persistent,
-                                             NativeArrayOptions.UninitializedMemory);
-            Materials = new NativeArray<byte>(gridSampleCount, Allocator.Persistent,
-                                              NativeArrayOptions.UninitializedMemory);
-            SurfaceSemantics = new NativeArray<uint>(gridSampleCount, Allocator.Persistent,
-                                                     NativeArrayOptions.UninitializedMemory);
-            BoundarySamples = new NativeArray<byte>(gridSampleCount, Allocator.Persistent,
-                                                    NativeArrayOptions.UninitializedMemory);
+            // The step-8 block HLOD path never evaluates the Transvoxel density lattice.
+            // Leave those multi-megabyte arrays uncreated for HLOD workers instead of carrying
+            // exact-step scratch that can never be scheduled.
+            if (usesBlockHlod)
+            {
+                Density = default;
+                Materials = default;
+                SurfaceSemantics = default;
+                BoundarySamples = default;
+            }
+            else
+            {
+                Density = new NativeArray<float>(gridSampleCount, Allocator.Persistent,
+                                                 NativeArrayOptions.UninitializedMemory);
+                Materials = new NativeArray<byte>(gridSampleCount, Allocator.Persistent,
+                                                  NativeArrayOptions.UninitializedMemory);
+                SurfaceSemantics = new NativeArray<uint>(gridSampleCount, Allocator.Persistent,
+                                                         NativeArrayOptions.UninitializedMemory);
+                BoundarySamples = new NativeArray<byte>(gridSampleCount, Allocator.Persistent,
+                                                        NativeArrayOptions.UninitializedMemory);
+            }
 
             if (samplesFromMips)
             {
@@ -87,10 +100,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 MipSampleMaterials = default;
             }
 
-            DensityMixedVoxels = new NativeList<byte>(64 * 1024, Allocator.Persistent);
-            DensityMixedSurfaceSemantics = new NativeList<ushort>(64 * 1024,
+            // Exact COW readers normally borrow Storage payload arrays. Keep only a minimal
+            // fallback list for the HLOD worker rather than reserving legacy copy capacity.
+            int legacyMixedCapacity = usesBlockHlod ? 1 : 64 * 1024;
+            DensityMixedVoxels = new NativeList<byte>(legacyMixedCapacity, Allocator.Persistent);
+            DensityMixedSurfaceSemantics = new NativeList<ushort>(legacyMixedCapacity,
                                                                   Allocator.Persistent);
-            DensityMixedBoundarySamples = new NativeList<byte>(64 * 1024,
+            DensityMixedBoundarySamples = new NativeList<byte>(legacyMixedCapacity,
                                                                Allocator.Persistent);
             PinnedReadBlocks = new NativeList<VoxelReadPinToken>(
                 brickCacheCount > 0 ? brickCacheCount : 1, Allocator.Persistent);
@@ -99,8 +115,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 ExactMixedFlags = new NativeArray<byte>(brickCacheCount, Allocator.Persistent,
                                                         NativeArrayOptions.UninitializedMemory);
                 ExactMixedBrickIndices = new NativeList<int>(brickCacheCount, Allocator.Persistent);
-                SnapshotClassificationFlags = new NativeArray<byte>(2, Allocator.Persistent,
-                                                                     NativeArrayOptions.ClearMemory);
+                SnapshotClassificationFlags = usesBlockHlod
+                    ? default
+                    : new NativeArray<byte>(2, Allocator.Persistent,
+                                            NativeArrayOptions.ClearMemory);
             }
             else
             {
@@ -129,22 +147,39 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 HlodOverflow = default;
             }
 
-            CompactedTopologyVertices = new NativeList<SmoothSurfaceVertex>(
-                16_384, Allocator.Persistent);
-            CompactedTopologyIndices = new NativeList<uint>(24_576, Allocator.Persistent);
-            TopologyOverflowCell = new NativeArray<int>(1, Allocator.Persistent);
-            FacetedMasks = new NativeArray<uint>(
-                6 * cellsPerAxis * cellsPerAxis * cellsPerAxis,
-                Allocator.Persistent);
-            FacetedVertices = new NativeList<SmoothSurfaceVertex>(16_384, Allocator.Persistent);
-            FacetedIndices = new NativeList<uint>(24_576, Allocator.Persistent);
+            if (usesBlockHlod)
+            {
+                CompactedTopologyVertices = default;
+                CompactedTopologyIndices = default;
+                TopologyOverflowCell = default;
+                FacetedMasks = default;
+                FacetedVertices = default;
+                FacetedIndices = default;
+                FaceDensity = default;
+                FaceMaterials = default;
+                FaceSurfaces = default;
+                TransitionVertices = default;
+                TransitionIndices = default;
+            }
+            else
+            {
+                CompactedTopologyVertices = new NativeList<SmoothSurfaceVertex>(
+                    16_384, Allocator.Persistent);
+                CompactedTopologyIndices = new NativeList<uint>(24_576, Allocator.Persistent);
+                TopologyOverflowCell = new NativeArray<int>(1, Allocator.Persistent);
+                FacetedMasks = new NativeArray<uint>(
+                    6 * cellsPerAxis * cellsPerAxis * cellsPerAxis,
+                    Allocator.Persistent);
+                FacetedVertices = new NativeList<SmoothSurfaceVertex>(16_384, Allocator.Persistent);
+                FacetedIndices = new NativeList<uint>(24_576, Allocator.Persistent);
 
-            int faceSamples = faceSamplesPerAxis * faceSamplesPerAxis;
-            FaceDensity = new NativeArray<float>(faceSamples, Allocator.Persistent);
-            FaceMaterials = new NativeArray<byte>(faceSamples, Allocator.Persistent);
-            FaceSurfaces = new NativeArray<uint>(faceSamples, Allocator.Persistent);
-            TransitionVertices = new NativeList<SmoothSurfaceVertex>(2048, Allocator.Persistent);
-            TransitionIndices = new NativeList<uint>(3072, Allocator.Persistent);
+                int faceSamples = faceSamplesPerAxis * faceSamplesPerAxis;
+                FaceDensity = new NativeArray<float>(faceSamples, Allocator.Persistent);
+                FaceMaterials = new NativeArray<byte>(faceSamples, Allocator.Persistent);
+                FaceSurfaces = new NativeArray<uint>(faceSamples, Allocator.Persistent);
+                TransitionVertices = new NativeList<SmoothSurfaceVertex>(2048, Allocator.Persistent);
+                TransitionIndices = new NativeList<uint>(3072, Allocator.Persistent);
+            }
 
             // The HLOD worker meshes a 128^3 subcell volume. Keep its output fixed-capacity and
             // comfortably below the shared GPU arena ceiling so Burst can use AddNoResize and
