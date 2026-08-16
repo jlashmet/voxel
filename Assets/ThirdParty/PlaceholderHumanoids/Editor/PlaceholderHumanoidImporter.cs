@@ -26,6 +26,13 @@ namespace VoxelGame.Editor
                 "CrouchIdle"
             };
 
+        private static readonly HashSet<string> OneShotAnimationNames =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Wave",
+                "Shrug"
+            };
+
         private bool IsPlaceholderAsset =>
             assetPath.StartsWith(Root, StringComparison.OrdinalIgnoreCase);
 
@@ -36,6 +43,13 @@ namespace VoxelGame.Editor
         private bool IsAnimationAsset =>
             IsPlaceholderAsset &&
             assetPath.IndexOf(AnimationFolder, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        public override uint GetVersion()
+        {
+            // Bump when import behavior changes so Unity reimports associated FBXs even
+            // when CI/editor sessions retain a warm Library cache.
+            return 2;
+        }
 
         private void OnPreprocessModel()
         {
@@ -56,15 +70,16 @@ namespace VoxelGame.Editor
 
         private void OnPreprocessAnimation()
         {
-            if (!IsAnimationAsset)
+            if (!IsAnimationAsset || !TryGetLoopPolicy(assetPath, out var shouldLoop))
             {
+                // Future authenticated Mixamo or other Humanoid clips keep their authored
+                // import semantics unless they are intentionally added to the starter policy.
                 return;
             }
 
             var importer = (ModelImporter)assetImporter;
             var clips = importer.defaultClipAnimations;
             var semanticName = Path.GetFileNameWithoutExtension(assetPath);
-            var shouldLoop = LoopingAnimationNames.Contains(semanticName);
 
             foreach (var clip in clips)
             {
@@ -72,10 +87,11 @@ namespace VoxelGame.Editor
                 // used by the local asset paths and future generated-character animation data.
                 clip.name = semanticName;
                 clip.loopTime = shouldLoop;
+                clip.loopPose = shouldLoop;
             }
 
             // On first import Unity leaves clipAnimations empty. Persisting the default
-            // take definitions here gives the temporary pack explicit gameplay semantics:
+            // take definitions here gives the starter pack explicit gameplay semantics:
             // locomotion/idles loop, while interaction emotes remain one-shot.
             importer.clipAnimations = clips;
         }
@@ -93,6 +109,25 @@ namespace VoxelGame.Editor
             // for development when it exists, but some Rocketbox Export FBXs contain only
             // hipoly; in that case never deactivate the only usable body mesh.
             SelectPreferredLod(root.transform);
+        }
+
+        private static bool TryGetLoopPolicy(string path, out bool shouldLoop)
+        {
+            var animationName = Path.GetFileNameWithoutExtension(path);
+            if (LoopingAnimationNames.Contains(animationName))
+            {
+                shouldLoop = true;
+                return true;
+            }
+
+            if (OneShotAnimationNames.Contains(animationName))
+            {
+                shouldLoop = false;
+                return true;
+            }
+
+            shouldLoop = false;
+            return false;
         }
 
         private static void SelectPreferredLod(Transform root)
