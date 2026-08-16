@@ -16,7 +16,7 @@ namespace VoxelEngine.Structures.Runtime
             int2 worldKeepCentre,
             in CastleKeepCirculationPlan circulation)
         {
-            if (!CastleKeepCirculationPlanner.TryValidate(
+            if (!CastleKeepCirculationPlanValidator.TryValidate(
                     in plan, in circulation, out CastleKeepCirculationPlanIssue issue))
             {
                 throw new InvalidOperationException(
