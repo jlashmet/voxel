@@ -2015,11 +2015,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _pinnedRegionSource = source;
             _exactMixedBrickIndices.Clear();
 
-            JobHandle dependency = new ExactBrickMetadataClearJob
+            JobHandle clearHandle = new ExactBrickMetadataClearJob
             {
                 Bricks = _densityBricks,
                 MixedFlags = _exactMixedFlags,
             }.Schedule(BrickCacheCount, 256);
+            JobHandle regionDependency = default;
+            bool hasRegionDependency = false;
 
             int edge = VoxelReadGrid.BlocksPerRegionEdge;
             int3 cacheMaxExclusive = cacheOrigin + BrickCacheEdge;
@@ -2050,7 +2052,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 int volume = size.x * size.y * size.z;
                 if (volume <= 0) continue;
 
-                dependency = new ExactBrickMetadataRegionJob
+                JobHandle regionHandle = new ExactBrickMetadataRegionJob
                 {
                     EncodedBlockRefs = pinned.EncodedBlockRefs,
                     RegionCoord = regionCoord,
@@ -2060,9 +2062,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     BrickCacheEdge = BrickCacheEdge,
                     Bricks = _densityBricks,
                     MixedFlags = _exactMixedFlags,
-                }.Schedule(volume, 128, dependency);
+                }.Schedule(volume, 128, clearHandle);
+                regionDependency = hasRegionDependency
+                    ? JobHandle.CombineDependencies(regionDependency, regionHandle)
+                    : regionHandle;
+                hasRegionDependency = true;
             }
 
+            JobHandle dependency = hasRegionDependency ? regionDependency : clearHandle;
             _exactMetadataJobHandle = new ExactMixedBrickCompactJob
             {
                 MixedFlags = _exactMixedFlags,
