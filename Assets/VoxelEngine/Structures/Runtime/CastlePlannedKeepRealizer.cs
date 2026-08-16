@@ -53,7 +53,7 @@ namespace VoxelEngine.Structures.Runtime
                     break;
 
                 case 2:
-                    CastleKeepFloorRealizer.Build(
+                    CastleKeepFloorRealizer.BuildPlanned(
                         ref brush,
                         in keepPlan,
                         min,
