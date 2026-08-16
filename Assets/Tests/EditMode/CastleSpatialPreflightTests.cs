@@ -93,6 +93,34 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void LargerAttachedCaveIncreasesSpatialEstimate()
+        {
+            CastlePlan plan = CastlePlanner.Create(int3.zero, 108u);
+            var topology = new CastleTopologyPlan
+            {
+                Perimeter = CastlePerimeterKind.Rectangular,
+                KeepPlacement = CastleKeepPlacement.Central,
+                Wards = CastleWardPattern.SingleWard,
+                DesiredTowerCount = 4,
+                HasPosternGate = false,
+            };
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
+            Assert.NotNull(completed.Cave);
+
+            long before = CastleBuildPreflight.EstimateWrites(in plan, completed);
+            CaveChamberPlan chamber = completed.Cave.Chambers[0];
+            chamber.Radii += new int3(12, 6, 12);
+            completed.Cave.Chambers[0] = chamber;
+            Assert.IsTrue(CavePlanValidator.TryValidate(completed.Cave, out CavePlanIssue issue),
+                issue.ToString());
+
+            long after = CastleBuildPreflight.EstimateWrites(in plan, completed);
+            Assert.Greater(after, before,
+                "Spatial admission cost should follow the attached cave geometry, not a fixed allowance.");
+        }
+
+        [Test]
         public void SpatialPreflightRejectsComplexPlanAtLegacyOnlyBudget()
         {
             CastlePlan plan = CastlePlanner.Create(int3.zero, 109u);
