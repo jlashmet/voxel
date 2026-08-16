@@ -22,9 +22,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
     /// <summary>
     /// Maps one physically pinned region's compact block-ref metadata into the worker's padded
-    /// exact brick cache. Region jobs fan out from one shared clear dependency; each writes a
-    /// disjoint intersection, and the owner combines all region handles before compaction.
-    /// Encoded refs may be authoritatively
+    /// exact brick cache. Region jobs are chained sequentially; each writes a disjoint intersection
+    /// and therefore never contends with another region. Encoded refs may be authoritatively
     /// replaced while the job runs; the owning region revision is validated before output is used.
     /// </summary>
     [BurstCompile]
