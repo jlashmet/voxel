@@ -12,6 +12,7 @@ namespace VoxelEngine.Tests.EditMode
         private const string MalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Male_Adult_01.fbx";
         private const string FemalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Female_Adult_01.fbx";
         private const string WalkPath = "Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx";
+        private const string RunPath = "Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx";
 
         [TestCase(MalePath)]
         [TestCase(FemalePath)]
@@ -72,6 +73,24 @@ namespace VoxelEngine.Tests.EditMode
 
                 Object.DestroyImmediate(instance);
             }
+        }
+
+        [TestCase(WalkPath, "Walk")]
+        [TestCase(RunPath, "Run")]
+        public void LocomotionClip_PreservesAuthoredHorizontalRootMotion(string path, string clipName)
+        {
+            var clip = AssetDatabase.LoadAllAssetsAtPath(path)
+                .OfType<AnimationClip>()
+                .FirstOrDefault(candidate => candidate.name == clipName);
+
+            Assert.That(clip, Is.Not.Null, $"The semantic {clipName} clip was not imported from {path}");
+            Assert.That(clip.humanMotion, Is.True, $"{clipName} must remain Humanoid motion for retargeting");
+
+            var horizontalSpeed = new Vector2(clip.averageSpeed.x, clip.averageSpeed.z).magnitude;
+            Assert.That(
+                horizontalSpeed,
+                Is.GreaterThan(0.01f),
+                $"{clipName} imported with no horizontal root translation; the Rocketbox motion-extraction data was lost");
         }
     }
 }
