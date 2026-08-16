@@ -125,6 +125,8 @@ namespace VoxelEngine.Tests.EditMode
                     $"{Path.GetFileName(file)} must consume planned courtyard buildings rather than place them.");
                 StringAssert.DoesNotContain("CastleCourtyardBuildingPlanner.Create(", runtimeSource,
                     $"{Path.GetFileName(file)} must not invoke courtyard planning during realization.");
+                StringAssert.DoesNotContain("CastleCavePlanning.Create(", runtimeSource,
+                    $"{Path.GetFileName(file)} must consume CavePlan rather than plan natural space.");
             }
         }
 
@@ -150,6 +152,25 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("LegacyKeepCentreZOffset = 60", projection,
                 "The migration offset must have one API-owned declaration, not a projection copy.");
             StringAssert.DoesNotContain("Structures.Runtime", projection);
+        }
+
+        [Test]
+        public void SpatialDungeonConsumesPlannedNaturalCave()
+        {
+            string pipeline = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleBuildPipeline.cs"));
+            string plannedDungeon = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedDungeonRealizer.cs"));
+
+            StringAssert.Contains("CavePlan _spatialCavePlan", pipeline);
+            StringAssert.Contains("CavePlanSnapshot.CloneValidated(spatialPlan.Cave)", pipeline);
+            StringAssert.Contains(
+                "CastlePlannedDungeonRealizer.Build(\n                            ref _brush, _spatialDungeonPlan, _spatialCavePlan)",
+                pipeline);
+            StringAssert.Contains("CaveRealizer.Build(ref brush, cavePlan)", plannedDungeon);
+            StringAssert.DoesNotContain("CastleCavePlanning.Create(", plannedDungeon);
         }
 
         [Test]
