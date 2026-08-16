@@ -122,6 +122,44 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator VisualResolverSwap_PreservesPlaybackTime()
+        {
+            var host = new GameObject("character");
+            var fallback = new GameObject("fallback");
+            var preferred = new GameObject("preferred");
+            fallback.AddComponent<Animator>();
+            preferred.AddComponent<Animator>();
+            var clip = CreateTimedClip("locomotion", 1f);
+
+            var resolver = host.AddComponent<CharacterVisualResolver>();
+            var player = host.AddComponent<CharacterAnimationPlayer>();
+            resolver.SetFallbackVisual(fallback);
+            Assert.That(player.Play(clip), Is.True);
+
+            for (var frame = 0; frame < 10 && player.CurrentTime <= 0.001d; frame++)
+            {
+                yield return null;
+            }
+
+            double beforeSwap = player.CurrentTime;
+            Assert.That(beforeSwap, Is.GreaterThan(0.001d),
+                "The timed clip never advanced before the visual swap");
+
+            resolver.SetPreferredVisual(preferred);
+
+            Assert.That(player.CurrentClip, Is.SameAs(clip));
+            Assert.That(player.CurrentTime, Is.EqualTo(beforeSwap).Within(0.01d),
+                "Visual replacement restarted the active animation instead of preserving playback time");
+            Assert.That(player.IsPlaying, Is.True);
+
+            Object.Destroy(host);
+            Object.Destroy(fallback);
+            Object.Destroy(preferred);
+            Object.Destroy(clip);
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator VisualResolverWithoutVisual_KeepsClipIntentUntilVisualReturns()
         {
             var host = new GameObject("character");
@@ -295,6 +333,17 @@ namespace VoxelEngine.Tests.PlayMode
             Object.Destroy(run);
             Object.Destroy(oneShot);
             yield return null;
+        }
+
+        private static AnimationClip CreateTimedClip(string name, float length)
+        {
+            var clip = new AnimationClip { name = name };
+            clip.SetCurve(
+                string.Empty,
+                typeof(Transform),
+                "localPosition.x",
+                AnimationCurve.Linear(0f, 0f, length, 0f));
+            return clip;
         }
     }
 }
