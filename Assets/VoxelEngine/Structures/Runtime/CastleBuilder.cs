@@ -15,8 +15,7 @@ namespace VoxelEngine.Structures.Runtime
     {
         /// <summary>
         /// Compatibility wrapper for callers that still use the old incremental build handle.
-        /// Copies intentionally reference the same pipeline, matching the shared backing storage
-        /// semantics of the previous capability-based build state.
+        /// New code should own a <see cref="CastleBuildPipeline"/> through the composition layer.
         /// </summary>
         public struct IncrementalBuild
         {
