@@ -60,6 +60,14 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsFalse(CastleSpatialBuildReadiness.TryValidate(
                 in plan, spatial, out CastleSpatialBuildReadinessIssue readinessIssue));
             Assert.AreEqual(CastleSpatialBuildReadinessIssue.MissingTowerSlitPlan, readinessIssue);
+
+            CastleBuildPreflightResult preflight = CastleBuildPreflight.EvaluateRuntimeReady(
+                in plan, spatial, long.MaxValue);
+            Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, preflight.Issue);
+            Assert.AreEqual(
+                CastleSpatialBuildReadinessIssue.MissingTowerSlitPlan,
+                preflight.ReadinessIssue,
+                "Direct runtime callers must be rejected before stage 1, not during tower realization.");
         }
 
         [Test]
