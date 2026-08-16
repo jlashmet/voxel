@@ -73,7 +73,7 @@ namespace VoxelEngine.Structures.Runtime
                     break;
 
                 case 6:
-                    CastlePlannedKeepAnnexRealizer.Build(
+                    CastleKeepAnnexRealizer.BuildPlanned(
                         ref brush, in keepPlan, in annexes);
                     break;
             }
