@@ -372,8 +372,8 @@ jobs:
                           _transitionFace = -1;
                           _transitionSampleCursor = 0;'''
           reset_count = s.count(reset_needle)
-          if reset_count != 4:
-              raise SystemExit(f'build reset sites: expected 4, found {reset_count}')
+          if reset_count != 3:
+              raise SystemExit(f'build reset sites: expected 3, found {reset_count}')
           s = s.replace(reset_needle, reset_replacement)
 
           if '}.Run();' in s[transition_start:s.index('        private void InitialiseTopologyTables()', transition_start)]:
