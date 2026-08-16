@@ -49,7 +49,7 @@ namespace VoxelGame.Editor
         {
             // Bump when import behavior changes so Unity reimports associated FBXs even
             // when CI/editor sessions retain a warm Library cache.
-            return 3;
+            return 4;
         }
 
         private void OnPreprocessModel()
