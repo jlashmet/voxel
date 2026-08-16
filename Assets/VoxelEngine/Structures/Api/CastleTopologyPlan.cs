@@ -36,6 +36,8 @@ namespace VoxelEngine.Structures.Api
         public bool HasPosternGate;
         public CastleSitePlan Site;
         public CastleWallPlan Walls;
+        public CastleWallDoorPlan PosternDoor;
+        public CastleWallDoorPlan InnerWardDoor;
         public bool HasKeepAnnexPlan;
         public CastleKeepAnnexPlan KeepAnnexes;
 
@@ -63,6 +65,8 @@ namespace VoxelEngine.Structures.Api
         InvalidGatehousePlan,
         InvalidSitePlan,
         InvalidWallPlan,
+        InvalidPosternDoorPlan,
+        InvalidInnerWardDoorPlan,
     }
 
     /// <summary>
@@ -139,6 +143,26 @@ namespace VoxelEngine.Structures.Api
             {
                 issue = CastleTopologyPlanIssue.InvalidWallPlan;
                 return false;
+            }
+
+            if (plan.HasPosternGate)
+            {
+                CastleWallDoorPlan posternDoor = plan.PosternDoor;
+                if (!CastleWallDoorPlanValidator.TryValidate(in posternDoor, out _))
+                {
+                    issue = CastleTopologyPlanIssue.InvalidPosternDoorPlan;
+                    return false;
+                }
+            }
+
+            if (plan.Wards == CastleWardPattern.InnerAndOuterWards)
+            {
+                CastleWallDoorPlan innerWardDoor = plan.InnerWardDoor;
+                if (!CastleWallDoorPlanValidator.TryValidate(in innerWardDoor, out _))
+                {
+                    issue = CastleTopologyPlanIssue.InvalidInnerWardDoorPlan;
+                    return false;
+                }
             }
 
             if (plan.HasKeepAnnexPlan)
