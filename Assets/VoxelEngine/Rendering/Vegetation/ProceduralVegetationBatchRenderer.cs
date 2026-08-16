@@ -64,8 +64,9 @@ namespace VoxelEngine.Rendering.Vegetation
             {
                 if (pair.Value.Count == 0) continue;
 
+                VegetationProfile profile = VegetationCatalogue.Get(pair.Key);
                 VegetationRenderStyle style = ProceduralVegetationMaterials.StyleFor(pair.Key);
-                Mesh mesh = ProceduralVegetationMeshLibrary.MeshFor(style.ShaderClass);
+                Mesh mesh = ProceduralVegetationMeshLibrary.MeshFor(style.ShaderClass, profile.GrowthForm);
                 Material material = ProceduralVegetationMaterials.MaterialFor(pair.Key);
                 if (mesh == null || material == null) continue;
 
@@ -160,20 +161,20 @@ namespace VoxelEngine.Rendering.Vegetation
                     height = 1.05f * scale;
                     return;
                 case VegetationGrowthForm.Shrub:
-                    width = 1.35f * scale;
-                    height = 1.05f * scale;
+                    width = 1.18f * scale;
+                    height = 1.02f * scale;
                     return;
                 case VegetationGrowthForm.Fungus:
-                    width = 0.46f * scale;
-                    height = 0.55f * scale;
+                    width = 0.62f * scale;
+                    height = 0.62f * scale;
                     return;
                 case VegetationGrowthForm.Aquatic:
-                    width = 0.70f * scale;
-                    height = 0.60f * scale;
+                    width = 0.76f * scale;
+                    height = 0.74f * scale;
                     return;
                 default:
-                    width = 0.58f * scale;
-                    height = 0.78f * scale;
+                    width = 0.62f * scale;
+                    height = 0.82f * scale;
                     return;
             }
         }
@@ -190,119 +191,358 @@ namespace VoxelEngine.Rendering.Vegetation
         }
     }
 
+    /// <summary>
+    /// Small procedural source meshes shared by every vegetation instance. Geometry is keyed by
+    /// semantic growth form rather than species, keeping the catalogue extensible while avoiding
+    /// the flat single-card look that makes different plants collapse into the same silhouette.
+    /// </summary>
     internal static class ProceduralVegetationMeshLibrary
     {
-        private static Mesh s_CrossCard;
-        private static Mesh s_SurfaceQuad;
-        private static Mesh s_VineStrip;
-        private static Mesh s_WoodyCylinder;
+        private const int GrowthFormCount = 10;
 
-        public static Mesh MeshFor(VegetationShaderClass shaderClass)
+        private static readonly Mesh[] s_FoliageMeshes = new Mesh[GrowthFormCount];
+        private static Mesh s_SurfacePatch;
+        private static Mesh s_VineCluster;
+        private static Mesh s_WoodyBranchCluster;
+
+        public static Mesh MeshFor(VegetationShaderClass shaderClass, VegetationGrowthForm growthForm)
         {
             switch (shaderClass)
             {
                 case VegetationShaderClass.Surface:
-                    return s_SurfaceQuad != null ? s_SurfaceQuad : (s_SurfaceQuad = BuildQuad("Vegetation Surface Quad", false));
+                    if (s_SurfacePatch == null) s_SurfacePatch = BuildSurfacePatch();
+                    return s_SurfacePatch;
                 case VegetationShaderClass.Vine:
-                    return s_VineStrip != null ? s_VineStrip : (s_VineStrip = BuildQuad("Vegetation Vine Strip", true));
+                    if (s_VineCluster == null) s_VineCluster = BuildVineCluster();
+                    return s_VineCluster;
                 case VegetationShaderClass.Woody:
-                    return s_WoodyCylinder != null ? s_WoodyCylinder : (s_WoodyCylinder = BuildCylinder());
+                    if (s_WoodyBranchCluster == null) s_WoodyBranchCluster = BuildWoodyBranchCluster();
+                    return s_WoodyBranchCluster;
                 default:
-                    return s_CrossCard != null ? s_CrossCard : (s_CrossCard = BuildCrossCard());
+                    int index = Mathf.Clamp((int)growthForm, 0, GrowthFormCount - 1);
+                    if (s_FoliageMeshes[index] == null)
+                        s_FoliageMeshes[index] = BuildFoliageCluster(growthForm);
+                    return s_FoliageMeshes[index];
             }
         }
 
-        private static Mesh BuildCrossCard()
+        private static Mesh BuildFoliageCluster(VegetationGrowthForm growthForm)
         {
-            Mesh mesh = NewMesh("Vegetation Cross Card");
-            mesh.vertices = new[]
+            var vertices = new List<Vector3>(48);
+            var normals = new List<Vector3>(48);
+            var uv = new List<Vector2>(48);
+            var colors = new List<Color>(48);
+            var triangles = new List<int>(72);
+
+            switch (growthForm)
             {
-                new Vector3(-0.5f, 0f, 0f), new Vector3(0.5f, 0f, 0f),
-                new Vector3(0.5f, 1f, 0f), new Vector3(-0.5f, 1f, 0f),
-                new Vector3(0f, 0f, -0.5f), new Vector3(0f, 0f, 0.5f),
-                new Vector3(0f, 1f, 0.5f), new Vector3(0f, 1f, -0.5f),
-            };
-            mesh.normals = new[]
-            {
-                Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward,
-                Vector3.right, Vector3.right, Vector3.right, Vector3.right,
-            };
-            mesh.uv = new[]
-            {
-                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
-                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
-            };
-            mesh.colors = WhiteColors(8);
-            mesh.triangles = new[] { 0,1,2, 0,2,3, 4,5,6, 4,6,7 };
-            mesh.RecalculateBounds();
+                case VegetationGrowthForm.Frond:
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.06f, 0f, 0.00f), 0.58f, 1.00f, 0f, 0.34f, 0.04f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.04f, 0f, 0.02f), 0.54f, 0.92f, 34f, 0.42f, 0.12f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.02f, 0f,-0.04f), 0.56f, 0.96f, 70f, 0.38f, 0.20f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.04f, 0f, 0.02f), 0.50f, 0.84f, 108f, 0.46f, 0.09f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.03f, 0f, 0.03f), 0.52f, 0.89f, 144f, 0.40f, 0.17f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.02f, 0f,-0.03f), 0.47f, 0.78f, 176f, 0.48f, 0.24f);
+                    break;
+
+                case VegetationGrowthForm.Shrub:
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.00f, 0.02f, 0.00f), 0.78f, 0.86f,   0f, 0.06f, 0.05f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.00f, 0.05f, 0.00f), 0.76f, 0.92f,  45f,-0.04f, 0.10f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.00f, 0.00f, 0.00f), 0.80f, 0.82f,  90f, 0.08f, 0.16f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.00f, 0.08f, 0.00f), 0.70f, 0.88f, 135f,-0.06f, 0.22f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.27f, 0.00f, 0.05f), 0.52f, 0.63f,  18f, 0.12f, 0.08f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.25f, 0.01f,-0.04f), 0.54f, 0.68f,  73f, 0.10f, 0.14f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.05f, 0.00f, 0.25f), 0.50f, 0.61f, 121f, 0.13f, 0.19f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.04f, 0.02f,-0.25f), 0.48f, 0.66f, 162f, 0.11f, 0.24f);
+                    break;
+
+                case VegetationGrowthForm.Fungus:
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.18f, 0f, 0.02f), 0.50f, 0.70f,   0f, 0.00f, 0.06f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.17f, 0f,-0.03f), 0.42f, 0.57f,  48f, 0.00f, 0.12f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.02f, 0f, 0.16f), 0.36f, 0.48f,  95f, 0.00f, 0.20f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.04f, 0f,-0.17f), 0.39f, 0.53f, 142f, 0.00f, 0.15f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.00f, 0f, 0.00f), 0.46f, 0.64f, 176f, 0.00f, 0.24f);
+                    break;
+
+                case VegetationGrowthForm.Aquatic:
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.19f, 0f, 0.04f), 0.29f, 0.88f,   0f, 0.14f, 0.04f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.17f, 0f,-0.02f), 0.27f, 0.95f,  31f,-0.10f, 0.10f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.05f, 0f, 0.16f), 0.25f, 0.74f,  65f, 0.18f, 0.17f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.06f, 0f,-0.16f), 0.26f, 0.81f, 101f,-0.15f, 0.22f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.12f, 0f,-0.11f), 0.24f, 0.69f, 139f, 0.17f, 0.13f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.13f, 0f, 0.11f), 0.28f, 0.85f, 169f,-0.12f, 0.20f);
+                    break;
+
+                case VegetationGrowthForm.Tuft:
+                default:
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.15f, 0f, 0.03f), 0.34f, 1.02f,   0f, 0.13f, 0.03f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.14f, 0f,-0.02f), 0.31f, 0.88f,  27f,-0.12f, 0.08f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.05f, 0f, 0.14f), 0.33f, 0.95f,  55f, 0.18f, 0.14f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.06f, 0f,-0.14f), 0.29f, 0.76f,  84f,-0.16f, 0.20f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3(-0.12f, 0f,-0.09f), 0.30f, 0.84f, 113f, 0.15f, 0.11f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.12f, 0f, 0.10f), 0.32f, 0.91f, 145f,-0.13f, 0.18f);
+                    AddVerticalCard(vertices, normals, uv, colors, triangles, new Vector3( 0.00f, 0f, 0.00f), 0.28f, 1.10f, 172f, 0.09f, 0.24f);
+                    break;
+            }
+
+            Mesh mesh = NewMesh("Vegetation " + growthForm + " Cluster");
+            ApplyMesh(mesh, vertices, normals, uv, colors, triangles);
             return mesh;
         }
 
-        private static Mesh BuildQuad(string name, bool anchored)
+        private static Mesh BuildSurfacePatch()
         {
-            Mesh mesh = NewMesh(name);
-            float bottom = anchored ? 0f : -0.5f;
-            float top = anchored ? 1f : 0.5f;
-            mesh.vertices = new[]
-            {
-                new Vector3(-0.5f, bottom, 0f), new Vector3(0.5f, bottom, 0f),
-                new Vector3(0.5f, top, 0f), new Vector3(-0.5f, top, 0f),
-            };
-            mesh.normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward };
-            mesh.uv = new[] { new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1) };
-            mesh.colors = WhiteColors(4);
-            mesh.triangles = new[] { 0,1,2, 0,2,3 };
-            mesh.RecalculateBounds();
+            var vertices = new List<Vector3>(24);
+            var normals = new List<Vector3>(24);
+            var uv = new List<Vector2>(24);
+            var colors = new List<Color>(24);
+            var triangles = new List<int>(36);
+
+            AddSurfaceCard(vertices, normals, uv, colors, triangles, new Vector2( 0.00f, 0.00f), 0.72f, 0.58f,   0f, 0.000f);
+            AddSurfaceCard(vertices, normals, uv, colors, triangles, new Vector2(-0.27f, 0.10f), 0.48f, 0.38f,  27f, 0.002f);
+            AddSurfaceCard(vertices, normals, uv, colors, triangles, new Vector2( 0.26f,-0.14f), 0.46f, 0.34f, -22f, 0.004f);
+            AddSurfaceCard(vertices, normals, uv, colors, triangles, new Vector2(-0.06f, 0.31f), 0.38f, 0.30f,  63f, 0.006f);
+            AddSurfaceCard(vertices, normals, uv, colors, triangles, new Vector2( 0.31f, 0.23f), 0.32f, 0.26f,  11f, 0.008f);
+
+            Mesh mesh = NewMesh("Vegetation Layered Surface Patch");
+            ApplyMesh(mesh, vertices, normals, uv, colors, triangles);
             return mesh;
         }
 
-        private static Mesh BuildCylinder()
+        private static Mesh BuildVineCluster()
         {
-            const int sides = 8;
-            Mesh mesh = NewMesh("Vegetation Woody Cylinder");
-            Vector3[] vertices = new Vector3[sides * 2];
-            Vector3[] normals = new Vector3[sides * 2];
-            Vector2[] uv = new Vector2[sides * 2];
-            Color[] colors = new Color[sides * 2];
-            int[] triangles = new int[sides * 6];
+            var vertices = new List<Vector3>(64);
+            var normals = new List<Vector3>(64);
+            var uv = new List<Vector2>(64);
+            var colors = new List<Color>(64);
+            var triangles = new List<int>(144);
+
+            AddVineRibbon(vertices, normals, uv, colors, triangles, 0.00f, 0.00f, 1.00f, 1.00f, 0.00f);
+            AddVineRibbon(vertices, normals, uv, colors, triangles,-0.34f, 0.24f, 0.62f, 0.70f, 1.35f);
+            AddVineRibbon(vertices, normals, uv, colors, triangles, 0.35f, 0.43f, 0.48f, 0.66f, 3.05f);
+
+            Mesh mesh = NewMesh("Vegetation Branched Vine Cluster");
+            ApplyMesh(mesh, vertices, normals, uv, colors, triangles);
+            return mesh;
+        }
+
+        private static Mesh BuildWoodyBranchCluster()
+        {
+            var vertices = new List<Vector3>(72);
+            var normals = new List<Vector3>(72);
+            var uv = new List<Vector2>(72);
+            var colors = new List<Color>(72);
+            var triangles = new List<int>(180);
+
+            AddCylinderSegment(vertices, normals, uv, colors, triangles,
+                new Vector3(0f, 0f, 0f), new Vector3(0f, 1.00f, 0f), 0.12f, 7);
+            AddCylinderSegment(vertices, normals, uv, colors, triangles,
+                new Vector3(0f, 0.34f, 0f), new Vector3(0.43f, 0.69f, 0.13f), 0.070f, 6);
+            AddCylinderSegment(vertices, normals, uv, colors, triangles,
+                new Vector3(0f, 0.58f, 0f), new Vector3(-0.34f, 0.88f,-0.16f), 0.060f, 6);
+            AddCylinderSegment(vertices, normals, uv, colors, triangles,
+                new Vector3(0.41f, 0.67f, 0.12f), new Vector3(0.55f, 0.80f, 0.20f), 0.035f, 5);
+
+            Mesh mesh = NewMesh("Vegetation Woody Branch Cluster");
+            ApplyMesh(mesh, vertices, normals, uv, colors, triangles);
+            return mesh;
+        }
+
+        private static void AddVerticalCard(
+            List<Vector3> vertices,
+            List<Vector3> normals,
+            List<Vector2> uv,
+            List<Color> colors,
+            List<int> triangles,
+            Vector3 baseCenter,
+            float width,
+            float height,
+            float yawDegrees,
+            float lean,
+            float tint)
+        {
+            float radians = yawDegrees * Mathf.Deg2Rad;
+            Vector3 rightDirection = new Vector3(Mathf.Cos(radians), 0f, Mathf.Sin(radians));
+            Vector3 normal = new Vector3(-Mathf.Sin(radians), 0f, Mathf.Cos(radians));
+            Vector3 right = rightDirection * (width * 0.5f);
+            Vector3 topCenter = baseCenter + Vector3.up * height + normal * lean;
+            int start = vertices.Count;
+
+            vertices.Add(baseCenter - right);
+            vertices.Add(baseCenter + right);
+            vertices.Add(topCenter + right * 0.68f);
+            vertices.Add(topCenter - right * 0.68f);
+            for (int i = 0; i < 4; i++) normals.Add(normal);
+            uv.Add(new Vector2(0f, 0f));
+            uv.Add(new Vector2(1f, 0f));
+            uv.Add(new Vector2(1f, 1f));
+            uv.Add(new Vector2(0f, 1f));
+
+            Color vertexTint = Color.Lerp(Color.white, new Color(0.68f, 0.90f, 0.58f, 1f), Mathf.Clamp01(tint));
+            for (int i = 0; i < 4; i++) colors.Add(vertexTint);
+            AddQuadTriangles(triangles, start);
+        }
+
+        private static void AddSurfaceCard(
+            List<Vector3> vertices,
+            List<Vector3> normals,
+            List<Vector2> uv,
+            List<Color> colors,
+            List<int> triangles,
+            Vector2 center,
+            float width,
+            float height,
+            float angleDegrees,
+            float depth)
+        {
+            float radians = angleDegrees * Mathf.Deg2Rad;
+            Vector2 axisX = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * (width * 0.5f);
+            Vector2 axisY = new Vector2(-Mathf.Sin(radians), Mathf.Cos(radians)) * (height * 0.5f);
+            int start = vertices.Count;
+
+            AddSurfaceVertex(vertices, center - axisX - axisY, depth);
+            AddSurfaceVertex(vertices, center + axisX - axisY, depth);
+            AddSurfaceVertex(vertices, center + axisX + axisY, depth);
+            AddSurfaceVertex(vertices, center - axisX + axisY, depth);
+            for (int i = 0; i < 4; i++) normals.Add(Vector3.forward);
+            uv.Add(new Vector2(0f, 0f));
+            uv.Add(new Vector2(1f, 0f));
+            uv.Add(new Vector2(1f, 1f));
+            uv.Add(new Vector2(0f, 1f));
+            for (int i = 0; i < 4; i++) colors.Add(Color.white);
+            AddQuadTriangles(triangles, start);
+        }
+
+        private static void AddSurfaceVertex(List<Vector3> vertices, Vector2 p, float depth)
+        {
+            vertices.Add(new Vector3(p.x, p.y, depth));
+        }
+
+        private static void AddVineRibbon(
+            List<Vector3> vertices,
+            List<Vector3> normals,
+            List<Vector2> uv,
+            List<Color> colors,
+            List<int> triangles,
+            float xOffset,
+            float yStart,
+            float height,
+            float width,
+            float phase)
+        {
+            const int segments = 9;
+            int start = vertices.Count;
+            for (int segment = 0; segment <= segments; segment++)
+            {
+                float t = segment / (float)segments;
+                float centerX = xOffset
+                                + Mathf.Sin(t * Mathf.PI * 2.2f + phase) * 0.12f
+                                + Mathf.Sin(t * Mathf.PI * 4.1f + phase * 0.47f) * 0.035f;
+                float halfWidth = width * (0.46f - 0.10f * t);
+                float y = yStart + height * t;
+                vertices.Add(new Vector3(centerX - halfWidth, y, 0f));
+                vertices.Add(new Vector3(centerX + halfWidth, y, 0f));
+                normals.Add(Vector3.forward);
+                normals.Add(Vector3.forward);
+                uv.Add(new Vector2(0f, t));
+                uv.Add(new Vector2(1f, t));
+                colors.Add(Color.white);
+                colors.Add(Color.white);
+            }
+
+            for (int segment = 0; segment < segments; segment++)
+            {
+                int a = start + segment * 2;
+                int b = a + 1;
+                int c = a + 3;
+                int d = a + 2;
+                triangles.Add(a);
+                triangles.Add(b);
+                triangles.Add(c);
+                triangles.Add(a);
+                triangles.Add(c);
+                triangles.Add(d);
+            }
+        }
+
+        private static void AddCylinderSegment(
+            List<Vector3> vertices,
+            List<Vector3> normals,
+            List<Vector2> uv,
+            List<Color> colors,
+            List<int> triangles,
+            Vector3 from,
+            Vector3 to,
+            float radius,
+            int sides)
+        {
+            Vector3 axis = to - from;
+            float length = axis.magnitude;
+            if (length < 0.0001f) return;
+            axis /= length;
+
+            Vector3 reference = Mathf.Abs(Vector3.Dot(axis, Vector3.up)) > 0.92f
+                ? Vector3.right
+                : Vector3.up;
+            Vector3 side = Vector3.Cross(axis, reference).normalized;
+            Vector3 binormal = Vector3.Cross(side, axis).normalized;
+            int start = vertices.Count;
 
             for (int i = 0; i < sides; i++)
             {
-                float a = i * Mathf.PI * 2f / sides;
-                Vector3 radial = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                vertices[i * 2] = radial * 0.5f;
-                vertices[i * 2 + 1] = radial * 0.5f + Vector3.up;
-                normals[i * 2] = radial;
-                normals[i * 2 + 1] = radial;
-                uv[i * 2] = new Vector2(i / (float)sides, 0f);
-                uv[i * 2 + 1] = new Vector2(i / (float)sides, 1f);
-                colors[i * 2] = new Color(0.36f, 0.22f, 0.11f, 1f);
-                colors[i * 2 + 1] = new Color(0.31f, 0.18f, 0.09f, 1f);
-
-                int next = (i + 1) % sides;
-                int t = i * 6;
-                triangles[t] = i * 2;
-                triangles[t + 1] = next * 2;
-                triangles[t + 2] = next * 2 + 1;
-                triangles[t + 3] = i * 2;
-                triangles[t + 4] = next * 2 + 1;
-                triangles[t + 5] = i * 2 + 1;
+                float angle = i * Mathf.PI * 2f / sides;
+                Vector3 radial = side * Mathf.Cos(angle) + binormal * Mathf.Sin(angle);
+                vertices.Add(from + radial * radius);
+                vertices.Add(to + radial * radius * 0.78f);
+                normals.Add(radial);
+                normals.Add(radial);
+                float u = i / (float)sides;
+                uv.Add(new Vector2(u, 0f));
+                uv.Add(new Vector2(u, 1f));
+                colors.Add(new Color(0.36f, 0.22f, 0.11f, 1f));
+                colors.Add(new Color(0.30f, 0.18f, 0.09f, 1f));
             }
 
-            mesh.vertices = vertices;
-            mesh.normals = normals;
-            mesh.uv = uv;
-            mesh.colors = colors;
-            mesh.triangles = triangles;
-            mesh.RecalculateBounds();
-            return mesh;
+            for (int i = 0; i < sides; i++)
+            {
+                int next = (i + 1) % sides;
+                int a = start + i * 2;
+                int b = start + next * 2;
+                int c = b + 1;
+                int d = a + 1;
+                triangles.Add(a);
+                triangles.Add(b);
+                triangles.Add(c);
+                triangles.Add(a);
+                triangles.Add(c);
+                triangles.Add(d);
+            }
         }
 
-        private static Color[] WhiteColors(int count)
+        private static void AddQuadTriangles(List<int> triangles, int start)
         {
-            Color[] colors = new Color[count];
-            for (int i = 0; i < count; i++) colors[i] = Color.white;
-            return colors;
+            triangles.Add(start);
+            triangles.Add(start + 1);
+            triangles.Add(start + 2);
+            triangles.Add(start);
+            triangles.Add(start + 2);
+            triangles.Add(start + 3);
+        }
+
+        private static void ApplyMesh(
+            Mesh mesh,
+            List<Vector3> vertices,
+            List<Vector3> normals,
+            List<Vector2> uv,
+            List<Color> colors,
+            List<int> triangles)
+        {
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetUVs(0, uv);
+            mesh.SetColors(colors);
+            mesh.SetTriangles(triangles, 0, true);
+            mesh.RecalculateBounds();
         }
 
         private static Mesh NewMesh(string name)
