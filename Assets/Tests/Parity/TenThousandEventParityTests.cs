@@ -142,6 +142,14 @@ namespace VoxelEngine.Tests.Parity
         /// <summary>
         /// Generate a sequence of events using DeterministicRandom with the given seed.
         /// Different runSeed values produce different event sequences.
+        ///
+        /// Every event produced here must satisfy AlterationEvent.Validate, because the applier
+        /// guards each case with "when BrushShapeCodec.Validate(...)" and silently skips anything
+        /// that fails. An invalid sequence therefore does not fail loudly — it applies nothing,
+        /// both worlds agree on having changed nothing, and the determinism assertion passes
+        /// while testing nothing at all. Four rules matter: tick is 1-based, playerId is never 0,
+        /// an explosion radius lies in [1, BlocksPerRegionEdge), and a brush carries its extents
+        /// in the packed shapeKind rather than a bare radius in shapeData.
         /// </summary>
         private static AlterationEvent[] GenerateSequences(int count, uint terrainSeed, uint runSeed)
         {
@@ -150,24 +158,64 @@ namespace VoxelEngine.Tests.Parity
 
             for (int i = 0; i < count; i++)
             {
-                int type = rng.NextRange(0, 3);
-                byte kind = (byte)(type + 1); // 1=explosion, 2=brush, 3=raw batch
+                int type = rng.NextRange(0, 2); // 0=explosion, 1=brush, 2=raw batch
+                uint tick = (uint)(i / 30) + 1u; // ~30 events per tick; tick 0 is invalid
+                var origin = new int3(
+                    rng.NextRange(200, 300),
+                    rng.NextRange(100, 400),
+                    rng.NextRange(200, 300));
+                byte material = (byte)rng.NextRange(1, 8);
+                uint seed = rng.NextUint();
+                ushort playerId = (ushort)rng.NextRange(1, 32);
+                ushort sequence = (ushort)(i % 30 + 1);
 
-                events[i] = new AlterationEvent
+                switch (type)
                 {
-                    kind = kind,
-                    tick = (uint)(i / 30), // ~30 events per tick
-                    origin = new int3(
-                        rng.NextRange(200, 300),
-                        rng.NextRange(100, 400),
-                        rng.NextRange(200, 300)),
-                    shapeData = (ushort)rng.NextRange(3, 16),
-                    material = (byte)(rng.NextRange(1, 8)),
-                    seed = (uint)rng.NextInt(),
-                    playerId = (ushort)rng.NextRange(0, 32),
-                    sequence = (ushort)(i % 30 + 1)
-                };
+                    case 1:
+                        events[i] = AlterationEvent.CreateCubeBrush(
+                            tick, origin,
+                            (byte)rng.NextRange(1, 4),
+                            (byte)rng.NextRange(1, 4),
+                            (byte)rng.NextRange(1, 4),
+                            material, seed, playerId, sequence);
+                        break;
+
+                    case 2:
+                        events[i] = new AlterationEvent
+                        {
+                            kind = AlterationEvent.KindRawBatch,
+                            tick = tick,
+                            origin = origin,
+                            shapeKind = (uint)rng.NextRange(1, 16),
+                            shapeData = (uint)rng.NextRange(1, 16),
+                            material = material,
+                            seed = seed,
+                            playerId = playerId,
+                            sequence = sequence,
+                        };
+                        break;
+
+                    default:
+                        events[i] = new AlterationEvent
+                        {
+                            kind = AlterationEvent.KindExplosion,
+                            tick = tick,
+                            origin = origin,
+                            shapeData = (uint)rng.NextRange(3, 15),
+                            material = material,
+                            seed = seed,
+                            playerId = playerId,
+                            sequence = sequence,
+                        };
+                        break;
+                }
             }
+
+            for (int i = 0; i < count; i++)
+                Assert.IsTrue(events[i].Validate(),
+                    "Generated event {0} does not validate; the applier would skip it silently "
+                    + "and the determinism assertions below would pass without applying anything.",
+                    i);
 
             return events;
         }
