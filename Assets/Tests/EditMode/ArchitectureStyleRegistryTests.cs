@@ -73,6 +73,39 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void CustomStyleOwnsAnonymousFabricGeometryWithoutVoxelDependencies()
+        {
+            var compiler = new TestStyleCompiler();
+            var styles = new ArchitectureStyleRegistry(compiler);
+            var intent = new UrbanFabricIntent(
+                compiler.StyleId,
+                DistrictKind.Market,
+                minStoreys: 2,
+                maxStoreys: 4,
+                envelopeDm: 100,
+                variationContext: 7);
+            UrbanFabricForm form = UrbanFabricCompiler.Resolve(
+                intent,
+                Seed,
+                runIndex: 3,
+                siteIndex: 9,
+                styles: styles);
+
+            StructureGeometryProfile geometry = UrbanFabricGeometryProfiles.Resolve(
+                intent,
+                form,
+                styles);
+
+            Assert.AreEqual(6, geometry.ShellCornerRadiusDm);
+            Assert.AreEqual(4, geometry.OpeningCornerRadiusDm);
+            Assert.AreEqual(StructureSurfaceTreatment.ArchitecturalRounded,
+                geometry.ShellSurface);
+            Assert.AreEqual(StructureSurfaceTreatment.ArchitecturalRounded,
+                geometry.OpeningSurface);
+            Assert.AreEqual(StructureSurfaceTreatment.Smooth, geometry.RoofSurface);
+        }
+
+        [Test]
         public void RegistryExtensionIsImmutableAndRejectsDuplicateStyleIds()
         {
             var first = new TestStyleCompiler("test.city.one");
@@ -89,7 +122,9 @@ namespace VoxelEngine.Tests.EditMode
                 new TestStyleCompiler(first.StyleId)));
         }
 
-        private sealed class TestStyleCompiler : IArchitectureStyleCompiler
+        private sealed class TestStyleCompiler :
+            IArchitectureStyleCompiler,
+            IUrbanFabricGeometryProfileResolver
         {
             public TestStyleCompiler(string styleId = "test.city")
             {
@@ -168,6 +203,22 @@ namespace VoxelEngine.Tests.EditMode
                     hasAwning: true,
                     chimneyOnRight: false,
                     annexOnRight: true);
+            }
+
+            public StructureGeometryProfile ResolveUrbanFabricGeometry(
+                UrbanFabricIntent intent,
+                UrbanFabricForm form)
+            {
+                return new StructureGeometryProfile(
+                    foundationCornerRadiusDm: 2,
+                    shellCornerRadiusDm: 6,
+                    openingCornerRadiusDm: 4,
+                    detailCornerRadiusDm: 2,
+                    foundationSurface: StructureSurfaceTreatment.Beveled,
+                    shellSurface: StructureSurfaceTreatment.ArchitecturalRounded,
+                    openingSurface: StructureSurfaceTreatment.ArchitecturalRounded,
+                    detailSurface: StructureSurfaceTreatment.Beveled,
+                    roofSurface: StructureSurfaceTreatment.Smooth);
             }
 
             public void ValidateUrbanFabric(UrbanFabricIntent intent, UrbanFabricForm form)
