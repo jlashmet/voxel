@@ -7,6 +7,7 @@ on:
       - 'Assets/VoxelEngine/Characters/**'
       - 'Assets/ThirdParty/PlaceholderHumanoids/**'
       - 'Assets/Tests/EditMode/PlaceholderCharacterFactoryFreshImportTests.cs'
+      - 'Assets/Tests/EditMode/PlaceholderHumanoidPlaybackTests.cs'
       - 'Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef'
       - 'Assets/Tests/PlayMode/CharacterVisualResolverPlayModeTests.cs'
       - 'Assets/Tests/PlayMode/CharacterAnimationPlayerPlayModeTests.cs'
@@ -17,6 +18,7 @@ on:
       - 'Assets/VoxelEngine/Characters/**'
       - 'Assets/ThirdParty/PlaceholderHumanoids/**'
       - 'Assets/Tests/EditMode/PlaceholderCharacterFactoryFreshImportTests.cs'
+      - 'Assets/Tests/EditMode/PlaceholderHumanoidPlaybackTests.cs'
       - 'Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef'
       - 'Assets/Tests/PlayMode/CharacterVisualResolverPlayModeTests.cs'
       - 'Assets/Tests/PlayMode/CharacterAnimationPlayerPlayModeTests.cs'
@@ -106,6 +108,10 @@ jobs:
             EditMode \
             VoxelEngine.Tests.EditMode.PlaceholderCharacterFactoryFreshImportTests \
             fresh-import
+          run_test_class \
+            EditMode \
+            VoxelEngine.Tests.EditMode.PlaceholderHumanoidPlaybackTests \
+            real-assets
           run_test_class \
             PlayMode \
             VoxelEngine.Tests.PlayMode.CharacterVisualResolverPlayModeTests \
