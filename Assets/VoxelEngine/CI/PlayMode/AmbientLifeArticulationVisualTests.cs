@@ -26,6 +26,8 @@ namespace VoxelEngine.CI
                 out RenderTexture target);
             Texture2D background = null;
             Mesh quad = null;
+            GameObject subjectObject = null;
+            MeshRenderer subjectRenderer = null;
             var captures = new List<Texture2D>();
             var report = new StringBuilder(
                 "kind,shape,time_a,time_b,width_a,width_b,height_a,height_b,area_a,area_b,mean_luma_a,mean_luma_b,width_change,height_change,area_change,luma_change\n");
@@ -37,6 +39,15 @@ namespace VoxelEngine.CI
                 quad = BuildQuad();
                 Assert.That(ProceduralAmbientLifeMaterials.Shared, Is.Not.Null);
                 ProceduralAmbientLifeMaterials.ApplyLighting();
+
+                // A persistent CI-only renderer avoids one-frame Graphics.DrawMeshInstanced submission
+                // carry-over between captures. Production ambient life remains GPU-instanced; this object
+                // exists only to isolate shader articulation from locomotion and previous draw calls.
+                subjectObject = new GameObject("CI Ambient Fixed Articulation Subject");
+                MeshFilter subjectFilter = subjectObject.AddComponent<MeshFilter>();
+                subjectFilter.sharedMesh = quad;
+                subjectRenderer = subjectObject.AddComponent<MeshRenderer>();
+                subjectRenderer.sharedMaterial = ProceduralAmbientLifeMaterials.Shared;
 
                 ArticulationCase[] cases =
                 {
@@ -56,8 +67,8 @@ namespace VoxelEngine.CI
                 for (int i = 0; i < cases.Length; i++)
                 {
                     ArticulationCase c = cases[i];
-                    Texture2D first = CaptureFixed(camera, target, quad, c.Kind, c.TimeA);
-                    Texture2D second = CaptureFixed(camera, target, quad, c.Kind, c.TimeB);
+                    Texture2D first = CaptureFixed(camera, target, subjectObject.transform, subjectRenderer, c.Kind, c.TimeA);
+                    Texture2D second = CaptureFixed(camera, target, subjectObject.transform, subjectRenderer, c.Kind, c.TimeB);
                     captures.Add(first);
                     captures.Add(second);
 
@@ -105,6 +116,7 @@ namespace VoxelEngine.CI
                 for (int i = 0; i < captures.Count; i++)
                     if (captures[i] != null) UnityEngine.Object.DestroyImmediate(captures[i]);
                 if (background != null) UnityEngine.Object.DestroyImmediate(background);
+                if (subjectObject != null) UnityEngine.Object.DestroyImmediate(subjectObject);
                 if (quad != null) UnityEngine.Object.DestroyImmediate(quad);
                 VegetationLifeRenderingVisualTests.ReleaseTarget(camera, target);
                 UnityEngine.Object.DestroyImmediate(cameraObject);
@@ -156,23 +168,23 @@ namespace VoxelEngine.CI
         private static Texture2D CaptureFixed(
             Camera camera,
             RenderTexture target,
-            Mesh quad,
+            Transform subject,
+            MeshRenderer renderer,
             AmbientLifeKind kind,
             float time)
         {
-            Material material = ProceduralAmbientLifeMaterials.Shared;
             var properties = new MaterialPropertyBlock();
             ProceduralAmbientLifeMaterials.Configure(properties, kind);
             properties.SetFloat("_AnimationTime", time);
             properties.SetFloat("_Opacity", 1f);
+            renderer.SetPropertyBlock(properties);
 
             AmbientLifeRenderStyle style = ProceduralAmbientLifeMaterials.StyleFor(kind);
             GetValidationScale(style.Shape, out float width, out float height);
-            Matrix4x4[] matrices =
-            {
-                Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(width, height, 1f))
-            };
-            Graphics.DrawMeshInstanced(quad, 0, material, matrices, 1, properties);
+            subject.position = Vector3.zero;
+            subject.rotation = Quaternion.identity;
+            subject.localScale = new Vector3(width, height, 1f);
+
             camera.Render();
             return VegetationLifeRenderingVisualTests.ReadTarget(target);
         }
