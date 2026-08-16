@@ -35,6 +35,9 @@ namespace VoxelEngine.Storage.Runtime
 
         public bool IsCreated => _count > 0;
 
+        /// <summary>Clears every authored slot. Intended for composition-time catalogue replacement.</summary>
+        public void Clear() => this = default;
+
         /// <summary>Register a material with its destruction class and properties.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Register(byte index, byte hardness, DestructionClass destructionClass)
@@ -59,6 +62,14 @@ namespace VoxelEngine.Storage.Runtime
             _registered[index] = 1;
             Version++;
             if (index + 1 > _count) _count = (byte)(index + 1);
+        }
+
+        /// <summary>Registers the generic definition supplied by a game/content composition root.</summary>
+        public void Register(in MaterialDefinition definition)
+        {
+            Register(definition.MaterialId, definition.Hardness, definition.DestructionClass,
+                     definition.DefaultSurfaceStyle, definition.AllowedCoatings);
+            SetFlammable(definition.MaterialId, definition.Flammable);
         }
 
         /// <summary>Overrides whether an already registered material participates in fire.</summary>

@@ -3,6 +3,7 @@
   "rootNamespace": "Game.Materials.Runtime",
   "references": [
     "Game.Materials.Api",
+    "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api"
   ],
   "includePlatforms": [],
