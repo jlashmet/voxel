@@ -33,13 +33,27 @@ namespace VoxelEngine.Tests.EditMode
 
         [TestCase(MalePath)]
         [TestCase(FemalePath)]
-        public void PlaceholderBody_LoadsAsRiggedHumanoid(string path)
+        public void PlaceholderBody_LoadsAsRiggedHumanoidAtMidpoly(string path)
         {
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             Assert.That(model, Is.Not.Null, $"Unity could not load placeholder body {path}");
 
-            var skinnedMeshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-            Assert.That(skinnedMeshes.Length, Is.GreaterThan(0), $"{path} has no skinned mesh renderer");
+            var activeSkinnedMeshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(false);
+            Assert.That(activeSkinnedMeshes.Length, Is.GreaterThan(0), $"{path} has no active skinned mesh renderer");
+
+            var polyNodes = model.GetComponentsInChildren<Transform>(true)
+                .Where(transform => transform.name.ToLowerInvariant().Contains("poly"))
+                .ToArray();
+            Assert.That(polyNodes.Length, Is.GreaterThan(0), $"{path} did not expose Rocketbox poly-level nodes");
+            Assert.That(polyNodes.Any(node => node.name.ToLowerInvariant().Contains("midpoly")), Is.True,
+                $"{path} has no midpoly hierarchy");
+
+            foreach (var node in polyNodes)
+            {
+                var isMidpoly = node.name.ToLowerInvariant().Contains("midpoly");
+                Assert.That(node.gameObject.activeSelf, Is.EqualTo(isMidpoly),
+                    $"Unexpected active state for Rocketbox LOD node {node.name} in {path}");
+            }
 
             AssertValidHumanoidAvatar(path);
         }
