@@ -77,12 +77,16 @@ namespace VoxelEngine.CI
             {
                 AmbientLifeRenderingShowcase showcase = root.AddComponent<AmbientLifeRenderingShowcase>();
                 yield return null;
-                showcase.Renderer.enabled = false;
+
+                ProceduralAmbientLifeBatchRenderer renderer =
+                    root.GetComponent<ProceduralAmbientLifeBatchRenderer>();
+                Assert.That(renderer, Is.Not.Null);
+                renderer.enabled = false;
 
                 var atZero = new List<Vector3>();
                 var atLater = new List<Vector3>();
-                int zeroCount = showcase.Renderer.CopyAgentPositionsAtTime(0f, atZero);
-                int laterCount = showcase.Renderer.CopyAgentPositionsAtTime(1.75f, atLater);
+                int zeroCount = renderer.CopyAgentPositionsAtTime(0f, atZero);
+                int laterCount = renderer.CopyAgentPositionsAtTime(1.75f, atLater);
 
                 Assert.That(zeroCount, Is.EqualTo(showcase.AgentCount));
                 Assert.That(laterCount, Is.EqualTo(zeroCount));
@@ -131,16 +135,20 @@ namespace VoxelEngine.CI
                 AmbientLifeRenderingShowcase showcase = root.AddComponent<AmbientLifeRenderingShowcase>();
                 yield return null;
                 VegetationLifeRenderingVisualTests.RemovePresentationGeometry(root.transform);
-                showcase.Renderer.enabled = false;
 
-                showcase.Renderer.DrawAtTime(0f);
+                ProceduralAmbientLifeBatchRenderer renderer =
+                    root.GetComponent<ProceduralAmbientLifeBatchRenderer>();
+                Assert.That(renderer, Is.Not.Null);
+                renderer.enabled = false;
+
+                renderer.DrawAtTime(0f);
                 camera.Render();
                 first = VegetationLifeRenderingVisualTests.ReadTarget(target);
                 File.WriteAllBytes(
                     VegetationLifeRenderingVisualTests.ArtifactPath("ambient_life_motion_t0.png"),
                     first.EncodeToPNG());
 
-                showcase.Renderer.DrawAtTime(1.75f);
+                renderer.DrawAtTime(1.75f);
                 camera.Render();
                 second = VegetationLifeRenderingVisualTests.ReadTarget(target);
                 File.WriteAllBytes(
