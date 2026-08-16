@@ -39,10 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Clean final merge checkpoint: latest master, no one-shot patch scaffolding,
-          # toroidal/active-slot clipmaps, stale-build and non-blocking completion gates,
-          # zero-allocation + arena backpressure, fixed draw staging, step-8 HLOD with trimmed
-          # workspace, and COW pins retained through profile emission.
+          # Compile-corrected merge checkpoint: latest master, PlayMode internals friendship,
+          # mutable HLOD fixtures, qualified Unity Object stress helpers, toroidal/active slots,
+          # zero-allocation + arena backpressure, fixed draw staging, step-8 HLOD and COW pins.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
