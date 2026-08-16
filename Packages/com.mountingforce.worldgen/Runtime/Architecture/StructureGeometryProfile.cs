@@ -15,6 +15,13 @@ namespace MountingForce.WorldGen.Architecture
         Sharp = 4,
         Beveled = 5,
         MasonryJoint = 6,
+
+        /// <summary>
+        /// Softer architectural reconstruction for broad building shells and reveals. Backends may
+        /// map this to a wider blend/stronger curvature than their general-purpose rounded style.
+        /// Authored primitive radii remain controlled separately by StructureGeometryProfile.
+        /// </summary>
+        ArchitecturalRounded = 7,
     }
 
     /// <summary>
@@ -163,8 +170,8 @@ namespace MountingForce.WorldGen.Architecture
                 openingRadius,
                 detailRadius,
                 foundationSurface: StructureSurfaceTreatment.Beveled,
-                shellSurface: StructureSurfaceTreatment.Rounded,
-                openingSurface: StructureSurfaceTreatment.Rounded,
+                shellSurface: StructureSurfaceTreatment.ArchitecturalRounded,
+                openingSurface: StructureSurfaceTreatment.ArchitecturalRounded,
                 detailSurface: StructureSurfaceTreatment.Beveled,
                 roofSurface: StructureSurfaceTreatment.Smooth);
         }
