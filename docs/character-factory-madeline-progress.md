@@ -34,6 +34,17 @@ This checklist is the source of truth for the production Madeline base-character
 - [x] Make downstream composition accept a verified Madeline artifact even if only the later review-publication step of the expensive base workflow fails.
 - [x] Diagnose the original robe workflow timeout as model-cache bootstrap/download time rather than robe reconstruction.
 - [x] Rewire the robe workflow to reuse the same persistent Hunyuan multiview cache as the Madeline production build.
+- [x] Restrict Hunyuan cache bootstrap to the exact multiview-turbo checkpoint/config instead of downloading the entire multi-checkpoint repository.
+- [x] Allow the first shared Hunyuan cache fill enough CI time to complete and be reused by later character/robe builds.
+
+## Unity runtime integration
+
+- [x] Add stable `partId` catalogue lookup for runtime-switchable character parts.
+- [x] Add an equipment controller that equips/unequips catalogue parts through the existing modular-character assembler.
+- [x] Stage completed Character Factory manifests into Unity as FBX + portable `.characterfactory.json` import descriptors.
+- [x] Auto-import staged equipment descriptors into `CharacterPartAsset` entries and the shared `CharacterPartCatalogue` without manual Inspector setup.
+- [x] Preserve clothing skeleton-rebind metadata and rigid weapon socket metadata through the staging/import bridge.
+- [ ] Pass the queued Unity EditMode catalogue/equipment-controller validation workflow.
 
 ## Visual acceptance
 
@@ -53,8 +64,9 @@ This checklist is the source of truth for the production Madeline base-character
 
 ## Current builds
 
-- Madeline base-body workflow: run #28 (`31931575922`).
-- Madeline branch at build start: `feature/character-weapon-asset-pipeline` @ `16292d58ee3e0f18574ffee87e776df1a47b2f8c`.
-- Current observed Madeline state: the `Build clothing-free Madeline base character` step is still running on the self-hosted macOS runner; artifact upload and lookdev publication have not started yet.
-- Repaired robe workflow: run #2 (`31934273891`) from `d6495fa94603921479e7962253e0c8fd81dc9e59`, currently queued behind the active Madeline build.
-- The branch has advanced with downstream verifier/workflow/docs commits, but none of those paths are watched by the Madeline base-body workflow, so run #28 remains the active reconstruction rather than being cancelled/restarted.
+- Madeline run #28 (`31931575922`) proved the repaired reference preprocessing path, then spent the remainder of its 90-minute window downloading the full Hunyuan multiview repository and was cancelled before reconstruction.
+- The Hunyuan bootstrap now downloads only `hunyuan3d-dit-v2-mv-turbo/config.yaml` and `model.fp16.safetensors` into the persistent self-hosted-runner cache.
+- Madeline base-body workflow: run #29 (`31936579943`) from `a4046b503f3edf3644d228168a81fa5f750d74fb`, currently queued for the self-hosted macOS runner.
+- Repaired robe workflow: run #3 (`31936661842`) from `1f8f16596702b8f94458ef0f3ccc5a691d03d6de`, currently using the self-hosted macOS runner to perform the first shared turbo-checkpoint cache fill.
+- Unity catalogue/equipment validation: run `31935911052`, currently queued behind the same self-hosted runner workload.
+- Current branch: `feature/character-weapon-asset-pipeline`.
