@@ -131,7 +131,8 @@ namespace VoxelEngine.Structures.Api
             }
             else if (plan.KeepAnnexes.HasGreatHallWing ||
                      plan.KeepAnnexes.HasChapelWing ||
-                     plan.KeepAnnexes.HasBellTower)
+                     plan.KeepAnnexes.HasBellTower ||
+                     plan.KeepAnnexes.HasRearOriel)
             {
                 issue = CastleTopologyPlanIssue.UnexpectedKeepAnnexPlan;
                 return false;
