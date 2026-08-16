@@ -41,8 +41,9 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleFortificationRealizer.Gatehouse(", pipeline);
             StringAssert.Contains("CastleCourtyardRealizer.Build(", pipeline);
             StringAssert.Contains("CastleKeepRealizer.TryStep(", pipeline);
+            StringAssert.Contains("CastleKeepAnnexRealizer.Build(", pipeline);
             StringAssert.Contains("CastleBuilder.StepBuild(ref _legacy)", pipeline,
-                "The final keep roof/annex substage, dungeon, and landscape remain on the migration fallback.");
+                "Dungeon and landscape are intentionally still on the migration fallback.");
         }
 
         [Test]
@@ -56,6 +57,23 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleRoomFurnisher.Furnish(", keep);
             StringAssert.DoesNotContain("BedroomBuilder", keep);
             StringAssert.DoesNotContain("LibraryBuilder", keep);
+        }
+
+        [Test]
+        public void KeepAnnexesAreSeparatedFromCoreKeepRealization()
+        {
+            string keep = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepRealizer.cs"));
+            string annex = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepAnnexRealizer.cs"));
+
+            StringAssert.DoesNotContain("GreatHallWing", keep);
+            StringAssert.DoesNotContain("ChapelWing", keep);
+            StringAssert.Contains("BuildGreatHallWing", annex);
+            StringAssert.Contains("BuildChapelWing", annex);
+            StringAssert.Contains("BuildChapelBellTower", annex);
         }
     }
 }
