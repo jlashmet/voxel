@@ -19,24 +19,28 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialKeepUsesDedicatedRealizersWithoutCompatibilityDispatch()
+        public void SpatialKeepUsesDedicatedCoordinatorWithoutCompatibilityDispatch()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
+            string planned = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedKeepRealizer.cs"));
 
-            StringAssert.Contains("CastleKeepShellRealizer.Build(", pipeline);
-            StringAssert.Contains("CastlePlannedKeepTurretRealizer.BuildAll(", pipeline);
-            StringAssert.Contains("CastleKeepFloorRealizer.Build(", pipeline);
-            StringAssert.Contains("CastleKeepCirculationRealizer.Build(", pipeline);
-            StringAssert.Contains("CastleKeepWindowRealizer.Build(", pipeline);
-            StringAssert.Contains("CastlePlannedKeepExteriorRealizer.Build(", pipeline);
-            StringAssert.Contains("CastlePlannedKeepAnnexRealizer.Build(", pipeline);
-
-            StringAssert.DoesNotContain("? CastleKeepRealizer.TryStep(", pipeline,
-                "Spatial keeps must not route through the compatibility dispatcher.");
+            StringAssert.Contains("CastlePlannedKeepRealizer.Step(", pipeline);
             StringAssert.Contains("CastleKeepRealizer.TryStep(", pipeline,
                 "Compatibility builds should retain the historical staged dispatcher.");
+
+            StringAssert.Contains("CastleKeepShellRealizer.Build(", planned);
+            StringAssert.Contains("CastlePlannedKeepTurretRealizer.BuildAll(", planned);
+            StringAssert.Contains("CastleKeepFloorRealizer.Build(", planned);
+            StringAssert.Contains("CastleKeepCirculationRealizer.Build(", planned);
+            StringAssert.Contains("CastlePlannedKeepWindowRealizer.BuildAll(", planned);
+            StringAssert.Contains("CastlePlannedKeepExteriorRealizer.Build(", planned);
+            StringAssert.Contains("CastlePlannedKeepAnnexRealizer.Build(", planned);
+            StringAssert.DoesNotContain("CastleKeepRealizer", planned,
+                "Spatial keep sequencing must not route through the compatibility coordinator.");
         }
     }
 }
