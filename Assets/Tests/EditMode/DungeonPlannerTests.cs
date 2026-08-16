@@ -22,6 +22,14 @@ namespace VoxelEngine.Tests.EditMode
                 AssertPlansEqual(first, second, seed);
                 Assert.AreEqual(DungeonRoomPurpose.Entrance,
                     first.Rooms[first.EntranceRoomId].Purpose);
+                Assert.GreaterOrEqual(
+                    first.Rooms[first.EntranceRoomId].Size.x,
+                    DungeonConnectionGeometry.StairShaftDiameter,
+                    $"seed {seed}: entrance is narrower than its planned stair shaft");
+                Assert.GreaterOrEqual(
+                    first.Rooms[first.EntranceRoomId].Size.z,
+                    DungeonConnectionGeometry.StairShaftDiameter,
+                    $"seed {seed}: entrance is shallower than its planned stair shaft");
                 Assert.IsTrue(first.HasCaveExit);
                 Assert.AreEqual(DungeonRoomPurpose.CaveThreshold,
                     first.Rooms[first.CaveThresholdRoomId].Purpose);
@@ -93,6 +101,44 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsFalse(
                 DungeonPlanValidator.TryValidate(plan, out DungeonPlanIssue issue));
             Assert.AreEqual(DungeonPlanIssue.OverlappingRooms, issue);
+        }
+
+        [Test]
+        public void ValidatorRejectsHorizontalConnectionAcrossDifferentFloors()
+        {
+            DungeonPlanningConstraints constraints = CastleScaleConstraints();
+            DungeonPlan plan = DungeonPlanner.Create(31u, in constraints);
+            int puzzle = FindIndex(plan, DungeonRoomPurpose.Puzzle);
+            plan.Rooms[puzzle].Centre += new int3(0, 8, 0);
+
+            Assert.IsFalse(
+                DungeonPlanValidator.TryValidate(plan, out DungeonPlanIssue issue));
+            Assert.AreEqual(DungeonPlanIssue.InvalidConnectionGeometry, issue);
+        }
+
+        [Test]
+        public void ValidatorRejectsStairWithoutSharedShaftFootprint()
+        {
+            DungeonPlanningConstraints constraints = CastleScaleConstraints();
+            DungeonPlan plan = DungeonPlanner.Create(37u, in constraints);
+            int archive = FindIndex(plan, DungeonRoomPurpose.Archive);
+            plan.Rooms[archive].Centre += new int3(400, 0, 0);
+
+            Assert.IsFalse(
+                DungeonPlanValidator.TryValidate(plan, out DungeonPlanIssue issue));
+            Assert.AreEqual(DungeonPlanIssue.InvalidConnectionGeometry, issue);
+        }
+
+        [Test]
+        public void ValidatorRejectsUnknownConnectionKind()
+        {
+            DungeonPlanningConstraints constraints = CastleScaleConstraints();
+            DungeonPlan plan = DungeonPlanner.Create(43u, in constraints);
+            plan.Connections[0].Kind = (DungeonConnectionKind)255;
+
+            Assert.IsFalse(
+                DungeonPlanValidator.TryValidate(plan, out DungeonPlanIssue issue));
+            Assert.AreEqual(DungeonPlanIssue.InvalidConnectionKind, issue);
         }
 
         private static DungeonPlanningConstraints CastleScaleConstraints() =>
