@@ -32,6 +32,11 @@ namespace MountingForce.WorldGen.Architecture
             // high-level structure envelope. Kentridge currently has no extra named-form invariant.
         }
 
+        public StructureGeometryProfile ResolveGeometry(
+            StructureIntent intent,
+            StructureForm form) =>
+            HumanSettlementGeometryProfileResolver.Instance.Resolve(intent, form);
+
         public UrbanFabricForm ResolveUrbanFabric(
             UrbanFabricIntent intent,
             uint seed,
@@ -45,9 +50,13 @@ namespace MountingForce.WorldGen.Architecture
             KentridgeUrbanFabricCompiler.Validate(intent, form);
     }
 
-    internal static class BuiltInArchitectureStyles
+    /// <summary>
+    /// Built-in architecture composition. Applications can use this registry directly or compose
+    /// their own registry with additional city/style compilers.
+    /// </summary>
+    public static class BuiltInArchitectureStyles
     {
-        internal static readonly ArchitectureStyleRegistry Registry =
+        public static readonly ArchitectureStyleRegistry Registry =
             new ArchitectureStyleRegistry(KentridgeArchitectureStyleCompiler.Instance);
     }
 }
