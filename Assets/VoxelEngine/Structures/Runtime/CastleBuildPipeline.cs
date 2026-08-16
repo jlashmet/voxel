@@ -38,6 +38,7 @@ namespace VoxelEngine.Structures.Runtime
         private CastleCourtyardBuildingSpec[] _courtyardBuildings;
         private CastleKeepFloorPlan[] _keepFloorPlans;
         private CastleKeepCirculationPlan _keepCirculation;
+        private CastleKeepAnnexPlan _keepAnnexes;
         private DungeonPlan _spatialDungeonPlan;
         private CavePlan _spatialCavePlan;
 
@@ -98,6 +99,17 @@ namespace VoxelEngine.Structures.Runtime
                     $"equivalents against a {preflight.WriteBudget:N0} write budget.");
             }
 
+            if (spatialPlan != null)
+            {
+                CastleTopologyPlan topology = spatialPlan.Topology;
+                if (!CastleKeepAnnexBuildReadiness.TryValidate(
+                        in topology, out CastleKeepAnnexBuildReadinessIssue annexReadiness))
+                {
+                    throw new InvalidOperationException(
+                        $"Castle keep annex plan is not runtime-ready: {annexReadiness}.");
+                }
+            }
+
             _plan = plan;
             _spatialKeepPlan = plan;
             _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
@@ -105,6 +117,7 @@ namespace VoxelEngine.Structures.Runtime
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
             _keepFloorPlans = Array.Empty<CastleKeepFloorPlan>();
             _keepCirculation = default;
+            _keepAnnexes = default;
             _spatialDungeonPlan = null;
             _spatialCavePlan = null;
 
@@ -240,7 +253,15 @@ namespace VoxelEngine.Structures.Runtime
                         return false;
                     }
 
-                    CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan);
+                    if (_hasSpatialKeep)
+                    {
+                        CastlePlannedKeepAnnexRealizer.Build(
+                            ref _brush, in keepPlan, in _keepAnnexes);
+                    }
+                    else
+                    {
+                        CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan);
+                    }
                     _keepStage++;
                     return CompleteStage("keep 7");
                 }
@@ -307,6 +328,9 @@ namespace VoxelEngine.Structures.Runtime
                     $"Spatial castle reached Runtime with invalid keep circulation: {circulationIssue}.");
             }
             _keepCirculation = circulation;
+
+            CastleTopologyPlan topology = spatialPlan.Topology;
+            _keepAnnexes = topology.KeepAnnexes;
 
             _spatialDungeonPlan = spatialPlan.Dungeon != null
                 ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
