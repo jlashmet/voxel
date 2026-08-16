@@ -40,5 +40,24 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("CastleCourtyardBuildingPlanner.Create", pipeline,
                 "Runtime must consume completed building specs rather than re-plan courtyard semantics.");
         }
+
+        [Test]
+        public void CourtyardBuildingPlannerDependencyIsOneWay()
+        {
+            string planner = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleCourtyardBuildingPlanner.cs"));
+            string compatibilityGeometry = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleCourtyardBuildingPlacementGeometry.cs"));
+
+            StringAssert.Contains("CastleCourtyardBuildingPlanner.Create(", compatibilityGeometry,
+                "Resolved-piece compatibility callers should delegate to the public wall-relative planner.");
+            StringAssert.DoesNotContain("CastleCourtyardBuildingPlacementGeometry.Plan(", planner,
+                "The public planner must never call back through its compatibility adapter; " +
+                "that creates an infinite Planner.Create -> PlacementGeometry.Plan recursion.");
+            StringAssert.Contains("TryAdd(", planner,
+                "The public planner should remain the single owner of courtyard-building placement policy.");
+        }
     }
 }
