@@ -31,10 +31,12 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("StructuresComposition.BeginCastleBuild(", seam);
             StringAssert.Contains("CommitPendingCastleSpatialPlan()", seam);
             StringAssert.Contains("CastleSpatialProjection.Create(", seam);
-            StringAssert.Contains("BuildCastlePresentationLights(in presentationPlan)", seam);
-            StringAssert.Contains("PrimaryGateGeometry", seam);
-            StringAssert.Contains("geometry.WorldVoxel(w, h, d)", seam);
-            StringAssert.Contains("ActiveCastleTrapdoorCentre()", seam);
+            StringAssert.Contains("ShowcaseCastleSpatialLayout.BuildPresentationLights(", seam);
+            StringAssert.Contains("ShowcaseCastleSpatialLayout.PrimaryGateInteractionPosition(", seam);
+            StringAssert.Contains("ShowcaseCastleSpatialLayout.PrimaryGateLeafVoxels(", seam);
+            StringAssert.Contains("ShowcaseCastleSpatialLayout.TrapdoorCentre(", seam);
+            StringAssert.Contains("ShowcaseCastleSpatialLayout.TrapdoorInteractionPosition(", seam);
+            StringAssert.DoesNotContain("CastleSpatialLayoutProjection", seam);
         }
 
         [Test]
