@@ -228,8 +228,14 @@ namespace VoxelEngine.Structures.Runtime
                 case 7:
                 {
                     CastlePlan dungeonPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
-                    if (_hasSpatialKeep && _spatialDungeonPlan != null)
+                    if (_hasSpatialKeep)
                     {
+                        if (_spatialDungeonPlan == null)
+                        {
+                            throw new InvalidOperationException(
+                                "Spatial castle reached dungeon realization without a planned dungeon.");
+                        }
+
                         CastlePlannedDungeonRealizer.Build(
                             ref _brush, in dungeonPlan, _spatialDungeonPlan);
                     }
