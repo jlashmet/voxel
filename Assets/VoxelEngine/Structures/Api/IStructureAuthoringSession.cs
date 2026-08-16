@@ -45,6 +45,8 @@ namespace VoxelEngine.Structures.Api
         void Cone(int cx, int baseY, int cz, int radius, int height, byte material);
         void HangingCone(int cx, int ceilingY, int cz, int radius, int height, byte material);
         void Gable(int3 min, int3 size, bool alongX, byte material);
+        void Crenellate(int3 start, int3 direction, int length, int wallThickness,
+                        int merlonWidth, int gapWidth, int height, byte material);
         void CrenellateRing(int cx, int y, int cz, int radius, int height, byte material);
         void Arch(int3 min, int width, int height, int depth, int depthAxis, byte material);
         void Stairs(int3 min, int width, int steps, int rise, int run, int axis, byte material);
