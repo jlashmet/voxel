@@ -97,6 +97,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 foundForwardExit = true;
                 CastleBuildBounds bounds = CastleBuildBoundsResolver.Resolve(in plan, spatial);
+                CavePlan cave = CastleCavePlanning.Create(in plan, dungeon);
+                CaveBuildBounds caveBounds = CaveBuildBoundsResolver.Resolve(cave);
                 int caveFloorY = threshold.Centre.y - threshold.Size.y / 2;
                 var forwardCaveDetail = new int3(
                     threshold.Centre.x + 240,
@@ -107,6 +109,19 @@ namespace VoxelEngine.Tests.EditMode
                     $"seed {seed}: +Z cave detail escaped planned dungeon dependency bounds");
                 Assert.Greater(bounds.MaxExclusive.z, threshold.Centre.z + 256,
                     $"seed {seed}: dependency envelope did not reserve cave margin past threshold");
+
+                for (int chamber = 0; chamber < cave.Chambers.Length; chamber++)
+                {
+                    CaveChamberPlan planned = cave.Chambers[chamber];
+                    Assert.IsTrue(bounds.Contains(planned.Centre - planned.Radii),
+                        $"seed {seed}: planned cave chamber {chamber} minimum escaped castle bounds");
+                    Assert.IsTrue(bounds.Contains(planned.Centre + planned.Radii),
+                        $"seed {seed}: planned cave chamber {chamber} maximum escaped castle bounds");
+                }
+                Assert.IsTrue(bounds.Contains(caveBounds.Min),
+                    $"seed {seed}: planned cave bounds minimum escaped castle bounds");
+                Assert.IsTrue(bounds.Contains(caveBounds.MaxExclusive - 1),
+                    $"seed {seed}: planned cave bounds maximum escaped castle bounds");
             }
 
             Assert.IsTrue(foundForwardExit,
