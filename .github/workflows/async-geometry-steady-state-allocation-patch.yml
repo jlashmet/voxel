@@ -1,0 +1,37 @@
+name: Steady-state geometry allocation one-shot patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-steady-state-allocation-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded allocation patch
+        run: python3 .github/scripts/async_geometry_steady_state_alloc_patch.py
+      - name: Static guards
+        run: |
+          grep -q 'LastFrameManagedAllocationBytes' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          test "$(grep -c 'GC.GetAllocatedBytesForCurrentThread()' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs)" -eq 2
+          grep -q 'GeometrySchedulerExposesFrameScopedManagedAllocationCounter' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+          grep -q 'WarmRepeatedClipmapTraversalAllocatesNoManagedGeometryMemory' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+      - name: Commit allocation instrumentation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+                  Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          git commit -m 'Gate steady-state geometry managed allocations'
+          git fetch origin refactor/async-geometry-pipeline
+          git rebase origin/refactor/async-geometry-pipeline
+          git push origin HEAD:refactor/async-geometry-pipeline
