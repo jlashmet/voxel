@@ -217,6 +217,22 @@ Known facts remain deliberately limited to recovered/established content:
 
 The first destination remains `ConstraintMatch` with `SiteArchetype.Unspecified`; region ownership does not invent its type. The destination cutscene definition remains injected because its dialogue/choreography has not been recovered. Do not invent a destination archetype, NPC name, dialogue, or choreography to make the bootstrap more concrete.
 
+### Playable opening acceptance
+
+The first player-facing Kentridge slice is now mechanically complete and Unity-validated. The acceptance path uses the production campaign/session composition, generated Kentridge voxel catalogue, and real `CharacterMotor`; the pub and town are one continuous generated voxel world rather than separate interior/exterior scenes or a portal transition.
+
+- [x] New Game resolves `starting-pub` to the generated Kentridge Pub and places the lead player at the realized opening stage.
+- [x] The authored opening cutscene starts and owns player control until completion.
+- [x] Story progression advances and gameplay control returns after the cutscene.
+- [x] `KentridgeGameplaySiteAccessResolver` derives entrance/interior/exterior approach facts from the same generated site placement contract used by voxel realization.
+- [x] The generated Pub keeps a full player-sized public-door corridor clear after facade framing and through the exterior gameplay approach.
+- [x] The real `CharacterMotor` can move from the interior approach, through voxel collision at the generated doorway, to the exterior approach.
+- [x] `KentridgePlayableSlice` starts in the Pub, runs the intro, returns control, and physically exits into generated Kentridge town.
+- [x] `KentridgePlayableSlice.unity` is the configured player-build launch scene.
+- [x] The dedicated `Kentridge Playable Slice` CI gate proves the doorway-ordering regression plus both physical PlayMode acceptances; run `31931502976` passed on commit `23eb3b285c862e72055e042ace0c016f70c17021`.
+
+Presentation polish is deliberately not part of this mechanical acceptance gate. The thin slice still uses placeholder NPC runtime visuals and minimal camera/dialogue/sound cue presentation. Those should be replaced by the authoritative Character and presentation adapters as their APIs become available; do not duplicate those runtimes inside this scene driver.
+
 ## Integration rules
 
 - Keep WorldBuilder coordinate-free.
