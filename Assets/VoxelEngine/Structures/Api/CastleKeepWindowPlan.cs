@@ -175,11 +175,19 @@ namespace VoxelEngine.Structures.Api
             return result;
         }
 
+        /// <summary>
+        /// Validates a frozen aperture plan in the facade basis encoded by the plan itself. This
+        /// remains compatible with historical south-facing plans while allowing runtime-ready
+        /// castles to carry east/north/west-facing keep fronts without a second orientation input.
+        /// </summary>
         public static bool TryValidate(
             in CastlePlan plan,
             CastleKeepWindowPlan windows,
-            out string error) =>
-            TryValidate(in plan, windows?.SnapshotWindows(), CastleKeepFace.South, out error);
+            out string error)
+        {
+            CastleKeepWindowSpec[] snapshot = windows?.SnapshotWindows();
+            return TryValidate(in plan, snapshot, InferFrontFace(snapshot), out error);
+        }
 
         public static bool TryValidate(
             in CastlePlan plan,
@@ -188,12 +196,12 @@ namespace VoxelEngine.Structures.Api
             out string error) =>
             TryValidate(in plan, windows?.SnapshotWindows(), frontFace, out error);
 
-        /// <summary>Validates a completed/snapshotted historical south-facing aperture list.</summary>
+        /// <summary>Validates a completed/snapshotted aperture list in its frozen facade basis.</summary>
         public static bool TryValidate(
             in CastlePlan plan,
             CastleKeepWindowSpec[] windows,
             out string error) =>
-            TryValidate(in plan, windows, CastleKeepFace.South, out error);
+            TryValidate(in plan, windows, InferFrontFace(windows), out error);
 
         /// <summary>Validates a completed/snapshotted aperture list for the supplied front facade.</summary>
         public static bool TryValidate(
@@ -267,6 +275,23 @@ namespace VoxelEngine.Structures.Api
 
             error = null;
             return true;
+        }
+
+        private static CastleKeepFace InferFrontFace(CastleKeepWindowSpec[] windows)
+        {
+            if (windows == null || windows.Length == 0)
+                return CastleKeepFace.South;
+
+            for (int i = 0; i < windows.Length; i++)
+            {
+                CastleKeepWindowSpec window = windows[i];
+                if (window.Face == CastleKeepWindowFace.Front)
+                    return window.WallFace;
+                if (window.Face == CastleKeepWindowFace.Rear)
+                    return Opposite(window.WallFace);
+            }
+
+            return CastleKeepFace.South;
         }
 
         private static CastleKeepWindowSpec CreateWindow(
