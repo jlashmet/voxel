@@ -21,6 +21,8 @@ namespace VoxelEngine.Structures.Api
         InvalidKeepCirculationPlan,
         MissingKeepAnnexPlan,
         InvalidKeepAnnexPlan,
+        MissingLandscapePlan,
+        InvalidLandscapePlan,
         MissingDungeonPlan,
         InvalidDungeonPlan,
         DungeonEntranceMismatch,
@@ -147,6 +149,7 @@ namespace VoxelEngine.Structures.Api
             double courtyard = PolygonArea(spatialPlan.OuterWardVertices) * 0.2;
             double courtyardBuildings = CourtyardBuildingCost(spatialPlan.CourtyardBuildings);
             double underground = UndergroundCost(spatialPlan.Dungeon, spatialPlan.Cave);
+            double landscape = LandscapeCost(spatialPlan.Landscape);
 
             double primaryGateLeaf = CastleLayout.FrontGateWidth
                                    * (double)CastleLayout.FrontGateHeight
@@ -157,7 +160,7 @@ namespace VoxelEngine.Structures.Api
                 : 0.0;
 
             return (long)(siteCap + cliffCap + walls + towers + innerTowers + gatehouseTowers + keep
-                        + courtyard + courtyardBuildings + underground
+                        + courtyard + courtyardBuildings + underground + landscape
                         + primaryGateLeaf + posternLeaf);
         }
 
@@ -287,6 +290,21 @@ namespace VoxelEngine.Structures.Api
                 return ReadinessFailure(readinessIssue, writeBudget);
             }
 
+            if (spatialPlan.Landscape == null)
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.MissingLandscapePlan,
+                    writeBudget);
+            }
+
+            if (!CastleLandscapePlanValidator.TryValidate(
+                    spatialPlan.Landscape, out _))
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.InvalidLandscapePlan,
+                    writeBudget);
+            }
+
             DungeonPlan dungeon = spatialPlan.Dungeon;
             if (dungeon == null)
             {
@@ -402,6 +420,35 @@ namespace VoxelEngine.Structures.Api
                 ? CaveBuildEstimate.Estimate(cave)
                 : UnplannedCaveAllowance;
             return designed + natural;
+        }
+
+        private static double LandscapeCost(CastleLandscapePlan landscape)
+        {
+            if (!CastleLandscapePlanValidator.TryValidate(landscape, out _))
+                return 0.0;
+
+            double cost = 0.0;
+            CastleLandscapeDecorationSpec[] decorations = landscape.Decorations;
+            for (int i = 0; i < decorations.Length; i++)
+            {
+                CastleLandscapeDecorationSpec decoration = decorations[i];
+                switch (decoration.Kind)
+                {
+                    case CastleLandscapeDecorationKind.PerimeterStoneRubble:
+                    case CastleLandscapeDecorationKind.PerimeterDarkStoneRubble:
+                        cost += math.max(0, decoration.Size.x)
+                              * (double)math.max(0, decoration.Size.y)
+                              * math.max(0, decoration.Size.z);
+                        break;
+
+                    default:
+                        int radius = math.max(0, decoration.Radius);
+                        int height = math.max(0, decoration.Height);
+                        cost += math.PI_DBL * radius * radius * height / 3.0;
+                        break;
+                }
+            }
+            return cost;
         }
 
         private static double CourtyardBuildingCost(CastleCourtyardBuildingSpec[] buildings)
