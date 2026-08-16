@@ -33,7 +33,9 @@ namespace VoxelEngine.Tests.EditMode
                 Path.GetFileName(projectionFiles[0]));
 
             string projection = File.ReadAllText(projectionFiles[0]);
-            StringAssert.Contains("LegacyKeepCentreZOffset = 60", projection);
+            string layout = File.ReadAllText(Path.Combine(apiDirectory, "CastlePlan.cs"));
+            StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", projection);
+            StringAssert.Contains("LegacyKeepCentreZOffset = 60", layout);
             StringAssert.Contains("CastleGateGeometryResolver.Resolve", projection);
             StringAssert.Contains("CastleApproachFrame.FromGate", projection);
         }
