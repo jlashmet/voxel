@@ -5,6 +5,7 @@ using VoxelEngine.Structures.Api;
 using GameCastlePlan = Game.Structures.Api.CastlePlan;
 using GameCastleLayout = Game.Structures.Api.CastleLayout;
 using EngineStructuresComposition = VoxelEngine.Composition.StructuresComposition;
+using IVoxelStorageRuntime = VoxelEngine.Composition.IVoxelStorageRuntime;
 
 namespace VoxelEngine.Showcase
 {

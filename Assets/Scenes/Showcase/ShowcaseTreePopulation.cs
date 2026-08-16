@@ -42,8 +42,13 @@ namespace VoxelEngine.Showcase
             int ground = TerrainSampler.HeightAt(cx, cz, worldSeed);
             CastlePlan plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), worldSeed);
 
+            // The showcase CastlePlan is a wrapper around the authoritative
+            // Game.Structures.Api one and converts implicitly — but an implicit conversion
+            // cannot be applied to an `in` parameter, so unwrap it explicitly first.
+            Game.Structures.Api.CastlePlan gamePlan = plan;
+
             if (!CastleVegetationPlanner.TryBuild(
-                    in plan, world.Storage, worldSeed, out var instances))
+                    in gamePlan, world.Storage, worldSeed, out var instances))
                 return;
 
             VegetationComposition.ReplaceTreeWorld(instances);

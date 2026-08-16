@@ -108,9 +108,9 @@ namespace VoxelEngine.Tests.Parity
 
             // Materialise terrain in both.
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, TerrainSeed);
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, TerrainSeed, ParityTerrain.Materials);
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, TerrainSeed);
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, TerrainSeed, ParityTerrain.Materials);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
             var tableB = new RegionTable(1, Allocator.Persistent);

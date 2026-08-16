@@ -14,6 +14,7 @@ using VoxelEngine.Net.Runtime.Server;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 using VoxelEngine.Structures.Api;
+using Mat = Game.Materials.Api.GameMaterialIds;   // engine-side Mat constants were removed
 
 namespace VoxelEngine.Tests.EditMode
 {

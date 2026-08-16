@@ -110,8 +110,9 @@ namespace VoxelEngine.Showcase
             // The mesh is drawn with Graphics.DrawMesh, not through this renderer; the
             // component is required only so the object carries sane bounds in the editor.
             if (_renderer != null) _renderer.enabled = false;
-            if (ShowcaseMaterialComposition.TryGet(out ShowcaseMaterialSet roles))
-                MaterialRoles = roles;
+            // The global ShowcaseMaterialComposition binding was removed: material
+            // identity is application-owned and supplied explicitly now.
+            MaterialRoles = Game.Materials.Runtime.GameShowcaseMaterials.Default;
             EnsureMaterial();
         }
 

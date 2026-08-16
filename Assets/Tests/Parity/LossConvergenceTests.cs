@@ -43,9 +43,9 @@ namespace VoxelEngine.Tests.Parity
             var regionB = new Region(int3.zero, Allocator.Temp);
 
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, terrainSeed);
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, terrainSeed, ParityTerrain.Materials);
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, terrainSeed);
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, terrainSeed, ParityTerrain.Materials);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
             var tableB = new RegionTable(1, Allocator.Persistent);
@@ -90,9 +90,9 @@ namespace VoxelEngine.Tests.Parity
             var regionB = new Region(int3.zero, Allocator.Temp);
 
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u);
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u, ParityTerrain.Materials);
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u);
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u, ParityTerrain.Materials);
 
             var tableA = new RegionTable(1, Allocator.Persistent);
             var tableB = new RegionTable(1, Allocator.Persistent);
@@ -132,9 +132,9 @@ namespace VoxelEngine.Tests.Parity
             var regionB = new Region(int3.zero, Allocator.Temp);
 
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u);
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, 42u, ParityTerrain.Materials);
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u);
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, 42u, ParityTerrain.Materials);
 
             const int eventCount = 1000;
             var events = LossConvergenceHarness.GenerateEvents(eventCount, 42u);

@@ -54,7 +54,7 @@ namespace VoxelEngine.Tests.PlayMode
                 .SetValue(showcase, false);
 
             int ground = world.SurfaceHeight(256, 376);
-            CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
+            CastlePlan plan = StructuresComposition.PlanCastle(new int3(256, ground, 376), world.Seed);
             Vector3 centre = new Vector3(plan.Centre.x, plan.Centre.y + plan.PlateauHeight,
                                          plan.Centre.z) * 0.1f;
             Vector3 lookAt = centre + Vector3.up * 10f;
@@ -247,7 +247,7 @@ namespace VoxelEngine.Tests.PlayMode
                 .SetValue(showcase, false);
 
             int ground = world.SurfaceHeight(256, 376);
-            CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
+            CastlePlan plan = StructuresComposition.PlanCastle(new int3(256, ground, 376), world.Seed);
             Vector3 centre = new Vector3(plan.Centre.x, plan.Centre.y + plan.PlateauHeight,
                                          plan.Centre.z) * 0.1f;
             Vector3 lookAt = centre + Vector3.up * 10f;

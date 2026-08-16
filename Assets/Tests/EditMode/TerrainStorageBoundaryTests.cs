@@ -12,6 +12,12 @@ namespace VoxelEngine.Tests.EditMode
 {
     public sealed class TerrainStorageBoundaryTests
     {
+        // TerrainGenerator takes the material set explicitly: the engine generates from opaque
+        // indices and the game owns their meaning. Matches GameTerrainMaterials.Default,
+        // duplicated because this is an engine test assembly.
+        private static readonly VoxelEngine.Terrain.Api.TerrainMaterialSet BoundaryTerrainMaterials =
+            new VoxelEngine.Terrain.Api.TerrainMaterialSet(5, 1, 3); // Bedrock, Stone, Sand
+
         [Test]
         public void TerrainGeneratorDependsOnlyOnStorageGenerationApi()
         {
@@ -52,8 +58,8 @@ namespace VoxelEngine.Tests.EditMode
                 var tableStore = new RegionGenerationStore(in table);
                 var standaloneStore = new StandaloneRegionGenerationStore(in standalone);
 
-                TerrainGenerator.Generate(tableStore, coord, seed);
-                TerrainGenerator.Generate(standaloneStore, coord, seed);
+                TerrainGenerator.Generate(tableStore, coord, seed, BoundaryTerrainMaterials);
+                TerrainGenerator.Generate(standaloneStore, coord, seed, BoundaryTerrainMaterials);
 
                 Assert.IsTrue(table.TryGetRegion(coord, out Region generated));
                 Assert.AreEqual(standalone.BrickRefs.Length, generated.BrickRefs.Length);

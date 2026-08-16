@@ -8,6 +8,10 @@ using UnityEngine.TestTools;
 using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Vegetation.Runtime;
 
+// UnityEngine also defines a TreeInstance (the legacy terrain one), and both namespaces are
+// in scope here, so the unqualified name is ambiguous.
+using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
+
 namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class ChainCombatProductionVegetationV12Tests

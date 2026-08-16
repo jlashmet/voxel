@@ -659,7 +659,7 @@ namespace VoxelEngine.Tests.PlayMode
                 .SetValue(showcase, false);
 
             int ground = world.SurfaceHeight(256, 376);
-            plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
+            plan = StructuresComposition.PlanCastle(new int3(256, ground, 376), world.Seed);
             centre = new Vector3(plan.Centre.x, plan.Centre.y + plan.PlateauHeight,
                                  plan.Centre.z) * 0.1f;
         }

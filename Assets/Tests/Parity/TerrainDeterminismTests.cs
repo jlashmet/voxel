@@ -27,9 +27,9 @@ namespace VoxelEngine.Tests.Parity
             var regionB = new Region(int3.zero, Allocator.Temp);
 
             TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, seed);
+                new StandaloneRegionGenerationStore(in regionA), regionA.Coord, seed, ParityTerrain.Materials);
             TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, seed);
+                new StandaloneRegionGenerationStore(in regionB), regionB.Coord, seed, ParityTerrain.Materials);
 
             for (int i = 0; i < VoxelDimensions.BricksPerRegion; i++)
             {
@@ -59,9 +59,9 @@ namespace VoxelEngine.Tests.Parity
             var r2 = new Region(new int3(1, 1, 1), Allocator.Temp);
 
             TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in r1), r1.Coord, 0u);
+                new StandaloneRegionGenerationStore(in r1), r1.Coord, 0u, ParityTerrain.Materials);
             TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in r2), r2.Coord, 1u);
+                new StandaloneRegionGenerationStore(in r2), r2.Coord, 1u, ParityTerrain.Materials);
 
             bool foundDifference = false;
             for (int i = 0; i < VoxelDimensions.BricksPerRegion && !foundDifference; i++)
@@ -84,7 +84,7 @@ namespace VoxelEngine.Tests.Parity
 
             const uint seed = 99u;
             TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in region), region.Coord, seed);
+                new StandaloneRegionGenerationStore(in region), region.Coord, seed, ParityTerrain.Materials);
 
             const int column = 32;
             int worldX = column * VoxelDimensions.BrickEdge + (VoxelDimensions.BrickEdge >> 1);
@@ -117,13 +117,15 @@ namespace VoxelEngine.Tests.Parity
 
             const uint seed = 99u;
             TerrainGenerator.Generate(
-                new StandaloneRegionGenerationStore(in region), region.Coord, seed);
+                new StandaloneRegionGenerationStore(in region), region.Coord, seed, ParityTerrain.Materials);
 
             var deep = region.GetBrick(32, 0, 32);
 
             Assert.IsTrue(deep.IsUniform, "the bottom of the region should be uniform ground");
-            Assert.AreEqual(TerrainGenerator.MaterialBedrock, deep.UniformMaterial,
-                "ground far below the surface should be bedrock");
+            // TerrainGenerator no longer owns material identity; the deep slot is whatever the
+            // caller supplied in the TerrainMaterialSet.
+            Assert.AreEqual(ParityTerrain.Bedrock, deep.UniformMaterial,
+                "ground far below the surface should be the supplied deep material");
 
             region.Dispose();
         }

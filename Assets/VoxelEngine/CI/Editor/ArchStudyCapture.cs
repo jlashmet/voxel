@@ -398,3 +398,18 @@ namespace VoxelEngine.CI
         }
     }
 }
+
+namespace VoxelEngine.CI
+{
+    /// <summary>
+    /// Masonry indices for the arch study capture. Mirrors Game.Materials.Api.GameMaterialIds;
+    /// duplicated because this is an engine assembly and EngineGameDependencyBoundaryTests
+    /// forbids a Game dependency from anything under Assets/VoxelEngine.
+    /// </summary>
+    internal static class Mat
+    {
+        internal const byte MasonrySmall = 18;
+        internal const byte MasonryMedium = 19;
+        internal const byte MasonryLarge = 20;
+    }
+}

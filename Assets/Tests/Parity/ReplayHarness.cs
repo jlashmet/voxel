@@ -65,9 +65,9 @@ namespace VoxelEngine.Tests.Parity
             var generationB = new RegionGenerationStore(in _tableB);
 
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                generationA, regionA.Coord, terrainSeed);
+                generationA, regionA.Coord, terrainSeed, ParityTerrain.Materials);
             VoxelEngine.Terrain.Runtime.TerrainGenerator.Generate(
-                generationB, regionB.Coord, terrainSeed);
+                generationB, regionB.Coord, terrainSeed, ParityTerrain.Materials);
 
             // Materialise both.
             _tableA.CommitRegion(regionA);

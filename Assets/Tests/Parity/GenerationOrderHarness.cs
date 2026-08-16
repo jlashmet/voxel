@@ -53,7 +53,7 @@ namespace VoxelEngine.Tests.Parity
                 var region = new Region(coord, Allocator.Temp);
 
                 TerrainGenerator.Generate(
-                    new StandaloneRegionGenerationStore(in region), region.Coord, seed);
+                    new StandaloneRegionGenerationStore(in region), region.Coord, seed, ParityTerrain.Materials);
 
                 fingerprints[linear] = FingerprintRegion(in region, coord);
 
@@ -118,5 +118,26 @@ namespace VoxelEngine.Tests.Parity
             for (var i = 0; i < count; i++) order[i] = i;
             return order;
         }
+    }
+}
+
+namespace VoxelEngine.Tests.Parity
+{
+    /// <summary>
+    /// Terrain material slots for the parity harnesses.
+    ///
+    /// TerrainGenerator now takes the material set explicitly: the engine generates terrain from
+    /// opaque indices and the game owns what they mean. These mirror Game.Materials.Runtime's
+    /// GameTerrainMaterials.Default, duplicated rather than referenced because this is an engine
+    /// test assembly and must not depend on the game layer.
+    /// </summary>
+    internal static class ParityTerrain
+    {
+        internal const byte Bedrock = 5;
+        internal const byte Stone = 1;
+        internal const byte Sand = 3;
+
+        internal static readonly VoxelEngine.Terrain.Api.TerrainMaterialSet Materials =
+            new VoxelEngine.Terrain.Api.TerrainMaterialSet(Bedrock, Stone, Sand);
     }
 }
