@@ -67,7 +67,7 @@ namespace VoxelEngine.Showcase
                     Kind = kind,
                     Seed = clusterSeed == 0u ? 1u : clusterSeed,
                     Count = (ushort)(6 + i % 3),
-                    RadiusMetres = 1.65f,
+                    RadiusMetres = 1.90f,
                 });
             }
         }

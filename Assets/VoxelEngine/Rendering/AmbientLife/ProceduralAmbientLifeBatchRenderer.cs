@@ -13,6 +13,7 @@ namespace VoxelEngine.Rendering.AmbientLife
     public sealed class ProceduralAmbientLifeBatchRenderer : MonoBehaviour
     {
         private const int MaxInstancesPerDraw = 1023;
+        private const float GoldenAngleRadians = 2.39996323f;
 
         private readonly Dictionary<AmbientLifeKind, List<Matrix4x4>> _batches =
             new Dictionary<AmbientLifeKind, List<Matrix4x4>>();
@@ -45,19 +46,33 @@ namespace VoxelEngine.Rendering.AmbientLife
                 bool flying = (profile.Traits & AmbientLifeTraits.Flying) != 0;
                 GetShapeScale(style.Shape, out float shapeWidth, out float shapeHeight);
 
+                float radius = Mathf.Max(0.05f, cluster.RadiusMetres);
+                float clusterRotation = Random01(cluster.Seed ^ 0xC13FA9A9u) * Mathf.PI * 2f;
+
                 for (int i = 0; i < cluster.Count; i++)
                 {
                     uint seed = Hash(cluster.Seed, (uint)i + 1u, (uint)clusterIndex + 17u);
-                    float angle = Random01(seed) * Mathf.PI * 2f;
-                    float radial = Mathf.Sqrt(Random01(seed ^ 0xA511E9B3u))
-                                   * Mathf.Max(0.05f, cluster.RadiusMetres);
+
+                    // A deterministic sunflower/golden-angle distribution keeps local populations
+                    // organic without allowing random samples to collapse most agents into one blob.
+                    float radialSequence = (i + 0.58f) / (cluster.Count + 0.25f);
+                    float angleJitter = (Random01(seed ^ 0x8DA6B343u) - 0.5f) * 0.34f;
+                    float angle = clusterRotation + i * GoldenAngleRadians + angleJitter;
+                    float radialJitter = Mathf.Lerp(
+                        0.91f,
+                        1.06f,
+                        Random01(seed ^ 0xA511E9B3u));
+                    float radial = Mathf.Min(
+                        radius,
+                        Mathf.Sqrt(radialSequence) * radius * radialJitter);
+
                     float height = 0.035f;
                     if (flying)
                     {
-                        float verticalRange = Mathf.Min(
-                            1.8f,
-                            Mathf.Max(0.25f, cluster.RadiusMetres * 0.28f));
-                        height = 0.30f + Random01(seed ^ 0x63D83595u) * verticalRange;
+                        float verticalRange = Mathf.Min(1.8f, Mathf.Max(0.25f, radius * 0.28f));
+                        float lane = (i % 4) / 3f;
+                        float heightJitter = (Random01(seed ^ 0x63D83595u) - 0.5f) * 0.18f;
+                        height = 0.30f + verticalRange * Mathf.Clamp01(0.12f + lane * 0.76f + heightJitter);
                     }
 
                     Vector3 position = new Vector3(
