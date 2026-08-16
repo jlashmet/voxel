@@ -8,18 +8,15 @@ namespace VoxelEngine.Structures.Runtime
     /// Castle composition for a preplanned designed dungeon plus its natural cave continuation.
     /// Generic realization owns room shells/circulation, semantic furnishing remains reusable by
     /// room purpose, and this adapter joins castle-specific moving architecture to planned natural
-    /// space without choosing topology during realization.
+    /// space without choosing topology or decoration during realization.
     /// </summary>
     internal static class CastlePlannedDungeonRealizer
     {
-        /// <summary>
-        /// Runtime path for a fully completed spatial castle. Both designed and natural topology
-        /// are supplied by planning; this component contains no cave-planning or castle-scale choice.
-        /// </summary>
         internal static void Build(
             ref VoxelBrush brush,
             DungeonPlan dungeonPlan,
-            CavePlan cavePlan)
+            CavePlan cavePlan,
+            CastleCaveDecorationPlan caveDecoration)
         {
             ValidateDungeon(dungeonPlan);
             BuildDesigned(ref brush, dungeonPlan);
@@ -29,6 +26,9 @@ namespace VoxelEngine.Structures.Runtime
                 if (cavePlan != null)
                     throw new InvalidOperationException(
                         "Castle dungeon has no cave threshold but a natural cave plan was supplied.");
+                if (caveDecoration != null)
+                    throw new InvalidOperationException(
+                        "Castle dungeon has no cave threshold but cave decoration was supplied.");
                 return;
             }
 
@@ -49,8 +49,17 @@ namespace VoxelEngine.Structures.Runtime
                     "Castle natural cave entrance does not align with the designed cave threshold.");
             }
 
+            if (!CastleCaveDecorationPlanValidator.TryValidate(
+                    cavePlan,
+                    caveDecoration,
+                    out CastleCaveDecorationPlanIssue decorationIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot realize invalid castle cave decoration plan: {decorationIssue}.");
+            }
+
             CaveRealizer.Build(ref brush, cavePlan);
-            CastlePlannedCaveDecorator.Build(ref brush, cavePlan);
+            CastlePlannedCaveDecorator.Build(ref brush, cavePlan, caveDecoration);
         }
 
         private static void ValidateDungeon(DungeonPlan dungeonPlan)
