@@ -21,6 +21,10 @@ namespace VoxelEngine.Structures.Api
         MissingDungeonPlan,
         InvalidDungeonPlan,
         DungeonEntranceMismatch,
+        MissingCavePlan,
+        UnexpectedCavePlan,
+        InvalidCavePlan,
+        CaveEntranceMismatch,
     }
 
     /// <summary>Pure result of checking whether a castle plan is safe to realize.</summary>
@@ -219,8 +223,8 @@ namespace VoxelEngine.Structures.Api
 
         /// <summary>
         /// Admission check used by Runtime. Unlike general spatial evaluation, this requires
-        /// site-aware planning completion, explicit keep-floor semantics, and a valid dungeon
-        /// anchored to the projected trapdoor.
+        /// site-aware planning completion, explicit keep-floor semantics, a valid dungeon anchored
+        /// to the projected trapdoor, and a complete designed-dungeon to natural-cave handoff.
         /// </summary>
         public static CastleBuildPreflightResult EvaluateRuntimeReady(
             in CastlePlan plan,
@@ -299,7 +303,31 @@ namespace VoxelEngine.Structures.Api
                     writeBudget);
             }
 
+            if (!CastleCaveBuildReadiness.TryValidate(
+                    spatialPlan, out CastleCaveBuildReadinessIssue caveIssue))
+            {
+                return ReadinessFailure(MapCaveReadiness(caveIssue), writeBudget);
+            }
+
             return structural;
+        }
+
+        private static CastleSpatialBuildReadinessIssue MapCaveReadiness(
+            CastleCaveBuildReadinessIssue issue)
+        {
+            switch (issue)
+            {
+                case CastleCaveBuildReadinessIssue.MissingCavePlan:
+                    return CastleSpatialBuildReadinessIssue.MissingCavePlan;
+                case CastleCaveBuildReadinessIssue.UnexpectedCavePlan:
+                    return CastleSpatialBuildReadinessIssue.UnexpectedCavePlan;
+                case CastleCaveBuildReadinessIssue.InvalidCavePlan:
+                    return CastleSpatialBuildReadinessIssue.InvalidCavePlan;
+                case CastleCaveBuildReadinessIssue.CaveEntranceMismatch:
+                    return CastleSpatialBuildReadinessIssue.CaveEntranceMismatch;
+                default:
+                    return CastleSpatialBuildReadinessIssue.None;
+            }
         }
 
         private static bool IsValidKeepFloor(in CastleKeepFloorPlan floor)
