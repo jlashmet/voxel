@@ -50,7 +50,7 @@ No temporary Animator state machine is defined here. Gameplay should consume the
 
 These assets are deliberately isolated under `Assets/ThirdParty/PlaceholderHumanoids` so they can be removed when generated character models are ready. Gameplay code should depend on Unity Humanoid/Animator contracts, not on Rocketbox-specific bone names.
 
-The two Rocketbox models are intentionally imported without their large legacy TGA texture set. They are geometry/rig placeholders, not final art. This keeps the temporary package small and makes the replacement boundary obvious.
+The two Rocketbox models intentionally omit the large legacy TGA texture/material set. During import, every skinned material slot is instead bound to the active render pipeline's default 3D material (URP in this project), so the bodies remain visible as neutral development mannequins without adding disposable texture weight. They are visual/rig placeholders, not final art.
 
 The animation set is intentionally small and named by gameplay purpose instead of importing Rocketbox's full animation library. Add clips only when a prototype actually needs them.
 
