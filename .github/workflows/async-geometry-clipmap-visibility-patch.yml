@@ -18,6 +18,17 @@ jobs:
         with:
           ref: refactor/async-geometry-pipeline
           fetch-depth: 0
+      - name: Correct temporary scheduler anchor
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/async_geometry_clipmap_visibility_patch.py')
+          s = p.read_text()
+          s = s.replace(
+              "'''        private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new();\n        private readonly VoxelTimingWindow _prepareTiming = new();''',\n'''        private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new();\n        private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];\n        private int _lastVisibilityCandidateChecks;\n        private readonly VoxelTimingWindow _prepareTiming = new();''',",
+              "'''        private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);\n        private readonly CpuWaterSurfaceChunkCache _water = new();''',\n'''        private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);\n        private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];\n        private int _lastVisibilityCandidateChecks;\n        private readonly CpuWaterSurfaceChunkCache _water = new();''',")
+          p.write_text(s)
+          PY
       - name: Apply guarded patch
         run: python3 .github/scripts/async_geometry_clipmap_visibility_patch.py
       - name: Static guards
