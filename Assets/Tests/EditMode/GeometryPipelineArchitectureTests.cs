@@ -65,5 +65,34 @@ namespace VoxelEngine.Tests.EditMode
             Assert.GreaterOrEqual(discovery, 0);
             StringAssert.Contains("return;", scheduler.Substring(discovery, 140));
         }
+
+        [Test]
+        public void MultipleCamerasCannotMultiplyGeometryFrameBudgets()
+        {
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            int guard = scheduler.IndexOf("if (_lastAdvancedFrame == frame)",
+                                          StringComparison.Ordinal);
+            int advancement = scheduler.IndexOf("_lastAdvancedFrame = frame;", guard,
+                                                StringComparison.Ordinal);
+            Assert.GreaterOrEqual(guard, 0);
+            Assert.Greater(advancement, guard);
+            string sameFramePath = scheduler.Substring(guard, advancement - guard);
+            StringAssert.Contains("CollectVisibility(camera, voxelSize, frame);", sameFramePath);
+            StringAssert.Contains("return;", sameFramePath);
+
+            int visibilityStart = scheduler.IndexOf("private void CollectVisibility",
+                                                    StringComparison.Ordinal);
+            int visibilityEnd = scheduler.IndexOf("private void EnqueueSurfaceDiscovery",
+                                                  visibilityStart, StringComparison.Ordinal);
+            Assert.GreaterOrEqual(visibilityStart, 0);
+            Assert.Greater(visibilityEnd, visibilityStart);
+            string visibility = scheduler.Substring(visibilityStart,
+                                                    visibilityEnd - visibilityStart);
+            StringAssert.DoesNotContain("ReadSince(", visibility);
+            StringAssert.DoesNotContain("ProcessSurfaceDiscovery(", visibility);
+            StringAssert.DoesNotContain("TryPublishPending(", visibility);
+            StringAssert.DoesNotContain(".Prepare(storage,", visibility);
+        }
     }
 }
