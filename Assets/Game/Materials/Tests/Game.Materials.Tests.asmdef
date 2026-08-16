@@ -4,7 +4,6 @@
   "references": [
     "Game.Materials.Api",
     "Game.Materials.Runtime",
-    "Game.Composition.Materials",
     "VoxelEngine.Composition.Api",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
