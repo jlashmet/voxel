@@ -42,7 +42,9 @@
     "VoxelEngine.Streaming.Api",
     "VoxelEngine.Streaming.Runtime",
     "VoxelEngine.Collision.Runtime",
-    "VoxelEngine.Terrain.Runtime"
+    "VoxelEngine.Terrain.Runtime",
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.AmbientLife.Api"
   ],
   "includePlatforms": [
     "Editor"

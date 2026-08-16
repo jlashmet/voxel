@@ -9,7 +9,8 @@
     "VoxelEngine.Tiering.Api",
     "Unity.RenderPipelines.Universal.Runtime",
     "Unity.RenderPipelines.Core.Runtime",
-    "VoxelEngine.Vegetation.Api"
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.AmbientLife.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
