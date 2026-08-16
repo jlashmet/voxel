@@ -767,6 +767,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong ActiveSurfaceCatalogueHash => _surfaceCatalogue.CatalogueHash;
         public ulong CompletedBuildCount { get; private set; }
         public ulong StaleBuildCount { get; private set; }
+        public ulong ExactMetadataScheduleCount { get; private set; }
+        public ulong ExactMetadataCompleteCount { get; private set; }
+        public ulong ExactMetadataRevisionRejectCount { get; private set; }
+        public ulong ExactMetadataPinRejectCount { get; private set; }
         public ulong UploadedGeometryBytes { get; private set; }
         public ulong CompletedDecorationClumps { get; private set; }
         public int MissingVisibleCount { get; private set; }
@@ -1749,8 +1753,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     return false;
                 }
                 _exactMetadataJobScheduled = false;
+                ExactMetadataCompleteCount++;
                 if (!PinnedRegionMetadataCurrent())
                 {
+                    ExactMetadataRevisionRejectCount++;
                     ReleasePinnedRegionMetadataImmediate();
                     _discardBuildAfterPinRelease = true;
                     AccumulateSnapshotSlice(sliceStart, completed: false);
@@ -1771,6 +1777,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     int3 worldBlock = WorldBlockForCacheIndex(cacheIndex, cacheOrigin);
                     if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))
                     {
+                        ExactMetadataPinRejectCount++;
                         // Metadata said this block was mixed, but the coordinate can no longer
                         // supply that immutable COW payload. The optimistic snapshot is no longer
                         // coherent (for example, residency or a writer raced the metadata copy).
@@ -1786,6 +1793,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     if (pinned.Kind != VoxelReadBlockKind.Mixed || !pinned.HasPinnedPayload
                         || pinned.MixedOffset != expected.MixedOffset)
                     {
+                        ExactMetadataPinRejectCount++;
                         if (pinned.HasPinnedPayload)
                             source.ReleasePinnedWorldBlock(in pinned.Pin);
                         ReleasePinnedRegionMetadataImmediate();
@@ -1806,6 +1814,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                              || _pinnedMixedBoundarySamples.Length
                                 != pinned.MixedBoundarySamples.Length)
                     {
+                        ExactMetadataPinRejectCount++;
                         source.ReleasePinnedWorldBlock(in pinned.Pin);
                         ReleasePinnedRegionMetadataImmediate();
                         _discardBuildAfterPinRelease = true;
@@ -1827,6 +1836,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // splice metadata generations: reject the whole optimistic snapshot and try again.
             if (!PinnedRegionMetadataCurrent())
             {
+                ExactMetadataRevisionRejectCount++;
                 ReleasePinnedRegionMetadataImmediate();
                 _discardBuildAfterPinRelease = true;
                 AccumulateSnapshotSlice(sliceStart, completed: false);
@@ -2004,6 +2014,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 MixedFlags = _exactMixedFlags,
                 MixedIndices = _exactMixedBrickIndices,
             }.Schedule(dependency);
+            ExactMetadataScheduleCount++;
             _exactMetadataJobScheduled = true;
         }
 

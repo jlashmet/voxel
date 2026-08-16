@@ -169,7 +169,11 @@ namespace VoxelEngine.Tests.PlayMode
                       + $"step4=known:{metrics.Step4KnownChunks}/resident:{metrics.Step4ResidentChunks}/"
                       + $"dirty:{metrics.Step4DirtyChunks}/missing:{metrics.Step4MissingVisibleChunks}/"
                       + $"jobs:{metrics.Step4RunningJobs}/phaseMask:0x{metrics.Step4BuildPhaseMask:X}/"
-                      + $"jobMask:0x{metrics.Step4ActiveJobMask:X}.");
+                      + $"jobMask:0x{metrics.Step4ActiveJobMask:X}/"
+                      + $"meta:{metrics.Step4ExactMetadataScheduled}/{metrics.Step4ExactMetadataCompleted}/"
+                      + $"revReject:{metrics.Step4ExactMetadataRevisionRejects}/"
+                      + $"pinReject:{metrics.Step4ExactMetadataPinRejects} "
+                      + $"stale:{metrics.RejectedStaleSolidBuilds}.");
                     Assert.Greater(metrics.VisibleSolidChunks, 0,
                         $"LOD step {band.step} produced no visible voxel geometry; "
                       + $"known={metrics.SolidKnownChunks} resident={metrics.SolidResidentChunks} "

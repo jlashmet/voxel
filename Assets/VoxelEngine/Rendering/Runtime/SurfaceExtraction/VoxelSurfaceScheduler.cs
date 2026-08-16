@@ -38,6 +38,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int Step4RunningJobs;
         public readonly uint Step4BuildPhaseMask;
         public readonly uint Step4ActiveJobMask;
+        public readonly ulong Step4ExactMetadataScheduled;
+        public readonly ulong Step4ExactMetadataCompleted;
+        public readonly ulong Step4ExactMetadataRevisionRejects;
+        public readonly ulong Step4ExactMetadataPinRejects;
         public readonly int RunningGeometryJobs;
         public readonly ulong FramePathBlockingCompletionViolations;
         public readonly long LastFrameManagedAllocationBytes;
@@ -108,6 +112,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Step4BuildPhaseMask = isStep4 && solids.ActiveBuildPhase >= 0
                 ? 1u << solids.ActiveBuildPhase : 0u;
             Step4ActiveJobMask = isStep4 ? solids.ActiveJobMask : 0u;
+            Step4ExactMetadataScheduled = isStep4 ? solids.ExactMetadataScheduleCount : 0UL;
+            Step4ExactMetadataCompleted = isStep4 ? solids.ExactMetadataCompleteCount : 0UL;
+            Step4ExactMetadataRevisionRejects = isStep4 ? solids.ExactMetadataRevisionRejectCount : 0UL;
+            Step4ExactMetadataPinRejects = isStep4 ? solids.ExactMetadataPinRejectCount : 0UL;
             RunningGeometryJobs = solids.RunningJobCount + water.RunningJobCount;
             FramePathBlockingCompletionViolations =
                 solids.FramePathBlockingCompletionViolations
@@ -182,6 +190,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;
             int step4Known = 0, step4Resident = 0, step4Dirty = 0, step4Missing = 0, step4Running = 0;
             uint step4BuildPhaseMask = 0, step4ActiveJobMask = 0;
+            ulong step4MetadataScheduled = 0, step4MetadataCompleted = 0;
+            ulong step4MetadataRevisionRejects = 0, step4MetadataPinRejects = 0;
             long pendingUploadBytes = 0;
             ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;
             ulong decorations = 0, pressure = 0;
@@ -206,6 +216,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     if (worker.ActiveBuildPhase >= 0)
                         step4BuildPhaseMask |= 1u << worker.ActiveBuildPhase;
                     step4ActiveJobMask |= worker.ActiveJobMask;
+                    step4MetadataScheduled += worker.ExactMetadataScheduleCount;
+                    step4MetadataCompleted += worker.ExactMetadataCompleteCount;
+                    step4MetadataRevisionRejects += worker.ExactMetadataRevisionRejectCount;
+                    step4MetadataPinRejects += worker.ExactMetadataPinRejectCount;
                 }
                 uploads += worker.PendingUploadCount;
                 pendingUploadBytes += worker.PendingUploadBytes;
@@ -232,6 +246,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             Step4RunningJobs = step4Running;
             Step4BuildPhaseMask = step4BuildPhaseMask;
             Step4ActiveJobMask = step4ActiveJobMask;
+            Step4ExactMetadataScheduled = step4MetadataScheduled;
+            Step4ExactMetadataCompleted = step4MetadataCompleted;
+            Step4ExactMetadataRevisionRejects = step4MetadataRevisionRejects;
+            Step4ExactMetadataPinRejects = step4MetadataPinRejects;
             RunningGeometryJobs = running + water.RunningJobCount + schedulerRunningJobs;
             FramePathBlockingCompletionViolations =
                 completionViolations + schedulerCompletionViolations;
