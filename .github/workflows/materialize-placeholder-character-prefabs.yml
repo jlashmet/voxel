@@ -64,6 +64,7 @@ jobs:
             -nographics \
             -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelGame.Editor.PlaceholderCharacterAssetMaterializer.Materialize \
             -quit \
             -logFile "$RUNNER_TEMP/materialize-placeholder-prefabs.log"
 
