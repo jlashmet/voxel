@@ -17,6 +17,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.IsTrue(annexes.HasGreatHallWing, $"seed {seed}: missing Great Hall wing");
                 Assert.IsTrue(annexes.HasChapelWing, $"seed {seed}: missing chapel wing");
                 Assert.IsTrue(annexes.HasBellTower, $"seed {seed}: missing chapel bell tower");
+                Assert.IsTrue(annexes.HasRearOriel, $"seed {seed}: missing rear timber oriel");
                 Assert.IsTrue(
                     CastleKeepAnnexPlanValidator.TryValidate(
                         in annexes, out CastleKeepAnnexPlanIssue issue),
