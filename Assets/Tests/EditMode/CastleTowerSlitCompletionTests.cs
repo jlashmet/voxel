@@ -22,6 +22,9 @@ namespace VoxelEngine.Tests.EditMode
                 spatial.InnerTowers,
                 CastleInnerWardTowerPlanner.Height(in plan),
                 "inner");
+            Assert.IsTrue(CastleTowerSlitPlanCompletion.TryValidate(
+                in plan, spatial, out CastleTowerSlitBuildReadinessIssue issue),
+                issue.ToString());
         }
 
         [Test]
@@ -37,7 +40,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void RuntimeReadinessRejectsMissingOuterTowerSlitPlan()
+        public void TowerSlitReadinessRejectsMissingOuterTowerSlitPlan()
         {
             PlannedCastleBuild build = StructuresComposition.PlanCastleBuild(
                 int3.zero, 313u, 0x91D5u);
@@ -47,9 +50,9 @@ namespace VoxelEngine.Tests.EditMode
 
             spatial.Towers[0].Slits = null;
 
-            Assert.IsFalse(CastleSpatialBuildReadiness.TryValidate(
-                in plan, spatial, out CastleSpatialBuildReadinessIssue issue));
-            Assert.AreEqual(CastleSpatialBuildReadinessIssue.MissingTowerSlitPlan, issue);
+            Assert.IsFalse(CastleTowerSlitPlanCompletion.TryValidate(
+                in plan, spatial, out CastleTowerSlitBuildReadinessIssue issue));
+            Assert.AreEqual(CastleTowerSlitBuildReadinessIssue.MissingSlitPlan, issue);
         }
 
         [Test]
