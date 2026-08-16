@@ -6,7 +6,13 @@ import json
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageFile
+
+# The approved Madeline turnaround JPEGs currently stored on the branch were written
+# without a complete trailing JPEG stream. Pillow rejects them by default even though
+# the usable scan data is present. Decode permissively once, then immediately write
+# fresh, valid body-only JPEGs before any geometry/texture backend sees the images.
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 VIEW_NAMES = ("front", "back", "left", "right")
 
@@ -28,9 +34,6 @@ def parse_args() -> argparse.Namespace:
 def _garment_seed(arr: np.ndarray) -> np.ndarray:
     r, g, b = (arr[..., index] for index in range(3))
     chroma = np.max(arr, axis=2) - np.min(arr, axis=2)
-    # The modeling base layer is a low-chroma warm beige. The gray studio background
-    # has almost no chroma, exposed skin is warmer, and blonde hair is substantially
-    # more chromatic. This intentionally favors false negatives over touching hair.
     return (
         (r > 145)
         & (g > 135)
@@ -81,8 +84,19 @@ def _body_region(seed: np.ndarray) -> np.ndarray:
     ) > 0
 
 
+def _load_rgb(source: Path) -> Image.Image:
+    image = Image.open(source)
+    image.load()
+    rgb = image.convert("RGB")
+    if rgb.width < 256 or rgb.height < 384:
+        raise RuntimeError(
+            f"{source.name}: decoded reference is unexpectedly small: {rgb.width}x{rgb.height}"
+        )
+    return rgb
+
+
 def prepare_view(source: Path, destination: Path) -> dict[str, object]:
-    image = Image.open(source).convert("RGB")
+    image = _load_rgb(source)
     arr = np.asarray(image).astype(np.float32)
     height, width = arr.shape[:2]
     r, g, b = (arr[..., index] for index in range(3))
@@ -121,7 +135,9 @@ def prepare_view(source: Path, destination: Path) -> dict[str, object]:
     destination.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(output.astype(np.uint8)).save(destination, quality=95, subsampling=0)
 
-    output_arr = np.asarray(Image.open(destination).convert("RGB")).astype(np.float32)
+    output_image = Image.open(destination)
+    output_image.load()
+    output_arr = np.asarray(output_image.convert("RGB")).astype(np.float32)
     before = int(seed.sum())
     after = int((_garment_seed(output_arr) & (yy > 0.235) & (yy < 0.625)).sum())
     reduction = 1.0 - (after / max(before, 1))
