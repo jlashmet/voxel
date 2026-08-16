@@ -1,3 +1,4 @@
+using System;
 using Unity.Mathematics;
 
 namespace VoxelEngine.Structures.Api
@@ -6,6 +7,11 @@ namespace VoxelEngine.Structures.Api
     {
         Corner,
         Wall,
+    }
+
+    public enum CastleCourtyardBuildingRole : byte
+    {
+        Service,
     }
 
     public struct CastleTowerPlacementSpec
@@ -20,6 +26,21 @@ namespace VoxelEngine.Structures.Api
         public int EdgeIndex;
         public int2 Centre;
         public float2 Outward;
+    }
+
+    /// <summary>
+    /// One planner-owned courtyard outbuilding. Runtime receives a complete footprint, height,
+    /// entrance direction, and roof axis; it never guesses a "rear wall" or building purpose.
+    /// </summary>
+    public struct CastleCourtyardBuildingSpec
+    {
+        public int Id;
+        public CastleCourtyardBuildingRole Role;
+        public int2 Centre;
+        public int2 HalfExtents;
+        public int Height;
+        public int2 EntranceDirection;
+        public bool RoofRidgeAlongX;
     }
 
     /// <summary>
@@ -39,6 +60,7 @@ namespace VoxelEngine.Structures.Api
         public CastleGatePlacementSpec InnerGate { get; }
         public bool HasWell { get; }
         public int2 WellCentre { get; }
+        public CastleCourtyardBuildingSpec[] CourtyardBuildings { get; }
         public int2 KeepCentre { get; }
         public bool KeepRequiresTerrainResolution { get; }
 
@@ -66,6 +88,7 @@ namespace VoxelEngine.Structures.Api
                 in innerGate,
                 false,
                 default,
+                Array.Empty<CastleCourtyardBuildingSpec>(),
                 keepCentre,
                 keepRequiresTerrainResolution)
         {
@@ -85,6 +108,39 @@ namespace VoxelEngine.Structures.Api
             int2 wellCentre,
             int2 keepCentre,
             bool keepRequiresTerrainResolution)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                Array.Empty<CastleCourtyardBuildingSpec>(),
+                keepCentre,
+                keepRequiresTerrainResolution)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution)
         {
             Topology = topology;
             OuterWardVertices = outerWardVertices;
@@ -97,6 +153,7 @@ namespace VoxelEngine.Structures.Api
             InnerGate = innerGate;
             HasWell = hasWell;
             WellCentre = wellCentre;
+            CourtyardBuildings = courtyardBuildings ?? Array.Empty<CastleCourtyardBuildingSpec>();
             KeepCentre = keepCentre;
             KeepRequiresTerrainResolution = keepRequiresTerrainResolution;
         }
