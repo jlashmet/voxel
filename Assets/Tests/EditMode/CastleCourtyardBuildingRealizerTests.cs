@@ -10,7 +10,7 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class CastleCourtyardBuildingRealizerTests
     {
         [Test]
-        public void DiagonalBuildingKeepsShellDoorAndRoofOnBulkWrites()
+        public void PlannedServiceBuildingKeepsShellDoorAndRoofOnBulkWrites()
         {
             var table = new RegionTable(8, Allocator.Persistent);
             var pool = new BrickPool(4096, Allocator.Persistent);
@@ -25,20 +25,15 @@ namespace VoxelEngine.Tests.EditMode
                     Centre = new int3(96, 2, 96),
                     PlateauHeight = 4,
                 };
-
-                float2 tangent = math.normalize(new float2(1f, 1f));
-                float2 inward = math.normalize(new float2(-1f, 1f));
                 var building = new CastleCourtyardBuildingSpec
                 {
                     Id = 0,
-                    Purpose = CastleCourtyardBuildingPurpose.Barracks,
-                    WallEdgeIndex = 1,
+                    Role = CastleCourtyardBuildingRole.Service,
                     Centre = int2.zero,
-                    Tangent = tangent,
-                    Inward = inward,
-                    Width = 60,
-                    Depth = 40,
+                    HalfExtents = new int2(30, 20),
                     Height = 36,
+                    EntranceDirection = new int2(0, -1),
+                    RoofRidgeAlongX = true,
                 };
 
                 CastleCourtyardBuildingRealizer.Build(
@@ -49,18 +44,19 @@ namespace VoxelEngine.Tests.EditMode
                 int shellX = plan.Centre.x + shellLocal.x;
                 int shellZ = plan.Centre.z + shellLocal.y;
                 Assert.AreEqual(Mat.Stone, brush.Get(shellX, baseY + 12, shellZ),
-                    "A diagonal footprint corner should retain its masonry shell.");
+                    "The planned footprint corner should retain its masonry shell.");
 
-                int2 doorLocal = building.DoorCentre;
+                int2 doorLocal = building.EntranceCentre;
                 int doorX = plan.Centre.x + doorLocal.x;
                 int doorZ = plan.Centre.z + doorLocal.y;
                 Assert.AreEqual(Mat.Empty, brush.Get(doorX, baseY + 10, doorZ),
-                    "The courtyard-facing doorway should be carved after the wall shell.");
+                    "The planned courtyard-facing doorway should be carved after the wall shell.");
 
-                int ridgeY = baseY + building.Height + 14;
+                int roofHeight = math.clamp((building.HalfExtents.y + 6) * 2 / 3, 14, 28);
+                int ridgeY = baseY + building.Height + roofHeight;
                 Assert.AreEqual(Mat.Tile,
                     brush.Get(plan.Centre.x, ridgeY, plan.Centre.z),
-                    "The roof ridge should follow the planned building basis.");
+                    "The roof ridge should follow RoofRidgeAlongX.");
                 Assert.AreEqual(Mat.Empty,
                     brush.Get(plan.Centre.x, baseY + 12, plan.Centre.z),
                     "The building interior should remain hollow.");
