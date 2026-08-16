@@ -7,8 +7,9 @@ namespace MountingForce.WorldGen.Architecture
     /// Complete renderer-independent architectural policy for one settlement style.
     ///
     /// A city/content package owns an implementation; the generic architecture layer only asks the
-    /// selected compiler to resolve detailed forms inside the high-level settlement envelopes. This
-    /// keeps adding a new city from requiring another style-id switch in shared code.
+    /// selected compiler to resolve detailed forms and low-level geometry intent inside the
+    /// high-level settlement envelopes. This keeps adding a new city from requiring another style-id
+    /// switch in shared code.
     /// </summary>
     public interface IArchitectureStyleCompiler
     {
@@ -22,6 +23,15 @@ namespace MountingForce.WorldGen.Architecture
         void ValidateStructure(
             StructureIntent intent,
             ArchitectureTheme theme,
+            StructureForm form);
+
+        /// <summary>
+        /// Resolves renderer-neutral geometry/reconstruction controls after structure massing is
+        /// known. A style can therefore change corner profiles, openings, trim and roof treatment
+        /// without changing settlement planning or a voxel/mesh backend.
+        /// </summary>
+        StructureGeometryProfile ResolveGeometry(
+            StructureIntent intent,
             StructureForm form);
 
         UrbanFabricForm ResolveUrbanFabric(
