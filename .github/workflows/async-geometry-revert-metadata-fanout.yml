@@ -1,0 +1,60 @@
+name: Revert exact metadata fanout
+
+on:
+  push:
+    branches:
+      - refactor/async-geometry-pipeline
+    paths:
+      - .github/workflows/async-geometry-revert-metadata-fanout.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Restore safe serial metadata dependencies
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
+          s = p.read_text()
+          pairs = [
+            ('            JobHandle clearHandle = new ExactBrickMetadataClearJob\n', '            JobHandle dependency = new ExactBrickMetadataClearJob\n'),
+            ('            }.Schedule(BrickCacheCount, 256);\n            JobHandle regionDependency = default;\n            bool hasRegionDependency = false;\n\n', '            }.Schedule(BrickCacheCount, 256);\n\n'),
+            ('                JobHandle regionHandle = new ExactBrickMetadataRegionJob\n', '                dependency = new ExactBrickMetadataRegionJob\n'),
+            ('                }.Schedule(volume, 128, clearHandle);\n                regionDependency = hasRegionDependency\n                    ? JobHandle.CombineDependencies(regionDependency, regionHandle)\n                    : regionHandle;\n                hasRegionDependency = true;\n', '                }.Schedule(volume, 128, dependency);\n'),
+            ('            JobHandle dependency = hasRegionDependency ? regionDependency : clearHandle;\n            _exactMetadataJobHandle = new ExactMixedBrickCompactJob\n', '            _exactMetadataJobHandle = new ExactMixedBrickCompactJob\n'),
+          ]
+          for old, new in pairs:
+              if s.count(old) != 1:
+                  raise SystemExit(f'expected one cache anchor, got {s.count(old)}: {old!r}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/ExactSnapshotMetadataJobs.cs')
+          s = p.read_text()
+          old = '    /// exact brick cache. Region jobs fan out from one shared clear dependency; each writes a\n    /// disjoint intersection, and the owner combines all region handles before compaction.\n    /// Encoded refs may be authoritatively\n'
+          new = '    /// exact brick cache. Region jobs are chained sequentially; each writes a disjoint intersection\n    /// and therefore never contends with another region. Encoded refs may be authoritatively\n'
+          if s.count(old) != 1:
+              raise SystemExit('fanout comment anchor not found exactly once')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Verify safe dependency chain
+        run: |
+          grep -q 'Schedule(volume, 128, dependency)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          ! grep -q 'CombineDependencies(regionDependency, regionHandle)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+      - name: Commit revert
+        run: |
+          rm .github/workflows/async-geometry-revert-metadata-fanout.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Restore serial exact metadata dependencies'
+          git push origin HEAD:refactor/async-geometry-pipeline
