@@ -41,10 +41,16 @@ namespace VoxelEngine.Structures.Api
         public const int PosternGateDepth = 4;
         public const int LowerRiverDepth = 88;
 
+        /// <summary>
+        /// Historical keep recipe offset. Spatial planning owns the actual keep centre; projection
+        /// translates that semantic centre into this temporary legacy authoring anchor.
+        /// </summary>
+        public const int LegacyKeepCentreZOffset = 60;
+
         public static int3 TrapdoorCentre(in CastlePlan plan)
         {
             int baseY = plan.Centre.y + plan.PlateauHeight;
-            int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
+            int keepMinZ = plan.Centre.z - plan.KeepHalfZ + LegacyKeepCentreZOffset;
             return new int3(plan.Centre.x, baseY, keepMinZ + plan.KeepHalfZ + 40);
         }
 
@@ -76,7 +82,7 @@ namespace VoxelEngine.Structures.Api
         {
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int keepMinX = plan.Centre.x - plan.KeepHalfX;
-            int keepMinZ = plan.Centre.z - plan.KeepHalfZ + 60;
+            int keepMinZ = plan.Centre.z - plan.KeepHalfZ + LegacyKeepCentreZOffset;
             int keepWidth = plan.KeepHalfX * 2;
             int keepDepth = plan.KeepHalfZ * 2;
             int chapelWidth = math.max(78, keepWidth / 3);
