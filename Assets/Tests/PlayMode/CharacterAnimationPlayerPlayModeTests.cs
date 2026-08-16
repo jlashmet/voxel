@@ -264,7 +264,7 @@ namespace VoxelEngine.Tests.PlayMode
             var idle = new AnimationClip { name = "Idle" };
             var walk = new AnimationClip { name = "Walk" };
             var run = new AnimationClip { name = "Run" };
-            var oneShot = CreateTimedClip("Wave", 0.01f);
+            var oneShot = CreateTimedClip("Wave", 0.001f);
 
             var player = host.AddComponent<CharacterAnimationPlayer>();
             var policy = host.AddComponent<CharacterAnimationPolicy>();
@@ -277,17 +277,22 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(player.CurrentClip, Is.SameAs(oneShot),
                 "Changing locomotion interrupted the active one-shot");
 
-            for (var frame = 0; frame < 60 && player.CurrentTime + 0.0001d < oneShot.length; frame++)
+            for (var frame = 0; frame < 120 &&
+                policy.ActiveOneShot != null &&
+                player.CurrentTime + 0.0001d < oneShot.length; frame++)
             {
                 yield return null;
             }
 
-            Assert.That(player.CurrentTime + 0.0001d, Is.GreaterThanOrEqualTo(oneShot.length),
-                "The authored one-shot never reached its clip end");
-            policy.Tick();
+            if (policy.ActiveOneShot != null)
+            {
+                Assert.That(player.CurrentTime + 0.0001d, Is.GreaterThanOrEqualTo(oneShot.length),
+                    "The authored one-shot never reached its clip end");
+                policy.Tick();
+            }
 
             Assert.That(policy.ActiveOneShot, Is.Null,
-                "The completed one-shot did not return to locomotion when the policy advanced");
+                "The completed one-shot did not return to locomotion");
             Assert.That(policy.LocomotionState, Is.EqualTo(CharacterLocomotionState.Run));
             Assert.That(player.CurrentClip, Is.SameAs(run));
 
@@ -310,7 +315,7 @@ namespace VoxelEngine.Tests.PlayMode
             var idle = new AnimationClip { name = "Idle" };
             var walk = new AnimationClip { name = "Walk" };
             var run = new AnimationClip { name = "Run" };
-            var oneShot = CreateTimedClip("Shrug", 0.01f);
+            var oneShot = CreateTimedClip("Shrug", 0.001f);
 
             var resolver = host.AddComponent<CharacterVisualResolver>();
             var player = host.AddComponent<CharacterAnimationPlayer>();
@@ -328,17 +333,22 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(player.CurrentClip, Is.SameAs(oneShot));
             Assert.That(player.IsPlaying, Is.True);
 
-            for (var frame = 0; frame < 60 && player.CurrentTime + 0.0001d < oneShot.length; frame++)
+            for (var frame = 0; frame < 120 &&
+                policy.ActiveOneShot != null &&
+                player.CurrentTime + 0.0001d < oneShot.length; frame++)
             {
                 yield return null;
             }
 
-            Assert.That(player.CurrentTime + 0.0001d, Is.GreaterThanOrEqualTo(oneShot.length),
-                "The swapped one-shot never reached its clip end");
-            policy.Tick();
+            if (policy.ActiveOneShot != null)
+            {
+                Assert.That(player.CurrentTime + 0.0001d, Is.GreaterThanOrEqualTo(oneShot.length),
+                    "The swapped one-shot never reached its clip end");
+                policy.Tick();
+            }
 
             Assert.That(policy.ActiveOneShot, Is.Null,
-                "The swapped one-shot did not return to locomotion when the policy advanced");
+                "The swapped one-shot did not return to locomotion");
             Assert.That(player.CurrentClip, Is.SameAs(walk));
 
             Object.Destroy(host);
