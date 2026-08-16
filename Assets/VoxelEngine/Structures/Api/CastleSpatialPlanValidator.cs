@@ -26,6 +26,7 @@ namespace VoxelEngine.Structures.Api
         TowerOffPerimeter,
         WallTowerOnGateEdge,
         InnerWardMismatch,
+        InvalidInnerTowerPlacement,
         SelfIntersectingInnerWard,
         InnerWardOutsideOuterWard,
         InnerGateMismatch,
@@ -204,6 +205,24 @@ namespace VoxelEngine.Structures.Api
             {
                 issue = CastleSpatialPlanIssue.InnerWardMismatch;
                 return false;
+            }
+
+            CastleTowerPlacementSpec[] innerTowers = spatial.InnerTowers;
+            if (innerTowers == null || innerTowers.Length != inner.Length)
+            {
+                issue = CastleSpatialPlanIssue.InvalidInnerTowerPlacement;
+                return false;
+            }
+
+            for (int i = 0; i < innerTowers.Length; i++)
+            {
+                if (innerTowers[i].Id != i ||
+                    innerTowers[i].Role != CastleTowerPlacementRole.Corner ||
+                    !innerTowers[i].Centre.Equals(inner[i]))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidInnerTowerPlacement;
+                    return false;
+                }
             }
 
             if (spatial.HasInnerGate != expectsInner)
