@@ -605,6 +605,24 @@ namespace VoxelEngine.Tests.PlayMode
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
             yield return null;
+            yield return WaitForAtomicWorldReady();
+        }
+
+        private static IEnumerator WaitForAtomicWorldReady()
+        {
+            int frames = 0;
+            double deadline = Time.realtimeSinceStartupAsDouble + 20.0;
+            while (!VoxelRenderBridge.SurfaceBuildEnabled
+                   && frames++ < 1200
+                   && Time.realtimeSinceStartupAsDouble < deadline)
+            {
+                yield return null;
+            }
+
+            Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,
+                $"Showcase atomic world did not commit within {frames} frames / 20 seconds.");
+            Assert.True(VoxelRenderBridge.TryGetWorld(out _),
+                "Showcase lost its render-world binding while waiting for atomic publication.");
         }
 
         private static void GetShowcaseContext(out VoxelShowcase showcase,
