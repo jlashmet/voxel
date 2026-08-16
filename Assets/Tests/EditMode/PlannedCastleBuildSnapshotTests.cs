@@ -21,9 +21,12 @@ namespace VoxelEngine.Tests.EditMode
             Assert.NotNull(first.Dungeon);
             Assert.Greater(first.OuterWardVertices.Length, 0);
             Assert.Greater(first.Dungeon.Rooms.Length, 0);
+            Assert.Greater(first.KeepFloors.Length, 0);
+            Assert.NotNull(first.KeepFloors[0].Accents);
 
             int2 originalVertex = first.OuterWardVertices[0];
             DungeonRoomPlan originalRoom = first.Dungeon.Rooms[0];
+            CastleRoomAccentPlan firstAccents = first.KeepFloors[0].Accents;
             CastleSpatialProjection projectionBefore = build.Projection;
 
             first.OuterWardVertices[0] = originalVertex + new int2(777, -333);
@@ -40,11 +43,22 @@ namespace VoxelEngine.Tests.EditMode
                 "Perimeter mutation escaped back into the frozen planned castle bundle.");
             Assert.AreEqual(originalRoom.Centre, second.Dungeon.Rooms[0].Centre,
                 "Nested dungeon mutation escaped back into the frozen planned castle bundle.");
+            Assert.AreNotSame(firstAccents, second.KeepFloors[0].Accents,
+                "Detached keep-floor snapshots must not retain planner-owned room-accent identity.");
+            CollectionAssert.AreEqual(firstAccents.Snapshot(), second.KeepFloors[0].Accents.Snapshot(),
+                "Deep-cloning room accents must preserve their semantic content.");
             Assert.AreEqual(projectionBefore.KeepCentreWorld, projectionAfter.KeepCentreWorld);
             Assert.AreEqual(
                 projectionBefore.PrimaryGateGeometry.Origin,
                 projectionAfter.PrimaryGateGeometry.Origin,
                 "Presentation/interaction projection changed after mutating a public Spatial copy.");
+        }
+
+        [Test]
+        public void DefaultBundlePreservesNullSpatialCompatibility()
+        {
+            PlannedCastleBuild build = default;
+            Assert.IsNull(build.Spatial);
         }
     }
 }
