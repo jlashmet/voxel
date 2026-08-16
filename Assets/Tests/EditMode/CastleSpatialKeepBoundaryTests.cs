@@ -34,7 +34,7 @@ namespace VoxelEngine.Tests.EditMode
 
             StringAssert.Contains("CastleKeepShellRealizer.Build(", planned);
             StringAssert.Contains("CastlePlannedKeepTurretRealizer.BuildAll(", planned);
-            StringAssert.Contains("CastleKeepFloorRealizer.Build(", planned);
+            StringAssert.Contains("CastleKeepFloorRealizer.BuildPlanned(", planned);
             StringAssert.Contains("CastleKeepCirculationRealizer.Build(", planned);
             StringAssert.Contains("CastlePlannedKeepWindowRealizer.BuildAll(", planned);
             StringAssert.Contains("CastlePlannedKeepExteriorRealizer.Build(", planned);
