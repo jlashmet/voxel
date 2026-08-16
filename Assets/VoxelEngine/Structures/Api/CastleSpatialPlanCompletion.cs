@@ -6,8 +6,8 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Final pure-data completion for castle details that depend on already-resolved core geometry.
     /// Composition calls this after terrain-dependent keep placement is finished; Runtime receives
-    /// tower variation, keep-floor semantics, courtyard buildings, the designed dungeon graph, and
-    /// natural cave topology without choosing any of those authored details itself.
+    /// tower variation, keep-floor semantics, keep circulation, courtyard buildings, the designed
+    /// dungeon graph, and natural cave topology without choosing authored details itself.
     /// </summary>
     public static class CastleSpatialPlanCompletion
     {
@@ -21,7 +21,8 @@ namespace VoxelEngine.Structures.Api
 
             CastleSpatialPlan withTowerVariation = AttachTowerVariation(in plan, spatial);
             CastleSpatialPlan withKeepFloors = AttachKeepFloors(in plan, withTowerVariation);
-            CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withKeepFloors);
+            CastleSpatialPlan withCirculation = AttachKeepCirculation(in plan, withKeepFloors);
+            CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withCirculation);
             CastleSpatialPlan withDungeon = AttachDungeon(in plan, withBuildings);
             CastleSpatialPlan completed = AttachCave(in plan, withDungeon);
             RequireCompleted(in plan, completed);
@@ -97,6 +98,29 @@ namespace VoxelEngine.Structures.Api
                 spatial.CourtyardBuildings,
                 spatial.Dungeon,
                 spatial.Cave);
+        }
+
+        /// <summary>
+        /// Freezes the keep entrance and vertical-circulation anchors in semantic keep-local
+        /// coordinates. Runtime consumes this data instead of choosing stair locations itself.
+        /// </summary>
+        public static CastleSpatialPlan AttachKeepCirculation(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.KeepRequiresTerrainResolution)
+                return spatial;
+
+            CastleKeepCirculationPlan circulation = CastleKeepCirculationPlanner.Create(in plan);
+            return Copy(
+                spatial,
+                spatial.Towers,
+                spatial.KeepFloors,
+                spatial.CourtyardBuildings,
+                spatial.Dungeon,
+                spatial.Cave,
+                circulation);
         }
 
         public static CastleSpatialPlan AttachCourtyardBuildings(
@@ -210,6 +234,14 @@ namespace VoxelEngine.Structures.Api
                 }
             }
 
+            CastleKeepCirculationPlan circulation = completed.KeepCirculation;
+            if (!CastleKeepCirculationPlanner.TryValidate(
+                    in plan, in circulation, out CastleKeepCirculationPlanIssue circulationIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Completed castle keep circulation is invalid: {circulationIssue}.");
+            }
+
             if (completed.Dungeon == null)
                 throw new InvalidOperationException("Completed castle spatial plan has no dungeon plan.");
 
@@ -261,7 +293,8 @@ namespace VoxelEngine.Structures.Api
             CastleKeepFloorPlan[] keepFloors,
             CastleCourtyardBuildingSpec[] buildings,
             DungeonPlan dungeon,
-            CavePlan cave)
+            CavePlan cave,
+            CastleKeepCirculationPlan? keepCirculation = null)
         {
             CastleTopologyPlan topology = spatial.Topology;
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
@@ -288,6 +321,7 @@ namespace VoxelEngine.Structures.Api
                 keepFloors != null
                     ? (CastleKeepFloorPlan[])keepFloors.Clone()
                     : Array.Empty<CastleKeepFloorPlan>(),
+                keepCirculation ?? spatial.KeepCirculation,
                 dungeon,
                 cave,
                 spatial.KeepCentre,
