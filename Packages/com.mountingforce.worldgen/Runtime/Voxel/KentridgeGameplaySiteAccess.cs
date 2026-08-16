@@ -35,7 +35,12 @@ namespace MountingForce.WorldGen.Voxel
     /// </summary>
     public static class KentridgeGameplaySiteAccessResolver
     {
-        private const int ApproachDistanceDecimetres = 18;
+        /// <summary>
+        /// Guaranteed clear approach distance on both sides of a generated public entrance.
+        /// Generation and gameplay both consume this value so the realized air corridor cannot be
+        /// shorter than the point gameplay is asked to reach.
+        /// </summary>
+        public const int ApproachDistanceDecimetres = 18;
 
         public static bool TryResolve(
             SettlementPlan plan,
