@@ -34,6 +34,13 @@ namespace VoxelGame.Editor
                 "Shrug"
             };
 
+        private static readonly HashSet<string> RootMotionAnimationNames =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Walk",
+                "Run"
+            };
+
         private bool IsPlaceholderAsset =>
             assetPath.StartsWith(Root, StringComparison.OrdinalIgnoreCase);
 
@@ -49,7 +56,7 @@ namespace VoxelGame.Editor
         {
             // Bump when import behavior changes so Unity reimports associated FBXs even
             // when CI/editor sessions retain a warm Library cache.
-            return 5;
+            return 6;
         }
 
         private void OnPreprocessModel()
@@ -81,6 +88,7 @@ namespace VoxelGame.Editor
             var importer = (ModelImporter)assetImporter;
             var clips = importer.defaultClipAnimations;
             var semanticName = Path.GetFileNameWithoutExtension(assetPath);
+            var keepsHorizontalRootMotion = RootMotionAnimationNames.Contains(semanticName);
 
             foreach (var clip in clips)
             {
@@ -89,11 +97,18 @@ namespace VoxelGame.Editor
                 clip.name = semanticName;
                 clip.loopTime = shouldLoop;
                 clip.loopPose = shouldLoop;
+
+                // Walk/Run come from Rocketbox's XY motion-extraction exports. Keep their
+                // authored XZ translation as Unity root motion so gameplay can opt into it.
+                // For idles/emotes, bake any incidental horizontal drift into the pose.
+                clip.lockRootPositionXZ = !keepsHorizontalRootMotion;
+                clip.keepOriginalPositionXZ = keepsHorizontalRootMotion;
             }
 
             // On first import Unity leaves clipAnimations empty. Persisting the default
             // take definitions here gives the starter pack explicit gameplay semantics:
-            // locomotion/idles loop, while interaction emotes remain one-shot.
+            // locomotion/idles loop, interaction emotes remain one-shot, and Walk/Run
+            // expose horizontal root motion for controllers that choose to consume it.
             importer.clipAnimations = clips;
         }
 
