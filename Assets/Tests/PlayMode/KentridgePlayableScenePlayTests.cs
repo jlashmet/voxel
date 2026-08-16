@@ -48,13 +48,13 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.False,
                 "The player must begin inside the pub, not already in Kentridge town.");
 
-            // Advance actual Unity frames through the authored opening. Time scale shortens wall-clock
-            // test duration only; the scene still executes its normal Update -> actor tick -> story
-            // runtime tick path on every frame.
-            Time.timeScale = 20f;
+            // Batch-mode frame rate is intentionally uncapped, so a frame count alone is not a
+            // deterministic amount of game time. Force each rendered test frame to advance 100 ms;
+            // the scene still executes its normal Update -> actor tick -> story runtime tick path.
+            Time.captureDeltaTime = 0.1f;
             for (var frame = 0; frame < 240 && !ReadBoolProperty(driver, "GameplayControlEnabled"); frame++)
                 yield return null;
-            Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
 
             Assert.That(ReadBoolProperty(driver, "GameplayControlEnabled"), Is.True,
                 "The actual launch scene never returned gameplay control after the opening cutscene.");
@@ -75,6 +75,7 @@ namespace VoxelEngine.Tests.PlayMode
             // scene continues running each frame, including streaming and its normal exit detection.
             // No teleport or semantic location mutation is used: success requires voxel collision
             // to permit the physical crossing and the scene itself to observe the exterior position.
+            Time.captureDeltaTime = 1f / 60f;
             for (var frame = 0; frame < 600 && !ReadBoolProperty(driver, "HasExitedPub"); frame++)
             {
                 Vector3 delta = exteriorTarget - motor.Position;
@@ -83,6 +84,7 @@ namespace VoxelEngine.Tests.PlayMode
                 motor.Step(world, wish, sprint: false, jumpHeld: false, dt: 1f / 60f);
                 yield return null;
             }
+            Time.captureDeltaTime = 0f;
 
             Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.True,
                 "The launched game scene did not allow the player to walk through the generated pub doorway into Kentridge.");
@@ -96,6 +98,7 @@ namespace VoxelEngine.Tests.PlayMode
         public IEnumerator TearDownScene()
         {
             Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
