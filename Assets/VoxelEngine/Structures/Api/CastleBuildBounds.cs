@@ -126,36 +126,24 @@ namespace VoxelEngine.Structures.Api
             if (dungeon == null)
                 return;
 
-            if (!DungeonPlanValidator.TryValidate(dungeon, out DungeonPlanIssue issue))
-            {
-                throw new InvalidOperationException(
-                    $"Castle dependency bounds require a valid dungeon plan: {issue}.");
-            }
-
-            DungeonRoomPlan[] rooms = dungeon.Rooms;
-            for (int i = 0; i < rooms.Length; i++)
-            {
-                DungeonRoomPlan room = rooms[i];
-                int3 half = (room.Size + 1) / 2;
-                const int roomPadding = 16;
-                minX = math.min(minX, room.Centre.x - half.x - roomPadding);
-                maxX = math.max(maxX, room.Centre.x + half.x + roomPadding);
-                minY = math.min(minY, room.Centre.y - half.y - roomPadding);
-                maxY = math.max(maxY, room.Centre.y + half.y + roomPadding);
-                minZ = math.min(minZ, room.Centre.z - half.z - roomPadding);
-                maxZ = math.max(maxZ, room.Centre.z + half.z + roomPadding);
-            }
+            DungeonBuildBounds dungeonBounds = DungeonBuildBoundsResolver.Resolve(dungeon);
+            const int designedPadding = 16;
+            minX = math.min(minX, dungeonBounds.Min.x - designedPadding);
+            maxX = math.max(maxX, dungeonBounds.MaxExclusive.x - 1 + designedPadding);
+            minY = math.min(minY, dungeonBounds.Min.y - designedPadding);
+            maxY = math.max(maxY, dungeonBounds.MaxExclusive.y - 1 + designedPadding);
+            minZ = math.min(minZ, dungeonBounds.Min.z - designedPadding);
+            maxZ = math.max(maxZ, dungeonBounds.MaxExclusive.z - 1 + designedPadding);
 
             if (!dungeon.HasCaveExit)
                 return;
 
-            // CastleCaveRealizer owns natural geometry beyond the semantic CaveThreshold. Its
-            // current authored cavern/side-cave envelope reaches less than ~200 voxels sideways,
-            // ~140 along Z and ~80 vertically from the threshold floor. Reserve a round margin so
-            // either seeded cave direction remains safe and modest cave-detail growth does not
-            // require retuning streaming admission immediately.
+            // CastleCaveRealizer still owns natural geometry beyond the semantic CaveThreshold.
+            // Until that realizer consumes CavePlan directly, retain a conservative threshold-local
+            // allowance. Once cave realization is plan-driven this can be replaced by cave bounds.
+            DungeonRoomPlan[] rooms = dungeon.Rooms;
             DungeonRoomPlan threshold = rooms[dungeon.CaveThresholdRoomId];
-            int caveFloorY = threshold.Centre.y - threshold.Size.y / 2;
+            int caveFloorY = DungeonConnectionGeometry.RoomFloor(in threshold);
             const int caveHorizontalPadding = 256;
             const int caveDownPadding = 64;
             const int caveUpPadding = 128;
