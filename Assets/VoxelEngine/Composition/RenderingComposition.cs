@@ -180,6 +180,15 @@ namespace VoxelEngine.Composition
             VoxelRenderBridge.SkyZenith = zenith;
         }
 
+        /// <summary>
+        /// Sets the key-light direction without disturbing sky or debug tint. Look-development
+        /// benches drive this continuously from sun azimuth/elevation controls, for which
+        /// <see cref="ConfigureEnvironment"/> is too coarse: it would clobber the surface debug
+        /// tint and both sky colours on every frame.
+        /// </summary>
+        public static void SetSunDirection(Vector3 sunDirection) =>
+            VoxelRenderBridge.SunDirection = sunDirection;
+
         public static bool TryGetSurfaceBuildStatus(
             out int knownChunks,
             out int dirtyChunks,
