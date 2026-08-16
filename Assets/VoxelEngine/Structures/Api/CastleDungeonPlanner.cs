@@ -1,12 +1,11 @@
 using System;
-using Unity.Mathematics;
 
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
-    /// Castle-specific constraint adapter for the reusable <see cref="DungeonPlanner"/>. It owns
-    /// only the relationship between the placed keep/trapdoor and the historical castle dungeon
-    /// envelope; room graph construction remains generic and Runtime performs no planning.
+    /// Convenience adapter for callers that still hold a CastleSpatialPlan. CastleDungeonPlanning
+    /// owns the single castle-specific constraint mapping into the reusable DungeonPlanner; this
+    /// type only resolves the shared spatial projection and delegates to that policy owner.
     /// </summary>
     public static class CastleDungeonPlanner
     {
@@ -23,30 +22,7 @@ namespace VoxelEngine.Structures.Api
 
             CastleSpatialProjection projection = CastleSpatialProjection.Create(
                 in dimensions, spatial);
-            CastlePlan keepPlan = projection.KeepPlan;
-            int3 trapdoor = projection.TrapdoorCentre;
-
-            var constraints = new DungeonPlanningConstraints
-            {
-                Entrance = trapdoor,
-                UpperLevelDrop = 46,
-                MainLevelDrop = 166,
-                RoomHeight = 40,
-                MainHallHalfX = 130,
-                MainHallHalfZ = 90,
-                SideRoomOffset = 226,
-                SideRoomHalfX = 50,
-                SideRoomHalfZ = 55,
-                CavePassageLength = 321,
-                IncludeArchive = true,
-                IncludePuzzle = true,
-                IncludeTreasury = true,
-                IncludeCaveExit = true,
-            };
-
-            uint dungeonSeed = CastleSeedPartition.Derive(
-                keepPlan.Seed, CastleSeedDomain.Dungeon);
-            return DungeonPlanner.Create(dungeonSeed, in constraints);
+            return CastleDungeonPlanning.Create(in dimensions, in projection);
         }
     }
 }
