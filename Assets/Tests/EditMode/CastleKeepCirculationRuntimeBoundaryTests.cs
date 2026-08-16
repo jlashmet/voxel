@@ -19,25 +19,32 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialKeepRealizationConsumesPlannedCirculationAnchors()
+        public void SpatialKeepRealizationConsumesPlannedCirculationInDedicatedRealizer()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
+            string circulation = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepCirculationRealizer.cs"));
             string keep = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleKeepRealizer.cs"));
 
-            StringAssert.Contains("_keepCirculation = spatialPlan.KeepCirculation", pipeline);
-            StringAssert.Contains("in _keepCirculation, ref _keepStage", pipeline);
+            StringAssert.Contains("_keepCirculation = circulation", pipeline);
+            StringAssert.Contains("CastleKeepCirculationRealizer.Build(", pipeline);
+            StringAssert.Contains("_worldKeepCentre, in _keepCirculation", pipeline);
 
-            StringAssert.Contains("CastleKeepCirculationPlan circulation", keep);
-            StringAssert.Contains("CastleKeepCirculationPlanner.TryValidate", keep);
-            StringAssert.Contains("circulation.EntranceCentre", keep);
-            StringAssert.Contains("circulation.GrandStairOrigin", keep);
-            StringAssert.Contains("circulation.SpiralStairCentre", keep);
-            StringAssert.DoesNotContain("CastleKeepCirculationPlanner.Create(", keep,
+            StringAssert.Contains("CastleKeepCirculationPlan circulation", circulation);
+            StringAssert.Contains("CastleKeepCirculationPlanner.TryValidate", circulation);
+            StringAssert.Contains("circulation.EntranceCentre", circulation);
+            StringAssert.Contains("circulation.GrandStairOrigin", circulation);
+            StringAssert.Contains("circulation.SpiralStairCentre", circulation);
+            StringAssert.DoesNotContain("CastleKeepCirculationPlanner.Create(", circulation,
                 "Runtime may validate supplied circulation, but it must never plan circulation itself.");
+
+            StringAssert.DoesNotContain("CastleKeepCirculationRealizer", keep,
+                "Core keep shell/room realization should stay separate from planned circulation.");
         }
     }
 }
