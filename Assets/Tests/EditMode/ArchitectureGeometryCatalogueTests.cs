@@ -14,7 +14,7 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void StructureGeometryProfileKeepsMassingOpeningsDetailsAndSurfacesIndependent()
+        public void StructureGeometryProfileKeepsMassingOpeningsDetailsRoofsAndSurfacesIndependent()
         {
             var profile = new StructureGeometryProfile(
                 foundationCornerRadiusDm: 1,
@@ -24,7 +24,8 @@ namespace VoxelEngine.Tests.EditMode
                 foundationSurface: StructureSurfaceTreatment.Beveled,
                 shellSurface: StructureSurfaceTreatment.Rounded,
                 openingSurface: StructureSurfaceTreatment.Smooth,
-                detailSurface: StructureSurfaceTreatment.Planar);
+                detailSurface: StructureSurfaceTreatment.Planar,
+                roofSurface: StructureSurfaceTreatment.MasonryJoint);
 
             Assert.AreEqual(1, profile.FoundationCornerRadiusDm);
             Assert.AreEqual(2, profile.ShellCornerRadiusDm);
@@ -34,10 +35,38 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(StructureSurfaceTreatment.Rounded, profile.ShellSurface);
             Assert.AreEqual(StructureSurfaceTreatment.Smooth, profile.OpeningSurface);
             Assert.AreEqual(StructureSurfaceTreatment.Planar, profile.DetailSurface);
+            Assert.AreEqual(StructureSurfaceTreatment.MasonryJoint, profile.RoofSurface);
             Assert.IsTrue(profile.HasRoundedGeometry);
             Assert.IsTrue(profile.HasSurfaceOverrides);
             Assert.IsTrue(profile.RequiresRealization);
             Assert.IsFalse(StructureGeometryProfile.Sharp.RequiresRealization);
+        }
+
+        [Test]
+        public void ArchitectureShapeBuilderAppliesSemanticOpeningAndRoofPolicies()
+        {
+            var profile = new StructureGeometryProfile(
+                foundationCornerRadiusDm: 0,
+                shellCornerRadiusDm: 0,
+                openingCornerRadiusDm: 2,
+                detailCornerRadiusDm: 0,
+                openingSurface: StructureSurfaceTreatment.Rounded,
+                roofSurface: StructureSurfaceTreatment.Smooth);
+            var builder = new ArchitectureShapeProgramBuilder(profile, voxelsPerDecimetre: 1);
+
+            builder.OpeningCarve(2, 3, 4, 8, 12, 4);
+            builder.Prism(0, 20, 0, 30, 8, 24, PrismProfile.Gable, material: 7);
+            int[] code = builder.Finish();
+
+            Assert.AreEqual(ShapeOp.EmitRoundedBox, (ShapeOp)code[0]);
+            Assert.AreEqual(2, code[8], "Opening rounding should come from OpeningCornerRadiusDm.");
+            Assert.AreEqual(SurfaceStyles.Rounded, (ushort)code[10]);
+            Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[12]);
+
+            int prism = ShapeOps.InstructionLength(ShapeOp.EmitRoundedBox);
+            Assert.AreEqual(ShapeOp.EmitPrism, (ShapeOp)code[prism]);
+            Assert.AreEqual(SurfaceStyles.Smooth, (ushort)code[prism + 10],
+                "Roof prisms should use the profile's RoofSurface by default.");
         }
 
         [Test]
