@@ -152,6 +152,7 @@ namespace VoxelEngine.Structures.Api
                                * innerTowerRadius * innerTowerRadius * 30.0;
             double gatehouseTowers = 2.0 * math.PI_DBL
                                    * plan.GateTowerRadius * plan.GateTowerRadius * 30.0;
+            double keepTurrets = KeepTurretCost(in plan, spatialPlan.Topology.KeepTurrets);
 
             double keep = plan.KeepHalfX * (double)plan.KeepHalfZ * plan.Floors * 4.0;
             double courtyard = PolygonArea(spatialPlan.OuterWardVertices) * 0.2;
@@ -170,9 +171,9 @@ namespace VoxelEngine.Structures.Api
                   * CastleLayout.PosternGateDepth
                 : 0.0;
 
-            return (long)(siteCap + cliffCap + walls + towers + innerTowers + gatehouseTowers + keep
-                        + courtyard + courtyardBuildings + underground + landscape
-                        + primaryGateLeaf + posternLeaf);
+            return (long)(siteCap + cliffCap + walls + towers + innerTowers + gatehouseTowers
+                        + keepTurrets + keep + courtyard + courtyardBuildings + underground
+                        + landscape + primaryGateLeaf + posternLeaf);
         }
 
         public static CastleBuildPreflightResult Evaluate(in CastlePlan plan, long writeBudget)
@@ -322,6 +323,18 @@ namespace VoxelEngine.Structures.Api
                 CastleSpatialPlanIssue.None,
                 estimate,
                 writeBudget);
+        }
+
+        private static double KeepTurretCost(
+            in CastlePlan plan,
+            CastleKeepTurretPlan turretPlan)
+        {
+            if (!CastleKeepTurretPlanValidator.TryValidate(turretPlan, out _))
+                return 0.0;
+
+            int radius = math.max(0, plan.TowerRadius - 10);
+            CastleKeepTurretSpec[] turrets = turretPlan.Snapshot();
+            return turrets.Length * math.PI_DBL * radius * radius * 30.0;
         }
 
         private static double UndergroundCost(
