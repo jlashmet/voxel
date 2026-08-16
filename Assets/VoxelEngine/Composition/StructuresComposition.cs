@@ -88,11 +88,11 @@ namespace VoxelEngine.Composition
     public static class StructuresComposition
     {
         /// <summary>
-        /// Draws the deterministic castle plan while keeping the concrete runtime planner private
-        /// to Composition. The returned plan is a Structures.Api value contract.
+        /// Draws the deterministic castle plan through the Structures.Api planning boundary.
+        /// The returned plan stays independent of concrete voxel authoring/runtime types.
         /// </summary>
         public static CastlePlan PlanCastle(int3 centre, uint seed) =>
-            CastleBuilder.Plan(centre, seed);
+            CastlePlanner.Create(centre, seed);
 
         /// <summary>
         /// Wires the hero-arch lookdev request into Structures.Runtime without exposing concrete
