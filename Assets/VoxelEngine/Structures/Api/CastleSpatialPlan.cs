@@ -47,6 +47,7 @@ namespace VoxelEngine.Structures.Api
         public int2 WellCentre { get; }
         public CastleCourtyardBuildingSpec[] CourtyardBuildings { get; }
         public CastleKeepFloorPlan[] KeepFloors { get; }
+        public CastleKeepCirculationPlan KeepCirculation { get; }
         public DungeonPlan Dungeon { get; }
         public CavePlan Cave { get; }
         public int2 KeepCentre { get; }
@@ -242,6 +243,47 @@ namespace VoxelEngine.Structures.Api
             CavePlan cave,
             int2 keepCentre,
             bool keepRequiresTerrainResolution)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
+                keepFloors,
+                default,
+                dungeon,
+                cave,
+                keepCentre,
+                keepRequiresTerrainResolution)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            CastleKeepFloorPlan[] keepFloors,
+            CastleKeepCirculationPlan keepCirculation,
+            DungeonPlan dungeon,
+            CavePlan cave,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution)
         {
             Topology = topology;
             OuterWardVertices = outerWardVertices;
@@ -259,6 +301,7 @@ namespace VoxelEngine.Structures.Api
             WellCentre = wellCentre;
             CourtyardBuildings = courtyardBuildings ?? Array.Empty<CastleCourtyardBuildingSpec>();
             KeepFloors = keepFloors ?? Array.Empty<CastleKeepFloorPlan>();
+            KeepCirculation = keepCirculation;
             Dungeon = dungeon;
             Cave = cave;
             KeepCentre = keepCentre;
