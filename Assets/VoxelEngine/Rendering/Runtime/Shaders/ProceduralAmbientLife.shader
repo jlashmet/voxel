@@ -347,9 +347,13 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                 float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, 0.48);
                 float3 lit = albedo * (ambient * 0.42 + 0.58);
 
-                float pulse = 0.74 + 0.26 * sin(
+                // Luminous agents should visibly breathe instead of remaining clipped near white.
+                // Squaring the normalized wave gives a long readable dim phase while retaining a
+                // brief bright peak. The non-zero floor keeps Fireflies and magical motes present.
+                float pulseWave = 0.5 + 0.5 * sin(
                     _AnimationTime * max(0.5, _FlutterSpeed * 0.42)
                     + dot(input.positionWS, float3(0.27, 0.19, 0.31)));
+                float pulse = lerp(0.12, 1.0, pulseWave * pulseWave);
                 float emissionCore = smoothstep(0.08, 0.58, mask);
                 lit += _EmissionColor.rgb * _EmissionStrength
                      * (0.20 + emissionCore * 0.58) * pulse;

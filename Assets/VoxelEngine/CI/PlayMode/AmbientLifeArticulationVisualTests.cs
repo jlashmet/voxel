@@ -60,7 +60,7 @@ namespace VoxelEngine.CI
                     new ArticulationCase(AmbientLifeKind.SporeMote, 0f, 3.38f, ArticulationExpectation.BothAxes, 0.035f),
                     new ArticulationCase(AmbientLifeKind.Wisp, 0f, 1.68f, ArticulationExpectation.AnyAxis, 0.04f),
                     WingCase(AmbientLifeKind.Emberfly, 11f, 0.12f),
-                    new ArticulationCase(AmbientLifeKind.Firefly, 0f, 1.25f, ArticulationExpectation.Luminance, 0.025f),
+                    LuminanceCase(AmbientLifeKind.Firefly, 3f, 0.025f),
                 };
 
                 string reportPath = VegetationLifeRenderingVisualTests.ArtifactPath("ambient_articulation_quality.csv");
@@ -77,6 +77,22 @@ namespace VoxelEngine.CI
                     if (c.Expectation == ArticulationExpectation.Width)
                     {
                         CaptureWingEnvelope(
+                            camera,
+                            target,
+                            background,
+                            subjectObject.transform,
+                            subjectRenderer,
+                            c,
+                            out first,
+                            out second,
+                            out a,
+                            out b,
+                            out timeA,
+                            out timeB);
+                    }
+                    else if (c.Expectation == ArticulationExpectation.Luminance)
+                    {
+                        CaptureLuminanceEnvelope(
                             camera,
                             target,
                             background,
@@ -162,6 +178,15 @@ namespace VoxelEngine.CI
             return new ArticulationCase(kind, 0f, flapPeriod, ArticulationExpectation.Width, minimumWidthChange);
         }
 
+        private static ArticulationCase LuminanceCase(AmbientLifeKind kind, float flutterSpeed, float minimumLuminanceChange)
+        {
+            // Emissive pulse uses a full sine cycle at max(0.5, flutterSpeed * 0.42). Sampling the
+            // entire cycle makes the quality gate independent of the world-space phase offset.
+            float pulseSpeed = Mathf.Max(0.5f, flutterSpeed * 0.42f);
+            float pulsePeriod = Mathf.PI * 2f / pulseSpeed;
+            return new ArticulationCase(kind, 0f, pulsePeriod, ArticulationExpectation.Luminance, minimumLuminanceChange);
+        }
+
         private static void CaptureWingEnvelope(
             Camera camera,
             RenderTexture target,
@@ -198,6 +223,50 @@ namespace VoxelEngine.CI
             widestMetrics = metrics[maxIndex];
             narrowestTime = Mathf.Lerp(c.TimeA, c.TimeB, minIndex / (float)(sampleCount - 1));
             widestTime = Mathf.Lerp(c.TimeA, c.TimeB, maxIndex / (float)(sampleCount - 1));
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                if (i == minIndex || i == maxIndex) continue;
+                UnityEngine.Object.DestroyImmediate(samples[i]);
+            }
+        }
+
+        private static void CaptureLuminanceEnvelope(
+            Camera camera,
+            RenderTexture target,
+            Texture2D background,
+            Transform subject,
+            MeshRenderer renderer,
+            ArticulationCase c,
+            out Texture2D darkest,
+            out Texture2D brightest,
+            out FrameMetrics darkestMetrics,
+            out FrameMetrics brightestMetrics,
+            out float darkestTime,
+            out float brightestTime)
+        {
+            const int sampleCount = 9;
+            Texture2D[] samples = new Texture2D[sampleCount];
+            FrameMetrics[] metrics = new FrameMetrics[sampleCount];
+            int minIndex = 0;
+            int maxIndex = 0;
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float alpha = i / (float)(sampleCount - 1);
+                float time = Mathf.Lerp(c.TimeA, c.TimeB, alpha);
+                samples[i] = CaptureFixed(camera, target, subject, renderer, c.Kind, time);
+                metrics[i] = Measure(samples[i], background);
+                if (metrics[i].MeanLuminance < metrics[minIndex].MeanLuminance) minIndex = i;
+                if (metrics[i].MeanLuminance > metrics[maxIndex].MeanLuminance) maxIndex = i;
+            }
+
+            darkest = samples[minIndex];
+            brightest = samples[maxIndex];
+            darkestMetrics = metrics[minIndex];
+            brightestMetrics = metrics[maxIndex];
+            darkestTime = Mathf.Lerp(c.TimeA, c.TimeB, minIndex / (float)(sampleCount - 1));
+            brightestTime = Mathf.Lerp(c.TimeA, c.TimeB, maxIndex / (float)(sampleCount - 1));
 
             for (int i = 0; i < sampleCount; i++)
             {
