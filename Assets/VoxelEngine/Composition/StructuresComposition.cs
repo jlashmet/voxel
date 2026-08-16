@@ -66,30 +66,31 @@ namespace VoxelEngine.Composition
     }
 
     /// <summary>
-    /// Runtime-ready castle planning bundle. Composition keeps the dimensions, terrain-resolved
-    /// spatial plan, and terrain seed together so application code cannot accidentally build one
-    /// layout while presenting/interacting with coordinates from another. Frozen authored recipes,
-    /// including the primary gatehouse, remain owned by the spatial plan itself.
-    /// Projection is computed from the current validated spatial data rather than cached, so caller
-    /// mutation cannot make a stale compatibility view silently survive.
+    /// Runtime-ready castle planning bundle. Composition keeps a detached snapshot of the
+    /// dimensions, terrain-resolved spatial plan, and terrain seed so dependency bounds,
+    /// realization, interaction, and presentation always observe the same castle. Public spatial
+    /// access returns another detached copy; caller mutation cannot change the bundle after creation.
     /// </summary>
     public readonly struct PlannedCastleBuild
     {
         private readonly CastlePlan _dimensions;
+        private readonly CastleSpatialPlan _spatial;
 
         public CastlePlan Dimensions => _dimensions;
-        public CastleSpatialPlan Spatial { get; }
+        public CastleSpatialPlan Spatial => CastleSpatialPlanSnapshot.CloneDetached(_spatial);
         public uint TerrainSeed { get; }
         public CastleSpatialProjection Projection =>
-            CastleSpatialProjection.Create(in _dimensions, Spatial);
+            CastleSpatialProjection.Create(in _dimensions, _spatial);
 
         internal PlannedCastleBuild(
             in CastlePlan dimensions,
             CastleSpatialPlan spatial,
             uint terrainSeed)
         {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+
             _dimensions = dimensions;
-            Spatial = spatial ?? throw new ArgumentNullException(nameof(spatial));
+            _spatial = CastleSpatialPlanSnapshot.CloneRuntimeReady(in dimensions, spatial);
             TerrainSeed = terrainSeed;
         }
     }
