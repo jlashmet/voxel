@@ -7,6 +7,8 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using Object = UnityEngine.Object;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
@@ -51,7 +53,7 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.transform.LookAt(centre + Vector3.up * 10f);
                 for (int frame = 0; frame < 90; frame++)
                 {
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
                 }
 
@@ -75,7 +77,7 @@ namespace VoxelEngine.Tests.PlayMode
                             successfulExplosions++;
                     }
 
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
 
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
@@ -144,7 +146,7 @@ namespace VoxelEngine.Tests.PlayMode
                 bool warmed = false;
                 for (int frame = 0; frame < 180; frame++)
                 {
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
                     warmed = metrics.VisibleSolidChunks > 0
@@ -174,7 +176,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                     for (int frame = 0; frame < 24; frame++)
                     {
-                        camera.Render();
+                        RenderUrpCamera(camera);
                         yield return null;
                         VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
                         Assert.LessOrEqual(metrics.LastFrameSolidUploadedBytes,
@@ -225,7 +227,7 @@ namespace VoxelEngine.Tests.PlayMode
                 bool warmed = false;
                 for (int frame = 0; frame < 240; frame++)
                 {
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
                     warmed = metrics.VisibleSolidChunks > 0
@@ -250,7 +252,7 @@ namespace VoxelEngine.Tests.PlayMode
                 bool injectedSecondEditDuringJob = false;
                 for (int frame = 0; frame < 240; frame++)
                 {
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
                     Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
@@ -268,7 +270,7 @@ namespace VoxelEngine.Tests.PlayMode
                 bool staleObserved = false;
                 for (int frame = 0; frame < 360; frame++)
                 {
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
                     Assert.LessOrEqual(metrics.LastFrameSolidUploadedBytes,
@@ -400,7 +402,7 @@ namespace VoxelEngine.Tests.PlayMode
                 bool warmed = false;
                 for (int frame = 0; frame < 300; frame++)
                 {
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
                     warmed = metrics.VisibleSolidChunks > 0
@@ -439,7 +441,7 @@ namespace VoxelEngine.Tests.PlayMode
                 bool converged = false;
                 for (int frame = 0; frame < 480; frame++)
                 {
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
 
@@ -517,7 +519,7 @@ namespace VoxelEngine.Tests.PlayMode
                 for (int frame = 0; frame < pathFrames; frame++)
                 {
                     PositionAllocationPathCamera(camera, centre, lookAt, frame, pathFrames);
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
                 }
 
@@ -526,7 +528,7 @@ namespace VoxelEngine.Tests.PlayMode
                 for (int frame = 0; frame < pathFrames; frame++)
                 {
                     PositionAllocationPathCamera(camera, centre, lookAt, frame, pathFrames);
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
 
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
@@ -549,6 +551,32 @@ namespace VoxelEngine.Tests.PlayMode
                 target.Release();
                 Object.DestroyImmediate(target);
             }
+        }
+
+        private static void RenderUrpCamera(Camera camera)
+        {
+            Assert.NotNull(camera);
+            Assert.NotNull(camera.targetTexture,
+                "Async geometry stress tests require an explicit RenderTexture destination.");
+            Assert.True(VoxelRenderBridge.TryGetWorld(out _),
+                "VoxelShowcase did not register a valid render world before the URP request.");
+
+            var request = new UniversalRenderPipeline.SingleCameraRequest
+            {
+                destination = camera.targetTexture,
+            };
+            Assert.True(RenderPipeline.SupportsRenderRequest(camera, request),
+                "Active URP renderer does not support SingleCameraRequest for the showcase camera.");
+
+            VoxelRenderBridge.ResetSurfacePassDiagnostics("before-render-request");
+            RenderPipeline.SubmitRenderRequest(camera, request);
+
+            Assert.Greater(VoxelRenderBridge.RenderFeatureEnqueueCount, 0,
+                "URP stress render request did not enqueue VoxelRenderFeature.");
+            Assert.Greater(VoxelRenderBridge.SurfacePassRecordCount, 0,
+                "URP stress render request did not record VoxelRenderPass.");
+            Assert.AreEqual("feature-aware", VoxelRenderBridge.LastSurfacePassState,
+                $"VoxelRenderPass returned early during stress render: {VoxelRenderBridge.LastSurfacePassState}.");
         }
 
         private static void PositionAllocationPathCamera(Camera camera, Vector3 centre,
