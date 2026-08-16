@@ -57,6 +57,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public NativeList<int3> SurfaceBlocks;
         public int Edge;
 
+        /// <summary>
+        /// Surface discovery is intentionally polled on later frames instead of completed on the
+        /// frame path. Explicitly flush the terminal pipeline schedule so worker threads can make
+        /// progress even when callers repeatedly poll from a tight EditMode/render loop. Flushing
+        /// only submits queued jobs; it never waits for this dependency chain to finish.
+        /// </summary>
+        public JobHandle Schedule(JobHandle dependsOn)
+        {
+            JobHandle handle = IJobExtensions.Schedule(this, dependsOn);
+            JobHandle.ScheduleBatchedJobs();
+            return handle;
+        }
+
         public void Execute()
         {
             SurfaceBlocks.Clear();
