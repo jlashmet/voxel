@@ -1,3 +1,4 @@
+using System;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 using Random = Unity.Mathematics.Random;
@@ -5,19 +6,42 @@ using Random = Unity.Mathematics.Random;
 namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
-    /// Furnishes the semantic floors inside the current keep recipe.
-    ///
-    /// This is intentionally not a BedroomBuilder/LibraryBuilder hierarchy: room purpose is
-    /// configuration inside one furnishing system. A future room-plan contract can replace the
-    /// floor-number switch without changing the voxel realization boundary.
+    /// Furnishes semantic floors inside the current keep recipe. Fixed furniture is deterministic
+    /// geometry; variable accents come from planning on the spatial path and retain the historical
+    /// RNG loop only on the dimension-only compatibility path.
     /// </summary>
     internal static class CastleRoomFurnisher
     {
         internal static void Furnish(ref VoxelBrush brush, in CastlePlan plan,
                                      int3 min, int3 size, int y, int floor)
         {
+            FurnishFixed(ref brush, in plan, min, size, y, floor);
+
             var rng = new Random(plan.Seed ^ (uint)(floor * 7919 + 13));
-            int inner = 8;
+            FurnishLegacyAccents(ref brush, min, size, y, ref rng);
+        }
+
+        internal static void FurnishPlanned(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 min,
+            int3 size,
+            int y,
+            int furnishingRecipe,
+            CastleRoomAccentPlan accents)
+        {
+            if (accents == null)
+                throw new InvalidOperationException(
+                    "Planned keep furnishing requires planner-owned room accents.");
+
+            FurnishFixed(ref brush, in plan, min, size, y, furnishingRecipe);
+            FurnishPlannedAccents(ref brush, min, y, accents);
+        }
+
+        private static void FurnishFixed(ref VoxelBrush brush, in CastlePlan plan,
+                                         int3 min, int3 size, int y, int floor)
+        {
+            const int inner = 8;
 
             // Ground floor is one hall; upper floors are divided.
             if (floor >= 2)
@@ -287,18 +311,58 @@ namespace VoxelEngine.Structures.Runtime
                     }
                     break;
             }
+        }
 
-            // Keep the legacy number and order of random draws stable.
+        private static void FurnishLegacyAccents(
+            ref VoxelBrush brush,
+            int3 min,
+            int3 size,
+            int y,
+            ref Random rng)
+        {
+            const int inner = 8;
+            // Keep the legacy number and order of random draws stable for compatibility builds.
             for (int i = 0; i < rng.NextInt(2, 5); i++)
             {
                 bool leftWall = rng.NextBool();
                 int px = leftWall ? min.x + inner + 22 : min.x + size.x - inner - 30;
                 int pz = rng.NextInt(min.z + inner + 8, min.z + size.z - inner - 12);
                 int radius = rng.NextInt(4, 7);
-                brush.Cylinder(px, y + 3, pz, radius, rng.NextInt(8, 14), Mat.Wood);
-                brush.Box(new int3(px - radius, y + 7, pz - radius - 1),
-                          new int3(radius * 2, 2, radius * 2 + 2), Mat.Gold);
+                int height = rng.NextInt(8, 14);
+                BuildAccent(ref brush, px, pz, y, radius, height);
             }
+        }
+
+        private static void FurnishPlannedAccents(
+            ref VoxelBrush brush,
+            int3 min,
+            int y,
+            CastleRoomAccentPlan accents)
+        {
+            for (int i = 0; i < accents.Count; i++)
+            {
+                CastleRoomAccentSpec accent = accents.AccentAt(i);
+                BuildAccent(
+                    ref brush,
+                    min.x + accent.LocalX,
+                    min.z + accent.LocalZ,
+                    y,
+                    accent.Radius,
+                    accent.Height);
+            }
+        }
+
+        private static void BuildAccent(
+            ref VoxelBrush brush,
+            int px,
+            int pz,
+            int y,
+            int radius,
+            int height)
+        {
+            brush.Cylinder(px, y + 3, pz, radius, height, Mat.Wood);
+            brush.Box(new int3(px - radius, y + 7, pz - radius - 1),
+                      new int3(radius * 2, 2, radius * 2 + 2), Mat.Gold);
         }
     }
 }

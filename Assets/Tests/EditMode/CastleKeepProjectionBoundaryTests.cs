@@ -19,21 +19,24 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void LegacyKeepOffsetHasOneApiOwnedSourceOfTruth()
+        public void RuntimeKeepAdapterDelegatesLegacyOffsetToApiProjection()
         {
-            string layout = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api", "CastlePlan.cs"));
+            string adapter = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepPlacementAdapter.cs"));
             string projection = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastleSpatialProjection.cs"));
-            string obsoleteAdapter = Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
-                "CastleKeepPlacementAdapter.cs");
+            string layout = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastlePlan.cs"));
 
-            StringAssert.Contains("LegacyKeepCentreZOffset = 60", layout);
+            StringAssert.Contains("CastleSpatialProjection.ProjectKeepPlan", adapter);
+            StringAssert.Contains("CastleSpatialProjection.ActualKeepCentre", adapter);
+            StringAssert.DoesNotContain("LegacyKeepCentreZOffset = 60", adapter,
+                "Runtime must not own a second copy of the legacy keep anchor.");
             StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", projection);
-            Assert.IsFalse(File.Exists(obsoleteAdapter),
-                "Runtime must not keep a second castle keep-placement compatibility adapter.");
+            StringAssert.Contains("LegacyKeepCentreZOffset = 60", layout);
         }
     }
 }

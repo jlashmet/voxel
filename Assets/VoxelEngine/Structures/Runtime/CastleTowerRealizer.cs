@@ -5,14 +5,42 @@ using Random = Unity.Mathematics.Random;
 namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
-    /// Realizes one occupied defensive tower from an already-planned castle.
-    /// Shared tower geometry lives here so compound structures such as the curtain defenses and
-    /// the keep can reuse the same physical vocabulary without owning each other's orchestration.
+    /// Realizes one occupied defensive tower. Compatibility callers retain the historical
+    /// world-position RNG for slit rotation; planned callers supply frozen per-floor phases.
     /// </summary>
     internal static class CastleTowerRealizer
     {
-        internal static void Build(ref VoxelBrush brush, in CastlePlan plan, int3 at,
-                                   int radius, int height, bool roof)
+        internal static void Build(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 at,
+            int radius,
+            int height,
+            bool roof) =>
+            BuildCore(ref brush, in plan, at, radius, height, roof, null);
+
+        internal static void BuildPlanned(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 at,
+            int radius,
+            int height,
+            bool roof,
+            CastleTowerSlitPlan slitPlan)
+        {
+            CastleTowerSlitPlanValidator.RequireValid(
+                slitPlan, height, plan.FloorHeight);
+            BuildCore(ref brush, in plan, at, radius, height, roof, slitPlan);
+        }
+
+        private static void BuildCore(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 at,
+            int radius,
+            int height,
+            bool roof,
+            CastleTowerSlitPlan slitPlan)
         {
             // Base, slightly wider.
             brush.Cylinder(at.x, at.y - 30, at.z, radius + 4, 42, Mat.DarkStone);
@@ -40,26 +68,10 @@ namespace VoxelEngine.Structures.Runtime
             // Every tower needs a real ground-floor entrance. Aim it toward the castle centre.
             CarveTowerDoor(ref brush, in plan, at, radius);
 
-            // Arrow slits, three per floor, staggered. Keep the historical seed derivation so the
-            // refactor does not alter existing castle silhouettes.
-            var rng = new Random((uint)(at.x * 8191 + at.z * 131071) | 1u);
-            for (int f = 0; f * plan.FloorHeight < height - 40; f++)
-            {
-                int y = at.y + f * plan.FloorHeight + 18;
-                float phase = rng.NextFloat(0f, 6.28f);
-
-                for (int s = 0; s < 3; s++)
-                {
-                    float a = phase + s * 2.09f;
-                    for (int r = radius - 14; r <= radius; r++)
-                    for (int h = 0; h < 22; h++)
-                    {
-                        int x = at.x + (int)math.round(math.cos(a) * r);
-                        int z = at.z + (int)math.round(math.sin(a) * r);
-                        brush.Set(x, y + h, z, Mat.Empty);
-                    }
-                }
-            }
+            if (slitPlan == null)
+                CarveArrowSlitsLegacy(ref brush, in plan, at, radius, height);
+            else
+                CarveArrowSlitsPlanned(ref brush, in plan, at, radius, slitPlan);
 
             // Corbel course, then parapet.
             int parapetY = at.y + height;
@@ -78,8 +90,67 @@ namespace VoxelEngine.Structures.Runtime
             brush.Set(at.x, peakY + 30, at.z, Mat.Gold);
         }
 
-        private static void CarveTowerDoor(ref VoxelBrush brush, in CastlePlan plan,
-                                           int3 at, int radius)
+        private static void CarveArrowSlitsLegacy(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 at,
+            int radius,
+            int height)
+        {
+            var rng = new Random((uint)(at.x * 8191 + at.z * 131071) | 1u);
+            for (int floor = 0; floor * plan.FloorHeight < height - 40; floor++)
+            {
+                float phase = rng.NextFloat(0f, 6.28f);
+                CarveArrowSlitFloor(ref brush, in plan, at, radius, floor, phase);
+            }
+        }
+
+        private static void CarveArrowSlitsPlanned(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 at,
+            int radius,
+            CastleTowerSlitPlan slitPlan)
+        {
+            for (int floor = 0; floor < slitPlan.FloorCount; floor++)
+            {
+                CarveArrowSlitFloor(
+                    ref brush,
+                    in plan,
+                    at,
+                    radius,
+                    floor,
+                    slitPlan.PhaseRadiansAt(floor));
+            }
+        }
+
+        private static void CarveArrowSlitFloor(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 at,
+            int radius,
+            int floor,
+            float phase)
+        {
+            int y = at.y + floor * plan.FloorHeight + 18;
+            for (int slit = 0; slit < 3; slit++)
+            {
+                float angle = phase + slit * 2.09f;
+                for (int r = radius - 14; r <= radius; r++)
+                for (int h = 0; h < 22; h++)
+                {
+                    int x = at.x + (int)math.round(math.cos(angle) * r);
+                    int z = at.z + (int)math.round(math.sin(angle) * r);
+                    brush.Set(x, y + h, z, Mat.Empty);
+                }
+            }
+        }
+
+        private static void CarveTowerDoor(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 at,
+            int radius)
         {
             const int width = 14;
             const int height = 30;

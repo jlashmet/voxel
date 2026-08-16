@@ -30,13 +30,6 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public static class CastleLayout
     {
-        /// <summary>
-        /// Temporary compatibility offset used by the historical keep recipe. Spatial planning
-        /// owns the actual keep centre; projection applies this once so Runtime and presentation
-        /// share the same legacy anchor until the keep recipe is fully local-coordinate based.
-        /// </summary>
-        public const int LegacyKeepCentreZOffset = 60;
-
         public const int TrapdoorHalfSize = 8;
         public const int ChapelBellTowerSize = 56;
         public const int ChapelBellTowerStairRadius = 16;
@@ -47,6 +40,12 @@ namespace VoxelEngine.Structures.Api
         public const int PosternGateHeight = 38;
         public const int PosternGateDepth = 4;
         public const int LowerRiverDepth = 88;
+
+        /// <summary>
+        /// Historical keep recipe offset. Spatial planning owns the actual keep centre; projection
+        /// translates that semantic centre into this temporary legacy authoring anchor.
+        /// </summary>
+        public const int LegacyKeepCentreZOffset = 60;
 
         public static int3 TrapdoorCentre(in CastlePlan plan)
         {

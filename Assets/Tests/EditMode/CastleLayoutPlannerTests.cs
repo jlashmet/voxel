@@ -21,6 +21,20 @@ namespace VoxelEngine.Tests.EditMode
                     $"seed {seed}: tower count");
                 Assert.AreEqual(first.HasPosternGate, second.HasPosternGate,
                     $"seed {seed}: postern gate");
+                Assert.AreEqual(first.HasKeepAnnexPlan, second.HasKeepAnnexPlan,
+                    $"seed {seed}: annex planning presence");
+                Assert.AreEqual(first.KeepAnnexes.HasGreatHallWing,
+                                second.KeepAnnexes.HasGreatHallWing,
+                    $"seed {seed}: great-hall wing");
+                Assert.AreEqual(first.KeepAnnexes.HasChapelWing,
+                                second.KeepAnnexes.HasChapelWing,
+                    $"seed {seed}: chapel wing");
+                Assert.AreEqual(first.KeepAnnexes.HasBellTower,
+                                second.KeepAnnexes.HasBellTower,
+                    $"seed {seed}: bell tower");
+                Assert.AreEqual(first.KeepAnnexes.HasRearOriel,
+                                second.KeepAnnexes.HasRearOriel,
+                    $"seed {seed}: rear oriel");
             }
         }
 
@@ -31,8 +45,26 @@ namespace VoxelEngine.Tests.EditMode
             {
                 CastleTopologyPlan plan = CastleLayoutPlanner.Create(seed);
 
+                Assert.IsTrue(
+                    CastleTopologyPlanValidator.TryValidate(
+                        in plan, out CastleTopologyPlanIssue topologyIssue),
+                    $"seed {seed}: invalid topology: {topologyIssue}");
                 Assert.GreaterOrEqual(plan.DesiredTowerCount, 4, $"seed {seed}: tower minimum");
                 Assert.LessOrEqual(plan.DesiredTowerCount, 8, $"seed {seed}: tower maximum");
+                Assert.IsTrue(plan.HasKeepAnnexPlan, $"seed {seed}: missing keep-annex plan");
+                CastleKeepAnnexPlan annexes = plan.KeepAnnexes;
+                Assert.IsTrue(
+                    CastleKeepAnnexPlanValidator.TryValidate(
+                        in annexes, out CastleKeepAnnexPlanIssue annexIssue),
+                    $"seed {seed}: invalid keep-annex plan: {annexIssue}");
+                Assert.IsTrue(annexes.HasGreatHallWing,
+                    $"seed {seed}: compatibility recipe lost Great Hall wing");
+                Assert.IsTrue(annexes.HasChapelWing,
+                    $"seed {seed}: compatibility recipe lost chapel wing");
+                Assert.IsTrue(annexes.HasBellTower,
+                    $"seed {seed}: compatibility recipe lost bell tower");
+                Assert.IsTrue(annexes.HasRearOriel,
+                    $"seed {seed}: compatibility recipe lost rear oriel");
 
                 if (plan.Perimeter == CastlePerimeterKind.Concentric)
                 {
@@ -46,6 +78,73 @@ namespace VoxelEngine.Tests.EditMode
                     Assert.GreaterOrEqual(plan.DesiredTowerCount, 5,
                         $"seed {seed}: polygon tower minimum");
             }
+        }
+
+        [Test]
+        public void TopologyValidatorRejectsConcentricSingleWard()
+        {
+            CastleTopologyPlan plan = CastleLayoutPlanner.Create(11u);
+            plan.Perimeter = CastlePerimeterKind.Concentric;
+            plan.Wards = CastleWardPattern.SingleWard;
+            plan.DesiredTowerCount = 6;
+
+            Assert.IsFalse(
+                CastleTopologyPlanValidator.TryValidate(
+                    in plan, out CastleTopologyPlanIssue issue));
+            Assert.AreEqual(CastleTopologyPlanIssue.ConcentricRequiresNestedWards, issue);
+        }
+
+        [Test]
+        public void TopologyValidatorRejectsPerimeterTowerCountsBelowGrammarMinimum()
+        {
+            CastleTopologyPlan polygon = CastleLayoutPlanner.Create(13u);
+            polygon.Perimeter = CastlePerimeterKind.IrregularPolygon;
+            polygon.Wards = CastleWardPattern.SingleWard;
+            polygon.DesiredTowerCount = 4;
+
+            Assert.IsFalse(
+                CastleTopologyPlanValidator.TryValidate(
+                    in polygon, out CastleTopologyPlanIssue polygonIssue));
+            Assert.AreEqual(CastleTopologyPlanIssue.InvalidTowerCount, polygonIssue);
+
+            CastleTopologyPlan concentric = CastleLayoutPlanner.Create(17u);
+            concentric.Perimeter = CastlePerimeterKind.Concentric;
+            concentric.Wards = CastleWardPattern.InnerAndOuterWards;
+            concentric.DesiredTowerCount = 5;
+
+            Assert.IsFalse(
+                CastleTopologyPlanValidator.TryValidate(
+                    in concentric, out CastleTopologyPlanIssue concentricIssue));
+            Assert.AreEqual(CastleTopologyPlanIssue.InvalidTowerCount, concentricIssue);
+        }
+
+        [Test]
+        public void TopologyValidatorRejectsAnnexFlagsWithoutAnnexPlan()
+        {
+            CastleTopologyPlan plan = CastleLayoutPlanner.Create(19u);
+            plan.HasKeepAnnexPlan = false;
+
+            Assert.IsFalse(
+                CastleTopologyPlanValidator.TryValidate(
+                    in plan, out CastleTopologyPlanIssue issue));
+            Assert.AreEqual(CastleTopologyPlanIssue.UnexpectedKeepAnnexPlan, issue);
+        }
+
+        [Test]
+        public void TopologyValidatorRejectsRearOrielWithoutAnnexPlan()
+        {
+            CastleTopologyPlan plan = CastleLayoutPlanner.Create(23u);
+            plan.HasKeepAnnexPlan = false;
+            plan.KeepAnnexes = new CastleKeepAnnexPlan(
+                hasGreatHallWing: false,
+                hasChapelWing: false,
+                hasBellTower: false,
+                hasRearOriel: true);
+
+            Assert.IsFalse(
+                CastleTopologyPlanValidator.TryValidate(
+                    in plan, out CastleTopologyPlanIssue issue));
+            Assert.AreEqual(CastleTopologyPlanIssue.UnexpectedKeepAnnexPlan, issue);
         }
 
         [Test]

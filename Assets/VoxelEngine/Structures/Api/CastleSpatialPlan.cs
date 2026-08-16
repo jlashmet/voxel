@@ -1,3 +1,4 @@
+using System;
 using Unity.Mathematics;
 
 namespace VoxelEngine.Structures.Api
@@ -13,6 +14,9 @@ namespace VoxelEngine.Structures.Api
         public int Id;
         public int2 Centre;
         public CastleTowerPlacementRole Role;
+        public int HeightVariation;
+        public bool HasRoof;
+        public CastleTowerSlitPlan Slits;
     }
 
     public struct CastleGatePlacementSpec
@@ -28,15 +32,28 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public sealed class CastleSpatialPlan
     {
+        private readonly CastleTowerPlacementSpec[] _innerTowers;
+
         public CastleTopologyPlan Topology { get; }
         public int2[] OuterWardVertices { get; }
         public int2[] InnerWardVertices { get; }
         public CastleTowerPlacementSpec[] Towers { get; }
+        public CastleTowerPlacementSpec[] InnerTowers => _innerTowers;
         public CastleGatePlacementSpec PrimaryGate { get; }
         public bool HasPosternGate { get; }
         public CastleGatePlacementSpec PosternGate { get; }
         public bool HasInnerGate { get; }
         public CastleGatePlacementSpec InnerGate { get; }
+        public bool HasWell { get; }
+        public int2 WellCentre { get; }
+        public CastleCourtyardBuildingSpec[] CourtyardBuildings { get; }
+        public CastleKeepFloorPlan[] KeepFloors { get; }
+        public CastleKeepCirculationPlan KeepCirculation { get; }
+        public CastleKeepWindowSpec[] KeepWindows { get; }
+        public DungeonPlan Dungeon { get; }
+        public CavePlan Cave { get; }
+        public CastleCaveDecorationPlan CaveDecoration { get; }
+        public CastleLandscapePlan Landscape { get; }
         public int2 KeepCentre { get; }
         public bool KeepRequiresTerrainResolution { get; }
 
@@ -51,17 +68,311 @@ namespace VoxelEngine.Structures.Api
             bool hasInnerGate,
             in CastleGatePlacementSpec innerGate,
             int2 keepCentre,
-            bool keepRequiresTerrainResolution)
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                false,
+                default,
+                Array.Empty<CastleCourtyardBuildingSpec>(),
+                null,
+                keepCentre,
+                keepRequiresTerrainResolution,
+                innerTowers)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                Array.Empty<CastleCourtyardBuildingSpec>(),
+                null,
+                keepCentre,
+                keepRequiresTerrainResolution,
+                innerTowers)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
+                null,
+                keepCentre,
+                keepRequiresTerrainResolution,
+                innerTowers)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            DungeonPlan dungeon,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
+                dungeon,
+                null,
+                keepCentre,
+                keepRequiresTerrainResolution,
+                innerTowers)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            DungeonPlan dungeon,
+            CavePlan cave,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
+                Array.Empty<CastleKeepFloorPlan>(),
+                dungeon,
+                cave,
+                keepCentre,
+                keepRequiresTerrainResolution,
+                innerTowers)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            CastleKeepFloorPlan[] keepFloors,
+            DungeonPlan dungeon,
+            CavePlan cave,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
+                keepFloors,
+                default,
+                dungeon,
+                cave,
+                keepCentre,
+                keepRequiresTerrainResolution,
+                innerTowers)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            CastleKeepFloorPlan[] keepFloors,
+            CastleKeepCirculationPlan keepCirculation,
+            DungeonPlan dungeon,
+            CavePlan cave,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution,
+            CastleTowerPlacementSpec[] innerTowers = null)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
+                keepFloors,
+                keepCirculation,
+                dungeon,
+                cave,
+                null,
+                keepCentre,
+                keepRequiresTerrainResolution,
+                null,
+                null,
+                innerTowers)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            CastleKeepFloorPlan[] keepFloors,
+            CastleKeepCirculationPlan keepCirculation,
+            DungeonPlan dungeon,
+            CavePlan cave,
+            CastleLandscapePlan landscape,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution,
+            CastleCaveDecorationPlan caveDecoration = null,
+            CastleKeepWindowSpec[] keepWindows = null,
+            CastleTowerPlacementSpec[] innerTowers = null)
         {
             Topology = topology;
             OuterWardVertices = outerWardVertices;
             InnerWardVertices = innerWardVertices;
             Towers = towers;
+            _innerTowers = innerTowers != null
+                ? (CastleTowerPlacementSpec[])innerTowers.Clone()
+                : Array.Empty<CastleTowerPlacementSpec>();
             PrimaryGate = primaryGate;
             HasPosternGate = hasPosternGate;
             PosternGate = posternGate;
             HasInnerGate = hasInnerGate;
             InnerGate = innerGate;
+            HasWell = hasWell;
+            WellCentre = wellCentre;
+            CourtyardBuildings = courtyardBuildings ?? Array.Empty<CastleCourtyardBuildingSpec>();
+            KeepFloors = keepFloors ?? Array.Empty<CastleKeepFloorPlan>();
+            KeepCirculation = keepCirculation;
+            KeepWindows = keepWindows ?? Array.Empty<CastleKeepWindowSpec>();
+            Dungeon = dungeon;
+            Cave = cave;
+            CaveDecoration = caveDecoration;
+            Landscape = landscape;
             KeepCentre = keepCentre;
             KeepRequiresTerrainResolution = keepRequiresTerrainResolution;
         }

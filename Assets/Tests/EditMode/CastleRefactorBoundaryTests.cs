@@ -86,14 +86,49 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
             StringAssert.Contains("CastleSpatialPlan spatialPlan", pipeline);
-            StringAssert.Contains("CastleSpatialPlanValidator.TryValidate(", pipeline);
-            StringAssert.Contains("CastlePerimeterRealizer.Walls(", pipeline);
-            StringAssert.Contains("CastlePerimeterRealizer.Towers(", pipeline);
-            StringAssert.Contains("CastlePerimeterRealizer.Gatehouse(", pipeline);
-            StringAssert.Contains("CastleCourtyardRealizer.BuildPlanned(", pipeline);
-            StringAssert.Contains("CastleSpatialLayoutProjection.Create(", pipeline);
+            StringAssert.Contains(
+                "CastleBuildPreflight.EvaluateRuntimeReady(",
+                pipeline);
+            StringAssert.Contains("CastlePlannedPerimeterRealizer.Walls(", pipeline);
+            StringAssert.DoesNotContain("CastlePerimeterRealizer.Walls(", pipeline,
+                "Production spatial walls must not route through the compatibility perimeter facade.");
+            StringAssert.Contains("CastlePlannedTowerRealizer.BuildAll(", pipeline);
+            StringAssert.Contains("spatialPlan.Towers.Clone()", pipeline);
+            StringAssert.Contains("CastlePlannedGatehouseRealizer.Build(", pipeline);
+            StringAssert.Contains("CastlePlannedCourtyardRealizer.Build(", pipeline);
+            StringAssert.Contains("spatialPlan.CourtyardBuildings.Clone()", pipeline);
+            StringAssert.Contains("CastleSpatialProjection.Create(", pipeline);
             StringAssert.DoesNotContain("CastleSpatialPlanner.Create(", pipeline);
             StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", pipeline);
+
+            string plannedWalls = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedPerimeterRealizer.cs"));
+            StringAssert.Contains("CastleWallPlan walls", plannedWalls);
+            StringAssert.Contains("VoxelWallRasterizer.FillSegment(", plannedWalls);
+            StringAssert.DoesNotContain("plan.Seed", plannedWalls,
+                "Planned wall realization must not choose authored variation from the castle seed.");
+            StringAssert.DoesNotContain("CastleWallRecipe.Historical(", plannedWalls,
+                "Production wall realization must consume the frozen wall plan.");
+
+            string plannedTowers = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedTowerRealizer.cs"));
+            StringAssert.Contains("tower.HeightVariation", plannedTowers);
+            StringAssert.Contains("tower.HasRoof", plannedTowers);
+            StringAssert.Contains("tower.Slits", plannedTowers);
+            StringAssert.Contains("CastleTowerRealizer.BuildPlanned(", plannedTowers);
+            StringAssert.DoesNotContain("CastleTowerSlitPlanner", plannedTowers,
+                "Runtime must consume frozen tower slit phases rather than plan them.");
+            StringAssert.DoesNotContain("CastleSeedPartition", plannedTowers,
+                "Runtime must consume planned tower variation rather than choose it from a seed.");
+
+            string courtyard = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedCourtyardRealizer.cs"));
+            StringAssert.Contains("CastleCourtyardBuildingRealizer.BuildAll(", courtyard);
+            StringAssert.DoesNotContain("new Random(", courtyard,
+                "Planned courtyard realization must consume frozen paving/building choices.");
 
             string runtimeDirectory = Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime");
@@ -104,43 +139,62 @@ namespace VoxelEngine.Tests.EditMode
                     $"{Path.GetFileName(file)} must consume planned geometry rather than re-plan it.");
                 StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", runtimeSource,
                     $"{Path.GetFileName(file)} must not choose semantic topology during realization.");
+                StringAssert.DoesNotContain("CastleCourtyardBuildingPlacementGeometry.Plan(", runtimeSource,
+                    $"{Path.GetFileName(file)} must consume planned courtyard buildings rather than place them.");
+                StringAssert.DoesNotContain("CastleCourtyardBuildingPlanner.Create(", runtimeSource,
+                    $"{Path.GetFileName(file)} must not invoke courtyard planning during realization.");
+                StringAssert.DoesNotContain("CastleCavePlanning.Create(", runtimeSource,
+                    $"{Path.GetFileName(file)} must consume CavePlan rather than plan natural space.");
             }
         }
 
         [Test]
-        public void SpatialProjectionFeedsKeepDungeonAndGateContracts()
+        public void SpatialProjectionFeedsBothKeepAndDungeonStages()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
             string projection = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
-                "CastleSpatialLayoutProjection.cs"));
+                "CastleSpatialProjection.cs"));
+            string layout = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastlePlan.cs"));
 
-            StringAssert.Contains("CastleSpatialLayoutProjection.Create(", pipeline);
-            StringAssert.Contains("CastleKeepRealizer.TryStep(ref _brush, in keepPlan", pipeline);
+            StringAssert.Contains("CastleSpatialProjection.Create(", pipeline);
+            StringAssert.Contains("CastleKeepRealizer.TryStep(", pipeline);
             StringAssert.Contains("CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan)", pipeline);
             StringAssert.Contains("CastleDungeonRealizer.Build(ref _brush, in dungeonPlan)", pipeline);
-            StringAssert.Contains("LegacyKeepCentreZOffset = 60", projection);
-            StringAssert.Contains("CastleGateGeometryResolver.Resolve(", projection);
+            StringAssert.Contains("LegacyKeepCentreZOffset = 60", layout);
+            StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", projection);
+            StringAssert.DoesNotContain("LegacyKeepCentreZOffset = 60", projection,
+                "The migration offset must have one API-owned declaration, not a projection copy.");
             StringAssert.DoesNotContain("Structures.Runtime", projection);
-
-            Assert.IsFalse(File.Exists(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
-                "CastleKeepPlacementAdapter.cs")),
-                "Keep coordinate projection belongs in Structures.Api, not a runtime-only adapter.");
         }
 
         [Test]
-        public void ShowcaseKeepsLegacyGateContractUntilInteractionMigration()
+        public void SpatialDungeonConsumesPlannedNaturalCaveAndDecoration()
         {
-            string showcase = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
-                "ShowcaseWorld.cs"));
+            string pipeline = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleBuildPipeline.cs"));
+            string plannedDungeon = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedDungeonRealizer.cs"));
 
-            StringAssert.Contains("CastleLayout.FrontGateMinimum", showcase);
-            StringAssert.DoesNotContain("PlanCastleSpatial(", showcase,
-                "The showcase must not rotate the built gate before its interaction coordinates migrate.");
+            StringAssert.Contains("CavePlan _spatialCavePlan", pipeline);
+            StringAssert.Contains("CastleCaveDecorationPlan _spatialCaveDecorationPlan", pipeline);
+            StringAssert.Contains("CavePlanSnapshot.CloneValidated(spatialPlan.Cave)", pipeline);
+            StringAssert.Contains("spatialPlan.CaveDecoration.Snapshot()", pipeline);
+            StringAssert.Contains("CastlePlannedDungeonRealizer.Build(", pipeline);
+            StringAssert.Contains("_spatialCaveDecorationPlan);", pipeline);
+            StringAssert.Contains("CaveRealizer.Build(ref brush, cavePlan)", plannedDungeon);
+            StringAssert.Contains(
+                "CastlePlannedCaveDecorator.Build(ref brush, cavePlan, caveDecoration)",
+                plannedDungeon);
+            StringAssert.DoesNotContain("CastleCavePlanning.Create(", plannedDungeon);
+            StringAssert.DoesNotContain("CastleCaveDecorationPlanner.Create(", plannedDungeon,
+                "Runtime must consume the planned cave decoration instead of choosing it.");
         }
 
         [Test]

@@ -1,5 +1,4 @@
 using Unity.Mathematics;
-using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Structures.Runtime
 {
@@ -24,14 +23,28 @@ namespace VoxelEngine.Structures.Runtime
             if (height <= 0 || thickness <= 0)
                 return;
 
-            CastleSegmentFootprint.Bounds(start, end, thickness, out int2 min, out int2 max);
+            float2 a = new float2(start.x, start.y);
+            float2 b = new float2(end.x, end.y);
+            float2 delta = b - a;
+            float lengthSquared = math.lengthsq(delta);
+            float radius = math.max(0.5f, thickness * 0.5f);
+            float radiusSquared = radius * radius;
+
+            int minX = (int)math.floor(math.min(a.x, b.x) - radius);
+            int maxX = (int)math.ceil(math.max(a.x, b.x) + radius);
+            int minZ = (int)math.floor(math.min(a.y, b.y) - radius);
+            int maxZ = (int)math.ceil(math.max(a.y, b.y) + radius);
             int maxYExclusive = baseY + height;
 
-            for (int z = min.y; z <= max.y; z++)
-            for (int x = min.x; x <= max.x; x++)
+            for (int z = minZ; z <= maxZ; z++)
+            for (int x = minX; x <= maxX; x++)
             {
-                var point = new int2(x, z);
-                if (!CastleSegmentFootprint.Contains(point, start, end, thickness))
+                float2 point = new float2(x, z);
+                float along = lengthSquared > 0.0001f
+                    ? math.saturate(math.dot(point - a, delta) / lengthSquared)
+                    : 0f;
+                float2 nearest = a + delta * along;
+                if (math.lengthsq(point - nearest) > radiusSquared)
                     continue;
 
                 brush.FillColumnBulk(x, baseY, maxYExclusive, z, material);

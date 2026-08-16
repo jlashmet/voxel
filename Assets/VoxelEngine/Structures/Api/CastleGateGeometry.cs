@@ -34,6 +34,8 @@ namespace VoxelEngine.Structures.Api
             Depth = depth;
         }
 
+        public int RectangularVoxelCount => Width * Height * Depth;
+
         /// <summary>Maps a local gate voxel to the authoritative world-space voxel coordinate.</summary>
         public int3 WorldVoxel(int widthIndex, int heightIndex, int depthIndex)
         {
@@ -59,6 +61,39 @@ namespace VoxelEngine.Structures.Api
             int archTop = Height - half;
             return heightIndex <= archTop ||
                    dx * dx + (heightIndex - archTop) * (heightIndex - archTop) <= half * half;
+        }
+
+        /// <summary>
+        /// Enumerates the authored arch leaf through one stable rectangular linear index. Returns
+        /// false for indices that land in the empty corners above the semicircular head. Callers
+        /// that clear or decorate the gate can therefore share exactly the same voxel set as the
+        /// realizer without reimplementing the arch equation.
+        /// </summary>
+        public bool TryGetArchVoxel(
+            int linearIndex,
+            out int3 voxel,
+            out int heightIndex)
+        {
+            if (linearIndex < 0 || linearIndex >= RectangularVoxelCount)
+            {
+                voxel = default;
+                heightIndex = 0;
+                return false;
+            }
+
+            int plane = Width * Height;
+            int depthIndex = linearIndex / plane;
+            int remainder = linearIndex - depthIndex * plane;
+            int widthIndex = remainder / Height;
+            heightIndex = remainder - widthIndex * Height;
+            if (!ContainsArchVoxel(widthIndex, heightIndex))
+            {
+                voxel = default;
+                return false;
+            }
+
+            voxel = WorldVoxel(widthIndex, heightIndex, depthIndex);
+            return true;
         }
 
         /// <summary>

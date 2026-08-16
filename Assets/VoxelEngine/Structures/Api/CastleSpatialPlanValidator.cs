@@ -6,13 +6,17 @@ namespace VoxelEngine.Structures.Api
     {
         None,
         MissingOuterWard,
+        InvalidTopology,
         DegeneratePerimeter,
+        SelfIntersectingOuterWard,
         PerimeterOutsidePlateau,
         InvalidGateEdge,
+        GateEdgeTooShort,
         GateDetachedFromPerimeter,
         InvalidGateNormal,
         PosternGateMismatch,
         InvalidPosternGateEdge,
+        PosternGateEdgeTooShort,
         PosternGateDetachedFromPerimeter,
         InvalidPosternGateNormal,
         PosternGateConflictsWithPrimaryGate,
@@ -21,16 +25,29 @@ namespace VoxelEngine.Structures.Api
         DuplicateTower,
         MissingCornerTower,
         TowerOffPerimeter,
+        WallTowerOnGateEdge,
         InnerWardMismatch,
+        InvalidInnerTowerPlacement,
+        SelfIntersectingInnerWard,
         InnerWardOutsideOuterWard,
         InnerGateMismatch,
         InvalidInnerGateEdge,
+        InnerGateEdgeTooShort,
         InnerGateDetachedFromPerimeter,
         InvalidInnerGateNormal,
         InnerGateMisaligned,
         InvalidKeepResolution,
         KeepOutsideOuterWard,
         KeepOutsideInnerWard,
+        CentralKeepPlacementMismatch,
+        RearKeepPlacementMismatch,
+        WallIntegratedKeepNotAgainstWard,
+        InvalidWellResolution,
+        InvalidWellPlacement,
+        InvalidCourtyardBuildingResolution,
+        InvalidCourtyardBuildingPlacement,
+        InvalidDungeonPlan,
+        DungeonEntranceMismatch,
     }
 
     /// <summary>
@@ -48,6 +65,14 @@ namespace VoxelEngine.Structures.Api
                 spatial.OuterWardVertices.Length < 4)
             {
                 issue = CastleSpatialPlanIssue.MissingOuterWard;
+                return false;
+            }
+
+            CastleTopologyPlan topology = spatial.Topology;
+            if (!CastleTopologyPlanValidator.TryValidate(
+                    in topology, out CastleTopologyPlanIssue _))
+            {
+                issue = CastleSpatialPlanIssue.InvalidTopology;
                 return false;
             }
 
@@ -82,11 +107,19 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            if (!CastlePolygonGeometry.IsSimplePolygon(outer))
+            {
+                issue = CastleSpatialPlanIssue.SelfIntersectingOuterWard;
+                return false;
+            }
+
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             if (!TryValidateGate(
                     outer,
                     in primaryGate,
+                    CastleGatePlanningRules.PrimaryMinimumEdgeLength(in dimensions),
                     CastleSpatialPlanIssue.InvalidGateEdge,
+                    CastleSpatialPlanIssue.GateEdgeTooShort,
                     CastleSpatialPlanIssue.GateDetachedFromPerimeter,
                     CastleSpatialPlanIssue.InvalidGateNormal,
                     out issue))
@@ -104,7 +137,9 @@ namespace VoxelEngine.Structures.Api
                 if (!TryValidateGate(
                         outer,
                         in posternGate,
+                        CastleGatePlanningRules.PosternMinimumEdgeLength(in dimensions),
                         CastleSpatialPlanIssue.InvalidPosternGateEdge,
+                        CastleSpatialPlanIssue.PosternGateEdgeTooShort,
                         CastleSpatialPlanIssue.PosternGateDetachedFromPerimeter,
                         CastleSpatialPlanIssue.InvalidPosternGateNormal,
                         out issue))
@@ -145,6 +180,15 @@ namespace VoxelEngine.Structures.Api
                     issue = CastleSpatialPlanIssue.TowerOffPerimeter;
                     return false;
                 }
+
+                if (towers[i].Role == CastleTowerPlacementRole.Wall &&
+                    (PointOnEdge(towers[i].Centre, outer, primaryGate.EdgeIndex) ||
+                     (spatial.HasPosternGate &&
+                      PointOnEdge(towers[i].Centre, outer, spatial.PosternGate.EdgeIndex))))
+                {
+                    issue = CastleSpatialPlanIssue.WallTowerOnGateEdge;
+                    return false;
+                }
             }
 
             for (int vertex = 0; vertex < outer.Length; vertex++)
@@ -174,6 +218,24 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            CastleTowerPlacementSpec[] innerTowers = spatial.InnerTowers;
+            if (innerTowers == null || innerTowers.Length != inner.Length)
+            {
+                issue = CastleSpatialPlanIssue.InvalidInnerTowerPlacement;
+                return false;
+            }
+
+            for (int i = 0; i < innerTowers.Length; i++)
+            {
+                if (innerTowers[i].Id != i ||
+                    innerTowers[i].Role != CastleTowerPlacementRole.Corner ||
+                    !innerTowers[i].Centre.Equals(inner[i]))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidInnerTowerPlacement;
+                    return false;
+                }
+            }
+
             if (spatial.HasInnerGate != expectsInner)
             {
                 issue = CastleSpatialPlanIssue.InnerGateMismatch;
@@ -182,6 +244,12 @@ namespace VoxelEngine.Structures.Api
 
             if (expectsInner)
             {
+                if (!CastlePolygonGeometry.IsSimplePolygon(inner))
+                {
+                    issue = CastleSpatialPlanIssue.SelfIntersectingInnerWard;
+                    return false;
+                }
+
                 for (int i = 0; i < inner.Length; i++)
                 {
                     if (CastlePolygonGeometry.PointInOrOnPolygon(inner[i], outer)) continue;
@@ -193,7 +261,9 @@ namespace VoxelEngine.Structures.Api
                 if (!TryValidateGate(
                         inner,
                         in innerGate,
+                        CastleGatePlanningRules.InnerMinimumEdgeLength(in dimensions),
                         CastleSpatialPlanIssue.InvalidInnerGateEdge,
+                        CastleSpatialPlanIssue.InnerGateEdgeTooShort,
                         CastleSpatialPlanIssue.InnerGateDetachedFromPerimeter,
                         CastleSpatialPlanIssue.InvalidInnerGateNormal,
                         out issue))
@@ -231,14 +301,153 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            // Validate the semantic keep choice before courtyard dependencies such as the well.
+            // This keeps diagnostics rooted in the earliest planning invariant that drifted.
+            if (!spatial.KeepRequiresTerrainResolution)
+            {
+                int2[] keepWard = expectsInner ? inner : outer;
+                if (spatial.Topology.KeepPlacement == CastleKeepPlacement.Central &&
+                    !spatial.KeepCentre.Equals(int2.zero))
+                {
+                    issue = CastleSpatialPlanIssue.CentralKeepPlacementMismatch;
+                    return false;
+                }
+
+                if (spatial.Topology.KeepPlacement == CastleKeepPlacement.Rear &&
+                    !CastleKeepPlacementGeometry.IsRearKeepCentreAlong(
+                        in dimensions, spatial.KeepCentre, -primaryGate.Outward, keepWard))
+                {
+                    issue = CastleSpatialPlanIssue.RearKeepPlacementMismatch;
+                    return false;
+                }
+
+                if (spatial.Topology.KeepPlacement == CastleKeepPlacement.WallIntegrated &&
+                    !CastleKeepPlacementGeometry.IsFarthestKeepCentreAlong(
+                        in dimensions, spatial.KeepCentre, -primaryGate.Outward, keepWard))
+                {
+                    issue = CastleSpatialPlanIssue.WallIntegratedKeepNotAgainstWard;
+                    return false;
+                }
+            }
+
+            if (spatial.KeepRequiresTerrainResolution)
+            {
+                if (spatial.HasWell || !spatial.WellCentre.Equals(int2.zero))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidWellResolution;
+                    return false;
+                }
+
+                if (spatial.CourtyardBuildings == null || spatial.CourtyardBuildings.Length != 0)
+                {
+                    issue = CastleSpatialPlanIssue.InvalidCourtyardBuildingResolution;
+                    return false;
+                }
+            }
+            else
+            {
+                int2[] wellWard = expectsInner ? inner : outer;
+                bool canPlaceWell = CastleCourtyardPlacementGeometry.TryChooseWell(
+                    in dimensions,
+                    wellWard,
+                    in primaryGate,
+                    spatial.KeepCentre,
+                    out int2 expectedWell);
+                if (!canPlaceWell || !spatial.HasWell || !spatial.WellCentre.Equals(expectedWell))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidWellPlacement;
+                    return false;
+                }
+
+                CastleGatePlacementSpec posternGate = spatial.PosternGate;
+                CastleGatePlacementSpec innerGate = spatial.InnerGate;
+                CastleCourtyardBuildingSpec[] expectedBuildings =
+                    CastleCourtyardBuildingPlacementGeometry.Plan(
+                        in dimensions,
+                        outer,
+                        inner,
+                        in primaryGate,
+                        spatial.HasPosternGate,
+                        in posternGate,
+                        spatial.HasInnerGate,
+                        in innerGate,
+                        spatial.KeepCentre,
+                        spatial.HasWell,
+                        spatial.WellCentre);
+                if (!SameBuildings(spatial.CourtyardBuildings, expectedBuildings))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidCourtyardBuildingPlacement;
+                    return false;
+                }
+            }
+
+            // Dungeon completion is optional at the general spatial-planning layer, but once a
+            // dungeon is attached it is part of this planning snapshot: both its own graph and its
+            // attachment point to the castle must agree with the supplied dimensions/spatial plan.
+            if (spatial.Dungeon != null)
+            {
+                if (!DungeonPlanValidator.TryValidate(spatial.Dungeon, out _))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidDungeonPlan;
+                    return false;
+                }
+
+                if (!spatial.KeepRequiresTerrainResolution)
+                {
+                    CastleSpatialProjection projection = CastleSpatialProjection.Create(
+                        in dimensions, spatial);
+                    if (!spatial.Dungeon.Entrance.Equals(projection.TrapdoorCentre))
+                    {
+                        issue = CastleSpatialPlanIssue.DungeonEntranceMismatch;
+                        return false;
+                    }
+                }
+            }
+
             issue = CastleSpatialPlanIssue.None;
             return true;
+        }
+
+        private static bool SameBuildings(
+            CastleCourtyardBuildingSpec[] actual,
+            CastleCourtyardBuildingSpec[] expected)
+        {
+            if (actual == null || expected == null || actual.Length != expected.Length)
+                return false;
+
+            for (int i = 0; i < actual.Length; i++)
+            {
+                if (actual[i].Id != expected[i].Id ||
+                    actual[i].Purpose != expected[i].Purpose ||
+                    actual[i].WallEdgeIndex != expected[i].WallEdgeIndex ||
+                    !actual[i].Centre.Equals(expected[i].Centre) ||
+                    math.lengthsq(actual[i].Tangent - expected[i].Tangent) > 0.000001f ||
+                    math.lengthsq(actual[i].Inward - expected[i].Inward) > 0.000001f ||
+                    actual[i].Width != expected[i].Width ||
+                    actual[i].Depth != expected[i].Depth ||
+                    actual[i].Height != expected[i].Height)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool PointOnEdge(int2 point, int2[] perimeter, int edgeIndex)
+        {
+            if (perimeter == null || edgeIndex < 0 || edgeIndex >= perimeter.Length)
+                return false;
+            return CastlePolygonGeometry.PointOnSegment(
+                point,
+                perimeter[edgeIndex],
+                perimeter[(edgeIndex + 1) % perimeter.Length]);
         }
 
         private static bool TryValidateGate(
             int2[] perimeter,
             in CastleGatePlacementSpec gate,
+            int minimumEdgeLength,
             CastleSpatialPlanIssue invalidEdgeIssue,
+            CastleSpatialPlanIssue edgeTooShortIssue,
             CastleSpatialPlanIssue detachedIssue,
             CastleSpatialPlanIssue invalidNormalIssue,
             out CastleSpatialPlanIssue issue)
@@ -246,6 +455,13 @@ namespace VoxelEngine.Structures.Api
             if (gate.EdgeIndex < 0 || gate.EdgeIndex >= perimeter.Length)
             {
                 issue = invalidEdgeIssue;
+                return false;
+            }
+
+            if (!CastleGatePlanningRules.EdgeCanHostOpening(
+                    perimeter, gate.EdgeIndex, minimumEdgeLength))
+            {
+                issue = edgeTooShortIssue;
                 return false;
             }
 

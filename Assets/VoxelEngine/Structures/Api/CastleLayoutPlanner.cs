@@ -1,3 +1,4 @@
+using System;
 using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures.Api
@@ -21,15 +22,37 @@ namespace VoxelEngine.Structures.Api
                 : (layoutRng.NextInt(0, 100) < 30
                     ? CastleWardPattern.InnerAndOuterWards
                     : CastleWardPattern.SingleWard);
+            bool hasPosternGate = wallRng.NextInt(0, 100) < 25;
+            CastleKeepAnnexPlan annexes = CastleKeepAnnexPlanner.Create(seed);
 
-            return new CastleTopologyPlan
+            var plan = new CastleTopologyPlan
             {
                 Perimeter = perimeter,
                 KeepPlacement = ChooseKeepPlacement(ref keepRng),
                 Wards = wards,
                 DesiredTowerCount = ChooseTowerCount(perimeter, ref wallRng),
-                HasPosternGate = wallRng.NextInt(0, 100) < 25,
+                HasPosternGate = hasPosternGate,
+                Site = CastleSitePlanner.Create(seed),
+                Walls = CastleWallPlanner.Create(seed),
+                PosternDoor = hasPosternGate
+                    ? CastleWallDoorPlanner.Postern()
+                    : default,
+                InnerWardDoor = wards == CastleWardPattern.InnerAndOuterWards
+                    ? CastleWallDoorPlanner.InnerWard(seed)
+                    : default,
+                HasKeepAnnexPlan = true,
+                KeepAnnexes = annexes,
+                KeepTurrets = CastleKeepTurretPlanner.Create(seed),
             };
+
+            if (!CastleTopologyPlanValidator.TryValidate(
+                    in plan, out CastleTopologyPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle topology planning produced an invalid plan: {issue}.");
+            }
+
+            return plan;
         }
 
         private static CastlePerimeterKind ChoosePerimeter(ref Random rng)

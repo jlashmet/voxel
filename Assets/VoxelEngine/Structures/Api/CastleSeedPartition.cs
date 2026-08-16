@@ -11,6 +11,7 @@ namespace VoxelEngine.Structures.Api
         Keep = 0x4B454550u,
         Rooms = 0x524F4F4Du,
         Dungeon = 0x44554E47u,
+        Cave = 0x43415645u,
         Decor = 0x4445434Fu,
     }
 

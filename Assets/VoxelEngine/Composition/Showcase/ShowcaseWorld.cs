@@ -67,7 +67,7 @@ namespace VoxelEngine.Showcase
 
         // -- geometry constants --------------------------------------------------
 
-        /// <summary>Voxels along a region edge: 512, i.e. 51.2 m.</summary>
+        /// <summary>Voxels along a region edge: 512, i.e. 51.2 m at 10 cm voxels.</summary>
         public const int RegionVoxelEdge = VoxelGrid.RegionVoxelEdge;
 
         /// <summary>Metres along a region edge.</summary>
@@ -1094,26 +1094,11 @@ namespace VoxelEngine.Showcase
             int ground = SurfaceHeight(cx, cz);
 
             var plan = StructuresComposition.PlanCastle(new int3(cx, ground, cz), Seed);
-            // Every region the castle reaches into must exist *before* it is built. A castle is
-            // wider than a region, and terrain generation writes a region's brick pointers
-            // wholesale — so a neighbour generated afterwards silently erases the half of the
-            // castle that stood in it. That is what left a scatter of blocks and a terraced
-            // quarry where a castle should be.
-            // Enumerate every coordinate in the touched range. Sampling centre +/- reach and
-            // treating those samples as neighbours skipped intermediate coordinates whenever
-            // reach exceeded one region; the castle then wrote into a default-empty region and
-            // left enormous void wedges where its terrain foundation should have been.
-            int reach = math.max(plan.PlateauRadius + plan.CliffDrop + 8, RegionVoxelEdge);
-            int minRx = (cx - reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
-            int maxRx = (cx + reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
-            int minRz = (cz - reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
-            int maxRz = (cz + reach) >> VoxelDimensions.RegionVoxelEdgeLog2;
-
             _pendingCastlePlan = plan;
-            _castleRegions.Clear();
-            for (int rz = minRz; rz <= maxRz; rz++)
-            for (int rx = minRx; rx <= maxRx; rx++)
-                _castleRegions.Add(new int3(rx, 0, rz));
+            // Spatial planning owns the conservative 3D dependency envelope. It queues every
+            // intersected region before mutation, including upper keep/tower layers and the
+            // displaced dungeon/cave footprint.
+            PreparePendingCastleSpatialPlan();
             _castleTerrainQueued = true;
         }
 
@@ -1133,8 +1118,8 @@ namespace VoxelEngine.Showcase
                 IMaterialAuthoringCatalogue materials = _palette.IsCreated
                     ? (IMaterialAuthoringCatalogue)_palette
                     : null;
-                _castleBuild = StructuresComposition.BeginCastleBuild(
-                    _readSource, _mutationStore, in _pendingCastlePlan, Seed, materials);
+                _castleBuild = BeginPendingSpatialCastleBuild(
+                    _readSource, _mutationStore, materials);
             }
             bool castleComplete;
             using (s_CastleMarker.Auto())
@@ -1149,11 +1134,7 @@ namespace VoxelEngine.Showcase
             int cx = plan.Centre.x;
             int cz = plan.Centre.z;
             int referenceArchVoxels = BuildReferenceArch(new int3(cx - 120, 0, cz - 210));
-            _castlePlan = plan;
-            _hasCastlePlan = true;
-            _castleTrapdoorOpen = false;
-            _castleFrontGateOpen = false;
-            BuildCastlePresentationLights(in plan);
+            CommitPendingCastleSpatialPlan();
 
             CastleVoxels = _castleBuild.TotalVoxelsWritten + referenceArchVoxels;
             // These regions were intentionally kept free of generic features while the castle
@@ -1294,10 +1275,7 @@ namespace VoxelEngine.Showcase
             get
             {
                 if (!_hasCastlePlan) return Vector3.positiveInfinity;
-                int3 min = CastleLayout.FrontGateMinimum(in _castlePlan);
-                return new Vector3(min.x + CastleLayout.FrontGateWidth * 0.5f,
-                                   min.y,
-                                   min.z - 8f) * VoxelSize;
+                return ActiveCastleFrontGatePosition();
             }
         }
 
@@ -1313,25 +1291,7 @@ namespace VoxelEngine.Showcase
         {
             if (!CanOpenCastleFrontGate(playerFeetMetres)) return false;
 
-            int3 min = CastleLayout.FrontGateMinimum(in _castlePlan);
-            int half = CastleLayout.FrontGateWidth / 2;
-            int archTop = CastleLayout.FrontGateHeight - half;
-            var gateVoxels = new List<FallingVoxel>(CastleLayout.FrontGateWidth
-                                                    * CastleLayout.FrontGateHeight
-                                                    * CastleLayout.FrontGateDepth);
-            for (int d = 0; d < CastleLayout.FrontGateDepth; d++)
-            for (int w = 0; w < CastleLayout.FrontGateWidth; w++)
-            for (int h = 0; h < CastleLayout.FrontGateHeight; h++)
-            {
-                int dx = w - half;
-                if (h > archTop && dx * dx + (h - archTop) * (h - archTop) > half * half)
-                    continue;
-
-                var voxel = new int3(min.x + w, min.y + h, min.z + d);
-                gateVoxels.Add(new FallingVoxel { Position = voxel, Material = MatWood });
-            }
-            ClearVoxelsBulk(gateVoxels);
-
+            OpenActiveCastleFrontGate();
             _castleFrontGateOpen = true;
             return true;
         }
@@ -1341,8 +1301,7 @@ namespace VoxelEngine.Showcase
             get
             {
                 if (!_hasCastlePlan) return Vector3.positiveInfinity;
-                int3 centre = CastleLayout.TrapdoorCentre(in _castlePlan);
-                return ((Vector3)(float3)centre + new Vector3(0.5f, 0.2f, 0.5f)) * 0.1f;
+                return ActiveCastleTrapdoorPosition();
             }
         }
 
@@ -1363,16 +1322,7 @@ namespace VoxelEngine.Showcase
         {
             if (!CanOpenCastleTrapdoor(playerFeetMetres)) return false;
 
-            int3 centre = CastleLayout.TrapdoorCentre(in _castlePlan);
-            int half = CastleLayout.TrapdoorHalfSize;
-            for (int y = centre.y; y < centre.y + 4; y++)
-            for (int z = centre.z - half; z < centre.z + half; z++)
-            for (int x = centre.x - half; x < centre.x + half; x++)
-            {
-                var voxel = new int3(x, y, z);
-                if (SetMaterialApi(voxel, VoxelGrid.MaterialEmpty))
-                    MarkDirty(voxel);
-            }
+            OpenActiveCastleTrapdoor();
             _castleTrapdoorOpen = true;
             return true;
         }

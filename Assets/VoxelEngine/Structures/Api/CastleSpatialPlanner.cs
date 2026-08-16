@@ -11,19 +11,22 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public static class CastleSpatialPlanner
     {
+        private const uint PrimaryGateSeedElement = 0x47415445u; // "GATE"
+
         public static CastleSpatialPlan Create(
             in CastlePlan dimensions,
             in CastleTopologyPlan topology)
         {
             int2[] outer = BuildOuterWard(in dimensions, in topology);
+            CastleGatePlacementSpec gate = PlacePrimaryGate(in dimensions, outer);
             int2[] inner = topology.Wards == CastleWardPattern.InnerAndOuterWards
-                ? BuildInnerWard(in dimensions, outer)
+                ? BuildInnerWard(in dimensions, in topology, outer, in gate)
                 : Array.Empty<int2>();
+            CastleTowerPlacementSpec[] innerTowers = CastleInnerWardTowerPlanner.Create(inner);
 
-            CastleGatePlacementSpec gate = PlacePrimaryGate(outer);
             bool hasPosternGate = topology.HasPosternGate;
             CastleGatePlacementSpec posternGate = hasPosternGate
-                ? PlacePosternGate(outer, gate.EdgeIndex, gate.Outward)
+                ? PlacePosternGate(in dimensions, outer, gate.EdgeIndex, gate.Outward)
                 : default;
             bool hasInnerGate = inner.Length != 0;
             CastleGatePlacementSpec innerGate = hasInnerGate
@@ -39,6 +42,24 @@ namespace VoxelEngine.Structures.Api
             int2 keepCentre = PlaceKeep(
                 in dimensions, topology.KeepPlacement, in gate, keepWard,
                 out bool requiresTerrainResolution);
+            int2 wellCentre = default;
+            bool hasWell = !requiresTerrainResolution &&
+                CastleCourtyardPlacementGeometry.TryChooseWell(
+                    in dimensions, keepWard, in gate, keepCentre, out wellCentre);
+            CastleCourtyardBuildingSpec[] courtyardBuildings = requiresTerrainResolution
+                ? Array.Empty<CastleCourtyardBuildingSpec>()
+                : CastleCourtyardBuildingPlacementGeometry.Plan(
+                    in dimensions,
+                    outer,
+                    inner,
+                    in gate,
+                    hasPosternGate,
+                    in posternGate,
+                    hasInnerGate,
+                    in innerGate,
+                    keepCentre,
+                    hasWell,
+                    wellCentre);
 
             return new CastleSpatialPlan(
                 in topology,
@@ -50,8 +71,42 @@ namespace VoxelEngine.Structures.Api
                 in posternGate,
                 hasInnerGate,
                 in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
                 keepCentre,
-                requiresTerrainResolution);
+                requiresTerrainResolution,
+                innerTowers);
+        }
+
+        /// <summary>
+        /// Returns true when a terrain-selected HighestGround keep centre supports the complete
+        /// dependent courtyard programme, not merely the keep footprint itself.
+        /// </summary>
+        public static bool CanResolveHighestGroundKeep(
+            in CastlePlan dimensions,
+            CastleSpatialPlan spatial,
+            int2 localKeepCentre)
+        {
+            if (spatial == null ||
+                spatial.Topology.KeepPlacement != CastleKeepPlacement.HighestGround ||
+                !spatial.KeepRequiresTerrainResolution)
+                return false;
+
+            int2[] keepWard = spatial.InnerWardVertices != null && spatial.InnerWardVertices.Length != 0
+                ? spatial.InnerWardVertices
+                : spatial.OuterWardVertices;
+            if (!CastlePolygonGeometry.ContainsKeepFootprint(
+                    in dimensions, localKeepCentre, keepWard))
+                return false;
+
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            return CastleCourtyardPlacementGeometry.TryChooseWell(
+                in dimensions,
+                keepWard,
+                in primaryGate,
+                localKeepCentre,
+                out _);
         }
 
         /// <summary>
@@ -74,21 +129,39 @@ namespace VoxelEngine.Structures.Api
             if (!spatial.KeepRequiresTerrainResolution)
                 return spatial;
 
-            int2[] keepWard = spatial.InnerWardVertices != null && spatial.InnerWardVertices.Length != 0
-                ? spatial.InnerWardVertices
-                : spatial.OuterWardVertices;
-            if (!CastlePolygonGeometry.ContainsKeepFootprint(
-                    in dimensions, localKeepCentre, keepWard))
+            if (!CanResolveHighestGroundKeep(in dimensions, spatial, localKeepCentre))
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(localKeepCentre),
-                    "Resolved keep footprint must fit completely inside its assigned ward.");
+                    "Resolved keep centre must fit its assigned ward and preserve a valid courtyard well/access route.");
             }
 
+            int2[] keepWard = spatial.InnerWardVertices != null && spatial.InnerWardVertices.Length != 0
+                ? spatial.InnerWardVertices
+                : spatial.OuterWardVertices;
             CastleTopologyPlan topology = spatial.Topology;
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleGatePlacementSpec posternGate = spatial.PosternGate;
             CastleGatePlacementSpec innerGate = spatial.InnerGate;
+            bool hasWell = CastleCourtyardPlacementGeometry.TryChooseWell(
+                in dimensions,
+                keepWard,
+                in primaryGate,
+                localKeepCentre,
+                out int2 wellCentre);
+            CastleCourtyardBuildingSpec[] courtyardBuildings =
+                CastleCourtyardBuildingPlacementGeometry.Plan(
+                    in dimensions,
+                    spatial.OuterWardVertices,
+                    spatial.InnerWardVertices,
+                    in primaryGate,
+                    spatial.HasPosternGate,
+                    in posternGate,
+                    spatial.HasInnerGate,
+                    in innerGate,
+                    localKeepCentre,
+                    hasWell,
+                    wellCentre);
             var resolved = new CastleSpatialPlan(
                 in topology,
                 (int2[])spatial.OuterWardVertices.Clone(),
@@ -99,8 +172,14 @@ namespace VoxelEngine.Structures.Api
                 in posternGate,
                 spatial.HasInnerGate,
                 in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
                 localKeepCentre,
-                false);
+                false,
+                spatial.InnerTowers != null
+                    ? (CastleTowerPlacementSpec[])spatial.InnerTowers.Clone()
+                    : Array.Empty<CastleTowerPlacementSpec>());
 
             if (!CastleSpatialPlanValidator.TryValidate(
                     in dimensions, resolved, out CastleSpatialPlanIssue issue))
@@ -200,7 +279,11 @@ namespace VoxelEngine.Structures.Api
             return vertices;
         }
 
-        private static int2[] BuildInnerWard(in CastlePlan dimensions, int2[] outer)
+        private static int2[] BuildInnerWard(
+            in CastlePlan dimensions,
+            in CastleTopologyPlan topology,
+            int2[] outer,
+            in CastleGatePlacementSpec primaryGate)
         {
             const float minimumScale = 0.64f;
             const float maximumScale = 0.84f;
@@ -212,13 +295,32 @@ namespace VoxelEngine.Structures.Api
                 float t = step / (float)scaleSteps;
                 float scale = math.lerp(minimumScale, maximumScale, t);
                 candidate = ScaleRing(outer, scale);
-                if (CastlePolygonGeometry.KeepFootprintFits(
-                        in dimensions, int2.zero, candidate))
+
+                int2 sizingKeep = PlaceKeep(
+                    in dimensions,
+                    topology.KeepPlacement,
+                    in primaryGate,
+                    candidate,
+                    out bool requiresTerrainResolution);
+                if (!CastlePolygonGeometry.KeepFootprintFits(
+                        in dimensions, sizingKeep, candidate))
+                    continue;
+
+                if (requiresTerrainResolution)
+                    sizingKeep = int2.zero;
+
+                if (CastleCourtyardPlacementGeometry.TryChooseWell(
+                        in dimensions,
+                        candidate,
+                        in primaryGate,
+                        sizingKeep,
+                        out _))
                     return candidate;
             }
 
-            // Validation will reject a castle whose keep cannot fit even at the maximum nested
-            // ward scale. Keeping the cap below 1 preserves a meaningful defensive gap.
+            // Validation will reject a castle whose dependent inner-courtyard programme cannot fit
+            // even at the maximum nested-ward scale. Keeping the cap below 1 preserves a meaningful
+            // defensive gap to the outer ring and its towers.
             return candidate;
         }
 
@@ -232,50 +334,74 @@ namespace VoxelEngine.Structures.Api
             return inner;
         }
 
-        private static CastleGatePlacementSpec PlacePrimaryGate(int2[] perimeter)
+        private static CastleGatePlacementSpec PlacePrimaryGate(
+            in CastlePlan dimensions,
+            int2[] perimeter)
         {
-            int bestEdge = 0;
-            int bestMidZ = int.MaxValue;
+            int minimumLength = CastleGatePlanningRules.PrimaryMinimumEdgeLength(in dimensions);
+            int bestEdge = -1;
+            uint bestScore = 0u;
 
-            for (int i = 0; i < perimeter.Length; i++)
+            for (int edge = 0; edge < perimeter.Length; edge++)
             {
-                int2 a = perimeter[i];
-                int2 b = perimeter[(i + 1) % perimeter.Length];
-                int midZ = a.y + b.y;
-                if (midZ >= bestMidZ) continue;
-                bestMidZ = midZ;
-                bestEdge = i;
+                if (!CastleGatePlanningRules.EdgeCanHostOpening(
+                        perimeter, edge, minimumLength))
+                    continue;
+
+                uint score = CastleSeedPartition.Derive(
+                    dimensions.Seed,
+                    CastleSeedDomain.Layout,
+                    PrimaryGateSeedElement + (uint)edge);
+                if (bestEdge >= 0 && score <= bestScore) continue;
+                bestEdge = edge;
+                bestScore = score;
             }
 
-            return PlaceGateOnEdge(perimeter, bestEdge, new float2(0f, -1f));
+            if (bestEdge < 0)
+                bestEdge = LongestEdge(perimeter, -1);
+
+            return PlaceGateOnEdge(
+                perimeter,
+                bestEdge,
+                EdgeOutwardPreference(perimeter, bestEdge));
         }
 
         private static CastleGatePlacementSpec PlacePosternGate(
+            in CastlePlan dimensions,
             int2[] perimeter,
             int primaryEdge,
             float2 primaryOutward)
         {
+            int minimumLength = CastleGatePlanningRules.PosternMinimumEdgeLength(in dimensions);
             int bestEdge = -1;
             float bestScore = float.MinValue;
             float2 inward = -primaryOutward;
+            float2 centroid = VertexCentroid(perimeter);
 
             for (int edge = 0; edge < perimeter.Length; edge++)
             {
-                if (edge == primaryEdge) continue;
+                if (edge == primaryEdge || !CastleGatePlanningRules.EdgeCanHostOpening(
+                        perimeter, edge, minimumLength))
+                    continue;
+
                 int2 a = perimeter[edge];
                 int2 b = perimeter[(edge + 1) % perimeter.Length];
                 float2 midpoint = new float2(
                     (a.x + b.x) * 0.5f,
                     (a.y + b.y) * 0.5f);
-                float score = math.dot(midpoint, inward);
+                float score = math.dot(midpoint - centroid, inward);
                 if (score <= bestScore) continue;
                 bestScore = score;
                 bestEdge = edge;
             }
 
             if (bestEdge < 0)
-                bestEdge = (primaryEdge + perimeter.Length / 2) % perimeter.Length;
-            return PlaceGateOnEdge(perimeter, bestEdge, -primaryOutward);
+                bestEdge = LongestEdge(perimeter, primaryEdge);
+
+            return PlaceGateOnEdge(
+                perimeter,
+                bestEdge,
+                EdgeOutwardPreference(perimeter, bestEdge));
         }
 
         private static CastleGatePlacementSpec PlaceGateOnEdge(
@@ -301,6 +427,45 @@ namespace VoxelEngine.Structures.Api
             };
         }
 
+        private static int LongestEdge(int2[] perimeter, int excludedEdge)
+        {
+            int bestEdge = -1;
+            long bestLengthSquared = -1;
+            for (int edge = 0; edge < perimeter.Length; edge++)
+            {
+                if (edge == excludedEdge) continue;
+                int2 a = perimeter[edge];
+                int2 b = perimeter[(edge + 1) % perimeter.Length];
+                long dx = (long)b.x - a.x;
+                long dz = (long)b.y - a.y;
+                long lengthSquared = dx * dx + dz * dz;
+                if (lengthSquared <= bestLengthSquared) continue;
+                bestLengthSquared = lengthSquared;
+                bestEdge = edge;
+            }
+            return bestEdge >= 0 ? bestEdge : 0;
+        }
+
+        private static float2 EdgeOutwardPreference(int2[] perimeter, int edgeIndex)
+        {
+            int2 a = perimeter[edgeIndex];
+            int2 b = perimeter[(edgeIndex + 1) % perimeter.Length];
+            float2 midpoint = new float2(
+                (a.x + b.x) * 0.5f,
+                (a.y + b.y) * 0.5f);
+            float2 outward = midpoint - VertexCentroid(perimeter);
+            float length = math.length(outward);
+            return length > 0.001f ? outward / length : new float2(0f, -1f);
+        }
+
+        private static float2 VertexCentroid(int2[] perimeter)
+        {
+            float2 centroid = float2.zero;
+            for (int i = 0; i < perimeter.Length; i++)
+                centroid += new float2(perimeter[i].x, perimeter[i].y);
+            return centroid / perimeter.Length;
+        }
+
         private static CastleTowerPlacementSpec[] PlaceTowers(
             uint seed,
             int2[] perimeter,
@@ -313,11 +478,16 @@ namespace VoxelEngine.Structures.Api
 
             for (int i = 0; i < perimeter.Length; i++)
             {
+                int towerId = towers.Count;
+                uint variationSeed = CastleSeedPartition.Derive(
+                    seed, CastleSeedDomain.Walls, (uint)(0x2000 + towerId));
                 towers.Add(new CastleTowerPlacementSpec
                 {
-                    Id = towers.Count,
+                    Id = towerId,
                     Centre = perimeter[i],
                     Role = CastleTowerPlacementRole.Corner,
+                    HeightVariation = 8 + (int)(variationSeed % 51u),
+                    HasRoof = ((variationSeed >> 8) & 1u) != 0u,
                 });
             }
 
@@ -345,11 +515,16 @@ namespace VoxelEngine.Structures.Api
                 usedEdges[bestEdge] = true;
                 int2 a = perimeter[bestEdge];
                 int2 b = perimeter[(bestEdge + 1) % perimeter.Length];
+                int towerId = towers.Count;
+                uint variationSeed = CastleSeedPartition.Derive(
+                    seed, CastleSeedDomain.Walls, (uint)(0x2000 + towerId));
                 towers.Add(new CastleTowerPlacementSpec
                 {
-                    Id = towers.Count,
+                    Id = towerId,
                     Centre = new int2((a.x + b.x) / 2, (a.y + b.y) / 2),
                     Role = CastleTowerPlacementRole.Wall,
+                    HeightVariation = 8 + (int)(variationSeed % 51u),
+                    HasRoof = false,
                 });
             }
 
@@ -374,30 +549,15 @@ namespace VoxelEngine.Structures.Api
                 return RetractKeepToWard(int2.zero, in dimensions, keepWard);
 
             float2 inward = -gate.Outward;
-            int insetX = placement == CastleKeepPlacement.WallIntegrated
-                ? math.max(0, dimensions.BaileyHalfX - dimensions.KeepHalfX)
-                : math.max(0, dimensions.BaileyHalfX - dimensions.KeepHalfX
-                              - dimensions.WallThickness - 24);
-            int insetZ = placement == CastleKeepPlacement.WallIntegrated
-                ? math.max(0, dimensions.BaileyHalfZ - dimensions.KeepHalfZ)
-                : math.max(0, dimensions.BaileyHalfZ - dimensions.KeepHalfZ
-                              - dimensions.WallThickness - 24);
+            int2 integrated = CastleKeepPlacementGeometry.FarthestKeepCentreAlong(
+                in dimensions, inward, keepWard);
+            if (placement == CastleKeepPlacement.WallIntegrated)
+                return integrated;
 
-            float distance = float.MaxValue;
-            if (math.abs(inward.x) > 0.001f)
-                distance = math.min(distance, insetX / math.abs(inward.x));
-            if (math.abs(inward.y) > 0.001f)
-                distance = math.min(distance, insetZ / math.abs(inward.y));
-            if (distance == float.MaxValue)
-                distance = 0f;
-
-            if (placement == CastleKeepPlacement.Rear)
-                distance *= 0.78f;
-
-            int2 desired = new int2(
-                (int)math.round(inward.x * distance),
-                (int)math.round(inward.y * distance));
-            return RetractKeepToWard(desired, in dimensions, keepWard);
+            int2 desiredRear = new int2(
+                (int)math.round(integrated.x * 0.78f),
+                (int)math.round(integrated.y * 0.78f));
+            return RetractKeepToWard(desiredRear, in dimensions, keepWard);
         }
 
         private static int2 RetractKeepToWard(

@@ -1,3 +1,4 @@
+using System;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
@@ -12,11 +13,30 @@ namespace VoxelEngine.Structures.Runtime
     /// </summary>
     internal static class CastleKeepRealizer
     {
+        /// <summary>Compatibility path for castles without explicit keep-floor semantics.</summary>
+        internal static bool TryStep(ref VoxelBrush brush, in CastlePlan plan, ref int stage) =>
+            TryStepCore(ref brush, in plan, null, ref stage);
+
         /// <summary>
-        /// Executes one migrated keep substage. Returns false once the caller reaches the final
-        /// legacy roof/annex substage (substage 6).
+        /// Spatial path: realizes supplied semantic floor purposes without choosing them from the
+        /// physical floor index. Existing furnishing recipes remain behavior-compatible.
         /// </summary>
-        internal static bool TryStep(ref VoxelBrush brush, in CastlePlan plan, ref int stage)
+        internal static bool TryStep(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            CastleKeepFloorPlan[] roomPlans,
+            ref int stage)
+        {
+            if (roomPlans == null || roomPlans.Length != plan.Floors)
+                throw new InvalidOperationException("Castle keep realization requires one planned room per floor.");
+            return TryStepCore(ref brush, in plan, roomPlans, ref stage);
+        }
+
+        private static bool TryStepCore(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            CastleKeepFloorPlan[] roomPlans,
+            ref int stage)
         {
             if (stage < 0 || stage >= 6) return false;
 
@@ -30,7 +50,7 @@ namespace VoxelEngine.Structures.Runtime
             switch (stage)
             {
                 case 0:
-                    CastleKeepShellRealizer.Build(ref brush, min, size, baseY);
+                    BuildShell(ref brush, min, size, baseY);
                     break;
 
                 case 1:
@@ -38,12 +58,11 @@ namespace VoxelEngine.Structures.Runtime
                     break;
 
                 case 2:
-                    BuildFloorsAndRooms(ref brush, in plan, min, size, baseY, floors);
+                    BuildFloorsAndRooms(ref brush, in plan, min, size, baseY, floors, roomPlans);
                     break;
 
                 case 3:
-                    CastleKeepCirculationRealizer.Build(
-                        ref brush, in plan, min, size, baseY, floors);
+                    BuildCirculation(ref brush, in plan, min, size, baseY, floors);
                     break;
 
                 case 4:
@@ -51,12 +70,23 @@ namespace VoxelEngine.Structures.Runtime
                     break;
 
                 case 5:
-                    BuildFacadeAndOriel(ref brush, in plan, min, size, baseY, floors);
+                    BuildFacade(ref brush, in plan, min, size, baseY, floors);
+                    if (roomPlans == null)
+                        CastleRearOrielRealizer.Build(ref brush, in plan);
                     break;
             }
 
             stage++;
             return true;
+        }
+
+        private static void BuildShell(ref VoxelBrush brush, int3 min, int3 size, int baseY)
+        {
+            brush.Box(new int3(min.x - 6, baseY - 26, min.z - 6),
+                      new int3(size.x + 12, 30, size.z + 12), Mat.DarkStone);
+            brush.HollowBox(min, size, 8, Mat.Stone, false, false);
+            brush.FillBulk(new int3(min.x + 8, baseY + 1, min.z + 8),
+                           new int3(size.x - 16, size.y - 1, size.z - 16), Mat.Empty);
         }
 
         private static void BuildCornerTurrets(ref VoxelBrush brush, in CastlePlan plan,
@@ -71,8 +101,14 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
-        private static void BuildFloorsAndRooms(ref VoxelBrush brush, in CastlePlan plan,
-                                                int3 min, int3 size, int baseY, int floors)
+        private static void BuildFloorsAndRooms(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 min,
+            int3 size,
+            int baseY,
+            int floors,
+            CastleKeepFloorPlan[] roomPlans)
         {
             for (int f = 0; f < floors; f++)
             {
@@ -83,8 +119,81 @@ namespace VoxelEngine.Structures.Runtime
                               new int3(size.x - 16, 3, size.z - 16), Mat.Wood);
                 }
 
-                CastleRoomFurnisher.Furnish(ref brush, in plan, min, size, y, f);
+                if (roomPlans == null)
+                {
+                    CastleRoomFurnisher.Furnish(ref brush, in plan, min, size, y, f);
+                    continue;
+                }
+
+                CastleKeepFloorPlan roomPlan = roomPlans[f];
+                int furnishingRecipe = FurnishingRecipe(in roomPlan, f);
+                CastleRoomFurnisher.FurnishPlanned(
+                    ref brush,
+                    in plan,
+                    min,
+                    size,
+                    y,
+                    furnishingRecipe,
+                    roomPlan.Accents);
             }
+        }
+
+        private static int FurnishingRecipe(in CastleKeepFloorPlan roomPlan, int expectedFloor)
+        {
+            if (roomPlan.FloorIndex != expectedFloor)
+                throw new InvalidOperationException("Castle keep floor plans must be ordered by floor index.");
+
+            switch (roomPlan.Purpose)
+            {
+                case CastleKeepFloorPurpose.GreatHall:
+                    if (roomPlan.HasPartition)
+                        throw new InvalidOperationException("Great-hall floor cannot use the partitioned recipe.");
+                    return 0;
+                case CastleKeepFloorPurpose.Bedchamber:
+                    if (roomPlan.HasPartition)
+                        throw new InvalidOperationException("Bedchamber floor cannot use the partitioned recipe.");
+                    return 1;
+                case CastleKeepFloorPurpose.LibraryAndStores:
+                    if (!roomPlan.HasPartition)
+                        throw new InvalidOperationException("Library/store floor requires the partitioned recipe.");
+                    return 2;
+                default:
+                    throw new InvalidOperationException($"Unsupported keep-floor purpose: {roomPlan.Purpose}.");
+            }
+        }
+
+        private static void BuildCirculation(ref VoxelBrush brush, in CastlePlan plan,
+                                             int3 min, int3 size, int baseY, int floors)
+        {
+            int entranceX = plan.Centre.x;
+            brush.Arch(new int3(entranceX - 15, baseY + 1, min.z - 1),
+                       30, 34, 10, 2, Mat.Empty);
+            brush.Box(new int3(entranceX - 15, baseY + 2, min.z + 9),
+                      new int3(4, 29, 3), Mat.Wood);
+            brush.Box(new int3(entranceX + 11, baseY + 2, min.z + 9),
+                      new int3(4, 29, 3), Mat.Wood);
+            brush.Box(new int3(entranceX - 9, baseY + 1, min.z + 8),
+                      new int3(18, 24, size.z / 2 - 28), Mat.Empty);
+
+            int grandX = plan.Centre.x - 68;
+            int grandZ = min.z + 28;
+            const int grandWidth = 18;
+            const int grandRise = 2;
+            const int grandRun = 3;
+            int grandSteps = plan.FloorHeight / grandRise;
+            brush.Box(new int3(grandX, baseY + 1, grandZ),
+                      new int3(grandWidth, plan.FloorHeight + 18, grandSteps * grandRun), Mat.Empty);
+            brush.Stairs(new int3(grandX, baseY + 1, grandZ), grandWidth,
+                         grandSteps, grandRise, grandRun, 2, Mat.Wood);
+            brush.Box(new int3(grandX - 3, baseY + 1, grandZ), new int3(3, 20, 3), Mat.Wood);
+            brush.Box(new int3(grandX + grandWidth, baseY + 1, grandZ),
+                      new int3(3, 20, 3), Mat.Wood);
+
+            int stairX = min.x + 34;
+            int stairZ = min.z + 34;
+            const int stairRadius = 22;
+            brush.SpiralStair(stairX, baseY + 2, stairZ, stairRadius,
+                              floors * plan.FloorHeight, Mat.Stone);
         }
 
         private static void BuildWindows(ref VoxelBrush brush, in CastlePlan plan,
@@ -94,7 +203,6 @@ namespace VoxelEngine.Structures.Runtime
             {
                 int y = baseY + f * plan.FloorHeight + 12;
                 int height = f == 1 ? plan.FloorHeight - 14 : plan.FloorHeight - 18;
-
                 for (int i = 0; i < 3; i++)
                 {
                     int x = min.x + size.x / 4 + i * size.x / 4 - 8;
@@ -109,15 +217,13 @@ namespace VoxelEngine.Structures.Runtime
                         brush.Box(new int3(x + 3, y + height / 2, min.z + 1),
                                   new int3(10, 2, 3), Mat.DarkStone);
                     }
-
-                    brush.Arch(new int3(x, y, min.z + size.z - 8),
-                               16, height, 9, 2, Mat.Empty);
+                    brush.Arch(new int3(x, y, min.z + size.z - 8), 16, height, 9, 2, Mat.Empty);
                 }
             }
         }
 
-        private static void BuildFacadeAndOriel(ref VoxelBrush brush, in CastlePlan plan,
-                                                int3 min, int3 size, int baseY, int floors)
+        private static void BuildFacade(ref VoxelBrush brush, in CastlePlan plan,
+                                        int3 min, int3 size, int baseY, int floors)
         {
             for (int f = 1; f < floors; f++)
             {
@@ -137,10 +243,7 @@ namespace VoxelEngine.Structures.Runtime
                           new int3(20, 3, 4), Mat.Gold);
             }
 
-            int2[] keepStains =
-            {
-                new(-74, 5), new(-35, 14), new(42, 8), new(76, 20),
-            };
+            int2[] keepStains = { new(-74, 5), new(-35, 14), new(42, 8), new(76, 20) };
             for (int i = 0; i < keepStains.Length; i++)
             {
                 int stainX = plan.Centre.x + keepStains[i].x;
@@ -150,55 +253,6 @@ namespace VoxelEngine.Structures.Runtime
                 brush.Box(new int3(stainX + 3, baseY + 2, min.z - 2),
                           new int3(3, keepStains[i].y + 5, 2), Mat.Moss);
             }
-
-            BuildRearOriel(ref brush, in plan, min, size, baseY);
-        }
-
-        private static void BuildRearOriel(ref VoxelBrush brush, in CastlePlan plan,
-                                           int3 keepMin, int3 keepSize, int baseY)
-        {
-            const int width = 44;
-            const int depth = 22;
-            int minX = plan.Centre.x + 18;
-            int wallZ = keepMin.z + keepSize.z;
-            int firstFloorY = baseY + plan.FloorHeight * 2;
-
-            for (int x = 3; x < width - 2; x += 12)
-            {
-                brush.Box(new int3(minX + x, firstFloorY - 13, wallZ + 2),
-                          new int3(5, 13, 14), Mat.DarkStone);
-            }
-
-            for (int storey = 0; storey < 2; storey++)
-            {
-                int y = firstFloorY + storey * plan.FloorHeight;
-                brush.Box(new int3(minX, y, wallZ - 2),
-                          new int3(width, 4, depth), Mat.Wood);
-                brush.Box(new int3(minX, y + 4, wallZ + depth - 5),
-                          new int3(width, plan.FloorHeight - 7, 4), Mat.Wood);
-                brush.Box(new int3(minX, y + 4, wallZ),
-                          new int3(4, plan.FloorHeight - 7, depth - 3), Mat.Wood);
-                brush.Box(new int3(minX + width - 4, y + 4, wallZ),
-                          new int3(4, plan.FloorHeight - 7, depth - 3), Mat.Wood);
-
-                for (int bay = 0; bay < 3; bay++)
-                {
-                    int bayX = minX + 5 + bay * 13;
-                    brush.Box(new int3(bayX, y + 9, wallZ + depth - 4),
-                              new int3(9, plan.FloorHeight - 18, 3), Mat.LitWindow);
-                }
-
-                brush.Box(new int3(minX + 8, y + 4, wallZ - 8),
-                          new int3(width - 16, 25, 12), Mat.Empty);
-                brush.Box(new int3(minX + 4, y + 4, wallZ + 4),
-                          new int3(width - 8, plan.FloorHeight - 8, depth - 9), Mat.Empty);
-            }
-
-            int roofY = firstFloorY + plan.FloorHeight * 2;
-            brush.Gable(new int3(minX - 4, roofY, wallZ - 4),
-                        new int3(width + 8, 24, depth + 8), true, Mat.Tile);
-            brush.Box(new int3(minX - 3, firstFloorY + plan.FloorHeight - 1, wallZ - 1),
-                      new int3(width + 6, 3, depth + 1), Mat.DarkStone);
         }
     }
 }

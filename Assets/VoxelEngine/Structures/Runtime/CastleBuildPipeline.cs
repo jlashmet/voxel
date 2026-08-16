@@ -17,23 +17,39 @@ namespace VoxelEngine.Structures.Runtime
         private uint _terrainSeed;
         private int _stage;
         private int _keepStage;
-        private CastleSiteRealizer.State _site;
+        private CastleSiteRealizer.State _legacySite;
+        private CastlePlannedSiteRealizer.State _plannedSite;
+        private CastleSitePlan _sitePlan;
+        private CastleWallPlan _wallPlan;
 
-        // Spatial planning now drives every stage that depends on castle orientation or placement.
-        // The legacy landscape recipe remains available only to compatibility builds.
         private bool _hasSpatialFortifications;
         private bool _hasSpatialKeep;
         private int2[] _outerWardVertices;
         private int2[] _innerWardVertices;
-        private int2[] _towerCentres;
-        private int _cornerTowerCount;
+        private CastleTowerPlacementSpec[] _outerTowerSpecs;
+        private CastleTowerPlacementSpec[] _innerTowerSpecs;
         private CastleGatePlacementSpec _primaryGate;
         private CastleApproachFrame _approach;
+        private CastleGatehousePlan _gatehousePlan;
         private bool _hasPosternGate;
         private CastleGatePlacementSpec _posternGate;
+        private CastleWallDoorPlan _posternDoorPlan;
         private bool _hasInnerGate;
         private CastleGatePlacementSpec _innerGate;
-        private int2 _spatialKeepCentre;
+        private CastleWallDoorPlan _innerWardDoorPlan;
+        private bool _hasSpatialWell;
+        private int2 _spatialWellCentre;
+        private CastleCourtyardBuildingSpec[] _courtyardBuildings;
+        private CastleKeepFloorPlan[] _keepFloorPlans;
+        private CastleKeepTurretSpec[] _keepTurrets;
+        private CastleKeepCirculationPlan _keepCirculation;
+        private CastleKeepWindowSpec[] _keepWindows;
+        private CastleKeepAnnexPlan _keepAnnexes;
+        private int2 _worldKeepCentre;
+        private DungeonPlan _spatialDungeonPlan;
+        private CavePlan _spatialCavePlan;
+        private CastleCaveDecorationPlan _spatialCaveDecorationPlan;
+        private CastleLandscapePlan _spatialLandscapePlan;
 
         public CastleBuildPipeline(
             IRegionReadSource reads,
@@ -45,11 +61,6 @@ namespace VoxelEngine.Structures.Runtime
         {
         }
 
-        /// <summary>
-        /// Builds with a precomputed spatial plan for migrated realization stages. The caller owns
-        /// planning; Runtime validates and snapshots supplied geometry before any voxel writes so
-        /// later caller mutation cannot change the in-flight build.
-        /// </summary>
         public CastleBuildPipeline(
             IRegionReadSource reads,
             IRegionMutationStore mutations,
@@ -62,8 +73,10 @@ namespace VoxelEngine.Structures.Runtime
             if (mutations == null) throw new ArgumentNullException(nameof(mutations));
 
             _brush = new VoxelBrush(reads, mutations, materials);
-            CastleBuildPreflightResult preflight = CastleBuildPreflight.Evaluate(
-                in plan, _brush.WriteBudget);
+            CastleBuildPreflightResult preflight = spatialPlan == null
+                ? CastleBuildPreflight.Evaluate(in plan, _brush.WriteBudget)
+                : CastleBuildPreflight.EvaluateRuntimeReady(
+                    in plan, spatialPlan, _brush.WriteBudget);
 
             if (!preflight.IsValid)
             {
@@ -73,37 +86,77 @@ namespace VoxelEngine.Structures.Runtime
                         $"Castle plan is structurally invalid: {preflight.PlanIssue}.");
                 }
 
+                if (preflight.Issue == CastleBuildPreflightIssue.InvalidSpatialPlan)
+                {
+                    throw new InvalidOperationException(
+                        $"Castle spatial plan is structurally invalid: {preflight.SpatialPlanIssue}.");
+                }
+
+                if (preflight.Issue == CastleBuildPreflightIssue.IncompleteSpatialPlan)
+                {
+                    throw new InvalidOperationException(
+                        $"Castle spatial plan is not runtime-ready: {preflight.ReadinessIssue}.");
+                }
+
                 throw new InvalidOperationException(
                     $"Castle build preflight rejected ~{preflight.EstimatedWrites:N0} expensive-write " +
                     $"equivalents against a {preflight.WriteBudget:N0} write budget.");
             }
 
-            _plan = plan;
-            _spatialKeepPlan = plan;
-
             if (spatialPlan != null)
             {
-                if (!CastleSpatialPlanValidator.TryValidate(
-                        in plan, spatialPlan, out CastleSpatialPlanIssue spatialIssue))
+                CastleTopologyPlan topology = spatialPlan.Topology;
+                if (!CastleKeepAnnexBuildReadiness.TryValidate(
+                        in topology, out CastleKeepAnnexBuildReadinessIssue annexReadiness))
                 {
                     throw new InvalidOperationException(
-                        $"Castle spatial plan is structurally invalid: {spatialIssue}.");
+                        $"Castle keep annex plan is not runtime-ready: {annexReadiness}.");
                 }
 
-                if (spatialPlan.KeepRequiresTerrainResolution)
+                if (!CastleKeepTurretPlanValidator.TryValidate(
+                        topology.KeepTurrets, out CastleKeepTurretPlanIssue turretIssue))
                 {
                     throw new InvalidOperationException(
-                        "Castle spatial plan still requires terrain resolution for its keep. " +
-                        "Resolve HighestGround placement before starting runtime realization.");
+                        $"Castle keep turret plan is not runtime-ready: {turretIssue}.");
                 }
 
-                SnapshotSpatialPlan(in plan, spatialPlan);
+                CastleWallPlan walls = topology.Walls;
+                if (!CastleWallPlanValidator.TryValidate(in walls, out CastleWallPlanIssue wallIssue))
+                {
+                    throw new InvalidOperationException(
+                        $"Castle wall plan is not runtime-ready: {wallIssue}.");
+                }
             }
+
+            _plan = plan;
+            _spatialKeepPlan = plan;
+            _sitePlan = default;
+            _wallPlan = default;
+            _posternDoorPlan = default;
+            _innerWardDoorPlan = default;
+            _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
+            _innerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
+            _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
+            _keepFloorPlans = Array.Empty<CastleKeepFloorPlan>();
+            _keepTurrets = Array.Empty<CastleKeepTurretSpec>();
+            _keepCirculation = default;
+            _keepWindows = Array.Empty<CastleKeepWindowSpec>();
+            _keepAnnexes = default;
+            _worldKeepCentre = default;
+            _spatialDungeonPlan = null;
+            _spatialCavePlan = null;
+            _spatialCaveDecorationPlan = null;
+            _spatialLandscapePlan = null;
+            _gatehousePlan = default;
+
+            if (spatialPlan != null)
+                SnapshotSpatialPlan(in plan, spatialPlan);
 
             _terrainSeed = terrainSeed;
             _stage = 1;
             _keepStage = 0;
-            _site = default;
+            _legacySite = default;
+            _plannedSite = default;
         }
 
         public bool IsComplete => _stage > 8;
@@ -112,7 +165,6 @@ namespace VoxelEngine.Structures.Runtime
 
         internal VoxelBrush Brush => _brush;
 
-        /// <summary>Executes one bounded unit of the current semantic stage.</summary>
         public bool Step()
         {
             if (IsComplete) return true;
@@ -122,10 +174,15 @@ namespace VoxelEngine.Structures.Runtime
                 case 1:
                 {
                     bool siteComplete = _hasSpatialFortifications
-                        ? CastleSiteRealizer.StepPlanned(
-                            ref _brush, in _plan, _terrainSeed, in _approach, ref _site)
+                        ? CastlePlannedSiteRealizer.Step(
+                            ref _brush,
+                            in _plan,
+                            _terrainSeed,
+                            in _approach,
+                            in _sitePlan,
+                            ref _plannedSite)
                         : CastleSiteRealizer.Step(
-                            ref _brush, in _plan, _terrainSeed, ref _site);
+                            ref _brush, in _plan, _terrainSeed, ref _legacySite);
                     if (!siteComplete)
                     {
                         RequireBudget("site");
@@ -144,8 +201,10 @@ namespace VoxelEngine.Structures.Runtime
                 case 3:
                     if (_hasSpatialFortifications)
                     {
-                        CastlePerimeterRealizer.Towers(
-                            ref _brush, in _plan, _towerCentres, _cornerTowerCount);
+                        CastlePlannedTowerRealizer.BuildAll(
+                            ref _brush, in _plan, _outerTowerSpecs);
+                        CastleInnerWardTowerRealizer.BuildAll(
+                            ref _brush, in _plan, _innerTowerSpecs);
                     }
                     else
                     {
@@ -156,10 +215,29 @@ namespace VoxelEngine.Structures.Runtime
                 case 4:
                     if (_hasSpatialFortifications)
                     {
-                        CastlePerimeterRealizer.Gatehouse(
-                            ref _brush, in _plan, _primaryGate.Centre, _primaryGate.Outward);
+                        CastlePlannedGatehouseRealizer.Build(
+                            ref _brush,
+                            in _plan,
+                            in _primaryGate,
+                            in _gatehousePlan,
+                            in _wallPlan);
+
                         if (_hasPosternGate)
-                            CastlePosternRealizer.BuildDoor(ref _brush, in _plan, in _posternGate);
+                        {
+                            CastlePosternRealizer.BuildDoor(
+                                ref _brush,
+                                in _plan,
+                                in _posternGate,
+                                in _posternDoorPlan);
+                        }
+                        if (_hasInnerGate)
+                        {
+                            CastleWallDoorRealizer.BuildArchedDoor(
+                                ref _brush,
+                                in _plan,
+                                in _innerGate,
+                                in _innerWardDoorPlan);
+                        }
                     }
                     else
                     {
@@ -170,12 +248,14 @@ namespace VoxelEngine.Structures.Runtime
                 case 5:
                     if (_hasSpatialFortifications)
                     {
-                        CastleCourtyardRealizer.BuildPlanned(
+                        CastlePlannedCourtyardRealizer.Build(
                             ref _brush,
                             in _plan,
                             _outerWardVertices,
-                            in _primaryGate,
-                            _spatialKeepCentre);
+                            _hasSpatialWell,
+                            _spatialWellCentre,
+                            in _sitePlan,
+                            _courtyardBuildings);
                     }
                     else
                     {
@@ -187,12 +267,51 @@ namespace VoxelEngine.Structures.Runtime
                 {
                     CastlePlan keepPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
 
-                    // Preserve the historical seven keep substages so streaming cadence remains
-                    // unchanged while the realization responsibilities are now decomposed.
+                    if (_hasSpatialKeep && _keepStage == 1)
+                    {
+                        CastlePlannedKeepTurretRealizer.BuildAll(
+                            ref _brush, in keepPlan, _keepTurrets);
+                        _keepStage++;
+                        RequireBudget("keep 2");
+                        return false;
+                    }
+
+                    if (_hasSpatialKeep && _keepStage == 3)
+                    {
+                        CastleKeepCirculationRealizer.Build(
+                            ref _brush, in _plan, _worldKeepCentre, in _keepCirculation);
+                        _keepStage++;
+                        RequireBudget("keep 4");
+                        return false;
+                    }
+
+                    if (_hasSpatialKeep && _keepStage == 4)
+                    {
+                        CastleKeepWindowRealizer.Build(
+                            ref _brush, in _plan, _worldKeepCentre, _keepWindows);
+                        _keepStage++;
+                        RequireBudget("keep 5");
+                        return false;
+                    }
+
+                    if (_hasSpatialKeep && _keepStage == 5)
+                    {
+                        CastlePlannedKeepExteriorRealizer.Build(
+                            ref _brush, in keepPlan, in _keepAnnexes);
+                        _keepStage++;
+                        RequireBudget("keep 6");
+                        return false;
+                    }
+
                     if (_keepStage < 6)
                     {
                         string keepStage = $"keep {_keepStage + 1}";
-                        if (!CastleKeepRealizer.TryStep(ref _brush, in keepPlan, ref _keepStage))
+                        bool realized = _hasSpatialKeep
+                            ? CastleKeepRealizer.TryStep(
+                                ref _brush, in keepPlan, _keepFloorPlans, ref _keepStage)
+                            : CastleKeepRealizer.TryStep(
+                                ref _brush, in keepPlan, ref _keepStage);
+                        if (!realized)
                         {
                             throw new InvalidOperationException(
                                 "CastleKeepRealizer refused a migrated keep substage.");
@@ -202,7 +321,15 @@ namespace VoxelEngine.Structures.Runtime
                         return false;
                     }
 
-                    CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan);
+                    if (_hasSpatialKeep)
+                    {
+                        CastlePlannedKeepAnnexRealizer.Build(
+                            ref _brush, in keepPlan, in _keepAnnexes);
+                    }
+                    else
+                    {
+                        CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan);
+                    }
                     _keepStage++;
                     return CompleteStage("keep 7");
                 }
@@ -210,15 +337,38 @@ namespace VoxelEngine.Structures.Runtime
                 case 7:
                 {
                     CastlePlan dungeonPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
-                    CastleDungeonRealizer.Build(ref _brush, in dungeonPlan);
+                    if (_hasSpatialKeep)
+                    {
+                        if (_spatialDungeonPlan == null)
+                        {
+                            throw new InvalidOperationException(
+                                "Spatial castle reached dungeon realization without a planned dungeon.");
+                        }
+
+                        CastlePlannedDungeonRealizer.Build(
+                            ref _brush,
+                            _spatialDungeonPlan,
+                            _spatialCavePlan,
+                            _spatialCaveDecorationPlan);
+                    }
+                    else
+                    {
+                        CastleDungeonRealizer.Build(ref _brush, in dungeonPlan);
+                    }
                     return CompleteStage("dungeon");
                 }
 
                 case 8:
                     if (_hasSpatialFortifications)
                     {
-                        CastleSpatialLandscapeRealizer.Build(
-                            ref _brush, in _plan, _outerWardVertices, in _approach);
+                        if (_spatialLandscapePlan == null)
+                        {
+                            throw new InvalidOperationException(
+                                "Spatial castle reached landscape realization without a planned landscape.");
+                        }
+
+                        CastlePlannedLandscapeRealizer.Build(
+                            ref _brush, in _plan, _spatialLandscapePlan);
                     }
                     else
                     {
@@ -233,68 +383,111 @@ namespace VoxelEngine.Structures.Runtime
 
         private void SnapshotSpatialPlan(in CastlePlan plan, CastleSpatialPlan spatialPlan)
         {
-            CastleSpatialLayoutProjection projection =
-                CastleSpatialLayoutProjection.Create(in plan, spatialPlan);
-
             _hasSpatialFortifications = true;
             _outerWardVertices = (int2[])spatialPlan.OuterWardVertices.Clone();
             _innerWardVertices = (int2[])spatialPlan.InnerWardVertices.Clone();
             _primaryGate = spatialPlan.PrimaryGate;
             _approach = CastleApproachFrame.FromGate(in _primaryGate);
+            _sitePlan = spatialPlan.Topology.Site;
             _hasPosternGate = spatialPlan.HasPosternGate;
             _posternGate = spatialPlan.PosternGate;
             _hasInnerGate = spatialPlan.HasInnerGate;
             _innerGate = spatialPlan.InnerGate;
-            _spatialKeepCentre = spatialPlan.KeepCentre;
+            _hasSpatialWell = spatialPlan.HasWell;
+            _spatialWellCentre = spatialPlan.WellCentre;
+            _courtyardBuildings = (CastleCourtyardBuildingSpec[])spatialPlan.CourtyardBuildings.Clone();
+            _keepFloorPlans = (CastleKeepFloorPlan[])spatialPlan.KeepFloors.Clone();
 
-            CastleTowerPlacementSpec[] towers = spatialPlan.Towers;
-            _towerCentres = new int2[towers.Length];
-            int cursor = 0;
-            for (int i = 0; i < towers.Length; i++)
+            CastleKeepCirculationPlan circulation = spatialPlan.KeepCirculation;
+            if (!CastleKeepCirculationPlanValidator.TryValidate(
+                    in plan, in circulation, out CastleKeepCirculationPlanIssue circulationIssue))
             {
-                if (towers[i].Role != CastleTowerPlacementRole.Corner) continue;
-                _towerCentres[cursor++] = towers[i].Centre;
+                throw new InvalidOperationException(
+                    $"Spatial castle reached Runtime with invalid keep circulation: {circulationIssue}.");
             }
-            _cornerTowerCount = cursor;
-            for (int i = 0; i < towers.Length; i++)
-            {
-                if (towers[i].Role == CastleTowerPlacementRole.Corner) continue;
-                _towerCentres[cursor++] = towers[i].Centre;
-            }
+            _keepCirculation = circulation;
 
+            CastleKeepWindowSpec[] windows = spatialPlan.KeepWindows;
+            if (!CastleKeepWindowPlanValidator.TryValidate(in plan, windows, out string windowError))
+            {
+                throw new InvalidOperationException(
+                    $"Spatial castle reached Runtime with invalid keep windows: {windowError}.");
+            }
+            _keepWindows = (CastleKeepWindowSpec[])windows.Clone();
+
+            CastleTopologyPlan topology = spatialPlan.Topology;
+            _wallPlan = topology.Walls;
+            CastleWallPlanValidator.RequireValid(in _wallPlan);
+            if (_hasPosternGate)
+            {
+                _posternDoorPlan = topology.PosternDoor;
+                CastleWallDoorPlanValidator.RequireValid(in _posternDoorPlan);
+            }
+            if (_hasInnerGate)
+            {
+                _innerWardDoorPlan = topology.InnerWardDoor;
+                CastleWallDoorPlanValidator.RequireValid(in _innerWardDoorPlan);
+            }
+            _keepAnnexes = topology.KeepAnnexes;
+            _keepTurrets = topology.KeepTurrets.Snapshot();
+            CastleGatehousePlan gatehouse = topology.Gatehouse;
+            CastleGatehousePlanValidator.RequireValid(in gatehouse);
+            _gatehousePlan = gatehouse;
+
+            _spatialDungeonPlan = spatialPlan.Dungeon != null
+                ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
+                : null;
+            _spatialCavePlan = spatialPlan.Cave != null
+                ? CavePlanSnapshot.CloneValidated(spatialPlan.Cave)
+                : null;
+            _spatialCaveDecorationPlan = spatialPlan.CaveDecoration != null
+                ? spatialPlan.CaveDecoration.Snapshot()
+                : null;
+            _spatialLandscapePlan = spatialPlan.Landscape != null
+                ? CastleLandscapePlanSnapshot.CloneValidated(spatialPlan.Landscape)
+                : null;
+            _outerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.Towers.Clone();
+            _innerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.InnerTowers.Clone();
+
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(
+                in plan, spatialPlan);
             _spatialKeepPlan = projection.KeepPlan;
+            _worldKeepCentre = projection.KeepCentreWorld;
             _hasSpatialKeep = true;
         }
 
         private void BuildPlannedWalls()
         {
-            int outerGateWidth = math.max(
-                CastleLayout.FrontGateWidth + 12,
-                _plan.WallThickness * 2);
-            CastlePerimeterRealizer.Walls(
+            CastlePlannedPerimeterRealizer.Walls(
                 ref _brush,
                 in _plan,
                 _outerWardVertices,
                 _primaryGate.EdgeIndex,
                 _primaryGate.Centre,
-                outerGateWidth);
+                in _wallPlan);
 
             if (_hasPosternGate)
-                CastlePosternRealizer.CarveOpening(ref _brush, in _plan, in _posternGate);
+            {
+                CastlePosternRealizer.CarveOpening(
+                    ref _brush,
+                    in _plan,
+                    in _posternGate,
+                    in _posternDoorPlan);
+            }
 
             if (!_hasInnerGate || _innerWardVertices.Length == 0)
                 return;
 
-            int innerGateWidth = math.max(
-                CastleLayout.FrontGateWidth,
-                _plan.WallThickness * 2);
-            CastlePerimeterRealizer.Walls(
+            CastlePlannedPerimeterRealizer.Walls(
                 ref _brush,
                 in _plan,
                 _innerWardVertices,
-                _innerGate.EdgeIndex,
-                _innerGate.Centre,
-                innerGateWidth);
+                in _wallPlan);
+            CastleWallDoorRealizer.CarveArchedOpening(
+                ref _brush,
+                in _plan,
+                in _innerGate,
+                in _innerWardDoorPlan);
         }
 
         private bool CompleteStage(string stage)

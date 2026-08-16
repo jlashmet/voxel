@@ -20,6 +20,109 @@ namespace VoxelEngine.Structures.Api
             int2[] polygon) =>
             KeepFootprintFits(in dimensions, centre, polygon);
 
+        /// <summary>
+        /// Returns true when every edge of <paramref name="subject"/> stays strictly inside
+        /// <paramref name="container"/>. Merely checking corners is insufficient for a concave
+        /// container because an indentation can cut through a subject edge between sample points.
+        /// Boundary contact is rejected; authored structures are expected to keep their own wall
+        /// clearance rather than rely on coincident polygon edges.
+        /// </summary>
+        public static bool ContainsPolygon(int2[] container, int2[] subject)
+        {
+            if (container == null || container.Length < 3 ||
+                subject == null || subject.Length < 3)
+                return false;
+
+            for (int i = 0; i < subject.Length; i++)
+            {
+                if (!PointInOrOnPolygon(subject[i], container))
+                    return false;
+            }
+
+            for (int subjectEdge = 0; subjectEdge < subject.Length; subjectEdge++)
+            {
+                int2 a = subject[subjectEdge];
+                int2 b = subject[(subjectEdge + 1) % subject.Length];
+                for (int containerEdge = 0; containerEdge < container.Length; containerEdge++)
+                {
+                    int2 c = container[containerEdge];
+                    int2 d = container[(containerEdge + 1) % container.Length];
+                    if (SegmentsIntersectOrTouch(a, b, c, d))
+                        return false;
+                }
+            }
+
+            // A concave indentation may lie wholly inside the subject after integer rounding even
+            // when none of the subject vertices escapes the container. Reject that case directly.
+            for (int i = 0; i < container.Length; i++)
+            {
+                if (PointInPolygonStrict(container[i], subject))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Returns true when two polygon interiors or boundaries share any point. This covers edge
+        /// crossings/touches as well as complete containment in either direction.
+        /// </summary>
+        public static bool PolygonsOverlapOrTouch(int2[] first, int2[] second)
+        {
+            if (first == null || first.Length < 3 || second == null || second.Length < 3)
+                return false;
+
+            for (int firstEdge = 0; firstEdge < first.Length; firstEdge++)
+            {
+                int2 a = first[firstEdge];
+                int2 b = first[(firstEdge + 1) % first.Length];
+                for (int secondEdge = 0; secondEdge < second.Length; secondEdge++)
+                {
+                    int2 c = second[secondEdge];
+                    int2 d = second[(secondEdge + 1) % second.Length];
+                    if (SegmentsIntersectOrTouch(a, b, c, d))
+                        return true;
+                }
+            }
+
+            return PointInOrOnPolygon(first[0], second) ||
+                   PointInOrOnPolygon(second[0], first);
+        }
+
+        /// <summary>
+        /// Returns true only for a non-self-intersecting polygon ring. Adjacent edges may meet at
+        /// their shared vertex; any crossing, overlap, or repeated non-adjacent vertex is invalid.
+        /// </summary>
+        public static bool IsSimplePolygon(int2[] polygon)
+        {
+            if (polygon == null || polygon.Length < 3)
+                return false;
+
+            for (int i = 0; i < polygon.Length; i++)
+            {
+                int iNext = (i + 1) % polygon.Length;
+                int2 a = polygon[i];
+                int2 b = polygon[iNext];
+                if (a.Equals(b))
+                    return false;
+
+                for (int j = i + 1; j < polygon.Length; j++)
+                {
+                    int jNext = (j + 1) % polygon.Length;
+
+                    // Neighbouring edges intentionally share one endpoint. The first and last
+                    // edges are neighbours too because the ring is closed.
+                    if (i == j || iNext == j || jNext == i)
+                        continue;
+
+                    if (SegmentsIntersectOrTouch(a, b, polygon[j], polygon[jNext]))
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
         internal static bool PointOnPerimeter(int2 point, int2[] polygon)
         {
             if (polygon == null || polygon.Length < 2) return false;
@@ -127,6 +230,25 @@ namespace VoxelEngine.Structures.Api
             }
 
             return true;
+        }
+
+        private static bool PointInPolygonStrict(int2 point, int2[] polygon) =>
+            !PointOnPerimeter(point, polygon) && PointInOrOnPolygon(point, polygon);
+
+        private static bool SegmentsIntersectOrTouch(int2 a, int2 b, int2 c, int2 d)
+        {
+            long abC = Orient(a, b, c);
+            long abD = Orient(a, b, d);
+            long cdA = Orient(c, d, a);
+            long cdB = Orient(c, d, b);
+
+            if (OppositeSigns(abC, abD) && OppositeSigns(cdA, cdB))
+                return true;
+            if (abC == 0 && PointOnSegment(c, a, b)) return true;
+            if (abD == 0 && PointOnSegment(d, a, b)) return true;
+            if (cdA == 0 && PointOnSegment(a, c, d)) return true;
+            if (cdB == 0 && PointOnSegment(b, c, d)) return true;
+            return false;
         }
 
         private static bool ProperlyIntersects(int2 a, int2 b, int2 c, int2 d)

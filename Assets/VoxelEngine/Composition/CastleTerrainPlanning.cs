@@ -7,7 +7,7 @@ namespace VoxelEngine.Composition
 {
     /// <summary>
     /// Composition-owned site-aware completion for castle plans that deliberately leave terrain
-    /// choices unresolved in Structures.Api. Runtime receives only the finished spatial plan.
+    /// choices unresolved in Structures.Api. Runtime receives only a finished detached spatial plan.
     /// </summary>
     public static class CastleTerrainPlanning
     {
@@ -17,17 +17,32 @@ namespace VoxelEngine.Composition
             uint terrainSeed)
         {
             if (spatial == null) throw new ArgumentNullException(nameof(spatial));
-            if (!spatial.KeepRequiresTerrainResolution)
-                return spatial;
 
-            if (spatial.Topology.KeepPlacement != CastleKeepPlacement.HighestGround)
+            CastleSpatialPlan resolved = spatial;
+            if (spatial.KeepRequiresTerrainResolution)
             {
-                throw new InvalidOperationException(
-                    "Unexpected terrain dependency: only HighestGround keep placement is supported.");
+                if (spatial.Topology.KeepPlacement != CastleKeepPlacement.HighestGround)
+                {
+                    throw new InvalidOperationException(
+                        "Unexpected terrain dependency: only HighestGround keep placement is supported.");
+                }
+
+                int2 chosen = FindHighestGroundKeep(in plan, spatial, terrainSeed);
+                resolved = CastleSpatialPlanner.ResolveHighestGroundKeep(
+                    in plan, spatial, chosen);
             }
 
-            int2 chosen = FindHighestGroundKeep(in plan, spatial, terrainSeed);
-            return CastleSpatialPlanner.ResolveHighestGroundKeep(in plan, spatial, chosen);
+            resolved = CastleGatehousePlanCompletion.Attach(in plan, resolved);
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(
+                in plan, resolved);
+            completed = CastleKeepFacadeWindowCompletion.AlignWithEntrance(in plan, completed);
+            completed = CastleKeepTurretPlanCompletion.Attach(in plan, completed);
+            completed = CastleTowerSlitPlanCompletion.Attach(in plan, completed);
+
+            // Detach every mutable planning array before the object crosses into Runtime. This
+            // keeps production builds isolated even while planning/test APIs intentionally expose
+            // lightweight mutable arrays for corruption tests and incremental plan enrichment.
+            return CastleSpatialPlanSnapshot.CloneRuntimeReady(in plan, completed);
         }
 
         private static int2 FindHighestGroundKeep(
@@ -59,12 +74,10 @@ namespace VoxelEngine.Composition
             int bestSlope = int.MaxValue;
             uint bestTieBreak = 0u;
 
-            // The planner guarantees the ward can contain a central keep, so evaluate the origin
-            // explicitly even if the fixed search stride does not land on it.
             Consider(
                 int2.zero,
                 in plan,
-                ward,
+                spatial,
                 terrainSeed,
                 ref found,
                 ref best,
@@ -79,7 +92,7 @@ namespace VoxelEngine.Composition
                 Consider(
                     new int2(x, z),
                     in plan,
-                    ward,
+                    spatial,
                     terrainSeed,
                     ref found,
                     ref best,
@@ -91,7 +104,7 @@ namespace VoxelEngine.Composition
             if (!found)
             {
                 throw new InvalidOperationException(
-                    "No terrain-resolved keep footprint fits inside the assigned castle ward.");
+                    "No terrain-resolved keep site can satisfy the complete castle spatial plan.");
             }
 
             return best;
@@ -100,7 +113,7 @@ namespace VoxelEngine.Composition
         private static void Consider(
             int2 candidate,
             in CastlePlan plan,
-            int2[] ward,
+            CastleSpatialPlan spatial,
             uint terrainSeed,
             ref bool found,
             ref int2 best,
@@ -108,7 +121,8 @@ namespace VoxelEngine.Composition
             ref int bestSlope,
             ref uint bestTieBreak)
         {
-            if (!CastlePolygonGeometry.ContainsKeepFootprint(in plan, candidate, ward))
+            if (!CastleSpatialPlanner.CanResolveHighestGroundKeep(
+                    in plan, spatial, candidate))
                 return;
 
             int worldX = plan.Centre.x + candidate.x;

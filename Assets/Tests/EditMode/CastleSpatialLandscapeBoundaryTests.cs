@@ -19,21 +19,44 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialLandscapeUsesPlannedPerimeterAndApproachWithoutLegacyWaterfall()
+        public void SpatialLandscapeIsPlannedBeforeRuntimeAndSnapshottedAtHandoff()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
-            string spatial = File.ReadAllText(Path.Combine(
+            string realizer = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
-                "CastleSpatialLandscapeRealizer.cs"));
+                "CastlePlannedLandscapeRealizer.cs"));
+            string completion = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialPlanCompletion.cs"));
+            string snapshot = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleLandscapePlanSnapshot.cs"));
+            string landscapePlan = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleLandscapePlan.cs"));
+            string obsoleteRandomRealizer = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleSpatialLandscapeRealizer.cs");
 
-            StringAssert.Contains("CastleSpatialLandscapeRealizer.Build(", pipeline);
-            StringAssert.Contains("CastleApproachFrame", spatial);
-            StringAssert.Contains("localPerimeter", spatial);
-            StringAssert.DoesNotContain("Waterfall", spatial);
-            StringAssert.DoesNotContain("BaileyHalfX", spatial);
-            StringAssert.DoesNotContain("BaileyHalfZ", spatial);
+            StringAssert.Contains("CastleSpatialPlan completed = AttachLandscape(", completion);
+            StringAssert.Contains("CastleLandscapePlanner.Create(", completion);
+            StringAssert.Contains("CastleLandscapePlanSnapshot.CloneValidated(spatialPlan.Landscape)", pipeline);
+            StringAssert.Contains("CastlePlannedLandscapeRealizer.Build(", pipeline);
+            StringAssert.DoesNotContain("CastleSpatialLandscapeRealizer.Build(", pipeline);
+            Assert.IsFalse(File.Exists(obsoleteRandomRealizer),
+                "The old seed-driven spatial landscape realizer must not coexist with the planned path.");
+
+            StringAssert.Contains("CastleLandscapePlan landscape", realizer);
+            StringAssert.Contains("landscape.Decorations", realizer);
+            StringAssert.DoesNotContain("Random", realizer);
+            StringAssert.DoesNotContain("CastleSeedPartition", realizer);
+            StringAssert.DoesNotContain("Waterfall", realizer);
+
+            StringAssert.Contains("CloneValidated(CastleLandscapePlan landscape)", snapshot);
+            StringAssert.DoesNotContain("Snapshot()", landscapePlan,
+                "Runtime snapshot/validation policy must remain centralized in CastleLandscapePlanSnapshot.");
         }
     }
 }

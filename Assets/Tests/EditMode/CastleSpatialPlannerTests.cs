@@ -93,14 +93,23 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PrimaryGateIsPlacedOnTheFrontmostPerimeterEdge()
+        public void PrimaryGateVariesAcrossBuildableRectangularEdges()
         {
+            var seenEdges = new bool[4];
+
             for (uint seed = 1; seed <= 256; seed++)
             {
                 CastlePlan dimensions = CastlePlanner.Create(int3.zero, seed);
                 CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                topology.Perimeter = CastlePerimeterKind.Rectangular;
+                topology.Wards = CastleWardPattern.SingleWard;
+                topology.KeepPlacement = CastleKeepPlacement.Central;
+                topology.DesiredTowerCount = 4;
+                topology.HasPosternGate = false;
+
                 CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
                 int gateEdge = spatial.PrimaryGate.EdgeIndex;
+                seenEdges[gateEdge] = true;
                 int2 gateStart = spatial.OuterWardVertices[gateEdge];
                 int2 gateEnd = spatial.OuterWardVertices[(gateEdge + 1) % spatial.OuterWardVertices.Length];
                 int2 expectedCentre = new int2(
@@ -110,18 +119,53 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(expectedCentre, spatial.PrimaryGate.Centre,
                     $"seed {seed}: gate midpoint");
 
-                int gateMidZTwice = gateStart.y + gateEnd.y;
-                for (int edge = 0; edge < spatial.OuterWardVertices.Length; edge++)
-                {
-                    int2 a = spatial.OuterWardVertices[edge];
-                    int2 b = spatial.OuterWardVertices[(edge + 1) % spatial.OuterWardVertices.Length];
-                    Assert.LessOrEqual(gateMidZTwice, a.y + b.y,
-                        $"seed {seed}: edge {edge} is farther forward than the chosen gate");
-                }
+                long dx = (long)gateEnd.x - gateStart.x;
+                long dz = (long)gateEnd.y - gateStart.y;
+                int minimumLength = CastleGatePlanningRules.PrimaryMinimumEdgeLength(in dimensions);
+                Assert.GreaterOrEqual(dx * dx + dz * dz,
+                    (long)minimumLength * minimumLength,
+                    $"seed {seed}: gate selected an edge too short for its opening");
 
                 float2 toGate = new float2(expectedCentre.x, expectedCentre.y);
                 Assert.Greater(math.dot(toGate, spatial.PrimaryGate.Outward), 0f,
                     $"seed {seed}: primary gate normal points into the castle");
+            }
+
+            int distinctEdges = 0;
+            for (int i = 0; i < seenEdges.Length; i++)
+                if (seenEdges[i]) distinctEdges++;
+            Assert.AreEqual(4, distinctEdges,
+                "Seeded primary-gate planning should exercise every rectangular approach side.");
+        }
+
+        [Test]
+        public void PrimaryGateSeedStreamIsIndependentOfOtherTopologyChoices()
+        {
+            for (uint seed = 1; seed <= 128; seed++)
+            {
+                CastlePlan dimensions = CastlePlanner.Create(int3.zero, seed);
+                var firstTopology = new CastleTopologyPlan
+                {
+                    Perimeter = CastlePerimeterKind.Rectangular,
+                    KeepPlacement = CastleKeepPlacement.Central,
+                    Wards = CastleWardPattern.SingleWard,
+                    DesiredTowerCount = 4,
+                    HasPosternGate = false,
+                };
+                CastleTopologyPlan secondTopology = firstTopology;
+                secondTopology.KeepPlacement = CastleKeepPlacement.Rear;
+                secondTopology.DesiredTowerCount = 6;
+                secondTopology.HasPosternGate = true;
+
+                CastleSpatialPlan first = CastleSpatialPlanner.Create(in dimensions, in firstTopology);
+                CastleSpatialPlan second = CastleSpatialPlanner.Create(in dimensions, in secondTopology);
+
+                Assert.AreEqual(first.PrimaryGate.EdgeIndex, second.PrimaryGate.EdgeIndex,
+                    $"seed {seed}: unrelated topology changed primary gate edge");
+                Assert.AreEqual(first.PrimaryGate.Centre, second.PrimaryGate.Centre,
+                    $"seed {seed}: unrelated topology changed primary gate centre");
+                Assert.AreEqual(first.PrimaryGate.Outward, second.PrimaryGate.Outward,
+                    $"seed {seed}: unrelated topology changed primary gate orientation");
             }
         }
 

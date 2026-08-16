@@ -4,7 +4,7 @@ using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures.Runtime
 {
-    /// <summary>Realizes the occupied bailey space between the defensive shell and the keep.</summary>
+    /// <summary>Compatibility courtyard realization for dimension-only castle builds.</summary>
     internal static class CastleCourtyardRealizer
     {
         internal static void Build(ref VoxelBrush brush, in CastlePlan plan)
@@ -44,17 +44,72 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
+        internal static void BuildPlanned(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int2[] localPerimeter,
+            bool hasWell,
+            int2 localWellCentre) =>
+            BuildPlanned(
+                ref brush,
+                in plan,
+                localPerimeter,
+                hasWell,
+                localWellCentre,
+                null);
+
         /// <summary>
-        /// Realizes only geometry that is meaningful for an arbitrary planned perimeter. Paving is
-        /// clipped to the polygon and the well is placed beside the keep while the old axis-aligned
-        /// rear-wall sheds remain on the legacy path until semantic building placement exists.
+        /// Compatibility planned overload retained for focused geometry tests that predate the
+        /// frozen CastleSitePlan surface mask. Production spatial builds use the overload below.
         /// </summary>
         internal static void BuildPlanned(
             ref VoxelBrush brush,
             in CastlePlan plan,
             int2[] localPerimeter,
-            in CastleGatePlacementSpec primaryGate,
-            int2 localKeepCentre)
+            bool hasWell,
+            int2 localWellCentre,
+            CastleCourtyardBuildingSpec[] buildings)
+        {
+            BuildCompatibilityPlanned(
+                ref brush,
+                in plan,
+                localPerimeter,
+                hasWell,
+                localWellCentre,
+                buildings);
+        }
+
+        /// <summary>
+        /// Stable compatibility entry point for the production pipeline. The actual spatial
+        /// realization lives in CastlePlannedCourtyardRealizer so planner-owned variation cannot
+        /// accidentally fall back to this file's historical RNG path.
+        /// </summary>
+        internal static void BuildPlanned(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int2[] localPerimeter,
+            bool hasWell,
+            int2 localWellCentre,
+            in CastleSitePlan sitePlan,
+            CastleCourtyardBuildingSpec[] buildings)
+        {
+            CastlePlannedCourtyardRealizer.Build(
+                ref brush,
+                in plan,
+                localPerimeter,
+                hasWell,
+                localWellCentre,
+                in sitePlan,
+                buildings);
+        }
+
+        private static void BuildCompatibilityPlanned(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int2[] localPerimeter,
+            bool hasWell,
+            int2 localWellCentre,
+            CastleCourtyardBuildingSpec[] buildings)
         {
             if (localPerimeter == null || localPerimeter.Length < 3)
                 return;
@@ -74,6 +129,7 @@ namespace VoxelEngine.Structures.Runtime
             int baseY = plan.Centre.y + plan.PlateauHeight;
             var rng = new Random(CastleSeedPartition.Derive(
                 plan.Seed, CastleSeedDomain.Decor, 0xC047u));
+
             for (int z = minZ; z <= maxZ; z++)
             for (int x = minX; x <= maxX; x++)
             {
@@ -86,77 +142,16 @@ namespace VoxelEngine.Structures.Runtime
                                      plan.Centre.z + z, material);
             }
 
-            if (TryChooseWell(
-                    in plan, localPerimeter, in primaryGate, localKeepCentre,
-                    out int2 localWell))
+            if (hasWell)
             {
                 BuildWell(
                     ref brush,
-                    plan.Centre.x + localWell.x,
-                    plan.Centre.z + localWell.y,
+                    plan.Centre.x + localWellCentre.x,
+                    plan.Centre.z + localWellCentre.y,
                     baseY);
             }
-        }
 
-        private static bool TryChooseWell(
-            in CastlePlan plan,
-            int2[] perimeter,
-            in CastleGatePlacementSpec gate,
-            int2 keepCentre,
-            out int2 well)
-        {
-            float2 approach = new float2(gate.Centre.x - keepCentre.x,
-                                         gate.Centre.y - keepCentre.y);
-            float length = math.length(approach);
-            float2 direction = length > 0.001f ? approach / length : new float2(0f, -1f);
-            float2 tangent = new float2(-direction.y, direction.x);
-            int sideDistance = math.max(plan.KeepHalfX, plan.KeepHalfZ) + 58;
-            int sideSign = (CastleSeedPartition.Derive(
-                plan.Seed, CastleSeedDomain.Decor, 0xC048u) & 1u) == 0u ? -1 : 1;
-
-            int2 first = Round(new float2(keepCentre.x, keepCentre.y)
-                               + tangent * (sideSign * sideDistance));
-            if (WellFits(in plan, perimeter, keepCentre, first))
-            {
-                well = first;
-                return true;
-            }
-
-            int2 second = Round(new float2(keepCentre.x, keepCentre.y)
-                                - tangent * (sideSign * sideDistance));
-            if (WellFits(in plan, perimeter, keepCentre, second))
-            {
-                well = second;
-                return true;
-            }
-
-            well = default;
-            return false;
-        }
-
-        private static bool WellFits(
-            in CastlePlan plan,
-            int2[] perimeter,
-            int2 keepCentre,
-            int2 candidate)
-        {
-            const int clearanceRadius = 20;
-            int2[] probes =
-            {
-                candidate,
-                candidate + new int2(clearanceRadius, 0),
-                candidate + new int2(-clearanceRadius, 0),
-                candidate + new int2(0, clearanceRadius),
-                candidate + new int2(0, -clearanceRadius),
-            };
-            for (int i = 0; i < probes.Length; i++)
-            {
-                if (!CastlePolygonGeometry.ContainsPoint(probes[i], perimeter))
-                    return false;
-            }
-
-            return math.abs(candidate.x - keepCentre.x) > plan.KeepHalfX + clearanceRadius
-                || math.abs(candidate.y - keepCentre.y) > plan.KeepHalfZ + clearanceRadius;
+            CastleCourtyardBuildingRealizer.BuildAll(ref brush, in plan, buildings);
         }
 
         private static void BuildWell(ref VoxelBrush brush, int wx, int wz, int baseY)
@@ -165,8 +160,5 @@ namespace VoxelEngine.Structures.Runtime
             brush.Cylinder(wx, baseY - 60, wz, 11, 60, Mat.Empty);
             brush.Cylinder(wx, baseY - 60, wz, 10, 14, Mat.Water);
         }
-
-        private static int2 Round(float2 value) =>
-            new int2((int)math.round(value.x), (int)math.round(value.y));
     }
 }
