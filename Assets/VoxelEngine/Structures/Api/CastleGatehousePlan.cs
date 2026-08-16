@@ -42,12 +42,13 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Pure planner for the historical gatehouse recipe. Keeping the exact current values makes
-    /// the planning migration behavior-preserving while removing those choices from realization.
+    /// Canonical behavior-preserving recipe used by both the planner and the temporary legacy
+    /// realization facade. Keeping the formula here prevents Runtime from invoking a planning
+    /// entry point while also avoiding a second copy of the historical constants.
     /// </summary>
-    public static class CastleGatehousePlanner
+    public static class CastleGatehouseRecipe
     {
-        public static CastleGatehousePlan Create(in CastlePlan plan)
+        public static CastleGatehousePlan Historical(in CastlePlan plan)
         {
             var gatehouse = new CastleGatehousePlan
             {
@@ -76,6 +77,16 @@ namespace VoxelEngine.Structures.Api
             CastleGatehousePlanValidator.RequireValid(in gatehouse);
             return gatehouse;
         }
+    }
+
+    /// <summary>
+    /// Pure planner for the historical gatehouse recipe. Keeping the exact current values makes
+    /// the planning migration behavior-preserving while removing those choices from realization.
+    /// </summary>
+    public static class CastleGatehousePlanner
+    {
+        public static CastleGatehousePlan Create(in CastlePlan plan) =>
+            CastleGatehouseRecipe.Historical(in plan);
     }
 
     /// <summary>Structural validation for a frozen primary-gatehouse recipe.</summary>
