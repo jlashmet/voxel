@@ -55,8 +55,9 @@ namespace VoxelEngine.Structures.Api
             int maxY = baseY + authoredHeight;
 
             // Gate-oriented site/approach work. Current terrain carving runs approximately one
-            // plateau+cliff span along the wall and ~220 voxels outside it. These margins are
-            // intentionally larger so bridge rails, rubble, and modest recipe growth stay inside.
+            // plateau+cliff span along the wall and ~220 voxels outside it. These margins remain a
+            // conservative compatibility envelope for the site recipe; the frozen gatehouse and
+            // landscape plans are additionally included from their exact semantic footprints below.
             int tangentReach = plan.PlateauRadius + plan.CliffDrop + 64;
             int outwardReach = plan.WallThickness + 256;
             IncludeApproachCorner(
@@ -71,6 +72,16 @@ namespace VoxelEngine.Structures.Api
             IncludeApproachCorner(
                 in plan, in projection.Approach, tangentReach, outwardReach,
                 ref minX, ref maxX, ref minZ, ref maxZ);
+
+            IncludePlannedGatehouse(
+                in plan,
+                spatial,
+                ref minX,
+                ref maxX,
+                ref minY,
+                ref maxY,
+                ref minZ,
+                ref maxZ);
 
             // Keep-local authored annexes still use the compatibility keep frame. Keep this broad
             // envelope for those details, but do not use it as the dungeon contract: DungeonPlan
@@ -123,6 +134,33 @@ namespace VoxelEngine.Structures.Api
             return new CastleBuildBounds(
                 new int3(minX, minY, minZ),
                 new int3(maxX + 1, maxY + 1, maxZ + 1));
+        }
+
+        private static void IncludePlannedGatehouse(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial,
+            ref int minX,
+            ref int maxX,
+            ref int minY,
+            ref int maxY,
+            ref int minZ,
+            ref int maxZ)
+        {
+            CastleTopologyPlan topology = spatial.Topology;
+            if (!topology.HasGatehousePlan)
+                return;
+
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            CastleGatehousePlan gatehouse = topology.Gatehouse;
+            CastleGatehouseBuildBounds gatehouseBounds =
+                CastleGatehouseBuildBoundsResolver.Resolve(
+                    in plan, in primaryGate, in gatehouse);
+            minX = math.min(minX, gatehouseBounds.Min.x);
+            maxX = math.max(maxX, gatehouseBounds.MaxExclusive.x - 1);
+            minY = math.min(minY, gatehouseBounds.Min.y);
+            maxY = math.max(maxY, gatehouseBounds.MaxExclusive.y - 1);
+            minZ = math.min(minZ, gatehouseBounds.Min.z);
+            maxZ = math.max(maxZ, gatehouseBounds.MaxExclusive.z - 1);
         }
 
         private static void IncludePlannedLandscape(
