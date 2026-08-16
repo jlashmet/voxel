@@ -29,9 +29,9 @@ namespace VoxelEngine.Structures.Api
         }
 
         /// <summary>
-        /// Freezes the historical outer-tower height/roof variation into the plan. This uses the
-        /// exact seed stream previously consumed by CastlePerimeterRealizer so moving the decision
-        /// into planning does not perturb existing castle appearance.
+        /// Freezes the historical tower height/roof variation into the plan. These use the exact
+        /// seed streams previously consumed by the outer and inner tower realizers so moving the
+        /// decisions into planning does not perturb existing castle appearance.
         /// </summary>
         public static CastleSpatialPlan AttachTowerVariation(
             in CastlePlan plan,
@@ -53,13 +53,26 @@ namespace VoxelEngine.Structures.Api
                                  && ((variationSeed >> 8) & 1u) != 0u;
             }
 
-            return Copy(
+            CastleSpatialPlan varied = Copy(
                 spatial,
                 towers,
                 spatial.KeepFloors,
                 spatial.CourtyardBuildings,
                 spatial.Dungeon,
                 spatial.Cave);
+
+            CastleTowerPlacementSpec[] innerTowers = varied.InnerTowers;
+            for (int i = 0; i < innerTowers.Length; i++)
+            {
+                uint variationSeed = CastleSeedPartition.Derive(
+                    plan.Seed,
+                    CastleSeedDomain.Walls,
+                    (uint)(0x2A00 + innerTowers[i].Id));
+                innerTowers[i].HeightVariation = 0;
+                innerTowers[i].HasRoof = (variationSeed & 1u) != 0u;
+            }
+
+            return varied;
         }
 
         /// <summary>
@@ -254,7 +267,7 @@ namespace VoxelEngine.Structures.Api
             CastleGatePlacementSpec posternGate = spatial.PosternGate;
             CastleGatePlacementSpec innerGate = spatial.InnerGate;
 
-            return new CastleSpatialPlan(
+            var copy = new CastleSpatialPlan(
                 in topology,
                 (int2[])spatial.OuterWardVertices.Clone(),
                 (int2[])spatial.InnerWardVertices.Clone(),
@@ -278,6 +291,13 @@ namespace VoxelEngine.Structures.Api
                 cave,
                 spatial.KeepCentre,
                 false);
+
+            CastleTowerPlacementSpec[] sourceInnerTowers = spatial.InnerTowers;
+            CastleTowerPlacementSpec[] targetInnerTowers = copy.InnerTowers;
+            if (sourceInnerTowers != null && sourceInnerTowers.Length == targetInnerTowers.Length)
+                Array.Copy(sourceInnerTowers, targetInnerTowers, sourceInnerTowers.Length);
+
+            return copy;
         }
     }
 }
