@@ -87,7 +87,7 @@ namespace VoxelEngine.Tests.EditMode
                 "CastleBuildPipeline.cs"));
             StringAssert.Contains("CastleSpatialPlan spatialPlan", pipeline);
             StringAssert.Contains(
-                "CastleBuildPreflight.Evaluate(in plan, spatialPlan, _brush.WriteBudget)",
+                "CastleBuildPreflight.EvaluateRuntimeReady(",
                 pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Walls(", pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Towers(", pipeline);
