@@ -19,7 +19,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialPipelineUsesTopologyAwarePreflightBeforeSnapshottingGeometry()
+        public void SpatialPipelineRequiresRuntimeReadyPreflightBeforeSnapshottingGeometry()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
@@ -29,9 +29,11 @@ namespace VoxelEngine.Tests.EditMode
                 "CastleBuildPreflight.cs"));
 
             StringAssert.Contains(
-                "CastleBuildPreflight.Evaluate(in plan, spatialPlan, _brush.WriteBudget)",
+                "CastleBuildPreflight.EvaluateRuntimeReady(",
                 pipeline);
             StringAssert.Contains("InvalidSpatialPlan", pipeline);
+            StringAssert.Contains("IncompleteSpatialPlan", pipeline);
+            StringAssert.Contains("ReadinessIssue", pipeline);
             StringAssert.Contains(
                 "EstimateWrites(in CastlePlan plan, CastleSpatialPlan spatialPlan)",
                 preflight);
