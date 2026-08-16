@@ -219,6 +219,7 @@ namespace VoxelEngine.Structures.Runtime
                             _outerWardVertices,
                             _hasSpatialWell,
                             _spatialWellCentre,
+                            in _sitePlan,
                             _courtyardBuildings);
                     }
                     else
