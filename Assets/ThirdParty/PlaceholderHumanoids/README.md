@@ -33,7 +33,7 @@ The generated local prefabs use the normal Character Factory shape: the imported
 
 ## Runtime fallback
 
-`VoxelEngine.Characters.Runtime.CharacterVisualResolver` is the replacement seam for gameplay-facing characters. It has no dependency on Rocketbox or this third-party folder: it only resolves a preferred visual prefab and a fallback visual prefab.
+`VoxelEngine.Characters.Runtime.CharacterVisualResolver` is the replacement seam for gameplay-facing character **visuals**. It has no dependency on Rocketbox or this third-party folder: it only resolves a preferred visual prefab and a fallback visual prefab.
 
 For a temporary character or NPC:
 
@@ -49,6 +49,8 @@ resolver.SetPreferredVisual(generatedCharacterPrefab);
 ```
 
 The generated/preferred prefab immediately replaces the owned fallback instance. Setting the preferred visual back to `null` resolves the fallback again. The resolver only destroys/replaces the visual instance it owns, preserves unrelated character children, and normalizes the spawned visual to local position zero, identity rotation, and unit scale.
+
+`CharacterVisualResolver` deliberately does **not** rebind an external `CharacterEquipmentController` when the visual skeleton changes. Treat it as a visual replacement seam, not an equipped-character hot-swap API. Use the Character Factory wrapper when equipment/skeleton wiring is required, or let the generated-character lifecycle own equipment rebinding once that runtime contract exists.
 
 Choosing male versus female remains an authoring/spawn-data decision outside the resolver; the runtime component deliberately has no placeholder-specific gender enum or asset path.
 
