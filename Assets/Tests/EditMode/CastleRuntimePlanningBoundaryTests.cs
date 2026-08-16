@@ -58,6 +58,36 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void DedicatedSpatialRealizersDoNotOwnAuthoredRandomness()
+        {
+            string runtimeDirectory = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime");
+            string[] realizationFiles =
+            {
+                "CastleBuildPipeline.cs",
+                "CastlePerimeterRealizer.cs",
+                "CastlePlannedTowerRealizer.cs",
+                "CastleInnerWardTowerRealizer.cs",
+                "CastleCourtyardBuildingRealizer.cs",
+                "CastleKeepCirculationRealizer.cs",
+                "CastleKeepWindowRealizer.cs",
+                "CastlePlannedKeepAnnexRealizer.cs",
+                "CastleRoomAccentRealizer.cs",
+                "CastlePlannedDungeonRealizer.cs",
+                "CastlePlannedLandscapeRealizer.cs",
+            };
+
+            for (int i = 0; i < realizationFiles.Length; i++)
+            {
+                string source = File.ReadAllText(Path.Combine(runtimeDirectory, realizationFiles[i]));
+                StringAssert.DoesNotContain("new Random(", source,
+                    $"{realizationFiles[i]} must consume planned variation rather than create an RNG.");
+                StringAssert.DoesNotContain("CastleSeedPartition.Derive(", source,
+                    $"{realizationFiles[i]} must not derive authored seeds during realization.");
+            }
+        }
+
+        [Test]
         public void StructuresRuntimeDoesNotInvokePlanningEntryPoints()
         {
             string runtimeDirectory = Path.Combine(
