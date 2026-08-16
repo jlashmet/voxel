@@ -48,6 +48,7 @@ namespace VoxelEngine.Structures.Api
         public CastleCourtyardBuildingSpec[] CourtyardBuildings { get; }
         public CastleKeepFloorPlan[] KeepFloors { get; }
         public CastleKeepCirculationPlan KeepCirculation { get; }
+        public CastleKeepWindowSpec[] KeepWindows { get; }
         public DungeonPlan Dungeon { get; }
         public CavePlan Cave { get; }
         public CastleCaveDecorationPlan CaveDecoration { get; }
@@ -329,7 +330,8 @@ namespace VoxelEngine.Structures.Api
             CastleLandscapePlan landscape,
             int2 keepCentre,
             bool keepRequiresTerrainResolution,
-            CastleCaveDecorationPlan caveDecoration = null)
+            CastleCaveDecorationPlan caveDecoration = null,
+            CastleKeepWindowSpec[] keepWindows = null)
         {
             Topology = topology;
             OuterWardVertices = outerWardVertices;
@@ -348,6 +350,7 @@ namespace VoxelEngine.Structures.Api
             CourtyardBuildings = courtyardBuildings ?? Array.Empty<CastleCourtyardBuildingSpec>();
             KeepFloors = keepFloors ?? Array.Empty<CastleKeepFloorPlan>();
             KeepCirculation = keepCirculation;
+            KeepWindows = keepWindows ?? Array.Empty<CastleKeepWindowSpec>();
             Dungeon = dungeon;
             Cave = cave;
             CaveDecoration = caveDecoration;
