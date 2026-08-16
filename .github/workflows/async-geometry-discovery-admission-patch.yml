@@ -1,0 +1,36 @@
+name: Discovery admission coalescing one-shot patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-discovery-admission-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded patch
+        run: python3 .github/scripts/async_geometry_discovery_admission_patch.py
+      - name: Static guards
+        shell: bash
+        run: |
+          grep -q 'internal int DiscoverSurfaceBricks' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q '_allWorkers\[i\].DiscoverSurfaceBricks(_discoveredSurfaceBricks)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'RepeatedSurfaceDiscoveryDoesNotReinvalidateKnownChunk' Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs
+      - name: Commit fix
+        shell: bash
+        run: |
+          rm .github/scripts/async_geometry_discovery_admission_patch.py
+          rm .github/workflows/async-geometry-discovery-admission-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Stop repeated surface discovery from invalidating known chunks'
+          git push origin HEAD:refactor/async-geometry-pipeline
