@@ -267,75 +267,28 @@ namespace VoxelEngine.Structures.Runtime
                 {
                     CastlePlan keepPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
 
-                    if (_hasSpatialKeep && (_keepStage == 0 || _keepStage == 2))
+                    if (_hasSpatialKeep)
                     {
-                        int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
-                        int halfX = keepPlan.KeepHalfX;
-                        int halfZ = keepPlan.KeepHalfZ;
-                        var min = new int3(
-                            keepPlan.Centre.x - halfX,
-                            baseY,
-                            keepPlan.Centre.z - halfZ + CastleLayout.LegacyKeepCentreZOffset);
-                        var size = new int3(
-                            halfX * 2,
-                            keepPlan.KeepHeight,
-                            halfZ * 2);
+                        int keepStage = _keepStage;
+                        bool keepComplete = CastlePlannedKeepRealizer.Step(
+                            ref _brush,
+                            in _plan,
+                            in keepPlan,
+                            _worldKeepCentre,
+                            _keepFloorPlans,
+                            _keepTurrets,
+                            in _keepCirculation,
+                            _keepWindows,
+                            in _keepAnnexes,
+                            ref _keepStage);
 
-                        if (_keepStage == 0)
+                        if (!keepComplete)
                         {
-                            CastleKeepShellRealizer.Build(ref _brush, min, size, baseY);
-                            _keepStage++;
-                            RequireBudget("keep 1");
+                            RequireBudget($"keep {keepStage + 1}");
                             return false;
                         }
 
-                        CastleKeepFloorRealizer.Build(
-                            ref _brush,
-                            in keepPlan,
-                            min,
-                            size,
-                            baseY,
-                            keepPlan.Floors,
-                            _keepFloorPlans);
-                        _keepStage++;
-                        RequireBudget("keep 3");
-                        return false;
-                    }
-
-                    if (_hasSpatialKeep && _keepStage == 1)
-                    {
-                        CastlePlannedKeepTurretRealizer.BuildAll(
-                            ref _brush, in keepPlan, _keepTurrets);
-                        _keepStage++;
-                        RequireBudget("keep 2");
-                        return false;
-                    }
-
-                    if (_hasSpatialKeep && _keepStage == 3)
-                    {
-                        CastleKeepCirculationRealizer.Build(
-                            ref _brush, in _plan, _worldKeepCentre, in _keepCirculation);
-                        _keepStage++;
-                        RequireBudget("keep 4");
-                        return false;
-                    }
-
-                    if (_hasSpatialKeep && _keepStage == 4)
-                    {
-                        CastleKeepWindowRealizer.Build(
-                            ref _brush, in _plan, _worldKeepCentre, _keepWindows);
-                        _keepStage++;
-                        RequireBudget("keep 5");
-                        return false;
-                    }
-
-                    if (_hasSpatialKeep && _keepStage == 5)
-                    {
-                        CastlePlannedKeepExteriorRealizer.Build(
-                            ref _brush, in keepPlan, in _keepAnnexes);
-                        _keepStage++;
-                        RequireBudget("keep 6");
-                        return false;
+                        return CompleteStage("keep 7");
                     }
 
                     if (_keepStage < 6)
@@ -352,15 +305,7 @@ namespace VoxelEngine.Structures.Runtime
                         return false;
                     }
 
-                    if (_hasSpatialKeep)
-                    {
-                        CastlePlannedKeepAnnexRealizer.Build(
-                            ref _brush, in keepPlan, in _keepAnnexes);
-                    }
-                    else
-                    {
-                        CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan);
-                    }
+                    CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan);
                     _keepStage++;
                     return CompleteStage("keep 7");
                 }
