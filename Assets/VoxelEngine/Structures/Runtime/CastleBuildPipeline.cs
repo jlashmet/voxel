@@ -37,6 +37,7 @@ namespace VoxelEngine.Structures.Runtime
         private int2 _spatialWellCentre;
         private CastleCourtyardBuildingSpec[] _courtyardBuildings;
         private DungeonPlan _spatialDungeonPlan;
+        private CavePlan _spatialCavePlan;
 
         public CastleBuildPipeline(
             IRegionReadSource reads,
@@ -95,12 +96,21 @@ namespace VoxelEngine.Structures.Runtime
                     $"equivalents against a {preflight.WriteBudget:N0} write budget.");
             }
 
+            if (spatialPlan != null &&
+                !CastleCaveBuildReadiness.TryValidate(
+                    spatialPlan, out CastleCaveBuildReadinessIssue caveReadiness))
+            {
+                throw new InvalidOperationException(
+                    $"Castle natural cave plan is not runtime-ready: {caveReadiness}.");
+            }
+
             _plan = plan;
             _spatialKeepPlan = plan;
             _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _innerTowerCentres = Array.Empty<int2>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
             _spatialDungeonPlan = null;
+            _spatialCavePlan = null;
 
             if (spatialPlan != null)
                 SnapshotSpatialPlan(in plan, spatialPlan);
@@ -237,7 +247,7 @@ namespace VoxelEngine.Structures.Runtime
                         }
 
                         CastlePlannedDungeonRealizer.Build(
-                            ref _brush, in dungeonPlan, _spatialDungeonPlan);
+                            ref _brush, _spatialDungeonPlan, _spatialCavePlan);
                     }
                     else
                     {
@@ -279,6 +289,9 @@ namespace VoxelEngine.Structures.Runtime
             _courtyardBuildings = (CastleCourtyardBuildingSpec[])spatialPlan.CourtyardBuildings.Clone();
             _spatialDungeonPlan = spatialPlan.Dungeon != null
                 ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
+                : null;
+            _spatialCavePlan = spatialPlan.Cave != null
+                ? CavePlanSnapshot.CloneValidated(spatialPlan.Cave)
                 : null;
             _outerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.Towers.Clone();
 
