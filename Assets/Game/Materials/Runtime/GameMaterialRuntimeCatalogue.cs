@@ -116,7 +116,8 @@ namespace Game.Materials.Runtime
                 Textured(GameMaterialIds.Dirt, 0.38f, 0.31f, 0.24f, DirtTexture, true, 0.16f)),
 
             Row(GameMaterialIds.Moss, true,
-                Sim(GameMaterialIds.Moss, 40, DestructionClass.Powder, SurfaceStyles.Smooth, WeatherCoatings),
+                Sim(GameMaterialIds.Moss, 40, DestructionClass.Powder, SurfaceStyles.Smooth,
+                    WeatherCoatings, placementCoating: Coatings.Moss),
                 Textured(GameMaterialIds.Moss, 0.32f, 0.40f, 0.24f, GrassTexture, true, 0.16f,
                     roughness: 0.48f)),
 
@@ -180,8 +181,10 @@ namespace Game.Materials.Runtime
             DestructionClass destructionClass,
             ushort surfaceStyle,
             uint allowedCoatings,
-            bool flammable = false) =>
-            new(materialId, hardness, destructionClass, surfaceStyle, allowedCoatings, flammable);
+            bool flammable = false,
+            byte placementCoating = Coatings.None) =>
+            new(materialId, hardness, destructionClass, surfaceStyle, allowedCoatings,
+                flammable, placementCoating);
 
         private static MaterialPresentationDefinition Solid(
             byte materialIndex,
