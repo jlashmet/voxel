@@ -102,7 +102,6 @@ insert = '''
                 "The exact step-8 ring must not duplicate its 66^3 snapshot cache eight times.");
         }
 '''
-# This test file previously only needed System/IO/NUnit; add Rendering namespace if absent.
 if 'using VoxelEngine.Rendering.Runtime.SurfaceExtraction;' not in t:
     t = t.replace('using NUnit.Framework;\n',
                   'using NUnit.Framework;\nusing VoxelEngine.Rendering.Runtime.SurfaceExtraction;\n', 1)
@@ -113,6 +112,10 @@ if pos < 0:
 t = t[:pos] + insert + t[pos:]
 test_path.write_text(t)
 
-assert 'SolidWorkerCount' not in scheduler_path.read_text()
+# Guard against the exact legacy declaration/constructor shape rather than the harmless
+# NearSolidWorkerCount name, which necessarily contains the old substring.
+scheduler = scheduler_path.read_text()
+assert 'public const int SolidWorkerCount = 8;' not in scheduler
+assert 'new CpuTransvoxelChunkCache[SolidWorkerCount]' not in scheduler
 assert 'WorkerCountForSourceStep(8)' in test_path.read_text()
-assert 'new CpuTransvoxelChunkCache[totalWorkers]' in scheduler_path.read_text()
+assert 'new CpuTransvoxelChunkCache[totalWorkers]' in scheduler
