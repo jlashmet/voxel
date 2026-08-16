@@ -155,8 +155,8 @@ namespace VoxelEngine.Structures.Api
             int innerTowerRadius = CastleInnerWardTowerPlanner.Radius(in plan);
             double innerTowers = innerTowerSpecs.Length * math.PI_DBL
                                * innerTowerRadius * innerTowerRadius * 30.0;
-            double gatehouseTowers = 2.0 * math.PI_DBL
-                                   * plan.GateTowerRadius * plan.GateTowerRadius * 30.0;
+            double gatehouse = CastleGatehouseBuildEstimate.EstimateEquivalentWrites(
+                in plan, in spatialPlan.Topology);
             double keepTurrets = KeepTurretCost(in plan, spatialPlan.Topology.KeepTurrets);
             double keepAnnexes = KeepAnnexCost(in plan, in spatialPlan.Topology);
 
@@ -177,7 +177,7 @@ namespace VoxelEngine.Structures.Api
                   * CastleLayout.PosternGateDepth
                 : 0.0;
 
-            return (long)(siteCap + cliffCap + walls + towers + innerTowers + gatehouseTowers
+            return (long)(siteCap + cliffCap + walls + towers + innerTowers + gatehouse
                         + keepTurrets + keepAnnexes + keep + courtyard + courtyardBuildings
                         + underground + landscape + primaryGateLeaf + posternLeaf);
         }
