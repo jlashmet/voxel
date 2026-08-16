@@ -39,8 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Validate the once-per-world-frame non-blocking ScheduleBatchedJobs boundary added after
-          # Metal showed step-4 exact metadata jobs remaining buffered in snapshot phase.
+          # Validate the raw 34^3/eight-region exact-metadata dependency chain independently of
+          # world streaming so the Metal convergence counters can distinguish dead jobs from
+          # optimistic Storage-revision retry churn.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
@@ -60,7 +61,7 @@ jobs:
           UNITY_MAX_RSS_MB=12288 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 2 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
-            -testFilter "VoxelEngine.Tests.EditMode.ArchitectureBoundaryGuardTests;VoxelEngine.Tests.EditMode.GeometryFrameBudgetTests;VoxelEngine.Tests.EditMode.GeometryPipelineArchitectureTests;VoxelEngine.Tests.EditMode.StorageRenderingReadContractTests;VoxelEngine.Tests.EditMode.SurfaceBlockHlodSummaryTests;VoxelEngine.Tests.EditMode.SurfaceBrickDiscoveryTests;VoxelEngine.Tests.EditMode.SurfaceGeometryArenaTests;VoxelEngine.Tests.EditMode.SurfaceRingBandTests;VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.WorldTeardownReleasesRendererBorrowsBeforeStorageBindingIsCleared" \
+            -testFilter "VoxelEngine.Tests.EditMode.ArchitectureBoundaryGuardTests;VoxelEngine.Tests.EditMode.ExactSnapshotMetadataJobTests;VoxelEngine.Tests.EditMode.GeometryFrameBudgetTests;VoxelEngine.Tests.EditMode.GeometryPipelineArchitectureTests;VoxelEngine.Tests.EditMode.StorageRenderingReadContractTests;VoxelEngine.Tests.EditMode.SurfaceBlockHlodSummaryTests;VoxelEngine.Tests.EditMode.SurfaceBrickDiscoveryTests;VoxelEngine.Tests.EditMode.SurfaceGeometryArenaTests;VoxelEngine.Tests.EditMode.SurfaceRingBandTests;VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.WorldTeardownReleasesRendererBorrowsBeforeStorageBindingIsCleared" \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log"
           status=$?
           test -s "$ROOT/results.xml" || { tail -n 200 "$ROOT/unity.log" || true; exit 1; }
