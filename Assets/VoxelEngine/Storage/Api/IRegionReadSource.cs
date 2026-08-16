@@ -38,6 +38,17 @@ namespace VoxelEngine.Storage.Api
         bool TryAcquireRegion(int3 regionCoord, out RegionReadView view);
 
         /// <summary>
+        /// Acquires one stable logical read block. Mixed payloads are pinned copy-on-write
+        /// versions that may safely outlive later world edits/region eviction and be read by jobs.
+        /// Empty and uniform blocks carry no pin. A valid pin must be released after the final
+        /// dependent job; the backing arrays are Storage-owned and must never be disposed/written.
+        /// </summary>
+        bool TryPinWorldBlock(int3 worldBlockCoord, out PinnedVoxelReadBlock block);
+
+        /// <summary>Releases a mixed-block pin previously returned by this source.</summary>
+        void ReleasePinnedWorldBlock(in VoxelReadPinToken token);
+
+        /// <summary>
         /// Copies compact per-block occupancy state into caller-owned memory. Unlike a borrowed
         /// <see cref="RegionReadView"/>, the copied words are immutable from Storage's point of
         /// view and may safely outlive the frame or be consumed by jobs after later world edits.

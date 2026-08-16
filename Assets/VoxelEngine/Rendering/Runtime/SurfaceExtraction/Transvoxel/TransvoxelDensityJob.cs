@@ -1,5 +1,6 @@
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
@@ -8,7 +9,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     internal struct TransvoxelDensityBrick
     {
-        // 0 = empty, 1 = uniform, 2 = mixed payload in MixedVoxels.
+        // 0 = empty, 1 = uniform, 2 = COW-pinned mixed payload at MixedOffset.
         public byte Kind;
         public byte UniformMaterial;
         public int MixedOffset;
@@ -17,18 +18,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
     /// <summary>
     /// Evaluates the 35^3 smooth-field lattice for one 12.8 m Transvoxel chunk.
     ///
-    /// The main thread snapshots only the bricks surrounding the chunk and packs mixed-brick voxel
-    /// payloads into a compact array. The job therefore performs no RegionTable hashing, no region
-    /// lifetime access, and no BrickPool reads while gameplay can edit/evict the authoritative
-    /// world. It is a pure read-only calculation over immutable snapshot data.
+    /// The main thread snapshots only compact block kind/offset metadata. Mixed payloads remain in
+    /// Storage-owned BrickPool arrays under generation-stamped COW pins, so gameplay edits publish
+    /// clones while this job reads the immutable retired version. The job performs no RegionTable
+    /// hashing or region-lifetime access and never copies 8^3 mixed payloads into renderer memory.
     /// </summary>
     [BurstCompile]
     internal struct TransvoxelDensityJob : IJobParallelFor
     {
         [ReadOnly] public NativeArray<TransvoxelDensityBrick> Bricks;
-        [ReadOnly] public NativeArray<byte> MixedVoxels;
-        [ReadOnly] public NativeArray<ushort> MixedSurfaceSemantics;
-        [ReadOnly] public NativeArray<byte> MixedBoundarySamples;
+        [NativeDisableContainerSafetyRestriction, ReadOnly]
+        public NativeArray<byte> MixedVoxels;
+        [NativeDisableContainerSafetyRestriction, ReadOnly]
+        public NativeArray<ushort> MixedSurfaceSemantics;
+        [NativeDisableContainerSafetyRestriction, ReadOnly]
+        public NativeArray<byte> MixedBoundarySamples;
         public MaterialPaletteView Palette;
         public SurfaceCatalogueView Catalogue;
         public CoatingCatalogueView Coatings;

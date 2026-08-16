@@ -74,7 +74,9 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [ ] Add immutable/versioned or copy-on-write mixed-brick/page publication so snapshot copying can move off the frame thread.
   - [x] Add generation-stamped mixed-brick pins, COW cloning, and deferred slot retirement in `BrickPool`.
   - [x] Route every production mixed-brick mutation through `EnsureWritable` before rendering may pin payloads.
-  - [ ] Expose bounded Storage snapshot leases to rendering and retire them after jobs complete.
+  - [x] Expose bounded Storage snapshot leases to rendering and retire them after jobs complete.
+  - [x] Read mixed exact-snapshot payloads directly from pinned COW Storage arrays instead of copying 8^3 payloads into renderer lists.
+  - [ ] Move compact block-kind/ref snapshot traversal itself off the frame thread with versioned job-safe region metadata.
 - [ ] Replace global-world version dependence with region/brick dependency revisions where appropriate.
 
 ### LOD correctness

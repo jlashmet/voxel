@@ -8,15 +8,18 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
-    /// Builds all six exact planar face masks in one pass over a compact immutable brick snapshot.
+    /// Builds all six exact planar face masks from compact block metadata plus COW-pinned immutable Storage payloads.
     /// </summary>
     [BurstCompile]
     internal struct SnapshotFacetedMaskJob : IJobParallelFor
     {
         [ReadOnly] public NativeArray<TransvoxelDensityBrick> Bricks;
-        [ReadOnly] public NativeArray<byte> MixedVoxels;
-        [ReadOnly] public NativeArray<ushort> MixedSurfaceSemantics;
-        [ReadOnly] public NativeArray<byte> MixedBoundarySamples;
+        [NativeDisableContainerSafetyRestriction, ReadOnly]
+        public NativeArray<byte> MixedVoxels;
+        [NativeDisableContainerSafetyRestriction, ReadOnly]
+        public NativeArray<ushort> MixedSurfaceSemantics;
+        [NativeDisableContainerSafetyRestriction, ReadOnly]
+        public NativeArray<byte> MixedBoundarySamples;
         public MaterialPaletteView Palette;
         public SurfaceCatalogueView Catalogue;
         public CoatingCatalogueView Coatings;

@@ -100,6 +100,65 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+
+        [Test]
+        public void PinnedMixedBlockRemainsImmutableAcrossAuthoritativeEdit()
+        {
+            var table = new RegionTable(2, Allocator.Persistent);
+            var pool = new BrickPool(8, Allocator.Persistent);
+            try
+            {
+                int3 voxel = new int3(3, 4, 5);
+                Assert.True(VoxelAccess.SetVoxel(ref table, ref pool, voxel, 6));
+                var source = new RegionReadSource(in table, in pool);
+                int3 worldBlock = voxel >> VoxelReadGrid.BlockEdgeLog2;
+                Assert.True(source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned));
+                Assert.AreEqual(VoxelReadBlockKind.Mixed, pinned.Kind);
+                Assert.True(pinned.HasPinnedPayload);
+
+                int3 inner = voxel & VoxelReadGrid.BlockEdgeMask;
+                int voxelIndex = inner.x | (inner.y << 3) | (inner.z << 6);
+                Assert.AreEqual(6, pinned.MixedVoxels[pinned.MixedOffset + voxelIndex]);
+
+                Assert.True(VoxelAccess.SetVoxel(ref table, ref pool, voxel, 9));
+                Assert.AreEqual(6, pinned.MixedVoxels[pinned.MixedOffset + voxelIndex],
+                    "Pinned Storage payload changed after authoritative COW edit.");
+                Assert.True(source.TryRead(voxel, out VoxelCell current));
+                Assert.AreEqual(9, current.BaseMaterialId);
+
+                VoxelReadPinToken token = pinned.Pin;
+                source.ReleasePinnedWorldBlock(in token);
+            }
+            finally
+            {
+                if (table.IsCreated) table.Dispose();
+                if (pool.IsCreated) pool.Dispose();
+            }
+        }
+
+        [Test]
+        public void UniformPinnedReadRequiresNoPhysicalLease()
+        {
+            var table = new RegionTable(1, Allocator.Persistent);
+            var pool = new BrickPool(1, Allocator.Persistent);
+            try
+            {
+                Region region = table.LoadRegion(int3.zero);
+                region.BrickRefs[0] = BrickRef.Uniform(4);
+                table.CommitRegion(in region);
+                var source = new RegionReadSource(in table, in pool);
+                Assert.True(source.TryPinWorldBlock(int3.zero, out PinnedVoxelReadBlock pinned));
+                Assert.AreEqual(VoxelReadBlockKind.Uniform, pinned.Kind);
+                Assert.AreEqual(4, pinned.UniformMaterial);
+                Assert.False(pinned.HasPinnedPayload);
+            }
+            finally
+            {
+                if (table.IsCreated) table.Dispose();
+                if (pool.IsCreated) pool.Dispose();
+            }
+        }
+
         [Test]
         public void WorldBlockCoordinatesRemainCorrectAcrossNegativeRegions()
         {

@@ -1,6 +1,7 @@
 using System;
 using Unity.Collections;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
@@ -25,6 +26,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal readonly NativeList<byte> DensityMixedVoxels;
         internal readonly NativeList<ushort> DensityMixedSurfaceSemantics;
         internal readonly NativeList<byte> DensityMixedBoundarySamples;
+        internal readonly NativeList<VoxelReadPinToken> PinnedReadBlocks;
 
         internal readonly NativeList<SmoothSurfaceVertex> CompactedTopologyVertices;
         internal readonly NativeList<uint> CompactedTopologyIndices;
@@ -80,6 +82,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                                                   Allocator.Persistent);
             DensityMixedBoundarySamples = new NativeList<byte>(64 * 1024,
                                                                Allocator.Persistent);
+            PinnedReadBlocks = new NativeList<VoxelReadPinToken>(
+                brickCacheCount > 0 ? brickCacheCount : 1, Allocator.Persistent);
 
             CompactedTopologyVertices = new NativeList<SmoothSurfaceVertex>(
                 16_384, Allocator.Persistent);
@@ -114,6 +118,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (DensityMixedVoxels.IsCreated) DensityMixedVoxels.Dispose();
             if (DensityMixedSurfaceSemantics.IsCreated) DensityMixedSurfaceSemantics.Dispose();
             if (DensityMixedBoundarySamples.IsCreated) DensityMixedBoundarySamples.Dispose();
+            if (PinnedReadBlocks.IsCreated) PinnedReadBlocks.Dispose();
             if (CompactedTopologyVertices.IsCreated) CompactedTopologyVertices.Dispose();
             if (CompactedTopologyIndices.IsCreated) CompactedTopologyIndices.Dispose();
             if (TopologyOverflowCell.IsCreated) TopologyOverflowCell.Dispose();

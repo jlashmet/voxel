@@ -53,6 +53,49 @@ namespace VoxelEngine.Storage.Runtime
             return TryAcquireRegion(regionCoord, out view);
         }
 
+        public bool TryPinWorldBlock(int3 worldBlockCoord, out PinnedVoxelReadBlock block)
+        {
+            int3 regionCoord = worldBlockCoord >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            if (!_table.TryGetRegion(regionCoord, out Region region))
+            {
+                block = default;
+                return false;
+            }
+
+            int3 local = worldBlockCoord & VoxelReadGrid.BlocksPerRegionEdgeMask;
+            BrickRef brick = region.BrickRefs[Region.BrickIndex(local.x, local.y, local.z)];
+            if (brick.IsEmpty)
+            {
+                block = PinnedVoxelReadBlock.Empty;
+                return true;
+            }
+            if (brick.IsUniform)
+            {
+                block = PinnedVoxelReadBlock.Uniform(brick.UniformMaterial);
+                return true;
+            }
+
+            BrickPool.PinToken physicalPin = _pool.Pin(brick.PoolIndex);
+            var apiPin = new VoxelReadPinToken(physicalPin.BrickIndex,
+                                               physicalPin.Generation);
+            block = new PinnedVoxelReadBlock(
+                VoxelReadBlockKind.Mixed,
+                VoxelGrid.MaterialEmpty,
+                brick.PoolIndex * VoxelReadGrid.VoxelsPerBlock,
+                _pool.Voxels,
+                _pool.SurfaceSemantics,
+                _pool.BoundarySamples,
+                in apiPin);
+            return true;
+        }
+
+        public void ReleasePinnedWorldBlock(in VoxelReadPinToken token)
+        {
+            if (!token.IsValid) return;
+            var physicalPin = new BrickPool.PinToken(token.Slot, token.Generation);
+            _pool.Unpin(in physicalPin);
+        }
+
         public bool TryAcquireRegion(int3 regionCoord, out RegionReadView view)
         {
             if (!_table.TryGetRegion(regionCoord, out Region region))

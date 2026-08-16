@@ -420,5 +420,28 @@ namespace VoxelEngine.Tests.EditMode
             Assert.GreaterOrEqual(CountOccurrences(showcase, "_pool.EnsureWritable(brick.PoolIndex)"), 2);
         }
 
+
+        [Test]
+        public void ExactGeometrySnapshotsBorrowPinnedCowPayloads()
+        {
+            string api = File.ReadAllText(Path.Combine(
+                Application.dataPath, "VoxelEngine", "Storage", "Api", "IRegionReadSource.cs"));
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string density = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "Transvoxel", "TransvoxelDensityJob.cs"));
+            string faceted = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "Transvoxel", "SnapshotFacetedMaskJob.cs"));
+            StringAssert.Contains("TryPinWorldBlock", api);
+            StringAssert.Contains("ReleasePinnedWorldBlock", api);
+            StringAssert.Contains("source.TryPinWorldBlock", cache);
+            StringAssert.Contains("StepReleasePinnedSnapshotBlocks", cache);
+            StringAssert.Contains("PinnedReleasesPerDeadlineCheck", cache);
+            StringAssert.DoesNotContain("TryCopyWorldBlock(\n                    worldBlock", cache);
+            StringAssert.DoesNotContain("ResizeUninitialized(nextLength)", cache);
+            StringAssert.Contains("NativeDisableContainerSafetyRestriction", density);
+            StringAssert.Contains("NativeDisableContainerSafetyRestriction", faceted);
+        }
+
     }
 }
