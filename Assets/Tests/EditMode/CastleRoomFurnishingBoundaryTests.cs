@@ -21,12 +21,8 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void SpatialKeepConsumesPlannerOwnedRoomAccents()
         {
-            string keep = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
-                "CastleKeepRealizer.cs"));
-            string furnisher = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
-                "CastleRoomFurnisher.cs"));
+            string keep = ReadRuntime("CastleKeepRealizer.cs");
+            string furnisher = ReadRuntime("CastleRoomFurnisher.cs");
             string planning = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastleKeepInteriorPlan.cs"));
@@ -42,5 +38,29 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("FurnishPlannedAccents(", furnisher);
             StringAssert.Contains("CastleRoomAccentPlan accents", furnisher);
         }
+
+        [Test]
+        public void SpatialKeepSelectsFurnishingRecipeFromPlannedPurposeNotPhysicalFloor()
+        {
+            string keep = ReadRuntime("CastleKeepRealizer.cs");
+
+            StringAssert.Contains("FurnishingRecipe(in roomPlan, f)", keep);
+            StringAssert.Contains("switch (roomPlan.Purpose)", keep);
+            StringAssert.Contains("case CastleKeepFloorPurpose.GreatHall:", keep);
+            StringAssert.Contains("case CastleKeepFloorPurpose.Bedchamber:", keep);
+            StringAssert.Contains("case CastleKeepFloorPurpose.LibraryAndStores:", keep);
+            StringAssert.Contains("return 0;", keep);
+            StringAssert.Contains("return 1;", keep);
+            StringAssert.Contains("return 2;", keep);
+
+            StringAssert.DoesNotContain(
+                "FurnishPlanned(ref brush, in plan, min, size, y, f,",
+                keep,
+                "Planned furnishing must not derive room semantics from the physical floor index.");
+        }
+
+        private static string ReadRuntime(string file) =>
+            File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime", file));
     }
 }
