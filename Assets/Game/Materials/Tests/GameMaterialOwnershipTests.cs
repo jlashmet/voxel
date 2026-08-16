@@ -45,8 +45,9 @@ namespace Game.Materials.Tests
                 Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.Not.Empty);
             }
 
-            Assert.That(GameMaterialCatalogue.IsCanonicalId(GameMaterialCatalogue.Count), Is.False);
-            Assert.That(GameMaterialCatalogue.NameOf(GameMaterialCatalogue.Count), Is.EqualTo("unknown"));
+            byte firstUnknownId = (byte)GameMaterialCatalogue.Count;
+            Assert.That(GameMaterialCatalogue.IsCanonicalId(firstUnknownId), Is.False);
+            Assert.That(GameMaterialCatalogue.NameOf(firstUnknownId), Is.EqualTo("unknown"));
         }
 
         [Test]
