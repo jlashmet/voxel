@@ -79,7 +79,11 @@ namespace VoxelEngine.Tests.PlayMode
                 VoxelRenderBridge.SolidBuildBudgetMs = 8.0;
                 camera.targetTexture = target;
                 camera.orthographic = true;
-                camera.orthographicSize = 70f;
+                // Bailey width is roughly 44-56 m and the sculpted plateau stays below about
+                // 86 m diameter. A 45 m half-height keeps the whole landmark in frame while the
+                // central structure crop measures the castle, instead of exposing nearly the
+                // entire 192 m-wide near clipmap and turning arena capacity into the test target.
+                camera.orthographicSize = 45f;
                 CastleStructureSignature reference = default;
 
                 foreach (var band in bands)
@@ -123,7 +127,12 @@ namespace VoxelEngine.Tests.PlayMode
                       + $"prepareP95={metrics.SchedulerPrepareTiming.P95Ms:F2}ms "
                       + $"queueP95={metrics.QueueLatencyTiming.P95Ms:F1}ms "
                       + $"buildP95={metrics.BuildLatencyTiming.P95Ms:F1}ms "
-                      + $"snapshotP95={metrics.SnapshotTiming.P95Ms:F2}ms.");
+                      + $"snapshotP95={metrics.SnapshotTiming.P95Ms:F2}ms "
+                      + $"arena={metrics.SolidArenaUsedBytes}/{metrics.SolidArenaCommittedBytes}B "
+                      + $"leases={metrics.SolidArenaActiveLeases} "
+                      + $"arenaFailures={metrics.SolidArenaAllocationFailures} "
+                      + $"pressureEvictions={metrics.SolidArenaPressureEvictions} "
+                      + $"capacityEvents={metrics.SolidCapacityPressureEvents}.");
                     Assert.Greater(metrics.VisibleSolidChunks, 0,
                         $"LOD step {band.step} produced no visible voxel geometry.");
                     Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
