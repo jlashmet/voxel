@@ -29,7 +29,7 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         /// <summary>Realizes planner-owned semantic floor purposes. Null is never a mode switch.</summary>
-        internal static void Build(
+        internal static void BuildPlanned(
             ref VoxelBrush brush,
             in CastlePlan plan,
             int3 min,
@@ -61,6 +61,17 @@ namespace VoxelEngine.Structures.Runtime
                     roomPlan.Accents);
             }
         }
+
+        // Transitional alias while the planned keep sequencer moves to the explicit name.
+        internal static void Build(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int3 min,
+            int3 size,
+            int baseY,
+            int floors,
+            CastleKeepFloorPlan[] roomPlans) =>
+            BuildPlanned(ref brush, in plan, min, size, baseY, floors, roomPlans);
 
         private static void BuildFloorSlab(
             ref VoxelBrush brush,
