@@ -19,7 +19,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialPipelineDelegatesSiteToDedicatedPlannedRealizer()
+        public void SpatialPipelineDelegatesSiteDirectlyToDedicatedPlannedRealizer()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
@@ -32,9 +32,16 @@ namespace VoxelEngine.Tests.EditMode
                 "CastlePlannedSiteRealizer.cs"));
 
             StringAssert.Contains("CastleApproachFrame.FromGate", pipeline);
-            StringAssert.Contains("CastleSiteRealizer.StepPlanned(", pipeline);
-            StringAssert.Contains("CastlePlannedSiteRealizer.Step(", legacy,
-                "The stable pipeline entry point should bridge directly to the dedicated planned realizer.");
+            StringAssert.Contains("CastlePlannedSiteRealizer.State _plannedSite", pipeline,
+                "Spatial site realization must own state that cannot carry legacy RNG.");
+            StringAssert.Contains("CastleSiteRealizer.State _legacySite", pipeline,
+                "Compatibility site realization keeps its separate historical state.");
+            StringAssert.Contains("CastlePlannedSiteRealizer.Step(", pipeline);
+            StringAssert.Contains("ref _plannedSite", pipeline);
+            StringAssert.Contains("CastleSiteRealizer.Step(", pipeline);
+            StringAssert.Contains("ref _legacySite", pipeline);
+            StringAssert.DoesNotContain("CastleSiteRealizer.StepPlanned(", pipeline,
+                "Production spatial builds must not route through the compatibility site bridge.");
 
             StringAssert.Contains("sitePlan.ShouldGrassCap", planned);
             StringAssert.Contains("CastleSiteGeometryPlan geometry", planned);
