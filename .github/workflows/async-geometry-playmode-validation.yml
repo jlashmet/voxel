@@ -40,12 +40,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Authoritative Metal checkpoint after EditMode passed all 82 focused tests.
-          # LOD and stress use URP SingleCameraRequest and wait for the showcase's atomic-world
-          # SurfaceBuildEnabled barrier. A diagnostic run proved all 9 castle terrain regions
-          # were ready and the eight-stage builder was actively in stages 7-8 at 20 seconds, so
-          # the fixtures allow 60 seconds for the unchanged 12 ms/frame startup budget to finish.
-          # Geometry source remains unchanged from the compile-corrected foundation.
+          # Authoritative Metal checkpoint after the renderer-world lifetime cut passed all 83
+          # focused EditMode tests. LOD/stress use URP SingleCameraRequest and a 60-second atomic
+          # startup ceiling; a diagnostic run proved all 9 castle terrain regions were ready and
+          # the eight-stage builder was still progressing in stages 7-8 at 20 seconds.
+          # RenderingComposition.ClearWorld now synchronously releases renderer jobs/pins before
+          # application Storage is disposed; this run validates that lifetime contract on Metal.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
