@@ -130,12 +130,12 @@ namespace VoxelEngine.Showcase
 
                 GameObject labelObject = new GameObject(cluster.Kind + " Label");
                 labelObject.transform.SetParent(_labelsRoot, false);
-                // One consistent caption band per row is easier to scan than labels that move with
-                // species altitude. Z places the caption in the inter-row gap; Y stays aligned.
+                // Keep each caption in the inter-row gap but biased toward its own species row so
+                // tall agents from the following row cannot occlude the text in the review plate.
                 labelObject.transform.position = new Vector3(
                     cluster.PositionMetres.x,
                     0.10f,
-                    cluster.PositionMetres.z - 2.35f);
+                    cluster.PositionMetres.z - 1.65f);
 
                 TextMesh label = labelObject.AddComponent<TextMesh>();
                 label.text = cluster.Kind + " / " + profile.Movement;
