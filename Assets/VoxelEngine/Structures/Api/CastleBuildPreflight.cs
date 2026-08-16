@@ -101,6 +101,7 @@ namespace VoxelEngine.Structures.Api
     {
         private const double LegacyUndergroundEstimate = 1_500_000.0;
         private const double UnplannedCaveAllowance = 400_000.0;
+        private const double UnplannedCaveDecorationAllowance = 250_000.0;
 
         public static long EstimateWrites(in CastlePlan plan)
         {
@@ -150,7 +151,10 @@ namespace VoxelEngine.Structures.Api
             double keep = plan.KeepHalfX * (double)plan.KeepHalfZ * plan.Floors * 4.0;
             double courtyard = PolygonArea(spatialPlan.OuterWardVertices) * 0.2;
             double courtyardBuildings = CourtyardBuildingCost(spatialPlan.CourtyardBuildings);
-            double underground = UndergroundCost(spatialPlan.Dungeon, spatialPlan.Cave);
+            double underground = UndergroundCost(
+                spatialPlan.Dungeon,
+                spatialPlan.Cave,
+                spatialPlan.CaveDecoration);
             double landscape = LandscapeCost(spatialPlan.Landscape);
 
             double primaryGateLeaf = CastleLayout.FrontGateWidth
@@ -424,7 +428,10 @@ namespace VoxelEngine.Structures.Api
                 writeBudget);
         }
 
-        private static double UndergroundCost(DungeonPlan dungeon, CavePlan cave)
+        private static double UndergroundCost(
+            DungeonPlan dungeon,
+            CavePlan cave,
+            CastleCaveDecorationPlan caveDecoration)
         {
             if (dungeon == null || !DungeonPlanValidator.TryValidate(dungeon, out _))
                 return LegacyUndergroundEstimate;
@@ -433,10 +440,16 @@ namespace VoxelEngine.Structures.Api
             if (!dungeon.HasCaveExit)
                 return designed;
 
-            double natural = cave != null && CavePlanValidator.TryValidate(cave, out _)
-                ? CaveBuildEstimate.Estimate(cave)
-                : UnplannedCaveAllowance;
-            return designed + natural;
+            if (cave == null || !CavePlanValidator.TryValidate(cave, out _))
+                return designed + UnplannedCaveAllowance + UnplannedCaveDecorationAllowance;
+
+            double natural = CaveBuildEstimate.Estimate(cave);
+            double decoration = caveDecoration != null
+                             && CastleCaveDecorationPlanValidator.TryValidate(
+                                    cave, caveDecoration, out _)
+                ? CastleCaveDecorationEstimate.Estimate(cave, caveDecoration)
+                : UnplannedCaveDecorationAllowance;
+            return designed + natural + decoration;
         }
 
         private static double LandscapeCost(CastleLandscapePlan landscape)
