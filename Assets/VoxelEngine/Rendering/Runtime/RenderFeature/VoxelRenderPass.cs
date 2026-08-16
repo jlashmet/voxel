@@ -375,7 +375,7 @@ namespace VoxelEngine.Rendering.Runtime
 
             // Dispose is deliberately synchronous here: world teardown is a lifecycle boundary,
             // not the frame path. Completing ready/running jobs and releasing every Storage pin
-            // before the application disposes its BrickPool is the ownership contract. Recreate
+            // before the application disposes its Storage backing is the ownership contract. Recreate
             // fixed renderer state immediately so the next world does not allocate on its first
             // RenderGraph frame.
             _scheduler.Dispose();
