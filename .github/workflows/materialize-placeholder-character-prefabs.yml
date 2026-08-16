@@ -1,0 +1,126 @@
+name: Materialize placeholder character prefabs
+
+on:
+  push:
+    branches:
+      - feature/temp-placeholder-humanoids
+    paths:
+      - .github/workflows/materialize-placeholder-character-prefabs.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout without deleting Unity import cache
+        uses: actions/checkout@v4
+        with:
+          ref: feature/temp-placeholder-humanoids
+          clean: false
+
+      - name: Reset workspace while preserving Unity import cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          echo "Unity version: ${UNITY_VERSION}"
+          echo "Unity path: ${UNITY_PATH}"
+          test -x "${UNITY_PATH}"
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              echo 'Timed out waiting for another Unity editor to exit.' >&2
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Materialize Character Factory outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p Artifacts/PlaceholderCharacterMaterialization
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh \
+            -batchmode \
+            -nographics \
+            -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -executeMethod VoxelGame.Editor.PlaceholderCharacterMaterializer.Run \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/PlaceholderCharacterMaterialization/unity.log"
+
+      - name: Verify generated assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab.meta
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab.meta
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset.meta
+          )
+          for path in "${required[@]}"; do
+            if [[ ! -s "$path" ]]; then
+              echo "Missing generated asset: $path" >&2
+              exit 1
+            fi
+          done
+
+      - name: Commit stable generated assets and remove one-shot machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderCharacterMaterializer.cs \
+            Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderCharacterMaterializer.cs.meta \
+            .github/workflows/materialize-placeholder-character-prefabs.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A \
+            Assets/ThirdParty/PlaceholderHumanoids \
+            .github/workflows/materialize-placeholder-character-prefabs.yml
+
+          git status --short
+          git diff --cached --quiet && {
+            echo 'Expected generated assets were not staged.' >&2
+            exit 1
+          }
+
+          git commit -m "assets: materialize placeholder character prefabs"
+          git push origin HEAD:feature/temp-placeholder-humanoids
+
+      - name: Show Unity log tail
+        if: always()
+        shell: bash
+        run: |
+          LOG="$GITHUB_WORKSPACE/Artifacts/PlaceholderCharacterMaterialization/unity.log"
+          if [[ -f "$LOG" ]]; then
+            tail -n 250 "$LOG"
+          fi
