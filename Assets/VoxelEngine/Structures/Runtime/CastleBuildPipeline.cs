@@ -62,8 +62,9 @@ namespace VoxelEngine.Structures.Runtime
             if (mutations == null) throw new ArgumentNullException(nameof(mutations));
 
             _brush = new VoxelBrush(reads, mutations, materials);
-            CastleBuildPreflightResult preflight = CastleBuildPreflight.Evaluate(
-                in plan, _brush.WriteBudget);
+            CastleBuildPreflightResult preflight = spatialPlan == null
+                ? CastleBuildPreflight.Evaluate(in plan, _brush.WriteBudget)
+                : CastleBuildPreflight.Evaluate(in plan, spatialPlan, _brush.WriteBudget);
 
             if (!preflight.IsValid)
             {
@@ -71,6 +72,12 @@ namespace VoxelEngine.Structures.Runtime
                 {
                     throw new InvalidOperationException(
                         $"Castle plan is structurally invalid: {preflight.PlanIssue}.");
+                }
+
+                if (preflight.Issue == CastleBuildPreflightIssue.InvalidSpatialPlan)
+                {
+                    throw new InvalidOperationException(
+                        $"Castle spatial plan is structurally invalid: {preflight.SpatialPlanIssue}.");
                 }
 
                 throw new InvalidOperationException(
@@ -83,13 +90,6 @@ namespace VoxelEngine.Structures.Runtime
 
             if (spatialPlan != null)
             {
-                if (!CastleSpatialPlanValidator.TryValidate(
-                        in plan, spatialPlan, out CastleSpatialPlanIssue spatialIssue))
-                {
-                    throw new InvalidOperationException(
-                        $"Castle spatial plan is structurally invalid: {spatialIssue}.");
-                }
-
                 if (spatialPlan.KeepRequiresTerrainResolution)
                 {
                     throw new InvalidOperationException(
