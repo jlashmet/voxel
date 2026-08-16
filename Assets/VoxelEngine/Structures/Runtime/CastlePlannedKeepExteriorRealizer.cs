@@ -15,8 +15,6 @@ namespace VoxelEngine.Structures.Runtime
             in CastlePlan plan,
             in CastleKeepAnnexPlan annexes)
         {
-            CastleKeepAnnexPlanValidator.RequireValid(in annexes);
-
             int3 min = CastleSpatialProjection.KeepMinimum(in plan);
             int baseY = min.y;
             int3 size = CastleSpatialProjection.KeepSize(in plan);
