@@ -13,6 +13,7 @@ namespace VoxelEngine.Tests.EditMode
         public void HistoricalWallRecipePreservesLegacyAuthoredValues()
         {
             CastleWallPlan walls = CastleWallRecipe.Historical();
+            CastleWallPlan compatibility = CastleWallPlanner.Create();
 
             Assert.IsTrue(
                 CastleWallPlanValidator.TryValidate(in walls, out CastleWallPlanIssue issue),
@@ -26,6 +27,50 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(26, walls.CrenellationMerlonLength);
             Assert.AreEqual(18, walls.CrenellationGapLength);
             Assert.AreEqual(20, walls.CrenellationHeight);
+
+            AssertWallStyleEquals(in walls, in compatibility, "compatibility planner drifted");
+        }
+
+        [Test]
+        public void SeededWallPlannerIsDeterministicValidAndVaried()
+        {
+            CastleWallPlan firstStyle = CastleWallPlanner.Create(1u);
+            bool sawPlinthVariation = false;
+            bool sawCourseVariation = false;
+            bool sawSlitVariation = false;
+            bool sawCrenellationVariation = false;
+
+            for (uint seed = 1; seed <= 512; seed++)
+            {
+                CastleWallPlan first = CastleWallPlanner.Create(seed);
+                CastleWallPlan second = CastleWallPlanner.Create(seed);
+                AssertWallStyleEquals(in first, in second, $"seed {seed}: nondeterministic wall style");
+                Assert.IsTrue(
+                    CastleWallPlanValidator.TryValidate(in first, out CastleWallPlanIssue issue),
+                    $"seed {seed}: {issue}");
+
+                CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                CastleWallPlan topologyWalls = topology.Walls;
+                AssertWallStyleEquals(
+                    in first, in topologyWalls, $"seed {seed}: topology did not freeze seeded walls");
+
+                sawPlinthVariation |= first.MaxPlinthHeight != firstStyle.MaxPlinthHeight;
+                sawCourseVariation |= first.CourseHeightFraction != firstStyle.CourseHeightFraction
+                                   || first.CourseThickness != firstStyle.CourseThickness
+                                   || first.WallWalkThickness != firstStyle.WallWalkThickness;
+                sawSlitVariation |= first.ArrowSlitFirstDistance != firstStyle.ArrowSlitFirstDistance
+                                 || first.ArrowSlitSpacing != firstStyle.ArrowSlitSpacing
+                                 || first.ArrowSlitYOffset != firstStyle.ArrowSlitYOffset;
+                sawCrenellationVariation |=
+                    first.CrenellationMerlonLength != firstStyle.CrenellationMerlonLength
+                 || first.CrenellationGapLength != firstStyle.CrenellationGapLength
+                 || first.CrenellationHeight != firstStyle.CrenellationHeight;
+            }
+
+            Assert.IsTrue(sawPlinthVariation, "Seeded walls never varied their plinth profile.");
+            Assert.IsTrue(sawCourseVariation, "Seeded walls never varied their masonry course profile.");
+            Assert.IsTrue(sawSlitVariation, "Seeded walls never varied their arrow-slit profile.");
+            Assert.IsTrue(sawCrenellationVariation, "Seeded walls never varied their crenellations.");
         }
 
         [Test]
@@ -105,6 +150,33 @@ namespace VoxelEngine.Tests.EditMode
                 table.Dispose();
                 pool.Dispose();
             }
+        }
+
+        private static void AssertWallStyleEquals(
+            in CastleWallPlan expected,
+            in CastleWallPlan actual,
+            string message)
+        {
+            Assert.AreEqual(expected.PrimaryGateExtraClearWidth, actual.PrimaryGateExtraClearWidth, message);
+            Assert.AreEqual(expected.PrimaryGateMinimumThicknessMultiple, actual.PrimaryGateMinimumThicknessMultiple, message);
+            Assert.AreEqual(expected.MaxPlinthHeight, actual.MaxPlinthHeight, message);
+            Assert.AreEqual(expected.CourseHeightFraction, actual.CourseHeightFraction, message);
+            Assert.AreEqual(expected.CourseMinimumWallHeight, actual.CourseMinimumWallHeight, message);
+            Assert.AreEqual(expected.CourseThickness, actual.CourseThickness, message);
+            Assert.AreEqual(expected.WallWalkThickness, actual.WallWalkThickness, message);
+            Assert.AreEqual(expected.ArrowSlitMinimumWallHeight, actual.ArrowSlitMinimumWallHeight, message);
+            Assert.AreEqual(expected.ArrowSlitFirstDistance, actual.ArrowSlitFirstDistance, message);
+            Assert.AreEqual(expected.ArrowSlitEndInset, actual.ArrowSlitEndInset, message);
+            Assert.AreEqual(expected.ArrowSlitSpacing, actual.ArrowSlitSpacing, message);
+            Assert.AreEqual(expected.ArrowSlitYOffset, actual.ArrowSlitYOffset, message);
+            Assert.AreEqual(expected.ArrowSlitMaxHeight, actual.ArrowSlitMaxHeight, message);
+            Assert.AreEqual(expected.ArrowSlitThickness, actual.ArrowSlitThickness, message);
+            Assert.AreEqual(expected.ArrowSlitDepthScale, actual.ArrowSlitDepthScale, message);
+            Assert.AreEqual(expected.CrenellationMerlonLength, actual.CrenellationMerlonLength, message);
+            Assert.AreEqual(expected.CrenellationGapLength, actual.CrenellationGapLength, message);
+            Assert.AreEqual(expected.CrenellationHeight, actual.CrenellationHeight, message);
+            Assert.AreEqual(expected.CrenellationMinimumThickness, actual.CrenellationMinimumThickness, message);
+            Assert.AreEqual(expected.CrenellationMaximumThickness, actual.CrenellationMaximumThickness, message);
         }
     }
 }
