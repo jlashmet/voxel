@@ -19,8 +19,8 @@ namespace VoxelEngine.Structures.Runtime
         private int _keepStage;
         private CastleSiteRealizer.State _site;
 
-        // Spatial planning is consumed incrementally. Fortifications, courtyard footprint, and
-        // resolved keep/dungeon placement are migrated; site and landscape still use CastlePlan.
+        // Spatial planning is consumed incrementally. Site approach, fortifications, courtyard
+        // footprint, and resolved keep/dungeon placement are migrated; landscape remains legacy.
         private bool _hasSpatialFortifications;
         private bool _hasSpatialKeep;
         private int2[] _outerWardVertices;
@@ -28,6 +28,7 @@ namespace VoxelEngine.Structures.Runtime
         private int2[] _towerCentres;
         private int _cornerTowerCount;
         private CastleGatePlacementSpec _primaryGate;
+        private CastleApproachFrame _approach;
         private bool _hasInnerGate;
         private CastleGatePlacementSpec _innerGate;
         private int2 _spatialKeepCentre;
@@ -117,13 +118,19 @@ namespace VoxelEngine.Structures.Runtime
             switch (_stage)
             {
                 case 1:
-                    if (!CastleSiteRealizer.Step(
-                            ref _brush, in _plan, _terrainSeed, ref _site))
+                {
+                    bool siteComplete = _hasSpatialFortifications
+                        ? CastleSiteRealizer.StepPlanned(
+                            ref _brush, in _plan, _terrainSeed, in _approach, ref _site)
+                        : CastleSiteRealizer.Step(
+                            ref _brush, in _plan, _terrainSeed, ref _site);
+                    if (!siteComplete)
                     {
                         RequireBudget("site");
                         return false;
                     }
                     return CompleteStage("site");
+                }
 
                 case 2:
                     if (_hasSpatialFortifications)
@@ -218,6 +225,7 @@ namespace VoxelEngine.Structures.Runtime
             _outerWardVertices = (int2[])spatialPlan.OuterWardVertices.Clone();
             _innerWardVertices = (int2[])spatialPlan.InnerWardVertices.Clone();
             _primaryGate = spatialPlan.PrimaryGate;
+            _approach = CastleApproachFrame.FromGate(in _primaryGate);
             _hasInnerGate = spatialPlan.HasInnerGate;
             _innerGate = spatialPlan.InnerGate;
             _spatialKeepCentre = spatialPlan.KeepCentre;
