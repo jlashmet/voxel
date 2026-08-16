@@ -1,7 +1,7 @@
 # Async Geometry Pipeline Refactor
 
 **Branch:** `refactor/async-geometry-pipeline`  
-**Status:** In progress — runtime acceptance, clipmap residency, and coarse-LOD follow-up  
+**Status:** In progress — runtime acceptance, allocation proof, and coarse-LOD follow-up  
 **Primary invariant:** **The main frame never waits for geometry. Geometry waits for the main frame.**
 
 This plan owns the rendering/streaming work that was intentionally out of scope for
@@ -55,7 +55,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Scale build workspace counts by LOD: 8 / 8 / 4 / 2 for source steps 1 / 2 / 4 / 8.
 - [x] Disable formatted per-frame surface diagnostic strings by default; structured metrics remain always available.
 - [x] Pool/reuse managed `Entry` objects so churn after residency eviction does not allocate.
-- [x] Introduce pooled persistent `SurfaceChunkSlot` identities with generation tokens; stale builds validate the slot before publication.
+- [x] Introduce persistent `SurfaceChunkSlot` identities with generation tokens; stale builds validate the slot before publication.
 - [x] Split persistent surface chunk/slot state from reusable geometry build workspaces.
 - [x] Share immutable regular/transition Transvoxel lookup tables across all solid workers; keep writable face scratch per workspace.
 - [ ] Remove/replace remaining managed collections from steady-state scheduler/cache maintenance where profiling proves they grow after warmup.
@@ -64,8 +64,10 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 - [x] Replace `CollectVisible` scans of all known chunks with bounded ring/clipmap coordinate traversal.
 - [x] Make the camera-centred clipmap window the render-residency admission boundary; retire out-of-window chunks incrementally.
-- [ ] Introduce fixed/toroidal `SurfaceChunkSlot` residency per LOD ring with slot generation IDs.
-- [ ] Recycle only newly exposed clipmap edges when the camera crosses a chunk boundary.
+- [x] Introduce fixed/toroidal `SurfaceChunkSlot` residency per LOD ring with slot generation IDs.
+- [x] Recycle only newly exposed clipmap edges when the camera crosses a chunk boundary.
+  - [x] Retire outgoing slabs incrementally rather than scanning lifetime residency.
+  - [x] Rediscover/readmit newly exposed clipmap regions incrementally rather than rescanning the full window.
 - [ ] Move visibility/culling to batched/GPU-driven draw compaction after slot ownership is stable.
 
 ### Storage snapshot boundary
@@ -109,14 +111,16 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [ ] Assert stale results are discarded and old geometry remains visible until replacement publication.
   - Coverage: `AsyncGeometryStressTests.VisibleEditDuringRunningBuildRejectsStaleGeneration` injects a second edit while a solid geometry job is running and requires `RejectedStaleSolidBuilds` to advance without a visible hole.
 - [ ] Assert no unfinished geometry job is synchronously completed on the frame path.
+  - Instrumentation: `GeometryFrameJobCompletionGuard` refuses premature completion and increments `FramePathBlockingCompletionViolations`; the stress gate requires zero violations.
 - [ ] Measure P99 main-thread geometry orchestration against the target budget.
+  - Instrumentation: stressed `SchedulerPrepareTiming.P99Ms` is asserted against the merge-gate threshold.
 - [ ] Verify zero steady-state managed allocation after warmup.
 - [ ] Verify arena pressure causes backlog/convergence delay rather than frame spikes or visible holes.
 
 ## Current next slices
 
-1. Validate the stale-generation, camera/destruction, and LOD acceptance suite on the self-hosted Metal runner; only then mark the runtime gates complete.
-2. Replace dictionary/pool clipmap residency with fixed/toroidal `SurfaceChunkSlot` ownership per LOD ring.
-3. Recycle only newly exposed clipmap edges on chunk-boundary crossings; avoid rescanning/re-admitting the full clipmap window.
-4. Profile warm steady-state streaming and remove any managed collection growth/allocation that remains.
-5. Replace the exact step-8 fallback with a feature-preserving coarse render representation, then move visibility toward batched/GPU-driven draw compaction.
+1. Complete the current self-hosted EditMode + Metal PlayMode checkpoint and repair any compile/runtime failures before marking runtime gates complete.
+2. Add a warm steady-state allocation gate and remove any scheduler/cache managed collection growth it exposes.
+3. Add an arena-pressure runtime gate that proves backlog/convergence delay without visible holes or frame spikes.
+4. Replace the exact step-8 fallback with a feature-preserving coarse render representation.
+5. Move visibility/culling toward batched/GPU-driven draw compaction now that per-ring slot ownership is fixed.
