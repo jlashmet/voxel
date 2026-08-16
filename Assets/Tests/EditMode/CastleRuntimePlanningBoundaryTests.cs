@@ -57,8 +57,8 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastlePlannedKeepTurretRealizer.BuildAll(", pipeline);
             StringAssert.Contains("_keepTurrets = topology.KeepTurrets.Snapshot()", pipeline);
             StringAssert.DoesNotContain("CastleSeedPartition.Derive(", planned);
-            StringAssert.Contains("CastleSeedPartition.Derive(", legacy,
-                "Compatibility keep realization must retain the historical roof choice.");
+            StringAssert.Contains("plan.KeepHeight + 30, true", legacy,
+                "The planner must preserve the current compatibility recipe of four roofed keep turrets.");
         }
 
         [Test]
