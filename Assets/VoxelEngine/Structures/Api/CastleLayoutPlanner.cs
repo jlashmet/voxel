@@ -34,6 +34,7 @@ namespace VoxelEngine.Structures.Api
                 Site = CastleSitePlanner.Create(seed),
                 HasKeepAnnexPlan = true,
                 KeepAnnexes = annexes,
+                KeepTurrets = CastleKeepTurretPlanner.Create(seed),
             };
 
             if (!CastleTopologyPlanValidator.TryValidate(
