@@ -1,7 +1,7 @@
 # Async Geometry Pipeline Refactor
 
 **Branch:** `refactor/async-geometry-pipeline`  
-**Status:** In progress — frame-path boundedness and ownership refactor  
+**Status:** In progress — runtime acceptance, clipmap residency, and coarse-LOD follow-up  
 **Primary invariant:** **The main frame never waits for geometry. Geometry waits for the main frame.**
 
 This plan owns the rendering/streaming work that was intentionally out of scope for
@@ -71,7 +71,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 ### Storage snapshot boundary
 
 - [x] Never retain borrowed `RegionReadView` state across frame slices or jobs; copy into owned native snapshot memory first.
-- [ ] Add immutable/versioned or copy-on-write mixed-brick/page publication so snapshot copying can move off the frame thread.
+- [x] Add immutable/versioned or copy-on-write mixed-brick/page publication so snapshot copying can move off the frame thread.
   - [x] Add generation-stamped mixed-brick pins, COW cloning, and deferred slot retirement in `BrickPool`.
   - [x] Route every production mixed-brick mutation through `EnsureWritable` before rendering may pin payloads.
   - [x] Expose bounded Storage snapshot leases to rendering and retire them after jobs complete.
@@ -80,7 +80,8 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
   - [x] Move compact block-kind/ref snapshot traversal itself off the frame thread with versioned job-safe region metadata.
     - [x] Add generation/revision-pinned region block-ref leases and defer physical region eviction while jobs read metadata.
     - [x] Schedule exact block-kind/ref classification in Burst and validate every pinned region revision before accepting output.
-- [ ] Replace global-world version dependence with region/brick dependency revisions where appropriate.
+- [x] Replace global-world version dependence with region/brick dependency revisions where appropriate.
+  - [x] Use per-chunk source generations for render build invalidation/publication.
   - [x] Add per-region content revisions for optimistic rendering metadata jobs.
 
 ### LOD correctness
@@ -88,7 +89,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Preserve the step-8 correctness fix: conservative any-solid occupancy mips are not render density samples.
 - [x] Keep the LOD regression test that exercises the castle in all four bands.
 - [ ] Replace the temporary exact step-8 fallback with a feature-preserving render LOD representation (surface-aware/SDF/min-max/HLOD).
-- [ ] Add a pixel/silhouette architectural regression so a grey blob cannot satisfy metric-only assertions.
+- [x] Add a pixel/silhouette architectural regression so a grey blob cannot satisfy metric-only assertions.
 
 ### Water parity
 
@@ -106,6 +107,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [ ] Add/run continuous voxel edit/destruction stress coverage.
 - [ ] Assert `LastFrameSolidUploadedBytes <= SolidUploadBudgetBytes` on every stressed frame.
 - [ ] Assert stale results are discarded and old geometry remains visible until replacement publication.
+  - Coverage: `AsyncGeometryStressTests.VisibleEditDuringRunningBuildRejectsStaleGeneration` injects a second edit while a solid geometry job is running and requires `RejectedStaleSolidBuilds` to advance without a visible hole.
 - [ ] Assert no unfinished geometry job is synchronously completed on the frame path.
 - [ ] Measure P99 main-thread geometry orchestration against the target budget.
 - [ ] Verify zero steady-state managed allocation after warmup.
@@ -113,6 +115,8 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 ## Current next slices
 
-1. Replace the remaining global-world build version checks with region/brick dependency revisions.
-4. Bring water onto the same pipeline contract.
-5. Build the full camera-movement + destruction PlayMode stress gate and keep it as the merge criterion.
+1. Validate the stale-generation, camera/destruction, and LOD acceptance suite on the self-hosted Metal runner; only then mark the runtime gates complete.
+2. Replace dictionary/pool clipmap residency with fixed/toroidal `SurfaceChunkSlot` ownership per LOD ring.
+3. Recycle only newly exposed clipmap edges on chunk-boundary crossings; avoid rescanning/re-admitting the full clipmap window.
+4. Profile warm steady-state streaming and remove any managed collection growth/allocation that remains.
+5. Replace the exact step-8 fallback with a feature-preserving coarse render representation, then move visibility toward batched/GPU-driven draw compaction.
