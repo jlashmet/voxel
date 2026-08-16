@@ -1,0 +1,124 @@
+name: Tests (PR — affected only)
+
+# A pull request runs the tests its changes can affect. Merges to master run
+# everything (see tests-master.yml), so selection is a latency optimisation and
+# never the only thing that ever runs.
+#
+# Selection is computed from the .asmdef reference graph, not from file paths.
+# A one-line edit under Storage/Api touches only the Storage directory but
+# twenty-one assemblies reference Storage.Api transitively; a path filter would
+# test Storage alone and report green. tools/select-tests.py walks the graph and
+# falls back to running everything whenever a changed file is outside it.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# One self-hosted macOS runner, and two Unity editors on one machine is what
+# tools/unity-run.sh exists to refuse. Serialise instead of queueing refusals.
+concurrency:
+  group: unity-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  affected:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          # The selector diffs against the merge base, so it needs real history.
+          fetch-depth: 0
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for any running Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Select affected test assemblies
+        id: select
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="origin/${{ github.base_ref }}"
+          git fetch --no-tags --depth=0 origin "${{ github.base_ref }}" >/dev/null 2>&1 || true
+
+          tools/select-tests.py --base "$BASE" --format summary | tee selection.txt
+
+          EDIT="$(tools/select-tests.py --base "$BASE" --format unity-args --platform EditMode)"
+          PLAY="$(tools/select-tests.py --base "$BASE" --format unity-args --platform PlayMode)"
+          {
+            echo "editmode=$EDIT"
+            echo "playmode=$PLAY"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: EditMode (affected)
+        if: steps.select.outputs.editmode != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            ${{ steps.select.outputs.editmode }} \
+            -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log"
+          test -s "$ROOT/editmode.xml"
+
+      # PlayMode assemblies run one process each. Sharing a process across them
+      # accumulates native memory over repeated scene loads until the guard in
+      # unity-run.sh kills the run before any assembly reports.
+      - name: PlayMode (affected)
+        if: steps.select.outputs.playmode != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
+          mkdir -p "$ROOT"
+          NAMES="$(echo '${{ steps.select.outputs.playmode }}' | sed 's/^-assemblyNames //')"
+          status=0
+          IFS=';' read -ra ASSEMBLIES <<< "$NAMES"
+          for asm in "${ASSEMBLIES[@]}"; do
+            echo "::group::PlayMode $asm"
+            UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+            UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+              -batchmode -job-worker-count 1 \
+              -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+              -assemblyNames "$asm" \
+              -testResults "$ROOT/playmode-$asm.xml" -logFile "$ROOT/playmode-$asm.log" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-test-results
+          path: |
+            selection.txt
+            Artifacts/PrTests/**
+          if-no-files-found: ignore

@@ -1,14 +1,12 @@
 name: Networking CI
 
+# Automatic test runs are owned by tests-pr.yml (affected assemblies on a pull
+# request) and tests-master.yml (the full suite on merge to master). Nothing else
+# should trigger tests off a branch name or a path glob: which tests a change
+# affects is a property of the .asmdef reference graph, not of where the work
+# happens to live. Retained as manually dispatchable.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/minimal-voxel-networking
-  pull_request:
-    branches:
-      - master
-
 permissions:
   contents: read
 

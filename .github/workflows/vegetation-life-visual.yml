@@ -1,42 +1,12 @@
 name: Vegetation and Ambient-Life Visual Validation
 
+# Automatic test runs are owned by tests-pr.yml (affected assemblies on a pull
+# request) and tests-master.yml (the full suite on merge to master). Nothing else
+# should trigger tests off a branch name or a path glob: which tests a change
+# affects is a property of the .asmdef reference graph, not of where the work
+# happens to live. Retained as manually dispatchable.
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'Assets/VoxelEngine/Vegetation/**'
-      - 'Assets/VoxelEngine/AmbientLife/**'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Vegetation/**'
-      - 'Assets/VoxelEngine/Rendering/Runtime/AmbientLife/**'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVegetation*.shader'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVine.shader'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralAmbientLife.shader'
-      - 'Assets/Scenes/Showcase/VegetationRenderingShowcase.cs'
-      - 'Assets/Scenes/Showcase/AmbientLifeRenderingShowcase.cs'
-      - 'Assets/Scenes/Showcase/VegetationLifeRenderingShowcases.cs'
-      - 'Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef'
-      - 'Assets/VoxelEngine/CI/PlayMode/VegetationLifeRenderingTests.cs'
-      - 'Assets/VoxelEngine/CI/PlayMode/AmbientLifeMotionTests.cs'
-      - 'Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef'
-      - '.github/workflows/vegetation-life-visual.yml'
-  pull_request:
-    paths:
-      - 'Assets/VoxelEngine/Vegetation/**'
-      - 'Assets/VoxelEngine/AmbientLife/**'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Vegetation/**'
-      - 'Assets/VoxelEngine/Rendering/Runtime/AmbientLife/**'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVegetation*.shader'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVine.shader'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralAmbientLife.shader'
-      - 'Assets/Scenes/Showcase/VegetationRenderingShowcase.cs'
-      - 'Assets/Scenes/Showcase/AmbientLifeRenderingShowcase.cs'
-      - 'Assets/Scenes/Showcase/VegetationLifeRenderingShowcases.cs'
-      - 'Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef'
-      - 'Assets/VoxelEngine/CI/PlayMode/VegetationLifeRenderingTests.cs'
-      - 'Assets/VoxelEngine/CI/PlayMode/AmbientLifeMotionTests.cs'
-      - 'Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef'
-      - '.github/workflows/vegetation-life-visual.yml'
-
 concurrency:
   group: vegetation-life-visual-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true

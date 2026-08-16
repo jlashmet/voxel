@@ -1,10 +1,11 @@
 name: GpuDebris Storage API acceptance
+# Automatic test runs are owned by tests-pr.yml (affected assemblies on a pull
+# request) and tests-master.yml (the full suite on merge to master). Nothing else
+# should trigger tests off a branch name or a path glob: which tests a change
+# affects is a property of the .asmdef reference graph, not of where the work
+# happens to live. Retained as manually dispatchable.
 on:
-  push:
-    branches:
-      - refactor/system-boundaries-foundation-storage
-    paths:
-      - .github/workflows/gpu-debris-storage-api-acceptance.yml
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

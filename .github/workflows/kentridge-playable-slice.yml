@@ -1,25 +1,12 @@
 name: Kentridge Playable Slice
 
+# Automatic test runs are owned by tests-pr.yml (affected assemblies on a pull
+# request) and tests-master.yml (the full suite on merge to master). Nothing else
+# should trigger tests off a branch name or a path glob: which tests a change
+# affects is a property of the .asmdef reference graph, not of where the work
+# happens to live. Retained as manually dispatchable.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - agent/actual-game-world-integration
-    paths:
-      - 'Assets/Scenes/KentridgePlayableSlice.unity'
-      - 'Assets/Scenes/KentridgePlayableSlice.unity.meta'
-      - 'Assets/Scenes/Kentridge/**'
-      - 'Assets/Tests/EditMode/KentridgeBuildingGrammarTests.cs'
-      - 'Assets/Tests/PlayMode/KentridgePlayableScenePlayTests.cs'
-      - 'Assets/Tests/PlayMode/KentridgePubExitPlayTests.cs'
-      - 'Assets/Tests/PlayMode/KentridgeOpeningVerticalSlicePlayTests.cs'
-      - 'Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef'
-      - 'Assets/Game/**'
-      - 'Assets/VoxelEngine/Composition/Showcase/**'
-      - 'Packages/com.mountingforce.worldgen/**'
-      - 'ProjectSettings/EditorBuildSettings.asset'
-      - '.github/workflows/kentridge-playable-slice.yml'
-
 concurrency:
   group: kentridge-playable-slice-${{ github.ref }}
   cancel-in-progress: true

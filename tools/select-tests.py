@@ -58,6 +58,21 @@ GLOBAL_PATHS = (
     ".github/workflows/",
 )
 
+# Prose and planning material that cannot change engine behaviour. Listed explicitly, because
+# the fallback for an unrecognised path is to run everything: a file nobody has classified is
+# treated as dangerous rather than harmless. Adding a path here is a claim that editing it can
+# never change a test outcome.
+INERT_PATHS = (
+    "docs/",
+    "specs/",
+    "References/",
+    ".github/ISSUE_TEMPLATE/",
+    ".gitignore",
+    ".gitattributes",
+    "README.md",
+    "CLAUDE.md",
+)
+
 
 def discover(project):
     """Every .asmdef in the project, with the files it owns and who it references."""
@@ -202,7 +217,10 @@ def main():
             o = owner_of(f, by_dir, project)
             if o:
                 seeds.add(o)
-            elif f.startswith("Assets/") or f.startswith("Packages/"):
+            elif not any(f.startswith(p) for p in INERT_PATHS):
+                # No assembly claims it and it is not on the inert list. That includes paths
+                # nobody anticipated, so it selects everything rather than being skipped for
+                # looking harmless — under-running is the failure that ships a regression.
                 unowned.append(f)
 
         if global_hit or unowned:

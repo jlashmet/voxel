@@ -1,0 +1,144 @@
+name: Tests (master — full suite)
+
+# Every test, unconditionally, on every merge to master. Pull requests run only
+# the assemblies their changes can affect (see tests-pr.yml); this is the run
+# that makes selection safe, so it must never be filtered or made conditional.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unity-tests-master
+  cancel-in-progress: false
+
+jobs:
+  editmode:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for any running Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: EditMode (all assemblies)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/MasterTests"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=40 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -nographics -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testResults "$ROOT/editmode.xml" -logFile "$ROOT/editmode.log"
+          test -s "$ROOT/editmode.xml"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-editmode-results
+          path: Artifacts/MasterTests/**
+          if-no-files-found: ignore
+
+  playmode:
+    # One process per assembly, and one assembly at a time: the runner has a
+    # single Unity editor and unity-run.sh refuses a second. Isolation also
+    # keeps one leaking suite from taking the others down with it.
+    needs: editmode
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        assembly:
+          - VoxelEngine.Tests.Parity
+          - VoxelEngine.Tests.Features
+          - VoxelEngine.CI.PlayMode
+          - MountingForce.CombatPrototype.Tests.PlayMode
+          # Known failing: this suite exhausts the unity-run.sh memory ceiling
+          # partway through, from native memory retained across repeated
+          # VoxelShowcase scene loads. It is listed so the gap stays visible
+          # rather than silently unrun.
+          - VoxelEngine.Tests.PlayMode
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for any running Unity editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: PlayMode ${{ matrix.assembly }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/MasterTests"
+          mkdir -p "$ROOT"
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -assemblyNames "${{ matrix.assembly }}" \
+            -testResults "$ROOT/${{ matrix.assembly }}.xml" \
+            -logFile "$ROOT/${{ matrix.assembly }}.log"
+          test -s "$ROOT/${{ matrix.assembly }}.xml"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-playmode-${{ matrix.assembly }}
+          path: Artifacts/MasterTests/**
+          if-no-files-found: ignore

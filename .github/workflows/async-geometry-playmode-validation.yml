@@ -1,16 +1,12 @@
 name: Async geometry PlayMode validation
 
+# Automatic test runs are owned by tests-pr.yml (affected assemblies on a pull
+# request) and tests-master.yml (the full suite on merge to master). Nothing else
+# should trigger tests off a branch name or a path glob: which tests a change
+# affects is a property of the .asmdef reference graph, not of where the work
+# happens to live. Retained as manually dispatchable.
 on:
-  push:
-    branches: [refactor/async-geometry-pipeline]
-    paths:
-      - .github/workflows/async-geometry-playmode-validation.yml
-      - Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef
-      - Assets/Tests/PlayMode/LodRenderingTests.cs
-      - Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
-      - Assets/VoxelEngine/Rendering/**
-      - Assets/VoxelEngine/Storage/**
-
+  workflow_dispatch:
 concurrency:
   group: async-geometry-playmode
   cancel-in-progress: true

@@ -1,24 +1,12 @@
 name: Animation Quality Validation
 
+# Automatic test runs are owned by tests-pr.yml (affected assemblies on a pull
+# request) and tests-master.yml (the full suite on merge to master). Nothing else
+# should trigger tests off a branch name or a path glob: which tests a change
+# affects is a property of the .asmdef reference graph, not of where the work
+# happens to live. Retained as manually dispatchable.
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'Assets/VoxelEngine/AmbientLife/**'
-      - 'Assets/VoxelEngine/Vegetation/**'
-      - 'Assets/VoxelEngine/Rendering/Runtime/AmbientLife/**'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Vegetation/**'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralAmbientLife.shader'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVegetation*.shader'
-      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVine.shader'
-      - 'Assets/Scenes/AmbientLifeAnimationValidation.unity'
-      - 'Assets/Scenes/Showcase/AmbientLifeAnimationValidationShowcase.cs'
-      - 'Assets/VoxelEngine/CI/PlayMode/AnimationSemanticQualityTests.cs'
-      - 'Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs'
-      - 'Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs'
-      - 'Assets/VoxelEngine/CI/PlayMode/AmbientLifeArticulationVisualTests.cs'
-      - '.github/workflows/animation-quality-validation.yml'
-
 concurrency:
   group: animation-quality-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true

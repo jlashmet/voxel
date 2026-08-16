@@ -1,9 +1,12 @@
 # Final isolated behavioral acceptance for the settled Net source tree.
 name: Net acceptance isolated v2
+# Superseded by tests-pr.yml (affected tests on a PR) and tests-master.yml
+# (full suite on merge). This ran the entire unfiltered EditMode suite on every
+# push to every branch; eleven workflows doing that serialised on one runner.
+# Retained as manually dispatchable rather than deleted, because each was written
+# as the acceptance gate for a specific migration.
 on:
-  push:
-    branches: [refactor/system-boundaries-foundation-storage]
-    paths: [.github/workflows/net-acceptance-isolated-v2.yml]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
