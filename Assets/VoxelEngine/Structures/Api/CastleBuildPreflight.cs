@@ -16,6 +16,8 @@ namespace VoxelEngine.Structures.Api
     {
         None = 0,
         KeepRequiresTerrainResolution,
+        MissingKeepFloorPlan,
+        InvalidKeepFloorPlan,
         MissingDungeonPlan,
         InvalidDungeonPlan,
         DungeonEntranceMismatch,
@@ -217,7 +219,8 @@ namespace VoxelEngine.Structures.Api
 
         /// <summary>
         /// Admission check used by Runtime. Unlike general spatial evaluation, this requires
-        /// site-aware planning completion and a valid dungeon anchored to the projected trapdoor.
+        /// site-aware planning completion, explicit keep-floor semantics, and a valid dungeon
+        /// anchored to the projected trapdoor.
         /// </summary>
         public static CastleBuildPreflightResult EvaluateRuntimeReady(
             in CastlePlan plan,
@@ -227,8 +230,6 @@ namespace VoxelEngine.Structures.Api
             CastleBuildPreflightResult structural = Evaluate(in plan, spatialPlan, writeBudget);
             if (!structural.IsValid)
             {
-                // Once attached, dungeon graph validity and its castle attachment are structural
-                // invariants. Preserve the more useful readiness diagnostics at Runtime admission.
                 if (structural.Issue == CastleBuildPreflightIssue.InvalidSpatialPlan)
                 {
                     if (structural.SpatialPlanIssue == CastleSpatialPlanIssue.InvalidDungeonPlan)
@@ -256,6 +257,24 @@ namespace VoxelEngine.Structures.Api
                     writeBudget);
             }
 
+            CastleKeepFloorPlan[] keepFloors = spatialPlan.KeepFloors;
+            if (keepFloors == null || keepFloors.Length != plan.Floors)
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.MissingKeepFloorPlan,
+                    writeBudget);
+            }
+
+            for (int i = 0; i < keepFloors.Length; i++)
+            {
+                if (keepFloors[i].FloorIndex != i || !IsValidKeepFloor(in keepFloors[i]))
+                {
+                    return ReadinessFailure(
+                        CastleSpatialBuildReadinessIssue.InvalidKeepFloorPlan,
+                        writeBudget);
+                }
+            }
+
             DungeonPlan dungeon = spatialPlan.Dungeon;
             if (dungeon == null)
             {
@@ -281,6 +300,20 @@ namespace VoxelEngine.Structures.Api
             }
 
             return structural;
+        }
+
+        private static bool IsValidKeepFloor(in CastleKeepFloorPlan floor)
+        {
+            switch (floor.Purpose)
+            {
+                case CastleKeepFloorPurpose.GreatHall:
+                case CastleKeepFloorPurpose.Bedchamber:
+                    return !floor.HasPartition;
+                case CastleKeepFloorPurpose.LibraryAndStores:
+                    return floor.HasPartition;
+                default:
+                    return false;
+            }
         }
 
         private static CastleBuildPreflightResult ReadinessFailure(
