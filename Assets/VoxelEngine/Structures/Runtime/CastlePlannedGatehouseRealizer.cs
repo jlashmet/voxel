@@ -6,20 +6,33 @@ namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Realizes a primary gatehouse from frozen planning data. Gate position/orientation comes from
-    /// CastleGatePlacementSpec; all gatehouse, bridge, and gate-tower variation comes from
-    /// CastleGatehousePlan. This component makes no seed/RNG or semantic placement decisions.
+    /// CastleGatePlacementSpec; all gatehouse, bridge, tower variation, and parapet style come from
+    /// completed plan data. This component makes no seed/RNG or semantic placement decisions.
     /// </summary>
     public static class CastlePlannedGatehouseRealizer
     {
+        /// <summary>Compatibility overload using the historical curtain-wall style.</summary>
         public static void Build(
             ref VoxelBrush brush,
             in CastlePlan castle,
             in CastleGatePlacementSpec placement,
             in CastleGatehousePlan gatehouse)
         {
+            CastleWallPlan walls = CastleWallRecipe.Historical();
+            Build(ref brush, in castle, in placement, in gatehouse, in walls);
+        }
+
+        public static void Build(
+            ref VoxelBrush brush,
+            in CastlePlan castle,
+            in CastleGatePlacementSpec placement,
+            in CastleGatehousePlan gatehouse,
+            in CastleWallPlan walls)
+        {
             CastleGatehousePlanValidator.RequireValid(in gatehouse);
             CastleGatehousePlanValidator.RequireTowerDetails(
                 in gatehouse, castle.FloorHeight);
+            CastleWallPlanValidator.RequireValid(in walls);
 
             CastleGateGeometry gateGeometry = CastleGateGeometryResolver.Resolve(
                 in castle, in placement);
@@ -66,7 +79,8 @@ namespace VoxelEngine.Structures.Runtime
                 left,
                 right,
                 baseY + gatehouse.BlockHeight,
-                castle.WallThickness * 2);
+                castle.WallThickness * 2,
+                in walls);
             ApproachBridge(
                 ref brush,
                 gate,
@@ -113,7 +127,8 @@ namespace VoxelEngine.Structures.Runtime
             int2 start,
             int2 end,
             int parapetY,
-            int wallThickness)
+            int wallThickness,
+            in CastleWallPlan walls)
         {
             float2 a = new float2(start.x, start.y);
             float2 delta = new float2(end.x - start.x, end.y - start.y);
@@ -122,10 +137,12 @@ namespace VoxelEngine.Structures.Runtime
                 return;
 
             float2 tangent = delta / length;
-            const float merlon = 26f;
-            const float gap = 18f;
-            float period = merlon + gap;
-            int thickness = math.max(2, math.min(8, wallThickness));
+            float merlon = walls.CrenellationMerlonLength;
+            float period = merlon + walls.CrenellationGapLength;
+            int thickness = math.clamp(
+                wallThickness,
+                walls.CrenellationMinimumThickness,
+                walls.CrenellationMaximumThickness);
 
             for (float distance = 0f; distance < length; distance += period)
             {
@@ -135,7 +152,7 @@ namespace VoxelEngine.Structures.Runtime
                     Round(a + tangent * distance),
                     Round(a + tangent * endDistance),
                     parapetY,
-                    20,
+                    walls.CrenellationHeight,
                     thickness,
                     Mat.Stone);
             }
