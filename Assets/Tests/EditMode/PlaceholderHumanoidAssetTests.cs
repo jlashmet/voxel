@@ -49,12 +49,22 @@ namespace VoxelEngine.Tests.EditMode
                     $"Unexpected active state for Rocketbox LOD node {node.name} in {path}");
             }
 
-            var activeSkinnedMeshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(false);
-            Assert.That(activeSkinnedMeshes.Length, Is.GreaterThan(0),
-                $"{path} has no active skinned mesh renderer");
-            Assert.That(activeSkinnedMeshes.Any(renderer => HasAncestor(renderer.transform, IsMidpolyNode)), Is.True,
+            // Imported FBX assets are persistent prefab assets rather than scene instances,
+            // so activeInHierarchy/GetComponentsInChildren(includeInactive: false) can report
+            // them as inactive simply because they are not attached to a Scene. Evaluate the
+            // activeSelf chain relative to the imported model root instead.
+            var allSkinnedMeshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            Assert.That(allSkinnedMeshes.Length, Is.GreaterThan(0),
+                $"{path} has no skinned mesh renderer");
+
+            var assetActiveMeshes = allSkinnedMeshes
+                .Where(renderer => IsActiveWithinAsset(renderer.transform, model.transform))
+                .ToArray();
+            Assert.That(assetActiveMeshes.Length, Is.GreaterThan(0),
+                $"{path} has no skinned mesh enabled by the imported asset hierarchy");
+            Assert.That(assetActiveMeshes.Any(renderer => HasAncestor(renderer.transform, IsMidpolyNode)), Is.True,
                 $"{path} has no active skinned mesh under its midpoly hierarchy");
-            Assert.That(activeSkinnedMeshes.Any(renderer => HasAncestor(renderer.transform, IsNonMidpolyLodNode)), Is.False,
+            Assert.That(assetActiveMeshes.Any(renderer => HasAncestor(renderer.transform, IsNonMidpolyLodNode)), Is.False,
                 $"{path} left a non-midpoly Rocketbox LOD renderer active");
 
             AssertValidHumanoidAvatar(path);
@@ -95,6 +105,24 @@ namespace VoxelEngine.Tests.EditMode
         private static bool IsNonMidpolyLodNode(Transform transform)
         {
             return IsRocketboxLodNode(transform) && !IsMidpolyNode(transform);
+        }
+
+        private static bool IsActiveWithinAsset(Transform transform, Transform root)
+        {
+            for (var current = transform; current != null; current = current.parent)
+            {
+                if (!current.gameObject.activeSelf)
+                {
+                    return false;
+                }
+
+                if (current == root)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool HasAncestor(Transform transform, System.Func<Transform, bool> predicate)
