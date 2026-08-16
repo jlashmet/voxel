@@ -28,6 +28,28 @@ namespace VoxelEngine.Structures.Api
         }
 
         /// <summary>
+        /// Projects one semantic local keep centre into the temporary CastlePlan anchor expected by
+        /// the legacy keep/dungeon authoring recipe. The offset itself remains owned by CastleLayout.
+        /// </summary>
+        public static CastlePlan ProjectKeepPlan(
+            in CastlePlan plan,
+            int2 localKeepCentre)
+        {
+            CastlePlan keepPlan = plan;
+            keepPlan.Centre = new int3(
+                plan.Centre.x + localKeepCentre.x,
+                plan.Centre.y,
+                plan.Centre.z + localKeepCentre.y - CastleLayout.LegacyKeepCentreZOffset);
+            return keepPlan;
+        }
+
+        /// <summary>Returns the actual world-space X/Z keep centre represented by a projected plan.</summary>
+        public static int2 ActualKeepCentre(in CastlePlan projectedKeepPlan) =>
+            new int2(
+                projectedKeepPlan.Centre.x,
+                projectedKeepPlan.Centre.z + CastleLayout.LegacyKeepCentreZOffset);
+
+        /// <summary>
         /// Projects one fully resolved spatial plan into geometry shared by runtime realization and
         /// application-side interaction/presentation. No voxel or terrain work occurs here.
         /// </summary>
@@ -54,12 +76,7 @@ namespace VoxelEngine.Structures.Api
                     $"Cannot project an invalid castle spatial plan: {issue}.");
             }
 
-            CastlePlan keepPlan = plan;
-            keepPlan.Centre = new int3(
-                plan.Centre.x + spatial.KeepCentre.x,
-                plan.Centre.y,
-                plan.Centre.z + spatial.KeepCentre.y - CastleLayout.LegacyKeepCentreZOffset);
-
+            CastlePlan keepPlan = ProjectKeepPlan(in plan, spatial.KeepCentre);
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleGateGeometry gateGeometry = CastleGateGeometryResolver.Resolve(
                 in plan, in primaryGate);
@@ -102,10 +119,7 @@ namespace VoxelEngine.Structures.Api
         }
 
         /// <summary>Actual world-space X/Z centre of the projected keep.</summary>
-        public int2 KeepCentreWorld =>
-            new int2(
-                KeepPlan.Centre.x,
-                KeepPlan.Centre.z + CastleLayout.LegacyKeepCentreZOffset);
+        public int2 KeepCentreWorld => ActualKeepCentre(in KeepPlan);
 
         /// <summary>World-space secret-hatch centre for the projected keep/dungeon recipe.</summary>
         public int3 TrapdoorCentre => CastleLayout.TrapdoorCentre(in KeepPlan);
