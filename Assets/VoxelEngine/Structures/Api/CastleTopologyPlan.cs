@@ -24,8 +24,8 @@ namespace VoxelEngine.Structures.Api
 
     /// <summary>
     /// Planning-only semantic choices for a castle before coordinates or voxel realization are
-    /// assigned. Runtime realization does not consume this type yet; it exists so topology can be
-    /// developed and validated independently without perturbing the current castle output.
+    /// assigned. Runtime never chooses from this type directly; CastleSpatialPlanner resolves it
+    /// into validated spatial geometry before Composition hands the result to realization.
     /// </summary>
     public struct CastleTopologyPlan
     {

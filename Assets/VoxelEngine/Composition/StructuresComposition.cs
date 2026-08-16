@@ -96,8 +96,8 @@ namespace VoxelEngine.Composition
 
         /// <summary>
         /// Resolves semantic topology and spatial placement through pure Structures.Api planners.
-        /// Runtime never re-plans an in-flight castle; callers may pass this validated result to
-        /// the spatial build-session overload as fortification migration progresses.
+        /// A HighestGround keep intentionally remains unresolved until a terrain seed is supplied.
+        /// Runtime never re-plans an in-flight castle.
         /// </summary>
         public static CastleSpatialPlan PlanCastleSpatial(in CastlePlan plan)
         {
@@ -110,6 +110,16 @@ namespace VoxelEngine.Composition
                     $"Castle spatial planning produced an invalid plan: {issue}.");
             }
             return spatial;
+        }
+
+        /// <summary>
+        /// Produces a fully runtime-ready spatial plan, including deterministic terrain resolution
+        /// for a HighestGround keep when that topology was selected.
+        /// </summary>
+        public static CastleSpatialPlan PlanCastleSpatial(in CastlePlan plan, uint terrainSeed)
+        {
+            CastleSpatialPlan spatial = PlanCastleSpatial(in plan);
+            return CastleTerrainPlanning.Resolve(in plan, spatial, terrainSeed);
         }
 
         /// <summary>
@@ -171,8 +181,9 @@ namespace VoxelEngine.Composition
         }
 
         /// <summary>
-        /// Starts a build whose migrated fortification stages consume a preplanned spatial layout.
-        /// Later castle stages continue to use CastlePlan until their own spatial migration lands.
+        /// Starts a spatially planned build. Composition completes any outstanding site-aware
+        /// planning before Runtime snapshots the plan; every orientation/placement-sensitive stage
+        /// then consumes that validated spatial result.
         /// </summary>
         public static ICastleBuildSession BeginCastleBuild(
             IRegionReadSource reads,
@@ -185,8 +196,11 @@ namespace VoxelEngine.Composition
             if (reads == null) throw new ArgumentNullException(nameof(reads));
             if (mutations == null) throw new ArgumentNullException(nameof(mutations));
             if (spatialPlan == null) throw new ArgumentNullException(nameof(spatialPlan));
+
+            CastleSpatialPlan resolvedSpatialPlan = CastleTerrainPlanning.Resolve(
+                in plan, spatialPlan, terrainSeed);
             return new CastleBuildSession(
-                reads, mutations, in plan, spatialPlan, terrainSeed, materials);
+                reads, mutations, in plan, resolvedSpatialPlan, terrainSeed, materials);
         }
 
         public static ReferenceArchBuildResult BuildReferenceArch(
