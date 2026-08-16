@@ -198,14 +198,22 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void KeepRealizerUsesReusableTowerAndRoomComponents()
+        public void KeepRealizerDelegatesExtractedKeepGeometry()
         {
             string keep = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleKeepRealizer.cs"));
 
-            StringAssert.Contains("CastleTowerRealizer.Build(", keep);
-            StringAssert.Contains("CastleRoomFurnisher.Furnish(", keep);
+            StringAssert.Contains("CastleKeepShellRealizer.Build(", keep);
+            StringAssert.Contains("CastleKeepTurretRealizer.Build(", keep);
+            StringAssert.Contains("CastleKeepFloorRealizer.Build(", keep);
+            StringAssert.Contains("CastleKeepFenestrationRealizer.Build(", keep);
+            StringAssert.Contains("CastleKeepFacadeRealizer.Build(", keep);
+            StringAssert.DoesNotContain("private static void BuildShell", keep);
+            StringAssert.DoesNotContain("private static void BuildCornerTurrets", keep);
+            StringAssert.DoesNotContain("private static void BuildFloorsAndRooms", keep);
+            StringAssert.DoesNotContain("private static void BuildWindows", keep);
+            StringAssert.DoesNotContain("private static void BuildFacade", keep);
             StringAssert.DoesNotContain("BedroomBuilder", keep);
             StringAssert.DoesNotContain("LibraryBuilder", keep);
         }
