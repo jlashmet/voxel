@@ -77,6 +77,12 @@ namespace VoxelEngine.Structures.Runtime
         public void Gable(int3 min, int3 size, bool alongX, byte material) =>
             _brush.Gable(min, size, alongX, material);
 
+        public void Crenellate(
+            int3 start, int3 direction, int length, int wallThickness,
+            int merlonWidth, int gapWidth, int height, byte material) =>
+            _brush.Crenellate(start, direction, length, wallThickness,
+                              merlonWidth, gapWidth, height, material);
+
         public void CrenellateRing(
             int cx, int y, int cz, int radius, int height, byte material) =>
             _brush.CrenellateRing(cx, y, cz, radius, height, material);
