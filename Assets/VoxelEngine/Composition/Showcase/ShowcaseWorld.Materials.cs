@@ -1,5 +1,6 @@
 using System;
 using Unity.Collections;
+using VoxelEngine.Composition;
 using VoxelEngine.Composition.Api;
 using VoxelEngine.Storage.Api;
 
@@ -27,24 +28,30 @@ namespace VoxelEngine.Showcase
                 _palette.Register(in materialDefinitions[i]);
             _materialSimulation = _palette.SimulationView;
 
-            // The legacy constructor still builds its historical showcase catalogue for temporary
-            // compatibility. Replace it before the world becomes observable so active generation
-            // is always driven by the application-owned role binding.
+            // Replace the legacy base catalogue before the world becomes observable so active
+            // generation is always driven by the application-owned role binding.
             if (_catalogue.IsCreated) _catalogue.Dispose();
             _catalogue = ShowcaseCatalogue.Build(seed, in materialRoles, Allocator.Persistent);
         }
 
         /// <summary>
-        /// Temporary compatibility overload for callers created during the material-ownership
-        /// migration. New callers must provide explicit roles. Remove after a Unity compile proves
-        /// no external showcase harness still depends on it.
+        /// Compatibility overload used by the existing showcase driver. Normal game startup
+        /// configures roles before scene load, so this path is game-owned in production. The
+        /// numeric fallback exists only for isolated legacy/editor harnesses that skip bootstrap.
         /// </summary>
-        [Obsolete("Provide an explicit ShowcaseMaterialSet; material-role identity is application-owned.")]
+        [Obsolete("Prefer the overload with an explicit ShowcaseMaterialSet.")]
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
                              int unloadRadiusRegions, MaterialDefinition[] materialDefinitions)
             : this(seed, brickPoolCapacity, loadRadiusRegions, unloadRadiusRegions,
-                   materialDefinitions, LegacyCompatibilityRoles())
+                   materialDefinitions, ConfiguredOrLegacyRoles())
         {
+        }
+
+        private static ShowcaseMaterialSet ConfiguredOrLegacyRoles()
+        {
+            if (ShowcaseMaterialComposition.TryGet(out ShowcaseMaterialSet roles))
+                return roles;
+            return LegacyCompatibilityRoles();
         }
 
         private static ShowcaseMaterialSet LegacyCompatibilityRoles()
