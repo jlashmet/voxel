@@ -1,4 +1,3 @@
-using System;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
@@ -15,21 +14,12 @@ namespace VoxelEngine.Structures.Runtime
             in CastlePlan keepPlan,
             CastleKeepWindowSpec[] windows)
         {
-            if (windows == null)
-                throw new ArgumentNullException(nameof(windows));
-
             int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
             int2 worldKeepCentre = CastleSpatialProjection.ActualKeepCentre(in keepPlan);
 
             for (int i = 0; i < windows.Length; i++)
             {
                 CastleKeepWindowSpec window = windows[i];
-                if (window.Id != i)
-                {
-                    throw new InvalidOperationException(
-                        $"Castle keep window ids must be contiguous; expected {i}, found {window.Id}.");
-                }
-
                 BuildOne(ref brush, baseY, worldKeepCentre, in window);
             }
         }
@@ -40,13 +30,6 @@ namespace VoxelEngine.Structures.Runtime
             int2 worldKeepCentre,
             in CastleKeepWindowSpec window)
         {
-            if (window.Width <= 0 || window.Height <= 0 || window.Depth <= 0 ||
-                (window.DepthAxis != 0 && window.DepthAxis != 2))
-            {
-                throw new InvalidOperationException(
-                    $"Castle keep window {window.Id} has invalid realization geometry.");
-            }
-
             int3 origin = new int3(
                 worldKeepCentre.x + window.LocalOrigin.x,
                 baseY + window.BaseYOffset,
