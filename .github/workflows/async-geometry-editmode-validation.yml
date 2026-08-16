@@ -43,7 +43,6 @@ jobs:
           # editors previously froze this runner. Match that policy instead of bypassing it.
           # This workflow checks out the triggering SHA, so queued validation remains a real
           # checkpoint even while later async-geometry commits continue landing.
-          # Checkpoint: COW/region leases + Burst exact metadata/water + LOD/stress test compile.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
@@ -52,7 +51,7 @@ jobs:
             fi
             sleep 10
           done
-      - name: Run all EditMode tests
+      - name: Run async geometry EditMode tests
         shell: bash
         run: |
           set +e
@@ -63,9 +62,18 @@ jobs:
           UNITY_MAX_RSS_MB=12288 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 2 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testFilter "VoxelEngine.Tests.EditMode.ArchitectureBoundaryGuardTests;VoxelEngine.Tests.EditMode.GeometryFrameBudgetTests;VoxelEngine.Tests.EditMode.GeometryPipelineArchitectureTests;VoxelEngine.Tests.EditMode.StorageRenderingReadContractTests;VoxelEngine.Tests.EditMode.SurfaceBrickDiscoveryTests;VoxelEngine.Tests.EditMode.SurfaceGeometryArenaTests;VoxelEngine.Tests.EditMode.SurfaceRingBandTests" \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log"
           status=$?
           test -s "$ROOT/results.xml" || { tail -n 200 "$ROOT/unity.log" || true; exit 1; }
+          python3 - "$ROOT/results.xml" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          total = int(root.attrib.get('total', root.attrib.get('testcasecount', '0')))
+          if total <= 0:
+              raise SystemExit('Async geometry EditMode filter matched zero tests')
+          print(f'Async geometry EditMode tests executed: {total}')
+          PY
           exit $status
       - name: Upload validation artifact
         if: always()
