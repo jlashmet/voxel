@@ -35,6 +35,7 @@ namespace VoxelEngine.Composition
             resolved = CastleGatehousePlanCompletion.Attach(in plan, resolved);
             CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(
                 in plan, resolved);
+            completed = CastleKeepFacadeWindowCompletion.AlignWithEntrance(in plan, completed);
             completed = CastleKeepTurretPlanCompletion.Attach(in plan, completed);
             completed = CastleTowerSlitPlanCompletion.Attach(in plan, completed);
 
