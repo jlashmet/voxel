@@ -1,7 +1,8 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Rendering.Runtime.Vegetation;
+using VoxelEngine.Composition;
+using VoxelEngine.Rendering.Api;
 using VoxelEngine.Vegetation.Api;
 
 namespace VoxelEngine.Showcase
@@ -16,9 +17,9 @@ namespace VoxelEngine.Showcase
         [SerializeField] private bool m_CreateEnvironment = true;
 
         private readonly List<VegetationInstance> _instances = new();
-        private ProceduralVegetationBatchRenderer _renderer;
+        private IVegetationBatchRenderer _renderer;
 
-        public ProceduralVegetationBatchRenderer Renderer => _renderer;
+        public IVegetationBatchRenderer Renderer => _renderer;
         public IReadOnlyList<VegetationInstance> Instances => _instances;
         public int InstanceCount => _instances.Count;
 
@@ -31,8 +32,7 @@ namespace VoxelEngine.Showcase
         public void Rebuild()
         {
             if (_renderer == null)
-                _renderer = GetComponent<ProceduralVegetationBatchRenderer>()
-                            ?? gameObject.AddComponent<ProceduralVegetationBatchRenderer>();
+                _renderer = VegetationLifeRenderingComposition.EnsureVegetationBatchRenderer(gameObject);
 
             if (m_CreateEnvironment)
                 SubsystemRenderingShowcaseEnvironment.Ensure(transform);
