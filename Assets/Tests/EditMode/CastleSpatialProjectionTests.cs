@@ -1,3 +1,4 @@
+using System;
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
@@ -50,6 +51,19 @@ namespace VoxelEngine.Tests.EditMode
                             projection.PrimaryGateGeometry.InteractionPointVoxels);
             Assert.AreEqual(CastleApproachFrame.FromGate(in primary).Outward,
                             projection.Approach.Outward);
+        }
+
+        [Test]
+        public void ProjectionRejectsUnresolvedHighestGroundKeep()
+        {
+            CastlePlan plan = CastlePlanner.Create(int3.zero, 97u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(97u);
+            topology.KeepPlacement = CastleKeepPlacement.HighestGround;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+
+            Assert.IsTrue(spatial.KeepRequiresTerrainResolution);
+            Assert.Throws<InvalidOperationException>(() =>
+                CastleSpatialProjection.Create(in plan, spatial));
         }
     }
 }
