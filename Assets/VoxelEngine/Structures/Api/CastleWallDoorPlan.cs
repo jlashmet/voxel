@@ -1,3 +1,6 @@
+using Unity.Mathematics;
+using Random = Unity.Mathematics.Random;
+
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
@@ -27,7 +30,11 @@ namespace VoxelEngine.Structures.Api
         InvalidStrapPattern,
     }
 
-    /// <summary>Pure secondary-door recipes attached before Runtime realization begins.</summary>
+    /// <summary>
+    /// Pure secondary-door recipes attached before Runtime realization begins. Parameterless
+    /// overloads preserve the historical recipes for compatibility callers; seeded overloads own
+    /// production authored variation on the Walls substream.
+    /// </summary>
     public static class CastleWallDoorPlanner
     {
         public static CastleWallDoorPlan Postern() =>
@@ -35,6 +42,19 @@ namespace VoxelEngine.Structures.Api
 
         public static CastleWallDoorPlan InnerWard() =>
             CastleWallDoorRecipe.InnerWardHistorical();
+
+        public static CastleWallDoorPlan InnerWard(uint seed)
+        {
+            CastleWallDoorPlan plan = CastleWallDoorRecipe.InnerWardHistorical();
+            var rng = new Random(CastleSeedPartition.Derive(
+                seed, CastleSeedDomain.Walls, 0xD003u));
+
+            // Preserve the previously planned inner-gate variation after secondary-door ownership
+            // moved out of CastleWallPlan. Keep the opening comfortably below primary-gate width.
+            plan.Width = math.clamp(plan.Width + rng.NextInt(-1, 2) * 4, 36, 56);
+            CastleWallDoorPlanValidator.RequireValid(in plan);
+            return plan;
+        }
     }
 
     /// <summary>Behavior-preserving secondary-door recipes shared by planning and compatibility.</summary>
