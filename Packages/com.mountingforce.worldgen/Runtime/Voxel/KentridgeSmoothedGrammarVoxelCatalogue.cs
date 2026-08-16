@@ -36,7 +36,11 @@ namespace MountingForce.WorldGen.Voxel
                     StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
                     IArchitectureStyleCompiler style =
                         BuiltInArchitectureStyles.Registry.Require(intent.StyleId);
-                    StructureForm form = style.ResolveStructure(intent, plan.Theme, seed);
+                    StructureForm form = ArchitectureCompiler.Resolve(
+                        intent,
+                        plan.Theme,
+                        seed,
+                        BuiltInArchitectureStyles.Registry);
                     profiles[plot.RoleId] = style.ResolveGeometry(intent, form);
                 }
 
