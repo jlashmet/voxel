@@ -36,6 +36,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int SolidUploadBudgetBytes;
         public readonly int LastFrameSolidUploadedBytes;
         public readonly int LastFrameSolidUploadCompletions;
+        public readonly long SolidArenaCommittedBytes;
+        public readonly long SolidArenaUsedBytes;
+        public readonly ulong SolidArenaAllocationFailures;
+        public readonly ulong SolidArenaPressureEvictions;
         public readonly double LastSolidSnapshotMs;
         public readonly double LastSolidTopologyCompactMs;
         public readonly double LastSolidUploadMs;
@@ -89,6 +93,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidUploadBudgetBytes = int.MaxValue;
             LastFrameSolidUploadedBytes = 0;
             LastFrameSolidUploadCompletions = 0;
+            SolidArenaCommittedBytes = 0;
+            SolidArenaUsedBytes = 0;
+            SolidArenaAllocationFailures = 0;
+            SolidArenaPressureEvictions = 0;
             LastSolidSnapshotMs = solids.LastSnapshotMs;
             LastSolidTopologyCompactMs = solids.LastTopologyCompactMs;
             LastSolidUploadMs = solids.LastUploadMs;
@@ -121,6 +129,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                      int solidUploadBudgetBytes,
                                      int lastFrameSolidUploadedBytes,
                                      int lastFrameSolidUploadCompletions,
+                                     long solidArenaCommittedBytes,
+                                     long solidArenaUsedBytes,
+                                     ulong solidArenaAllocationFailures,
+                                     ulong solidArenaPressureEvictions,
                                      in VoxelTimingSummary schedulerPrepare,
                                      in VoxelTimingSummary journal,
                                      in VoxelTimingSummary invalidation,
@@ -173,6 +185,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidUploadBudgetBytes = solidUploadBudgetBytes;
             LastFrameSolidUploadedBytes = lastFrameSolidUploadedBytes;
             LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;
+            SolidArenaCommittedBytes = solidArenaCommittedBytes;
+            SolidArenaUsedBytes = solidArenaUsedBytes;
+            SolidArenaAllocationFailures = solidArenaAllocationFailures;
+            SolidArenaPressureEvictions = solidArenaPressureEvictions;
             CompletedSolidBuilds = completed;
             RejectedStaleSolidBuilds = stale;
             UploadedGeometryBytes = uploadedBytes;
@@ -331,6 +347,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private int _uploadAdmissionCursor;
         private int _lastFrameSolidUploadedBytes;
         private int _lastFrameSolidUploadCompletions;
+        private int _arenaPressureCursor;
+        private ulong _observedArenaAllocationFailures;
+        private ulong _arenaPressureEvictions;
         private int _lastAdvancedFrame = -1;
         private readonly VoxelTimingWindow _prepareTiming = new();
         private readonly VoxelTimingWindow _journalTiming = new();
@@ -378,7 +397,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public VoxelSurfaceMetrics Metrics => new(
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
             _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
-            _lastFrameSolidUploadCompletions, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),
+            _lastFrameSolidUploadCompletions, _geometryArena.CommittedGpuBytes,
+            _geometryArena.UsedGpuBytes, _geometryArena.AllocationFailureCount,
+            _arenaPressureEvictions, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),
             _invalidationTiming.Snapshot(), _discoveryTiming.Snapshot(),
             _workerPrepareTiming.Snapshot(), _visibilityTiming.Snapshot());
 
@@ -599,6 +620,24 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (workerCount > 0)
                 _uploadAdmissionCursor = (_uploadAdmissionCursor
                                         + Math.Max(1, uploadScanAdvance)) % workerCount;
+
+            // Arena exhaustion is backpressure, never a reason to allocate another GPU
+            // buffer. Reclaim at most one old offscreen lease per frame; the pending build then
+            // retries publication on a later frame while its previous geometry remains visible.
+            ulong arenaFailures = _geometryArena.AllocationFailureCount;
+            if (arenaFailures > _observedArenaAllocationFailures && workerCount > 0)
+            {
+                _observedArenaAllocationFailures = arenaFailures;
+                for (int offset = 0; offset < workerCount; offset++)
+                {
+                    int index = (_arenaPressureCursor + offset) % workerCount;
+                    if (!_allWorkers[index].TryEvictOneForArenaPressure(camera, voxelSize))
+                        continue;
+                    _arenaPressureCursor = (index + 1) % workerCount;
+                    _arenaPressureEvictions++;
+                    break;
+                }
+            }
 
             _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
             _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);

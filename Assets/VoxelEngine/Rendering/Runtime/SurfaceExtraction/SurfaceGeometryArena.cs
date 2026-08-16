@@ -56,6 +56,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int UsedVertices => _vertexRanges.Used;
         public int UsedIndices => _indexRanges.Used;
         public int UsedArgsRecords => _argsRanges.Used / ArgsWordsPerDraw;
+        public ulong AllocationFailureCount { get; private set; }
+        public long UsedGpuBytes =>
+            (long)UsedVertices * SmoothSurfaceVertex.Stride
+            + (long)UsedIndices * sizeof(uint)
+            + (long)UsedArgsRecords * ArgsWordsPerDraw * sizeof(uint);
         public long CommittedGpuBytes =>
             (long)VertexCapacity * SmoothSurfaceVertex.Stride
             + (long)IndexCapacity * sizeof(uint)
@@ -106,16 +111,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             int vertices = Align(math.max(1, vertexCount), VertexAlignment);
             int indices = Align(math.max(1, indexCount), IndexAlignment);
-            if (!_vertexRanges.TryAllocate(vertices, out int vertexStart)) return false;
+            if (!_vertexRanges.TryAllocate(vertices, out int vertexStart))
+            {
+                AllocationFailureCount++;
+                return false;
+            }
             if (!_indexRanges.TryAllocate(indices, out int indexStart))
             {
                 _vertexRanges.Release(vertexStart, vertices);
+                AllocationFailureCount++;
                 return false;
             }
             if (!_argsRanges.TryAllocate(ArgsWordsPerDraw, out int argsStart))
             {
                 _indexRanges.Release(indexStart, indices);
                 _vertexRanges.Release(vertexStart, vertices);
+                AllocationFailureCount++;
                 return false;
             }
 

@@ -112,6 +112,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             private int _stagingVertexCursor;
             private int _stagingIndexCursor;
             private readonly uint[] _indirectArgs = new uint[4];
+            internal bool WaitingForArena { get; private set; }
 
             internal int RemainingUploadBytes(int vertexCount, int indexCount)
             {
@@ -186,7 +187,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             private bool EnsureUploadStaging(int vertexCount, int indexCount)
             {
                 if (_stagingLease.IsValid) return true;
-                if (!_arena.TryAcquire(vertexCount, indexCount, out _stagingLease)) return false;
+                if (!_arena.TryAcquire(vertexCount, indexCount, out _stagingLease))
+                {
+                    WaitingForArena = true;
+                    return false;
+                }
+                WaitingForArena = false;
                 _stagingVertexCursor = 0;
                 _stagingIndexCursor = 0;
                 return true;
@@ -196,6 +202,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 _arena.Release(in _stagingLease);
                 _stagingLease = default;
+                WaitingForArena = false;
                 _stagingVertexCursor = 0;
                 _stagingIndexCursor = 0;
             }
@@ -2455,6 +2462,40 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int x = minRegion.x; x <= maxRegion.x; x++)
                 if (source.IsRegionResident(new int3(x, y, z))) return true;
             return false;
+        }
+
+        internal bool TryEvictOneForArenaPressure(Camera camera, float voxelSize)
+        {
+            if (_entries.Count == 0) return false;
+
+            int3 victim = default;
+            float farthest = -1f;
+            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
+
+            foreach (var pair in _entries)
+            {
+                // Keep current replacement geometry alive. Arena pressure may only retire a
+                // different, already-published, offscreen lease.
+                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
+                Bounds bounds = ChunkWorldBounds(pair.Key, voxelSize);
+                if (camera != null && GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
+                    continue;
+
+                Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
+                                + Vector3.one * 0.5f) * chunkMetres;
+                float distance = (centre - cameraPosition).sqrMagnitude;
+                if (distance <= farthest) continue;
+                farthest = distance;
+                victim = pair.Key;
+            }
+
+            if (farthest < 0f) return false;
+            if (_entries.TryGetValue(victim, out Entry entry)) entry.Dispose();
+            _entries.Remove(victim);
+            _dirty.Add(victim);
+            return true;
         }
 
         private void EnforceCapacity(Camera camera, float voxelSize)
