@@ -213,7 +213,8 @@ namespace VoxelEngine.Structures.Runtime
                             ref _brush,
                             in _plan,
                             in _primaryGate,
-                            in _gatehousePlan);
+                            in _gatehousePlan,
+                            in _wallPlan);
 
                         if (_hasPosternGate)
                             CastlePosternRealizer.BuildDoor(ref _brush, in _plan, in _posternGate);
