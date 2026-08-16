@@ -1,0 +1,115 @@
+using NUnit.Framework;
+using VoxelEngine.Structures.Api;
+
+namespace VoxelEngine.Tests.EditMode
+{
+    public sealed class CastleLayoutPlannerTests
+    {
+        [Test]
+        public void SameSeedProducesSameTopology()
+        {
+            for (uint seed = 0; seed <= 256; seed++)
+            {
+                CastleTopologyPlan first = CastleLayoutPlanner.Create(seed);
+                CastleTopologyPlan second = CastleLayoutPlanner.Create(seed);
+
+                Assert.AreEqual(first.Perimeter, second.Perimeter, $"seed {seed}: perimeter");
+                Assert.AreEqual(first.KeepPlacement, second.KeepPlacement,
+                    $"seed {seed}: keep placement");
+                Assert.AreEqual(first.Wards, second.Wards, $"seed {seed}: wards");
+                Assert.AreEqual(first.DesiredTowerCount, second.DesiredTowerCount,
+                    $"seed {seed}: tower count");
+                Assert.AreEqual(first.HasPosternGate, second.HasPosternGate,
+                    $"seed {seed}: postern gate");
+            }
+        }
+
+        [Test]
+        public void TopologyChoicesRespectGrammarInvariants()
+        {
+            for (uint seed = 0; seed < 1024; seed++)
+            {
+                CastleTopologyPlan plan = CastleLayoutPlanner.Create(seed);
+
+                Assert.GreaterOrEqual(plan.DesiredTowerCount, 4, $"seed {seed}: tower minimum");
+                Assert.LessOrEqual(plan.DesiredTowerCount, 8, $"seed {seed}: tower maximum");
+
+                if (plan.Perimeter == CastlePerimeterKind.Concentric)
+                {
+                    Assert.AreEqual(CastleWardPattern.InnerAndOuterWards, plan.Wards,
+                        $"seed {seed}: concentric castles require nested wards");
+                    Assert.GreaterOrEqual(plan.DesiredTowerCount, 6,
+                        $"seed {seed}: concentric tower minimum");
+                }
+
+                if (plan.Perimeter == CastlePerimeterKind.IrregularPolygon)
+                    Assert.GreaterOrEqual(plan.DesiredTowerCount, 5,
+                        $"seed {seed}: polygon tower minimum");
+            }
+        }
+
+        [Test]
+        public void SeedSpaceProducesEverySupportedTopologicalFamily()
+        {
+            bool rectangular = false;
+            bool quadrilateral = false;
+            bool polygon = false;
+            bool concentric = false;
+            bool centralKeep = false;
+            bool rearKeep = false;
+            bool highKeep = false;
+            bool integratedKeep = false;
+            bool singleWard = false;
+            bool nestedWards = false;
+            bool postern = false;
+            bool noPostern = false;
+
+            for (uint seed = 0; seed < 2048; seed++)
+            {
+                CastleTopologyPlan plan = CastleLayoutPlanner.Create(seed);
+                rectangular |= plan.Perimeter == CastlePerimeterKind.Rectangular;
+                quadrilateral |= plan.Perimeter == CastlePerimeterKind.IrregularQuadrilateral;
+                polygon |= plan.Perimeter == CastlePerimeterKind.IrregularPolygon;
+                concentric |= plan.Perimeter == CastlePerimeterKind.Concentric;
+                centralKeep |= plan.KeepPlacement == CastleKeepPlacement.Central;
+                rearKeep |= plan.KeepPlacement == CastleKeepPlacement.Rear;
+                highKeep |= plan.KeepPlacement == CastleKeepPlacement.HighestGround;
+                integratedKeep |= plan.KeepPlacement == CastleKeepPlacement.WallIntegrated;
+                singleWard |= plan.Wards == CastleWardPattern.SingleWard;
+                nestedWards |= plan.Wards == CastleWardPattern.InnerAndOuterWards;
+                postern |= plan.HasPosternGate;
+                noPostern |= !plan.HasPosternGate;
+            }
+
+            Assert.IsTrue(rectangular, "No rectangular castle was reachable.");
+            Assert.IsTrue(quadrilateral, "No irregular quadrilateral castle was reachable.");
+            Assert.IsTrue(polygon, "No irregular polygon castle was reachable.");
+            Assert.IsTrue(concentric, "No concentric castle was reachable.");
+            Assert.IsTrue(centralKeep, "No central keep was reachable.");
+            Assert.IsTrue(rearKeep, "No rear keep was reachable.");
+            Assert.IsTrue(highKeep, "No highest-ground keep was reachable.");
+            Assert.IsTrue(integratedKeep, "No wall-integrated keep was reachable.");
+            Assert.IsTrue(singleWard, "No single ward was reachable.");
+            Assert.IsTrue(nestedWards, "No nested wards were reachable.");
+            Assert.IsTrue(postern, "No postern-gate castle was reachable.");
+            Assert.IsTrue(noPostern, "Every castle unexpectedly had a postern gate.");
+        }
+
+        [Test]
+        public void TopologyPlanningDoesNotPerturbLegacyDimensionPlan()
+        {
+            for (uint seed = 1; seed <= 256; seed++)
+            {
+                var before = CastlePlanner.Create(Unity.Mathematics.int3.zero, seed);
+                CastleLayoutPlanner.Create(seed);
+                var after = CastlePlanner.Create(Unity.Mathematics.int3.zero, seed);
+
+                Assert.AreEqual(before.BaileyHalfX, after.BaileyHalfX, $"seed {seed}: bailey X");
+                Assert.AreEqual(before.BaileyHalfZ, after.BaileyHalfZ, $"seed {seed}: bailey Z");
+                Assert.AreEqual(before.KeepHalfX, after.KeepHalfX, $"seed {seed}: keep X");
+                Assert.AreEqual(before.KeepHalfZ, after.KeepHalfZ, $"seed {seed}: keep Z");
+                Assert.AreEqual(before.Floors, after.Floors, $"seed {seed}: floors");
+            }
+        }
+    }
+}
