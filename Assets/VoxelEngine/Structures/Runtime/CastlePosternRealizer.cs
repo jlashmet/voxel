@@ -1,4 +1,3 @@
-using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Structures.Runtime
@@ -14,21 +13,15 @@ namespace VoxelEngine.Structures.Runtime
             in CastlePlan plan,
             in CastleGatePlacementSpec postern)
         {
-            CastleApproachFrame frame = CastleApproachFrame.FromGate(in postern);
-            int half = CastleLayout.PosternGateWidth / 2;
-            int2 localLeft = frame.LocalPoint(-half, 0f);
-            int2 localRight = frame.LocalPoint(half, 0f);
-            int2 left = ToWorld(in plan, localLeft);
-            int2 right = ToWorld(in plan, localRight);
-            int baseY = plan.Centre.y + plan.PlateauHeight;
-
+            CastlePosternGeometry geometry = CastlePosternGeometryResolver.Resolve(
+                in plan, in postern);
             VoxelWallRasterizer.FillSegment(
                 ref brush,
-                left,
-                right,
-                baseY + 1,
-                CastleLayout.PosternGateHeight,
-                plan.WallThickness + 4,
+                geometry.OpeningStart,
+                geometry.OpeningEnd,
+                geometry.BaseY,
+                geometry.OpeningHeight,
+                geometry.OpeningDepth,
                 Mat.Empty);
         }
 
@@ -37,43 +30,34 @@ namespace VoxelEngine.Structures.Runtime
             in CastlePlan plan,
             in CastleGatePlacementSpec postern)
         {
-            CastleApproachFrame frame = CastleApproachFrame.FromGate(in postern);
-            int half = CastleLayout.PosternGateWidth / 2 - 2;
-            int2 localLeft = frame.LocalPoint(-half, 0f);
-            int2 localRight = frame.LocalPoint(half, 0f);
-            int2 left = ToWorld(in plan, localLeft);
-            int2 right = ToWorld(in plan, localRight);
-            int baseY = plan.Centre.y + plan.PlateauHeight;
-            int doorHeight = CastleLayout.PosternGateHeight - 4;
+            CastlePosternGeometry geometry = CastlePosternGeometryResolver.Resolve(
+                in plan, in postern);
 
             VoxelWallRasterizer.FillSegment(
                 ref brush,
-                left,
-                right,
-                baseY + 1,
-                doorHeight,
-                CastleLayout.PosternGateDepth,
+                geometry.LeafStart,
+                geometry.LeafEnd,
+                geometry.BaseY,
+                geometry.LeafHeight,
+                geometry.LeafDepth,
                 Mat.Wood);
 
             VoxelWallRasterizer.FillSegment(
                 ref brush,
-                left,
-                right,
-                baseY + 11,
-                2,
-                CastleLayout.PosternGateDepth + 1,
+                geometry.LeafStart,
+                geometry.LeafEnd,
+                geometry.FirstStrapY,
+                geometry.StrapHeight,
+                geometry.StrapDepth,
                 Mat.DarkStone);
             VoxelWallRasterizer.FillSegment(
                 ref brush,
-                left,
-                right,
-                baseY + 25,
-                2,
-                CastleLayout.PosternGateDepth + 1,
+                geometry.LeafStart,
+                geometry.LeafEnd,
+                geometry.SecondStrapY,
+                geometry.StrapHeight,
+                geometry.StrapDepth,
                 Mat.DarkStone);
         }
-
-        private static int2 ToWorld(in CastlePlan plan, int2 local) =>
-            new int2(plan.Centre.x + local.x, plan.Centre.z + local.y);
     }
 }
