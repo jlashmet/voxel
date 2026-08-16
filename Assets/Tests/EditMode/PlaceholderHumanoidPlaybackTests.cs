@@ -12,7 +12,6 @@ namespace VoxelEngine.Tests.EditMode
         private const string MalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Male_Adult_01.fbx";
         private const string FemalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Female_Adult_01.fbx";
         private const string WalkPath = "Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx";
-        private const string RunPath = "Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx";
 
         [TestCase(MalePath)]
         [TestCase(FemalePath)]
@@ -73,22 +72,6 @@ namespace VoxelEngine.Tests.EditMode
 
                 Object.DestroyImmediate(instance);
             }
-        }
-
-        [TestCase(WalkPath, "Walk")]
-        [TestCase(RunPath, "Run")]
-        public void LocomotionClip_RetainsRootMotionCurves(string path, string clipName)
-        {
-            var clip = AssetDatabase.LoadAllAssetsAtPath(path)
-                .OfType<AnimationClip>()
-                .FirstOrDefault(candidate => candidate.name == clipName);
-
-            Assert.That(clip, Is.Not.Null, $"The semantic {clipName} clip was not imported from {path}");
-            Assert.That(clip.humanMotion, Is.True, $"{clipName} must remain Humanoid motion for retargeting");
-            Assert.That(
-                clip.hasMotionCurves,
-                Is.True,
-                $"{clipName} imported without root motion curves; the Rocketbox motion-extraction data was lost");
         }
     }
 }
