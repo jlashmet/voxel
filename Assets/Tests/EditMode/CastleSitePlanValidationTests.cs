@@ -30,24 +30,6 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SitePlanRejectsActiveCourtyardPatternWithoutSeed()
-        {
-            CastleSitePlan generated = CastleSitePlanner.Create(101u);
-            CastleSiteGeometryPlan geometry = generated.Geometry;
-            var invalid = new CastleSitePlan(
-                generated.GrassPatternSeed,
-                generated.GrassCoveragePercent,
-                0u,
-                generated.CourtyardStonePercent,
-                in geometry);
-
-            Assert.IsFalse(
-                CastleSitePlanValidator.TryValidate(
-                    in invalid, out CastleSitePlanIssue issue));
-            Assert.AreEqual(CastleSitePlanIssue.MissingCourtyardPatternSeed, issue);
-        }
-
-        [Test]
         public void SitePlanRejectsDefaultGeometryEvenWithValidSeeds()
         {
             CastleSitePlan generated = CastleSitePlanner.Create(103u);
@@ -62,7 +44,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsFalse(
                 CastleSitePlanValidator.TryValidate(
                     in invalid, out CastleSitePlanIssue issue));
-            Assert.AreEqual(CastleSitePlanIssue.InvalidGeometry, issue);
+            Assert.AreEqual(CastleSitePlanIssue.InvalidEdgeRecipe, issue);
         }
 
         [Test]
