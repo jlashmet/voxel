@@ -458,7 +458,7 @@ namespace VoxelEngine.Structures.Runtime
 
         private void BuildPlannedWalls()
         {
-            CastlePerimeterRealizer.Walls(
+            CastlePlannedPerimeterRealizer.Walls(
                 ref _brush,
                 in _plan,
                 _outerWardVertices,
@@ -478,7 +478,7 @@ namespace VoxelEngine.Structures.Runtime
             if (!_hasInnerGate || _innerWardVertices.Length == 0)
                 return;
 
-            CastlePerimeterRealizer.Walls(
+            CastlePlannedPerimeterRealizer.Walls(
                 ref _brush,
                 in _plan,
                 _innerWardVertices,
