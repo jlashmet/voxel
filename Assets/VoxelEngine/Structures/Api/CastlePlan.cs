@@ -36,6 +36,9 @@ namespace VoxelEngine.Structures.Api
         public const int FrontGateWidth = 48;
         public const int FrontGateHeight = 60;
         public const int FrontGateDepth = 4;
+        public const int PosternGateWidth = 24;
+        public const int PosternGateHeight = 38;
+        public const int PosternGateDepth = 4;
         public const int LowerRiverDepth = 88;
 
         public static int3 TrapdoorCentre(in CastlePlan plan)

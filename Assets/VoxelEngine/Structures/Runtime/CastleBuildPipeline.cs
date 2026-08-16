@@ -29,6 +29,8 @@ namespace VoxelEngine.Structures.Runtime
         private int _cornerTowerCount;
         private CastleGatePlacementSpec _primaryGate;
         private CastleApproachFrame _approach;
+        private bool _hasPosternGate;
+        private CastleGatePlacementSpec _posternGate;
         private bool _hasInnerGate;
         private CastleGatePlacementSpec _innerGate;
         private int2 _spatialKeepCentre;
@@ -156,6 +158,8 @@ namespace VoxelEngine.Structures.Runtime
                     {
                         CastlePerimeterRealizer.Gatehouse(
                             ref _brush, in _plan, _primaryGate.Centre, _primaryGate.Outward);
+                        if (_hasPosternGate)
+                            CastlePosternRealizer.BuildDoor(ref _brush, in _plan, in _posternGate);
                     }
                     else
                     {
@@ -234,6 +238,8 @@ namespace VoxelEngine.Structures.Runtime
             _innerWardVertices = (int2[])spatialPlan.InnerWardVertices.Clone();
             _primaryGate = spatialPlan.PrimaryGate;
             _approach = CastleApproachFrame.FromGate(in _primaryGate);
+            _hasPosternGate = spatialPlan.HasPosternGate;
+            _posternGate = spatialPlan.PosternGate;
             _hasInnerGate = spatialPlan.HasInnerGate;
             _innerGate = spatialPlan.InnerGate;
             _spatialKeepCentre = spatialPlan.KeepCentre;
@@ -270,6 +276,9 @@ namespace VoxelEngine.Structures.Runtime
                 _primaryGate.EdgeIndex,
                 _primaryGate.Centre,
                 outerGateWidth);
+
+            if (_hasPosternGate)
+                CastlePosternRealizer.CarveOpening(ref _brush, in _plan, in _posternGate);
 
             if (!_hasInnerGate || _innerWardVertices.Length == 0)
                 return;
