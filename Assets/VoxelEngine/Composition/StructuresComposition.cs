@@ -138,7 +138,24 @@ namespace VoxelEngine.Composition
             storage.PublishAllResidentRegions();
             return new ArchLookdevBuildResult(profiles, width, height);
         }
+
         public static IStructureProfileStore CreateProfileStore() => new StructureProfileStore();
+
+        /// <summary>
+        /// Creates the generic structure-authoring capability backed by the engine's optimized
+        /// runtime brush. Callers own all semantic content and see only Structures.Api; this
+        /// method does not know which kind of structure will be authored.
+        /// </summary>
+        public static IStructureAuthoringSession CreateAuthoringSession(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
+            IMaterialAuthoringCatalogue materials,
+            int writeBudget = VoxelBrush.DefaultWriteBudget)
+        {
+            if (reads == null) throw new ArgumentNullException(nameof(reads));
+            if (mutations == null) throw new ArgumentNullException(nameof(mutations));
+            return new StructureAuthoringSession(reads, mutations, materials, writeBudget);
+        }
 
         public static ICastleBuildSession BeginCastleBuild(
             IRegionReadSource reads,
@@ -228,6 +245,5 @@ namespace VoxelEngine.Composition
             public int Count => Runtime.Count;
             public ProfileBlock[] Snapshot() => Runtime.Snapshot();
         }
-
     }
 }
