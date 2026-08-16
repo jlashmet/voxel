@@ -13,15 +13,18 @@ namespace VoxelEngine.Structures.Api
         public readonly CastlePlan KeepPlan;
         public readonly CastleGateGeometry PrimaryGateGeometry;
         public readonly CastleApproachFrame Approach;
+        public readonly CastleKeepAnnexPlan KeepAnnexes;
 
         private CastleSpatialProjection(
             in CastlePlan keepPlan,
             in CastleGateGeometry primaryGateGeometry,
-            in CastleApproachFrame approach)
+            in CastleApproachFrame approach,
+            in CastleKeepAnnexPlan keepAnnexes)
         {
             KeepPlan = keepPlan;
             PrimaryGateGeometry = primaryGateGeometry;
             Approach = approach;
+            KeepAnnexes = keepAnnexes;
         }
 
         /// <summary>
@@ -61,11 +64,13 @@ namespace VoxelEngine.Structures.Api
             CastleGateGeometry gateGeometry = CastleGateGeometryResolver.Resolve(
                 in plan, in primaryGate);
             CastleApproachFrame approach = CastleApproachFrame.FromGate(in primaryGate);
+            CastleKeepAnnexPlan keepAnnexes = spatial.Topology.KeepAnnexes;
 
             return new CastleSpatialProjection(
                 in keepPlan,
                 in gateGeometry,
-                in approach);
+                in approach,
+                in keepAnnexes);
         }
 
         private static CastleSpatialPlan CreateProjectionValidationView(CastleSpatialPlan spatial)
