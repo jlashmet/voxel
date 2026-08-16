@@ -491,6 +491,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int ChangeRecoverySlotsPerFrame = 32;
         private readonly List<VoxelChangeRecord> _changeScratch = new(ChangeReadRecordsPerFrame);
         private NativeArray<int3> _changeRecoveryRegions;
+        // A fresh scheduler must discover already-resident surfaces, but this is not a
+        // mutation signal. Keep startup discovery separate from change-overflow recovery
+        // so current-state enumeration never advances geometry generations.
+        private bool _initialSurfaceDiscoveryPending = true;
+        private int _initialSurfaceDiscoveryCursor;
         private int _changeRecordIndex;
         private bool _changeFeedHasMore;
         private bool _recoveringChangeOverflow;
@@ -734,6 +739,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     AddImmediateCameraDiscoveryRegions(storage, cameraPosition, voxelSize);
                 StepClipmapAdmissionDiscovery(storage);
             }
+
+            StepInitialSurfaceDiscovery(storage);
 
             double journalStart = Time.realtimeSinceStartupAsDouble;
             using (s_JournalMarker.Auto())
@@ -1052,6 +1059,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _hasActiveClipmapAdmission = false;
                 _activeClipmapAdmissionCursor = 0;
             }
+        }
+
+        private void StepInitialSurfaceDiscovery(IRegionReadSource storage)
+        {
+            if (!_initialSurfaceDiscoveryPending) return;
+            bool complete = storage.CopyResidentRegionCoords(
+                ref _initialSurfaceDiscoveryCursor, _changeRecoveryRegions, out int count);
+            for (int i = 0; i < count; i++)
+                _surfaceDiscoveryRegions.Add(_changeRecoveryRegions[i]);
+            if (!complete) return;
+            _initialSurfaceDiscoveryPending = false;
+            _initialSurfaceDiscoveryCursor = 0;
         }
 
         private void ProcessChangeFeed(IRegionReadSource storage, IVoxelChangeSource journal)
