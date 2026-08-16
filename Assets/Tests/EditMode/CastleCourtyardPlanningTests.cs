@@ -29,6 +29,31 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void NestedWardWellStaysInsideTheKeepsAssignedWard()
+        {
+            for (uint seed = 1; seed <= 64; seed++)
+            {
+                CastlePlan dimensions = CastlePlanner.Create(int3.zero, seed);
+                CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                topology.Wards = CastleWardPattern.InnerAndOuterWards;
+                topology.KeepPlacement = CastleKeepPlacement.Central;
+
+                CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
+
+                Assert.IsTrue(spatial.HasWell,
+                    $"seed {seed}: nested ward had no planned well");
+                Assert.IsTrue(
+                    CastlePolygonGeometry.ContainsPoint(
+                        spatial.WellCentre, spatial.InnerWardVertices),
+                    $"seed {seed}: courtyard well escaped the inner ward");
+                Assert.IsTrue(
+                    CastleSpatialPlanValidator.TryValidate(
+                        in dimensions, spatial, out CastleSpatialPlanIssue issue),
+                    $"seed {seed}: nested courtyard invalid: {issue}");
+            }
+        }
+
+        [Test]
         public void HighestGroundDefersWellUntilKeepIsResolved()
         {
             CastlePlan dimensions = CastlePlanner.Create(int3.zero, 713u);
