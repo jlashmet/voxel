@@ -1,0 +1,26 @@
+name: Sync master into async geometry branch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-sync-master.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Merge current master
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin master
+          git merge --no-edit origin/master
+          git push origin HEAD:refactor/async-geometry-pipeline
