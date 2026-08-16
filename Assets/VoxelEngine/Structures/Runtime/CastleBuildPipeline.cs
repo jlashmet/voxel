@@ -19,6 +19,7 @@ namespace VoxelEngine.Structures.Runtime
         private int _keepStage;
         private CastleSiteRealizer.State _site;
         private CastleSitePlan _sitePlan;
+        private CastleWallPlan _wallPlan;
 
         private bool _hasSpatialFortifications;
         private bool _hasSpatialKeep;
@@ -115,11 +116,19 @@ namespace VoxelEngine.Structures.Runtime
                     throw new InvalidOperationException(
                         $"Castle keep turret plan is not runtime-ready: {turretIssue}.");
                 }
+
+                CastleWallPlan walls = topology.Walls;
+                if (!CastleWallPlanValidator.TryValidate(in walls, out CastleWallPlanIssue wallIssue))
+                {
+                    throw new InvalidOperationException(
+                        $"Castle wall plan is not runtime-ready: {wallIssue}.");
+                }
             }
 
             _plan = plan;
             _spatialKeepPlan = plan;
             _sitePlan = default;
+            _wallPlan = default;
             _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _innerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
@@ -396,6 +405,8 @@ namespace VoxelEngine.Structures.Runtime
             _keepWindows = (CastleKeepWindowSpec[])windows.Clone();
 
             CastleTopologyPlan topology = spatialPlan.Topology;
+            _wallPlan = topology.Walls;
+            CastleWallPlanValidator.RequireValid(in _wallPlan);
             _keepAnnexes = topology.KeepAnnexes;
             _keepTurrets = topology.KeepTurrets.Snapshot();
             CastleGatehousePlan gatehouse = topology.Gatehouse;
@@ -426,16 +437,13 @@ namespace VoxelEngine.Structures.Runtime
 
         private void BuildPlannedWalls()
         {
-            int outerGateWidth = math.max(
-                CastleLayout.FrontGateWidth + 12,
-                _plan.WallThickness * 2);
             CastlePerimeterRealizer.Walls(
                 ref _brush,
                 in _plan,
                 _outerWardVertices,
                 _primaryGate.EdgeIndex,
                 _primaryGate.Centre,
-                outerGateWidth);
+                in _wallPlan);
 
             if (_hasPosternGate)
                 CastlePosternRealizer.CarveOpening(ref _brush, in _plan, in _posternGate);
@@ -446,7 +454,8 @@ namespace VoxelEngine.Structures.Runtime
             CastlePerimeterRealizer.Walls(
                 ref _brush,
                 in _plan,
-                _innerWardVertices);
+                _innerWardVertices,
+                in _wallPlan);
             CastleWallDoorRealizer.CarveArchedOpening(
                 ref _brush,
                 in _plan,
