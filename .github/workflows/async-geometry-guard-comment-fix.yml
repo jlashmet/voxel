@@ -1,0 +1,42 @@
+name: Patch async geometry guard-safe teardown comment
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths:
+      - .github/workflows/async-geometry-guard-comment-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 1
+      - name: Remove physical-storage token from renderer comment
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs')
+          text = p.read_text()
+          old = 'before the application disposes its BrickPool is the ownership contract.'
+          new = 'before the application disposes its Storage backing is the ownership contract.'
+          if text.count(old) != 1:
+              raise SystemExit('expected teardown comment not found exactly once')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit comment fix and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "jlashmet"
+          git config user.email "jlashmet@gmail.com"
+          git rm .github/workflows/async-geometry-guard-comment-fix.yml
+          git add Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs
+          git commit -m "docs(rendering): keep teardown comment API-level"
+          git push origin HEAD:refactor/async-geometry-pipeline
