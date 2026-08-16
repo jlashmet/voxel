@@ -49,7 +49,7 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform EditMode \
-            -testFilter "MountingForce.Game.Composition.CharacterEquipment.Tests.ModularCharacterAssemblerTests;MountingForce.Game.Composition.CharacterEquipment.Tests.CharacterEquipmentControllerTests;MountingForce.Game.Composition.CharacterEquipment.Tests.CharacterFactoryAssetImporterTests" \
+            -testFilter "MountingForce.Game.Composition.CharacterEquipment.Tests.ModularCharacterAssemblerTests;MountingForce.Game.Composition.CharacterEquipment.Tests.CharacterEquipmentControllerTests;MountingForce.Game.Composition.CharacterEquipment.Tests.CharacterFactoryAssetImporterTests;MountingForce.Game.Composition.CharacterEquipment.Tests.CharacterFactoryCharacterPrefabCleanupTests" \
             -testResults "$GITHUB_WORKSPACE/Artifacts/CharacterEquipment/results.xml" \
             -logFile "$GITHUB_WORKSPACE/Artifacts/CharacterEquipment/unity.log"
           status=$?
