@@ -88,7 +88,8 @@ namespace VoxelEngine.Structures.Api
             if (spatial.KeepRequiresTerrainResolution)
                 return spatial;
 
-            CastleKeepFloorPlan[] floors = CastleKeepRoomPlanner.Create(in plan);
+            CastleKeepFloorPlan[] floors =
+                CastleKeepInteriorPlanner.Create(in plan).SnapshotFloors();
             return Copy(
                 spatial,
                 spatial.Towers,
@@ -125,7 +126,7 @@ namespace VoxelEngine.Structures.Api
             return Copy(
                 spatial,
                 spatial.Towers,
-                spatial.KeepFloors,
+                floors: spatial.KeepFloors,
                 buildings,
                 spatial.Dungeon,
                 spatial.Cave);
