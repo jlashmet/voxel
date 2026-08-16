@@ -37,6 +37,31 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void InnerTowerRoofChoiceIsMaterializedFromRingGeometry()
+        {
+            int2[] ring =
+            {
+                new int2(-84, -62),
+                new int2(91, -58),
+                new int2(86, 67),
+                new int2(-79, 71),
+            };
+
+            CastleTowerPlacementSpec[] first = CastleInnerWardTowerPlanner.Create(ring);
+            CastleTowerPlacementSpec[] second = CastleInnerWardTowerPlanner.Create(ring);
+
+            Assert.AreEqual(ring.Length, first.Length);
+            Assert.AreEqual(first.Length, second.Length);
+            for (int i = 0; i < first.Length; i++)
+            {
+                Assert.AreEqual(0, first[i].HeightVariation,
+                    $"inner tower {i}: planning should preserve the secondary-ring height profile");
+                Assert.AreEqual(first[i].HasRoof, second[i].HasRoof,
+                    $"inner tower {i}: roof choice must be deterministic plan data");
+            }
+        }
+
+        [Test]
         public void SingleWardDoesNotInventInnerTowers()
         {
             CastlePlan plan = CastlePlanner.Create(int3.zero, 91u);
