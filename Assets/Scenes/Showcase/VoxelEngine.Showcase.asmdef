@@ -6,6 +6,7 @@
     "VoxelEngine.Composition",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Tiering.Api",
     "MountingForce.WorldGen.Voxel",
@@ -14,6 +15,7 @@
     "Unity.Mathematics",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.AmbientLife.Api",
     "VoxelEngine.Collision.Api"
   ],
   "includePlatforms": [],

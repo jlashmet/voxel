@@ -5,9 +5,8 @@ using VoxelEngine.Vegetation.Api;
 namespace VoxelEngine.Rendering.Runtime.Vegetation
 {
     /// <summary>
-    /// Draws lightweight vegetation directly from semantic instances. One shared mesh/material is
-    /// used per growth strategy and instances are submitted in GPU-instanced batches; there is no
-    /// GameObject or prefab per blade, flower, moss patch or vine.
+    /// Draws lightweight vegetation directly from semantic instances. Geometry is shared by growth
+    /// form and submitted in GPU-instanced batches; there is no GameObject or prefab per plant.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class ProceduralVegetationBatchRenderer : MonoBehaviour
@@ -17,7 +16,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         private readonly Dictionary<VegetationKind, List<Matrix4x4>> _batches =
             new Dictionary<VegetationKind, List<Matrix4x4>>();
         private readonly Matrix4x4[] _scratch = new Matrix4x4[MaxInstancesPerDraw];
-        private readonly MaterialPropertyBlock _properties = new MaterialPropertyBlock();
+        private MaterialPropertyBlock _properties;
         private int _instanceCount;
 
         public int InstanceCount => _instanceCount;
@@ -56,6 +55,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         public void DrawNow()
         {
             if (_instanceCount == 0) return;
+            if (_properties == null) _properties = new MaterialPropertyBlock();
+
             ProceduralVegetationMaterials.ApplyLighting();
             ProceduralTreeMaterials.ApplyLighting();
 
@@ -63,8 +64,9 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             {
                 if (pair.Value.Count == 0) continue;
 
+                VegetationProfile profile = VegetationCatalogue.Get(pair.Key);
                 VegetationRenderStyle style = ProceduralVegetationMaterials.StyleFor(pair.Key);
-                Mesh mesh = ProceduralVegetationMeshLibrary.MeshFor(style.ShaderClass);
+                Mesh mesh = ProceduralVegetationMeshLibrary.MeshFor(style.ShaderClass, profile.GrowthForm);
                 Material material = ProceduralVegetationMaterials.MaterialFor(pair.Key);
                 if (mesh == null || material == null) continue;
 
@@ -121,14 +123,10 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
                 case VegetationShaderClass.Woody:
                     Vector3 seedDirection = new Vector3(
-                        Mathf.Cos(yaw * Mathf.Deg2Rad),
-                        0f,
-                        Mathf.Sin(yaw * Mathf.Deg2Rad));
+                        Mathf.Cos(yaw * Mathf.Deg2Rad), 0f, Mathf.Sin(yaw * Mathf.Deg2Rad));
                     Vector3 tangent = Vector3.ProjectOnPlane(seedDirection, normal);
-                    if (tangent.sqrMagnitude < 0.001f)
-                        tangent = Vector3.Cross(normal, Vector3.right);
-                    if (tangent.sqrMagnitude < 0.001f)
-                        tangent = Vector3.forward;
+                    if (tangent.sqrMagnitude < 0.001f) tangent = Vector3.Cross(normal, Vector3.right);
+                    if (tangent.sqrMagnitude < 0.001f) tangent = Vector3.forward;
                     tangent.Normalize();
                     rotation = Quaternion.FromToRotation(Vector3.up, tangent);
                     localScale = new Vector3(0.22f * scale, 1.35f * scale, 0.22f * scale);
@@ -147,33 +145,20 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         }
 
         private static void GetFoliageScale(
-            VegetationGrowthForm growthForm,
-            float scale,
-            out float width,
-            out float height)
+            VegetationGrowthForm growthForm, float scale, out float width, out float height)
         {
             switch (growthForm)
             {
                 case VegetationGrowthForm.Frond:
-                    width = 0.78f * scale;
-                    height = 1.05f * scale;
-                    return;
+                    width = 0.78f * scale; height = 1.05f * scale; return;
                 case VegetationGrowthForm.Shrub:
-                    width = 1.35f * scale;
-                    height = 1.05f * scale;
-                    return;
+                    width = 1.18f * scale; height = 1.02f * scale; return;
                 case VegetationGrowthForm.Fungus:
-                    width = 0.46f * scale;
-                    height = 0.55f * scale;
-                    return;
+                    width = 0.62f * scale; height = 0.62f * scale; return;
                 case VegetationGrowthForm.Aquatic:
-                    width = 0.70f * scale;
-                    height = 0.60f * scale;
-                    return;
+                    width = 0.76f * scale; height = 0.74f * scale; return;
                 default:
-                    width = 0.58f * scale;
-                    height = 0.78f * scale;
-                    return;
+                    width = 0.62f * scale; height = 0.82f * scale; return;
             }
         }
 
@@ -189,70 +174,136 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         }
     }
 
+    /// <summary>
+    /// Shared low-cost source meshes. Multiple cards per growth form give plants readable internal
+    /// silhouette detail without sacrificing species batching or introducing authored prefabs.
+    /// </summary>
     internal static class ProceduralVegetationMeshLibrary
     {
-        private static Mesh s_CrossCard;
-        private static Mesh s_SurfaceQuad;
-        private static Mesh s_VineStrip;
-        private static Mesh s_WoodyCylinder;
+        private const int GrowthFormCount = 10;
+        private static readonly Mesh[] s_Foliage = new Mesh[GrowthFormCount];
+        private static Mesh s_Surface;
+        private static Mesh s_Vine;
+        private static Mesh s_Woody;
 
-        public static Mesh MeshFor(VegetationShaderClass shaderClass)
+        public static Mesh MeshFor(VegetationShaderClass shaderClass, VegetationGrowthForm growthForm)
         {
             switch (shaderClass)
             {
                 case VegetationShaderClass.Surface:
-                    return s_SurfaceQuad != null ? s_SurfaceQuad : (s_SurfaceQuad = BuildQuad("Vegetation Surface Quad", false));
+                    return s_Surface != null ? s_Surface : (s_Surface = BuildSurfacePatch());
                 case VegetationShaderClass.Vine:
-                    return s_VineStrip != null ? s_VineStrip : (s_VineStrip = BuildQuad("Vegetation Vine Strip", true));
+                    return s_Vine != null ? s_Vine : (s_Vine = BuildVineCluster());
                 case VegetationShaderClass.Woody:
-                    return s_WoodyCylinder != null ? s_WoodyCylinder : (s_WoodyCylinder = BuildCylinder());
+                    return s_Woody != null ? s_Woody : (s_Woody = BuildCylinder());
                 default:
-                    return s_CrossCard != null ? s_CrossCard : (s_CrossCard = BuildCrossCard());
+                    int index = Mathf.Clamp((int)growthForm, 0, GrowthFormCount - 1);
+                    if (s_Foliage[index] == null) s_Foliage[index] = BuildFoliageCluster(growthForm);
+                    return s_Foliage[index];
             }
         }
 
-        private static Mesh BuildCrossCard()
+        private static Mesh BuildFoliageCluster(VegetationGrowthForm form)
         {
-            Mesh mesh = NewMesh("Vegetation Cross Card");
-            mesh.vertices = new[]
+            var vertices = new List<Vector3>(64);
+            var normals = new List<Vector3>(64);
+            var uv = new List<Vector2>(64);
+            var triangles = new List<int>(96);
+
+            int cards;
+            float width;
+            float height;
+            float radius;
+            switch (form)
             {
-                new Vector3(-0.5f, 0f, 0f), new Vector3(0.5f, 0f, 0f),
-                new Vector3(0.5f, 1f, 0f), new Vector3(-0.5f, 1f, 0f),
-                new Vector3(0f, 0f, -0.5f), new Vector3(0f, 0f, 0.5f),
-                new Vector3(0f, 1f, 0.5f), new Vector3(0f, 1f, -0.5f),
-            };
-            mesh.normals = new[]
+                case VegetationGrowthForm.Shrub:
+                    cards = 8; width = 0.72f; height = 0.88f; radius = 0.22f; break;
+                case VegetationGrowthForm.Frond:
+                    cards = 6; width = 0.50f; height = 1.00f; radius = 0.13f; break;
+                case VegetationGrowthForm.Fungus:
+                    cards = 5; width = 0.46f; height = 0.66f; radius = 0.20f; break;
+                case VegetationGrowthForm.Aquatic:
+                    cards = 6; width = 0.28f; height = 0.90f; radius = 0.20f; break;
+                default:
+                    cards = 7; width = 0.30f; height = 1.00f; radius = 0.18f; break;
+            }
+
+            for (int i = 0; i < cards; i++)
             {
-                Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward,
-                Vector3.right, Vector3.right, Vector3.right, Vector3.right,
-            };
-            mesh.uv = new[]
-            {
-                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
-                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
-            };
-            mesh.colors = WhiteColors(8);
-            mesh.triangles = new[] { 0,1,2, 0,2,3, 4,5,6, 4,6,7 };
-            mesh.RecalculateBounds();
-            return mesh;
+                float angle = i * 137.50776f;
+                float radians = angle * Mathf.Deg2Rad;
+                float r = radius * Mathf.Sqrt((i + 0.45f) / cards);
+                Vector3 centre = new Vector3(Mathf.Cos(radians) * r, 0f, Mathf.Sin(radians) * r);
+                float h = height * Mathf.Lerp(0.76f, 1.08f, ((i * 37) % 11) / 10f);
+                float w = width * Mathf.Lerp(0.82f, 1.12f, ((i * 53) % 13) / 12f);
+                AddVerticalCard(vertices, normals, uv, triangles, centre, w, h, angle);
+            }
+
+            return BuildMesh("Vegetation " + form + " Cluster", vertices, normals, uv, triangles);
         }
 
-        private static Mesh BuildQuad(string name, bool anchored)
+        private static Mesh BuildSurfacePatch()
         {
-            Mesh mesh = NewMesh(name);
-            float bottom = anchored ? 0f : -0.5f;
-            float top = anchored ? 1f : 0.5f;
-            mesh.vertices = new[]
-            {
-                new Vector3(-0.5f, bottom, 0f), new Vector3(0.5f, bottom, 0f),
-                new Vector3(0.5f, top, 0f), new Vector3(-0.5f, top, 0f),
-            };
-            mesh.normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward };
-            mesh.uv = new[] { new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1) };
-            mesh.colors = WhiteColors(4);
-            mesh.triangles = new[] { 0,1,2, 0,2,3 };
-            mesh.RecalculateBounds();
-            return mesh;
+            var vertices = new List<Vector3>(16);
+            var normals = new List<Vector3>(16);
+            var uv = new List<Vector2>(16);
+            var triangles = new List<int>(24);
+            AddPlanarCard(vertices, normals, uv, triangles, new Vector2(0f, 0f), 1.00f, 0f, 0f);
+            AddPlanarCard(vertices, normals, uv, triangles, new Vector2(0.12f, -0.08f), 0.74f, 31f, 0.008f);
+            AddPlanarCard(vertices, normals, uv, triangles, new Vector2(-0.10f, 0.11f), 0.58f, -27f, 0.016f);
+            return BuildMesh("Vegetation Layered Surface Patch", vertices, normals, uv, triangles);
+        }
+
+        private static Mesh BuildVineCluster()
+        {
+            var vertices = new List<Vector3>(24);
+            var normals = new List<Vector3>(24);
+            var uv = new List<Vector2>(24);
+            var triangles = new List<int>(36);
+            AddVerticalCard(vertices, normals, uv, triangles, new Vector3(0f, 0f, 0f), 1.00f, 1.00f, 0f);
+            AddVerticalCard(vertices, normals, uv, triangles, new Vector3(-0.22f, 0.08f, 0.01f), 0.62f, 0.82f, -8f);
+            AddVerticalCard(vertices, normals, uv, triangles, new Vector3(0.23f, 0.18f, -0.01f), 0.56f, 0.70f, 10f);
+            return BuildMesh("Vegetation Branched Vine", vertices, normals, uv, triangles);
+        }
+
+        private static void AddVerticalCard(
+            List<Vector3> vertices, List<Vector3> normals, List<Vector2> uv, List<int> triangles,
+            Vector3 centre, float width, float height, float yawDegrees)
+        {
+            int start = vertices.Count;
+            Quaternion rotation = Quaternion.Euler(0f, yawDegrees, 0f);
+            Vector3 right = rotation * Vector3.right;
+            Vector3 normal = rotation * Vector3.forward;
+            Vector3 half = right * (width * 0.5f);
+            vertices.Add(centre - half);
+            vertices.Add(centre + half);
+            vertices.Add(centre + half + Vector3.up * height);
+            vertices.Add(centre - half + Vector3.up * height);
+            for (int i = 0; i < 4; i++) normals.Add(normal);
+            uv.Add(new Vector2(0, 0)); uv.Add(new Vector2(1, 0));
+            uv.Add(new Vector2(1, 1)); uv.Add(new Vector2(0, 1));
+            triangles.Add(start); triangles.Add(start + 1); triangles.Add(start + 2);
+            triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 3);
+        }
+
+        private static void AddPlanarCard(
+            List<Vector3> vertices, List<Vector3> normals, List<Vector2> uv, List<int> triangles,
+            Vector2 centre, float size, float angleDegrees, float depth)
+        {
+            int start = vertices.Count;
+            float a = angleDegrees * Mathf.Deg2Rad;
+            Vector2 right2 = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (size * 0.5f);
+            Vector2 up2 = new Vector2(-right2.y, right2.x);
+            Vector3 c = new Vector3(centre.x, centre.y, depth);
+            vertices.Add(c + new Vector3(-right2.x - up2.x, -right2.y - up2.y, 0f));
+            vertices.Add(c + new Vector3( right2.x - up2.x,  right2.y - up2.y, 0f));
+            vertices.Add(c + new Vector3( right2.x + up2.x,  right2.y + up2.y, 0f));
+            vertices.Add(c + new Vector3(-right2.x + up2.x, -right2.y + up2.y, 0f));
+            for (int i = 0; i < 4; i++) normals.Add(Vector3.forward);
+            uv.Add(new Vector2(0, 0)); uv.Add(new Vector2(1, 0));
+            uv.Add(new Vector2(1, 1)); uv.Add(new Vector2(0, 1));
+            triangles.Add(start); triangles.Add(start + 1); triangles.Add(start + 2);
+            triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 3);
         }
 
         private static Mesh BuildCylinder()
@@ -264,7 +315,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             Vector2[] uv = new Vector2[sides * 2];
             Color[] colors = new Color[sides * 2];
             int[] triangles = new int[sides * 6];
-
             for (int i = 0; i < sides; i++)
             {
                 float a = i * Mathf.PI * 2f / sides;
@@ -275,42 +325,37 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 normals[i * 2 + 1] = radial;
                 uv[i * 2] = new Vector2(i / (float)sides, 0f);
                 uv[i * 2 + 1] = new Vector2(i / (float)sides, 1f);
-                colors[i * 2] = new Color(0.36f, 0.22f, 0.11f, 1f);
-                colors[i * 2 + 1] = new Color(0.31f, 0.18f, 0.09f, 1f);
-
+                colors[i * 2] = Color.white;
+                colors[i * 2 + 1] = Color.white;
                 int next = (i + 1) % sides;
                 int t = i * 6;
-                triangles[t] = i * 2;
-                triangles[t + 1] = next * 2;
-                triangles[t + 2] = next * 2 + 1;
-                triangles[t + 3] = i * 2;
-                triangles[t + 4] = next * 2 + 1;
-                triangles[t + 5] = i * 2 + 1;
+                triangles[t] = i * 2; triangles[t + 1] = next * 2; triangles[t + 2] = next * 2 + 1;
+                triangles[t + 3] = i * 2; triangles[t + 4] = next * 2 + 1; triangles[t + 5] = i * 2 + 1;
             }
+            mesh.vertices = vertices; mesh.normals = normals; mesh.uv = uv; mesh.colors = colors;
+            mesh.triangles = triangles; mesh.RecalculateBounds();
+            return mesh;
+        }
 
-            mesh.vertices = vertices;
-            mesh.normals = normals;
-            mesh.uv = uv;
+        private static Mesh BuildMesh(
+            string name, List<Vector3> vertices, List<Vector3> normals,
+            List<Vector2> uv, List<int> triangles)
+        {
+            Mesh mesh = NewMesh(name);
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetUVs(0, uv);
+            Color[] colors = new Color[vertices.Count];
+            for (int i = 0; i < colors.Length; i++) colors[i] = Color.white;
             mesh.colors = colors;
-            mesh.triangles = triangles;
+            mesh.SetTriangles(triangles, 0);
             mesh.RecalculateBounds();
             return mesh;
         }
 
-        private static Color[] WhiteColors(int count)
-        {
-            Color[] colors = new Color[count];
-            for (int i = 0; i < count; i++) colors[i] = Color.white;
-            return colors;
-        }
-
         private static Mesh NewMesh(string name)
         {
-            return new Mesh
-            {
-                name = name,
-                hideFlags = HideFlags.DontSave,
-            };
+            return new Mesh { name = name, hideFlags = HideFlags.DontSave };
         }
     }
 }
