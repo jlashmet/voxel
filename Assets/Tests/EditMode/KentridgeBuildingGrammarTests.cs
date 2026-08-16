@@ -4,6 +4,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Structures.Runtime;
 
 using VoxelEngine.Structures.Api;
@@ -107,6 +108,94 @@ namespace VoxelEngine.Tests.EditMode
             {
                 catalogue.Dispose();
             }
+        }
+
+        [Test]
+        public void PubDoorwayRemainsCarvedAfterFacadeFraming()
+        {
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            FeatureCatalogue catalogue = KentridgeGrammarVoxelCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            var primitives = new NativeList<Primitive>(Allocator.Temp);
+            var anchors = new NativeList<ResolvedAnchor>(Allocator.Temp);
+
+            try
+            {
+                int roleId = (int)KentridgeRole.Pub;
+                FeatureDefinition definition = catalogue.Definitions[roleId];
+                ExplicitPlacement placement = catalogue.ExplicitPlacements[roleId];
+                ParameterSet parameters = default;
+                ulong instanceSeed = FeatureGeneration.InstanceSeed(
+                    Seed, roleId, placement.Position);
+
+                EvaluationResult evaluation = ShapeProgram.Evaluate(
+                    in catalogue,
+                    roleId,
+                    in parameters,
+                    placement.Position,
+                    placement.Orientation,
+                    Seed,
+                    instanceSeed,
+                    primitives,
+                    anchors);
+                Assert.AreEqual(EvaluationResult.Ok, evaluation);
+
+                var facts = new KentridgeVoxelSiteRealizationFacts(plan, 1);
+                Assert.IsTrue(facts.TryGetPublicEntrance(roleId, out RealizedWorldPoint entrance));
+
+                // The old ordering carved this aperture and then AddTimberFrame filled horizontal
+                // rails back across it. Probe from ankle through head height on the exact gameplay
+                // entrance centreline: the final occupancy-changing primitive must remain Carve.
+                int[] heightOffsets = { 0, 1, 4, 8, 12, 16, 18, 21 };
+                for (int i = 0; i < heightOffsets.Length; i++)
+                {
+                    var point = new int3(
+                        entrance.Position.X,
+                        entrance.Position.Y + heightOffsets[i],
+                        entrance.Position.Z);
+                    AssertFinalBoxMode(
+                        primitives,
+                        point,
+                        PrimitiveMode.Carve,
+                        "Pub public doorway was refilled at height offset " +
+                        heightOffsets[i] + "dm.");
+                }
+            }
+            finally
+            {
+                if (anchors.IsCreated) anchors.Dispose();
+                if (primitives.IsCreated) primitives.Dispose();
+                catalogue.Dispose();
+            }
+        }
+
+        private static void AssertFinalBoxMode(
+            NativeList<Primitive> primitives,
+            int3 point,
+            PrimitiveMode expected,
+            string message)
+        {
+            bool found = false;
+            PrimitiveMode finalMode = default;
+            for (int i = 0; i < primitives.Length; i++)
+            {
+                Primitive primitive = primitives[i];
+                if (primitive.Shape != PrimitiveShape.Box) continue;
+                if (point.x < primitive.A.x || point.x > primitive.B.x
+                    || point.y < primitive.A.y || point.y > primitive.B.y
+                    || point.z < primitive.A.z || point.z > primitive.B.z)
+                    continue;
+                if (primitive.Mode != PrimitiveMode.Fill
+                    && primitive.Mode != PrimitiveMode.FillIfEmpty
+                    && primitive.Mode != PrimitiveMode.Carve)
+                    continue;
+
+                found = true;
+                finalMode = primitive.Mode;
+            }
+
+            Assert.IsTrue(found, "No occupancy primitive covered doorway probe " + point + ".");
+            Assert.AreEqual(expected, finalMode, message);
         }
 
         private static KentridgeBuildingForm Resolve(SettlementPlan plan, KentridgeRole role)
