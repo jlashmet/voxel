@@ -109,7 +109,7 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
-            if (!CastleKeepWindowPlanner.TryValidate(
+            if (!CastleKeepWindowPlanValidator.TryValidate(
                     in plan, windows, circulation.EntranceFace, out _))
             {
                 issue = CastleSpatialBuildReadinessIssue.InvalidKeepWindowPlan;
