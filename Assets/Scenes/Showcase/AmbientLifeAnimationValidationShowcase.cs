@@ -131,14 +131,10 @@ namespace VoxelEngine.Showcase
                 GameObject labelObject = new GameObject(cluster.Kind + " Label");
                 labelObject.transform.SetParent(_labelsRoot, false);
                 // Keep each caption in the inter-row gap but biased toward its own species row so
-                // tall agents from the following row cannot occlude the text in the review plate.
-                // The top row gets extra lift because the tall GlowMoth flock can otherwise cover
-                // SeedLight's movement classification in the labelled human-review capture.
-                int row = i / 4;
-                float labelHeight = row == 0 ? 0.85f : 0.10f;
+                // tall agents from the following visible row cannot occlude the review text.
                 labelObject.transform.position = new Vector3(
                     cluster.PositionMetres.x,
-                    labelHeight,
+                    0.10f,
                     cluster.PositionMetres.z - 1.65f);
 
                 TextMesh label = labelObject.AddComponent<TextMesh>();
