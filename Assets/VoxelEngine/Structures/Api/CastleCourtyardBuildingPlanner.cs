@@ -166,18 +166,16 @@ namespace VoxelEngine.Structures.Api
         {
             int2[] outer = spatial.OuterWardVertices;
             int2[] inner = spatial.InnerWardVertices;
+            int2[] footprint = Footprint(in candidate);
 
-            // Corners, edge midpoints, and centre all remain in the outer ward. Sampling the edge
-            // midpoints also rejects most concave-wall cuts that corner-only containment misses.
-            int2[] samples = FootprintSamples(in candidate);
-            for (int i = 0; i < samples.Length; i++)
-            {
-                if (!CastlePolygonGeometry.ContainsPoint(samples[i], outer))
-                    return false;
-                if (inner != null && inner.Length >= 3 &&
-                    CastlePolygonGeometry.ContainsPoint(samples[i], inner))
-                    return false;
-            }
+            // Exact edge tests are required here. A concave ward indentation can cross a building
+            // between all four corners, four edge midpoints, and the centre, so sampled containment
+            // can approve a footprint that actually straddles the curtain wall.
+            if (!CastlePolygonGeometry.ContainsPolygon(outer, footprint))
+                return false;
+            if (inner != null && inner.Length >= 3 &&
+                CastlePolygonGeometry.PolygonsOverlapOrTouch(footprint, inner))
+                return false;
 
             // Inner towers occupy the corners of the secondary ring. A building that stays just
             // outside the inner polygon can still intersect a tower's circular footprint, so keep
@@ -255,20 +253,14 @@ namespace VoxelEngine.Structures.Api
             return distance * 65536.0 + (tie & 0xFFFFu);
         }
 
-        private static int2[] FootprintSamples(in CastleCourtyardBuildingSpec spec)
-        {
-            int2 c0 = spec.FootprintCorner(0);
-            int2 c1 = spec.FootprintCorner(1);
-            int2 c2 = spec.FootprintCorner(2);
-            int2 c3 = spec.FootprintCorner(3);
-            return new[]
+        private static int2[] Footprint(in CastleCourtyardBuildingSpec spec) =>
+            new[]
             {
-                spec.Centre,
-                c0, c1, c2, c3,
-                Midpoint(c0, c1), Midpoint(c1, c2),
-                Midpoint(c2, c3), Midpoint(c3, c0),
+                spec.FootprintCorner(0),
+                spec.FootprintCorner(1),
+                spec.FootprintCorner(2),
+                spec.FootprintCorner(3),
             };
-        }
 
         private static void Bounds(
             in CastleCourtyardBuildingSpec spec,
@@ -318,9 +310,6 @@ namespace VoxelEngine.Structures.Api
                 centroid += new float2(perimeter[i].x, perimeter[i].y);
             return centroid / perimeter.Length;
         }
-
-        private static int2 Midpoint(int2 a, int2 b) =>
-            new int2((a.x + b.x) / 2, (a.y + b.y) / 2);
 
         private static int2 Round(float2 point) =>
             new int2((int)math.round(point.x), (int)math.round(point.y));
