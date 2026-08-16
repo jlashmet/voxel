@@ -79,7 +79,15 @@ jobs:
             if [[ $status -ne 0 ]]; then
               return $status
             fi
-            test -s "$dir/results.xml"
+            test -s "$dir/results.xml" || return 2
+
+            local total
+            total="$(grep -o 'total="[0-9][0-9]*"' "$dir/results.xml" | head -1 | tr -dc '0-9')"
+            if [[ -z "$total" || "$total" -eq 0 ]]; then
+              echo "ERROR: $suite completed without executing any tests. Refusing a false-green CI result." >&2
+              return 2
+            fi
+            echo "$suite executed $total test(s)."
           }
 
           failed=0
