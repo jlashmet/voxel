@@ -4,6 +4,7 @@
   "references": [
     "VoxelEngine.Core",
     "VoxelEngine.Vegetation",
+    "VoxelEngine.AmbientLife",
     "VoxelEngine.Collision",
     "VoxelEngine.Net",
     "VoxelEngine.Rendering",
