@@ -70,17 +70,26 @@ jobs:
               with urlopen(request, timeout=60) as response:
                   return json.load(response)
 
-          def latest_successful_artifact(workflow: str, artifact_name: str, destination: Path):
-              params = urlencode({
+          def latest_artifact(
+              workflow: str,
+              artifact_name: str,
+              destination: Path,
+              *,
+              require_success: bool,
+          ):
+              params_data = {
                   'branch': 'feature/character-weapon-asset-pipeline',
-                  'status': 'success',
                   'per_page': 20,
-              })
+              }
+              if require_success:
+                  params_data['status'] = 'success'
+              params = urlencode(params_data)
               runs = get_json(
                   f'https://api.github.com/repos/{repo}/actions/workflows/{workflow}/runs?{params}'
               ).get('workflow_runs', [])
               if not runs:
-                  raise RuntimeError(f'no successful workflow run found for {workflow}')
+                  qualifier = 'successful ' if require_success else ''
+                  raise RuntimeError(f'no {qualifier}workflow run found for {workflow}')
 
               for run in runs:
                   artifacts = get_json(
@@ -106,23 +115,32 @@ jobs:
                       'workflow': workflow,
                       'workflow_run_id': int(run['id']),
                       'workflow_head_sha': run['head_sha'],
+                      'workflow_conclusion': run.get('conclusion'),
                       'artifact_name': artifact_name,
                       'artifact_id': int(artifact['id']),
                   }
 
+              qualifier = 'successful ' if require_success else ''
               raise RuntimeError(
-                  f'no unexpired {artifact_name!r} artifact found in successful runs of {workflow}'
+                  f'no unexpired {artifact_name!r} artifact found in {qualifier}runs of {workflow}'
               )
 
-          base = latest_successful_artifact(
+          # The Madeline artifact is uploaded only after build.sh has completed its
+          # rig, animation, render, and staging verification. A later docs-publish
+          # push can fail independently if the feature branch advanced while the
+          # expensive reconstruction was running, so artifact existence is the
+          # stronger signal here than whole-workflow conclusion.
+          base = latest_artifact(
               'madeline-base-body-build.yml',
               'madeline-base-body',
               Path(os.environ['BASE_SOURCE']),
+              require_success=False,
           )
-          robe = latest_successful_artifact(
+          robe = latest_artifact(
               'sunlit-cleric-robe-multiview-build.yml',
               'sunlit-cleric-modular-robe',
               Path(os.environ['ROBE_SOURCE']),
+              require_success=True,
           )
 
           base_matches = list(Path(os.environ['BASE_SOURCE']).rglob('madeline_body_01.fbx'))
