@@ -108,18 +108,22 @@ namespace VoxelEngine.Showcase
             {
                 AmbientLifeCluster cluster = _clusters[i];
                 AmbientLifeProfile profile = AmbientLifeCatalogue.Get(cluster.Kind);
+                bool flying = (profile.Traits & AmbientLifeTraits.Flying) != 0;
+
                 GameObject labelObject = new GameObject(cluster.Kind + " Label");
                 labelObject.transform.SetParent(_labelsRoot, false);
+                // Flying populations are presented above the ground plane. Keep their labels with
+                // that visual cell instead of dropping them into the row in front of them.
                 labelObject.transform.position = new Vector3(
                     cluster.PositionMetres.x,
-                    0.12f,
+                    flying ? 0.95f : 0.12f,
                     cluster.PositionMetres.z - 1.55f);
 
                 TextMesh label = labelObject.AddComponent<TextMesh>();
                 label.text = cluster.Kind + "\n" + profile.Movement;
                 label.anchor = TextAnchor.UpperCenter;
                 label.alignment = TextAlignment.Center;
-                label.characterSize = 0.075f;
+                label.characterSize = 0.052f;
                 label.fontSize = 48;
                 label.color = new Color(0.96f, 0.98f, 1f, 1f);
             }
