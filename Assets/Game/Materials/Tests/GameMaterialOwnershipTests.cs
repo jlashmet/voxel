@@ -3,7 +3,6 @@ using Game.Materials.Runtime;
 using NUnit.Framework;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Api;
 
 namespace Game.Materials.Tests
@@ -54,33 +53,27 @@ namespace Game.Materials.Tests
         }
 
         [Test]
-        public void SimulationProjection_RegistersEveryPhysicalMaterialWithoutChangingLegacyBehavior()
+        public void SimulationProjection_CoversEveryPhysicalMaterialWithoutChangingStableOrdering()
         {
             MaterialDefinition[] definitions = GameMaterialSimulationDefinitions.Create();
             Assert.That(definitions.Length, Is.EqualTo(GameMaterialSimulationDefinitions.Count));
             Assert.That(definitions.Length, Is.EqualTo(GameMaterialCatalogue.Count - 1));
 
-            MaterialPalette palette = default;
             for (int i = 0; i < definitions.Length; i++)
             {
                 MaterialDefinition definition = definitions[i];
-                Assert.That(definition.MaterialId, Is.EqualTo(i + 1),
+                byte expectedId = (byte)(i + 1);
+                Assert.That(definition.MaterialId, Is.EqualTo(expectedId),
                     "Physical definitions must remain ordered by their stable material id.");
-                palette.Register(in definition);
-            }
 
-            Assert.That(palette.Count, Is.EqualTo(GameMaterialCatalogue.Count));
-            Assert.That(palette.IsRegistered(GameMaterialIds.Empty), Is.False,
-                "Empty is semantic absence, not a physical material registration.");
-
-            for (byte materialId = 1; materialId < GameMaterialCatalogue.Count; materialId++)
-            {
-                MaterialDefinition definition = definitions[materialId - 1];
-                Assert.That(palette.IsRegistered(materialId), Is.True,
-                    $"Material {materialId} ({GameMaterialCatalogue.NameOf(materialId)}) was not registered.");
-                Assert.That(palette.GetHardness(materialId), Is.EqualTo(definition.Hardness));
-                Assert.That(palette.GetDestructionClass(materialId), Is.EqualTo(definition.DestructionClass));
-                Assert.That(palette.IsFlammable(materialId), Is.EqualTo(definition.Flammable));
+                ref readonly GameMaterialRuntimeDefinition authored =
+                    ref GameMaterialRuntimeCatalogue.Get(expectedId);
+                Assert.That(authored.HasSimulation, Is.True,
+                    $"Material {GameMaterialCatalogue.NameOf(expectedId)} has no simulation projection.");
+                Assert.That(definition.Hardness, Is.EqualTo(authored.Simulation.Hardness));
+                Assert.That(definition.DestructionClass,
+                    Is.EqualTo(authored.Simulation.DestructionClass));
+                Assert.That(definition.Flammable, Is.EqualTo(authored.Simulation.Flammable));
             }
         }
 
