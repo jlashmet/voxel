@@ -21,7 +21,7 @@ namespace VoxelEngine.Structures.Api
             if (!topology.HasGatehousePlan)
             {
                 topology.Gatehouse = CastleGatehousePlanner.Create(
-                    in dimensions, in primaryGate);
+                    in dimensions, in primaryGate, dimensions.Seed);
                 topology.HasGatehousePlan = true;
             }
             else
