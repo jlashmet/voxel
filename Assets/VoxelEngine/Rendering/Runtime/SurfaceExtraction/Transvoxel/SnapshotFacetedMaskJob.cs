@@ -8,7 +8,9 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 {
     /// <summary>
-    /// Builds all six exact planar face masks from compact block metadata plus COW-pinned immutable Storage payloads.
+    /// Builds all six exact planar face masks from compact block metadata plus COW-pinned
+    /// immutable Storage payloads. Cell coordinates are mapped through SourceStep so every LOD
+    /// samples and emits faceted geometry in the same world-voxel coordinate system.
     /// </summary>
     [BurstCompile]
     internal struct SnapshotFacetedMaskJob : IJobParallelFor
