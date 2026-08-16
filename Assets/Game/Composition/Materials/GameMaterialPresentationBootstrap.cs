@@ -15,6 +15,7 @@ namespace Game.Composition.Materials
         {
             MaterialPresentationComposition.Apply(GameMaterialRenderingDefinitions.Create());
             ShowcaseMaterialComposition.Configure(in GameShowcaseMaterials.Default);
+            StructureMaterialComposition.Configure(in GameStructureMaterials.Default);
         }
     }
 }
