@@ -39,9 +39,10 @@ namespace VoxelEngine.Structures.Api
             int2 keepCentre = PlaceKeep(
                 in dimensions, topology.KeepPlacement, in gate, keepWard,
                 out bool requiresTerrainResolution);
+            int2 wellCentre = default;
             bool hasWell = !requiresTerrainResolution &&
                 CastleCourtyardPlacementGeometry.TryChooseWell(
-                    in dimensions, outer, in gate, keepCentre, out int2 wellCentre);
+                    in dimensions, outer, in gate, keepCentre, out wellCentre);
 
             return new CastleSpatialPlan(
                 in topology,
