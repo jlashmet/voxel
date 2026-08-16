@@ -28,19 +28,16 @@ namespace VoxelEngine.Structures.Runtime
             in CastleGatePlacementSpec gate,
             in CastleWallDoorPlan door)
         {
-            CastleWallDoorPlanValidator.RequireValid(in door);
-
-            CastleApproachFrame frame = CastleApproachFrame.FromGate(in gate);
-            int baseY = plan.Centre.y + plan.PlateauHeight + 1;
-            int wallDepth = math.max(1, plan.WallThickness + door.OpeningDepthExtra);
-            FillArch(
+            CastleWallDoorGeometry geometry = CastleWallDoorGeometryResolver.Resolve(
+                in plan, in gate, in door);
+            FillArchRows(
                 ref brush,
-                in plan,
-                in frame,
-                baseY,
+                in geometry,
                 door.Width,
                 door.Height,
-                wallDepth,
+                0,
+                door.Height,
+                geometry.OpeningDepth,
                 Mat.Empty);
         }
 
@@ -63,19 +60,17 @@ namespace VoxelEngine.Structures.Runtime
             in CastleGatePlacementSpec gate,
             in CastleWallDoorPlan door)
         {
-            CastleWallDoorPlanValidator.RequireValid(in door);
+            CastleWallDoorGeometry geometry = CastleWallDoorGeometryResolver.Resolve(
+                in plan, in gate, in door);
+            int leafWidth = geometry.LeafWidth;
+            int leafHeight = geometry.LeafHeight;
 
-            CastleApproachFrame frame = CastleApproachFrame.FromGate(in gate);
-            int baseY = plan.Centre.y + plan.PlateauHeight + 1;
-            int leafWidth = door.Width - door.LeafWidthReduction;
-            int leafHeight = door.Height - door.LeafHeightReduction;
-
-            FillArch(
+            FillArchRows(
                 ref brush,
-                in plan,
-                in frame,
-                baseY,
+                in geometry,
                 leafWidth,
+                leafHeight,
+                0,
                 leafHeight,
                 door.Depth,
                 Mat.Wood);
@@ -89,9 +84,7 @@ namespace VoxelEngine.Structures.Runtime
                 int bandRows = math.min(door.StrapThickness, leafHeight - bandY);
                 FillArchRows(
                     ref brush,
-                    in plan,
-                    in frame,
-                    baseY,
+                    in geometry,
                     leafWidth,
                     leafHeight,
                     bandY,
@@ -101,32 +94,9 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
-        private static void FillArch(
-            ref VoxelBrush brush,
-            in CastlePlan plan,
-            in CastleApproachFrame frame,
-            int baseY,
-            int width,
-            int height,
-            int depth,
-            byte material) =>
-            FillArchRows(
-                ref brush,
-                in plan,
-                in frame,
-                baseY,
-                width,
-                height,
-                0,
-                height,
-                depth,
-                material);
-
         private static void FillArchRows(
             ref VoxelBrush brush,
-            in CastlePlan plan,
-            in CastleApproachFrame frame,
-            int baseY,
+            in CastleWallDoorGeometry geometry,
             int width,
             int height,
             int firstRow,
@@ -134,46 +104,24 @@ namespace VoxelEngine.Structures.Runtime
             int depth,
             byte material)
         {
-            int half = width / 2;
-            int minFullOffset = -half;
-            int maxFullOffset = width - half - 1;
-            int archBase = height - half;
             int lastRow = math.min(height, firstRow + rowCount);
-
             for (int row = math.max(0, firstRow); row < lastRow; row++)
             {
-                int minOffset = minFullOffset;
-                int maxOffset = maxFullOffset;
-                if (row > archBase)
-                {
-                    int dy = row - archBase;
-                    int radiusSquared = half * half;
-                    while (minOffset <= maxOffset &&
-                           minOffset * minOffset + dy * dy > radiusSquared)
-                        minOffset++;
-                    while (maxOffset >= minOffset &&
-                           maxOffset * maxOffset + dy * dy > radiusSquared)
-                        maxOffset--;
-                    if (minOffset > maxOffset)
-                        continue;
-                }
+                if (!CastleWallDoorGeometry.TryGetArchRowSpan(
+                        width, height, row, out int minOffset, out int maxOffset))
+                    continue;
 
-                int2 localLeft = frame.LocalPoint(minOffset, 0f);
-                int2 localRight = frame.LocalPoint(maxOffset, 0f);
-                int2 left = ToWorld(in plan, localLeft);
-                int2 right = ToWorld(in plan, localRight);
+                int2 left = geometry.WorldPoint(minOffset);
+                int2 right = geometry.WorldPoint(maxOffset);
                 VoxelWallRasterizer.FillSegment(
                     ref brush,
                     left,
                     right,
-                    baseY + row,
+                    geometry.BaseY + row,
                     1,
                     depth,
                     material);
             }
         }
-
-        private static int2 ToWorld(in CastlePlan plan, int2 local) =>
-            new int2(plan.Centre.x + local.x, plan.Centre.z + local.y);
     }
 }
