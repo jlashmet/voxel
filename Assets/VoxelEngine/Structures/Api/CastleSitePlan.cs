@@ -183,6 +183,9 @@ namespace VoxelEngine.Structures.Api
     public enum CastleSitePlanIssue : byte
     {
         None,
+        MissingGrassPatternSeed,
+        MissingCourtyardPatternSeed,
+        InvalidGeometry,
         InvalidEdgeRecipe,
         InvalidCliffRecipe,
         InvalidApproachRecipe,
@@ -193,7 +196,25 @@ namespace VoxelEngine.Structures.Api
     {
         public static bool TryValidate(in CastleSitePlan plan, out CastleSitePlanIssue issue)
         {
+            if (plan.GrassCoveragePercent > 0 && plan.GrassPatternSeed == 0u)
+            {
+                issue = CastleSitePlanIssue.MissingGrassPatternSeed;
+                return false;
+            }
+
+            if (plan.CourtyardStonePercent > 0 && plan.CourtyardPatternSeed == 0u)
+            {
+                issue = CastleSitePlanIssue.MissingCourtyardPatternSeed;
+                return false;
+            }
+
             CastleSiteGeometryPlan geometry = plan.Geometry;
+            if (IsDefaultGeometry(in geometry))
+            {
+                issue = CastleSitePlanIssue.InvalidGeometry;
+                return false;
+            }
+
             if (!PositiveFinite(geometry.EdgeFrequencyA) || geometry.EdgeAmplitudeA < 0f ||
                 !PositiveFinite(geometry.EdgeFrequencyB) || geometry.EdgeAmplitudeB < 0f ||
                 !PositiveFinite(geometry.EdgeFrequencyC) || geometry.EdgeAmplitudeC < 0f ||
@@ -230,6 +251,16 @@ namespace VoxelEngine.Structures.Api
             issue = CastleSitePlanIssue.None;
             return true;
         }
+
+        private static bool IsDefaultGeometry(in CastleSiteGeometryPlan geometry) =>
+            geometry.EdgeFrequencyA == 0f &&
+            geometry.EdgeFrequencyB == 0f &&
+            geometry.EdgeFrequencyC == 0f &&
+            geometry.CliffFalloffExponent == 0f &&
+            geometry.RiverOffset == 0 &&
+            geometry.RiverHalfWidth == 0 &&
+            geometry.WaterHalfWidth == 0 &&
+            geometry.RiverDepth == 0;
 
         private static bool PositiveFinite(float value) => value > 0f && math.isfinite(value);
     }
