@@ -3,6 +3,72 @@ using Unity.Mathematics;
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
+    /// Frozen river/gorge cross-section recipe. These values decide authored terrain shape and
+    /// surface bands, so spatial Runtime consumes them rather than owning hidden castle policy.
+    /// </summary>
+    public readonly struct CastleRiverCrossSectionPlan
+    {
+        public readonly float BankBlendStart;
+        public readonly float BankBlendEnd;
+        public readonly int OutsideTerraceDrop;
+        public readonly int InsideTerraceDrop;
+        public readonly float LooseBankThreshold;
+        public readonly float DeepSoilThreshold;
+        public readonly float GrassThreshold;
+        public readonly int ShallowSoilDepth;
+        public readonly int DeepSoilDepth;
+        public readonly int BedDepth;
+        public readonly int BedRise;
+        public readonly int ExistingSurfaceRejectDepth;
+        public readonly int SurfaceClearance;
+
+        public CastleRiverCrossSectionPlan(
+            float bankBlendStart,
+            float bankBlendEnd,
+            int outsideTerraceDrop,
+            int insideTerraceDrop,
+            float looseBankThreshold,
+            float deepSoilThreshold,
+            float grassThreshold,
+            int shallowSoilDepth,
+            int deepSoilDepth,
+            int bedDepth,
+            int bedRise,
+            int existingSurfaceRejectDepth,
+            int surfaceClearance)
+        {
+            BankBlendStart = bankBlendStart;
+            BankBlendEnd = bankBlendEnd;
+            OutsideTerraceDrop = outsideTerraceDrop;
+            InsideTerraceDrop = insideTerraceDrop;
+            LooseBankThreshold = looseBankThreshold;
+            DeepSoilThreshold = deepSoilThreshold;
+            GrassThreshold = grassThreshold;
+            ShallowSoilDepth = shallowSoilDepth;
+            DeepSoilDepth = deepSoilDepth;
+            BedDepth = bedDepth;
+            BedRise = bedRise;
+            ExistingSurfaceRejectDepth = existingSurfaceRejectDepth;
+            SurfaceClearance = surfaceClearance;
+        }
+
+        public static CastleRiverCrossSectionPlan Historical => new CastleRiverCrossSectionPlan(
+            bankBlendStart: 0.18f,
+            bankBlendEnd: 1f,
+            outsideTerraceDrop: 32,
+            insideTerraceDrop: 1,
+            looseBankThreshold: 0.38f,
+            deepSoilThreshold: 0.46f,
+            grassThreshold: 0.56f,
+            shallowSoilDepth: 2,
+            deepSoilDepth: 5,
+            bedDepth: 10,
+            bedRise: 4,
+            existingSurfaceRejectDepth: 20,
+            surfaceClearance: 8);
+    }
+
+    /// <summary>
     /// Frozen geometry recipe for the authored castle outcrop and primary approach. These are
     /// planning values rather than voxel-mutation details: changing them changes the site's shape,
     /// so spatial Runtime must consume them rather than choose its own castle terrain recipe.
@@ -30,6 +96,7 @@ namespace VoxelEngine.Structures.Api
         public readonly float MeanderAmplitudeA;
         public readonly float MeanderFrequencyB;
         public readonly float MeanderAmplitudeB;
+        public readonly CastleRiverCrossSectionPlan RiverCrossSection;
 
         public CastleSiteGeometryPlan(
             float edgeFrequencyA,
@@ -53,6 +120,55 @@ namespace VoxelEngine.Structures.Api
             float meanderAmplitudeA,
             float meanderFrequencyB,
             float meanderAmplitudeB)
+            : this(
+                edgeFrequencyA,
+                edgeAmplitudeA,
+                edgeFrequencyB,
+                edgeAmplitudeB,
+                edgeFrequencyC,
+                edgeAmplitudeC,
+                cliffFalloffExponent,
+                cliffNoiseAngularFrequency,
+                cliffNoiseProgressFrequency,
+                cliffNoiseAmplitude,
+                cliffGroundInset,
+                grassEdgeInset,
+                approachReachInset,
+                riverOffset,
+                riverHalfWidth,
+                waterHalfWidth,
+                riverDepth,
+                meanderFrequencyA,
+                meanderAmplitudeA,
+                meanderFrequencyB,
+                meanderAmplitudeB,
+                CastleRiverCrossSectionPlan.Historical)
+        {
+        }
+
+        public CastleSiteGeometryPlan(
+            float edgeFrequencyA,
+            float edgeAmplitudeA,
+            float edgeFrequencyB,
+            float edgeAmplitudeB,
+            float edgeFrequencyC,
+            float edgeAmplitudeC,
+            float cliffFalloffExponent,
+            float cliffNoiseAngularFrequency,
+            float cliffNoiseProgressFrequency,
+            float cliffNoiseAmplitude,
+            int cliffGroundInset,
+            int grassEdgeInset,
+            int approachReachInset,
+            int riverOffset,
+            int riverHalfWidth,
+            int waterHalfWidth,
+            int riverDepth,
+            float meanderFrequencyA,
+            float meanderAmplitudeA,
+            float meanderFrequencyB,
+            float meanderAmplitudeB,
+            in CastleRiverCrossSectionPlan riverCrossSection)
         {
             EdgeFrequencyA = edgeFrequencyA;
             EdgeAmplitudeA = edgeAmplitudeA;
@@ -75,31 +191,40 @@ namespace VoxelEngine.Structures.Api
             MeanderAmplitudeA = meanderAmplitudeA;
             MeanderFrequencyB = meanderFrequencyB;
             MeanderAmplitudeB = meanderAmplitudeB;
+            RiverCrossSection = riverCrossSection;
         }
 
         /// <summary>Behavior-preserving recipe extracted from the historical castle site realizer.</summary>
-        public static CastleSiteGeometryPlan Historical => new CastleSiteGeometryPlan(
-            edgeFrequencyA: 3.7f,
-            edgeAmplitudeA: 18f,
-            edgeFrequencyB: 8.3f,
-            edgeAmplitudeB: 9f,
-            edgeFrequencyC: 17.1f,
-            edgeAmplitudeC: 4f,
-            cliffFalloffExponent: 1.7f,
-            cliffNoiseAngularFrequency: 11f,
-            cliffNoiseProgressFrequency: 6f,
-            cliffNoiseAmplitude: 0.10f,
-            cliffGroundInset: 14,
-            grassEdgeInset: 12,
-            approachReachInset: 8,
-            riverOffset: 92,
-            riverHalfWidth: 90,
-            waterHalfWidth: 42,
-            riverDepth: CastleLayout.LowerRiverDepth,
-            meanderFrequencyA: 0.028f,
-            meanderAmplitudeA: 8f,
-            meanderFrequencyB: 0.071f,
-            meanderAmplitudeB: 3f);
+        public static CastleSiteGeometryPlan Historical
+        {
+            get
+            {
+                CastleRiverCrossSectionPlan crossSection = CastleRiverCrossSectionPlan.Historical;
+                return new CastleSiteGeometryPlan(
+                    edgeFrequencyA: 3.7f,
+                    edgeAmplitudeA: 18f,
+                    edgeFrequencyB: 8.3f,
+                    edgeAmplitudeB: 9f,
+                    edgeFrequencyC: 17.1f,
+                    edgeAmplitudeC: 4f,
+                    cliffFalloffExponent: 1.7f,
+                    cliffNoiseAngularFrequency: 11f,
+                    cliffNoiseProgressFrequency: 6f,
+                    cliffNoiseAmplitude: 0.10f,
+                    cliffGroundInset: 14,
+                    grassEdgeInset: 12,
+                    approachReachInset: 8,
+                    riverOffset: 92,
+                    riverHalfWidth: 90,
+                    waterHalfWidth: 42,
+                    riverDepth: CastleLayout.LowerRiverDepth,
+                    meanderFrequencyA: 0.028f,
+                    meanderAmplitudeA: 8f,
+                    meanderFrequencyB: 0.071f,
+                    meanderAmplitudeB: 3f,
+                    in crossSection);
+            }
+        }
     }
 
     /// <summary>
@@ -147,14 +272,9 @@ namespace VoxelEngine.Structures.Api
             Geometry = geometry;
         }
 
-        /// <summary>
-        /// Stable per-column grass decision. This is a pure lookup from planned seed + local X/Z;
-        /// realization order and frame slicing cannot perturb the result.
-        /// </summary>
         public bool ShouldGrassCap(int localX, int localZ) =>
             PercentHit(GrassPatternSeed, localX, localZ, GrassCoveragePercent);
 
-        /// <summary>Stable planned choice between stone paving (true) and worn dirt (false).</summary>
         public bool ShouldUseCourtyardStone(int localX, int localZ) =>
             PercentHit(CourtyardPatternSeed, localX, localZ, CourtyardStonePercent);
 
@@ -189,9 +309,9 @@ namespace VoxelEngine.Structures.Api
         InvalidEdgeRecipe,
         InvalidCliffRecipe,
         InvalidApproachRecipe,
+        InvalidRiverCrossSection,
     }
 
-    /// <summary>Rejects malformed site recipes before any terrain realization begins.</summary>
     public static class CastleSitePlanValidator
     {
         public static bool TryValidate(in CastleSitePlan plan, out CastleSitePlanIssue issue)
@@ -248,6 +368,28 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            CastleRiverCrossSectionPlan crossSection = geometry.RiverCrossSection;
+            if (!UnitInterval(crossSection.BankBlendStart) ||
+                !UnitInterval(crossSection.BankBlendEnd) ||
+                crossSection.BankBlendStart >= crossSection.BankBlendEnd ||
+                !UnitInterval(crossSection.LooseBankThreshold) ||
+                !UnitInterval(crossSection.DeepSoilThreshold) ||
+                !UnitInterval(crossSection.GrassThreshold) ||
+                crossSection.LooseBankThreshold > crossSection.DeepSoilThreshold ||
+                crossSection.DeepSoilThreshold > crossSection.GrassThreshold ||
+                crossSection.OutsideTerraceDrop < 0 ||
+                crossSection.InsideTerraceDrop < 0 ||
+                crossSection.ShallowSoilDepth <= 0 ||
+                crossSection.DeepSoilDepth < crossSection.ShallowSoilDepth ||
+                crossSection.BedDepth <= 0 ||
+                crossSection.BedRise < 0 ||
+                crossSection.ExistingSurfaceRejectDepth < 0 ||
+                crossSection.SurfaceClearance < 0)
+            {
+                issue = CastleSitePlanIssue.InvalidRiverCrossSection;
+                return false;
+            }
+
             issue = CastleSitePlanIssue.None;
             return true;
         }
@@ -263,9 +405,11 @@ namespace VoxelEngine.Structures.Api
             geometry.RiverDepth == 0;
 
         private static bool PositiveFinite(float value) => value > 0f && math.isfinite(value);
+
+        private static bool UnitInterval(float value) =>
+            value >= 0f && value <= 1f && math.isfinite(value);
     }
 
-    /// <summary>Creates the site choices attached to generated castle topology.</summary>
     public static class CastleSitePlanner
     {
         private const uint GrassPatternElementId = 0x53495445u; // "SITE"
