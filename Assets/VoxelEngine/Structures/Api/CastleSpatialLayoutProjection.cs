@@ -32,6 +32,16 @@ namespace VoxelEngine.Structures.Api
             ChapelBellTowerCentre = chapelBellTowerCentre;
         }
 
+        /// <summary>
+        /// Canonical projection entry point used by Runtime and presentation. Resolve remains as a
+        /// compatibility alias so callers compiled against the earlier planning API do not need to
+        /// duplicate or rediscover the keep/gate coordinate translation.
+        /// </summary>
+        public static CastleSpatialLayoutProjection Create(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial) =>
+            Resolve(in plan, spatial);
+
         public static CastleSpatialLayoutProjection Resolve(
             in CastlePlan plan,
             CastleSpatialPlan spatial)
