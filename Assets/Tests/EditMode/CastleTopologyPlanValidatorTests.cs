@@ -55,6 +55,18 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void RejectsMissingSiteRecipe()
+        {
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(31u);
+            topology.Site = default;
+
+            Assert.IsFalse(
+                CastleTopologyPlanValidator.TryValidate(
+                    in topology, out CastleTopologyPlanIssue issue));
+            Assert.AreEqual(CastleTopologyPlanIssue.InvalidSitePlan, issue);
+        }
+
+        [Test]
         public void RejectsAnnexPayloadWhenPresenceFlagIsFalse()
         {
             CastleTopologyPlan topology = CastleLayoutPlanner.Create(37u);
