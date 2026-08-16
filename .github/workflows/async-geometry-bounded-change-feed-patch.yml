@@ -1,0 +1,48 @@
+name: Bounded geometry change feed one-shot patch
+
+on:
+  push:
+    branches:
+      - refactor/async-geometry-pipeline
+    paths:
+      - .github/workflows/async-geometry-bounded-change-feed-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded patch
+        run: python3 .github/scripts/async_geometry_bounded_change_feed_patch.py
+      - name: Static guards
+        run: |
+          grep -q 'ChangeReadRecordsPerFrame' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'ChangeBrickExpansionsPerFrame' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'CopyResidentRegionCoords' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          ! grep -q 'storage.GetResidentRegionCoords(Allocator.Temp)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'int maxRecords, out bool hasMore' Assets/VoxelEngine/Storage/Api/VoxelChangeFeed.cs
+          grep -q 'CopyResidentRegionCoords' Assets/VoxelEngine/Storage/Api/IRegionReadSource.cs
+          grep -q 'BoundedJournalReadsAdvanceIncrementallyAndPreserveOverflowSignal' Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+          grep -q 'ResidentRegionCopyCanBeConsumedInBoundedSlices' Assets/Tests/EditMode/StorageRenderingReadContractTests.cs
+      - name: Commit source changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Storage/Api/VoxelChangeFeed.cs \
+                  Assets/VoxelEngine/Storage/Api/IRegionReadSource.cs \
+                  Assets/VoxelEngine/Storage/Runtime/VoxelChangeJournal.cs \
+                  Assets/VoxelEngine/Storage/Runtime/RegionTable.cs \
+                  Assets/VoxelEngine/Storage/Runtime/RegionReadSource.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs \
+                  Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs \
+                  Assets/Tests/EditMode/StorageRenderingReadContractTests.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+                  docs/ASYNC_GEOMETRY_PIPELINE.md
+          git commit -m 'Bound destruction change feed and overflow recovery'
+          git push origin HEAD:refactor/async-geometry-pipeline
