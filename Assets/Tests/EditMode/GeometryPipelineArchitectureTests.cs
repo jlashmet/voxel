@@ -257,5 +257,21 @@ namespace VoxelEngine.Tests.EditMode
                 "entry = new Entry(_build.Coordinate, VoxelsPerAxis, SourceStep", cache);
         }
 
+
+        [Test]
+        public void SurfaceSlotGenerationGuardsRecycledResidency()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string slot = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "SurfaceChunkSlot.cs"));
+            StringAssert.Contains("uint Generation", slot);
+            StringAssert.Contains("public uint SlotGeneration", cache);
+            StringAssert.Contains("SlotGeneration = buildSlot.Generation", cache);
+            StringAssert.Contains("private bool BuildOwnsCurrentSlot", cache);
+            StringAssert.Contains("if (!BuildOwnsCurrentSlot())", cache);
+            StringAssert.Contains("RetireSlot(chunk)", cache);
+        }
+
     }
 }

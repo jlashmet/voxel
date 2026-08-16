@@ -55,6 +55,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Scale build workspace counts by LOD: 8 / 8 / 4 / 2 for source steps 1 / 2 / 4 / 8.
 - [x] Disable formatted per-frame surface diagnostic strings by default; structured metrics remain always available.
 - [x] Pool/reuse managed `Entry` objects so churn after residency eviction does not allocate.
+- [x] Introduce pooled persistent `SurfaceChunkSlot` identities with generation tokens; stale builds validate the slot before publication.
 - [ ] Split persistent surface chunk/slot state from reusable geometry build workspaces.
 - [ ] Remove/replace remaining managed collections from steady-state scheduler/cache maintenance where profiling proves they grow after warmup.
 

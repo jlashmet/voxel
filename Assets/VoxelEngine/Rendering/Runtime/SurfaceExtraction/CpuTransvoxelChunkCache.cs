@@ -269,6 +269,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public int Phase;   // 0 snapshot, 1 jobs, 2 faceted job, 3 profiles, 4 seams, 5 result append
             public int Cursor;
             public ulong SourceVersion;
+            public uint SlotGeneration;
             public uint MaterialPaletteVersion;
             public uint SurfaceCatalogueVersion;
             public ulong SurfaceCatalogueHash;
@@ -288,6 +289,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private readonly Dictionary<int3, Entry> _entries = new();
         private readonly Stack<Entry> _entryPool = new();
+        private readonly Dictionary<int3, SurfaceChunkSlot> _slots = new();
+        private readonly Stack<SurfaceChunkSlot> _slotPool = new();
+        private uint _slotGenerationCounter;
         private readonly HashSet<int3> _known = new();
         // Known-chunk liveness is maintained incrementally. A full HashSet scan in every worker
         // turns residency pressure into O(world-residency) frame work, so each known chunk owns
@@ -766,6 +770,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int ShardCount { get; set; } = 1;
         public int ResidentCount => _entries.Count;
         public int KnownCount => _known.Count;
+        public int SlotCount => _slots.Count;
         /// <summary>Number of exact-snapshot brick records reserved by this build workspace.</summary>
         public int SnapshotBrickCapacity => BrickCacheCount;
         public int DirtyCount => _dirty.Count + (_build.Active ? 1 : 0);
@@ -1438,6 +1443,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
 
             if (!hasBest) return false;
+            if (!_slots.TryGetValue(best, out SurfaceChunkSlot buildSlot))
+            {
+                _dirty.Remove(best);
+                return false;
+            }
             _dirty.Remove(best);
             _vertices.Clear();
             _indices.Clear();
@@ -1455,6 +1465,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 Active = true, Coordinate = best, Phase = 0, Cursor = 0,
                 SourceVersion = _desiredVersions.TryGetValue(best, out ulong version) ? version : 0,
+                SlotGeneration = buildSlot.Generation,
                 SurfaceCatalogueVersion = _surfaceCatalogue.Version,
                 SurfaceCatalogueHash = _surfaceCatalogue.CatalogueHash,
                 CoatingCatalogueVersion = _coatingCatalogue.Version,
@@ -2646,6 +2657,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void FinishBuild(int frame)
         {
+            if (!BuildOwnsCurrentSlot())
+            {
+                RejectPendingOrCompletedBuild(stale: true);
+                return;
+            }
             if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
                 && desired > _build.SourceVersion)
             {
@@ -2692,6 +2708,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             uploadedBytes = 0;
             if (!_pendingUpload || byteBudget <= 0) return false;
+            if (!BuildOwnsCurrentSlot())
+            {
+                RejectPendingOrCompletedBuild(stale: true);
+                return false;
+            }
 
             if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
                 && desired > _build.SourceVersion)
@@ -2766,7 +2787,29 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void TrackKnown(int3 chunk)
         {
-            if (_known.Add(chunk)) RequeueResidency(chunk);
+            if (!_known.Add(chunk)) return;
+            SurfaceChunkSlot slot = _slotPool.Count > 0
+                ? _slotPool.Pop() : new SurfaceChunkSlot();
+            uint generation = ++_slotGenerationCounter;
+            if (generation == 0) generation = ++_slotGenerationCounter;
+            slot.Reinitialize(chunk, generation);
+            _slots.Add(chunk, slot);
+            RequeueResidency(chunk);
+        }
+
+        private bool BuildOwnsCurrentSlot()
+        {
+            return _build.Active
+                && _slots.TryGetValue(_build.Coordinate, out SurfaceChunkSlot slot)
+                && slot.Generation == _build.SlotGeneration;
+        }
+
+        private void RetireSlot(int3 chunk)
+        {
+            if (!_slots.TryGetValue(chunk, out SurfaceChunkSlot slot)) return;
+            _slots.Remove(chunk);
+            slot.Retire();
+            _slotPool.Push(slot);
         }
 
         private void RequeueResidency(int3 chunk)
@@ -2987,6 +3030,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 return false;
 
             _known.Remove(chunk);
+            RetireSlot(chunk);
             _queuedResidency.Remove(chunk);
             _dirty.Remove(chunk);
             _queuedDirty.Remove(chunk);
@@ -3131,6 +3175,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _entries.Clear();
             foreach (Entry entry in _entryPool) entry.Dispose();
             _entryPool.Clear();
+            _slots.Clear();
+            _slotPool.Clear();
             _known.Clear();
             _dirty.Clear();
             _desiredVersions.Clear();
