@@ -28,7 +28,6 @@ namespace VoxelEngine.Structures.Runtime
         private CastleTowerPlacementSpec[] _innerTowerSpecs;
         private CastleGatePlacementSpec _primaryGate;
         private CastleApproachFrame _approach;
-        private bool _hasPlannedGatehouse;
         private CastleGatehousePlan _gatehousePlan;
         private bool _hasPosternGate;
         private CastleGatePlacementSpec _posternGate;
@@ -134,7 +133,6 @@ namespace VoxelEngine.Structures.Runtime
             _spatialCavePlan = null;
             _spatialCaveDecorationPlan = null;
             _spatialLandscapePlan = null;
-            _hasPlannedGatehouse = false;
             _gatehousePlan = default;
 
             if (spatialPlan != null)
@@ -202,22 +200,11 @@ namespace VoxelEngine.Structures.Runtime
                 case 4:
                     if (_hasSpatialFortifications)
                     {
-                        if (_hasPlannedGatehouse)
-                        {
-                            CastlePlannedGatehouseRealizer.Build(
-                                ref _brush,
-                                in _plan,
-                                in _primaryGate,
-                                in _gatehousePlan);
-                        }
-                        else
-                        {
-                            CastlePerimeterRealizer.Gatehouse(
-                                ref _brush,
-                                in _plan,
-                                _primaryGate.Centre,
-                                _primaryGate.Outward);
-                        }
+                        CastlePlannedGatehouseRealizer.Build(
+                            ref _brush,
+                            in _plan,
+                            in _primaryGate,
+                            in _gatehousePlan);
 
                         if (_hasPosternGate)
                             CastlePosternRealizer.BuildDoor(ref _brush, in _plan, in _posternGate);
@@ -411,13 +398,9 @@ namespace VoxelEngine.Structures.Runtime
             CastleTopologyPlan topology = spatialPlan.Topology;
             _keepAnnexes = topology.KeepAnnexes;
             _keepTurrets = topology.KeepTurrets.Snapshot();
-            _hasPlannedGatehouse = topology.HasGatehousePlan;
-            if (_hasPlannedGatehouse)
-            {
-                CastleGatehousePlan gatehouse = topology.Gatehouse;
-                CastleGatehousePlanValidator.RequireValid(in gatehouse);
-                _gatehousePlan = gatehouse;
-            }
+            CastleGatehousePlan gatehouse = topology.Gatehouse;
+            CastleGatehousePlanValidator.RequireValid(in gatehouse);
+            _gatehousePlan = gatehouse;
 
             _spatialDungeonPlan = spatialPlan.Dungeon != null
                 ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
@@ -469,7 +452,8 @@ namespace VoxelEngine.Structures.Runtime
                 in _plan,
                 in _innerGate,
                 CastleLayout.FrontGateWidth,
-                CastleLayout.FrontGateHeight);
+                CastleLayout.FrontGateHeight,
+                CastleLayout.FrontGateDepth);
         }
 
         private bool CompleteStage(string stage)
