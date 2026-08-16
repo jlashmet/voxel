@@ -33,7 +33,9 @@ namespace VoxelEngine.Structures.Api
             }
 
             CastleGatehousePlan gatehouse = topology.Gatehouse;
-            if (!CastleGatehousePlanValidator.TryValidate(in gatehouse, out _))
+            if (!CastleGatehousePlanValidator.TryValidate(in gatehouse, out _) ||
+                !CastleGatehousePlanValidator.TryValidateTowerDetails(
+                    in gatehouse, plan.FloorHeight, out _))
             {
                 issue = CastleSpatialBuildReadinessIssue.InvalidGatehousePlan;
                 return false;
