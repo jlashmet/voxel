@@ -248,7 +248,7 @@ namespace VoxelEngine.Structures.Runtime
                 case 5:
                     if (_hasSpatialFortifications)
                     {
-                        CastleCourtyardRealizer.BuildPlanned(
+                        CastlePlannedCourtyardRealizer.Build(
                             ref _brush,
                             in _plan,
                             _outerWardVertices,
