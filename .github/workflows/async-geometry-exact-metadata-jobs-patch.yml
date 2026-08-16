@@ -1,0 +1,40 @@
+name: Exact snapshot metadata Burst pipeline one-shot patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-exact-metadata-jobs-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded patch
+        run: python3 .github/scripts/async_geometry_exact_metadata_jobs_patch.py
+      - name: Static guards
+        run: |
+          grep -q 'ExactBrickMetadataRegionJob' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/ExactSnapshotMetadataJobs.cs
+          grep -q 'ExactSnapshotClassificationJob' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/ExactSnapshotMetadataJobs.cs
+          grep -q 'ScheduleExactMetadataSnapshot' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          ! grep -q 'SnapshotBlocksPerDeadlineCheck' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          ! grep -q 'private TransvoxelDensityBrick SnapshotBlock' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'ExactBlockMetadataTraversalRunsInBurst' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+      - name: Commit exact metadata pipeline
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/ExactSnapshotMetadataJobs.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/ExactSnapshotMetadataJobs.cs.meta \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelBuildWorkspace.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+                  docs/ASYNC_GEOMETRY_PIPELINE.md
+          git commit -m 'Move exact snapshot metadata traversal into Burst'
+          git push origin HEAD:refactor/async-geometry-pipeline
