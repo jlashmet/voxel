@@ -34,13 +34,6 @@ namespace VoxelGame.Editor
                 "Shrug"
             };
 
-        private static readonly HashSet<string> PreserveHorizontalPositionAnimationNames =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "Walk",
-                "Run"
-            };
-
         private bool IsPlaceholderAsset =>
             assetPath.StartsWith(Root, StringComparison.OrdinalIgnoreCase);
 
@@ -56,7 +49,7 @@ namespace VoxelGame.Editor
         {
             // Bump when import behavior changes so Unity reimports associated FBXs even
             // when CI/editor sessions retain a warm Library cache.
-            return 6;
+            return 7;
         }
 
         private void OnPreprocessModel()
@@ -88,7 +81,6 @@ namespace VoxelGame.Editor
             var importer = (ModelImporter)assetImporter;
             var clips = importer.defaultClipAnimations;
             var semanticName = Path.GetFileNameWithoutExtension(assetPath);
-            var preservesHorizontalPosition = PreserveHorizontalPositionAnimationNames.Contains(semanticName);
 
             foreach (var clip in clips)
             {
@@ -98,19 +90,18 @@ namespace VoxelGame.Editor
                 clip.loopTime = shouldLoop;
                 clip.loopPose = shouldLoop;
 
-                // Walk/Run come from Rocketbox's XY motion-extraction exports, so preserve
-                // their authored XZ position instead of baking it into the pose. Unity 6 does
-                // not expose these particular imports as AnimationClip root-motion curves;
-                // gameplay translation therefore remains controller-driven unless a future
-                // animation source explicitly proves a root-motion contract.
-                clip.lockRootPositionXZ = !preservesHorizontalPosition;
-                clip.keepOriginalPositionXZ = preservesHorizontalPosition;
+                // Prototype movement is controller/transform driven. Keep every temporary clip
+                // in-place so animation playback cannot compete with the gameplay motor. The
+                // Rocketbox Walk/Run sources come from the XY extraction set, but Unity 6 does
+                // not expose usable root-motion curves from these Humanoid imports, so this
+                // placeholder package deliberately makes no root-motion promise.
+                clip.lockRootPositionXZ = true;
+                clip.keepOriginalPositionXZ = false;
             }
 
-            // On first import Unity leaves clipAnimations empty. Persisting the default
-            // take definitions here gives the starter pack explicit gameplay semantics:
-            // locomotion/idles loop, interaction emotes remain one-shot, and Walk/Run retain
-            // the authored horizontal-position policy from their Rocketbox XY source files.
+            // On first import Unity leaves clipAnimations empty. Persist the default take
+            // definitions here so the starter pack has explicit semantic names, looping rules,
+            // and a controller-driven/in-place locomotion contract.
             importer.clipAnimations = clips;
         }
 
