@@ -3,12 +3,9 @@
   "rootNamespace": "MountingForce.CombatPrototype.Tests.PlayMode",
   "references": [
     "MountingForce.CombatPrototype",
-    "UnityEngine.TestRunner",
-    "UnityEditor.TestRunner"
+    "UnityEngine.TestRunner"
   ],
-  "includePlatforms": [
-    "Editor"
-  ],
+  "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": true,
