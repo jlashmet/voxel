@@ -67,7 +67,7 @@ namespace VoxelEngine.Composition
             Consider(
                 int2.zero,
                 in plan,
-                ward,
+                spatial,
                 terrainSeed,
                 ref found,
                 ref best,
@@ -82,7 +82,7 @@ namespace VoxelEngine.Composition
                 Consider(
                     new int2(x, z),
                     in plan,
-                    ward,
+                    spatial,
                     terrainSeed,
                     ref found,
                     ref best,
@@ -94,7 +94,7 @@ namespace VoxelEngine.Composition
             if (!found)
             {
                 throw new InvalidOperationException(
-                    "No terrain-resolved keep footprint fits inside the assigned castle ward.");
+                    "No terrain-resolved keep site can satisfy the complete castle spatial plan.");
             }
 
             return best;
@@ -103,7 +103,7 @@ namespace VoxelEngine.Composition
         private static void Consider(
             int2 candidate,
             in CastlePlan plan,
-            int2[] ward,
+            CastleSpatialPlan spatial,
             uint terrainSeed,
             ref bool found,
             ref int2 best,
@@ -111,7 +111,8 @@ namespace VoxelEngine.Composition
             ref int bestSlope,
             ref uint bestTieBreak)
         {
-            if (!CastlePolygonGeometry.ContainsKeepFootprint(in plan, candidate, ward))
+            if (!CastleSpatialPlanner.CanResolveHighestGroundKeep(
+                    in plan, spatial, candidate))
                 return;
 
             int worldX = plan.Centre.x + candidate.x;
