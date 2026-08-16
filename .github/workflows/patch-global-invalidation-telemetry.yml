@@ -83,8 +83,8 @@ jobs:
 
           test_path = Path('Assets/Tests/PlayMode/LodRenderingTests.cs')
           test = test_path.read_text()
-          old = '''                      + $"pinReject:{metrics.Step4ExactMetadataPinRejects} "\n                      + $"stale:{metrics.RejectedStaleSolidBuilds}."\);\n'''
-          new = '''                      + $"pinReject:{metrics.Step4ExactMetadataPinRejects} "\n                      + $"globalInvalidations=palette:{metrics.MaterialPaletteInvalidations}/"\n                      + $"surface:{metrics.SurfaceCatalogueInvalidations}/"\n                      + $"coating:{metrics.CoatingCatalogueInvalidations}/"\n                      + $"profile:{metrics.ProfileBlockInvalidations} "\n                      + $"stale:{metrics.RejectedStaleSolidBuilds}."\);\n'''
+          old = '''                      + $"pinReject:{metrics.Step4ExactMetadataPinRejects} "\n                      + $"stale:{metrics.RejectedStaleSolidBuilds}."'''
+          new = '''                      + $"pinReject:{metrics.Step4ExactMetadataPinRejects} "\n                      + $"globalInvalidations=palette:{metrics.MaterialPaletteInvalidations}/"\n                      + $"surface:{metrics.SurfaceCatalogueInvalidations}/"\n                      + $"coating:{metrics.CoatingCatalogueInvalidations}/"\n                      + $"profile:{metrics.ProfileBlockInvalidations} "\n                      + $"stale:{metrics.RejectedStaleSolidBuilds}."'''
           if test.count(old) != 1:
               raise SystemExit(f'LOD diagnostic anchor count={test.count(old)}')
           test_path.write_text(test.replace(old, new))
