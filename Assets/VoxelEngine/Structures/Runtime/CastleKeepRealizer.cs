@@ -54,7 +54,7 @@ namespace VoxelEngine.Structures.Runtime
                     break;
 
                 case 1:
-                    BuildCornerTurrets(ref brush, in plan, min, size, baseY);
+                    CastleKeepTurretRealizer.Build(ref brush, in plan, min, size, baseY);
                     break;
 
                 case 2:
@@ -83,18 +83,6 @@ namespace VoxelEngine.Structures.Runtime
 
         private static void BuildShell(ref VoxelBrush brush, int3 min, int3 size, int baseY) =>
             CastleKeepShellRealizer.Build(ref brush, min, size, baseY);
-
-        private static void BuildCornerTurrets(ref VoxelBrush brush, in CastlePlan plan,
-                                               int3 min, int3 size, int baseY)
-        {
-            for (int i = 0; i < 4; i++)
-            {
-                int cx = min.x + (i % 2 == 0 ? 0 : size.x);
-                int cz = min.z + (i < 2 ? 0 : size.z);
-                CastleTowerRealizer.Build(ref brush, in plan, new int3(cx, baseY, cz), 26,
-                                          plan.KeepHeight + 30, true);
-            }
-        }
 
         private static void BuildFloorsAndRooms(
             ref VoxelBrush brush,
