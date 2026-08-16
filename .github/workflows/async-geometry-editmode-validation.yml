@@ -39,10 +39,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Compile/architecture checkpoint after the renderer-world lifetime cut passed 83/83.
-          # Surface discovery now admits dirty work only after TrackKnown confirms current clipmap
-          # ownership. The focused suite includes both the behavioral out-of-window regression and
-          # an architecture guard for the bool-returning TrackKnown/conditional Invalidate contract.
+          # Focused validation after owned-dirty admission passed 84/84. Mixed snapshot pin loss now
+          # rejects the optimistic generation through the existing bounded release/requeue path
+          # instead of retrying the same unavailable COW coordinate forever; the old unused flag is
+          # removed and GeometryPipelineArchitectureTests guards that lifecycle contract.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
