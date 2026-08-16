@@ -13,6 +13,8 @@
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Core.Runtime",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "VoxelEngine.Showcase",
