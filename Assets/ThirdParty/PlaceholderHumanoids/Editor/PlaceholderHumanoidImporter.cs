@@ -39,7 +39,7 @@ namespace VoxelGame.Editor
                 assetPath.IndexOf(AnimationFolder, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        private void OnPostprocessMeshHierarchy(GameObject gameObject)
+        private void OnPostprocessModel(GameObject model)
         {
             if (!IsBodyModel)
             {
@@ -47,12 +47,23 @@ namespace VoxelGame.Editor
             }
 
             // Rocketbox avatar FBXs contain hipoly/midpoly/lowpoly/ultralowpoly
-            // hierarchies simultaneously. Keep one development-friendly resolution
-            // active so the placeholder does not render stacked duplicate meshes.
-            var name = gameObject.name.ToLowerInvariant();
-            if (name.Contains("poly"))
+            // branches simultaneously. Normalize their active state only after Unity
+            // has built the complete model hierarchy. Doing this from
+            // OnPostprocessMeshHierarchy can leave the selected renderer under an
+            // inactive ancestor depending on FBX hierarchy/import order.
+            foreach (var transform in model.GetComponentsInChildren<Transform>(true))
             {
-                gameObject.SetActive(name.Contains("midpoly"));
+                var name = transform.name.ToLowerInvariant();
+                if (name.Contains("midpoly"))
+                {
+                    transform.gameObject.SetActive(true);
+                }
+                else if (name.Contains("hipoly") ||
+                         name.Contains("ultralowpoly") ||
+                         name.Contains("lowpoly"))
+                {
+                    transform.gameObject.SetActive(false);
+                }
             }
         }
     }
