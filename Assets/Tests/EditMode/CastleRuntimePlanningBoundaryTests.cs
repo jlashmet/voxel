@@ -68,6 +68,7 @@ namespace VoxelEngine.Tests.EditMode
                 "CastlePerimeterRealizer.cs",
                 "CastlePlannedTowerRealizer.cs",
                 "CastleInnerWardTowerRealizer.cs",
+                "CastlePlannedGatehouseRealizer.cs",
                 "CastleCourtyardBuildingRealizer.cs",
                 "CastleKeepCirculationRealizer.cs",
                 "CastleKeepWindowRealizer.cs",
