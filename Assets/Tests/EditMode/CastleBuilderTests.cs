@@ -33,7 +33,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.GreaterOrEqual(plan.BaileyHalfZ * 2, 440, $"seed {seed}: bailey depth");
                 Assert.GreaterOrEqual(plan.KeepHalfX * 2, 184, $"seed {seed}: keep width");
                 Assert.GreaterOrEqual(plan.Floors, 5, $"seed {seed}: floor count");
-                Assert.LessOrEqual(CastleBuilder.EstimateWrites(in plan),
+                Assert.LessOrEqual(CastleBuildPreflight.EstimateWrites(in plan),
                     VoxelBrush.DefaultWriteBudget,
                     $"seed {seed} would be rejected before construction");
             }
@@ -61,6 +61,47 @@ namespace VoxelEngine.Tests.EditMode
                 var legacy = CastleBuilder.Plan(centre, seed);
                 AssertPlansEqual(in legacy, in planned, seed);
             }
+        }
+
+        [Test]
+        public void PreflightPreservesLegacyWriteEstimateDuringMigration()
+        {
+            for (uint seed = 1; seed <= 256; seed++)
+            {
+                var plan = CastlePlanner.Create(int3.zero, seed);
+                Assert.AreEqual(
+                    CastleBuilder.EstimateWrites(in plan),
+                    CastleBuildPreflight.EstimateWrites(in plan),
+                    $"Seed {seed} changed the preflight estimate during extraction.");
+            }
+        }
+
+        [Test]
+        public void PreflightRejectsStructurallyInvalidPlan()
+        {
+            var plan = CastlePlanner.Create(int3.zero, 19u);
+            plan.KeepHeight++;
+
+            CastleBuildPreflightResult result = CastleBuildPreflight.Evaluate(
+                in plan, VoxelBrush.DefaultWriteBudget);
+
+            Assert.AreEqual(CastleBuildPreflightIssue.InvalidPlan, result.Issue);
+            Assert.AreEqual(CastlePlanIssue.KeepFloorStackMismatch, result.PlanIssue);
+            Assert.IsFalse(result.IsValid);
+        }
+
+        [Test]
+        public void PreflightRejectsPlanAboveWriteBudget()
+        {
+            var plan = CastlePlanner.Create(int3.zero, 23u);
+            long estimate = CastleBuildPreflight.EstimateWrites(in plan);
+
+            CastleBuildPreflightResult result = CastleBuildPreflight.Evaluate(
+                in plan, estimate - 1);
+
+            Assert.AreEqual(CastleBuildPreflightIssue.WriteBudgetExceeded, result.Issue);
+            Assert.AreEqual(estimate, result.EstimatedWrites);
+            Assert.IsFalse(result.IsValid);
         }
 
         [Test]
