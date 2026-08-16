@@ -5,6 +5,8 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Showcase;
@@ -92,7 +94,7 @@ namespace VoxelEngine.Tests.PlayMode
                     while (convergenceFrames++ < 480
                            && Time.realtimeSinceStartupAsDouble < convergenceDeadline)
                     {
-                        camera.Render();
+                        RenderUrpCamera(camera);
                         yield return null;
                         metrics = VoxelRenderBridge.SurfaceMetrics;
                         converged = metrics.VisibleSolidChunks > 0
@@ -112,7 +114,7 @@ namespace VoxelEngine.Tests.PlayMode
                     Assert.Greater(metrics.UploadedGeometryBytes, 0ul,
                         $"LOD step {band.step} did not use the voxel surface extractor.");
 
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     CastleStructureSignature signature = CaptureCastleStructure(target, readback);
                     Assert.Greater(signature.EdgeCount, 40,
                         $"LOD step {band.step} produced too little castle structure to inspect.");
@@ -196,7 +198,7 @@ namespace VoxelEngine.Tests.PlayMode
                     camera.transform.position = centre
                         + new Vector3(Mathf.Sin(frame * 0.07f) * 18f, 20f, -distance);
                     camera.transform.LookAt(lookAt);
-                    camera.Render();
+                    RenderUrpCamera(camera);
                     yield return null;
 
                     VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
@@ -224,6 +226,32 @@ namespace VoxelEngine.Tests.PlayMode
                 target.Release();
                 Object.DestroyImmediate(target);
             }
+        }
+
+        private static void RenderUrpCamera(Camera camera)
+        {
+            Assert.NotNull(camera);
+            Assert.NotNull(camera.targetTexture,
+                "LOD render-request tests require an explicit RenderTexture destination.");
+            Assert.True(VoxelRenderBridge.TryGetWorld(out _),
+                "VoxelShowcase did not register a valid render world before the URP request.");
+
+            var request = new UniversalRenderPipeline.SingleCameraRequest
+            {
+                destination = camera.targetTexture,
+            };
+            Assert.True(RenderPipeline.SupportsRenderRequest(camera, request),
+                "Active URP renderer does not support SingleCameraRequest for the showcase camera.");
+
+            VoxelRenderBridge.ResetSurfacePassDiagnostics("before-render-request");
+            RenderPipeline.SubmitRenderRequest(camera, request);
+
+            Assert.Greater(VoxelRenderBridge.RenderFeatureEnqueueCount, 0,
+                "URP render request did not enqueue VoxelRenderFeature.");
+            Assert.Greater(VoxelRenderBridge.SurfacePassRecordCount, 0,
+                "URP render request did not record VoxelRenderPass.");
+            Assert.AreEqual("feature-aware", VoxelRenderBridge.LastSurfacePassState,
+                $"VoxelRenderPass returned early: {VoxelRenderBridge.LastSurfacePassState}.");
         }
 
         private readonly struct CastleStructureSignature
