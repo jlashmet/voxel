@@ -4,17 +4,28 @@ using VoxelEngine.Structures.Api;
 namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
-    /// Temporary Runtime compatibility shim for the legacy keep recipe. The actual spatial-to-
-    /// legacy projection is API-owned so Runtime, Composition, presentation, and interaction all
-    /// share one placement contract while the keep recipe still carries its historical +60 Z
-    /// authoring offset internally.
+    /// Bridges semantic keep placement to the legacy keep recipe while that recipe still carries
+    /// its historical +60 Z authoring offset internally. Spatial planning owns the actual keep
+    /// centre; this adapter is the only place that knows how to translate it for migrated runtime
+    /// realization.
     /// </summary>
     internal static class CastleKeepPlacementAdapter
     {
-        internal static CastlePlan Place(in CastlePlan plan, int2 localKeepCentre) =>
-            CastleSpatialLayoutProjection.ProjectKeepPlan(in plan, localKeepCentre);
+        internal const int LegacyKeepCentreZOffset = 60;
+
+        internal static CastlePlan Place(in CastlePlan plan, int2 localKeepCentre)
+        {
+            CastlePlan placed = plan;
+            placed.Centre = new int3(
+                plan.Centre.x + localKeepCentre.x,
+                plan.Centre.y,
+                plan.Centre.z + localKeepCentre.y - LegacyKeepCentreZOffset);
+            return placed;
+        }
 
         internal static int2 ActualKeepCentre(in CastlePlan placedPlan) =>
-            CastleSpatialLayoutProjection.ActualKeepCentre(in placedPlan);
+            new int2(
+                placedPlan.Centre.x,
+                placedPlan.Centre.z + LegacyKeepCentreZOffset);
     }
 }
