@@ -64,5 +64,20 @@ namespace VoxelEngine.Tests.EditMode
                 CastleSpatialPlanValidator.TryValidate(in dimensions, spatial, out CastleSpatialPlanIssue issue));
             Assert.AreEqual(CastleSpatialPlanIssue.InnerWardOutsideOuterWard, issue);
         }
+
+        [Test]
+        public void ValidatorRejectsInnerGateDetachedFromItsWard()
+        {
+            CastlePlan dimensions = CastlePlanner.Create(int3.zero, 5u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(5u);
+            topology.Wards = CastleWardPattern.InnerAndOuterWards;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
+            int gateEdge = spatial.InnerGate.EdgeIndex;
+            spatial.InnerWardVertices[gateEdge] += new int2(1, 0);
+
+            Assert.IsFalse(
+                CastleSpatialPlanValidator.TryValidate(in dimensions, spatial, out CastleSpatialPlanIssue issue));
+            Assert.AreEqual(CastleSpatialPlanIssue.InnerGateDetachedFromPerimeter, issue);
+        }
     }
 }

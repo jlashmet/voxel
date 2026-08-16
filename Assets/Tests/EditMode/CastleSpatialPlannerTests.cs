@@ -20,6 +20,17 @@ namespace VoxelEngine.Tests.EditMode
                     $"seed {seed}: gate edge");
                 Assert.AreEqual(first.PrimaryGate.Centre, second.PrimaryGate.Centre,
                     $"seed {seed}: gate centre");
+                Assert.AreEqual(first.HasInnerGate, second.HasInnerGate,
+                    $"seed {seed}: inner gate presence");
+                if (first.HasInnerGate)
+                {
+                    Assert.AreEqual(first.InnerGate.EdgeIndex, second.InnerGate.EdgeIndex,
+                        $"seed {seed}: inner gate edge");
+                    Assert.AreEqual(first.InnerGate.Centre, second.InnerGate.Centre,
+                        $"seed {seed}: inner gate centre");
+                    Assert.AreEqual(first.InnerGate.Outward, second.InnerGate.Outward,
+                        $"seed {seed}: inner gate outward");
+                }
                 Assert.AreEqual(first.KeepCentre, second.KeepCentre, $"seed {seed}: keep centre");
                 Assert.AreEqual(first.KeepRequiresTerrainResolution,
                     second.KeepRequiresTerrainResolution, $"seed {seed}: terrain resolution");
@@ -67,11 +78,17 @@ namespace VoxelEngine.Tests.EditMode
                 }
 
                 if (topology.Wards == CastleWardPattern.InnerAndOuterWards)
+                {
                     Assert.AreEqual(spatial.OuterWardVertices.Length, spatial.InnerWardVertices.Length,
                         $"seed {seed}: nested ward ring");
+                    Assert.IsTrue(spatial.HasInnerGate, $"seed {seed}: nested ward gate");
+                }
                 else
+                {
                     Assert.AreEqual(0, spatial.InnerWardVertices.Length,
                         $"seed {seed}: unexpected inner ward");
+                    Assert.IsFalse(spatial.HasInnerGate, $"seed {seed}: unexpected inner gate");
+                }
             }
         }
 
@@ -105,6 +122,31 @@ namespace VoxelEngine.Tests.EditMode
                 float2 toGate = new float2(expectedCentre.x, expectedCentre.y);
                 Assert.Greater(math.dot(toGate, spatial.PrimaryGate.Outward), 0f,
                     $"seed {seed}: primary gate normal points into the castle");
+            }
+        }
+
+        [Test]
+        public void InnerGateContinuesThePrimaryApproachThroughNestedWards()
+        {
+            for (uint seed = 1; seed <= 512; seed++)
+            {
+                CastlePlan dimensions = CastlePlanner.Create(int3.zero, seed);
+                CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                if (topology.Wards != CastleWardPattern.InnerAndOuterWards)
+                    continue;
+
+                CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
+                Assert.IsTrue(spatial.HasInnerGate, $"seed {seed}: missing inner gate");
+                Assert.AreEqual(spatial.PrimaryGate.EdgeIndex, spatial.InnerGate.EdgeIndex,
+                    $"seed {seed}: inner gate moved to a different perimeter side");
+
+                int edge = spatial.InnerGate.EdgeIndex;
+                int2 a = spatial.InnerWardVertices[edge];
+                int2 b = spatial.InnerWardVertices[(edge + 1) % spatial.InnerWardVertices.Length];
+                Assert.AreEqual(new int2((a.x + b.x) / 2, (a.y + b.y) / 2),
+                    spatial.InnerGate.Centre, $"seed {seed}: inner gate midpoint");
+                Assert.Greater(math.dot(spatial.InnerGate.Outward, spatial.PrimaryGate.Outward), 0.5f,
+                    $"seed {seed}: inner gate faces away from the primary approach");
             }
         }
 

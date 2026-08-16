@@ -33,6 +33,8 @@ namespace VoxelEngine.Structures.Api
         public int2[] InnerWardVertices { get; }
         public CastleTowerPlacementSpec[] Towers { get; }
         public CastleGatePlacementSpec PrimaryGate { get; }
+        public bool HasInnerGate { get; }
+        public CastleGatePlacementSpec InnerGate { get; }
         public int2 KeepCentre { get; }
         public bool KeepRequiresTerrainResolution { get; }
 
@@ -42,6 +44,8 @@ namespace VoxelEngine.Structures.Api
             int2[] innerWardVertices,
             CastleTowerPlacementSpec[] towers,
             in CastleGatePlacementSpec primaryGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
             int2 keepCentre,
             bool keepRequiresTerrainResolution)
         {
@@ -50,6 +54,8 @@ namespace VoxelEngine.Structures.Api
             InnerWardVertices = innerWardVertices;
             Towers = towers;
             PrimaryGate = primaryGate;
+            HasInnerGate = hasInnerGate;
+            InnerGate = innerGate;
             KeepCentre = keepCentre;
             KeepRequiresTerrainResolution = keepRequiresTerrainResolution;
         }

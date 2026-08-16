@@ -21,6 +21,10 @@ namespace VoxelEngine.Structures.Api
                 : Array.Empty<int2>();
 
             CastleGatePlacementSpec gate = PlacePrimaryGate(outer);
+            bool hasInnerGate = inner.Length != 0;
+            CastleGatePlacementSpec innerGate = hasInnerGate
+                ? PlaceGateOnEdge(inner, gate.EdgeIndex, gate.Outward)
+                : default;
             CastleTowerPlacementSpec[] towers = PlaceTowers(
                 dimensions.Seed, outer, gate.EdgeIndex, topology.DesiredTowerCount);
             int2 keepCentre = PlaceKeep(
@@ -33,6 +37,8 @@ namespace VoxelEngine.Structures.Api
                 inner,
                 towers,
                 in gate,
+                hasInnerGate,
+                in innerGate,
                 keepCentre,
                 requiresTerrainResolution);
         }
@@ -150,17 +156,27 @@ namespace VoxelEngine.Structures.Api
                 bestEdge = i;
             }
 
-            int2 start = perimeter[bestEdge];
-            int2 end = perimeter[(bestEdge + 1) % perimeter.Length];
+            return PlaceGateOnEdge(perimeter, bestEdge, new float2(0f, -1f));
+        }
+
+        private static CastleGatePlacementSpec PlaceGateOnEdge(
+            int2[] perimeter,
+            int edgeIndex,
+            float2 preferredOutward)
+        {
+            int2 start = perimeter[edgeIndex];
+            int2 end = perimeter[(edgeIndex + 1) % perimeter.Length];
             int2 centre = new int2((start.x + end.x) / 2, (start.y + end.y) / 2);
             int2 edge = end - start;
             float2 outward = new float2(edge.y, -edge.x);
-            float length = math.sqrt(outward.x * outward.x + outward.y * outward.y);
-            outward = length > 0.001f ? outward / length : new float2(0f, -1f);
+            float length = math.length(outward);
+            outward = length > 0.001f ? outward / length : preferredOutward;
+            if (math.dot(outward, preferredOutward) < 0f)
+                outward = -outward;
 
             return new CastleGatePlacementSpec
             {
-                EdgeIndex = bestEdge,
+                EdgeIndex = edgeIndex,
                 Centre = centre,
                 Outward = outward,
             };

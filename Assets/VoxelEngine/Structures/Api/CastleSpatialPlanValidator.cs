@@ -18,6 +18,11 @@ namespace VoxelEngine.Structures.Api
         TowerOffPerimeter,
         InnerWardMismatch,
         InnerWardOutsideOuterWard,
+        InnerGateMismatch,
+        InvalidInnerGateEdge,
+        InnerGateDetachedFromPerimeter,
+        InvalidInnerGateNormal,
+        InnerGateMisaligned,
         InvalidKeepResolution,
         KeepOutsideOuterWard,
     }
@@ -71,40 +76,14 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
-            CastleGatePlacementSpec gate = spatial.PrimaryGate;
-            if (gate.EdgeIndex < 0 || gate.EdgeIndex >= outer.Length)
-            {
-                issue = CastleSpatialPlanIssue.InvalidGateEdge;
+            if (!TryValidateGate(
+                    outer,
+                    in spatial.PrimaryGate,
+                    CastleSpatialPlanIssue.InvalidGateEdge,
+                    CastleSpatialPlanIssue.GateDetachedFromPerimeter,
+                    CastleSpatialPlanIssue.InvalidGateNormal,
+                    out issue))
                 return false;
-            }
-
-            int2 gateStart = outer[gate.EdgeIndex];
-            int2 gateEnd = outer[(gate.EdgeIndex + 1) % outer.Length];
-            int2 expectedGateCentre = new int2(
-                (gateStart.x + gateEnd.x) / 2,
-                (gateStart.y + gateEnd.y) / 2);
-            if (!gate.Centre.Equals(expectedGateCentre))
-            {
-                issue = CastleSpatialPlanIssue.GateDetachedFromPerimeter;
-                return false;
-            }
-
-            if (!math.all(math.isfinite(gate.Outward)) || math.lengthsq(gate.Outward) < 0.25f)
-            {
-                issue = CastleSpatialPlanIssue.InvalidGateNormal;
-                return false;
-            }
-
-            float2 centroid = float2.zero;
-            for (int i = 0; i < outer.Length; i++)
-                centroid += new float2(outer[i].x, outer[i].y);
-            centroid /= outer.Length;
-            float2 toGate = new float2(gate.Centre.x, gate.Centre.y) - centroid;
-            if (math.dot(toGate, gate.Outward) <= 0f)
-            {
-                issue = CastleSpatialPlanIssue.InvalidGateNormal;
-                return false;
-            }
 
             CastleTowerPlacementSpec[] towers = spatial.Towers;
             if (towers == null || towers.Length != spatial.Topology.DesiredTowerCount)
@@ -162,12 +141,34 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            if (spatial.HasInnerGate != expectsInner)
+            {
+                issue = CastleSpatialPlanIssue.InnerGateMismatch;
+                return false;
+            }
+
             if (expectsInner)
             {
                 for (int i = 0; i < inner.Length; i++)
                 {
                     if (PointInOrOnPolygon(inner[i], outer)) continue;
                     issue = CastleSpatialPlanIssue.InnerWardOutsideOuterWard;
+                    return false;
+                }
+
+                if (!TryValidateGate(
+                        inner,
+                        in spatial.InnerGate,
+                        CastleSpatialPlanIssue.InvalidInnerGateEdge,
+                        CastleSpatialPlanIssue.InnerGateDetachedFromPerimeter,
+                        CastleSpatialPlanIssue.InvalidInnerGateNormal,
+                        out issue))
+                    return false;
+
+                if (spatial.InnerGate.EdgeIndex != spatial.PrimaryGate.EdgeIndex ||
+                    math.dot(spatial.InnerGate.Outward, spatial.PrimaryGate.Outward) <= 0.5f)
+                {
+                    issue = CastleSpatialPlanIssue.InnerGateMisaligned;
                     return false;
                 }
             }
@@ -184,6 +185,52 @@ namespace VoxelEngine.Structures.Api
             if (!highestGround && !PointInOrOnPolygon(spatial.KeepCentre, outer))
             {
                 issue = CastleSpatialPlanIssue.KeepOutsideOuterWard;
+                return false;
+            }
+
+            issue = CastleSpatialPlanIssue.None;
+            return true;
+        }
+
+        private static bool TryValidateGate(
+            int2[] perimeter,
+            in CastleGatePlacementSpec gate,
+            CastleSpatialPlanIssue invalidEdgeIssue,
+            CastleSpatialPlanIssue detachedIssue,
+            CastleSpatialPlanIssue invalidNormalIssue,
+            out CastleSpatialPlanIssue issue)
+        {
+            if (gate.EdgeIndex < 0 || gate.EdgeIndex >= perimeter.Length)
+            {
+                issue = invalidEdgeIssue;
+                return false;
+            }
+
+            int2 gateStart = perimeter[gate.EdgeIndex];
+            int2 gateEnd = perimeter[(gate.EdgeIndex + 1) % perimeter.Length];
+            int2 expectedGateCentre = new int2(
+                (gateStart.x + gateEnd.x) / 2,
+                (gateStart.y + gateEnd.y) / 2);
+            if (!gate.Centre.Equals(expectedGateCentre))
+            {
+                issue = detachedIssue;
+                return false;
+            }
+
+            if (!math.all(math.isfinite(gate.Outward)) || math.lengthsq(gate.Outward) < 0.25f)
+            {
+                issue = invalidNormalIssue;
+                return false;
+            }
+
+            float2 centroid = float2.zero;
+            for (int i = 0; i < perimeter.Length; i++)
+                centroid += new float2(perimeter[i].x, perimeter[i].y);
+            centroid /= perimeter.Length;
+            float2 toGate = new float2(gate.Centre.x, gate.Centre.y) - centroid;
+            if (math.dot(toGate, gate.Outward) <= 0f)
+            {
+                issue = invalidNormalIssue;
                 return false;
             }
 
