@@ -45,6 +45,7 @@ namespace VoxelEngine.Structures.Api
         InvalidCourtyardBuildingResolution,
         InvalidCourtyardBuildingPlacement,
         InvalidDungeonPlan,
+        DungeonEntranceMismatch,
     }
 
     /// <summary>
@@ -364,13 +365,26 @@ namespace VoxelEngine.Structures.Api
             }
 
             // Dungeon completion is optional at the general spatial-planning layer, but once a
-            // dungeon is attached it is part of this immutable planning result and must itself be
-            // structurally valid. Runtime readiness separately requires that a dungeon exists and
-            // that its entrance matches the projected trapdoor.
-            if (spatial.Dungeon != null && !DungeonPlanValidator.TryValidate(spatial.Dungeon, out _))
+            // dungeon is attached it is part of this planning snapshot: both its own graph and its
+            // attachment point to the castle must agree with the supplied dimensions/spatial plan.
+            if (spatial.Dungeon != null)
             {
-                issue = CastleSpatialPlanIssue.InvalidDungeonPlan;
-                return false;
+                if (!DungeonPlanValidator.TryValidate(spatial.Dungeon, out _))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidDungeonPlan;
+                    return false;
+                }
+
+                if (!spatial.KeepRequiresTerrainResolution)
+                {
+                    CastleSpatialProjection projection = CastleSpatialProjection.Create(
+                        in dimensions, spatial);
+                    if (!spatial.Dungeon.Entrance.Equals(projection.TrapdoorCentre))
+                    {
+                        issue = CastleSpatialPlanIssue.DungeonEntranceMismatch;
+                        return false;
+                    }
+                }
             }
 
             issue = CastleSpatialPlanIssue.None;
