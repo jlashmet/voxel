@@ -53,26 +53,16 @@ namespace VoxelEngine.Structures.Api
                                  && ((variationSeed >> 8) & 1u) != 0u;
             }
 
-            CastleSpatialPlan varied = Copy(
+            // Inner-tower appearance is already materialized by CastleInnerWardTowerPlanner when
+            // the core spatial plan is assembled. Completion must copy that data, not draw a
+            // second roof choice from a different seed stream.
+            return Copy(
                 spatial,
                 towers,
                 spatial.KeepFloors,
                 spatial.CourtyardBuildings,
                 spatial.Dungeon,
                 spatial.Cave);
-
-            CastleTowerPlacementSpec[] innerTowers = varied.InnerTowers;
-            for (int i = 0; i < innerTowers.Length; i++)
-            {
-                uint variationSeed = CastleSeedPartition.Derive(
-                    plan.Seed,
-                    CastleSeedDomain.Walls,
-                    (uint)(0x2A00 + innerTowers[i].Id));
-                innerTowers[i].HeightVariation = 0;
-                innerTowers[i].HasRoof = (variationSeed & 1u) != 0u;
-            }
-
-            return varied;
         }
 
         public static CastleSpatialPlan AttachKeepFloors(
@@ -433,7 +423,7 @@ namespace VoxelEngine.Structures.Api
                 : (caveDecoration ?? spatial.CaveDecoration);
             CastleKeepWindowSpec[] copiedWindows = keepWindows ?? spatial.KeepWindows;
 
-            var copy = new CastleSpatialPlan(
+            return new CastleSpatialPlan(
                 in topology,
                 (int2[])spatial.OuterWardVertices.Clone(),
                 (int2[])spatial.InnerWardVertices.Clone(),
@@ -462,14 +452,10 @@ namespace VoxelEngine.Structures.Api
                 copiedDecoration != null ? copiedDecoration.Snapshot() : null,
                 copiedWindows != null
                     ? (CastleKeepWindowSpec[])copiedWindows.Clone()
-                    : Array.Empty<CastleKeepWindowSpec>());
-
-            CastleTowerPlacementSpec[] sourceInnerTowers = spatial.InnerTowers;
-            CastleTowerPlacementSpec[] targetInnerTowers = copy.InnerTowers;
-            if (sourceInnerTowers != null && sourceInnerTowers.Length == targetInnerTowers.Length)
-                Array.Copy(sourceInnerTowers, targetInnerTowers, sourceInnerTowers.Length);
-
-            return copy;
+                    : Array.Empty<CastleKeepWindowSpec>(),
+                spatial.InnerTowers != null
+                    ? (CastleTowerPlacementSpec[])spatial.InnerTowers.Clone()
+                    : Array.Empty<CastleTowerPlacementSpec>());
         }
     }
 }
