@@ -59,6 +59,13 @@ namespace VoxelEngine.Structures.Api
         private const int WellClearance = 28;
         private const int KeepClearance = 20;
 
+        // Independent semantic choices: adding another courtyard purpose later must not reshuffle
+        // whether an existing castle asked for stables, barracks, or stores.
+        private const uint StablesChoice = 0x53544142u;   // STAB
+        private const uint BarracksChoice = 0x42415252u;  // BARR
+        private const uint StoresChoice = 0x53544F52u;    // STOR
+        private const uint FallbackChoice = 0x59415244u;  // YARD
+
         public static CastleCourtyardBuildingSpec[] Create(
             in CastlePlan plan,
             CastleSpatialPlan spatial)
@@ -69,10 +76,25 @@ namespace VoxelEngine.Structures.Api
             if (spatial.OuterWardVertices == null || spatial.OuterWardVertices.Length < 3)
                 return Array.Empty<CastleCourtyardBuildingSpec>();
 
+            bool includeStables = ChoosePurpose(plan.Seed, StablesChoice, 85);
+            bool includeBarracks = ChoosePurpose(plan.Seed, BarracksChoice, 75);
+            bool includeStores = ChoosePurpose(plan.Seed, StoresChoice, 65);
+            if (!includeStables && !includeBarracks && !includeStores)
+            {
+                uint fallback = CastleSeedPartition.Derive(
+                    plan.Seed, CastleSeedDomain.Layout, FallbackChoice) % 3u;
+                includeStables = fallback == 0u;
+                includeBarracks = fallback == 1u;
+                includeStores = fallback == 2u;
+            }
+
             var result = new List<CastleCourtyardBuildingSpec>(3);
-            TryAdd(in plan, spatial, CastleCourtyardBuildingPurpose.Stables, result);
-            TryAdd(in plan, spatial, CastleCourtyardBuildingPurpose.Barracks, result);
-            TryAdd(in plan, spatial, CastleCourtyardBuildingPurpose.Stores, result);
+            if (includeStables)
+                TryAdd(in plan, spatial, CastleCourtyardBuildingPurpose.Stables, result);
+            if (includeBarracks)
+                TryAdd(in plan, spatial, CastleCourtyardBuildingPurpose.Barracks, result);
+            if (includeStores)
+                TryAdd(in plan, spatial, CastleCourtyardBuildingPurpose.Stores, result);
 
             for (int i = 0; i < result.Count; i++)
             {
@@ -81,6 +103,13 @@ namespace VoxelEngine.Structures.Api
                 result[i] = item;
             }
             return result.ToArray();
+        }
+
+        private static bool ChoosePurpose(uint castleSeed, uint choiceId, uint percent)
+        {
+            uint choiceSeed = CastleSeedPartition.Derive(
+                castleSeed, CastleSeedDomain.Layout, choiceId);
+            return choiceSeed % 100u < percent;
         }
 
         private static void TryAdd(
