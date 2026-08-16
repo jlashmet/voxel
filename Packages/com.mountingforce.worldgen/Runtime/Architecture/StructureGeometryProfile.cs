@@ -52,6 +52,13 @@ namespace MountingForce.WorldGen.Architecture
         public readonly StructureSurfaceTreatment OpeningSurface;
         public readonly StructureSurfaceTreatment DetailSurface;
 
+        /// <summary>
+        /// Reconstruction treatment for roof primitives. Roof topology remains a separate massing
+        /// decision (gable, shed, twin gable, etc.); this controls how that topology is surfaced so
+        /// roofs do not fall back to a blocky/material-default reconstruction path.
+        /// </summary>
+        public readonly StructureSurfaceTreatment RoofSurface;
+
         public StructureGeometryProfile(
             int foundationCornerRadiusDm,
             int shellCornerRadiusDm,
@@ -60,7 +67,8 @@ namespace MountingForce.WorldGen.Architecture
             StructureSurfaceTreatment foundationSurface = StructureSurfaceTreatment.MaterialDefault,
             StructureSurfaceTreatment shellSurface = StructureSurfaceTreatment.MaterialDefault,
             StructureSurfaceTreatment openingSurface = StructureSurfaceTreatment.MaterialDefault,
-            StructureSurfaceTreatment detailSurface = StructureSurfaceTreatment.MaterialDefault)
+            StructureSurfaceTreatment detailSurface = StructureSurfaceTreatment.MaterialDefault,
+            StructureSurfaceTreatment roofSurface = StructureSurfaceTreatment.MaterialDefault)
         {
             if (foundationCornerRadiusDm < 0)
                 throw new ArgumentOutOfRangeException(nameof(foundationCornerRadiusDm));
@@ -79,6 +87,7 @@ namespace MountingForce.WorldGen.Architecture
             ShellSurface = shellSurface;
             OpeningSurface = openingSurface;
             DetailSurface = detailSurface;
+            RoofSurface = roofSurface;
         }
 
         public bool HasRoundedGeometry =>
@@ -91,7 +100,8 @@ namespace MountingForce.WorldGen.Architecture
             FoundationSurface != StructureSurfaceTreatment.MaterialDefault
             || ShellSurface != StructureSurfaceTreatment.MaterialDefault
             || OpeningSurface != StructureSurfaceTreatment.MaterialDefault
-            || DetailSurface != StructureSurfaceTreatment.MaterialDefault;
+            || DetailSurface != StructureSurfaceTreatment.MaterialDefault
+            || RoofSurface != StructureSurfaceTreatment.MaterialDefault;
 
         public bool RequiresRealization => HasRoundedGeometry || HasSurfaceOverrides;
 
@@ -155,7 +165,8 @@ namespace MountingForce.WorldGen.Architecture
                 foundationSurface: StructureSurfaceTreatment.Beveled,
                 shellSurface: StructureSurfaceTreatment.Rounded,
                 openingSurface: StructureSurfaceTreatment.Rounded,
-                detailSurface: StructureSurfaceTreatment.Beveled);
+                detailSurface: StructureSurfaceTreatment.Beveled,
+                roofSurface: StructureSurfaceTreatment.Smooth);
         }
     }
 }
