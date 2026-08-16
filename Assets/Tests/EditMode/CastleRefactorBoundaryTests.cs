@@ -93,9 +93,15 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastlePerimeterRealizer.Towers(", pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Gatehouse(", pipeline);
             StringAssert.Contains("CastleCourtyardRealizer.BuildPlanned(", pipeline);
+            StringAssert.Contains("spatialPlan.CourtyardBuildings.Clone()", pipeline);
             StringAssert.Contains("CastleSpatialProjection.Create(", pipeline);
             StringAssert.DoesNotContain("CastleSpatialPlanner.Create(", pipeline);
             StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", pipeline);
+
+            string courtyard = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleCourtyardRealizer.cs"));
+            StringAssert.Contains("CastleCourtyardBuildingRealizer.BuildAll(", courtyard);
 
             string runtimeDirectory = Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime");
@@ -106,6 +112,10 @@ namespace VoxelEngine.Tests.EditMode
                     $"{Path.GetFileName(file)} must consume planned geometry rather than re-plan it.");
                 StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", runtimeSource,
                     $"{Path.GetFileName(file)} must not choose semantic topology during realization.");
+                StringAssert.DoesNotContain("CastleCourtyardBuildingPlacementGeometry.Plan(", runtimeSource,
+                    $"{Path.GetFileName(file)} must consume planned courtyard buildings rather than place them.");
+                StringAssert.DoesNotContain("CastleCourtyardBuildingPlanner.Create(", runtimeSource,
+                    $"{Path.GetFileName(file)} must not invoke courtyard planning during realization.");
             }
         }
 
