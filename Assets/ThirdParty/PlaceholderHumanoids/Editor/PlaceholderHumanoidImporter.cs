@@ -34,7 +34,7 @@ namespace VoxelGame.Editor
                 "Shrug"
             };
 
-        private static readonly HashSet<string> RootMotionAnimationNames =
+        private static readonly HashSet<string> PreserveHorizontalPositionAnimationNames =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "Walk",
@@ -88,7 +88,7 @@ namespace VoxelGame.Editor
             var importer = (ModelImporter)assetImporter;
             var clips = importer.defaultClipAnimations;
             var semanticName = Path.GetFileNameWithoutExtension(assetPath);
-            var keepsHorizontalRootMotion = RootMotionAnimationNames.Contains(semanticName);
+            var preservesHorizontalPosition = PreserveHorizontalPositionAnimationNames.Contains(semanticName);
 
             foreach (var clip in clips)
             {
@@ -98,17 +98,19 @@ namespace VoxelGame.Editor
                 clip.loopTime = shouldLoop;
                 clip.loopPose = shouldLoop;
 
-                // Walk/Run come from Rocketbox's XY motion-extraction exports. Keep their
-                // authored XZ translation as Unity root motion so gameplay can opt into it.
-                // For idles/emotes, bake any incidental horizontal drift into the pose.
-                clip.lockRootPositionXZ = !keepsHorizontalRootMotion;
-                clip.keepOriginalPositionXZ = keepsHorizontalRootMotion;
+                // Walk/Run come from Rocketbox's XY motion-extraction exports, so preserve
+                // their authored XZ position instead of baking it into the pose. Unity 6 does
+                // not expose these particular imports as AnimationClip root-motion curves;
+                // gameplay translation therefore remains controller-driven unless a future
+                // animation source explicitly proves a root-motion contract.
+                clip.lockRootPositionXZ = !preservesHorizontalPosition;
+                clip.keepOriginalPositionXZ = preservesHorizontalPosition;
             }
 
             // On first import Unity leaves clipAnimations empty. Persisting the default
             // take definitions here gives the starter pack explicit gameplay semantics:
-            // locomotion/idles loop, interaction emotes remain one-shot, and Walk/Run
-            // expose horizontal root motion for controllers that choose to consume it.
+            // locomotion/idles loop, interaction emotes remain one-shot, and Walk/Run retain
+            // the authored horizontal-position policy from their Rocketbox XY source files.
             importer.clipAnimations = clips;
         }
 
