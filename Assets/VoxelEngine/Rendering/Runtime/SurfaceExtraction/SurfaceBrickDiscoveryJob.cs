@@ -1,7 +1,7 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
-using VoxelEngine.Storage.Api;
+using Unity.Mathematics;
 
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
@@ -44,5 +44,30 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private static bool Bit(NativeArray<ulong> words, int index) =>
             (words[index >> 6] & (1UL << (index & 63))) != 0UL;
+    }
+
+    /// <summary>
+    /// Compacts the byte classification into block coordinates on a worker thread. Capacity is
+    /// provisioned for the worst case by the scheduler, so the job never allocates or resizes.
+    /// </summary>
+    [BurstCompile]
+    internal struct SurfaceBrickCompactJob : IJob
+    {
+        [ReadOnly] public NativeArray<byte> IsSurface;
+        public NativeList<int3> SurfaceBlocks;
+        public int Edge;
+
+        public void Execute()
+        {
+            SurfaceBlocks.Clear();
+            for (int index = 0; index < IsSurface.Length; index++)
+            {
+                if (IsSurface[index] == 0) continue;
+                int bx = index & (Edge - 1);
+                int by = (index / Edge) & (Edge - 1);
+                int bz = index / (Edge * Edge);
+                SurfaceBlocks.AddNoResize(new int3(bx, by, bz));
+            }
+        }
     }
 }
