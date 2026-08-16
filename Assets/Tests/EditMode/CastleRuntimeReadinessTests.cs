@@ -54,6 +54,32 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void RuntimeReadinessRejectsMissingLandscapeBeforeVoxelMutation()
+        {
+            CastlePlan plan = CastlePlanner.Create(int3.zero, 311u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(plan.Seed);
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+
+            spatial = CastleSpatialPlanCompletion.AttachTowerVariation(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachKeepFloors(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachKeepCirculation(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachCourtyardBuildings(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachDungeon(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachCave(in plan, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachCaveDecoration(in plan, spatial);
+            // Deliberately skip AttachLandscape.
+
+            CastleBuildPreflightResult readiness = CastleBuildPreflight.EvaluateRuntimeReady(
+                in plan, spatial, long.MaxValue);
+
+            Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, readiness.Issue);
+            Assert.AreEqual(
+                CastleSpatialBuildReadinessIssue.MissingLandscapePlan,
+                readiness.ReadinessIssue);
+        }
+
+        [Test]
         public void RuntimeReadinessAcceptsCompletedKeepMetadata()
         {
             CastlePlan plan = CastlePlanner.Create(int3.zero, 313u);
