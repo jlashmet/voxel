@@ -22,7 +22,8 @@ jobs:
         run: python3 .github/scripts/async_geometry_adaptive_workers_patch.py
       - name: Static guards
         run: |
-          ! grep -q 'SolidWorkerCount' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          ! grep -q 'public const int SolidWorkerCount = 8;' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          ! grep -q 'new CpuTransvoxelChunkCache\[SolidWorkerCount\]' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
           grep -q 'WorkerCountForSourceStep' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
           grep -q 'CoarseExactSamplingUsesFewerBuildWorkspaces' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
       - name: Commit renderer changes
