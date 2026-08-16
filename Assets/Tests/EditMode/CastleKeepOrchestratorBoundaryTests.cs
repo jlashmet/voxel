@@ -56,6 +56,9 @@ namespace VoxelEngine.Tests.EditMode
             string windows = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastlePlannedKeepWindowRealizer.cs"));
+            string turrets = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedKeepTurretRealizer.cs"));
             string readiness = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastleSpatialBuildReadiness.cs"));
@@ -92,6 +95,18 @@ namespace VoxelEngine.Tests.EditMode
                 "Planned keep-window realization should not repeat preflight validation.");
             StringAssert.Contains("brush.Arch(", windows,
                 "Planned keep-window realization must retain its voxel geometry responsibility.");
+            StringAssert.Contains("CastleKeepTurretPlanValidator.TryValidate(", readiness,
+                "Spatial preflight must own planned keep-turret admission.");
+            StringAssert.Contains("CastleKeepTurretPlanValidator.TryValidateSlits(", readiness,
+                "Spatial preflight must admit planned keep-turret slit geometry before Runtime.");
+            StringAssert.DoesNotContain("CastleKeepTurretPlanValidator", turrets,
+                "Planned keep-turret realization should consume an already-admitted plan.");
+            StringAssert.DoesNotContain("throw new ", turrets,
+                "Planned keep-turret realization should not repeat preflight validation.");
+            StringAssert.Contains("CastleTowerRealizer.BuildPlanned(", turrets,
+                "Planned keep-turret realization must retain its voxel realization responsibility.");
+            StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", turrets);
+            StringAssert.Contains("CastleSpatialProjection.KeepSize(", turrets);
             StringAssert.DoesNotContain("keepPlan.KeepHalfX * 2", keep,
                 "Planned keep realization must not rebuild keep dimensions locally.");
             StringAssert.DoesNotContain("plan.KeepHalfX * 2", exterior,
