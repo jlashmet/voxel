@@ -13,7 +13,7 @@ namespace MountingForce.WorldGen.Voxel
     ///
     /// This pass is deliberately city-independent. The input catalogue still owns semantic
     /// composition (shells, openings, trim, roofs and anchors), while the profile controls how its
-    /// box primitives are realised and reconstructed. It is also a migration bridge for older
+    /// primitives are realised and reconstructed. It is also a migration bridge for older
     /// catalogues whose shape programs do not yet tag architectural operations explicitly: once
     /// those catalogues emit semantic operations directly, they can use the same profile without
     /// this material/dimension inference.
@@ -187,7 +187,35 @@ namespace MountingForce.WorldGen.Voxel
 
                     if (surface != existingSurface)
                     {
-                        CopyBoxWithSurface(code, source, cursor, instructionLength, surface);
+                        CopyInstructionWithSurface(
+                            code,
+                            source,
+                            cursor,
+                            instructionLength,
+                            surfaceOperandIndex: 7,
+                            surface);
+                        cursor += instructionLength;
+                        continue;
+                    }
+                }
+
+                if (op == ShapeOp.EmitPrism && modeMask == 0)
+                {
+                    const int surfaceOperandIndex = 8;
+                    int surfaceIndex = cursor + 2 + surfaceOperandIndex;
+                    ushort existingSurface = (ushort)source.Program[surfaceIndex];
+                    ushort surface = ResolveSurfaceTreatment(
+                        profile.RoofSurface,
+                        existingSurface);
+                    if (surface != existingSurface)
+                    {
+                        CopyInstructionWithSurface(
+                            code,
+                            source,
+                            cursor,
+                            instructionLength,
+                            surfaceOperandIndex,
+                            surface);
                         cursor += instructionLength;
                         continue;
                     }
@@ -280,6 +308,13 @@ namespace MountingForce.WorldGen.Voxel
                     return existingSurface;
             }
 
+            return ResolveSurfaceTreatment(treatment, existingSurface);
+        }
+
+        private static ushort ResolveSurfaceTreatment(
+            StructureSurfaceTreatment treatment,
+            ushort existingSurface)
+        {
             switch (treatment)
             {
                 case StructureSurfaceTreatment.Smooth: return SurfaceStyles.Smooth;
@@ -319,14 +354,15 @@ namespace MountingForce.WorldGen.Voxel
             code.Add((int)mode);
         }
 
-        private static void CopyBoxWithSurface(
+        private static void CopyInstructionWithSurface(
             List<int> target,
             FeatureCatalogue source,
             int cursor,
             int instructionLength,
+            int surfaceOperandIndex,
             ushort surface)
         {
-            int surfaceIndex = cursor + 2 + 7;
+            int surfaceIndex = cursor + 2 + surfaceOperandIndex;
             for (int i = 0; i < instructionLength; i++)
             {
                 int sourceIndex = cursor + i;
