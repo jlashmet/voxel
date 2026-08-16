@@ -55,8 +55,12 @@ jobs:
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
+          # These tests render through URP, create RenderTextures, and initialize compute-driven
+          # showcase systems. -nographics selects Unity's null graphics device and makes that
+          # validation meaningless (RenderTexture.Create/compute-kernel failures), so run the
+          # self-hosted Mac with its real Metal device even though the editor remains batchmode.
           UNITY_MAX_RSS_MB=12288 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode -nographics -job-worker-count 2 \
+            -batchmode -force-metal -job-worker-count 2 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
             -testFilter VoxelEngine.Tests.PlayMode.LodRenderingTests \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log"
@@ -80,7 +84,7 @@ jobs:
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
           UNITY_MAX_RSS_MB=12288 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode -nographics -job-worker-count 2 \
+            -batchmode -force-metal -job-worker-count 2 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
             -testFilter VoxelEngine.Tests.PlayMode.AsyncGeometryStressTests \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log"
