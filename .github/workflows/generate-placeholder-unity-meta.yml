@@ -71,7 +71,12 @@ jobs:
           set -euo pipefail
           test -f Assets/ThirdParty/PlaceholderHumanoids/Models/Male_Adult_01.fbx.meta
           test -f Assets/ThirdParty/PlaceholderHumanoids/Models/Female_Adult_01.fbx.meta
-          test -f Assets/ThirdParty/PlaceholderHumanoids/Animations/KayKit_Knight_AnimationLibrary.fbx.meta
+          test -f Assets/ThirdParty/PlaceholderHumanoids/Animations/Idle.fbx.meta
+          test -f Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx.meta
+          test -f Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx.meta
+          test -f Assets/ThirdParty/PlaceholderHumanoids/Animations/CrouchIdle.fbx.meta
+          test -f Assets/ThirdParty/PlaceholderHumanoids/Animations/Wave.fbx.meta
+          test -f Assets/ThirdParty/PlaceholderHumanoids/Animations/Shrug.fbx.meta
           test -f Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidImporter.cs.meta
           test -f Assets/Tests/EditMode/PlaceholderHumanoidAssetTests.cs.meta
 
