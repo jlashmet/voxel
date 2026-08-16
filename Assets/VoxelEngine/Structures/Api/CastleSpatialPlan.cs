@@ -9,11 +9,6 @@ namespace VoxelEngine.Structures.Api
         Wall,
     }
 
-    public enum CastleCourtyardBuildingRole : byte
-    {
-        Service,
-    }
-
     public struct CastleTowerPlacementSpec
     {
         public int Id;
@@ -26,21 +21,6 @@ namespace VoxelEngine.Structures.Api
         public int EdgeIndex;
         public int2 Centre;
         public float2 Outward;
-    }
-
-    /// <summary>
-    /// One planner-owned courtyard outbuilding. Runtime receives a complete footprint, height,
-    /// entrance direction, and roof axis; it never guesses a "rear wall" or building purpose.
-    /// </summary>
-    public struct CastleCourtyardBuildingSpec
-    {
-        public int Id;
-        public CastleCourtyardBuildingRole Role;
-        public int2 Centre;
-        public int2 HalfExtents;
-        public int Height;
-        public int2 EntranceDirection;
-        public bool RoofRidgeAlongX;
     }
 
     /// <summary>
