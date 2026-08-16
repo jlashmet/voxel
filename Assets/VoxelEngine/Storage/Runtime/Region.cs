@@ -23,12 +23,24 @@ namespace VoxelEngine.Storage.Runtime
     /// </summary>
     public struct Region : IDisposable
     {
-        public const int HardSurfaceWordCount = VoxelDimensions.BricksPerRegion / 64;
+        public const int BlockSummaryWordCount = VoxelDimensions.BricksPerRegion / 64;
+        public const int HardSurfaceWordCount = BlockSummaryWordCount;
 
         public int3 Coord;
 
         /// <summary>262,144 entries. Index with <see cref="BrickIndex"/>.</summary>
         public NativeArray<BrickRef> BrickRefs;
+
+        /// <summary>
+        /// One bit per logical 8^3 block. These two summaries deliberately describe only local
+        /// authoritative occupancy state: whether a block contains any solid voxel, and whether
+        /// every voxel is solid. Because they do not encode neighbour-derived render semantics,
+        /// a mutation only updates the block it actually changed. Consumers can cheaply copy the
+        /// 64 KiB pair and derive surface candidates asynchronously without retaining BrickPool
+        /// memory or a borrowed RegionReadView.
+        /// </summary>
+        public NativeArray<ulong> OccupiedBlockWords;
+        public NativeArray<ulong> FullySolidBlockWords;
 
         /// <summary>
         /// One semantic bit per brick. Set means the brick was authored as hard structure
@@ -79,6 +91,10 @@ namespace VoxelEngine.Storage.Runtime
             Coord = coord;
             BrickRefs = new NativeArray<BrickRef>(VoxelDimensions.BricksPerRegion,
                                                   allocator, NativeArrayOptions.UninitializedMemory);
+            OccupiedBlockWords = new NativeArray<ulong>(BlockSummaryWordCount, allocator,
+                                                        NativeArrayOptions.ClearMemory);
+            FullySolidBlockWords = new NativeArray<ulong>(BlockSummaryWordCount, allocator,
+                                                          NativeArrayOptions.ClearMemory);
             HardSurfaceWords = new NativeArray<ulong>(HardSurfaceWordCount, allocator,
                                                       NativeArrayOptions.ClearMemory);
             Residency = RegionResidency.Cold;
@@ -139,6 +155,24 @@ namespace VoxelEngine.Storage.Runtime
             BrickRefs[BrickIndex(x, y, z)] = brick;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetBlockOccupancySummary(int blockIndex, bool occupied, bool fullySolid)
+        {
+            if (!OccupiedBlockWords.IsCreated || !FullySolidBlockWords.IsCreated
+                || (uint)blockIndex >= VoxelDimensions.BricksPerRegion)
+                return;
+
+            int wordIndex = blockIndex >> 6;
+            ulong mask = 1UL << (blockIndex & 63);
+            ulong occupiedWord = OccupiedBlockWords[wordIndex];
+            ulong fullySolidWord = FullySolidBlockWords[wordIndex];
+            OccupiedBlockWords[wordIndex] = occupied ? occupiedWord | mask : occupiedWord & ~mask;
+            fullySolid &= occupied;
+            FullySolidBlockWords[wordIndex] = fullySolid
+                ? fullySolidWord | mask
+                : fullySolidWord & ~mask;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsHardSurfaceBrick(int brickIndex)
         {
             if (!HardSurfaceWords.IsCreated || (uint)brickIndex >= VoxelDimensions.BricksPerRegion)
@@ -191,6 +225,12 @@ namespace VoxelEngine.Storage.Runtime
                 BrickRefs[i] = empty;
             }
 
+            if (OccupiedBlockWords.IsCreated)
+                for (int i = 0; i < OccupiedBlockWords.Length; i++)
+                    OccupiedBlockWords[i] = 0UL;
+            if (FullySolidBlockWords.IsCreated)
+                for (int i = 0; i < FullySolidBlockWords.Length; i++)
+                    FullySolidBlockWords[i] = 0UL;
             if (HardSurfaceWords.IsCreated)
                 for (int i = 0; i < HardSurfaceWords.Length; i++)
                     HardSurfaceWords[i] = 0UL;
@@ -200,6 +240,8 @@ namespace VoxelEngine.Storage.Runtime
         {
             if (BrickRefs.IsCreated) BrickRefs.Dispose();
             ReleaseMips();
+            if (OccupiedBlockWords.IsCreated) OccupiedBlockWords.Dispose();
+            if (FullySolidBlockWords.IsCreated) FullySolidBlockWords.Dispose();
             if (HardSurfaceWords.IsCreated) HardSurfaceWords.Dispose();
         }
     }
