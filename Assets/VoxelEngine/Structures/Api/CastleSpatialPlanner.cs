@@ -27,8 +27,9 @@ namespace VoxelEngine.Structures.Api
                 : default;
             CastleTowerPlacementSpec[] towers = PlaceTowers(
                 dimensions.Seed, outer, gate.EdgeIndex, topology.DesiredTowerCount);
+            int2[] keepWard = inner.Length != 0 ? inner : outer;
             int2 keepCentre = PlaceKeep(
-                in dimensions, topology.KeepPlacement, in gate,
+                in dimensions, topology.KeepPlacement, in gate, keepWard,
                 out bool requiresTerrainResolution);
 
             return new CastleSpatialPlan(
@@ -237,17 +238,18 @@ namespace VoxelEngine.Structures.Api
             in CastlePlan dimensions,
             CastleKeepPlacement placement,
             in CastleGatePlacementSpec gate,
+            int2[] keepWard,
             out bool requiresTerrainResolution)
         {
             requiresTerrainResolution = false;
-            if (placement == CastleKeepPlacement.Central)
-                return int2.zero;
-
             if (placement == CastleKeepPlacement.HighestGround)
             {
                 requiresTerrainResolution = true;
                 return int2.zero;
             }
+
+            if (placement == CastleKeepPlacement.Central)
+                return RetractKeepToWard(int2.zero, in dimensions, keepWard);
 
             float2 inward = -gate.Outward;
             int insetX = placement == CastleKeepPlacement.WallIntegrated
@@ -270,9 +272,36 @@ namespace VoxelEngine.Structures.Api
             if (placement == CastleKeepPlacement.Rear)
                 distance *= 0.78f;
 
-            return new int2(
+            int2 desired = new int2(
                 (int)math.round(inward.x * distance),
                 (int)math.round(inward.y * distance));
+            return RetractKeepToWard(desired, in dimensions, keepWard);
+        }
+
+        private static int2 RetractKeepToWard(
+            int2 desired,
+            in CastlePlan dimensions,
+            int2[] keepWard)
+        {
+            if (CastlePolygonGeometry.KeepFootprintFits(in dimensions, desired, keepWard))
+                return desired;
+
+            // Preserve the selected placement direction while moving only as far toward the ward
+            // centre as necessary to fit the complete keep footprint. Fixed samples keep retries
+            // deterministic and avoid floating search tolerances becoming part of the seed contract.
+            for (int step = 127; step >= 0; step--)
+            {
+                float t = step / 128f;
+                int2 candidate = new int2(
+                    (int)math.round(desired.x * t),
+                    (int)math.round(desired.y * t));
+                if (CastlePolygonGeometry.KeepFootprintFits(
+                        in dimensions, candidate, keepWard))
+                    return candidate;
+            }
+
+            // Validation will reject this if even the ward centre cannot contain the keep.
+            return int2.zero;
         }
     }
 }

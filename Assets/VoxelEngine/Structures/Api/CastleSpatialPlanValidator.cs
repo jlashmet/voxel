@@ -25,6 +25,7 @@ namespace VoxelEngine.Structures.Api
         InnerGateMisaligned,
         InvalidKeepResolution,
         KeepOutsideOuterWard,
+        KeepOutsideInnerWard,
     }
 
     /// <summary>
@@ -108,7 +109,7 @@ namespace VoxelEngine.Structures.Api
                     return false;
                 }
 
-                if (!PointOnPerimeter(towers[i].Centre, outer))
+                if (!CastlePolygonGeometry.PointOnPerimeter(towers[i].Centre, outer))
                 {
                     issue = CastleSpatialPlanIssue.TowerOffPerimeter;
                     return false;
@@ -152,7 +153,7 @@ namespace VoxelEngine.Structures.Api
             {
                 for (int i = 0; i < inner.Length; i++)
                 {
-                    if (PointInOrOnPolygon(inner[i], outer)) continue;
+                    if (CastlePolygonGeometry.PointInOrOnPolygon(inner[i], outer)) continue;
                     issue = CastleSpatialPlanIssue.InnerWardOutsideOuterWard;
                     return false;
                 }
@@ -184,9 +185,17 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
-            if (!highestGround && !PointInOrOnPolygon(spatial.KeepCentre, outer))
+            if (!highestGround && !CastlePolygonGeometry.KeepFootprintFits(
+                    in dimensions, spatial.KeepCentre, outer))
             {
                 issue = CastleSpatialPlanIssue.KeepOutsideOuterWard;
+                return false;
+            }
+
+            if (!highestGround && expectsInner && !CastlePolygonGeometry.KeepFootprintFits(
+                    in dimensions, spatial.KeepCentre, inner))
+            {
+                issue = CastleSpatialPlanIssue.KeepOutsideInnerWard;
                 return false;
             }
 
@@ -238,49 +247,6 @@ namespace VoxelEngine.Structures.Api
 
             issue = CastleSpatialPlanIssue.None;
             return true;
-        }
-
-        private static bool PointOnPerimeter(int2 point, int2[] perimeter)
-        {
-            for (int i = 0; i < perimeter.Length; i++)
-            {
-                if (PointOnSegment(point, perimeter[i], perimeter[(i + 1) % perimeter.Length]))
-                    return true;
-            }
-            return false;
-        }
-
-        private static bool PointOnSegment(int2 point, int2 a, int2 b)
-        {
-            long cross = (long)(point.x - a.x) * (b.y - a.y) -
-                         (long)(point.y - a.y) * (b.x - a.x);
-            if (cross != 0) return false;
-
-            long dot = (long)(point.x - a.x) * (point.x - b.x) +
-                       (long)(point.y - a.y) * (point.y - b.y);
-            return dot <= 0;
-        }
-
-        private static bool PointInOrOnPolygon(int2 point, int2[] polygon)
-        {
-            bool inside = false;
-            for (int i = 0, previous = polygon.Length - 1;
-                 i < polygon.Length;
-                 previous = i++)
-            {
-                int2 a = polygon[previous];
-                int2 b = polygon[i];
-                if (PointOnSegment(point, a, b)) return true;
-
-                bool crossesY = (a.y > point.y) != (b.y > point.y);
-                if (!crossesY) continue;
-
-                double crossingX =
-                    (double)(b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
-                if (point.x < crossingX)
-                    inside = !inside;
-            }
-            return inside;
         }
     }
 }
