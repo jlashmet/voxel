@@ -95,6 +95,16 @@ namespace VoxelEngine.Structures.Api
                 ref minZ,
                 ref maxZ);
 
+            IncludePlannedLandscape(
+                in plan,
+                spatial.Landscape,
+                ref minX,
+                ref maxX,
+                ref minY,
+                ref maxY,
+                ref minZ,
+                ref maxZ);
+
             // Planned vertices/towers should normally be inside the site envelope, but include the
             // actual topology explicitly so a future planner can use more of the legal plateau
             // without silently invalidating streaming dependencies.
@@ -113,6 +123,29 @@ namespace VoxelEngine.Structures.Api
             return new CastleBuildBounds(
                 new int3(minX, minY, minZ),
                 new int3(maxX + 1, maxY + 1, maxZ + 1));
+        }
+
+        private static void IncludePlannedLandscape(
+            in CastlePlan plan,
+            CastleLandscapePlan landscape,
+            ref int minX,
+            ref int maxX,
+            ref int minY,
+            ref int maxY,
+            ref int minZ,
+            ref int maxZ)
+        {
+            if (landscape == null)
+                return;
+
+            CastleLandscapeBuildBounds landscapeBounds =
+                CastleLandscapeBuildBoundsResolver.Resolve(in plan, landscape);
+            minX = math.min(minX, landscapeBounds.Min.x);
+            maxX = math.max(maxX, landscapeBounds.MaxExclusive.x - 1);
+            minY = math.min(minY, landscapeBounds.Min.y);
+            maxY = math.max(maxY, landscapeBounds.MaxExclusive.y - 1);
+            minZ = math.min(minZ, landscapeBounds.Min.z);
+            maxZ = math.max(maxZ, landscapeBounds.MaxExclusive.z - 1);
         }
 
         private static void IncludePlannedUnderground(
