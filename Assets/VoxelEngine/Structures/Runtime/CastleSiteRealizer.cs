@@ -156,10 +156,6 @@ namespace VoxelEngine.Structures.Runtime
             return state.Cursor > reach * 2;
         }
 
-        /// <summary>
-        /// Cuts the historical -Z approach shelf into two terrain levels. Kept for compatibility
-        /// builds; spatial builds use the gate-oriented version below.
-        /// </summary>
         private static void LowerRiverGorgeLegacy(
             ref VoxelBrush brush,
             in CastlePlan plan,
@@ -173,6 +169,7 @@ namespace VoxelEngine.Structures.Runtime
             const int halfWidth = 90;
             const int waterHalfWidth = 42;
             int riverY = top - CastleLayout.LowerRiverDepth;
+            CastleRiverCrossSectionPlan unused = default;
 
             for (int column = firstColumn; column < endColumn; column++)
             {
@@ -185,15 +182,21 @@ namespace VoxelEngine.Structures.Runtime
                 {
                     int z = channelZ + dz;
                     SculptRiverColumn(
-                        ref brush, x, z, top, riverY, dz, halfWidth, waterHalfWidth,
-                        dz < 0);
+                        ref brush,
+                        x,
+                        z,
+                        top,
+                        riverY,
+                        dz,
+                        halfWidth,
+                        waterHalfWidth,
+                        dz < 0,
+                        false,
+                        in unused);
                 }
             }
         }
 
-        /// <summary>
-        /// Realizes the planned gorge profile in the primary gate's tangent/outward frame.
-        /// </summary>
         private static void LowerRiverGorgePlanned(
             ref VoxelBrush brush,
             in CastlePlan plan,
@@ -208,6 +211,7 @@ namespace VoxelEngine.Structures.Runtime
             int waterHalfWidth = geometry.WaterHalfWidth;
             int riverY = top - geometry.RiverDepth;
             float riverDistance = plan.WallThickness + geometry.RiverOffset;
+            CastleRiverCrossSectionPlan crossSection = geometry.RiverCrossSection;
 
             for (int column = firstColumn; column < endColumn; column++)
             {
@@ -218,17 +222,23 @@ namespace VoxelEngine.Structures.Runtime
 
                 for (int across = -halfWidth; across <= halfWidth; across++)
                 {
-                    // Positive across is farther outside because CastleApproachFrame.Outward points
-                    // away from the castle. Meander is subtracted in outward-distance space so the
-                    // historical -Z reduction remains channelZ = riverZ + meander.
                     int2 local = approach.LocalPoint(
                         along,
                         riverDistance - meander + across);
                     int x = plan.Centre.x + local.x;
                     int z = plan.Centre.z + local.y;
                     SculptRiverColumn(
-                        ref brush, x, z, top, riverY, across, halfWidth, waterHalfWidth,
-                        across > 0);
+                        ref brush,
+                        x,
+                        z,
+                        top,
+                        riverY,
+                        across,
+                        halfWidth,
+                        waterHalfWidth,
+                        across > 0,
+                        true,
+                        in crossSection);
                 }
             }
         }
@@ -242,30 +252,60 @@ namespace VoxelEngine.Structures.Runtime
             int across,
             int halfWidth,
             int waterHalfWidth,
-            bool outsideBank)
+            bool outsideBank,
+            bool hasPlannedCrossSection,
+            in CastleRiverCrossSectionPlan crossSection)
         {
+            int rejectDepth = hasPlannedCrossSection
+                ? crossSection.ExistingSurfaceRejectDepth
+                : 20;
             int existingSurface = HighestSolid(ref brush, x, z, top + 5, riverY - 30);
-            if (existingSurface < riverY - 20) return;
+            if (existingSurface < riverY - rejectDepth) return;
 
             float normalizedAcross = math.abs(across) / (float)halfWidth;
-            float bank = math.smoothstep(0.18f, 1f, normalizedAcross);
-            int authoredTerrace = outsideBank ? top - 32 : top - 1;
+            float bankStart = hasPlannedCrossSection ? crossSection.BankBlendStart : 0.18f;
+            float bankEnd = hasPlannedCrossSection ? crossSection.BankBlendEnd : 1f;
+            float bank = math.smoothstep(bankStart, bankEnd, normalizedAcross);
+            int outsideDrop = hasPlannedCrossSection ? crossSection.OutsideTerraceDrop : 32;
+            int insideDrop = hasPlannedCrossSection ? crossSection.InsideTerraceDrop : 1;
+            int authoredTerrace = outsideBank ? top - outsideDrop : top - insideDrop;
             int terraceTop = math.min(authoredTerrace, existingSurface);
             int surface = (int)math.round(math.lerp(riverY - 9, terraceTop, bank));
 
+            int surfaceClearance = hasPlannedCrossSection ? crossSection.SurfaceClearance : 8;
             brush.FillColumnBulk(x, surface + 1,
-                                 math.max(top + 8, existingSurface + 2), z, Mat.Empty);
+                                 math.max(top + surfaceClearance, existingSurface + 2), z, Mat.Empty);
 
-            int dirtDepth = normalizedAcross > 0.46f ? 5 : 2;
+            float deepSoilThreshold = hasPlannedCrossSection
+                ? crossSection.DeepSoilThreshold
+                : 0.46f;
+            int shallowSoilDepth = hasPlannedCrossSection
+                ? crossSection.ShallowSoilDepth
+                : 2;
+            int deepSoilDepth = hasPlannedCrossSection
+                ? crossSection.DeepSoilDepth
+                : 5;
+            int dirtDepth = normalizedAcross > deepSoilThreshold
+                ? deepSoilDepth
+                : shallowSoilDepth;
+            float looseBankThreshold = hasPlannedCrossSection
+                ? crossSection.LooseBankThreshold
+                : 0.38f;
             brush.FillColumnBulk(x, surface - dirtDepth, surface, z,
-                                 normalizedAcross > 0.38f ? Mat.Dirt : Mat.DarkStone);
-            if (normalizedAcross > 0.56f)
+                                 normalizedAcross > looseBankThreshold ? Mat.Dirt : Mat.DarkStone);
+
+            float grassThreshold = hasPlannedCrossSection
+                ? crossSection.GrassThreshold
+                : 0.56f;
+            if (normalizedAcross > grassThreshold)
                 brush.FillColumnBulk(x, surface, surface + 1, z, Mat.Grass);
 
             if (math.abs(across) <= waterHalfWidth)
             {
-                int bed = riverY - 10
-                        + (int)math.round(math.abs(across) * 4f / waterHalfWidth);
+                int bedDepth = hasPlannedCrossSection ? crossSection.BedDepth : 10;
+                int bedRise = hasPlannedCrossSection ? crossSection.BedRise : 4;
+                int bed = riverY - bedDepth
+                        + (int)math.round(math.abs(across) * bedRise / (float)waterHalfWidth);
                 brush.FillColumnBulk(x, bed, riverY + 1, z, Mat.Water);
             }
         }
