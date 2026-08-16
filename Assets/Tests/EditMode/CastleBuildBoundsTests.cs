@@ -85,12 +85,12 @@ namespace VoxelEngine.Tests.EditMode
                 originalCrossSection.LooseBankThreshold,
                 originalCrossSection.DeepSoilThreshold,
                 originalCrossSection.GrassThreshold,
-                shallowSoilDepth: 6,
-                deepSoilDepth: 18,
-                bedDepth: plannedBedDepth,
+                6,
+                18,
+                plannedBedDepth,
                 originalCrossSection.BedRise,
                 originalCrossSection.ExistingSurfaceRejectDepth,
-                surfaceClearance: 14);
+                14);
             var deepGeometry = new CastleSiteGeometryPlan(
                 originalGeometry.EdgeFrequencyA,
                 originalGeometry.EdgeAmplitudeA,
