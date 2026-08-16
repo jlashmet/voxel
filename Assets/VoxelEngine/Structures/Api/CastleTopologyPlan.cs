@@ -63,6 +63,7 @@ namespace VoxelEngine.Structures.Api
         UnexpectedKeepAnnexPlan,
         InvalidKeepTurretPlan,
         InvalidGatehousePlan,
+        UnexpectedGatehousePlan,
         InvalidSitePlan,
         InvalidWallPlan,
         InvalidPosternDoorPlan,
@@ -210,6 +211,11 @@ namespace VoxelEngine.Structures.Api
                     issue = CastleTopologyPlanIssue.InvalidGatehousePlan;
                     return false;
                 }
+            }
+            else if (!plan.Gatehouse.Equals(default(CastleGatehousePlan)))
+            {
+                issue = CastleTopologyPlanIssue.UnexpectedGatehousePlan;
+                return false;
             }
 
             issue = CastleTopologyPlanIssue.None;
