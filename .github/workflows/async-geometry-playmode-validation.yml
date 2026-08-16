@@ -40,13 +40,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Renderer-world lifetime ownership is green in 83 focused EditMode tests and Metal no
-          # longer reproduces the stale Storage-pin/RenderGraph failure. The visual LOD fixture is
-          # subject/image-scoped and requires real voxel draws before accepting a stable capture.
-          # Step 4 previously had only three visible chunks missing, four active jobs, an empty
-          # upload queue, and ~7/92 MB arena use at its 8-second ceiling; the offline capture now
-          # allows 20 seconds for those coarse jobs to settle. Stress remains 2 workers with
-          # production budgets and is the constrained runtime/performance authority.
+          # Focused EditMode is green 84/84, including renderer-world teardown and the new owned-
+          # dirty admission regression. Surface discovery now queues build work only when TrackKnown
+          # confirms current clipmap ownership; rejected resident-world discoveries can no longer
+          # create _dirty entries outside the ring. Run 38 exposed dirty=42 with known=18 at step 4,
+          # so this Metal run validates that concrete production fix. Visual LOD remains subject/
+          # image-scoped with a 20-second offline ceiling; stress remains 2 workers with production
+          # budgets and is the constrained runtime/performance authority.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
