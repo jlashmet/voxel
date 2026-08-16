@@ -114,6 +114,7 @@ def apply_mesh_transforms(meshes: list[bpy.types.Object]) -> None:
 def export_fbx(
     output: Path,
     objects: list[bpy.types.Object],
+    bake_anim: bool = False,
 ) -> None:
     bpy.ops.object.select_all(action="DESELECT")
     for obj in objects:
@@ -125,7 +126,12 @@ def export_fbx(
         use_selection=True,
         object_types={"ARMATURE", "MESH", "EMPTY"},
         add_leaf_bones=False,
-        bake_anim=False,
+        bake_anim=bake_anim,
+        bake_anim_use_all_actions=bake_anim,
+        bake_anim_use_nla_strips=False,
+        bake_anim_force_startend_keying=bake_anim,
+        bake_anim_step=1.0,
+        bake_anim_simplify_factor=0.0,
         path_mode="COPY",
         embed_textures=True,
     )

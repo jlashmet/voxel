@@ -18,6 +18,7 @@ from blender_common import (
     import_glb,
     transfer_weights,
 )
+from blender_gameplay_animation import add_gameplay_animation_set
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,6 +38,11 @@ def parse_args() -> argparse.Namespace:
         "--no-auto-align",
         action="store_true",
         help="Skip global axis/scale/center alignment before weight transfer.",
+    )
+    parser.add_argument(
+        "--no-gameplay-animations",
+        action="store_true",
+        help="Export only the skinned bind pose instead of the built-in preview/gameplay clips.",
     )
     return parser.parse_args(argv)
 
@@ -72,7 +78,11 @@ def main() -> int:
         )
 
     donor_body.hide_render = True
-    export_fbx(output, [armature, *generated])
+    has_animations = not args.no_gameplay_animations
+    if has_animations:
+        add_gameplay_animation_set(armature)
+
+    export_fbx(output, [armature, *generated], bake_anim=has_animations)
     print(output)
     return 0
 
