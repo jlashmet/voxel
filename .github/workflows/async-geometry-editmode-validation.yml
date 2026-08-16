@@ -46,7 +46,7 @@ jobs:
           # Current checkpoint includes toroidal slot ownership, outgoing-edge retirement,
           # newly exposed region readmission, dense active-slot visibility, stale-build rejection,
           # non-blocking completion instrumentation, frame-scoped managed-allocation metrics,
-          # and fixed-arena backpressure without GPU buffer growth.
+          # fixed-arena backpressure, and feature-preserving coarse-HLOD summary primitives.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
@@ -66,7 +66,7 @@ jobs:
           UNITY_MAX_RSS_MB=12288 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 2 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
-            -testFilter "VoxelEngine.Tests.EditMode.ArchitectureBoundaryGuardTests;VoxelEngine.Tests.EditMode.GeometryFrameBudgetTests;VoxelEngine.Tests.EditMode.GeometryPipelineArchitectureTests;VoxelEngine.Tests.EditMode.StorageRenderingReadContractTests;VoxelEngine.Tests.EditMode.SurfaceBrickDiscoveryTests;VoxelEngine.Tests.EditMode.SurfaceGeometryArenaTests;VoxelEngine.Tests.EditMode.SurfaceRingBandTests" \
+            -testFilter "VoxelEngine.Tests.EditMode.ArchitectureBoundaryGuardTests;VoxelEngine.Tests.EditMode.GeometryFrameBudgetTests;VoxelEngine.Tests.EditMode.GeometryPipelineArchitectureTests;VoxelEngine.Tests.EditMode.StorageRenderingReadContractTests;VoxelEngine.Tests.EditMode.SurfaceBlockHlodSummaryTests;VoxelEngine.Tests.EditMode.SurfaceBrickDiscoveryTests;VoxelEngine.Tests.EditMode.SurfaceGeometryArenaTests;VoxelEngine.Tests.EditMode.SurfaceRingBandTests" \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log"
           status=$?
           test -s "$ROOT/results.xml" || { tail -n 200 "$ROOT/unity.log" || true; exit 1; }
