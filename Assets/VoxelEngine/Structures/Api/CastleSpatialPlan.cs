@@ -31,12 +31,13 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public sealed class CastleSpatialPlan
     {
+        private readonly CastleTowerPlacementSpec[] _innerTowers;
+
         public CastleTopologyPlan Topology { get; }
         public int2[] OuterWardVertices { get; }
         public int2[] InnerWardVertices { get; }
         public CastleTowerPlacementSpec[] Towers { get; }
-        public CastleTowerPlacementSpec[] InnerTowers =>
-            CastleInnerWardTowerPlanner.Create(InnerWardVertices);
+        public CastleTowerPlacementSpec[] InnerTowers => _innerTowers;
         public CastleGatePlacementSpec PrimaryGate { get; }
         public bool HasPosternGate { get; }
         public CastleGatePlacementSpec PosternGate { get; }
@@ -168,6 +169,9 @@ namespace VoxelEngine.Structures.Api
             OuterWardVertices = outerWardVertices;
             InnerWardVertices = innerWardVertices;
             Towers = towers;
+            // Compute planned inner tower placements once while the plan is assembled. Runtime
+            // must consume stable plan data rather than trigger planning through a property read.
+            _innerTowers = CastleInnerWardTowerPlanner.Create(innerWardVertices);
             PrimaryGate = primaryGate;
             HasPosternGate = hasPosternGate;
             PosternGate = posternGate;
