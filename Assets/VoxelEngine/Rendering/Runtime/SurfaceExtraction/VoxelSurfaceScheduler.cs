@@ -264,7 +264,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private static readonly ProfilerMarker s_WorkersMarker = new("Voxel.Surface.WorkerAdmission");
         private static readonly ProfilerMarker s_VisibilityMarker = new("Voxel.Surface.Visibility");
         private const int SurfaceDiscoveryPublishBatch = 512;
-        public const int SolidWorkerCount = 8;
+        public const int NearSolidWorkerCount = 8;
+
+        /// <summary>
+        /// Build workspaces are deliberately not uniform across LODs. Exact-sampling snapshot
+        /// storage grows with the cube of SourceStep (step 8 has a 66^3 padded brick cache), while
+        /// the number of chunks needed to cover a coarse ring falls sharply. Keeping eight giant
+        /// caches in the outer ring wastes tens of megabytes of persistent scratch and increases
+        /// memory pressure without increasing the renderer-wide frame budget.
+        /// </summary>
+        public static int WorkerCountForSourceStep(int sourceStep) => sourceStep switch
+        {
+            <= 2 => NearSolidWorkerCount,
+            4 => 4,
+            _ => 2,
+        };
 
         private sealed class SurfaceRing : IDisposable
         {
@@ -279,7 +293,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 SourceStep = sourceStep;
                 InnerRadiusMetres = innerRadiusMetres;
                 OuterRadiusMetres = outerRadiusMetres;
-                Workers = new CpuTransvoxelChunkCache[SolidWorkerCount];
+                Workers = new CpuTransvoxelChunkCache[WorkerCountForSourceStep(sourceStep)];
                 for (int i = 0; i < Workers.Length; i++)
                 {
                     Workers[i] = new CpuTransvoxelChunkCache(sourceStep, geometryArena)
@@ -380,6 +394,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int LastFrameSolidUploadedBytes => _lastFrameSolidUploadedBytes;
         public int LastFrameSolidUploadCompletions => _lastFrameSolidUploadCompletions;
         public int LastAdvancedFrame => _lastAdvancedFrame;
+        public int SolidBuildWorkspaceCount => _allWorkers.Length;
         public int PendingSolidUploadBytes
         {
             get
@@ -409,7 +424,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                                        SurfaceArenaIndexCapacity,
                                                        SurfaceArenaDrawCapacity);
             _rings = new SurfaceRing[s_RingLayout.Length];
-            _allWorkers = new CpuTransvoxelChunkCache[s_RingLayout.Length * SolidWorkerCount];
+            int totalWorkers = 0;
+            for (int i = 0; i < s_RingLayout.Length; i++)
+                totalWorkers += WorkerCountForSourceStep(s_RingLayout[i].SourceStep);
+            _allWorkers = new CpuTransvoxelChunkCache[totalWorkers];
             int workerIndex = 0;
             for (int i = 0; i < s_RingLayout.Length; i++)
             {

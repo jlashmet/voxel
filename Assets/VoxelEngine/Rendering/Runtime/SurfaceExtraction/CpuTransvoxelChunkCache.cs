@@ -699,6 +699,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int ShardCount { get; set; } = 1;
         public int ResidentCount => _entries.Count;
         public int KnownCount => _known.Count;
+        /// <summary>Number of exact-snapshot brick records reserved by this build workspace.</summary>
+        public int SnapshotBrickCapacity => BrickCacheCount;
         public int DirtyCount => _dirty.Count + (_build.Active ? 1 : 0);
         public ulong ActiveSurfaceCatalogueHash => _surfaceCatalogue.CatalogueHash;
         public ulong CompletedBuildCount { get; private set; }

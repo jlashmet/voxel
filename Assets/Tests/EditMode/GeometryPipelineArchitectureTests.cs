@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using NUnit.Framework;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -108,6 +109,19 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("private readonly List<uint> _indices", cache);
             StringAssert.Contains("NativeArray<SmoothSurfaceVertex> source", arena);
             StringAssert.Contains("NativeArray<uint> source", arena);
+        }
+
+
+        [Test]
+        public void CoarseExactSamplingUsesFewerBuildWorkspaces()
+        {
+            Assert.AreEqual(8, VoxelSurfaceScheduler.WorkerCountForSourceStep(1));
+            Assert.AreEqual(8, VoxelSurfaceScheduler.WorkerCountForSourceStep(2));
+            Assert.AreEqual(4, VoxelSurfaceScheduler.WorkerCountForSourceStep(4));
+            Assert.AreEqual(2, VoxelSurfaceScheduler.WorkerCountForSourceStep(8));
+            Assert.Less(VoxelSurfaceScheduler.WorkerCountForSourceStep(8),
+                        VoxelSurfaceScheduler.WorkerCountForSourceStep(1),
+                "The exact step-8 ring must not duplicate its 66^3 snapshot cache eight times.");
         }
 
     }
