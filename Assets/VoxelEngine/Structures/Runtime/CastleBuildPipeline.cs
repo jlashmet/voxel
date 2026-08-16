@@ -19,8 +19,8 @@ namespace VoxelEngine.Structures.Runtime
         private int _keepStage;
         private CastleSiteRealizer.State _site;
 
-        // Spatial planning is consumed incrementally. Site approach, fortifications, courtyard
-        // footprint, and resolved keep/dungeon placement are migrated; landscape remains legacy.
+        // Spatial planning now drives every stage that depends on castle orientation or placement.
+        // The legacy landscape recipe remains available only to compatibility builds.
         private bool _hasSpatialFortifications;
         private bool _hasSpatialKeep;
         private int2[] _outerWardVertices;
@@ -211,7 +211,15 @@ namespace VoxelEngine.Structures.Runtime
                 }
 
                 case 8:
-                    CastleLandscapeRealizer.Build(ref _brush, in _plan, _terrainSeed);
+                    if (_hasSpatialFortifications)
+                    {
+                        CastleSpatialLandscapeRealizer.Build(
+                            ref _brush, in _plan, _outerWardVertices, in _approach);
+                    }
+                    else
+                    {
+                        CastleLandscapeRealizer.Build(ref _brush, in _plan, _terrainSeed);
+                    }
                     return CompleteStage("landscape details");
 
                 default:
