@@ -125,7 +125,11 @@ namespace VoxelEngine.Tests.PlayMode
                         if ((convergenceFrames % 12) != 0) continue;
 
                         CastleStructureSignature candidate = CaptureCastleStructure(target, readback);
-                        bool substantial = candidate.EdgeCount > 40;
+                        // Sky/terrain presentation can have stable edges even when the current
+                        // voxel LOD has published nothing. A capture is only eligible once the
+                        // production surface pass reports at least one ready voxel draw.
+                        bool substantial = candidate.EdgeCount > 40
+                                        && metrics.VisibleSolidChunks > 0;
                         bool stable = false;
                         if (substantial && hasPreviousSignature && previousSignature.EdgeCount > 0)
                         {
@@ -163,7 +167,15 @@ namespace VoxelEngine.Tests.PlayMode
                       + $"pressureEvictions={metrics.SolidArenaPressureEvictions} "
                       + $"capacityEvents={metrics.SolidCapacityPressureEvents}.");
                     Assert.Greater(metrics.VisibleSolidChunks, 0,
-                        $"LOD step {band.step} produced no visible voxel geometry.");
+                        $"LOD step {band.step} produced no visible voxel geometry; "
+                      + $"known={metrics.SolidKnownChunks} resident={metrics.SolidResidentChunks} "
+                      + $"dirty={metrics.SolidDirtyChunks} missing={metrics.MissingVisibleSolidChunks} "
+                      + $"jobs={metrics.RunningSolidJobs} pendingUpload={metrics.SolidPendingUploadBytes} "
+                      + $"completed={metrics.CompletedSolidBuilds} uploaded={metrics.UploadedGeometryBytes} "
+                      + $"arena={metrics.SolidArenaUsedBytes}/{metrics.SolidArenaCommittedBytes}B "
+                      + $"leases={metrics.SolidArenaActiveLeases} "
+                      + $"arenaFailures={metrics.SolidArenaAllocationFailures} "
+                      + $"pressureEvictions={metrics.SolidArenaPressureEvictions}.");
                     Assert.Greater(metrics.UploadedGeometryBytes, 0ul,
                         $"LOD step {band.step} did not use the voxel surface extractor.");
                     Assert.Greater(signature.EdgeCount, 40,
