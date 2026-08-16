@@ -6,7 +6,8 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Frozen authored recipe for the primary gatehouse and its approach bridge. Coordinates and
     /// orientation still come from the spatial primary gate; this value freezes the dimensional
-    /// choices and gate-tower slit patterns that Runtime historically derived during realization.
+    /// choices, gate-leaf strap pattern, and gate-tower slit patterns that Runtime historically
+    /// derived during realization.
     /// </summary>
     public struct CastleGatehousePlan
     {
@@ -17,6 +18,10 @@ namespace VoxelEngine.Structures.Api
         public CastleTowerSlitPlan RightTowerSlits;
         public int BlockHeight;
         public int OpeningHeight;
+
+        public int GateLeafStrapFirstY;
+        public int GateLeafStrapSpacing;
+        public int GateLeafStrapThickness;
 
         public int BridgeNearDistance;
         public int BridgeLength;
@@ -40,6 +45,7 @@ namespace VoxelEngine.Structures.Api
         MissingTowerSlitPlan,
         InvalidTowerSlitPlan,
         InvalidMasonry,
+        InvalidGateLeaf,
         InvalidBridgeSpan,
         InvalidBridgeDeck,
         InvalidBridgeSupports,
@@ -77,6 +83,10 @@ namespace VoxelEngine.Structures.Api
                 RightTowerHeight = plan.GateTowerHeight + 12,
                 BlockHeight = plan.WallHeight + 22,
                 OpeningHeight = CastleLayout.FrontGateHeight + 14,
+
+                GateLeafStrapFirstY = 10,
+                GateLeafStrapSpacing = 13,
+                GateLeafStrapThickness = 3,
 
                 BridgeNearDistance = plan.WallThickness + 4,
                 BridgeLength = 150,
@@ -197,6 +207,16 @@ namespace VoxelEngine.Structures.Api
                 plan.BlockHeight <= plan.OpeningHeight)
             {
                 issue = CastleGatehousePlanIssue.InvalidMasonry;
+                return false;
+            }
+
+            if (plan.GateLeafStrapFirstY < 0 ||
+                plan.GateLeafStrapFirstY >= CastleLayout.FrontGateHeight ||
+                plan.GateLeafStrapSpacing <= 0 ||
+                plan.GateLeafStrapThickness <= 0 ||
+                plan.GateLeafStrapThickness > plan.GateLeafStrapSpacing)
+            {
+                issue = CastleGatehousePlanIssue.InvalidGateLeaf;
                 return false;
             }
 
