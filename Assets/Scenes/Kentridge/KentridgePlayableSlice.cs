@@ -32,7 +32,7 @@ namespace Game.Kentridge.PlayableSlice
 
         [Header("World")]
         [SerializeField] private uint m_Seed = 0x4B454E54u;
-        [SerializeField] private int m_BrickPoolCapacity = 65536;
+        [SerializeField] private int m_BrickPoolCapacity = 262144;
 
         [Header("Streaming")]
         [SerializeField] private int m_LoadRadiusRegions = 3;
