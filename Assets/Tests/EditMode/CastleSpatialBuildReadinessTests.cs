@@ -1,3 +1,4 @@
+using System.IO;
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
@@ -6,6 +7,19 @@ namespace VoxelEngine.Tests.EditMode
 {
     public sealed class CastleSpatialBuildReadinessTests
     {
+        private static string RepoRoot
+        {
+            get
+            {
+                var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+                while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Assets")))
+                    dir = dir.Parent;
+
+                Assert.NotNull(dir, "Could not locate project root containing Assets/.");
+                return dir.FullName;
+            }
+        }
+
         [Test]
         public void CompletedSpatialPlanSatisfiesCanonicalRuntimeReadiness()
         {
@@ -71,6 +85,18 @@ namespace VoxelEngine.Tests.EditMode
                 CastleSpatialBuildReadiness.TryValidate(
                     in plan, completed, out CastleSpatialBuildReadinessIssue issue));
             Assert.AreEqual(CastleSpatialBuildReadinessIssue.InvalidKeepWindowPlan, issue);
+        }
+
+        [Test]
+        public void RuntimePreflightDelegatesCompletenessToCanonicalReadinessContract()
+        {
+            string preflight = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api", "CastleBuildPreflight.cs"));
+
+            StringAssert.Contains("CastleSpatialBuildReadiness.TryValidate(", preflight);
+            StringAssert.DoesNotContain("CastleKeepAnnexBuildReadiness.TryValidate(", preflight);
+            StringAssert.DoesNotContain("CastleCaveBuildReadiness.TryValidate(", preflight);
+            StringAssert.DoesNotContain("CastleKeepWindowPlanner.TryValidate(", preflight);
         }
     }
 }
