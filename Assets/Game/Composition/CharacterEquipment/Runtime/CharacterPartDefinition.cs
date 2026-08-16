@@ -18,12 +18,14 @@ namespace MountingForce.Game.Composition.CharacterEquipment
     [Serializable]
     public sealed class CharacterPartDefinition
     {
+        [SerializeField] private string partId = string.Empty;
         [SerializeField] private string slot = string.Empty;
         [SerializeField] private CharacterPartKind partKind;
         [SerializeField] private CharacterPartMountMode mountMode;
         [SerializeField] private GameObject prefab;
         [SerializeField] private string socket = string.Empty;
 
+        public string PartId => partId;
         public string Slot => slot;
         public CharacterPartKind PartKind => partKind;
         public CharacterPartMountMode MountMode => mountMode;
@@ -36,8 +38,20 @@ namespace MountingForce.Game.Composition.CharacterEquipment
             CharacterPartMountMode mountMode,
             GameObject prefab,
             string socket = "")
+            : this(string.Empty, slot, partKind, mountMode, prefab, socket)
         {
-            this.slot = slot;
+        }
+
+        public CharacterPartDefinition(
+            string partId,
+            string slot,
+            CharacterPartKind partKind,
+            CharacterPartMountMode mountMode,
+            GameObject prefab,
+            string socket = "")
+        {
+            this.partId = partId ?? string.Empty;
+            this.slot = slot ?? string.Empty;
             this.partKind = partKind;
             this.mountMode = mountMode;
             this.prefab = prefab;
