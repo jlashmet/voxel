@@ -446,6 +446,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
         public double WaterBuildBudgetMs { get; set; } = 0.15;
+        /// <summary>Maximum water geometry payload copied into its fixed arena per frame.</summary>
+        public int WaterUploadBudgetBytes { get; set; } = 256 * 1024;
+        /// <summary>Wall-clock gate for the single water publication slice.</summary>
+        public double WaterUploadBudgetMs { get; set; } = 0.10;
+        public int LastFrameWaterUploadedBytes { get; private set; }
 
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
@@ -650,6 +655,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
             _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
+            LastFrameWaterUploadedBytes = 0;
+            double waterUploadDeadline = Time.realtimeSinceStartupAsDouble
+                                       + Math.Max(0.0, WaterUploadBudgetMs) * 0.001;
+            if (_water.PendingUploadCount > 0 && WaterUploadBudgetBytes > 0
+                && Time.realtimeSinceStartupAsDouble < waterUploadDeadline)
+            {
+                _water.TryPublishPending(WaterUploadBudgetBytes,
+                                         out int waterUploadedBytes);
+                LastFrameWaterUploadedBytes = waterUploadedBytes;
+            }
             _workerPrepareTiming.Add(workerPrepareMs);
             CollectVisibility(camera, voxelSize, frame);
             _prepareTiming.Add(ElapsedMs(prepareStart));

@@ -289,5 +289,24 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("ClipmapRadius", scheduler);
         }
 
+
+        [Test]
+        public void WaterPublicationUsesFixedArenaAndBoundedSlices()
+        {
+            string water = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            StringAssert.Contains("SurfaceGeometryArena _geometryArena", water);
+            StringAssert.Contains("NativeList<SmoothSurfaceVertex> _vertices", water);
+            StringAssert.Contains("NativeList<uint> _indices", water);
+            StringAssert.Contains("TryPublishPending", water);
+            StringAssert.Contains("Time.realtimeSinceStartupAsDouble >= deadline", water);
+            StringAssert.DoesNotContain("new ComputeBuffer", water);
+            StringAssert.DoesNotContain("new uint[]", water);
+            StringAssert.Contains("WaterUploadBudgetBytes", scheduler);
+            StringAssert.Contains("_water.TryPublishPending", scheduler);
+        }
+
     }
 }

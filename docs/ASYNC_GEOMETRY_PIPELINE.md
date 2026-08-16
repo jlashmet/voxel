@@ -83,7 +83,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 ### Water parity
 
 - [ ] Apply the same async snapshot/result/publication contract to water geometry.
-- [ ] Give water bounded GPU publication and shared/pool-backed geometry ownership.
+- [x] Give water bounded GPU publication and shared/pool-backed geometry ownership.
 
 ## Runtime acceptance gates
 
@@ -101,7 +101,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 ## Current next slices
 
-1. Replace all-known visibility traversal with bounded clipmap slot ownership.
+1. Split persistent chunk slots from reusable build scratch/workspaces.
 2. Split persistent chunk slots from reusable build scratch/workspaces.
 3. Move authoritative snapshot publication toward immutable/COW Storage pages so worker-side snapshotting can become truly off-thread.
 4. Bring water onto the same pipeline contract.
