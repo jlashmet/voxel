@@ -10,10 +10,12 @@ namespace VoxelEngine.Structures.Api
         SelfIntersectingOuterWard,
         PerimeterOutsidePlateau,
         InvalidGateEdge,
+        GateEdgeTooShort,
         GateDetachedFromPerimeter,
         InvalidGateNormal,
         PosternGateMismatch,
         InvalidPosternGateEdge,
+        PosternGateEdgeTooShort,
         PosternGateDetachedFromPerimeter,
         InvalidPosternGateNormal,
         PosternGateConflictsWithPrimaryGate,
@@ -28,6 +30,7 @@ namespace VoxelEngine.Structures.Api
         InnerWardOutsideOuterWard,
         InnerGateMismatch,
         InvalidInnerGateEdge,
+        InnerGateEdgeTooShort,
         InnerGateDetachedFromPerimeter,
         InvalidInnerGateNormal,
         InnerGateMisaligned,
@@ -101,7 +104,9 @@ namespace VoxelEngine.Structures.Api
             if (!TryValidateGate(
                     outer,
                     in primaryGate,
+                    CastleGatePlanningRules.PrimaryMinimumEdgeLength(in dimensions),
                     CastleSpatialPlanIssue.InvalidGateEdge,
+                    CastleSpatialPlanIssue.GateEdgeTooShort,
                     CastleSpatialPlanIssue.GateDetachedFromPerimeter,
                     CastleSpatialPlanIssue.InvalidGateNormal,
                     out issue))
@@ -119,7 +124,9 @@ namespace VoxelEngine.Structures.Api
                 if (!TryValidateGate(
                         outer,
                         in posternGate,
+                        CastleGatePlanningRules.PosternMinimumEdgeLength(in dimensions),
                         CastleSpatialPlanIssue.InvalidPosternGateEdge,
+                        CastleSpatialPlanIssue.PosternGateEdgeTooShort,
                         CastleSpatialPlanIssue.PosternGateDetachedFromPerimeter,
                         CastleSpatialPlanIssue.InvalidPosternGateNormal,
                         out issue))
@@ -223,7 +230,9 @@ namespace VoxelEngine.Structures.Api
                 if (!TryValidateGate(
                         inner,
                         in innerGate,
+                        CastleGatePlanningRules.InnerMinimumEdgeLength(in dimensions),
                         CastleSpatialPlanIssue.InvalidInnerGateEdge,
+                        CastleSpatialPlanIssue.InnerGateEdgeTooShort,
                         CastleSpatialPlanIssue.InnerGateDetachedFromPerimeter,
                         CastleSpatialPlanIssue.InvalidInnerGateNormal,
                         out issue))
@@ -375,7 +384,9 @@ namespace VoxelEngine.Structures.Api
         private static bool TryValidateGate(
             int2[] perimeter,
             in CastleGatePlacementSpec gate,
+            int minimumEdgeLength,
             CastleSpatialPlanIssue invalidEdgeIssue,
+            CastleSpatialPlanIssue edgeTooShortIssue,
             CastleSpatialPlanIssue detachedIssue,
             CastleSpatialPlanIssue invalidNormalIssue,
             out CastleSpatialPlanIssue issue)
@@ -383,6 +394,13 @@ namespace VoxelEngine.Structures.Api
             if (gate.EdgeIndex < 0 || gate.EdgeIndex >= perimeter.Length)
             {
                 issue = invalidEdgeIssue;
+                return false;
+            }
+
+            if (!CastleGatePlanningRules.EdgeCanHostOpening(
+                    perimeter, gate.EdgeIndex, minimumEdgeLength))
+            {
+                issue = edgeTooShortIssue;
                 return false;
             }
 
