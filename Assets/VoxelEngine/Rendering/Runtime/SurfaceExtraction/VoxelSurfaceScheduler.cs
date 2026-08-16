@@ -276,6 +276,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public const float MaxVoxelRingRadiusMetres = 420f;
 
         private readonly SurfaceRing[] _rings;
+        private readonly CpuTransvoxelChunkCache[] _allWorkers;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
         private readonly CpuWaterSurfaceChunkCache _water = new();
         private readonly List<VoxelChangeRecord> _changeScratch = new(256);
@@ -290,6 +291,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private ulong _changeCursor;
         private IVoxelChangeSource _journal;
         private int _lastChangeRecords;
+        private int _workerAdmissionCursor;
         private readonly VoxelTimingWindow _prepareTiming = new();
         private readonly VoxelTimingWindow _journalTiming = new();
         private readonly VoxelTimingWindow _invalidationTiming = new();
@@ -297,34 +299,33 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly VoxelTimingWindow _workerPrepareTiming = new();
         private readonly VoxelTimingWindow _visibilityTiming = new();
 
+        /// <summary>
+        /// Renderer-wide main-thread budget for admitting solid surface work. This is shared by
+        /// every LOD ring and worker; it is not multiplied by worker count.
+        /// </summary>
         public double SolidBuildBudgetMs { get; set; } = 0.20;
         public double WaterBuildBudgetMs { get; set; } = 0.15;
 
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
         public VoxelSurfaceMetrics Metrics => new(
-            AllWorkers(), _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
+            _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
             _visibleSolids.Count, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),
             _invalidationTiming.Snapshot(), _discoveryTiming.Snapshot(),
             _workerPrepareTiming.Snapshot(), _visibilityTiming.Snapshot());
 
-        private CpuTransvoxelChunkCache[] AllWorkers()
-        {
-            var all = new CpuTransvoxelChunkCache[_rings.Length * SolidWorkerCount];
-            int n = 0;
-            for (int r = 0; r < _rings.Length; r++)
-                for (int i = 0; i < _rings[r].Workers.Length; i++)
-                    all[n++] = _rings[r].Workers[i];
-            return all;
-        }
-
         public VoxelSurfaceScheduler()
         {
             _rings = new SurfaceRing[s_RingLayout.Length];
+            _allWorkers = new CpuTransvoxelChunkCache[s_RingLayout.Length * SolidWorkerCount];
+            int workerIndex = 0;
             for (int i = 0; i < s_RingLayout.Length; i++)
             {
                 var layout = s_RingLayout[i];
-                _rings[i] = new SurfaceRing(layout.SourceStep, layout.Inner, layout.Outer, 4096);
+                SurfaceRing ring = new(layout.SourceStep, layout.Inner, layout.Outer, 4096);
+                _rings[i] = ring;
+                for (int worker = 0; worker < ring.Workers.Length; worker++)
+                    _allWorkers[workerIndex++] = ring.Workers[worker];
             }
         }
 
@@ -414,13 +415,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             double invalidationStart = Time.realtimeSinceStartupAsDouble;
             using (s_InvalidationMarker.Auto())
             {
-                for (int r = 0; r < _rings.Length; r++)
-                for (int i = 0; i < _rings[r].Workers.Length; i++)
-                    _rings[r].Workers[i].InvalidateDirtyRegions(_changedSolidRegions);
+                for (int i = 0; i < _allWorkers.Length; i++)
+                    _allWorkers[i].InvalidateDirtyRegions(_changedSolidRegions);
                 _water.InvalidateDirtyRegions(_changedWaterRegions);
-                for (int r = 0; r < _rings.Length; r++)
-                for (int i = 0; i < _rings[r].Workers.Length; i++)
-                    _rings[r].Workers[i].InvalidateSurfaceBricks(_changedBricks);
+                for (int i = 0; i < _allWorkers.Length; i++)
+                    _allWorkers[i].InvalidateSurfaceBricks(_changedBricks);
                 _water.InvalidateSurfaceBricks(storage, _changedWaterBricks);
             }
             _invalidationTiming.Add(ElapsedMs(invalidationStart));
@@ -431,34 +430,56 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                       _discoveredSurfaceBricks);
             _discoveryTiming.Add(ElapsedMs(discoveryStart));
 
+            // Discovery is correctness work rather than build admission: every worker must learn
+            // about newly surfaced bricks even if this frame has no time left to rebuild them.
+            for (int i = 0; i < _allWorkers.Length; i++)
+                _allWorkers[i].InvalidateSurfaceBricks(_discoveredSurfaceBricks);
+
             _visibleSolids.Clear();
-            double workerBudget = SolidBuildBudgetMs;
             double workersStart = Time.realtimeSinceStartupAsDouble;
-            double visibilityMs = 0.0;
+            double solidDeadline = workersStart + Math.Max(0.0, SolidBuildBudgetMs) * 0.001;
+            int admittedWorkers = 0;
             using var workersScope = s_WorkersMarker.Auto();
-            for (int r = 0; r < _rings.Length; r++)
+
+            // Start from a different worker after each admission so one expensive ring/shard
+            // cannot permanently starve the rest when the global budget is intentionally tiny.
+            int workerCount = _allWorkers.Length;
+            for (int offset = 0; offset < workerCount; offset++)
             {
-                SurfaceRing ring = _rings[r];
-                for (int i = 0; i < ring.Workers.Length; i++)
+                double now = Time.realtimeSinceStartupAsDouble;
+                double remainingMs = (solidDeadline - now) * 1000.0;
+                if (remainingMs <= 0.0) break;
+
+                int index = (_workerAdmissionCursor + offset) % workerCount;
+                CpuTransvoxelChunkCache worker = _allWorkers[index];
+                worker.Prepare(storage, in palette, in surfaceCatalogue,
+                               in coatingCatalogue, profileBlocks, camera, voxelSize, frame,
+                               remainingMs);
+                admittedWorkers++;
+            }
+            if (workerCount > 0)
+            {
+                int advance = Math.Max(1, admittedWorkers);
+                _workerAdmissionCursor = (_workerAdmissionCursor + advance) % workerCount;
+            }
+
+            double workerPrepareMs = ElapsedMs(workersStart);
+            double visibilityStart = Time.realtimeSinceStartupAsDouble;
+            using (s_VisibilityMarker.Auto())
+            {
+                for (int i = 0; i < _allWorkers.Length; i++)
                 {
-                    CpuTransvoxelChunkCache worker = ring.Workers[i];
-                    worker.InvalidateSurfaceBricks(_discoveredSurfaceBricks);
-                    worker.Prepare(storage, in palette, in surfaceCatalogue,
-                                   in coatingCatalogue, profileBlocks, camera, voxelSize, frame,
-                                   workerBudget);
-                    double visibilityStart = Time.realtimeSinceStartupAsDouble;
-                    IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible;
-                    using (s_VisibilityMarker.Auto())
-                        visible = worker.CollectVisible(camera, voxelSize, frame);
-                    visibilityMs += ElapsedMs(visibilityStart);
+                    IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible =
+                        _allWorkers[i].CollectVisible(camera, voxelSize, frame);
                     for (int j = 0; j < visible.Count; j++) _visibleSolids.Add(visible[j]);
                 }
             }
+            double visibilityMs = ElapsedMs(visibilityStart);
 
             _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
             _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
             _water.CollectVisible(camera, voxelSize);
-            _workerPrepareTiming.Add(ElapsedMs(workersStart) - visibilityMs);
+            _workerPrepareTiming.Add(workerPrepareMs);
             _visibilityTiming.Add(visibilityMs);
             _prepareTiming.Add(ElapsedMs(prepareStart));
         }
