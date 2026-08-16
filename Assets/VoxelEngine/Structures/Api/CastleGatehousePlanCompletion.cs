@@ -5,8 +5,8 @@ namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// Attaches the dimensional primary-gatehouse recipe once CastlePlan and primary-gate geometry
-    /// are available. Completed spatial plans carry both structural dimensions and frozen gate-tower
-    /// slit phases so Runtime never derives authored gatehouse variation while mutating voxels.
+    /// are available. The resulting placement-complete snapshot also freezes keep-turret slit phases,
+    /// whose historical recipe depends on the final world-space keep position.
     /// </summary>
     public static class CastleGatehousePlanCompletion
     {
@@ -35,7 +35,7 @@ namespace VoxelEngine.Structures.Api
             CastleGatePlacementSpec posternGate = spatial.PosternGate;
             CastleGatePlacementSpec innerGate = spatial.InnerGate;
 
-            return new CastleSpatialPlan(
+            var withGatehouse = new CastleSpatialPlan(
                 in topology,
                 spatial.OuterWardVertices != null
                     ? (int2[])spatial.OuterWardVertices.Clone()
@@ -72,6 +72,8 @@ namespace VoxelEngine.Structures.Api
                 spatial.InnerTowers != null
                     ? (CastleTowerPlacementSpec[])spatial.InnerTowers.Clone()
                     : Array.Empty<CastleTowerPlacementSpec>());
+
+            return CastleKeepTurretPlanCompletion.Attach(in dimensions, withGatehouse);
         }
     }
 }
