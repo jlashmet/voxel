@@ -1,0 +1,97 @@
+name: Materialize temporary character prefabs
+
+on:
+  push:
+    branches:
+      - feature/temp-placeholder-humanoids
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-placeholder-character-prefabs
+  cancel-in-progress: true
+
+jobs:
+  materialize:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Checkout without deleting Unity import cache
+        uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 0
+
+      - name: Reset tracked and non-cache files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          git clean -ffdx -e Library/
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          test -x "$UNITY_PATH"
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity editor to become available
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 600))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              echo 'Timed out waiting for another Unity editor to exit.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Import project and materialize Character Factory outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x tools/unity-run.sh
+          UNITY_MAX_RSS_MB=8192 \
+          UNITY_BIN="${{ steps.unity.outputs.path }}" \
+          tools/unity-run.sh \
+            -batchmode \
+            -nographics \
+            -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -quit \
+            -logFile "$RUNNER_TEMP/materialize-placeholder-prefabs.log"
+
+          for path in \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab.meta \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab.meta \
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset \
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset.meta; do
+            test -f "$path" || { echo "Expected generated asset missing: $path" >&2; exit 1; }
+          done
+
+      - name: Commit generated Unity assets and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/materialize-placeholder-character-prefabs.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/materialize-placeholder-character-prefabs.yml \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab.meta \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab \
+            Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab.meta \
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset \
+            Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset.meta
+          git diff --cached --quiet && exit 0
+          git commit -m "assets: materialize temporary character prefabs"
+          git push origin HEAD:feature/temp-placeholder-humanoids
