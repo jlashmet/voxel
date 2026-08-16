@@ -46,7 +46,9 @@ This checklist is the source of truth for the production Madeline base-character
 - [x] Configure staged FBX animation import mode automatically for character, clothing, and rigid weapon assets.
 - [x] Preserve clothing skeleton-rebind metadata and rigid weapon socket metadata through the staging/import bridge.
 - [x] Preserve generated weapon socket local position/rotation/scale and apply it when equipping the weapon.
-- [ ] Pass the queued Unity EditMode catalogue/equipment-controller validation workflow with the descriptor importer and socket-transform support.
+- [x] Add Unity EditMode contract coverage for descriptor-relative FBX resolution, safe catalogue paths, and generated socket-transform metadata.
+- [x] Add concurrency cancellation to the modular-equipment validation workflow so future superseding runtime commits do not keep piling up redundant runs.
+- [ ] Pass the latest Unity EditMode catalogue/equipment-controller/importer validation workflow.
 
 ## Visual acceptance
 
@@ -70,5 +72,5 @@ This checklist is the source of truth for the production Madeline base-character
 - The Hunyuan bootstrap now downloads only `hunyuan3d-dit-v2-mv-turbo/config.yaml` and `model.fp16.safetensors` into the persistent self-hosted-runner cache.
 - Madeline base-body workflow: run #29 (`31936579943`) from `a4046b503f3edf3644d228168a81fa5f750d74fb`, currently queued for the self-hosted macOS runner.
 - Repaired robe workflow: run #3 (`31936661842`) from `1f8f16596702b8f94458ef0f3ccc5a691d03d6de`, currently using the self-hosted macOS runner to perform the first shared turbo-checkpoint cache fill.
-- Unity catalogue/equipment validation: run `31935911052`, currently queued behind the same self-hosted runner workload; a newer validation run will supersede it after the descriptor-importer commit lands.
+- Latest Unity catalogue/equipment/importer validation: run #10 (`31937486302`) from `b73cc69766e14b2fbccb10b0115694eb215b790f`, currently queued behind the same self-hosted runner workload.
 - Current branch: `feature/character-weapon-asset-pipeline`.
