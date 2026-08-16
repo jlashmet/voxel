@@ -20,9 +20,9 @@ namespace VoxelEngine.Structures.Runtime
                 throw new InvalidOperationException("Spatial keep requires four planned corner turrets.");
 
             int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
-            int minX = keepPlan.Centre.x - keepPlan.KeepHalfX;
-            int minZ = keepPlan.Centre.z - keepPlan.KeepHalfZ
-                     + CastleLayout.LegacyKeepCentreZOffset;
+            int2 keepCentre = CastleSpatialProjection.ActualKeepCentre(in keepPlan);
+            int minX = keepCentre.x - keepPlan.KeepHalfX;
+            int minZ = keepCentre.y - keepPlan.KeepHalfZ;
             int width = keepPlan.KeepHalfX * 2;
             int depth = keepPlan.KeepHalfZ * 2;
             int height = keepPlan.KeepHeight + 30;
