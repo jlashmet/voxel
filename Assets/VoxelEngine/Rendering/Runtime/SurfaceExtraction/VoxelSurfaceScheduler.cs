@@ -31,6 +31,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly ulong SolidDecorationClumps;
         public readonly ulong SolidCapacityPressureEvents;
         public readonly int RunningSolidJobs;
+        public readonly int RunningGeometryJobs;
+        public readonly ulong FramePathBlockingCompletionViolations;
         public readonly int SolidMeshesAwaitingUpload;
         public readonly long SolidPendingUploadBytes;
         public readonly int SolidUploadBudgetBytes;
@@ -88,6 +90,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidDecorationClumps = solids.CompletedDecorationClumps;
             SolidCapacityPressureEvents = solids.CapacityPressureCount;
             RunningSolidJobs = solids.RunningJobCount;
+            RunningGeometryJobs = solids.RunningJobCount + water.RunningJobCount;
+            FramePathBlockingCompletionViolations =
+                solids.FramePathBlockingCompletionViolations
+                + water.FramePathBlockingCompletionViolations;
             SolidMeshesAwaitingUpload = solids.PendingUploadCount;
             SolidPendingUploadBytes = solids.PendingUploadBytes;
             SolidUploadBudgetBytes = int.MaxValue;
@@ -138,7 +144,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                      in VoxelTimingSummary invalidation,
                                      in VoxelTimingSummary discovery,
                                      in VoxelTimingSummary workerPrepare,
-                                     in VoxelTimingSummary visibility)
+                                     in VoxelTimingSummary visibility,
+                                     int schedulerRunningJobs,
+                                     ulong schedulerCompletionViolations)
         {
             ChangeRecords = changeRecords;
             DiscoveredSurfaceBricks = discoveredSurfaceBricks;
@@ -153,6 +161,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             long pendingUploadBytes = 0;
             ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;
             ulong decorations = 0, pressure = 0;
+            ulong completionViolations = water.FramePathBlockingCompletionViolations;
             long geometryBytes = water.ResidentGpuBytes;
             double snapshotMs = 0, compactMs = 0, uploadMs = 0;
             for (int i = 0; i < workers.Length; i++)
@@ -170,6 +179,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 uploadedBytes += worker.UploadedGeometryBytes;
                 decorations += worker.CompletedDecorationClumps;
                 pressure += worker.CapacityPressureCount;
+                completionViolations += worker.FramePathBlockingCompletionViolations;
                 geometryBytes += worker.ResidentGpuBytes;
                 snapshotMs = Math.Max(snapshotMs, worker.LastSnapshotMs);
                 compactMs = Math.Max(compactMs, worker.LastTopologyCompactMs);
@@ -180,6 +190,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             SolidDirtyChunks = dirty;
             MissingVisibleSolidChunks = missing;
             RunningSolidJobs = running;
+            RunningGeometryJobs = running + water.RunningJobCount + schedulerRunningJobs;
+            FramePathBlockingCompletionViolations =
+                completionViolations + schedulerCompletionViolations;
             SolidMeshesAwaitingUpload = uploads;
             SolidPendingUploadBytes = pendingUploadBytes;
             SolidUploadBudgetBytes = solidUploadBudgetBytes;
@@ -461,6 +474,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly VoxelTimingWindow _discoveryTiming = new();
         private readonly VoxelTimingWindow _workerPrepareTiming = new();
         private readonly VoxelTimingWindow _visibilityTiming = new();
+        private ulong _framePathBlockingCompletionViolations;
 
         /// <summary>
         /// Renderer-wide main-thread budget for admitting solid surface work. This is shared by
@@ -527,7 +541,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _geometryArena.UsedGpuBytes, _geometryArena.AllocationFailureCount,
             _arenaPressureEvictions, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),
             _invalidationTiming.Snapshot(), _discoveryTiming.Snapshot(),
-            _workerPrepareTiming.Snapshot(), _visibilityTiming.Snapshot());
+            _workerPrepareTiming.Snapshot(), _visibilityTiming.Snapshot(),
+            _surfaceDiscoveryJobScheduled ? 1 : 0,
+            _framePathBlockingCompletionViolations);
 
         public VoxelSurfaceScheduler()
         {
@@ -1108,9 +1124,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     if (!_surfaceDiscoveryJobHandle.IsCompleted)
                         return;
 
-                    // IsCompleted guarantees this Complete is a synchronization acknowledgement,
-                    // not a frame stall waiting for worker execution.
-                    _surfaceDiscoveryJobHandle.Complete();
+                    // This is an acknowledgement only. The shared guard refuses to wait if a
+                    // future refactor accidentally reaches it before the worker is complete.
+                    if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                            _surfaceDiscoveryJobHandle,
+                            ref _framePathBlockingCompletionViolations))
+                        return;
                     _surfaceDiscoveryJobScheduled = false;
                     _surfaceDiscoveryPublishIndex = 0;
                 }

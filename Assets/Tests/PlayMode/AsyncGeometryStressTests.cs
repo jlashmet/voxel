@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Reflection;
 using NUnit.Framework;
@@ -16,6 +17,7 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class AsyncGeometryStressTests
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
+        private const double MaxGeometryOrchestrationP99Ms = 12.0;
 
         [UnityTest, Timeout(900000)]
         public IEnumerator ContinuousLodTraversalAndDestructionRespectFrameUploadBudget()
@@ -33,6 +35,7 @@ namespace VoxelEngine.Tests.PlayMode
             bool sawUpload = false;
             bool sawPendingReplacement = false;
             int maxVisible = 0;
+            double peakSchedulerP99Ms = 0.0;
             try
             {
                 VoxelRenderBridge.SolidUploadBudgetBytes = 16 * 1024;
@@ -80,6 +83,10 @@ namespace VoxelEngine.Tests.PlayMode
                         metrics.SolidUploadBudgetBytes,
                         "Camera/edit churn exceeded the renderer-wide geometry upload cap.");
                     Assert.GreaterOrEqual(metrics.LastFrameSolidUploadedBytes, 0);
+                    Assert.AreEqual(0UL, metrics.FramePathBlockingCompletionViolations,
+                        "A geometry frame path attempted to wait for an unfinished JobHandle.");
+                    peakSchedulerP99Ms = Math.Max(peakSchedulerP99Ms,
+                                                   metrics.SchedulerPrepareTiming.P99Ms);
                     maxVisible = Mathf.Max(maxVisible, metrics.VisibleSolidChunks);
                     sawUpload |= metrics.LastFrameSolidUploadedBytes > 0;
                     sawPendingReplacement |= metrics.SolidPendingUploadBytes > 0;
@@ -93,6 +100,10 @@ namespace VoxelEngine.Tests.PlayMode
                     "Camera/edit stress never exercised GPU geometry publication.");
                 Assert.True(sawPendingReplacement,
                     "A 16 KiB frame cap should produce queued replacement geometry under stress.");
+                Assert.Greater(VoxelRenderBridge.SurfaceMetrics.SchedulerPrepareTiming.SampleCount, 0UL,
+                    "Scheduler timing instrumentation recorded no stressed frames.");
+                Assert.LessOrEqual(peakSchedulerP99Ms, MaxGeometryOrchestrationP99Ms,
+                    $"Geometry scheduler P99 {peakSchedulerP99Ms:F3} ms exceeded the {MaxGeometryOrchestrationP99Ms:F1} ms stress gate.");
             }
             finally
             {

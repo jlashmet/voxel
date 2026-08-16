@@ -581,7 +581,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 // Completion is non-blocking because IsCompleted was observed above. The result
                 // is now CPU-owned, but merging it into final output is itself budgeted.
-                _transitionJobHandle.Complete();
+                if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                        _transitionJobHandle, ref _framePathBlockingCompletionViolations))
+                    return false;
                 _transitionJobScheduled = false;
                 _transitionResultPending = true;
                 _transitionAppendVertexCursor = 0;
@@ -755,6 +757,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong CompletedDecorationClumps { get; private set; }
         public int MissingVisibleCount { get; private set; }
         public ulong CapacityPressureCount { get; private set; }
+        private ulong _framePathBlockingCompletionViolations;
+        public ulong FramePathBlockingCompletionViolations => _framePathBlockingCompletionViolations;
         public int RunningJobCount => _exactMetadataJobScheduled || _exactClassificationJobScheduled
                                    || _densityJobScheduled || _topologyJobScheduled
                                    || _facetedMaskJobScheduled || _transitionJobScheduled
@@ -1035,8 +1039,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 {
                     if (!_topologyCompactJobHandle.IsCompleted
                         || !_facetedMergeJobHandle.IsCompleted) break;
-                    _topologyCompactJobHandle.Complete();
-                    _facetedMergeJobHandle.Complete();
+                    if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                            _topologyCompactJobHandle, ref _framePathBlockingCompletionViolations)
+                        || !GeometryFrameJobCompletionGuard.TryCompleteReady(
+                            _facetedMergeJobHandle, ref _framePathBlockingCompletionViolations))
+                        break;
                     _densityTurnaroundTiming.Add(ElapsedMs(_build.DensityScheduledSeconds));
                     _topologyTurnaroundTiming.Add(ElapsedMs(_build.TopologyScheduledSeconds));
                     _facetedTurnaroundTiming.Add(ElapsedMs(_build.FacetedScheduledSeconds));
@@ -1055,7 +1062,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     if (!_facetedMaskJobScheduled) ScheduleFacetedMaskJob();
                     if (!_facetedMergeJobScheduled) ScheduleFacetedMergeJob(voxelSize);
                     if (!_facetedMergeJobHandle.IsCompleted) break;
-                    _facetedMergeJobHandle.Complete();
+                    if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                            _facetedMergeJobHandle, ref _framePathBlockingCompletionViolations))
+                        break;
                     _facetedTurnaroundTiming.Add(ElapsedMs(_build.FacetedScheduledSeconds));
                     _facetedMaskJobScheduled = false;
                     _facetedMergeJobScheduled = false;
@@ -1650,7 +1659,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     return false;
                 }
 
-                _exactMetadataJobHandle.Complete();
+                if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                        _exactMetadataJobHandle, ref _framePathBlockingCompletionViolations))
+                {
+                    AccumulateSnapshotSlice(sliceStart, completed: false);
+                    return false;
+                }
                 _exactMetadataJobScheduled = false;
                 if (!PinnedRegionMetadataCurrent())
                 {
@@ -1761,7 +1775,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 AccumulateSnapshotSlice(sliceStart, completed: false);
                 return false;
             }
-            _exactClassificationJobHandle.Complete();
+            if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                    _exactClassificationJobHandle, ref _framePathBlockingCompletionViolations))
+            {
+                AccumulateSnapshotSlice(sliceStart, completed: false);
+                return false;
+            }
             _exactClassificationJobScheduled = false;
             _build.HasOwnedSolid = _snapshotClassificationFlags[0] != 0;
             _build.RequiresContinuousTopology = _snapshotClassificationFlags[1] != 0;
@@ -3396,12 +3415,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (_exactMetadataJobScheduled)
             {
-                _exactMetadataJobHandle.Complete();
+                _exactMetadataJobHandle.Complete(); // teardown may synchronize
                 _exactMetadataJobScheduled = false;
             }
             if (_exactClassificationJobScheduled)
             {
-                _exactClassificationJobHandle.Complete();
+                _exactClassificationJobHandle.Complete(); // teardown may synchronize
                 _exactClassificationJobScheduled = false;
             }
             if (_densityJobScheduled)

@@ -205,6 +205,41 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
+        public void FramePathJobCompletionIsNonBlockingAndObservable()
+        {
+            string solid = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string water = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            string guard = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "GeometryFrameJobCompletionGuard.cs"));
+            string timing = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelTiming.cs"));
+
+            StringAssert.Contains("if (!handle.IsCompleted)", guard);
+            StringAssert.Contains("violationCount++", guard);
+            StringAssert.Contains("handle.Complete()", guard);
+            StringAssert.Contains("P99Ms", timing);
+            StringAssert.Contains("FramePathBlockingCompletionViolations", scheduler);
+            StringAssert.Contains("RunningGeometryJobs", scheduler);
+            StringAssert.Contains("GeometryFrameJobCompletionGuard.TryCompleteReady", solid);
+            StringAssert.Contains("GeometryFrameJobCompletionGuard.TryCompleteReady", water);
+            StringAssert.Contains("GeometryFrameJobCompletionGuard.TryCompleteReady", scheduler);
+
+            int solidTeardown = solid.IndexOf("private void CompleteJobs()", StringComparison.Ordinal);
+            int waterTeardown = water.IndexOf("public void Dispose()", StringComparison.Ordinal);
+            int schedulerTeardown = scheduler.IndexOf("public void Dispose()", StringComparison.Ordinal);
+            Assert.Greater(solidTeardown, 0);
+            Assert.Greater(waterTeardown, 0);
+            Assert.Greater(schedulerTeardown, 0);
+            StringAssert.DoesNotContain(".Complete();", solid.Substring(0, solidTeardown));
+            StringAssert.DoesNotContain(".Complete();", water.Substring(0, waterTeardown));
+            StringAssert.DoesNotContain(".Complete();", scheduler.Substring(0, schedulerTeardown));
+        }
+
+        [Test]
         public void SolidVisibilityTraversesBoundedClipmapCoordinatesOncePerRing()
         {
             string cache = ReadRenderingSource(

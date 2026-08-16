@@ -270,6 +270,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong CompletedBuildCount { get; private set; }
         public ulong StaleBuildCount { get; private set; }
         public ulong UploadedGeometryBytes { get; private set; }
+        private ulong _framePathBlockingCompletionViolations;
+        public ulong FramePathBlockingCompletionViolations => _framePathBlockingCompletionViolations;
+        public int RunningJobCount => _waterMeshJobScheduled ? 1 : 0;
         public long ResidentGpuBytes
         {
             get
@@ -533,7 +536,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (_waterMeshJobScheduled)
             {
                 if (!_waterMeshJobHandle.IsCompleted) return false;
-                _waterMeshJobHandle.Complete();
+                if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                        _waterMeshJobHandle, ref _framePathBlockingCompletionViolations))
+                    return false;
                 _waterMeshJobScheduled = false;
                 _waterBatchCount = 0;
 
@@ -796,7 +801,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
                 if (_waterMeshJobScheduled)
                 {
-                    _waterMeshJobHandle.Complete();
+                    if (!GeometryFrameJobCompletionGuard.TryCompleteReady(
+                            _waterMeshJobHandle, ref _framePathBlockingCompletionViolations))
+                    {
+                        _discardBuildAfterMeshJob = true;
+                        return;
+                    }
                     _waterMeshJobScheduled = false;
                 }
                 ResetBuildOutput();
