@@ -21,7 +21,8 @@ namespace VoxelEngine.Structures.Runtime
 
             int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
             int minX = keepPlan.Centre.x - keepPlan.KeepHalfX;
-            int minZ = keepPlan.Centre.z - keepPlan.KeepHalfZ + 60;
+            int minZ = keepPlan.Centre.z - keepPlan.KeepHalfZ
+                     + CastleLayout.LegacyKeepCentreZOffset;
             int width = keepPlan.KeepHalfX * 2;
             int depth = keepPlan.KeepHalfZ * 2;
             int height = keepPlan.KeepHeight + 30;
