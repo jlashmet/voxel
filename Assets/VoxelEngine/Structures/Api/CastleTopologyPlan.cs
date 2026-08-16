@@ -34,5 +34,7 @@ namespace VoxelEngine.Structures.Api
         public CastleWardPattern Wards;
         public int DesiredTowerCount;
         public bool HasPosternGate;
+        public bool HasKeepAnnexPlan;
+        public CastleKeepAnnexPlan KeepAnnexes;
     }
 }
