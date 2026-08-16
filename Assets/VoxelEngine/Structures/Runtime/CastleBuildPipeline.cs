@@ -97,14 +97,6 @@ namespace VoxelEngine.Structures.Runtime
                     $"equivalents against a {preflight.WriteBudget:N0} write budget.");
             }
 
-            if (spatialPlan != null &&
-                !CastleCaveBuildReadiness.TryValidate(
-                    spatialPlan, out CastleCaveBuildReadinessIssue caveReadiness))
-            {
-                throw new InvalidOperationException(
-                    $"Castle natural cave plan is not runtime-ready: {caveReadiness}.");
-            }
-
             _plan = plan;
             _spatialKeepPlan = plan;
             _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
