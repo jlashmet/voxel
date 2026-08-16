@@ -65,17 +65,28 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PipelineRealizesInnerTowersDuringTowerStage()
+        public void PipelineRealizesMaterializedInnerTowersWithoutPlanningInRuntime()
         {
             string root = RepoRoot();
             string pipeline = File.ReadAllText(Path.Combine(
                 root, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
+            string realizer = File.ReadAllText(Path.Combine(
+                root, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleInnerWardTowerRealizer.cs"));
+            string plan = File.ReadAllText(Path.Combine(
+                root, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialPlan.cs"));
 
+            StringAssert.Contains("InnerTowers { get; }", plan);
+            StringAssert.Contains("InnerTowers = CastleInnerWardTowerPlanner.Create", plan);
             StringAssert.Contains("spatialPlan.InnerTowers", pipeline);
-            StringAssert.Contains("CastleInnerWardTowerPlanner.Radius", pipeline);
-            StringAssert.Contains("CastleInnerWardTowerPlanner.Height", pipeline);
+            StringAssert.Contains("CastleInnerWardTowerRealizer.BuildAll(", pipeline);
             StringAssert.Contains("_innerTowerCentres", pipeline);
+            StringAssert.DoesNotContain("CastleInnerWardTowerPlanner.", pipeline,
+                "Runtime must consume the materialized tower plan rather than invoke planning policy.");
+            StringAssert.DoesNotContain("CastleInnerWardTowerPlanner.", realizer,
+                "The realizer owns only voxel profile decisions for supplied tower centres.");
         }
 
         private static string RepoRoot()
