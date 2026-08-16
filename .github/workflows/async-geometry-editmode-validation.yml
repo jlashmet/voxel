@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refactor/async-geometry-pipeline
+          ref: ${{ github.sha }}
           clean: true
           fetch-depth: 1
       - id: unity
@@ -41,7 +41,8 @@ jobs:
           set -euo pipefail
           # tools/unity-run.sh deliberately refuses any second Unity editor because concurrent
           # editors previously froze this runner. Match that policy instead of bypassing it.
-          # Checkpoint: async discovery EditMode API/compiler repair on the current refactor head.
+          # This workflow checks out the triggering SHA, so queued validation remains a real
+          # checkpoint even while later async-geometry commits continue landing.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
