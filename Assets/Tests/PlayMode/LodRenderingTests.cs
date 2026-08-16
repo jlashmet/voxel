@@ -79,14 +79,32 @@ namespace VoxelEngine.Tests.PlayMode
                     // measurable rather than hidden by perspective.
                     camera.transform.position = centre + new Vector3(0f, 20f, -band.distance);
                     camera.transform.LookAt(lookAt);
-                    for (int frame = 0; frame < 48; frame++)
+
+                    // Geometry is deliberately asynchronous. Batchmode can advance dozens of
+                    // Unity frames before a background HLOD job gets equivalent wall-clock time,
+                    // so a fixed frame count is not a valid readiness contract. Wait for this
+                    // camera view to have visible, hole-free geometry and no in-flight publication,
+                    // with both a wall-clock and frame ceiling to catch real convergence failures.
+                    VoxelSurfaceMetrics metrics = default;
+                    bool converged = false;
+                    int convergenceFrames = 0;
+                    double convergenceDeadline = Time.realtimeSinceStartupAsDouble + 8.0;
+                    while (convergenceFrames++ < 480
+                           && Time.realtimeSinceStartupAsDouble < convergenceDeadline)
                     {
                         camera.Render();
                         yield return null;
+                        metrics = VoxelRenderBridge.SurfaceMetrics;
+                        converged = metrics.VisibleSolidChunks > 0
+                                 && metrics.MissingVisibleSolidChunks == 0
+                                 && metrics.RunningSolidJobs == 0
+                                 && metrics.SolidPendingUploadBytes == 0;
+                        if (converged) break;
                     }
 
-                    camera.Render();
-                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    Assert.True(converged,
+                        $"LOD step {band.step} did not converge to visible, hole-free geometry "
+                      + $"within {convergenceFrames} frames / 8 seconds.");
                     Assert.Greater(metrics.VisibleSolidChunks, 0,
                         $"LOD step {band.step} produced no visible voxel geometry.");
                     Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
@@ -94,6 +112,7 @@ namespace VoxelEngine.Tests.PlayMode
                     Assert.Greater(metrics.UploadedGeometryBytes, 0ul,
                         $"LOD step {band.step} did not use the voxel surface extractor.");
 
+                    camera.Render();
                     CastleStructureSignature signature = CaptureCastleStructure(target, readback);
                     Assert.Greater(signature.EdgeCount, 40,
                         $"LOD step {band.step} produced too little castle structure to inspect.");
