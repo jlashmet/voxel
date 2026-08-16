@@ -23,6 +23,23 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void RuntimeReadyPreflightRejectsMissingKeepFloorPlan()
+        {
+            CastlePlan dimensions = CastlePlanner.Create(int3.zero, 273u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(dimensions.Seed);
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            CastleSpatialPlan incomplete = CastleSpatialPlanner.Create(in dimensions, in topology);
+
+            CastleBuildPreflightResult result = CastleBuildPreflight.EvaluateRuntimeReady(
+                in dimensions, incomplete, long.MaxValue);
+
+            Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, result.Issue);
+            Assert.AreEqual(
+                CastleSpatialBuildReadinessIssue.MissingKeepFloorPlan,
+                result.ReadinessIssue);
+        }
+
+        [Test]
         public void RuntimeConsumesPlannedKeepFloorsWithoutCallingRoomPlanner()
         {
             string root = FindRepoRoot();
