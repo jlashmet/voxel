@@ -383,6 +383,30 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
+        public void FixedToroidalSurfaceSlotsAreSharedPerLodRing()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            string grid = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "SurfaceChunkSlotGrid.cs"));
+            string slot = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "SurfaceChunkSlot.cs"));
+
+            StringAssert.Contains("private readonly SurfaceChunkSlotGrid _slotGrid = new();", scheduler);
+            StringAssert.Contains("lookupTables, _slotGrid", scheduler);
+            StringAssert.Contains("private readonly SurfaceChunkSlotGrid _slotGrid;", cache);
+            StringAssert.DoesNotContain("Dictionary<int3, SurfaceChunkSlot>", cache);
+            StringAssert.DoesNotContain("Stack<SurfaceChunkSlot>", cache);
+            StringAssert.Contains("SurfaceChunkSlot[] _slots", grid);
+            StringAssert.Contains("SlotIndex(int3 coordinate)", grid);
+            StringAssert.Contains("current.Reinitialize(coordinate, NextGeneration())", grid);
+            StringAssert.Contains("internal struct SurfaceChunkSlot", slot);
+        }
+
+
+        [Test]
         public void ClipmapMovementRetiresOnlyOutgoingEdgesIncrementally()
         {
             string cache = ReadRenderingSource(

@@ -8,7 +8,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// admission still matches this object. Recycling a slot therefore invalidates every stale
     /// in-flight result without waiting for it or relying on coordinate identity alone.
     /// </summary>
-    internal sealed class SurfaceChunkSlot
+    internal struct SurfaceChunkSlot
     {
         public int3 Coordinate { get; private set; }
         public uint Generation { get; private set; }

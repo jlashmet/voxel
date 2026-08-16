@@ -291,9 +291,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private readonly Dictionary<int3, Entry> _entries = new();
         private readonly Stack<Entry> _entryPool = new();
-        private readonly Dictionary<int3, SurfaceChunkSlot> _slots = new();
-        private readonly Stack<SurfaceChunkSlot> _slotPool = new();
-        private uint _slotGenerationCounter;
+        private readonly SurfaceChunkSlotGrid _slotGrid;
         private readonly HashSet<int3> _known = new();
         private bool _clipmapWindowValid;
         private int3 _clipmapCenter;
@@ -478,24 +476,33 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly VoxelTimingWindow _buildSelectionTiming = new();
 
         public CpuTransvoxelChunkCache(int sourceStep = 1)
-            : this(sourceStep, null, true, null, true)
+            : this(sourceStep, null, true, null, true, null)
         {
         }
 
         internal CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
                                          TransvoxelLookupTables lookupTables)
-            : this(sourceStep, geometryArena, false, lookupTables, false)
+            : this(sourceStep, geometryArena, false, lookupTables, false, null)
+        {
+        }
+
+        internal CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
+                                         TransvoxelLookupTables lookupTables,
+                                         SurfaceChunkSlotGrid slotGrid)
+            : this(sourceStep, geometryArena, false, lookupTables, false, slotGrid)
         {
         }
 
         private CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
                                          bool ownsGeometryArena,
                                          TransvoxelLookupTables lookupTables,
-                                         bool ownsLookupTables)
+                                         bool ownsLookupTables,
+                                         SurfaceChunkSlotGrid slotGrid)
         {
             _geometryArena = geometryArena;
             _ownsGeometryArena = ownsGeometryArena;
             _lookupTables = lookupTables ?? new TransvoxelLookupTables();
+            _slotGrid = slotGrid ?? new SurfaceChunkSlotGrid();
             _ownsLookupTables = ownsLookupTables || lookupTables == null;
             if (sourceStep < 1 || (sourceStep & (sourceStep - 1)) != 0)
                 throw new ArgumentOutOfRangeException(
@@ -737,7 +744,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int ShardCount { get; set; } = 1;
         public int ResidentCount => _entries.Count;
         public int KnownCount => _known.Count;
-        public int SlotCount => _slots.Count;
+        public int SlotCount => _known.Count;
         /// <summary>Number of exact-snapshot brick records reserved by this build workspace.</summary>
         public int SnapshotBrickCapacity => BrickCacheCount;
         public int DirtyCount => _dirty.Count + (_build.Active ? 1 : 0);
@@ -1430,7 +1437,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
 
             if (!hasBest) return false;
-            if (!_slots.TryGetValue(best, out SurfaceChunkSlot buildSlot))
+            if (!_slotGrid.TryGet(best, out SurfaceChunkSlot buildSlot)
+                && !_slotGrid.TryAcquire(best, out buildSlot))
             {
                 _dirty.Remove(best);
                 return false;
@@ -2991,6 +2999,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _clipmapCenter = centre;
             _clipmapRadius = nextRadius;
             _clipmapWindowValid = true;
+            _slotGrid.UpdateWindow(centre, nextRadius);
         }
 
         private void ScheduleClipmapEdgeRetirement(int3 fromCenter, int3 toCenter, int radius)
@@ -3103,28 +3112,24 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // otherwise _known grows with world streaming rather than a fixed view footprint.
             if (!WithinClipmapWindow(chunk)) return;
             if (!_known.Add(chunk)) return;
-            SurfaceChunkSlot slot = _slotPool.Count > 0
-                ? _slotPool.Pop() : new SurfaceChunkSlot();
-            uint generation = ++_slotGenerationCounter;
-            if (generation == 0) generation = ++_slotGenerationCounter;
-            slot.Reinitialize(chunk, generation);
-            _slots.Add(chunk, slot);
+            if (!_slotGrid.TryAcquire(chunk, out _))
+            {
+                _known.Remove(chunk);
+                return;
+            }
             RequeueResidency(chunk);
         }
 
         private bool BuildOwnsCurrentSlot()
         {
             return _build.Active && WithinClipmapWindow(_build.Coordinate)
-                && _slots.TryGetValue(_build.Coordinate, out SurfaceChunkSlot slot)
+                && _slotGrid.TryGet(_build.Coordinate, out SurfaceChunkSlot slot)
                 && slot.Generation == _build.SlotGeneration;
         }
 
         private void RetireSlot(int3 chunk)
         {
-            if (!_slots.TryGetValue(chunk, out SurfaceChunkSlot slot)) return;
-            _slots.Remove(chunk);
-            slot.Retire();
-            _slotPool.Push(slot);
+            _slotGrid.Retire(chunk);
         }
 
         private void RequeueResidency(int3 chunk)
@@ -3517,8 +3522,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _entries.Clear();
             foreach (Entry entry in _entryPool) entry.Dispose();
             _entryPool.Clear();
-            _slots.Clear();
-            _slotPool.Clear();
             _known.Clear();
             _dirty.Clear();
             _desiredVersions.Clear();

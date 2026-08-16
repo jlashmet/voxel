@@ -288,6 +288,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public readonly float InnerRadiusMetres;
             public readonly float OuterRadiusMetres;
             public readonly CpuTransvoxelChunkCache[] Workers;
+            private readonly SurfaceChunkSlotGrid _slotGrid = new();
             public int3 ClipmapCentre { get; private set; }
             public int ClipmapRadius { get; private set; }
             public bool HasClipmapWindow { get; private set; }
@@ -303,7 +304,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 for (int i = 0; i < Workers.Length; i++)
                 {
                     Workers[i] = new CpuTransvoxelChunkCache(
-                        sourceStep, geometryArena, lookupTables)
+                        sourceStep, geometryArena, lookupTables, _slotGrid)
                     {
                         ShardIndex = i,
                         ShardCount = Workers.Length,
