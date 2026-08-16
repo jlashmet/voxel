@@ -399,7 +399,7 @@ namespace VoxelEngine.Structures.Runtime
             _keepFloorPlans = (CastleKeepFloorPlan[])spatialPlan.KeepFloors.Clone();
 
             CastleKeepCirculationPlan circulation = spatialPlan.KeepCirculation;
-            if (!CastleKeepCirculationPlanner.TryValidate(
+            if (!CastleKeepCirculationPlanValidator.TryValidate(
                     in plan, in circulation, out CastleKeepCirculationPlanIssue circulationIssue))
             {
                 throw new InvalidOperationException(
@@ -408,7 +408,7 @@ namespace VoxelEngine.Structures.Runtime
             _keepCirculation = circulation;
 
             CastleKeepWindowSpec[] windows = spatialPlan.KeepWindows;
-            if (!CastleKeepWindowPlanner.TryValidate(in plan, windows, out string windowError))
+            if (!CastleKeepWindowPlanValidator.TryValidate(in plan, windows, out string windowError))
             {
                 throw new InvalidOperationException(
                     $"Spatial castle reached Runtime with invalid keep windows: {windowError}.");
