@@ -40,9 +40,9 @@ jobs:
         run: |
           set -euo pipefail
           # Authoritative Metal checkpoint after EditMode passed all 82 focused tests.
-          # LOD fixtures now use URP's supported SingleCameraRequest/SubmitRenderRequest path
-          # instead of Camera.Render(), which Unity 6.5 explicitly rejects under URP.
-          # Geometry source remains unchanged from the compile-corrected foundation.
+          # Both LOD and stress fixtures now use URP's supported
+          # SingleCameraRequest/SubmitRenderRequest path instead of Camera.Render(), which
+          # Unity 6.5 explicitly rejects under URP. Geometry source remains unchanged.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
