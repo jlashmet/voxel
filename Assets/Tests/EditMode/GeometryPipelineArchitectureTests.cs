@@ -98,6 +98,25 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void GeometryJobsAreFlushedOnceWithoutWaiting()
+        {
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            const string flush = "JobHandle.ScheduleBatchedJobs();";
+            int first = scheduler.IndexOf(flush, StringComparison.Ordinal);
+            Assert.GreaterOrEqual(first, 0,
+                "Async geometry jobs need an explicit non-blocking dispatch boundary.");
+            Assert.AreEqual(first, scheduler.LastIndexOf(flush, StringComparison.Ordinal),
+                "Job batches should flush once per world frame, not once per worker/job.");
+            int water = scheduler.IndexOf("_water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);",
+                                          StringComparison.Ordinal);
+            int visibility = scheduler.IndexOf("CollectVisibility(camera, voxelSize, frame);", first,
+                                               StringComparison.Ordinal);
+            Assert.Greater(first, water, "Flush must include water and solid jobs scheduled this frame.");
+            Assert.Greater(visibility, first, "Flush must happen before the frame returns to draw traversal.");
+        }
+
+        [Test]
         public void MultipleCamerasCannotMultiplyGeometryFrameBudgets()
         {
             string scheduler = ReadRenderingSource(

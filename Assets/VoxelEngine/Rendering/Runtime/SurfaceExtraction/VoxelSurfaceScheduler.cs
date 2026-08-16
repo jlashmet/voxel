@@ -836,6 +836,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _water.TryEvictOneForArenaPressure(camera, voxelSize);
             }
             _workerPrepareTiming.Add(workerPrepareMs);
+
+            // Geometry jobs are intentionally never completed while unfinished. Explicitly flush
+            // the once-per-world-frame batch after all solid/discovery/water scheduling so jobs
+            // cannot remain buffered waiting for an unrelated Unity subsystem to force dispatch.
+            // ScheduleBatchedJobs is non-blocking; readiness is still polled on later frames.
+            JobHandle.ScheduleBatchedJobs();
+
             CollectVisibility(camera, voxelSize, frame);
             _prepareTiming.Add(ElapsedMs(prepareStart));
             _lastFrameManagedAllocationBytes = Math.Max(
