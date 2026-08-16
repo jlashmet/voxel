@@ -21,6 +21,7 @@ namespace VoxelEngine.Characters.Runtime
         private CharacterVisualResolver visualResolver;
 
         private PlayableGraph graph;
+        private AnimationClipPlayable currentPlayable;
         private AnimationClip currentClip;
         private bool resolverSubscribed;
 
@@ -29,6 +30,10 @@ namespace VoxelEngine.Characters.Runtime
         public CharacterVisualResolver VisualResolver => visualResolver;
 
         public AnimationClip CurrentClip => currentClip;
+
+        public double CurrentTime => currentPlayable.IsValid()
+            ? currentPlayable.GetTime()
+            : 0d;
 
         public bool IsPlaying => graph.IsValid() && graph.IsPlaying();
 
@@ -191,10 +196,10 @@ namespace VoxelEngine.Characters.Runtime
             graph = PlayableGraph.Create($"{name}: Character Animation");
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
 
-            AnimationClipPlayable clipPlayable = AnimationClipPlayable.Create(graph, currentClip);
+            currentPlayable = AnimationClipPlayable.Create(graph, currentClip);
             AnimationPlayableOutput output =
                 AnimationPlayableOutput.Create(graph, "Character Animation", animator);
-            output.SetSourcePlayable(clipPlayable);
+            output.SetSourcePlayable(currentPlayable);
 
             graph.Play();
         }
@@ -205,6 +210,8 @@ namespace VoxelEngine.Characters.Runtime
             {
                 graph.Destroy();
             }
+
+            currentPlayable = default;
         }
 
         private static Animator FindAnimator(GameObject visual)
