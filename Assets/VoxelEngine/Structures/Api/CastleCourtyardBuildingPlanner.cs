@@ -203,7 +203,8 @@ namespace VoxelEngine.Structures.Api
 
             for (int i = 0; i < placed.Count; i++)
             {
-                Bounds(in placed[i], BuildingClearance,
+                CastleCourtyardBuildingSpec other = placed[i];
+                Bounds(in other, BuildingClearance,
                        out int otherMinX, out int otherMaxX,
                        out int otherMinZ, out int otherMaxZ);
                 if (Overlaps(minX, maxX, minZ, maxZ,
