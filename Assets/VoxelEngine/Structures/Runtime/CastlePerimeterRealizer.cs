@@ -159,7 +159,8 @@ namespace VoxelEngine.Structures.Runtime
                 Centre = localGateCentre,
                 Outward = outward,
             };
-            CastleGatehousePlan gatehouse = CastleGatehouseRecipe.Historical(in plan);
+            CastleGatehousePlan gatehouse = CastleGatehouseRecipe.Historical(
+                in plan, in placement);
             CastlePlannedGatehouseRealizer.Build(
                 ref brush, in plan, in placement, in gatehouse);
         }
