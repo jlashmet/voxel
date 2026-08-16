@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Structures.Api;
@@ -25,15 +24,17 @@ namespace VoxelEngine.Showcase
             in CastleSpatialProjection projection)
         {
             CastleGateGeometry geometry = projection.PrimaryGateGeometry;
-            var voxels = new List<int3>(geometry.Width * geometry.Height * geometry.Depth);
-            for (int d = 0; d < geometry.Depth; d++)
-            for (int w = 0; w < geometry.Width; w++)
-            for (int h = 0; h < geometry.Height; h++)
+            var voxels = new int3[geometry.RectangularVoxelCount];
+            int count = 0;
+            for (int index = 0; index < geometry.RectangularVoxelCount; index++)
             {
-                if (!geometry.ContainsArchVoxel(w, h)) continue;
-                voxels.Add(geometry.WorldVoxel(w, h, d));
+                if (!geometry.TryGetArchVoxel(index, out int3 voxel, out _)) continue;
+                voxels[count++] = voxel;
             }
-            return voxels.ToArray();
+
+            if (count == voxels.Length) return voxels;
+            Array.Resize(ref voxels, count);
+            return voxels;
         }
 
         internal static Vector3 TrapdoorInteractionPosition(
