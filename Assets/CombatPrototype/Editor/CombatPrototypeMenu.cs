@@ -6,14 +6,26 @@ namespace MountingForce.CombatPrototype.Editor
 {
     public static class CombatPrototypeMenu
     {
-        private const string MenuPath = "Mounting Force/Chain Combat Prototype/Open & Play";
+        private const string DemoMenuPath = "Mounting Force/Combat Demo/Open & Play";
+        private const string LegacyMenuPath = "Mounting Force/Chain Combat Prototype/Open & Play";
 
-        [MenuItem(MenuPath)]
+        [MenuItem(DemoMenuPath)]
+        private static void OpenCombatDemo()
+        {
+            OpenAndPlay();
+        }
+
+        [MenuItem(LegacyMenuPath)]
+        private static void OpenLegacyCombatPrototype()
+        {
+            OpenAndPlay();
+        }
+
         private static void OpenAndPlay()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)
             {
-                Debug.LogWarning("Chain Combat Prototype: stop Play Mode before reopening the prototype.");
+                Debug.LogWarning("Chain Combat Demo: stop Play Mode before reopening the demo.");
                 return;
             }
 
@@ -23,7 +35,7 @@ namespace MountingForce.CombatPrototype.Editor
             }
 
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            GameObject root = new GameObject("Chain Combat Cascade Lab");
+            GameObject root = new GameObject("Chain Combat Demo");
             root.AddComponent<ChainCombatLabController>();
             root.AddComponent<ChainExecutionPlanner>();
             root.AddComponent<ChainPlanApprovalCoordinator>();
@@ -31,6 +43,7 @@ namespace MountingForce.CombatPrototype.Editor
             root.AddComponent<ChainCombatEventMarker>();
             root.AddComponent<ChainCombatMotionPlayback>();
             root.AddComponent<ChainEnemyIntentOverlay>();
+            root.AddComponent<ChainCombatDemoGuide>();
             EditorApplication.isPlaying = true;
         }
     }

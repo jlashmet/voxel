@@ -175,6 +175,93 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(new int3(7, 7, 7), voxelInBrick);
         }
 
+
+        [Test]
+        public void PinnedBrickUsesCopyOnWriteAndDefersRecycling()
+        {
+            int original = _pool.Allocate();
+            _pool.FillBrick(original, 3);
+            BrickPool.PinToken pin = _pool.Pin(original);
+
+            int writable = _pool.EnsureWritable(original);
+            Assert.AreNotEqual(original, writable,
+                "A pinned version must never be mutated in place.");
+            Assert.AreEqual(2, _pool.AllocatedCount,
+                "The retired reader version stays allocated until its final pin releases.");
+            Assert.AreEqual(3, _pool.GetVoxel(original, 0));
+            Assert.AreEqual(3, _pool.GetVoxel(writable, 0));
+
+            _pool.SetVoxel(writable, 0, 7);
+            Assert.AreEqual(3, _pool.GetVoxel(original, 0),
+                "Reader-visible payload changed after COW publication.");
+            Assert.AreEqual(7, _pool.GetVoxel(writable, 0));
+
+            _pool.Unpin(in pin);
+            Assert.AreEqual(1, _pool.AllocatedCount,
+                "Retired storage must become recyclable when its final reader exits.");
+            _pool.Free(writable);
+            Assert.AreEqual(0, _pool.AllocatedCount);
+        }
+
+        [Test]
+        public void BrickPinGenerationRejectsAbaReuse()
+        {
+            int slot = _pool.Allocate();
+            BrickPool.PinToken oldPin = _pool.Pin(slot);
+            uint oldGeneration = oldPin.Generation;
+            _pool.Unpin(in oldPin);
+            _pool.Free(slot);
+
+            int reused = _pool.Allocate();
+            Assert.AreEqual(slot, reused, "Free-list reuse is expected for this ABA guard test.");
+            BrickPool.PinToken newPin = _pool.Pin(reused);
+            Assert.AreNotEqual(oldGeneration, newPin.Generation);
+            _pool.Unpin(in newPin);
+            _pool.Free(reused);
+        }
+
+
+        [Test]
+        public void VoxelAccessPublishesCowCloneBeforeEditingPinnedBrick()
+        {
+            int3 voxel = new int3(1, 2, 3);
+            Assert.True(VoxelAccess.SetVoxel(ref _table, ref _pool, voxel, 5));
+            VoxelAccess.Decompose(voxel, out int3 regionCoord,
+                                  out int3 brickInRegion, out int3 voxelInBrick);
+            Assert.True(_table.TryGetRegion(regionCoord, out Region before));
+            int blockIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y, brickInRegion.z);
+            int oldSlot = before.BrickRefs[blockIndex].PoolIndex;
+            int voxelIndex = VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.VoxelIndex(
+                voxelInBrick.x, voxelInBrick.y, voxelInBrick.z);
+            BrickPool.PinToken pin = _pool.Pin(oldSlot);
+
+            Assert.True(VoxelAccess.SetVoxel(ref _table, ref _pool, voxel, 7));
+            Assert.True(_table.TryGetRegion(regionCoord, out Region after));
+            int newSlot = after.BrickRefs[blockIndex].PoolIndex;
+            Assert.AreNotEqual(oldSlot, newSlot);
+            Assert.AreEqual(5, _pool.GetVoxel(oldSlot, voxelIndex),
+                "Pinned reader version was mutated in place.");
+            Assert.AreEqual(7, _pool.GetVoxel(newSlot, voxelIndex));
+
+            _pool.Unpin(in pin);
+        }
+
+
+        [Test]
+        public void BorrowedWriterBlocksPinsAndDefersRetiredSlotReuse()
+        {
+            int slot = _pool.Allocate();
+            _pool.FillBrick(slot, 4);
+            _pool.BeginWrite(slot);
+            Assert.False(_pool.TryPin(slot, out _));
+
+            _pool.Free(slot);
+            Assert.AreEqual(1, _pool.AllocatedCount,
+                "A retired slot with an active writer must not be recycled.");
+            _pool.EndWrite(slot);
+            Assert.AreEqual(0, _pool.AllocatedCount);
+        }
+
         [Test]
         public void BrickRefEncodingRoundTrips()
         {

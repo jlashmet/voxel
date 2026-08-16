@@ -64,9 +64,9 @@ namespace VoxelEngine.Structures.Api
         /// <summary>
         /// Hashes everything that affects the generated world.
         ///
-        /// Deliberately covers the program body and the placement rules, not just the definition
-        /// headers: a single changed opcode changes the world, and a hash that missed it would let
-        /// two clients agree they share a world they do not.
+        /// Deliberately covers the program body, material mapping and placement rules, not just
+        /// the definition headers: a single changed opcode or material slot changes the world,
+        /// and a hash that missed it would let two clients agree they share a world they do not.
         /// </summary>
         public static ulong ComputeHash(in FeatureCatalogue catalogue)
         {
@@ -97,6 +97,12 @@ namespace VoxelEngine.Structures.Api
                 h = FeatureHash.Mix(h ^ (ulong)(uint)p.Max);
                 h = FeatureHash.Mix(h ^ (ulong)(uint)p.Quantum);
             }
+
+            // Material pool entries are part of generation identity. Definitions address this pool
+            // by offset/count, so changing a semantic material assignment must invalidate the hash
+            // even when geometry, programs and placement remain byte-for-byte identical.
+            for (var i = 0; i < catalogue.Materials.Length; i++)
+                h = FeatureHash.Mix(h ^ catalogue.Materials[i]);
 
             for (var i = 0; i < catalogue.Rules.Length; i++)
             {

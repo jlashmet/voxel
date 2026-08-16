@@ -4,6 +4,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Structures.Runtime;
 
 using VoxelEngine.Structures.Api;
@@ -107,6 +108,105 @@ namespace VoxelEngine.Tests.EditMode
             {
                 catalogue.Dispose();
             }
+        }
+
+        [Test]
+        public void PubDoorwayRemainsCarvedAfterFacadeFraming()
+        {
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            FeatureCatalogue catalogue = KentridgeGrammarVoxelCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            var primitives = new NativeList<Primitive>(Allocator.Temp);
+            var anchors = new NativeList<ResolvedAnchor>(Allocator.Temp);
+
+            try
+            {
+                int roleId = (int)KentridgeRole.Pub;
+                FeatureDefinition definition = catalogue.Definitions[roleId];
+                ExplicitPlacement placement = catalogue.ExplicitPlacements[roleId];
+                ParameterSet parameters = default;
+                ulong instanceSeed = FeatureGeneration.InstanceSeed(
+                    Seed, roleId, placement.Position);
+
+                EvaluationResult evaluation = ShapeProgram.Evaluate(
+                    in catalogue,
+                    roleId,
+                    in parameters,
+                    placement.Position,
+                    placement.Orientation,
+                    Seed,
+                    instanceSeed,
+                    primitives,
+                    anchors);
+                Assert.AreEqual(EvaluationResult.Ok, evaluation);
+
+                Assert.IsTrue(KentridgeGameplaySiteAccessResolver.TryResolve(
+                    plan, roleId, 1, out KentridgeGameplaySiteAccess access));
+
+                // CharacterMotor has a 0.3 m radius. Validate a full 0.6 m-wide traversal corridor
+                // from the exterior air landing through the decorated facade and into the interior.
+                // The two historical blockers were a 6 dm-deep timber rail left at the inner edge and
+                // the first composed-world voxel immediately outside an inward-only doorway carve.
+                int[] lateralOffsets = { -3, 0, 3 };
+                int[] depthOffsets = { -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6 };
+                int[] heightOffsets = { 0, 1, 4, 8, 12, 16, 18, 21 };
+                Int2 inward = access.Inward;
+                var lateral = new Int2(-inward.Y, inward.X);
+
+                for (int d = 0; d < depthOffsets.Length; d++)
+                for (int l = 0; l < lateralOffsets.Length; l++)
+                for (int h = 0; h < heightOffsets.Length; h++)
+                {
+                    int depth = depthOffsets[d];
+                    int side = lateralOffsets[l];
+                    int height = heightOffsets[h];
+                    var point = new int3(
+                        access.Entrance.Position.X + inward.X * depth + lateral.X * side,
+                        access.Entrance.Position.Y + height,
+                        access.Entrance.Position.Z + inward.Y * depth + lateral.Y * side);
+                    AssertFinalBoxMode(
+                        primitives,
+                        point,
+                        PrimitiveMode.Carve,
+                        "Pub public doorway corridor was refilled at lateral=" + side +
+                        "dm, depth=" + depth + "dm, height=" + height + "dm.");
+                }
+            }
+            finally
+            {
+                if (anchors.IsCreated) anchors.Dispose();
+                if (primitives.IsCreated) primitives.Dispose();
+                catalogue.Dispose();
+            }
+        }
+
+        private static void AssertFinalBoxMode(
+            NativeList<Primitive> primitives,
+            int3 point,
+            PrimitiveMode expected,
+            string message)
+        {
+            bool found = false;
+            PrimitiveMode finalMode = default;
+            for (int i = 0; i < primitives.Length; i++)
+            {
+                Primitive primitive = primitives[i];
+                if (primitive.Shape != PrimitiveShape.Box) continue;
+                if (point.x < primitive.A.x || point.x > primitive.B.x
+                    || point.y < primitive.A.y || point.y > primitive.B.y
+                    || point.z < primitive.A.z || point.z > primitive.B.z)
+                    continue;
+                if (primitive.Mode != PrimitiveMode.Fill
+                    && primitive.Mode != PrimitiveMode.FillIfEmpty
+                    && primitive.Mode != PrimitiveMode.Carve)
+                    continue;
+
+                found = true;
+                finalMode = primitive.Mode;
+            }
+
+            Assert.IsTrue(found, "No occupancy primitive covered doorway probe " + point + ".");
+            Assert.AreEqual(expected, finalMode, message);
         }
 
         private static KentridgeBuildingForm Resolve(SettlementPlan plan, KentridgeRole role)

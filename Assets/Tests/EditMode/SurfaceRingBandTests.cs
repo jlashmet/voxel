@@ -17,6 +17,40 @@ namespace VoxelEngine.Tests.EditMode
     /// </summary>
     public sealed class SurfaceRingBandTests
     {
+        [Test]
+        public void ToroidalSlotGridMaintainsDenseActiveCoordinatesAcrossReuse()
+        {
+            var grid = new SurfaceChunkSlotGrid();
+            grid.UpdateWindow(int3.zero, 1); // edge = 3
+
+            Assert.True(grid.TryAcquire(int3.zero, out SurfaceChunkSlot first));
+            Assert.True(grid.TryAcquire(new int3(1, 0, 0), out _));
+            Assert.AreEqual(2, grid.ActiveCount);
+
+            // Moving three cells makes x=3 reuse x=0's toroidal slot. It must advance the slot
+            // generation without growing the dense active set.
+            grid.UpdateWindow(new int3(3, 0, 0), 1);
+            Assert.True(grid.TryAcquire(new int3(3, 0, 0), out SurfaceChunkSlot replacement));
+            Assert.AreNotEqual(first.Generation, replacement.Generation);
+            Assert.AreEqual(2, grid.ActiveCount);
+
+            bool sawReplacement = false;
+            bool sawOutgoing = false;
+            for (int i = 0; i < grid.ActiveCount; i++)
+            {
+                int3 coordinate = grid.ActiveCoordinateAt(i);
+                sawReplacement |= coordinate.Equals(new int3(3, 0, 0));
+                sawOutgoing |= coordinate.Equals(new int3(1, 0, 0));
+            }
+            Assert.True(sawReplacement);
+            Assert.True(sawOutgoing,
+                "Outgoing slots remain indexed until the cache's bounded edge-retirement slice runs.");
+
+            grid.Retire(new int3(1, 0, 0));
+            Assert.AreEqual(1, grid.ActiveCount);
+            Assert.AreEqual(new int3(3, 0, 0), grid.ActiveCoordinateAt(0));
+        }
+
         // -------------------------------------------------------------------------
         // Ring geometry
         // -------------------------------------------------------------------------
@@ -49,16 +83,22 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void FineRingsReadVoxelsAndCoarseRingsReadMips()
+        public void RenderRingsUseFeaturePreservingStepEightAndMipsBeyondIt()
         {
-            // The dividing line is one brick: a stride finer than a brick has no mip level.
+            // Step 8 keeps exact COW Storage inputs but no longer runs exact Transvoxel. It
+            // compresses those inputs into spatial 4^3 HLOD subcells; coarser experimental rings
+            // beyond step 8 may still consume the conventional mip pyramid.
             using (var fine = new CpuTransvoxelChunkCache(1))
                 Assert.IsFalse(fine.SamplesFromMips, "Step 1 must read voxels.");
             using (var fine2 = new CpuTransvoxelChunkCache(4))
                 Assert.IsFalse(fine2.SamplesFromMips, "Step 4 is still sub-brick.");
             using (var coarse = new CpuTransvoxelChunkCache(8))
-                Assert.IsTrue(coarse.SamplesFromMips,
-                    "Step 8 matches a brick and must read the pyramid.");
+            {
+                Assert.IsFalse(coarse.SamplesFromMips,
+                    "Step 8 must not use conservative any-solid block summaries as render density.");
+                Assert.IsTrue(coarse.UsesBlockHlod,
+                    "Step 8 must derive its coarse mesh from feature-preserving exact block inputs.");
+            }
             using (var coarser = new CpuTransvoxelChunkCache(16))
                 Assert.IsTrue(coarser.SamplesFromMips);
         }

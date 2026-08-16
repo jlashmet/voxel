@@ -19,6 +19,8 @@ namespace VoxelEngine.Storage.Api
         public const int BlocksPerRegionEdge = 1 << BlocksPerRegionEdgeLog2;
         public const int BlocksPerRegionEdgeMask = BlocksPerRegionEdge - 1;
         public const int BlocksPerRegion = BlocksPerRegionEdge * BlocksPerRegionEdge * BlocksPerRegionEdge;
+        /// <summary>64-bit words required for one bit of metadata per logical read block.</summary>
+        public const int BlockSummaryWordCount = BlocksPerRegion / 64;
 
         /// <summary>
         /// Mip level whose cells span <paramref name="sourceStep"/> voxels, or -1 when exact

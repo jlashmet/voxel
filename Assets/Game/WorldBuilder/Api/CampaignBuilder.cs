@@ -34,6 +34,7 @@ namespace Game.WorldBuilder.Api
                 _id,
                 BuildHierarchy(),
                 Sites.ToArray(),
+                SiteSourceEvidence.ToArray(),
                 Npcs.ToArray(),
                 SpatialConstraints.ToArray(),
                 Cutscenes.ToArray(),

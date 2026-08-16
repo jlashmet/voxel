@@ -1,0 +1,26 @@
+{
+  "name": "Game.Materials.Tests",
+  "rootNamespace": "Game.Materials.Tests",
+  "references": [
+    "Game.Materials.Api",
+    "Game.Materials.Runtime",
+    "VoxelEngine.Composition.Api",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Rendering.Api",
+    "Unity.Collections",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

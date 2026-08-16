@@ -7,6 +7,7 @@ on:
       - master
     paths:
       - "Assets/CombatPrototype/**"
+      - "Assets/Game/Composition/CombatEnvironmentRuntime/**"
       - "Assets/Tests/CombatPrototype/**"
       - ".github/workflows/chain-combat-ci.yml"
   push:
@@ -15,6 +16,7 @@ on:
       - prototype/chain-combat
     paths:
       - "Assets/CombatPrototype/**"
+      - "Assets/Game/Composition/CombatEnvironmentRuntime/**"
       - "Assets/Tests/CombatPrototype/**"
       - ".github/workflows/chain-combat-ci.yml"
 
@@ -24,7 +26,7 @@ concurrency:
 
 jobs:
   chain-combat:
-    name: Exercise chain combat prototype through V9
+    name: Exercise chain combat prototype through V12
     runs-on: [self-hosted, macOS]
     timeout-minutes: 30
 
@@ -79,7 +81,15 @@ jobs:
             if [[ $status -ne 0 ]]; then
               return $status
             fi
-            test -s "$dir/results.xml"
+            test -s "$dir/results.xml" || return 2
+
+            local total
+            total="$(grep -o 'total="[0-9][0-9]*"' "$dir/results.xml" | head -1 | tr -dc '0-9')"
+            if [[ -z "$total" || "$total" -eq 0 ]]; then
+              echo "ERROR: $suite completed without executing any tests. Refusing a false-green CI result." >&2
+              return 2
+            fi
+            echo "$suite executed $total test(s)."
           }
 
           failed=0
@@ -93,6 +103,9 @@ jobs:
           run_suite "v8-enemy-ai" "VoxelEngine.Tests.PlayMode.ChainCombatEnemyAIV8Tests" || failed=1
           run_suite "v9-execution-plan" "VoxelEngine.Tests.PlayMode.ChainCombatExecutionPlanV9Tests" || failed=1
           run_suite "v9-plan-approval" "VoxelEngine.Tests.PlayMode.ChainCombatPlanApprovalV9Tests" || failed=1
+          run_suite "v10-guided-demo" "VoxelEngine.Tests.PlayMode.ChainCombatDemoV10Tests" || failed=1
+          run_suite "v11-vegetation-bridge" "VoxelEngine.Tests.PlayMode.ChainCombatVegetationV11Tests" || failed=1
+          run_suite "v12-production-vegetation" "VoxelEngine.Tests.PlayMode.ChainCombatProductionVegetationV12Tests" || failed=1
 
           exit $failed
 
