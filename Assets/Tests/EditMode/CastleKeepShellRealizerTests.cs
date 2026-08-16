@@ -1,44 +1,40 @@
+using System.IO;
 using NUnit.Framework;
-using Unity.Collections;
-using Unity.Mathematics;
-using VoxelEngine.Storage.Runtime;
-using VoxelEngine.Structures.Api;
-using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
     public sealed class CastleKeepShellRealizerTests
     {
-        [Test]
-        public void ShellBuildsMasonryAndClearsInteriorOnBulkPath()
+        private static string RepoRoot
         {
-            var table = new RegionTable(8, Allocator.Persistent);
-            var pool = new BrickPool(4096, Allocator.Persistent);
-
-            try
+            get
             {
-                var reads = new RegionReadSource(in table, in pool);
-                var mutations = new RegionMutationStore(in table, in pool);
-                var brush = new VoxelBrush(reads, mutations, writeBudget: 1);
-                int baseY = 30;
-                var min = new int3(80, baseY, 96);
-                var size = new int3(72, 92, 64);
+                var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+                while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Assets")))
+                    dir = dir.Parent;
 
-                CastleKeepShellRealizer.Build(ref brush, min, size, baseY);
+                Assert.NotNull(dir, "Could not locate project root containing Assets/.");
+                return dir.FullName;
+            }
+        }
 
-                Assert.AreEqual(Mat.DarkStone, brush.Get(min.x - 3, baseY - 10, min.z - 3));
-                Assert.AreEqual(Mat.Stone, brush.Get(min.x, baseY + 20, min.z + 20));
-                Assert.AreEqual(Mat.Empty, brush.Get(min.x + 20, baseY + 20, min.z + 20));
-                Assert.AreEqual(0, brush.VoxelsWritten,
-                    "Keep shell realization should remain on bulk authored writes.");
-                Assert.Greater(brush.BulkVoxelsWritten, 0);
-                Assert.IsFalse(brush.BudgetExceeded);
-            }
-            finally
-            {
-                table.Dispose();
-                pool.Dispose();
-            }
+        [Test]
+        public void KeepStageZeroDelegatesStructuralShellWithoutDuplicatingIt()
+        {
+            string runtime = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime");
+            string keep = File.ReadAllText(Path.Combine(runtime, "CastleKeepRealizer.cs"));
+            string shell = File.ReadAllText(Path.Combine(runtime, "CastleKeepShellRealizer.cs"));
+
+            StringAssert.Contains(
+                "CastleKeepShellRealizer.Build(ref brush, min, size, baseY);", keep);
+            StringAssert.DoesNotContain("private static void BuildShell", keep);
+
+            StringAssert.Contains("brush.HollowBox(", shell);
+            StringAssert.Contains("brush.FillBulk(", shell);
+            StringAssert.DoesNotContain("Random", shell,
+                "The structural shell must remain a deterministic geometry-only component.");
+            StringAssert.DoesNotContain("CastleSpatialPlanner", shell);
         }
     }
 }
