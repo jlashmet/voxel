@@ -67,7 +67,7 @@ namespace VoxelEngine.Tests.PlayMode
                 frameClock.Stop();
                 frameTimesMs.Add(frameClock.Elapsed.TotalMilliseconds);
 
-                VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                var metrics = VoxelRenderBridge.SurfaceMetrics;
                 Assert.AreEqual(0ul, metrics.FramePathBlockingCompletionViolations,
                     "Geometry work synchronously completed a worker job from the frame path.");
                 Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,
