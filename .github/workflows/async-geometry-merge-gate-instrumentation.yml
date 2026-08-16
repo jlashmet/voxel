@@ -16,6 +16,25 @@ jobs:
         with:
           ref: refactor/async-geometry-pipeline
           fetch-depth: 0
+      - name: Mark explicit teardown synchronization
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
+          text = p.read_text()
+          marker = '        private void CompleteJobs()'
+          start = text.index(marker)
+          head, tail = text[:start], text[start:]
+          for call in (
+              '_exactMetadataJobHandle.Complete();',
+              '_exactClassificationJobHandle.Complete();',
+          ):
+              if tail.count(call) != 1:
+                  raise SystemExit(f'expected exactly one teardown {call}, found {tail.count(call)}')
+              tail = tail.replace(call, call + ' // teardown may synchronize', 1)
+          p.write_text(head + tail)
+          PY
       - name: Apply guarded instrumentation patch
         run: python3 .github/scripts/async_geometry_merge_gate_instrumentation.py
       - name: Static guards
