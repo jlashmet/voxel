@@ -40,8 +40,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # This checkpoint measures the exact-metadata fanout/fan-in fix on real Metal before
-          # the stress suite is allowed to run on the same runtime source state.
+          # This checkpoint measures the journal-attachment baseline fix on real Metal: initial
+          # current-state attachment must not repeatedly stale coarse builds before LOD convergence.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
