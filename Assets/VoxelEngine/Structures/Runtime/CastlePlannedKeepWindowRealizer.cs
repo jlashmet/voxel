@@ -75,7 +75,7 @@ namespace VoxelEngine.Structures.Runtime
                 inwardSize: math.min(2, window.Depth),
                 yOffset: 4,
                 height: math.max(1, window.Height - 10),
-                Mat.LitWindow);
+                material: Mat.LitWindow);
 
             BoxInWindow(
                 ref brush,
@@ -87,7 +87,7 @@ namespace VoxelEngine.Structures.Runtime
                 inwardSize: math.min(3, window.Depth),
                 yOffset: 5,
                 height: math.max(1, window.Height - 12),
-                Mat.DarkStone);
+                material: Mat.DarkStone);
 
             BoxInWindow(
                 ref brush,
@@ -99,7 +99,7 @@ namespace VoxelEngine.Structures.Runtime
                 inwardSize: math.min(3, window.Depth),
                 yOffset: window.Height / 2,
                 height: 2,
-                Mat.DarkStone);
+                material: Mat.DarkStone);
         }
 
         private static void BoxInWindow(
