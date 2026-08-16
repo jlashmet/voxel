@@ -50,8 +50,10 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastlePerimeterRealizer.cs"));
 
-            StringAssert.Contains("CastleGatehousePlanner.Create(in plan)", source);
+            StringAssert.Contains("CastleGatehouseRecipe.Historical(in plan)", source);
             StringAssert.Contains("CastlePlannedGatehouseRealizer.Build(", source);
+            StringAssert.DoesNotContain("CastleGatehousePlanner.Create(", source,
+                "Runtime compatibility must not invoke planning entry points.");
             StringAssert.DoesNotContain("plan.GateTowerHeight + 38", source);
             StringAssert.DoesNotContain("plan.GateTowerHeight + 12", source);
             StringAssert.DoesNotContain("private static void BuildGateLeaf", source);
