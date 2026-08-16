@@ -12,7 +12,7 @@ test -x "$BLENDER_BIN"
 
 VIEW_DIR="$SCRIPT_DIR/views"
 PRECLEAN_DIR="$SCRIPT_DIR/views-bodyonly"
-FACE="$SCRIPT_DIR/refs/madeline_face_front.png"
+FACE_SOURCE="$SCRIPT_DIR/refs/madeline_face_front.png"
 for name in front back left right; do
   source="$VIEW_DIR/$name.jpg"
   if [ ! -s "$source" ]; then
@@ -21,8 +21,8 @@ for name in front back left right; do
     exit 2
   fi
 done
-if [ ! -s "$FACE" ]; then
-  echo "Missing Madeline face reference: $FACE" >&2
+if [ ! -s "$FACE_SOURCE" ]; then
+  echo "Missing Madeline face reference: $FACE_SOURCE" >&2
   exit 2
 fi
 
@@ -66,7 +66,69 @@ if len(data) < 4096 or not data.startswith(b"\xff\xd8") or not data.endswith(b"\
 print(f"validated {source.name}: {rgb.width}x{rgb.height}, {len(data)} bytes -> {destination}")
 PY
 done
-cp "$FACE" "$OUT/reference/madeline_face_front.png"
+
+# The approved face crop is authoritative identity input. An older copy in Git has
+# valid PNG chunk payloads but a bad palette CRC, which Blender/libpng rejects. Repair
+# chunk CRCs into the build output, then round-trip through Pillow so downstream tools
+# always receive a conventionally encoded RGB PNG without changing the source artwork.
+FACE="$OUT/reference/madeline_face_front.png"
+"$HUNYUAN_PY" - "$FACE_SOURCE" "$FACE" <<'PY'
+from pathlib import Path
+import struct
+import sys
+import zlib
+from PIL import Image
+
+source = Path(sys.argv[1])
+destination = Path(sys.argv[2])
+data = source.read_bytes()
+signature = b"\x89PNG\r\n\x1a\n"
+if not data.startswith(signature):
+    raise SystemExit(f"Madeline face source is not a PNG: {source}")
+
+repaired = bytearray(signature)
+offset = len(signature)
+saw_iend = False
+while offset < len(data):
+    if offset + 12 > len(data):
+        raise SystemExit(f"Madeline face PNG is truncated at byte {offset}: {source}")
+    length = struct.unpack(">I", data[offset : offset + 4])[0]
+    chunk_type = data[offset + 4 : offset + 8]
+    chunk_end = offset + 12 + length
+    if chunk_end > len(data):
+        raise SystemExit(
+            f"Madeline face PNG chunk {chunk_type!r} exceeds file length: {source}"
+        )
+    chunk_data = data[offset + 8 : offset + 8 + length]
+    repaired.extend(struct.pack(">I", length))
+    repaired.extend(chunk_type)
+    repaired.extend(chunk_data)
+    repaired.extend(struct.pack(">I", zlib.crc32(chunk_type + chunk_data) & 0xFFFFFFFF))
+    offset = chunk_end
+    if chunk_type == b"IEND":
+        saw_iend = True
+        break
+
+if not saw_iend:
+    raise SystemExit(f"Madeline face PNG has no IEND chunk: {source}")
+
+repaired_path = destination.with_suffix(".crc-repaired.png")
+repaired_path.parent.mkdir(parents=True, exist_ok=True)
+repaired_path.write_bytes(repaired)
+with Image.open(repaired_path) as image:
+    image.load()
+    rgb = image.convert("RGB")
+    if rgb.width < 64 or rgb.height < 64:
+        raise SystemExit(f"Madeline face crop decoded unexpectedly small: {rgb.size}")
+    rgb.save(destination, format="PNG", optimize=False)
+repaired_path.unlink()
+
+with Image.open(destination) as verify:
+    verify.load()
+    if verify.mode != "RGB":
+        raise SystemExit(f"Madeline face output mode is not RGB: {verify.mode}")
+print(f"validated face: {rgb.width}x{rgb.height} -> {destination}")
+PY
 
 printf '%s\n' '[2/9] Remove the temporary modeling base layer from geometry inputs'
 "$HUNYUAN_PY" "$SCRIPT_DIR/prepare_body_texture_views.py" \
