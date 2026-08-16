@@ -24,6 +24,8 @@ namespace VoxelEngine.Tests.EditMode
             string showcase = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
                 "ShowcaseWorld.CastleSpatial.cs"));
+            string driver = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "Scenes", "Showcase", "VoxelShowcase.cs"));
             string realizer = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleWallDoorRealizer.cs"));
@@ -37,6 +39,12 @@ namespace VoxelEngine.Tests.EditMode
                 "Interaction must consume the frozen production recipe, not a historical default.");
             StringAssert.Contains("CastleWallDoorGeometryResolver.Resolve", showcase);
             StringAssert.Contains("geometry.LeafVoxels()", showcase);
+
+            StringAssert.Contains("CanOpenCastlePostern", driver,
+                "The E prompt must surface the planned secondary entrance.");
+            StringAssert.Contains("TryOpenCastlePostern", driver,
+                "The player interaction chain must actually open the planned postern.");
+            StringAssert.Contains("E  OPEN POSTERN", driver);
 
             StringAssert.Contains("CastleWallDoorGeometryResolver.Resolve", realizer);
             StringAssert.Contains("CastleWallDoorGeometry.TryGetArchRowSpan", realizer);
