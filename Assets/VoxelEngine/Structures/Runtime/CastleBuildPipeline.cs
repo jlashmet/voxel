@@ -25,9 +25,8 @@ namespace VoxelEngine.Structures.Runtime
         private bool _hasSpatialKeep;
         private int2[] _outerWardVertices;
         private int2[] _innerWardVertices;
-        private int2[] _towerCentres;
+        private CastleTowerPlacementSpec[] _outerTowerSpecs;
         private int2[] _innerTowerCentres;
-        private int _cornerTowerCount;
         private CastleGatePlacementSpec _primaryGate;
         private CastleApproachFrame _approach;
         private bool _hasPosternGate;
@@ -98,6 +97,7 @@ namespace VoxelEngine.Structures.Runtime
 
             _plan = plan;
             _spatialKeepPlan = plan;
+            _outerTowerSpecs = Array.Empty<CastleTowerPlacementSpec>();
             _innerTowerCentres = Array.Empty<int2>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
             _spatialDungeonPlan = null;
@@ -149,8 +149,8 @@ namespace VoxelEngine.Structures.Runtime
                 case 3:
                     if (_hasSpatialFortifications)
                     {
-                        CastlePerimeterRealizer.Towers(
-                            ref _brush, in _plan, _towerCentres, _cornerTowerCount);
+                        CastlePlannedTowerRealizer.BuildAll(
+                            ref _brush, in _plan, _outerTowerSpecs);
                         CastleInnerWardTowerRealizer.BuildAll(
                             ref _brush, in _plan, _innerTowerCentres);
                     }
@@ -280,21 +280,7 @@ namespace VoxelEngine.Structures.Runtime
             _spatialDungeonPlan = spatialPlan.Dungeon != null
                 ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
                 : null;
-
-            CastleTowerPlacementSpec[] towers = spatialPlan.Towers;
-            _towerCentres = new int2[towers.Length];
-            int cursor = 0;
-            for (int i = 0; i < towers.Length; i++)
-            {
-                if (towers[i].Role != CastleTowerPlacementRole.Corner) continue;
-                _towerCentres[cursor++] = towers[i].Centre;
-            }
-            _cornerTowerCount = cursor;
-            for (int i = 0; i < towers.Length; i++)
-            {
-                if (towers[i].Role == CastleTowerPlacementRole.Corner) continue;
-                _towerCentres[cursor++] = towers[i].Centre;
-            }
+            _outerTowerSpecs = (CastleTowerPlacementSpec[])spatialPlan.Towers.Clone();
 
             CastleTowerPlacementSpec[] innerTowers = spatialPlan.InnerTowers;
             _innerTowerCentres = new int2[innerTowers.Length];
