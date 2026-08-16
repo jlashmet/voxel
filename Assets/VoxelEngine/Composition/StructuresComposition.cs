@@ -67,8 +67,9 @@ namespace VoxelEngine.Composition
 
     /// <summary>
     /// Runtime-ready castle planning bundle. Composition keeps the dimensions, terrain-resolved
-    /// spatial plan, gatehouse recipe, and terrain seed together so application code cannot
-    /// accidentally build one layout while presenting/interacting with coordinates from another.
+    /// spatial plan, and terrain seed together so application code cannot accidentally build one
+    /// layout while presenting/interacting with coordinates from another. Frozen authored recipes,
+    /// including the primary gatehouse, remain owned by the spatial plan itself.
     /// Projection is computed from the current validated spatial data rather than cached, so caller
     /// mutation cannot make a stale compatibility view silently survive.
     /// </summary>
@@ -78,7 +79,6 @@ namespace VoxelEngine.Composition
 
         public CastlePlan Dimensions => _dimensions;
         public CastleSpatialPlan Spatial { get; }
-        public CastleGatehousePlan Gatehouse { get; }
         public uint TerrainSeed { get; }
         public CastleSpatialProjection Projection =>
             CastleSpatialProjection.Create(in _dimensions, Spatial);
@@ -90,7 +90,6 @@ namespace VoxelEngine.Composition
         {
             _dimensions = dimensions;
             Spatial = spatial ?? throw new ArgumentNullException(nameof(spatial));
-            Gatehouse = CastleGatehousePlanner.Create(in dimensions);
             TerrainSeed = terrainSeed;
         }
     }
@@ -249,7 +248,7 @@ namespace VoxelEngine.Composition
 
         /// <summary>
         /// Starts a build from the runtime-ready bundle returned by <see cref="PlanCastleBuild"/>.
-        /// The bundle owns both the terrain seed and frozen gatehouse recipe used by realization.
+        /// The bundle owns the terrain seed and the completed spatial plan used by realization.
         /// </summary>
         public static ICastleBuildSession BeginCastleBuild(
             IRegionReadSource reads,
@@ -259,7 +258,6 @@ namespace VoxelEngine.Composition
         {
             CastlePlan dimensions = planned.Dimensions;
             CastleSpatialPlan spatial = planned.Spatial;
-            CastleGatehousePlan gatehouse = planned.Gatehouse;
             if (spatial == null)
                 throw new ArgumentException("Planned castle build has no spatial plan.", nameof(planned));
             if (reads == null) throw new ArgumentNullException(nameof(reads));
@@ -270,7 +268,6 @@ namespace VoxelEngine.Composition
                 mutations,
                 in dimensions,
                 spatial,
-                in gatehouse,
                 planned.TerrainSeed,
                 materials);
         }
@@ -346,22 +343,6 @@ namespace VoxelEngine.Composition
             {
                 _build = new CastleBuildPipeline(
                     reads, mutations, in plan, spatialPlan, terrainSeed, materials);
-            }
-
-            public CastleBuildSession(
-                IRegionReadSource reads, IRegionMutationStore mutations,
-                in CastlePlan plan, CastleSpatialPlan spatialPlan,
-                in CastleGatehousePlan gatehousePlan,
-                uint terrainSeed, IMaterialAuthoringCatalogue materials)
-            {
-                _build = new CastleBuildPipeline(
-                    reads,
-                    mutations,
-                    in plan,
-                    spatialPlan,
-                    in gatehousePlan,
-                    terrainSeed,
-                    materials);
             }
 
             public bool IsComplete => _build.IsComplete;
