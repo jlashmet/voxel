@@ -21,12 +21,20 @@ namespace VoxelEngine.Structures.Api
                 : Array.Empty<int2>();
 
             CastleGatePlacementSpec gate = PlacePrimaryGate(outer);
+            bool hasPosternGate = topology.HasPosternGate;
+            CastleGatePlacementSpec posternGate = hasPosternGate
+                ? PlacePosternGate(outer, gate.EdgeIndex, gate.Outward)
+                : default;
             bool hasInnerGate = inner.Length != 0;
             CastleGatePlacementSpec innerGate = hasInnerGate
                 ? PlaceGateOnEdge(inner, gate.EdgeIndex, gate.Outward)
                 : default;
             CastleTowerPlacementSpec[] towers = PlaceTowers(
-                dimensions.Seed, outer, gate.EdgeIndex, topology.DesiredTowerCount);
+                dimensions.Seed,
+                outer,
+                gate.EdgeIndex,
+                hasPosternGate ? posternGate.EdgeIndex : -1,
+                topology.DesiredTowerCount);
             int2[] keepWard = inner.Length != 0 ? inner : outer;
             int2 keepCentre = PlaceKeep(
                 in dimensions, topology.KeepPlacement, in gate, keepWard,
@@ -38,6 +46,8 @@ namespace VoxelEngine.Structures.Api
                 inner,
                 towers,
                 in gate,
+                hasPosternGate,
+                in posternGate,
                 hasInnerGate,
                 in innerGate,
                 keepCentre,
@@ -77,6 +87,7 @@ namespace VoxelEngine.Structures.Api
 
             CastleTopologyPlan topology = spatial.Topology;
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            CastleGatePlacementSpec posternGate = spatial.PosternGate;
             CastleGatePlacementSpec innerGate = spatial.InnerGate;
             var resolved = new CastleSpatialPlan(
                 in topology,
@@ -84,6 +95,8 @@ namespace VoxelEngine.Structures.Api
                 (int2[])spatial.InnerWardVertices.Clone(),
                 (CastleTowerPlacementSpec[])spatial.Towers.Clone(),
                 in primaryGate,
+                spatial.HasPosternGate,
+                in posternGate,
                 spatial.HasInnerGate,
                 in innerGate,
                 localKeepCentre,
@@ -237,6 +250,34 @@ namespace VoxelEngine.Structures.Api
             return PlaceGateOnEdge(perimeter, bestEdge, new float2(0f, -1f));
         }
 
+        private static CastleGatePlacementSpec PlacePosternGate(
+            int2[] perimeter,
+            int primaryEdge,
+            float2 primaryOutward)
+        {
+            int bestEdge = -1;
+            float bestScore = float.MinValue;
+            float2 inward = -primaryOutward;
+
+            for (int edge = 0; edge < perimeter.Length; edge++)
+            {
+                if (edge == primaryEdge) continue;
+                int2 a = perimeter[edge];
+                int2 b = perimeter[(edge + 1) % perimeter.Length];
+                float2 midpoint = new float2(
+                    (a.x + b.x) * 0.5f,
+                    (a.y + b.y) * 0.5f);
+                float score = math.dot(midpoint, inward);
+                if (score <= bestScore) continue;
+                bestScore = score;
+                bestEdge = edge;
+            }
+
+            if (bestEdge < 0)
+                bestEdge = (primaryEdge + perimeter.Length / 2) % perimeter.Length;
+            return PlaceGateOnEdge(perimeter, bestEdge, -primaryOutward);
+        }
+
         private static CastleGatePlacementSpec PlaceGateOnEdge(
             int2[] perimeter,
             int edgeIndex,
@@ -263,7 +304,8 @@ namespace VoxelEngine.Structures.Api
         private static CastleTowerPlacementSpec[] PlaceTowers(
             uint seed,
             int2[] perimeter,
-            int gateEdge,
+            int primaryGateEdge,
+            int posternGateEdge,
             int desiredCount)
         {
             int target = math.max(perimeter.Length, desiredCount);
@@ -280,7 +322,10 @@ namespace VoxelEngine.Structures.Api
             }
 
             bool[] usedEdges = new bool[perimeter.Length];
-            usedEdges[gateEdge] = true;
+            usedEdges[primaryGateEdge] = true;
+            if (posternGateEdge >= 0 && posternGateEdge < usedEdges.Length)
+                usedEdges[posternGateEdge] = true;
+
             while (towers.Count < target)
             {
                 int bestEdge = -1;

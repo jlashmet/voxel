@@ -11,6 +11,11 @@ namespace VoxelEngine.Structures.Api
         InvalidGateEdge,
         GateDetachedFromPerimeter,
         InvalidGateNormal,
+        PosternGateMismatch,
+        InvalidPosternGateEdge,
+        PosternGateDetachedFromPerimeter,
+        InvalidPosternGateNormal,
+        PosternGateConflictsWithPrimaryGate,
         TowerCountMismatch,
         TowerIdMismatch,
         DuplicateTower,
@@ -86,6 +91,32 @@ namespace VoxelEngine.Structures.Api
                     CastleSpatialPlanIssue.InvalidGateNormal,
                     out issue))
                 return false;
+
+            if (spatial.HasPosternGate != spatial.Topology.HasPosternGate)
+            {
+                issue = CastleSpatialPlanIssue.PosternGateMismatch;
+                return false;
+            }
+
+            if (spatial.HasPosternGate)
+            {
+                CastleGatePlacementSpec posternGate = spatial.PosternGate;
+                if (!TryValidateGate(
+                        outer,
+                        in posternGate,
+                        CastleSpatialPlanIssue.InvalidPosternGateEdge,
+                        CastleSpatialPlanIssue.PosternGateDetachedFromPerimeter,
+                        CastleSpatialPlanIssue.InvalidPosternGateNormal,
+                        out issue))
+                    return false;
+
+                if (posternGate.EdgeIndex == primaryGate.EdgeIndex ||
+                    posternGate.Centre.Equals(primaryGate.Centre))
+                {
+                    issue = CastleSpatialPlanIssue.PosternGateConflictsWithPrimaryGate;
+                    return false;
+                }
+            }
 
             CastleTowerPlacementSpec[] towers = spatial.Towers;
             if (towers == null || towers.Length != spatial.Topology.DesiredTowerCount)
