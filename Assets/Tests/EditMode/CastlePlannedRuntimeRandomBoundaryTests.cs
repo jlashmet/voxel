@@ -50,18 +50,36 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialSitePathUsesFrozenGrassMaskWhileLegacyPathMayRetainRng()
+        public void PlannedSiteRealizerUsesFrozenGrassMaskWhileLegacySiteRetainsRng()
         {
-            string site = File.ReadAllText(Path.Combine(
+            string pipeline = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleBuildPipeline.cs"));
+            string legacy = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleSiteRealizer.cs"));
+            string planned = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedSiteRealizer.cs"));
 
-            StringAssert.Contains("sitePlan.ShouldGrassCap(x, z)", site,
-                "Spatial site realization must consume the planned grass mask.");
-            StringAssert.Contains("if (state.Cursor == 0 && !hasPlannedApproach)", site,
-                "Site RNG initialization must remain gated to the compatibility path.");
-            StringAssert.Contains(": state.Random.NextInt(0, 100) < 92", site,
-                "The historical random grass cap may remain only as the legacy fallback.");
+            StringAssert.Contains("sitePlan.ShouldGrassCap(x, z)", planned,
+                "Spatial site realization must consume the planner-owned grass mask.");
+            StringAssert.DoesNotContain("new Random(", planned,
+                "Spatial site realization must not own Runtime RNG state.");
+            StringAssert.DoesNotContain("NextInt(", planned,
+                "Spatial site realization must not draw authored variation during mutation.");
+            StringAssert.DoesNotContain("CastleSeedPartition.Derive(", planned,
+                "Spatial site realization must not derive authored seeds during mutation.");
+            StringAssert.DoesNotContain("plan.Seed", planned,
+                "Spatial site realization must be driven only by frozen site data and terrain queries.");
+
+            StringAssert.Contains("new Random(siteSeed)", legacy,
+                "The dimension-only compatibility site path retains the historical RNG recipe.");
+            StringAssert.Contains("state.Random.NextInt(0, 100) < 92", legacy,
+                "Legacy grass variation remains explicitly isolated in the compatibility realizer.");
+
+            StringAssert.Contains("CastlePlannedSiteRealizer", pipeline,
+                "The spatial pipeline must name the dedicated no-RNG site realizer.");
         }
     }
 }
