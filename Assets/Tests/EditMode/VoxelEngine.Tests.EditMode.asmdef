@@ -46,7 +46,8 @@
     "VoxelEngine.Collision.Runtime",
     "VoxelEngine.Terrain.Runtime",
     "VoxelEngine.Vegetation.Api",
-    "VoxelEngine.AmbientLife.Api"
+    "VoxelEngine.AmbientLife.Api",
+    "VoxelEngine.Characters.Runtime"
   ],
   "includePlatforms": [
     "Editor"
