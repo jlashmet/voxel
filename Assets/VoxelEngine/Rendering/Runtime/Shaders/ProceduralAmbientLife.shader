@@ -79,22 +79,19 @@ Shader "VoxelEngine/ProceduralAmbientLife"
             {
                 float flap = abs(flutter);
 
-                // Butterfly / moth: strongly readable wing opening and closing.
+                // Wing opening is handled in the fragment silhouette so the body remains stable.
+                // Keep only small whole-body compression here.
                 if (shape > 0.5 && shape < 1.5)
                 {
-                    local.x *= 0.70 + flap * 0.48;
-                    local.y *= 1.04 - flap * 0.08;
+                    local.y *= 1.02 - flap * 0.035;
                 }
-                // Bee / compact insect: quick, smaller wing beat.
                 else if (shape > 1.5 && shape < 2.5)
                 {
-                    local.x *= 0.84 + flap * 0.26;
-                    local.y *= 1.03 - flap * 0.04;
+                    local.y *= 1.01 - flap * 0.02;
                 }
-                // Dragonfly: narrower high-frequency wing stroke around a stable body.
                 else if (shape > 2.5 && shape < 3.5)
                 {
-                    local.x *= 0.86 + flap * 0.22;
+                    local.y *= 1.0 - flap * 0.012;
                 }
                 // Ground insect: deliberately stable silhouette; tiny gait compression only.
                 else if (shape > 3.5 && shape < 4.5)
@@ -110,11 +107,9 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                     local.x *= 1.0 + squat * 0.045;
                     local.y *= 1.0 - squat * 0.055;
                 }
-                // Bird / bat: clear wing-span change. This was previously static.
                 else if (shape > 5.5 && shape < 6.5)
                 {
-                    local.x *= 0.66 + flap * 0.54;
-                    local.y *= 1.08 - flap * 0.13;
+                    local.y *= 1.04 - flap * 0.08;
                 }
                 // Spores gently breathe rather than flap.
                 else if (shape > 6.5 && shape < 7.5)
@@ -129,11 +124,9 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                     local.x *= 1.0 - wisp * 0.055;
                     local.y *= 1.0 + wisp * 0.085;
                 }
-                // Emberfly: small magical wing beat. This was previously static.
                 else if (shape > 8.5)
                 {
-                    local.x *= 0.78 + flap * 0.34;
-                    local.y *= 1.04 - flap * 0.06;
+                    local.y *= 1.02 - flap * 0.04;
                 }
 
                 return local;
@@ -167,36 +160,47 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                 return output;
             }
 
-            float AmbientMask(float2 uv, float shape)
+            float AmbientMask(float2 uv, float shape, float flutter)
             {
                 float2 p = uv * 2.0 - 1.0;
+                float flap = abs(flutter);
 
                 if (shape < 0.5)
                     return Ellipse(p, float2(0.48, 0.48));
 
                 if (shape < 1.5)
                 {
-                    float leftWing = Ellipse(p - float2(-0.39, 0.05), float2(0.46, 0.58));
-                    float rightWing = Ellipse(p - float2(0.39, 0.05), float2(0.46, 0.58));
+                    float wingOffset = lerp(0.23, 0.40, flap);
+                    float wingRadiusX = lerp(0.29, 0.46, flap);
+                    float wingRadiusY = lerp(0.48, 0.58, flap);
+                    float leftWing = Ellipse(p - float2(-wingOffset, 0.05), float2(wingRadiusX, wingRadiusY));
+                    float rightWing = Ellipse(p - float2(wingOffset, 0.05), float2(wingRadiusX, wingRadiusY));
                     float body = Ellipse(p, float2(0.09, 0.64));
                     return max(max(leftWing, rightWing), body);
                 }
 
                 if (shape < 2.5)
                 {
-                    float body = Ellipse(p, float2(0.58, 0.27));
+                    float body = Ellipse(p, float2(0.45, 0.27));
+                    float wingOffset = lerp(0.16, 0.31, flap);
+                    float wingY = lerp(0.18, 0.29, flap);
+                    float wingRadiusX = lerp(0.18, 0.35, flap);
+                    float wingRadiusY = lerp(0.15, 0.25, flap);
                     float wings = max(
-                        Ellipse(p - float2(-0.23, 0.27), float2(0.31, 0.25)),
-                        Ellipse(p - float2(0.23, 0.27), float2(0.31, 0.25)));
-                    return max(body, wings * 0.88);
+                        Ellipse(p - float2(-wingOffset, wingY), float2(wingRadiusX, wingRadiusY)),
+                        Ellipse(p - float2(wingOffset, wingY), float2(wingRadiusX, wingRadiusY)));
+                    return max(body, wings * 0.92);
                 }
 
                 if (shape < 3.5)
                 {
                     float body = Ellipse(p, float2(0.10, 0.84));
+                    float wingOffset = lerp(0.28, 0.45, flap);
+                    float wingRadiusX = lerp(0.30, 0.50, flap);
+                    float wingRadiusY = lerp(0.10, 0.16, flap);
                     float wings = max(
-                        Ellipse(p - float2(-0.43, 0.04), float2(0.53, 0.15)),
-                        Ellipse(p - float2(0.43, 0.04), float2(0.53, 0.15)));
+                        Ellipse(p - float2(-wingOffset, 0.04), float2(wingRadiusX, wingRadiusY)),
+                        Ellipse(p - float2(wingOffset, 0.04), float2(wingRadiusX, wingRadiusY)));
                     return max(body, wings);
                 }
 
@@ -217,8 +221,11 @@ Shader "VoxelEngine/ProceduralAmbientLife"
 
                 if (shape < 6.5)
                 {
-                    float left = Ellipse(p - float2(-0.40, 0.02), float2(0.60, 0.24));
-                    float right = Ellipse(p - float2(0.40, 0.02), float2(0.60, 0.24));
+                    float wingOffset = lerp(0.23, 0.41, flap);
+                    float wingRadiusX = lerp(0.34, 0.58, flap);
+                    float wingRadiusY = lerp(0.17, 0.25, flap);
+                    float left = Ellipse(p - float2(-wingOffset, 0.02), float2(wingRadiusX, wingRadiusY));
+                    float right = Ellipse(p - float2(wingOffset, 0.02), float2(wingRadiusX, wingRadiusY));
                     float body = Ellipse(p, float2(0.16, 0.42));
                     return max(max(left, right), body);
                 }
@@ -235,45 +242,52 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                 }
 
                 float core = Ellipse(p, float2(0.22, 0.48));
+                float wingOffset = lerp(0.19, 0.33, flap);
+                float wingRadiusX = lerp(0.20, 0.36, flap);
+                float wingRadiusY = lerp(0.13, 0.21, flap);
                 float wings = max(
-                    Ellipse(p - float2(-0.31, 0.08), float2(0.37, 0.21)),
-                    Ellipse(p - float2(0.31, 0.08), float2(0.37, 0.21)));
+                    Ellipse(p - float2(-wingOffset, 0.08), float2(wingRadiusX, wingRadiusY)),
+                    Ellipse(p - float2(wingOffset, 0.08), float2(wingRadiusX, wingRadiusY)));
                 return max(core, wings);
             }
 
             float AmbientDetail(float2 uv, float shape, float flutter)
             {
                 float2 p = uv * 2.0 - 1.0;
+                float flap = abs(flutter);
 
                 if (shape < 0.5)
                     return Ellipse(p, float2(0.16, 0.16)) * 0.65;
 
                 if (shape < 1.5)
                 {
+                    float wingOffset = lerp(0.23, 0.40, flap);
                     float body = Ellipse(p, float2(0.095, 0.62));
-                    float leftSpot = Ellipse(p - float2(-0.43, 0.06), float2(0.14, 0.20));
-                    float rightSpot = Ellipse(p - float2(0.43, 0.06), float2(0.14, 0.20));
+                    float leftSpot = Ellipse(p - float2(-wingOffset, 0.06), float2(0.14, 0.20));
+                    float rightSpot = Ellipse(p - float2(wingOffset, 0.06), float2(0.14, 0.20));
+                    float lowerOffset = lerp(0.17, 0.29, flap);
                     float lowerSpot = max(
-                        Ellipse(p - float2(-0.28, -0.31), float2(0.10, 0.12)),
-                        Ellipse(p - float2(0.28, -0.31), float2(0.10, 0.12)));
+                        Ellipse(p - float2(-lowerOffset, -0.31), float2(0.10, 0.12)),
+                        Ellipse(p - float2(lowerOffset, -0.31), float2(0.10, 0.12)));
                     return saturate(body + max(leftSpot, rightSpot) * 0.75 + lowerSpot * 0.55);
                 }
 
                 if (shape < 2.5)
                 {
-                    float body = Ellipse(p, float2(0.57, 0.26));
+                    float body = Ellipse(p, float2(0.44, 0.26));
                     float stripeWave = 0.5 + 0.5 * sin(p.x * 20.0 + flutter * 0.8);
                     float stripes = body * smoothstep(0.56, 0.88, stripeWave);
-                    float head = Ellipse(p - float2(0.52, 0), float2(0.15, 0.19));
+                    float head = Ellipse(p - float2(0.41, 0), float2(0.14, 0.19));
                     return saturate(stripes * 0.85 + head * 0.75);
                 }
 
                 if (shape < 3.5)
                 {
+                    float wingOffset = lerp(0.28, 0.45, flap);
                     float spine = Ellipse(p, float2(0.075, 0.80));
                     float wingBand = max(
-                        Ellipse(p - float2(-0.44, 0.04), float2(0.30, 0.055)),
-                        Ellipse(p - float2(0.44, 0.04), float2(0.30, 0.055)));
+                        Ellipse(p - float2(-wingOffset, 0.04), float2(0.25, 0.055)),
+                        Ellipse(p - float2(wingOffset, 0.04), float2(0.25, 0.055)));
                     return saturate(spine + wingBand * 0.65);
                 }
 
@@ -313,16 +327,17 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                 }
 
                 float core = Ellipse(p, float2(0.15, 0.39));
+                float wingOffset = lerp(0.19, 0.33, flap);
                 float wingMarks = max(
-                    Ellipse(p - float2(-0.30, 0.08), float2(0.11, 0.08)),
-                    Ellipse(p - float2(0.30, 0.08), float2(0.11, 0.08)));
+                    Ellipse(p - float2(-wingOffset, 0.08), float2(0.11, 0.08)),
+                    Ellipse(p - float2(wingOffset, 0.08), float2(0.11, 0.08)));
                 return saturate(core * 0.80 + wingMarks * 0.65);
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                float mask = saturate(AmbientMask(input.uv, _Shape));
+                float mask = saturate(AmbientMask(input.uv, _Shape, input.flutter));
                 clip(mask - 0.075);
 
                 float detail = AmbientDetail(input.uv, _Shape, input.flutter);
