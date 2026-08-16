@@ -15,9 +15,7 @@ namespace VoxelEngine.Showcase
     public sealed partial class ShowcaseWorld
     {
         private CastleSpatialPlan _pendingCastleSpatialPlan;
-        private CastleSpatialPlan _castleSpatialPlan;
         private CastleSpatialProjection _castleSpatialProjection;
-        private bool _hasCastleSpatialProjection;
 
         private void PreparePendingCastleSpatialPlan()
         {
@@ -40,10 +38,8 @@ namespace VoxelEngine.Showcase
         private void CommitPendingCastleSpatialPlan()
         {
             _castlePlan = _pendingCastlePlan;
-            _castleSpatialPlan = _pendingCastleSpatialPlan;
             _castleSpatialProjection = CastleSpatialProjection.Create(
-                in _castlePlan, _castleSpatialPlan);
-            _hasCastleSpatialProjection = true;
+                in _castlePlan, _pendingCastleSpatialPlan);
             _hasCastlePlan = true;
             _castleTrapdoorOpen = false;
             _castleFrontGateOpen = false;
@@ -56,41 +52,12 @@ namespace VoxelEngine.Showcase
             CastlePresentationLightColours = colours;
         }
 
-        private Vector3 ActiveCastleFrontGatePosition()
-        {
-            if (!_hasCastleSpatialProjection)
-            {
-                CastleGateGeometry legacy = CastleGateGeometryResolver.LegacyFront(in _castlePlan);
-                float3 legacyPoint = legacy.InteractionPointVoxels;
-                return new Vector3(legacyPoint.x, legacyPoint.y, legacyPoint.z) * VoxelSize;
-            }
-
-            return ShowcaseCastleSpatialLayout.PrimaryGateInteractionPosition(
+        private Vector3 ActiveCastleFrontGatePosition() =>
+            ShowcaseCastleSpatialLayout.PrimaryGateInteractionPosition(
                 in _castleSpatialProjection, VoxelSize);
-        }
 
         private void OpenActiveCastleFrontGate()
         {
-            if (!_hasCastleSpatialProjection)
-            {
-                CastleGateGeometry legacy = CastleGateGeometryResolver.LegacyFront(in _castlePlan);
-                var legacyVoxels = new List<FallingVoxel>(
-                    legacy.Width * legacy.Height * legacy.Depth);
-                for (int d = 0; d < legacy.Depth; d++)
-                for (int w = 0; w < legacy.Width; w++)
-                for (int h = 0; h < legacy.Height; h++)
-                {
-                    if (!legacy.ContainsArchVoxel(w, h)) continue;
-                    legacyVoxels.Add(new FallingVoxel
-                    {
-                        Position = legacy.WorldVoxel(w, h, d),
-                        Material = MatWood,
-                    });
-                }
-                ClearVoxelsBulk(legacyVoxels);
-                return;
-            }
-
             int3[] voxels = ShowcaseCastleSpatialLayout.PrimaryGateLeafVoxels(
                 in _castleSpatialProjection);
             var gateVoxels = new List<FallingVoxel>(voxels.Length);
@@ -105,24 +72,12 @@ namespace VoxelEngine.Showcase
             ClearVoxelsBulk(gateVoxels);
         }
 
-        private int3 ActiveCastleTrapdoorCentre()
-        {
-            if (_hasCastleSpatialProjection)
-                return ShowcaseCastleSpatialLayout.TrapdoorCentre(in _castleSpatialProjection);
-            return CastleLayout.TrapdoorCentre(in _castlePlan);
-        }
+        private int3 ActiveCastleTrapdoorCentre() =>
+            ShowcaseCastleSpatialLayout.TrapdoorCentre(in _castleSpatialProjection);
 
-        private Vector3 ActiveCastleTrapdoorPosition()
-        {
-            if (_hasCastleSpatialProjection)
-            {
-                return ShowcaseCastleSpatialLayout.TrapdoorInteractionPosition(
-                    in _castleSpatialProjection, VoxelSize);
-            }
-
-            int3 centre = CastleLayout.TrapdoorCentre(in _castlePlan);
-            return ((Vector3)(float3)centre + new Vector3(0.5f, 0.2f, 0.5f)) * VoxelSize;
-        }
+        private Vector3 ActiveCastleTrapdoorPosition() =>
+            ShowcaseCastleSpatialLayout.TrapdoorInteractionPosition(
+                in _castleSpatialProjection, VoxelSize);
 
         private void OpenActiveCastleTrapdoor()
         {
