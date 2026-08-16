@@ -44,7 +44,7 @@ The generated local prefabs use the normal Character Factory shape: the imported
 
 The animation FBXs are imported as Unity Humanoid clips and use semantic clip names (`Idle`, `Walk`, `Run`, `CrouchIdle`, `Wave`, `Shrug`). Idle/locomotion clips loop; Wave and Shrug are one-shot clips. They can be retargeted onto either placeholder body and later onto generated Humanoid characters without changing gameplay animation semantics.
 
-Walk/Run preserve their imported motion curves. EditMode coverage verifies those curves survive import, and Walk is evaluated through a `PlayableGraph` against both placeholder avatars to prove that the Humanoid clip actually drives a retargeted pose rather than only passing importer metadata checks.
+Walk/Run use the Rocketbox XY motion-extraction sources, and the Unity importer explicitly leaves horizontal root position unbaked so gameplay can consume root motion. EditMode coverage locks that importer policy. Walk is also evaluated through a `PlayableGraph` against both placeholder avatars to prove that the Humanoid clip actually drives a retargeted pose rather than only passing importer metadata checks.
 
 No temporary Animator state machine is defined here. Gameplay should consume these through the project's existing Unity Humanoid/Animator seam. Root motion remains opt-in at the gameplay Animator/controller layer.
 
