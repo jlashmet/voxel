@@ -7,7 +7,7 @@ namespace VoxelEngine.Composition
 {
     /// <summary>
     /// Composition-owned site-aware completion for castle plans that deliberately leave terrain
-    /// choices unresolved in Structures.Api. Runtime receives only the finished spatial plan.
+    /// choices unresolved in Structures.Api. Runtime receives only a finished detached spatial plan.
     /// </summary>
     public static class CastleTerrainPlanning
     {
@@ -33,7 +33,13 @@ namespace VoxelEngine.Composition
             }
 
             resolved = CastleGatehousePlanCompletion.Attach(in plan, resolved);
-            return CastleSpatialPlanCompletion.CompleteResolved(in plan, resolved);
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(
+                in plan, resolved);
+
+            // Detach every mutable planning array before the object crosses into Runtime. This
+            // keeps production builds isolated even while planning/test APIs intentionally expose
+            // lightweight mutable arrays for corruption tests and incremental plan enrichment.
+            return CastleSpatialPlanSnapshot.CloneRuntimeReady(in plan, completed);
         }
 
         private static int2 FindHighestGroundKeep(
