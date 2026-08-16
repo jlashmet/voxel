@@ -1,0 +1,42 @@
+name: Shared Transvoxel lookup tables one-shot patch
+
+on:
+  push:
+    branches:
+      - refactor/async-geometry-pipeline
+    paths:
+      - .github/workflows/async-geometry-shared-tables-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded patch
+        run: python3 .github/scripts/async_geometry_shared_lookup_tables_patch.py
+      - name: Static guards
+        run: |
+          ! grep -q 'InitialiseTopologyTables' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          ! grep -q 'InitialiseTransitionTables' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'private readonly TransvoxelLookupTables _lookupTables' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'class TransvoxelLookupTables' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelLookupTables.cs
+          grep -q 'ImmutableTransvoxelTablesAreSharedAcrossSolidWorkers' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+      - name: Commit renderer changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelBuildWorkspace.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelLookupTables.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelLookupTables.cs.meta \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+                  docs/ASYNC_GEOMETRY_PIPELINE.md
+          git commit -m 'Share immutable Transvoxel lookup tables across workers'
+          git push origin HEAD:refactor/async-geometry-pipeline
