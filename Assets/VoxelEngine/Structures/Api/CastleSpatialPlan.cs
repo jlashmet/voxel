@@ -42,6 +42,7 @@ namespace VoxelEngine.Structures.Api
         public bool HasWell { get; }
         public int2 WellCentre { get; }
         public CastleCourtyardBuildingSpec[] CourtyardBuildings { get; }
+        public DungeonPlan Dungeon { get; }
         public int2 KeepCentre { get; }
         public bool KeepRequiresTerrainResolution { get; }
 
@@ -70,6 +71,7 @@ namespace VoxelEngine.Structures.Api
                 false,
                 default,
                 Array.Empty<CastleCourtyardBuildingSpec>(),
+                null,
                 keepCentre,
                 keepRequiresTerrainResolution)
         {
@@ -102,6 +104,7 @@ namespace VoxelEngine.Structures.Api
                 hasWell,
                 wellCentre,
                 Array.Empty<CastleCourtyardBuildingSpec>(),
+                null,
                 keepCentre,
                 keepRequiresTerrainResolution)
         {
@@ -122,6 +125,41 @@ namespace VoxelEngine.Structures.Api
             CastleCourtyardBuildingSpec[] courtyardBuildings,
             int2 keepCentre,
             bool keepRequiresTerrainResolution)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
+                null,
+                keepCentre,
+                keepRequiresTerrainResolution)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            DungeonPlan dungeon,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution)
         {
             Topology = topology;
             OuterWardVertices = outerWardVertices;
@@ -136,6 +174,7 @@ namespace VoxelEngine.Structures.Api
             HasWell = hasWell;
             WellCentre = wellCentre;
             CourtyardBuildings = courtyardBuildings ?? Array.Empty<CastleCourtyardBuildingSpec>();
+            Dungeon = dungeon;
             KeepCentre = keepCentre;
             KeepRequiresTerrainResolution = keepRequiresTerrainResolution;
         }
