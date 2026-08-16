@@ -31,10 +31,11 @@ namespace VoxelEngine.Structures.Runtime
             int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
             int halfX = keepPlan.KeepHalfX;
             int halfZ = keepPlan.KeepHalfZ;
+            int2 actualKeepCentre = CastleSpatialProjection.ActualKeepCentre(in keepPlan);
             var min = new int3(
-                keepPlan.Centre.x - halfX,
+                actualKeepCentre.x - halfX,
                 baseY,
-                keepPlan.Centre.z - halfZ + CastleLayout.LegacyKeepCentreZOffset);
+                actualKeepCentre.y - halfZ);
             var size = new int3(
                 halfX * 2,
                 keepPlan.KeepHeight,
