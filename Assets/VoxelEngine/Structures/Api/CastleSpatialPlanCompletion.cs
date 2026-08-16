@@ -1,14 +1,27 @@
 using System;
+using Unity.Mathematics;
 
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
-    /// Final pure-data completion for spatial castle details that depend on already-resolved core
-    /// geometry. Composition calls this after terrain-dependent keep placement is finished; Runtime
-    /// receives the completed immutable layout and never chooses courtyard building locations.
+    /// Final pure-data completion for castle details that depend on already-resolved core geometry.
+    /// Composition calls this after terrain-dependent keep placement is finished; Runtime receives
+    /// courtyard buildings and the designed dungeon graph without choosing either layout itself.
     /// </summary>
     public static class CastleSpatialPlanCompletion
     {
+        public static CastleSpatialPlan CompleteResolved(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.KeepRequiresTerrainResolution)
+                return spatial;
+
+            CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, spatial);
+            return AttachDungeon(in plan, withBuildings);
+        }
+
         public static CastleSpatialPlan AttachCourtyardBuildings(
             in CastlePlan plan,
             CastleSpatialPlan spatial)
@@ -19,6 +32,27 @@ namespace VoxelEngine.Structures.Api
 
             CastleCourtyardBuildingSpec[] buildings =
                 CastleCourtyardBuildingPlanner.Create(in plan, spatial);
+            return Copy(spatial, buildings, spatial.Dungeon);
+        }
+
+        public static CastleSpatialPlan AttachDungeon(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+            if (spatial.KeepRequiresTerrainResolution)
+                return spatial;
+
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
+            DungeonPlan dungeon = CastleDungeonPlanning.Create(in plan, in projection);
+            return Copy(spatial, spatial.CourtyardBuildings, dungeon);
+        }
+
+        private static CastleSpatialPlan Copy(
+            CastleSpatialPlan spatial,
+            CastleCourtyardBuildingSpec[] buildings,
+            DungeonPlan dungeon)
+        {
             CastleTopologyPlan topology = spatial.Topology;
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleGatePlacementSpec posternGate = spatial.PosternGate;
@@ -26,8 +60,8 @@ namespace VoxelEngine.Structures.Api
 
             return new CastleSpatialPlan(
                 in topology,
-                (Unity.Mathematics.int2[])spatial.OuterWardVertices.Clone(),
-                (Unity.Mathematics.int2[])spatial.InnerWardVertices.Clone(),
+                (int2[])spatial.OuterWardVertices.Clone(),
+                (int2[])spatial.InnerWardVertices.Clone(),
                 (CastleTowerPlacementSpec[])spatial.Towers.Clone(),
                 in primaryGate,
                 spatial.HasPosternGate,
@@ -36,7 +70,10 @@ namespace VoxelEngine.Structures.Api
                 in innerGate,
                 spatial.HasWell,
                 spatial.WellCentre,
-                buildings,
+                buildings != null
+                    ? (CastleCourtyardBuildingSpec[])buildings.Clone()
+                    : Array.Empty<CastleCourtyardBuildingSpec>(),
+                dungeon,
                 spatial.KeepCentre,
                 false);
         }
