@@ -15,6 +15,12 @@ namespace VoxelEngine.Storage.Api
         public readonly bool Flammable;
 
         /// <summary>
+        /// Surface style used when an authoring tool creates new cells of this material. This is
+        /// intentionally distinct from the material's general presentation default.
+        /// </summary>
+        public readonly ushort PlacementSurfaceStyle;
+
+        /// <summary>
         /// Optional coating applied when authoring this material onto an existing solid. Zero means
         /// ordinary replacement. This is a generic placement property; semantic material identity
         /// remains application-owned.
@@ -23,6 +29,7 @@ namespace VoxelEngine.Storage.Api
 
         public MaterialDefinition(byte materialId, byte hardness, DestructionClass destructionClass,
                                   ushort defaultSurfaceStyle, uint allowedCoatings, bool flammable,
+                                  ushort placementSurfaceStyle = SurfaceStyles.MaterialDefault,
                                   byte placementCoating = Coatings.None)
         {
             MaterialId = materialId;
@@ -31,6 +38,7 @@ namespace VoxelEngine.Storage.Api
             DefaultSurfaceStyle = defaultSurfaceStyle;
             AllowedCoatings = allowedCoatings;
             Flammable = flammable;
+            PlacementSurfaceStyle = placementSurfaceStyle;
             PlacementCoating = placementCoating;
         }
     }
