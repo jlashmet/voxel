@@ -14,17 +14,17 @@ namespace VoxelEngine.Showcase
     internal static class ShowcaseCastleSpatialLayout
     {
         internal static Vector3 PrimaryGateInteractionPosition(
-            in CastleSpatialLayoutProjection projection,
+            in CastleSpatialProjection projection,
             float voxelSize)
         {
-            float3 point = projection.PrimaryGate.InteractionPointVoxels;
+            float3 point = projection.PrimaryGateGeometry.InteractionPointVoxels;
             return new Vector3(point.x, point.y, point.z) * voxelSize;
         }
 
         internal static int3[] PrimaryGateLeafVoxels(
-            in CastleSpatialLayoutProjection projection)
+            in CastleSpatialProjection projection)
         {
-            CastleGateGeometry geometry = projection.PrimaryGate;
+            CastleGateGeometry geometry = projection.PrimaryGateGeometry;
             var voxels = new List<int3>(geometry.Width * geometry.Height * geometry.Depth);
             for (int d = 0; d < geometry.Depth; d++)
             for (int w = 0; w < geometry.Width; w++)
@@ -37,7 +37,7 @@ namespace VoxelEngine.Showcase
         }
 
         internal static Vector3 TrapdoorInteractionPosition(
-            in CastleSpatialLayoutProjection projection,
+            in CastleSpatialProjection projection,
             float voxelSize)
         {
             int3 centre = projection.TrapdoorCentre;
@@ -45,61 +45,62 @@ namespace VoxelEngine.Showcase
                  * voxelSize;
         }
 
-        internal static int3 TrapdoorCentre(in CastleSpatialLayoutProjection projection) =>
+        internal static int3 TrapdoorCentre(in CastleSpatialProjection projection) =>
             projection.TrapdoorCentre;
 
         internal static void BuildPresentationLights(
-            in CastleSpatialLayoutProjection projection,
+            in CastleSpatialProjection projection,
             out Vector4[] lights,
             out Vector4[] colours)
         {
             CastlePlan plan = projection.KeepPlan;
             int baseY = plan.Centre.y + plan.PlateauHeight;
-            int keepMinZ = plan.Centre.z - plan.KeepHalfZ
-                         + CastleSpatialLayoutProjection.LegacyKeepCentreZOffset;
-            int keepCentreZ = keepMinZ + plan.KeepHalfZ;
-            int keepMaxX = plan.Centre.x + plan.KeepHalfX;
+            int keepMinZ = projection.KeepCentreWorld.y - plan.KeepHalfZ;
+            int keepCentreZ = projection.KeepCentreWorld.y;
+            int keepMaxX = projection.KeepCentreWorld.x + plan.KeepHalfX;
             int wingWidth = math.max(96, plan.KeepHalfX * 4 / 5);
             int wingDepth = math.max(80, plan.KeepHalfZ * 2 - 72);
             int wingCentreX = keepMaxX - 4 + wingWidth / 2;
             int wingCentreZ = keepMinZ + 24 + wingDepth / 2;
             int chapelWidth = math.max(78, plan.KeepHalfX * 2 / 3);
             int chapelDepth = math.max(96, plan.KeepHalfZ * 6 / 5);
-            int chapelCentreX = plan.Centre.x - plan.KeepHalfX - chapelWidth / 2 + 4;
+            int chapelCentreX = projection.KeepCentreWorld.x - plan.KeepHalfX
+                              - chapelWidth / 2 + 4;
             int chapelCentreZ = keepMinZ + plan.KeepHalfZ * 2 - chapelDepth / 2 - 38;
             int cellarY = baseY - 46;
             int dungeonY = cellarY - 120;
             int trapZ = keepMinZ + plan.KeepHalfZ + 40;
             int caveZ = trapZ - 411;
             int3 bellTower = projection.ChapelBellTowerCentre;
+            int keepCentreX = projection.KeepCentreWorld.x;
 
             static Vector4 LightAt(int x, int y, int z, float radiusMetres) =>
                 new(x * 0.1f, y * 0.1f, z * 0.1f, radiusMetres);
 
             lights = new[]
             {
-                LightAt(plan.Centre.x - 45, baseY + 26, keepCentreZ - 28, 8.0f),
-                LightAt(plan.Centre.x + 42, baseY + 26, keepCentreZ + 30, 8.0f),
-                LightAt(plan.Centre.x, baseY + plan.FloorHeight + 17, keepCentreZ, 8.0f),
-                LightAt(plan.Centre.x, baseY + plan.FloorHeight * 3 + 17, keepCentreZ, 7.0f),
+                LightAt(keepCentreX - 45, baseY + 26, keepCentreZ - 28, 8.0f),
+                LightAt(keepCentreX + 42, baseY + 26, keepCentreZ + 30, 8.0f),
+                LightAt(keepCentreX, baseY + plan.FloorHeight + 17, keepCentreZ, 8.0f),
+                LightAt(keepCentreX, baseY + plan.FloorHeight * 3 + 17, keepCentreZ, 7.0f),
                 LightAt(wingCentreX, baseY + 17, wingCentreZ, 7.5f),
                 LightAt(wingCentreX, baseY + plan.FloorHeight + 17, wingCentreZ, 7.0f),
                 LightAt(chapelCentreX - 18, baseY + 24, chapelCentreZ, 7.5f),
                 LightAt(chapelCentreX + 22, baseY + 27, chapelCentreZ, 7.5f),
-                LightAt(plan.Centre.x - 55, cellarY + 17, keepCentreZ, 7.0f),
-                LightAt(plan.Centre.x + 58, cellarY + 17, keepCentreZ, 7.0f),
-                LightAt(plan.Centre.x - 55, dungeonY + 18, trapZ, 8.5f),
-                LightAt(plan.Centre.x + 55, dungeonY + 18, trapZ, 8.5f),
-                LightAt(plan.Centre.x + 226, dungeonY + 16, trapZ, 8.0f),
-                LightAt(plan.Centre.x - 226, dungeonY + 15, trapZ, 8.0f),
-                LightAt(plan.Centre.x - 40, dungeonY + 9, caveZ - 15, 11.5f),
-                LightAt(plan.Centre.x + 45, dungeonY + 11, caveZ + 24, 11.5f),
-                LightAt(plan.Centre.x + 145, dungeonY + 12, caveZ + 25, 10.5f),
-                LightAt(plan.Centre.x - 52, baseY + plan.FloorHeight + 16,
+                LightAt(keepCentreX - 55, cellarY + 17, keepCentreZ, 7.0f),
+                LightAt(keepCentreX + 58, cellarY + 17, keepCentreZ, 7.0f),
+                LightAt(keepCentreX - 55, dungeonY + 18, trapZ, 8.5f),
+                LightAt(keepCentreX + 55, dungeonY + 18, trapZ, 8.5f),
+                LightAt(keepCentreX + 226, dungeonY + 16, trapZ, 8.0f),
+                LightAt(keepCentreX - 226, dungeonY + 15, trapZ, 8.0f),
+                LightAt(keepCentreX - 40, dungeonY + 9, caveZ - 15, 11.5f),
+                LightAt(keepCentreX + 45, dungeonY + 11, caveZ + 24, 11.5f),
+                LightAt(keepCentreX + 145, dungeonY + 12, caveZ + 25, 10.5f),
+                LightAt(keepCentreX - 52, baseY + plan.FloorHeight + 16,
                         keepCentreZ + 27, 6.5f),
-                LightAt(plan.Centre.x, baseY + plan.FloorHeight * 3 + 17,
+                LightAt(keepCentreX, baseY + plan.FloorHeight * 3 + 17,
                         keepCentreZ - 42, 6.0f),
-                LightAt(plan.Centre.x, baseY + plan.FloorHeight * 3 + 17,
+                LightAt(keepCentreX, baseY + plan.FloorHeight * 3 + 17,
                         keepCentreZ + 42, 6.0f),
                 LightAt(bellTower.x, baseY + 17, bellTower.z, 5.5f),
                 LightAt(bellTower.x, baseY + plan.FloorHeight * 2 + 17,
