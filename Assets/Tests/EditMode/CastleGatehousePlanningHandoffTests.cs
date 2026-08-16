@@ -22,14 +22,19 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void RuntimeReadyBundleCarriesFrozenGatehouseRecipe()
+        public void RuntimeReadySpatialPlanCarriesGatehouseForItsActualPrimaryGate()
         {
             PlannedCastleBuild planned = StructuresComposition.PlanCastleBuild(
                 new int3(240, 32, 420), 37u, 91u);
             CastlePlan dimensions = planned.Dimensions;
-            CastleGatehousePlan expected = CastleGatehousePlanner.Create(in dimensions);
-            CastleGatehousePlan actual = planned.Gatehouse;
+            CastleSpatialPlan spatial = planned.Spatial;
+            CastleTopologyPlan topology = spatial.Topology;
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            CastleGatehousePlan expected = CastleGatehousePlanner.Create(
+                in dimensions, in primaryGate);
+            CastleGatehousePlan actual = topology.Gatehouse;
 
+            Assert.IsTrue(topology.HasGatehousePlan);
             Assert.AreEqual(expected.TowerSpacing, actual.TowerSpacing);
             Assert.AreEqual(expected.LeftTowerHeight, actual.LeftTowerHeight);
             Assert.AreEqual(expected.RightTowerHeight, actual.RightTowerHeight);
@@ -40,26 +45,56 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(expected.BridgeWidth, actual.BridgeWidth);
             Assert.AreEqual(expected.BridgeSupportOffset, actual.BridgeSupportOffset);
             Assert.AreEqual(expected.BridgeRailYOffset, actual.BridgeRailYOffset);
+
+            Assert.AreEqual(expected.LeftTowerSlits.FloorCount, actual.LeftTowerSlits.FloorCount);
+            Assert.AreEqual(expected.RightTowerSlits.FloorCount, actual.RightTowerSlits.FloorCount);
+            for (int floor = 0; floor < actual.LeftTowerSlits.FloorCount; floor++)
+            {
+                Assert.AreEqual(
+                    expected.LeftTowerSlits.PhaseRadiansAt(floor),
+                    actual.LeftTowerSlits.PhaseRadiansAt(floor));
+            }
+            for (int floor = 0; floor < actual.RightTowerSlits.FloorCount; floor++)
+            {
+                Assert.AreEqual(
+                    expected.RightTowerSlits.PhaseRadiansAt(floor),
+                    actual.RightTowerSlits.PhaseRadiansAt(floor));
+            }
         }
 
         [Test]
-        public void ProductionCompositionHandsGatehousePlanToPlannedRealizer()
+        public void ProductionPlanningHandsFrozenGatehouseThroughTopologyToRuntime()
         {
-            string composition = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Composition", "StructuresComposition.cs"));
+            string terrainPlanning = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "CastleTerrainPlanning.cs"));
+            string completion = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleGatehousePlanCompletion.cs"));
+            string readiness = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialBuildReadiness.cs"));
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
+            string realizer = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedGatehouseRealizer.cs"));
 
-            StringAssert.Contains("public CastleGatehousePlan Gatehouse { get; }", composition);
-            StringAssert.Contains("Gatehouse = CastleGatehousePlanner.Create(in dimensions);", composition);
-            StringAssert.Contains("CastleGatehousePlan gatehouse = planned.Gatehouse;", composition);
-            StringAssert.Contains("in CastleGatehousePlan gatehousePlan", composition);
+            StringAssert.Contains("CastleGatehousePlanCompletion.Attach", terrainPlanning);
+            StringAssert.Contains(
+                "CastleGatehousePlanner.Create(\n                    in dimensions, in primaryGate)",
+                completion);
+            StringAssert.Contains("topology.HasGatehousePlan = true", completion);
+            StringAssert.Contains("TryValidateTowerDetails", readiness);
 
-            StringAssert.Contains("in CastleGatehousePlan gatehousePlan", pipeline);
-            StringAssert.Contains("CastleGatehousePlanValidator.RequireValid(in gatehousePlan);", pipeline);
+            StringAssert.Contains("CastleGatehousePlan gatehouse = topology.Gatehouse", pipeline);
+            StringAssert.Contains("_gatehousePlan = gatehouse", pipeline);
             StringAssert.Contains("CastlePlannedGatehouseRealizer.Build(", pipeline);
-            StringAssert.Contains("in _gatehousePlan", pipeline);
+
+            StringAssert.Contains("CastleTowerRealizer.BuildPlanned(", realizer);
+            StringAssert.Contains("gatehouse.LeftTowerSlits", realizer);
+            StringAssert.Contains("gatehouse.RightTowerSlits", realizer);
+            StringAssert.DoesNotContain("new Random(", realizer);
         }
     }
 }
