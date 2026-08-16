@@ -8,9 +8,9 @@ using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Api;
 using GameCastlePlan = Game.Structures.Api.CastlePlan;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace VoxelEngine.Showcase
 {
@@ -18,6 +18,11 @@ namespace VoxelEngine.Showcase
     /// Builds the expensive procedural castle against a private voxel store on a worker thread,
     /// then publishes only the touched 8^3 logical blocks back to the live world in bounded
     /// batches. The live RegionTable/BrickPool are never read or written by the worker.
+    ///
+    /// Castle-owned regions are deterministic terrain until landmark publication. Reconstructing
+    /// that terrain from the authoritative terrain sampler on the worker avoids serialising nine
+    /// complete 512^3 semantic region snapshots on the player-loop thread. That snapshot path was
+    /// measured at more than 75 ms for a single castle slice on the Metal validation machine.
     ///
     /// ShowcaseWorld's legacy castle loop tests IsComplete after every Step and would otherwise
     /// poll a waiting worker until the entire frame budget expires. IsComplete therefore also
@@ -33,16 +38,15 @@ namespace VoxelEngine.Showcase
         private const int PrivateMixedBrickSafetyReserve = 4 * 1024;
         private const int PrivateCapacityGrowthFloor = 8 * 1024;
         private const int MaxPrivateBuildAttempts = 5;
+        private const int AuthoredMixedBrickFragmentationMultiplier = 5;
+        private const int TerrainDeepDepth = 40;
 
-        private readonly IRegionSnapshotSource _liveSnapshots;
         private readonly IRegionMutationStore _liveMutations;
         private readonly IMaterialAuthoringCatalogue _materials;
         private readonly GameCastlePlan _plan;
         private readonly uint _terrainSeed;
         private readonly int3[] _regions;
-        private readonly RegionSemanticSnapshot[] _sourceSnapshots;
 
-        private int _captureCursor;
         private Task<BuildResult> _worker;
         private BuildResult _result;
         private int _publishCursor;
@@ -58,21 +62,17 @@ namespace VoxelEngine.Showcase
             in CastlePlan plan,
             uint terrainSeed)
         {
-            _liveSnapshots = liveReads as IRegionSnapshotSource
-                ?? throw new ArgumentException(
-                    "Showcase castle authoring requires a snapshot-capable read source.",
-                    nameof(liveReads));
+            if (liveReads == null) throw new ArgumentNullException(nameof(liveReads));
             _liveMutations = liveMutations
                 ?? throw new ArgumentNullException(nameof(liveMutations));
             _materials = materials;
             _plan = plan.Value;
             _terrainSeed = terrainSeed;
             _regions = CastleRegions(in plan);
-            _sourceSnapshots = new RegionSemanticSnapshot[_regions.Length];
 
-            // No private BrickPool is allocated here. Construction happens on the worker only
-            // after the compact terrain snapshots are captured, so creating/admitting the castle
-            // session cannot synchronously reserve native storage on the player-loop thread.
+            // No private BrickPool and no multi-megabyte semantic snapshot are allocated here.
+            // The first Step only queues worker work; private storage sizing, terrain generation,
+            // castle authoring and result staging all happen off the player-loop thread.
         }
 
         /// <summary>
@@ -100,24 +100,6 @@ namespace VoxelEngine.Showcase
                 throw new ObjectDisposedException(nameof(AsyncCastleBuildSession));
             if (_terminalComplete) return true;
             _lastStepFrame = Time.frameCount;
-
-            // Snapshot exactly one already-generated castle region per frame. This is the only
-            // live read needed by the worker and keeps snapshot encoding from becoming a single
-            // multi-region startup hitch.
-            if (_captureCursor < _regions.Length)
-            {
-                int3 region = _regions[_captureCursor];
-                RegionSnapshotCaptureResult captured = _liveSnapshots.CaptureSemanticSnapshot(
-                    region,
-                    RegionSemanticSnapshotLimits.DefaultMaxSnapshotBytes,
-                    out RegionSemanticSnapshot snapshot);
-                if (captured != RegionSnapshotCaptureResult.Ok)
-                    throw new InvalidOperationException(
-                        $"Could not snapshot castle region {region}: {captured}.");
-
-                _sourceSnapshots[_captureCursor++] = snapshot;
-                return false;
-            }
 
             if (_worker == null)
             {
@@ -156,15 +138,16 @@ namespace VoxelEngine.Showcase
         {
             if (_cancelRequested) return null;
 
-            int sourceMixedBricks = CountSourceMixedBricks();
-            int capacity = EstimatePrivateMixedBrickCapacity(in _plan, sourceMixedBricks);
-            InvalidOperationException lastCapacityFailure = null;
+            int terrainMixedBricks = CountTerrainMixedBricks();
+            int capacity = EstimatePrivateMixedBrickCapacity(in _plan, terrainMixedBricks);
+            Exception lastCapacityFailure = null;
 
             // BrickPool is deliberately fixed-capacity, but this isolated build can recover from
             // an underestimate without penalising the player-loop or permanently reserving the old
             // 131k-slot pool. A failed private attempt is disposed before a 25% (minimum 8k) retry,
-            // so only one pool exists at a time and successful peak memory stays close to observed
-            // castle demand rather than a global worst-case constant.
+            // so only one pool exists at a time. The initial terrain term is exact; the authored
+            // term is intentionally conservative because thin styled walls fragment writes across
+            // far more mixed blocks than a simple voxels/512 estimate implies.
             for (int attempt = 0; attempt < MaxPrivateBuildAttempts; attempt++)
             {
                 if (_cancelRequested) return null;
@@ -172,7 +155,7 @@ namespace VoxelEngine.Showcase
                 {
                     return BuildOnPrivateStoreAttempt(capacity);
                 }
-                catch (InvalidOperationException ex) when (IsBrickPoolExhaustion(ex))
+                catch (Exception ex) when (IsBrickPoolExhaustion(ex))
                 {
                     lastCapacityFailure = ex;
                     if (attempt + 1 >= MaxPrivateBuildAttempts) break;
@@ -183,7 +166,7 @@ namespace VoxelEngine.Showcase
 
             throw new InvalidOperationException(
                 $"Castle private storage still exhausted after {MaxPrivateBuildAttempts} "
-              + $"plan-sized attempts; final capacity={capacity}, sourceMixed={sourceMixedBricks}.",
+              + $"plan-sized attempts; final capacity={capacity}, terrainMixed={terrainMixedBricks}.",
                 lastCapacityFailure);
         }
 
@@ -196,21 +179,9 @@ namespace VoxelEngine.Showcase
 
             try
             {
-                for (int i = 0; i < _sourceSnapshots.Length; i++)
-                {
-                    if (_cancelRequested) return null;
-                    RegionSemanticSnapshot snapshot = _sourceSnapshots[i];
-                    if (!storage.SnapshotMutations.TryApplySemanticSnapshot(
-                            snapshot.RegionCoord,
-                            snapshot.Bytes,
-                            snapshot.SemanticHash,
-                            true))
-                        throw new InvalidOperationException(
-                            $"Private castle store rejected source snapshot {snapshot.RegionCoord}; "
-                          + $"capacity={privateMixedCapacity}.");
-                }
-
+                PopulateDeterministicTerrain(storage);
                 if (_cancelRequested) return null;
+
                 var tracking = new TrackingMutationStore(storage.Mutations);
                 IStructureAuthoringSession authoring =
                     VoxelEngine.Composition.StructuresComposition.CreateAuthoringSession(
@@ -266,7 +237,7 @@ namespace VoxelEngine.Showcase
                     return c != 0 ? c : a.WorldBlock.x.CompareTo(b.WorldBlock.x);
                 });
 
-                int payloadVoxels = mixedCount * VoxelReadGrid.VoxelsPerBlock;
+                int payloadVoxels = checked(mixedCount * VoxelReadGrid.VoxelsPerBlock);
                 NativeArray<byte> mixedMaterials = payloadVoxels > 0
                     ? new NativeArray<byte>(payloadVoxels, Allocator.Persistent,
                                             NativeArrayOptions.UninitializedMemory)
@@ -420,40 +391,172 @@ namespace VoxelEngine.Showcase
             _liveMutations.CompletePartialBlock(ref mutation, true);
         }
 
-        private int CountSourceMixedBricks()
+        private int CountTerrainMixedBricks()
         {
             long total = 0;
-            for (int i = 0; i < _sourceSnapshots.Length; i++)
+            var heights = new int[VoxelReadGrid.BlockEdge * VoxelReadGrid.BlockEdge];
+
+            for (int r = 0; r < _regions.Length; r++)
             {
-                RegionSemanticSnapshot snapshot = _sourceSnapshots[i];
-                if (snapshot.Bytes == null
-                    || !SemanticRegionSnapshotCodec.TryGetMixedBrickCount(
-                        snapshot.Bytes, out int mixed))
-                    throw new InvalidOperationException(
-                        $"Castle source snapshot {snapshot.RegionCoord} is not a valid semantic region.");
-                total += mixed;
+                if (_cancelRequested) return 0;
+                int3 originVoxel = _regions[r] * VoxelGrid.RegionVoxelEdge;
+                for (int bz = 0; bz < VoxelReadGrid.BlocksPerRegionEdge; bz++)
+                for (int bx = 0; bx < VoxelReadGrid.BlocksPerRegionEdge; bx++)
+                {
+                    SampleTerrainBlockHeights(
+                        originVoxel, bx, bz, heights, out int minHeight, out int maxHeight);
+                    for (int by = 0; by < VoxelReadGrid.BlocksPerRegionEdge; by++)
+                    {
+                        int blockBaseY = originVoxel.y + by * VoxelReadGrid.BlockEdge;
+                        if (blockBaseY > maxHeight) break;
+                        int blockTopY = blockBaseY + VoxelReadGrid.BlockEdge - 1;
+                        if (blockTopY <= minHeight) continue;
+                        total++;
+                    }
+                }
             }
 
             if (total > int.MaxValue)
                 throw new InvalidOperationException(
-                    $"Castle source snapshots require too many mixed bricks: {total}.");
+                    $"Castle terrain requires too many mixed bricks: {total}.");
             return (int)total;
         }
 
-        internal static int EstimatePrivateMixedBrickCapacity(
-            in GameCastlePlan plan, int sourceMixedBrickCount)
+        private void PopulateDeterministicTerrain(IVoxelStorageRuntime storage)
         {
-            // Source cost is exact: semantic snapshots already encode every mixed payload the
-            // private worker must import. CastlePlanner.EstimateWrites is content-policy work, not
-            // a strict mixed-brick bound, so reserve two block-equivalents per 512 estimated writes
-            // and recover by bounded worker-only growth if a particularly fragmented plan exceeds
-            // that estimate. This keeps the common allocation close to actual demand without a
-            // permanent 131k-slot tax.
+            var heights = new int[VoxelReadGrid.BlockEdge * VoxelReadGrid.BlockEdge];
+            var blockMaterials = new NativeArray<byte>(
+                VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent,
+                NativeArrayOptions.UninitializedMemory);
+            var blockSurfaces = new NativeArray<ushort>(
+                VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent,
+                NativeArrayOptions.ClearMemory);
+            var blockBoundaries = new NativeArray<byte>(
+                VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent,
+                NativeArrayOptions.ClearMemory);
+
+            try
+            {
+                for (int r = 0; r < _regions.Length; r++)
+                {
+                    if (_cancelRequested) return;
+                    int3 regionCoord = _regions[r];
+                    int3 originVoxel = regionCoord * VoxelGrid.RegionVoxelEdge;
+                    int3 originBlock = regionCoord * VoxelReadGrid.BlocksPerRegionEdge;
+                    RegionGenerationWriteView generation = storage.Generation.AcquireRegion(regionCoord);
+
+                    for (int bz = 0; bz < VoxelReadGrid.BlocksPerRegionEdge; bz++)
+                    for (int bx = 0; bx < VoxelReadGrid.BlocksPerRegionEdge; bx++)
+                    {
+                        SampleTerrainBlockHeights(
+                            originVoxel, bx, bz, heights, out int minHeight, out int maxHeight);
+
+                        for (int by = 0; by < VoxelReadGrid.BlocksPerRegionEdge; by++)
+                        {
+                            if (_cancelRequested) return;
+                            int blockBaseY = originVoxel.y + by * VoxelReadGrid.BlockEdge;
+                            if (blockBaseY > maxHeight) break; // remaining blocks are already empty
+
+                            int blockTopY = blockBaseY + VoxelReadGrid.BlockEdge - 1;
+                            if (blockTopY <= minHeight)
+                            {
+                                byte uniform = blockTopY < minHeight - TerrainDeepDepth
+                                    ? ShowcaseWorld.MatBedrock
+                                    : ShowcaseWorld.MatStone;
+                                generation.SetUniformBlock(bx, by, bz, uniform);
+                                continue;
+                            }
+
+                            FillTerrainMixedPayload(blockBaseY, heights, blockMaterials);
+                            int3 worldBlock = originBlock + new int3(bx, by, bz);
+                            if (!storage.Mutations.TryBeginCellBlock(
+                                    worldBlock, false, out VoxelBlockMutation mutation))
+                                throw new InvalidOperationException(
+                                    $"Could not create private terrain block {worldBlock}.");
+
+                            bool copied = mutation.CopyStoragePayload(
+                                blockMaterials, blockSurfaces, blockBoundaries, 0);
+                            if (!copied)
+                            {
+                                storage.Mutations.CompletePartialBlock(ref mutation, false);
+                                throw new InvalidOperationException(
+                                    $"Could not populate private terrain block {worldBlock}.");
+                            }
+                            storage.Mutations.CompletePartialBlock(ref mutation, true);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                blockMaterials.Dispose();
+                blockSurfaces.Dispose();
+                blockBoundaries.Dispose();
+            }
+        }
+
+        private void SampleTerrainBlockHeights(
+            int3 originVoxel,
+            int blockX,
+            int blockZ,
+            int[] heights,
+            out int minHeight,
+            out int maxHeight)
+        {
+            minHeight = int.MaxValue;
+            maxHeight = int.MinValue;
+            int baseX = originVoxel.x + blockX * VoxelReadGrid.BlockEdge;
+            int baseZ = originVoxel.z + blockZ * VoxelReadGrid.BlockEdge;
+
+            for (int vz = 0; vz < VoxelReadGrid.BlockEdge; vz++)
+            for (int vx = 0; vx < VoxelReadGrid.BlockEdge; vx++)
+            {
+                int height = TerrainSampler.HeightAt(baseX + vx, baseZ + vz, _terrainSeed);
+                heights[vx + vz * VoxelReadGrid.BlockEdge] = height;
+                if (height < minHeight) minHeight = height;
+                if (height > maxHeight) maxHeight = height;
+            }
+        }
+
+        private static void FillTerrainMixedPayload(
+            int blockBaseY,
+            int[] heights,
+            NativeArray<byte> materials)
+        {
+            int edge = VoxelReadGrid.BlockEdge;
+            int edgeSquared = edge * edge;
+            for (int vz = 0; vz < edge; vz++)
+            for (int vy = 0; vy < edge; vy++)
+            for (int vx = 0; vx < edge; vx++)
+            {
+                int surface = heights[vx + vz * edge];
+                int worldY = blockBaseY + vy;
+                int voxel = vx + vy * edge + vz * edgeSquared;
+                materials[voxel] = TerrainMaterialAt(worldY, surface);
+            }
+        }
+
+        private static byte TerrainMaterialAt(int y, int surface)
+        {
+            if (y > surface) return VoxelGrid.MaterialEmpty;
+            if (y == surface) return ShowcaseWorld.SurfaceMaterialAt(surface);
+            if (y > surface - TerrainDeepDepth) return ShowcaseWorld.MatStone;
+            return ShowcaseWorld.MatBedrock;
+        }
+
+        internal static int EstimatePrivateMixedBrickCapacity(
+            in GameCastlePlan plan, int terrainMixedBrickCount)
+        {
+            // Terrain mixed demand is counted exactly from the deterministic height field before
+            // allocating the pool. CastlePlanner.EstimateWrites is a content-policy work estimate,
+            // not a mixed-brick bound: thin walls, stairs and authored semantic surfaces can keep
+            // mostly-uniform blocks mixed. Reserve five block-equivalents per 512 estimated writes;
+            // a bounded worker-only retry remains the backstop for unusually fragmented plans.
             long authoredBlocks =
                 (CastlePlanner.EstimateWrites(in plan) + VoxelReadGrid.VoxelsPerBlock - 1)
                 / VoxelReadGrid.VoxelsPerBlock;
-            long estimate = (long)sourceMixedBrickCount
-                          + authoredBlocks * 2L
+            long estimate = (long)terrainMixedBrickCount
+                          + authoredBlocks * AuthoredMixedBrickFragmentationMultiplier
                           + PrivateMixedBrickSafetyReserve;
             if (estimate < MinimumPrivateMixedBrickCapacity)
                 estimate = MinimumPrivateMixedBrickCapacity;
@@ -463,10 +566,18 @@ namespace VoxelEngine.Showcase
             return (int)estimate;
         }
 
-        private static bool IsBrickPoolExhaustion(InvalidOperationException exception) =>
-            exception.Message != null
-            && exception.Message.StartsWith("BrickPool exhausted at capacity ",
-                                            StringComparison.Ordinal);
+        private static bool IsBrickPoolExhaustion(Exception exception)
+        {
+            for (Exception current = exception; current != null; current = current.InnerException)
+            {
+                if (current is InvalidOperationException
+                    && current.Message != null
+                    && current.Message.StartsWith(
+                        "BrickPool exhausted at capacity ", StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
+        }
 
         private static void DisposeStaging(
             ref NativeArray<byte> materials,
@@ -487,7 +598,7 @@ namespace VoxelEngine.Showcase
             int cz = plan.Centre.z;
             int reach = math.max(plan.PlateauRadius + plan.CliffDrop + 8,
                                  VoxelGrid.RegionVoxelEdge);
-            int shift = VoxelDimensions.RegionVoxelEdgeLog2;
+            int shift = VoxelGrid.RegionVoxelEdgeLog2;
             int minRx = (cx - reach) >> shift;
             int maxRx = (cx + reach) >> shift;
             int minRz = (cz - reach) >> shift;
