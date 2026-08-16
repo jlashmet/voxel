@@ -86,7 +86,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator VisualResolverSwap_RetargetsAnimatorAndStopsOldGraph()
+        public IEnumerator VisualResolverSwap_RetargetsAnimatorAndPreservesCurrentClip()
         {
             var host = new GameObject("character");
             var fallback = new GameObject("fallback");
@@ -111,13 +111,47 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.That(preferredAnimator, Is.Not.SameAs(fallbackAnimator));
             Assert.That(player.Animator, Is.SameAs(preferredAnimator));
-            Assert.That(player.CurrentClip, Is.Null);
-            Assert.That(player.IsPlaying, Is.False);
-            Assert.That(player.Play(clip), Is.True);
+            Assert.That(player.CurrentClip, Is.SameAs(clip));
+            Assert.That(player.IsPlaying, Is.True);
 
             Object.Destroy(host);
             Object.Destroy(fallback);
             Object.Destroy(preferred);
+            Object.Destroy(clip);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator VisualResolverWithoutVisual_KeepsClipIntentUntilVisualReturns()
+        {
+            var host = new GameObject("character");
+            var fallback = new GameObject("fallback");
+            var replacement = new GameObject("replacement");
+            fallback.AddComponent<Animator>();
+            replacement.AddComponent<Animator>();
+            var clip = new AnimationClip { name = "idle" };
+
+            var resolver = host.AddComponent<CharacterVisualResolver>();
+            var player = host.AddComponent<CharacterAnimationPlayer>();
+
+            resolver.SetFallbackVisual(fallback);
+            Assert.That(player.Play(clip), Is.True);
+
+            resolver.SetFallbackVisual(null);
+
+            Assert.That(player.Animator, Is.Null);
+            Assert.That(player.CurrentClip, Is.SameAs(clip));
+            Assert.That(player.IsPlaying, Is.False);
+
+            resolver.SetFallbackVisual(replacement);
+
+            Assert.That(player.Animator, Is.SameAs(resolver.CurrentVisual.GetComponent<Animator>()));
+            Assert.That(player.CurrentClip, Is.SameAs(clip));
+            Assert.That(player.IsPlaying, Is.True);
+
+            Object.Destroy(host);
+            Object.Destroy(fallback);
+            Object.Destroy(replacement);
             Object.Destroy(clip);
             yield return null;
         }
