@@ -88,5 +88,85 @@ namespace VoxelEngine.Tests.PlayMode
                 Object.DestroyImmediate(target);
             }
         }
+
+        [UnityTest, Timeout(900000)]
+        public IEnumerator GeometryUploadStaysWithinGlobalBudgetWhileCrossingLodBands()
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
+                ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+
+            var showcase = Object.FindFirstObjectByType<VoxelShowcase>();
+            Assert.NotNull(showcase);
+            var world = (ShowcaseWorld)typeof(VoxelShowcase)
+                .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance)
+                .GetValue(showcase);
+            Camera camera = Camera.main;
+            Assert.NotNull(camera);
+
+            typeof(VoxelShowcase).GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(showcase, true);
+            typeof(VoxelShowcase).GetField("_mouseLook", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(showcase, false);
+
+            int ground = world.SurfaceHeight(256, 376);
+            CastlePlan plan = CastleBuilder.Plan(new int3(256, ground, 376), world.Seed);
+            Vector3 centre = new Vector3(plan.Centre.x, plan.Centre.y + plan.PlateauHeight,
+                                         plan.Centre.z) * 0.1f;
+            Vector3 lookAt = centre + Vector3.up * 10f;
+
+            int oldBudget = VoxelRenderBridge.SolidUploadBudgetBytes;
+            int oldSlice = VoxelRenderBridge.SolidUploadSliceBytes;
+            int oldWorkers = VoxelRenderBridge.SolidUploadWorkerBudget;
+            double oldUploadMs = VoxelRenderBridge.SolidUploadBudgetMs;
+            var target = new RenderTexture(64, 36, 24, RenderTextureFormat.ARGB32);
+            bool sawUpload = false;
+            bool sawQueuedReplacement = false;
+            try
+            {
+                // Make payload bytes, not wall-clock time, the limiting factor so this test proves
+                // a large replacement spans frames instead of being published in one render call.
+                VoxelRenderBridge.SolidUploadBudgetBytes = 16 * 1024;
+                VoxelRenderBridge.SolidUploadSliceBytes = 4 * 1024;
+                VoxelRenderBridge.SolidUploadWorkerBudget = 4;
+                VoxelRenderBridge.SolidUploadBudgetMs = 5.0;
+                camera.targetTexture = target;
+
+                for (int frame = 0; frame < 180; frame++)
+                {
+                    float phase = Mathf.PingPong(frame / 90f, 1f);
+                    float distance = Mathf.Lerp(48f, 380f, phase);
+                    camera.transform.position = centre
+                        + new Vector3(Mathf.Sin(frame * 0.07f) * 18f, 20f, -distance);
+                    camera.transform.LookAt(lookAt);
+                    camera.Render();
+                    yield return null;
+
+                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    Assert.AreEqual(16 * 1024, metrics.SolidUploadBudgetBytes,
+                        "Render pass did not apply the renderer-wide upload budget.");
+                    Assert.LessOrEqual(metrics.LastFrameSolidUploadedBytes,
+                        metrics.SolidUploadBudgetBytes,
+                        "Solid geometry upload exceeded the renderer-wide frame budget.");
+                    sawUpload |= metrics.LastFrameSolidUploadedBytes > 0;
+                    sawQueuedReplacement |= metrics.SolidPendingUploadBytes > 0;
+                }
+
+                Assert.IsTrue(sawUpload,
+                    "LOD traversal never exercised solid geometry publication.");
+                Assert.IsTrue(sawQueuedReplacement,
+                    "A 16 KiB frame cap should force at least one replacement to remain queued.");
+            }
+            finally
+            {
+                VoxelRenderBridge.SolidUploadBudgetBytes = oldBudget;
+                VoxelRenderBridge.SolidUploadSliceBytes = oldSlice;
+                VoxelRenderBridge.SolidUploadWorkerBudget = oldWorkers;
+                VoxelRenderBridge.SolidUploadBudgetMs = oldUploadMs;
+                camera.targetTexture = null;
+                target.Release();
+                Object.DestroyImmediate(target);
+            }
+        }
     }
 }
