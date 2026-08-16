@@ -40,8 +40,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # This checkpoint measures the discovery-only startup sweep on real Metal: resident
-          # surface summaries must seed LOD admission without repeatedly staling coarse builds.
+          # This checkpoint measures halo-aware geometry liveness on real Metal. A boundary chunk
+          # stays resident while its exact snapshot halo still reaches resident Storage.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
