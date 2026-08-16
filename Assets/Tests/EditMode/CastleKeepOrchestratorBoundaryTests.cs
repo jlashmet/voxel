@@ -72,6 +72,8 @@ namespace VoxelEngine.Tests.EditMode
                 "Planned exterior bounds must use the same projection as shell/floors.");
             StringAssert.Contains("CastleSpatialProjection.KeepSize(", exterior,
                 "Planned exterior size must use the same projection as shell/floors.");
+            StringAssert.DoesNotContain("CastleKeepAnnexPlanValidator", exterior,
+                "Spatial preflight owns annex validation; exterior realization should only consume the admitted plan.");
             StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", annex,
                 "Shared annex geometry must use the projected keep bounds on both compatibility and spatial paths.");
             StringAssert.Contains("CastleSpatialProjection.KeepSize(", annex,
