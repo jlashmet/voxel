@@ -39,8 +39,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # A newly attached change journal now baselines at CurrentVersion without an initial
-          # resident-region invalidation sweep; real ReadSince overflow recovery remains bounded.
+          # Startup resident enumeration is now discovery-only: it still seeds immutable surface
+          # summaries but never advances geometry generations or replays pre-render journal history.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
