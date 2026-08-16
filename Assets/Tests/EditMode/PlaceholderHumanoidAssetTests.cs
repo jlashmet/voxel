@@ -92,6 +92,7 @@ namespace VoxelEngine.Tests.EditMode
             AssetDatabase.ImportAsset(
                 descriptorPath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+            FlushCharacterFactoryPendingImports();
 
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             Assert.That(prefab, Is.Not.Null,
@@ -157,6 +158,22 @@ namespace VoxelEngine.Tests.EditMode
                 $"{path} exposes Rocketbox source take names instead of semantic clip name {expectedName}");
             Assert.That(importer.clipAnimations.All(clip => clip.loopTime == expectedLoop), Is.True,
                 $"{path} loopTime does not match expected gameplay semantics ({expectedLoop})");
+        }
+
+        private static void FlushCharacterFactoryPendingImports()
+        {
+            var importerType = System.Type.GetType(
+                "VoxelEngine.Characters.Editor.CharacterFactoryAssetImporter, VoxelEngine.Characters.Editor");
+            Assert.That(importerType, Is.Not.Null,
+                "Could not load the Character Factory editor importer type.");
+
+            var processMethod = importerType.GetMethod(
+                "ProcessPendingDescriptors",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(processMethod, Is.Not.Null,
+                "Could not locate CharacterFactoryAssetImporter.ProcessPendingDescriptors.");
+
+            processMethod.Invoke(null, null);
         }
 
         private static RocketboxLod GetRendererLod(SkinnedMeshRenderer renderer)
