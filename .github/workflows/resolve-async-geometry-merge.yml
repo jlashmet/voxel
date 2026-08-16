@@ -1,0 +1,86 @@
+name: Resolve async geometry merge
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths:
+      - .github/workflows/resolve-async-geometry-merge.yml
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Merge current master safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+
+          ASMDEF='Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef'
+          OLD_SHOWCASE='Assets/VoxelEngine/Composition/Showcase/ShowcaseWorld.cs'
+          NEW_SHOWCASE='Assets/Game/Composition/Showcase/ShowcaseWorld.cs'
+          WORKFLOW='.github/workflows/resolve-async-geometry-merge.yml'
+
+          cp "$ASMDEF" /tmp/branch-asmdef.json
+          cp "$OLD_SHOWCASE" /tmp/branch-showcase.cs
+          git show "origin/master:$ASMDEF" > /tmp/master-asmdef.json
+
+          set +e
+          git merge --no-commit -X ours origin/master
+          merge_status=$?
+          set -e
+
+          # Master moved ShowcaseWorld without changing its content. Preserve the move while
+          # carrying the async branch's COW/EnsureWritable edits into the new game-owned path.
+          mkdir -p "$(dirname "$NEW_SHOWCASE")"
+          cp /tmp/branch-showcase.cs "$NEW_SHOWCASE"
+          git rm -f --ignore-unmatch "$OLD_SHOWCASE"
+          git add "$NEW_SHOWCASE"
+
+          # Both branches extended the PlayMode assembly references. Union them instead of
+          # accepting either side of the textual conflict and silently dropping references.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          branch = json.loads(Path('/tmp/branch-asmdef.json').read_text())
+          master = json.loads(Path('/tmp/master-asmdef.json').read_text())
+          seen = set()
+          refs = []
+          for value in master.get('references', []) + branch.get('references', []):
+              if value not in seen:
+                  seen.add(value)
+                  refs.append(value)
+          merged = dict(master)
+          merged['references'] = refs
+          Path('Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef').write_text(
+              json.dumps(merged, indent=2) + '\n')
+          PY
+          git add "$ASMDEF"
+
+          # The resolver is intentionally one-shot and should not land in master.
+          git rm -f "$WORKFLOW"
+
+          unresolved="$(git diff --name-only --diff-filter=U)"
+          if [ -n "$unresolved" ]; then
+            echo "Unresolved merge conflicts remain:"
+            printf '%s\n' "$unresolved"
+            git status --short
+            exit 1
+          fi
+
+          if [ "$merge_status" -ne 0 ]; then
+            echo "Merge reported conflicts, but all conflicts were resolved explicitly."
+          fi
+
+          git commit -m "Merge master into async geometry pipeline"
+          git push origin HEAD:refactor/async-geometry-pipeline
