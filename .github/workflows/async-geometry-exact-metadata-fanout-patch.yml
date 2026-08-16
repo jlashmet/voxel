@@ -1,0 +1,163 @@
+name: Async geometry exact metadata fanout patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-exact-metadata-fanout-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded metadata fanout patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          cache_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
+          jobs_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/ExactSnapshotMetadataJobs.cs')
+          tests_path = Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs')
+
+          cache = cache_path.read_text()
+          old = '''            JobHandle dependency = new ExactBrickMetadataClearJob
+            {
+                Bricks = _densityBricks,
+                MixedFlags = _exactMixedFlags,
+            }.Schedule(BrickCacheCount, 256);
+'''
+          new = '''            JobHandle clearHandle = new ExactBrickMetadataClearJob
+            {
+                Bricks = _densityBricks,
+                MixedFlags = _exactMixedFlags,
+            }.Schedule(BrickCacheCount, 256);
+            JobHandle regionDependency = default;
+            bool hasRegionDependency = false;
+'''
+          if old not in cache:
+              raise SystemExit('metadata clear/dependency anchor not found')
+          cache = cache.replace(old, new, 1)
+
+          old = '''                dependency = new ExactBrickMetadataRegionJob
+                {
+                    EncodedBlockRefs = pinned.EncodedBlockRefs,
+                    RegionCoord = regionCoord,
+                    IntersectionMinWorldBlock = intersectionMin,
+                    IntersectionSize = size,
+                    CacheOrigin = cacheOrigin,
+                    BrickCacheEdge = BrickCacheEdge,
+                    Bricks = _densityBricks,
+                    MixedFlags = _exactMixedFlags,
+                }.Schedule(volume, 128, dependency);
+'''
+          new = '''                JobHandle regionHandle = new ExactBrickMetadataRegionJob
+                {
+                    EncodedBlockRefs = pinned.EncodedBlockRefs,
+                    RegionCoord = regionCoord,
+                    IntersectionMinWorldBlock = intersectionMin,
+                    IntersectionSize = size,
+                    CacheOrigin = cacheOrigin,
+                    BrickCacheEdge = BrickCacheEdge,
+                    Bricks = _densityBricks,
+                    MixedFlags = _exactMixedFlags,
+                }.Schedule(volume, 128, clearHandle);
+                regionDependency = hasRegionDependency
+                    ? JobHandle.CombineDependencies(regionDependency, regionHandle)
+                    : regionHandle;
+                hasRegionDependency = true;
+'''
+          if old not in cache:
+              raise SystemExit('serial metadata region anchor not found')
+          cache = cache.replace(old, new, 1)
+
+          old = '''            _exactMetadataJobHandle = new ExactMixedBrickCompactJob
+            {
+                MixedFlags = _exactMixedFlags,
+                MixedIndices = _exactMixedBrickIndices,
+            }.Schedule(dependency);
+'''
+          new = '''            JobHandle dependency = hasRegionDependency ? regionDependency : clearHandle;
+            _exactMetadataJobHandle = new ExactMixedBrickCompactJob
+            {
+                MixedFlags = _exactMixedFlags,
+                MixedIndices = _exactMixedBrickIndices,
+            }.Schedule(dependency);
+'''
+          if old not in cache:
+              raise SystemExit('metadata compact dependency anchor not found')
+          cache = cache.replace(old, new, 1)
+          cache_path.write_text(cache)
+
+          jobs = jobs_path.read_text()
+          old = '''    /// Maps one physically pinned region's compact block-ref metadata into the worker's padded
+    /// exact brick cache. Region jobs are chained sequentially; each writes a disjoint intersection
+    /// and therefore never contends with another region. Encoded refs may be authoritatively
+'''
+          new = '''    /// Maps one physically pinned region's compact block-ref metadata into the worker's padded
+    /// exact brick cache. Region jobs fan out from one shared clear dependency; each writes a
+    /// disjoint intersection, and the owner combines all region handles before compaction.
+    /// Encoded refs may be authoritatively
+'''
+          if old not in jobs:
+              raise SystemExit('metadata job comment anchor not found')
+          jobs = jobs.replace(old, new, 1)
+          jobs_path.write_text(jobs)
+
+          tests = tests_path.read_text()
+          anchor = '''        [Test]
+        public void AuthoritativeSnapshotAssemblyIsResumable()
+'''
+          test = '''        [Test]
+        public void ExactMetadataRegionCopiesFanOutBeforeCompaction()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string jobs = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "Transvoxel", "ExactSnapshotMetadataJobs.cs"));
+            int start = cache.IndexOf("private void ScheduleExactMetadataSnapshot",
+                                      StringComparison.Ordinal);
+            int end = cache.IndexOf("private int3 WorldBlockForCacheIndex", start,
+                                    StringComparison.Ordinal);
+            Assert.GreaterOrEqual(start, 0);
+            Assert.Greater(end, start);
+            string scheduling = cache.Substring(start, end - start);
+
+            StringAssert.Contains("JobHandle clearHandle", scheduling);
+            StringAssert.Contains(".Schedule(volume, 128, clearHandle);", scheduling);
+            StringAssert.Contains("JobHandle.CombineDependencies(regionDependency, regionHandle)", scheduling);
+            StringAssert.Contains("hasRegionDependency ? regionDependency : clearHandle", scheduling);
+            StringAssert.DoesNotContain(".Schedule(volume, 128, dependency);", scheduling);
+            StringAssert.Contains("[NativeDisableParallelForRestriction]", jobs);
+        }
+
+'''
+          if anchor not in tests:
+              raise SystemExit('architecture test insertion anchor not found')
+          if 'ExactMetadataRegionCopiesFanOutBeforeCompaction' in tests:
+              raise SystemExit('fanout architecture test already exists')
+          tests = tests.replace(anchor, test + anchor, 1)
+          tests_path.write_text(tests)
+          PY
+      - name: Static guards
+        shell: bash
+        run: |
+          grep -q 'Schedule(volume, 128, clearHandle)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'CombineDependencies(regionDependency, regionHandle)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          ! grep -q 'Schedule(volume, 128, dependency)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'ExactMetadataRegionCopiesFanOutBeforeCompaction' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+      - name: Commit fix
+        shell: bash
+        run: |
+          rm .github/workflows/async-geometry-exact-metadata-fanout-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fan out exact metadata region jobs'
+          git push origin HEAD:refactor/async-geometry-pipeline
