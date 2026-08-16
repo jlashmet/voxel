@@ -6,6 +6,7 @@ on:
       - refactor/async-geometry-pipeline
     paths:
       - .github/workflows/async-geometry-water-pressure-fix.yml
+      - .github/scripts/async_geometry_water_pressure_fix.py
 
 permissions:
   contents: write
