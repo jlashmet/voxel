@@ -89,7 +89,14 @@ namespace VoxelEngine.Structures.Api
                 return false;
 
             int2 gateDelta = candidate - gate.Centre;
-            return math.lengthsq(new float2(gateDelta.x, gateDelta.y)) >= 70f * 70f;
+            if (math.lengthsq(new float2(gateDelta.x, gateDelta.y)) < 70f * 70f)
+                return false;
+
+            CastleGatePlacementSpec innerGate = default;
+            bool hasInnerGate = TryDeriveInnerGate(perimeter, in gate, out innerGate);
+            CastleAccessRoute route = CastleAccessRoute.Create(
+                in plan, in gate, hasInnerGate, in innerGate, keepCentre);
+            return route.ClearsPoint(candidate, WellClearanceRadius);
         }
 
         private static bool TryChooseFallbackWell(
@@ -149,6 +156,27 @@ namespace VoxelEngine.Structures.Api
             }
 
             return found;
+        }
+
+        private static bool TryDeriveInnerGate(
+            int2[] perimeter,
+            in CastleGatePlacementSpec primaryGate,
+            out CastleGatePlacementSpec innerGate)
+        {
+            innerGate = default;
+            int edge = primaryGate.EdgeIndex;
+            if (perimeter == null || edge < 0 || edge >= perimeter.Length)
+                return false;
+
+            int2 a = perimeter[edge];
+            int2 b = perimeter[(edge + 1) % perimeter.Length];
+            int2 centre = new int2((a.x + b.x) / 2, (a.y + b.y) / 2);
+            if (centre.Equals(primaryGate.Centre))
+                return false;
+
+            innerGate = primaryGate;
+            innerGate.Centre = centre;
+            return true;
         }
 
         private static int WardBoundaryClearance(in CastlePlan plan) =>
