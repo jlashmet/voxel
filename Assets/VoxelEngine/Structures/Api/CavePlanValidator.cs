@@ -64,8 +64,7 @@ namespace VoxelEngine.Structures.Api
             }
 
             CaveChamberPlan entry = chambers[plan.EntryChamberId];
-            int3 entranceDelta = math.abs(plan.Entrance - entry.Centre);
-            if (math.any(entranceDelta > entry.Radii))
+            if (!ContainsPoint(in entry, plan.Entrance))
             {
                 issue = CavePlanIssue.EntranceOutsideEntryChamber;
                 return false;
@@ -151,6 +150,23 @@ namespace VoxelEngine.Structures.Api
 
             issue = CavePlanIssue.None;
             return true;
+        }
+
+        private static bool ContainsPoint(in CaveChamberPlan chamber, int3 point)
+        {
+            int3 delta = point - chamber.Centre;
+            float cos = math.cos(chamber.RotationRadians);
+            float sin = math.sin(chamber.RotationRadians);
+            float localX = cos * delta.x + sin * delta.z;
+            float localZ = -sin * delta.x + cos * delta.z;
+            float rx = chamber.Radii.x;
+            float ry = chamber.Radii.y;
+            float rz = chamber.Radii.z;
+
+            float normalized = localX * localX / (rx * rx)
+                             + delta.y * (float)delta.y / (ry * ry)
+                             + localZ * localZ / (rz * rz);
+            return normalized <= 1f + 1e-5f;
         }
     }
 }
