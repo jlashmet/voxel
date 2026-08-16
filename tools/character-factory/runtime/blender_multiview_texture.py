@@ -14,14 +14,16 @@ class ImageInfo:
     y0: int
     x1: int
     y1: int
+    source_width: int
+    source_height: int
 
     @property
     def width(self) -> int:
-        return int(self.image.size[0])
+        return self.source_width
 
     @property
     def height(self) -> int:
-        return int(self.image.size[1])
+        return self.source_height
 
 
 def _load_subject_image(path: Path) -> ImageInfo:
@@ -59,6 +61,8 @@ def _load_subject_image(path: Path) -> ImageInfo:
         y0=max(0, min(ys) - pad_y),
         x1=min(width - 1, max(xs) + pad_x),
         y1=min(height - 1, max(ys) + pad_y),
+        source_width=width,
+        source_height=height,
     )
 
 
@@ -142,8 +146,9 @@ def _source_uv(
 
 
 def _subject_adjusted_uv(source: ImageInfo, u: float, v: float) -> tuple[float, float]:
-    # Bounding boxes were measured before any image.scale(). Original source
-    # dimensions and bounds therefore remain the correct normalized crop.
+    # Bounding boxes were measured before image.scale(). Keep the original source
+    # dimensions stored in ImageInfo so later atlas resizing cannot corrupt the
+    # crop normalization.
     x0 = source.x0 / max(1, source.width - 1)
     x1 = source.x1 / max(1, source.width - 1)
     y0 = source.y0 / max(1, source.height - 1)
