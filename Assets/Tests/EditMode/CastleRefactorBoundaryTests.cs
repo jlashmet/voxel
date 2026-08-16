@@ -29,6 +29,24 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void LegacyCastleBuilderIsOnlyCompatibilityFacade()
+        {
+            string builder = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime", "CastleBuilder.cs"));
+
+            StringAssert.Contains("CastlePlanner.Create(centre, seed)", builder);
+            StringAssert.Contains("CastleBuildPreflight.EstimateWrites(in plan)", builder);
+            StringAssert.Contains("new CastleBuildPipeline(", builder);
+            StringAssert.Contains("return build.Pipeline.Step();", builder);
+
+            StringAssert.DoesNotContain("TerrainQuery", builder);
+            StringAssert.DoesNotContain("TerrainSampler", builder);
+            StringAssert.DoesNotContain("private static void CurtainWalls", builder);
+            StringAssert.DoesNotContain("private static void Dungeon", builder);
+            StringAssert.DoesNotContain("private static void LandscapeDetails", builder);
+        }
+
+        [Test]
         public void PipelineOwnsEveryCastleRealizationStage()
         {
             string pipeline = File.ReadAllText(Path.Combine(
