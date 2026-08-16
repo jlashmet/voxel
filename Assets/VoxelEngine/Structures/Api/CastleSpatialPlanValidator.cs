@@ -7,6 +7,7 @@ namespace VoxelEngine.Structures.Api
         None,
         MissingOuterWard,
         DegeneratePerimeter,
+        SelfIntersectingOuterWard,
         PerimeterOutsidePlateau,
         InvalidGateEdge,
         GateDetachedFromPerimeter,
@@ -22,6 +23,7 @@ namespace VoxelEngine.Structures.Api
         MissingCornerTower,
         TowerOffPerimeter,
         InnerWardMismatch,
+        SelfIntersectingInnerWard,
         InnerWardOutsideOuterWard,
         InnerGateMismatch,
         InvalidInnerGateEdge,
@@ -80,6 +82,12 @@ namespace VoxelEngine.Structures.Api
             if (signedAreaTwice == 0)
             {
                 issue = CastleSpatialPlanIssue.DegeneratePerimeter;
+                return false;
+            }
+
+            if (!CastlePolygonGeometry.IsSimplePolygon(outer))
+            {
+                issue = CastleSpatialPlanIssue.SelfIntersectingOuterWard;
                 return false;
             }
 
@@ -183,6 +191,12 @@ namespace VoxelEngine.Structures.Api
 
             if (expectsInner)
             {
+                if (!CastlePolygonGeometry.IsSimplePolygon(inner))
+                {
+                    issue = CastleSpatialPlanIssue.SelfIntersectingInnerWard;
+                    return false;
+                }
+
                 for (int i = 0; i < inner.Length; i++)
                 {
                     if (CastlePolygonGeometry.PointInOrOnPolygon(inner[i], outer)) continue;
