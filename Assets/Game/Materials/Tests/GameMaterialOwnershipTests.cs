@@ -1,9 +1,7 @@
-using Game.Composition.Materials;
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
 using VoxelEngine.Storage.Api;
-using VoxelEngine.Structures.Api;
 
 namespace Game.Materials.Tests
 {
@@ -124,35 +122,6 @@ namespace Game.Materials.Tests
             Assert.That(GameTerrainMaterials.Default.Deep, Is.EqualTo(GameMaterialIds.Bedrock));
             Assert.That(GameTerrainMaterials.Default.Subsurface, Is.EqualTo(GameMaterialIds.Stone));
             Assert.That(GameTerrainMaterials.Default.Surface, Is.EqualTo(GameMaterialIds.Sand));
-        }
-
-        [Test]
-        public void LegacyStructurePalette_ResolvesTheGameOwnedRoleBindingDuringMigration()
-        {
-            GameMaterialComposition.Install();
-
-            Assert.That(Mat.Empty, Is.EqualTo(GameMaterialIds.Empty));
-            Assert.That(Mat.Stone, Is.EqualTo(GameMaterialIds.Stone));
-            Assert.That(Mat.Wood, Is.EqualTo(GameMaterialIds.Wood));
-            Assert.That(Mat.Sand, Is.EqualTo(GameMaterialIds.Sand));
-            Assert.That(Mat.Glass, Is.EqualTo(GameMaterialIds.Glass));
-            Assert.That(Mat.Bedrock, Is.EqualTo(GameMaterialIds.Bedrock));
-            Assert.That(Mat.DarkStone, Is.EqualTo(GameMaterialIds.DarkStone));
-            Assert.That(Mat.Slate, Is.EqualTo(GameMaterialIds.Slate));
-            Assert.That(Mat.Tile, Is.EqualTo(GameMaterialIds.Tile));
-            Assert.That(Mat.Cloth, Is.EqualTo(GameMaterialIds.Cloth));
-            Assert.That(Mat.Grass, Is.EqualTo(GameMaterialIds.Grass));
-            Assert.That(Mat.Water, Is.EqualTo(GameMaterialIds.Water));
-            Assert.That(Mat.Gold, Is.EqualTo(GameMaterialIds.Gold));
-            Assert.That(Mat.Dirt, Is.EqualTo(GameMaterialIds.Dirt));
-            Assert.That(Mat.Moss, Is.EqualTo(GameMaterialIds.Moss));
-            Assert.That(Mat.LitWindow, Is.EqualTo(GameMaterialIds.LitWindow));
-            Assert.That(Mat.Cascade, Is.EqualTo(GameMaterialIds.Cascade));
-            Assert.That(Mat.Crystal, Is.EqualTo(GameMaterialIds.Crystal));
-            Assert.That(Mat.MasonrySmall, Is.EqualTo(GameMaterialIds.MasonrySmall));
-            Assert.That(Mat.MasonryMedium, Is.EqualTo(GameMaterialIds.MasonryMedium));
-            Assert.That(Mat.MasonryLarge, Is.EqualTo(GameMaterialIds.MasonryLarge));
-            Assert.That(Mat.FlowerWhite, Is.EqualTo(GameMaterialIds.FlowerWhite));
         }
     }
 }
