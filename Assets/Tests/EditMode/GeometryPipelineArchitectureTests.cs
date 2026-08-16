@@ -334,5 +334,25 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("RemoveWaterChunk(victim)", pressurePath);
         }
 
+
+        [Test]
+        public void SolidResidencyAndHeavyBuildScratchHaveSeparateOwners()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string workspace = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "TransvoxelBuildWorkspace.cs"));
+            StringAssert.Contains("private readonly TransvoxelBuildWorkspace _workspace", cache);
+            StringAssert.Contains("new TransvoxelBuildWorkspace(", cache);
+            StringAssert.Contains("_workspace.Dispose()", cache);
+            StringAssert.DoesNotContain("if (_density.IsCreated) _density.Dispose()", cache);
+            StringAssert.DoesNotContain("if (_facetedMasks.IsCreated) _facetedMasks.Dispose()", cache);
+            StringAssert.Contains("internal readonly NativeArray<TransvoxelDensityBrick> DensityBricks", workspace);
+            StringAssert.Contains("internal readonly NativeArray<uint> FacetedMasks", workspace);
+            StringAssert.Contains("internal readonly NativeList<SmoothSurfaceVertex> Vertices", workspace);
+            StringAssert.Contains("DensityBricks.Dispose()", workspace);
+            StringAssert.Contains("FacetedMasks.Dispose()", workspace);
+        }
+
     }
 }

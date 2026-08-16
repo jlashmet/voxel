@@ -56,7 +56,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Disable formatted per-frame surface diagnostic strings by default; structured metrics remain always available.
 - [x] Pool/reuse managed `Entry` objects so churn after residency eviction does not allocate.
 - [x] Introduce pooled persistent `SurfaceChunkSlot` identities with generation tokens; stale builds validate the slot before publication.
-- [ ] Split persistent surface chunk/slot state from reusable geometry build workspaces.
+- [x] Split persistent surface chunk/slot state from reusable geometry build workspaces.
 - [ ] Remove/replace remaining managed collections from steady-state scheduler/cache maintenance where profiling proves they grow after warmup.
 
 ### Visibility and clipmap residency
@@ -103,8 +103,8 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 ## Current next slices
 
-1. Split persistent chunk slots from reusable build scratch/workspaces.
-2. Split persistent chunk slots from reusable build scratch/workspaces.
+1. Finish moving transition scratch/tables into the reusable build workspace and deduplicate immutable lookup tables across workers.
+2. Move authoritative snapshot publication toward immutable/COW Storage pages so worker-side snapshotting can become truly off-thread.
 3. Move authoritative snapshot publication toward immutable/COW Storage pages so worker-side snapshotting can become truly off-thread.
 4. Bring water onto the same pipeline contract.
 5. Build the full camera-movement + destruction PlayMode stress gate and keep it as the merge criterion.

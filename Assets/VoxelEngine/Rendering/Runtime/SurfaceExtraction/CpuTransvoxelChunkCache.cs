@@ -332,6 +332,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<Entry> _visible = new();
         private readonly Plane[] _frustumPlanes = new Plane[6];
 
+        // Heavy persistent native memory is lifecycle-owned by the reusable build workspace.
+        // These handles are borrowed aliases kept only to avoid obscuring the job setup below.
+        private readonly TransvoxelBuildWorkspace _workspace;
         private readonly NativeArray<float> _density;
         private readonly NativeArray<byte> _materials;
         private readonly NativeArray<uint> _surfaceSemantics;
@@ -469,50 +472,30 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             BrickCacheCount = BrickCacheEdge * BrickCacheEdge * BrickCacheEdge;
             _surfaceCatalogue = SurfaceCatalogueView.CreateBuiltIns();
             _coatingCatalogue = CoatingCatalogueView.CreateBuiltIns();
-            _density = new NativeArray<float>(GridSampleCount, Allocator.Persistent,
-                                              NativeArrayOptions.UninitializedMemory);
-            _materials = new NativeArray<byte>(GridSampleCount, Allocator.Persistent,
-                                               NativeArrayOptions.UninitializedMemory);
-            _surfaceSemantics = new NativeArray<uint>(GridSampleCount, Allocator.Persistent,
-                                                      NativeArrayOptions.UninitializedMemory);
-            _boundarySamples = new NativeArray<byte>(GridSampleCount, Allocator.Persistent,
-                                                     NativeArrayOptions.UninitializedMemory);
-            if (SamplesFromMips)
-            {
-                _mipSampleOccupancy = new NativeArray<byte>(
-                    GridSampleCount, Allocator.Persistent,
-                    NativeArrayOptions.UninitializedMemory);
-                _mipSampleMaterials = new NativeArray<byte>(
-                    GridSampleCount, Allocator.Persistent,
-                    NativeArrayOptions.UninitializedMemory);
-            }
-            else
-            {
-                _densityBricks = new NativeArray<TransvoxelDensityBrick>(
-                    BrickCacheCount, Allocator.Persistent,
-                    NativeArrayOptions.UninitializedMemory);
-            }
-            _densityMixedVoxels = new NativeList<byte>(64 * 1024, Allocator.Persistent);
-            _densityMixedSurfaceSemantics = new NativeList<ushort>(64 * 1024, Allocator.Persistent);
-            _densityMixedBoundarySamples = new NativeList<byte>(64 * 1024, Allocator.Persistent);
-            _compactedTopologyVertices = new NativeList<SmoothSurfaceVertex>(16_384,
-                                                                              Allocator.Persistent);
-            _compactedTopologyIndices = new NativeList<uint>(24_576, Allocator.Persistent);
-            _topologyOverflowCell = new NativeArray<int>(1, Allocator.Persistent);
-            int cellCount = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _topologyCellClass = new NativeArray<byte>(256, Allocator.Persistent);
-            _topologyGeometryCounts = new NativeArray<byte>(
-                TransvoxelRegularTables.CellData.Length, Allocator.Persistent);
-            _topologyCellVertexIndices = new NativeArray<byte>(
-                TransvoxelRegularTables.CellData.Length *
-                TransvoxelTopologyJob.MaxIndicesPerCell, Allocator.Persistent);
-            _topologyEdgeCodes = new NativeArray<ushort>(256 * 12, Allocator.Persistent);
-            _facetedMasks = new NativeArray<uint>(
-                6 * CellsPerAxis * CellsPerAxis * CellsPerAxis, Allocator.Persistent);
-            _facetedVertices = new NativeList<SmoothSurfaceVertex>(16_384, Allocator.Persistent);
-            _facetedIndices = new NativeList<uint>(24_576, Allocator.Persistent);
-            _vertices = new NativeList<SmoothSurfaceVertex>(32_768, Allocator.Persistent);
-            _indices = new NativeList<uint>(49_152, Allocator.Persistent);
+            _workspace = new TransvoxelBuildWorkspace(
+                GridSampleCount, BrickCacheCount, SamplesFromMips, CellsPerAxis);
+            _density = _workspace.Density;
+            _materials = _workspace.Materials;
+            _surfaceSemantics = _workspace.SurfaceSemantics;
+            _boundarySamples = _workspace.BoundarySamples;
+            _densityBricks = _workspace.DensityBricks;
+            _mipSampleOccupancy = _workspace.MipSampleOccupancy;
+            _mipSampleMaterials = _workspace.MipSampleMaterials;
+            _densityMixedVoxels = _workspace.DensityMixedVoxels;
+            _densityMixedSurfaceSemantics = _workspace.DensityMixedSurfaceSemantics;
+            _densityMixedBoundarySamples = _workspace.DensityMixedBoundarySamples;
+            _compactedTopologyVertices = _workspace.CompactedTopologyVertices;
+            _compactedTopologyIndices = _workspace.CompactedTopologyIndices;
+            _topologyOverflowCell = _workspace.TopologyOverflowCell;
+            _topologyCellClass = _workspace.TopologyCellClass;
+            _topologyGeometryCounts = _workspace.TopologyGeometryCounts;
+            _topologyCellVertexIndices = _workspace.TopologyCellVertexIndices;
+            _topologyEdgeCodes = _workspace.TopologyEdgeCodes;
+            _facetedMasks = _workspace.FacetedMasks;
+            _facetedVertices = _workspace.FacetedVertices;
+            _facetedIndices = _workspace.FacetedIndices;
+            _vertices = _workspace.Vertices;
+            _indices = _workspace.Indices;
             InitialiseTopologyTables();
             InitialiseTransitionTables();
         }
@@ -3207,24 +3190,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _visible.Clear();
             _vertices.Clear();
             _indices.Clear();
-            if (_density.IsCreated) _density.Dispose();
-            if (_materials.IsCreated) _materials.Dispose();
-            if (_surfaceSemantics.IsCreated) _surfaceSemantics.Dispose();
-            if (_boundarySamples.IsCreated) _boundarySamples.Dispose();
-            if (_densityBricks.IsCreated) _densityBricks.Dispose();
-            if (_mipSampleOccupancy.IsCreated) _mipSampleOccupancy.Dispose();
-            if (_mipSampleMaterials.IsCreated) _mipSampleMaterials.Dispose();
-            if (_densityMixedVoxels.IsCreated) _densityMixedVoxels.Dispose();
-            if (_densityMixedSurfaceSemantics.IsCreated) _densityMixedSurfaceSemantics.Dispose();
-            if (_densityMixedBoundarySamples.IsCreated) _densityMixedBoundarySamples.Dispose();
-            if (_topologyCellClass.IsCreated) _topologyCellClass.Dispose();
-            if (_topologyGeometryCounts.IsCreated) _topologyGeometryCounts.Dispose();
-            if (_topologyCellVertexIndices.IsCreated) _topologyCellVertexIndices.Dispose();
-            if (_topologyEdgeCodes.IsCreated) _topologyEdgeCodes.Dispose();
             if (_topologyOutput.IsCreated) _topologyOutput.Dispose();
-            if (_compactedTopologyVertices.IsCreated) _compactedTopologyVertices.Dispose();
-            if (_compactedTopologyIndices.IsCreated) _compactedTopologyIndices.Dispose();
-            if (_topologyOverflowCell.IsCreated) _topologyOverflowCell.Dispose();
             if (_faceDensity.IsCreated) _faceDensity.Dispose();
             if (_faceMaterials.IsCreated) _faceMaterials.Dispose();
             if (_faceSurfaces.IsCreated) _faceSurfaces.Dispose();
@@ -3234,11 +3200,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (_transitionVertexData.IsCreated) _transitionVertexData.Dispose();
             if (_transitionVertices.IsCreated) _transitionVertices.Dispose();
             if (_transitionIndices.IsCreated) _transitionIndices.Dispose();
-            if (_facetedMasks.IsCreated) _facetedMasks.Dispose();
-            if (_facetedVertices.IsCreated) _facetedVertices.Dispose();
-            if (_facetedIndices.IsCreated) _facetedIndices.Dispose();
-            if (_vertices.IsCreated) _vertices.Dispose();
-            if (_indices.IsCreated) _indices.Dispose();
+            _workspace.Dispose();
             _build = default;
             if (_ownsGeometryArena)
             {
