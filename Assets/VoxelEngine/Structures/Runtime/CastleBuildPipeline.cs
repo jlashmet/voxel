@@ -95,9 +95,30 @@ namespace VoxelEngine.Structures.Runtime
                         ref _legacy.Brush, in _legacy.Plan);
                     return CompleteStage("courtyard");
 
+                case 6:
+                    // Keep substages 0-5 now belong to the extracted keep subsystem. Preserve the
+                    // legacy one-substage-per-Step contract so showcase streaming cadence and
+                    // budget checks do not change during the refactor.
+                    if (_legacy.KeepStage < 6)
+                    {
+                        string keepStage = $"keep {_legacy.KeepStage + 1}";
+                        if (!CastleKeepRealizer.TryStep(
+                                ref _legacy.Brush, in _legacy.Plan, ref _legacy.KeepStage))
+                        {
+                            throw new InvalidOperationException(
+                                "CastleKeepRealizer refused a migrated keep substage.");
+                        }
+
+                        RequireBudget(keepStage);
+                        return false;
+                    }
+
+                    // Final roof/annex realization is the only keep substage still on the legacy
+                    // fallback. CastleBuilder advances the outer stage to dungeon after it runs.
+                    return CastleBuilder.StepBuild(ref _legacy);
+
                 default:
-                    // Keep/interiors, dungeon, and landscape dressing still use the legacy
-                    // implementation. Each extraction removes another case from here.
+                    // Dungeon and landscape dressing still use the legacy implementation.
                     return CastleBuilder.StepBuild(ref _legacy);
             }
         }
