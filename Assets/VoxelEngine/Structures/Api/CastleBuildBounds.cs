@@ -1,3 +1,4 @@
+using System;
 using Unity.Mathematics;
 
 namespace VoxelEngine.Structures.Api
@@ -72,9 +73,9 @@ namespace VoxelEngine.Structures.Api
                 in plan, in projection.Approach, tangentReach, outwardReach,
                 ref minX, ref maxX, ref minZ, ref maxZ);
 
-            // Keep-local legacy recipe envelope. The designed dungeon currently reaches about
-            // +/-276 X, ~505 voxels behind the keep through its passage/cave chain, and ~130
-            // forward. Larger round numbers intentionally reserve room for annexes and dressing.
+            // Keep-local authored annexes still use the compatibility keep frame. Keep this broad
+            // envelope for those details, but do not use it as the dungeon contract: DungeonPlan
+            // may place its cave threshold on either side of the keep.
             int2 keep = projection.KeepCentreWorld;
             const int keepSideReach = 384;
             const int keepRearReach = 640;
@@ -83,6 +84,15 @@ namespace VoxelEngine.Structures.Api
             maxX = math.max(maxX, keep.x + keepSideReach);
             minZ = math.min(minZ, keep.y - keepRearReach);
             maxZ = math.max(maxZ, keep.y + keepForwardReach);
+
+            IncludePlannedDungeon(
+                spatial.Dungeon,
+                ref minX,
+                ref maxX,
+                ref minY,
+                ref maxY,
+                ref minZ,
+                ref maxZ);
 
             // Planned vertices/towers should normally be inside the site envelope, but include the
             // actual topology explicitly so a future planner can use more of the legal plateau
@@ -102,6 +112,59 @@ namespace VoxelEngine.Structures.Api
             return new CastleBuildBounds(
                 new int3(minX, minY, minZ),
                 new int3(maxX + 1, maxY + 1, maxZ + 1));
+        }
+
+        private static void IncludePlannedDungeon(
+            DungeonPlan dungeon,
+            ref int minX,
+            ref int maxX,
+            ref int minY,
+            ref int maxY,
+            ref int minZ,
+            ref int maxZ)
+        {
+            if (dungeon == null)
+                return;
+
+            if (!DungeonPlanValidator.TryValidate(dungeon, out DungeonPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle dependency bounds require a valid dungeon plan: {issue}.");
+            }
+
+            DungeonRoomPlan[] rooms = dungeon.Rooms;
+            for (int i = 0; i < rooms.Length; i++)
+            {
+                DungeonRoomPlan room = rooms[i];
+                int3 half = (room.Size + 1) / 2;
+                const int roomPadding = 16;
+                minX = math.min(minX, room.Centre.x - half.x - roomPadding);
+                maxX = math.max(maxX, room.Centre.x + half.x + roomPadding);
+                minY = math.min(minY, room.Centre.y - half.y - roomPadding);
+                maxY = math.max(maxY, room.Centre.y + half.y + roomPadding);
+                minZ = math.min(minZ, room.Centre.z - half.z - roomPadding);
+                maxZ = math.max(maxZ, room.Centre.z + half.z + roomPadding);
+            }
+
+            if (!dungeon.HasCaveExit)
+                return;
+
+            // CastleCaveRealizer owns natural geometry beyond the semantic CaveThreshold. Its
+            // current authored cavern/side-cave envelope reaches less than ~200 voxels sideways,
+            // ~140 along Z and ~80 vertically from the threshold floor. Reserve a round margin so
+            // either seeded cave direction remains safe and modest cave-detail growth does not
+            // require retuning streaming admission immediately.
+            DungeonRoomPlan threshold = rooms[dungeon.CaveThresholdRoomId];
+            int caveFloorY = threshold.Centre.y - threshold.Size.y / 2;
+            const int caveHorizontalPadding = 256;
+            const int caveDownPadding = 64;
+            const int caveUpPadding = 128;
+            minX = math.min(minX, threshold.Centre.x - caveHorizontalPadding);
+            maxX = math.max(maxX, threshold.Centre.x + caveHorizontalPadding);
+            minY = math.min(minY, caveFloorY - caveDownPadding);
+            maxY = math.max(maxY, caveFloorY + caveUpPadding);
+            minZ = math.min(minZ, threshold.Centre.z - caveHorizontalPadding);
+            maxZ = math.max(maxZ, threshold.Centre.z + caveHorizontalPadding);
         }
 
         private static void IncludeApproachCorner(
