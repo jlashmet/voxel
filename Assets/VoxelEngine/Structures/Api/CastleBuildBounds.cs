@@ -44,10 +44,9 @@ namespace VoxelEngine.Structures.Api
             int minZ = plan.Centre.z - siteReach;
             int maxZ = plan.Centre.z + siteReach;
 
-            // The site mutates down through the authored river/cliff band. Do not clamp to world
-            // Y=0: voxel coordinates are signed and dependency bounds must remain conservative for
-            // castles sited in low or negative-Y worlds. Upper headroom covers the keep roofline
-            // and four-storey chapel bell tower.
+            // Site phase 0 still depends on sampled terrain, so retain the historical broad reserve
+            // until Composition owns a terrain-aware vertical dependency pass. The planned river
+            // recipe below can legitimately extend deeper than this reserve and expands it exactly.
             int minY = baseY - 256;
             int authoredHeight = math.max(
                 plan.KeepHeight + 128,
@@ -60,6 +59,8 @@ namespace VoxelEngine.Structures.Api
                 in projection.Approach,
                 ref minX,
                 ref maxX,
+                ref minY,
+                ref maxY,
                 ref minZ,
                 ref maxZ);
 
@@ -132,6 +133,8 @@ namespace VoxelEngine.Structures.Api
             in CastleApproachFrame approach,
             ref int minX,
             ref int maxX,
+            ref int minY,
+            ref int maxY,
             ref int minZ,
             ref int maxZ)
         {
@@ -143,6 +146,7 @@ namespace VoxelEngine.Structures.Api
             }
 
             CastleSiteGeometryPlan geometry = site.Geometry;
+            CastleRiverCrossSectionPlan crossSection = geometry.RiverCrossSection;
             int tangentReach = math.max(
                 0,
                 plan.PlateauRadius + plan.CliffDrop - geometry.ApproachReachInset);
@@ -163,6 +167,33 @@ namespace VoxelEngine.Structures.Api
             IncludeApproachCorner(
                 in plan, in approach, tangentReach, maximumOutward,
                 ref minX, ref maxX, ref minZ, ref maxZ);
+
+            // Mirror CastlePlannedSiteRealizer's vertical writes. HighestSolid probes no lower
+            // than riverY - 30, the channel centre can sink to riverY - 9, bank terraces can be
+            // lower still, and soil/water extend beneath those authored surfaces. Site recipes are
+            // intentionally configurable, so a fixed baseY - N reserve is not a valid contract.
+            int baseY = plan.Centre.y + plan.PlateauHeight;
+            int riverY = baseY - geometry.RiverDepth;
+            const int runtimeProbeDepth = 30;
+            const int runtimeChannelInset = 9;
+            int lowestTerrace = baseY - math.max(
+                crossSection.OutsideTerraceDrop,
+                crossSection.InsideTerraceDrop);
+            int lowestSurface = math.min(
+                riverY - runtimeChannelInset,
+                math.min(riverY - runtimeProbeDepth, lowestTerrace));
+            int deepestSoil = lowestSurface - math.max(
+                crossSection.ShallowSoilDepth,
+                crossSection.DeepSoilDepth);
+            int deepestWater = riverY - crossSection.BedDepth;
+            minY = math.min(minY, math.min(deepestSoil, deepestWater));
+
+            // ExistingSurface is probed from baseY + 5 and clearing reaches existingSurface + 2.
+            // SurfaceClearance may deliberately request still more authored headroom.
+            const int runtimeProbeHeadroom = 7;
+            maxY = math.max(
+                maxY,
+                baseY + math.max(runtimeProbeHeadroom, crossSection.SurfaceClearance));
         }
 
         private static void IncludePlannedGatehouse(
