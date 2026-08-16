@@ -12,11 +12,16 @@ using VoxelEngine.Showcase;
 namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
-    /// Player-visible frame-time regression for the exact VoxelShowcase startup path. Once the
-    /// renderer has a live world, every player-loop frame is sampled continuously through terrain
-    /// streaming, castle terrain snapshot, worker authoring, bounded live publication, and terminal
-    /// landmark/far-field finalisation. Starting before CastleBuildStage becomes non-zero prevents
-    /// the first (allocation/snapshot) castle frame from escaping the hard hitch gate.
+    /// Player-visible frame-time regression for the exact VoxelShowcase startup path. Every live
+    /// player-loop frame after scene activation is sampled continuously through terrain streaming,
+    /// castle-session construction, terrain snapshot, worker authoring, bounded live publication,
+    /// and terminal landmark/far-field finalisation.
+    ///
+    /// VoxelShowcase intentionally keeps solid-surface building disabled until the castle's atomic
+    /// landmark publication finishes. Waiting for SurfaceBuildEnabled would therefore start this
+    /// test after the work it is meant to measure. The only unobservable cost is Unity's synchronous
+    /// scene/domain activation itself; castle admission happens later from Update/StepStreaming and
+    /// is inside this measured window.
     /// </summary>
     public sealed class ShowcaseNoStutterTests
     {
@@ -39,18 +44,8 @@ namespace VoxelEngine.Tests.PlayMode
                 .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance)
                 .GetValue(showcase);
             Assert.NotNull(world);
-
-            // Scene/domain load itself is outside a PlayMode coroutine's observable frame window.
-            // Begin as soon as the production surface pass has a real world, before castle work is
-            // admitted, so every live showcase frame through finalisation is included.
-            int readyGuard = 0;
-            while ((!VoxelRenderBridge.SurfaceBuildEnabled
-                    || !VoxelRenderBridge.TryGetWorld(out _))
-                   && readyGuard++ < 3600)
-                yield return null;
-            Assert.True(VoxelRenderBridge.SurfaceBuildEnabled);
             Assert.True(VoxelRenderBridge.TryGetWorld(out _),
-                "VoxelShowcase never bound a live world to the production renderer.");
+                "VoxelShowcase did not bind its live world during scene activation.");
 
             var frameTimesMs = new List<double>(4096);
             var frameClock = Stopwatch.StartNew();
@@ -62,7 +57,8 @@ namespace VoxelEngine.Tests.PlayMode
             // Stage 9 is terminal AsyncCastleBuildSession completion. CastleVoxels is assigned only
             // after StepLandmarks has also built the reference arch, published all castle regions,
             // captured far-field silhouettes, and recorded that final main-thread stage. Waiting
-            // for both therefore covers the complete player-visible construction window.
+            // for both therefore covers the complete player-visible construction window, including
+            // the frame that constructs/adopts the async session itself.
             while (!CastleFullyFinalised(world)
                    && frames++ < 9000
                    && Time.realtimeSinceStartupAsDouble < deadline)
@@ -73,11 +69,11 @@ namespace VoxelEngine.Tests.PlayMode
                 frameTimesMs.Add(frameClock.Elapsed.TotalMilliseconds);
                 sawCastleBuild |= world.CastleBuildStage > 0;
 
+                Assert.True(VoxelRenderBridge.TryGetWorld(out _),
+                    "VoxelShowcase lost the production renderer world binding during startup.");
                 var metrics = VoxelRenderBridge.SurfaceMetrics;
                 Assert.AreEqual(0ul, metrics.FramePathBlockingCompletionViolations,
                     "Geometry work synchronously completed a worker job from the frame path.");
-                Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,
-                    "Voxel surface rendering was disabled during live showcase streaming.");
             }
 
             Assert.True(sawCastleBuild,
@@ -86,6 +82,8 @@ namespace VoxelEngine.Tests.PlayMode
                 $"Castle did not fully finalise while frames continued to advance; "
               + $"stage={world.CastleBuildStage}, voxels={world.CastleVoxels}, frames={frames}, "
               + $"maxCastleMainThread={world.MaxCastleStageMs:F2} ms.");
+            Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,
+                "Production solid rendering did not become enabled after atomic castle publication.");
             Assert.Greater(world.CastleVoxels, 100_000,
                 "The terminal castle was too small for this to exercise the production build.");
             Assert.Greater(frameTimesMs.Count, 8,
