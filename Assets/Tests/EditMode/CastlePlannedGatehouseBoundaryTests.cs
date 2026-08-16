@@ -42,5 +42,20 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("plan.GateTowerHeight + 12", source);
             StringAssert.DoesNotContain("nearDistance + 150", source);
         }
+
+        [Test]
+        public void LegacyPerimeterGatehouseIsOnlyCompatibilityDelegation()
+        {
+            string source = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePerimeterRealizer.cs"));
+
+            StringAssert.Contains("CastleGatehousePlanner.Create(in plan)", source);
+            StringAssert.Contains("CastlePlannedGatehouseRealizer.Build(", source);
+            StringAssert.DoesNotContain("plan.GateTowerHeight + 38", source);
+            StringAssert.DoesNotContain("plan.GateTowerHeight + 12", source);
+            StringAssert.DoesNotContain("private static void BuildGateLeaf", source);
+            StringAssert.DoesNotContain("private static void ApproachBridge", source);
+        }
     }
 }
