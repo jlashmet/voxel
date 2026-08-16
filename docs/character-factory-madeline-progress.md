@@ -14,9 +14,9 @@ This checklist is the source of truth for the production Madeline base-character
 
 ## Production base-body build
 
-- [ ] Complete Hunyuan multiview reconstruction of the clothing-free Madeline body.
-- [ ] Transfer the generated body to the canonical gameplay skeleton.
-- [ ] Project the approved four-view body/hair appearance onto the rigged body.
+- [x] Complete Hunyuan multiview reconstruction of the clothing-free Madeline body.
+- [x] Transfer the generated body to the canonical gameplay skeleton.
+- [x] Project the approved four-view body/hair appearance onto the rigged body.
 - [ ] Project the original Madeline face artwork onto the final head.
 - [ ] Pass the skinned-character deformation verifier.
 - [ ] Pass verification for Idle, Walk, Run, Cast, and StaffAttack.
@@ -76,7 +76,8 @@ This checklist is the source of truth for the production Madeline base-character
 - The Hunyuan bootstrap now downloads only `hunyuan3d-dit-v2-mv-turbo/config.yaml` and `model.fp16.safetensors` into the persistent self-hosted-runner cache.
 - Madeline run #29 (`31936579943`) proved multiview reconstruction, canonical alignment/weight transfer, animation attachment, and four-view body/hair texture projection. It then failed in the face-identity pass because the approved palette PNG has a bad `PLTE` CRC and the projector evaluated front-facing normals in mesh-local rather than canonical world space.
 - Commits `9969a58a` and `f9161e76` repair the face pass by projecting in canonical world space and producing a validated build-local RGB PNG from the authoritative face artwork before Blender loads it.
-- Madeline base-body workflow: run #31 (`31953308607`) from `f9161e762d90f39cccda23b434533dc68bd46314`, currently queued for the self-hosted macOS runner; concurrency cancelled superseded run #30.
+- The production workflow now invokes `verify_madeline_base_contract.py` before artifact upload, so a visually plausible but baked-clothing, rigid, or flattened result cannot be published as the reusable Madeline base.
+- Madeline base-body workflow run #31 (`31953308607`) was queued from `f9161e762d90f39cccda23b434533dc68bd46314`; the newer workflow-gate commit supersedes it through the existing concurrency group.
 - Repaired robe workflow run #3 (`31936661842`) completed its shared Hunyuan cache setup, then failed immediately in the separate robe/cape isolation step; that garment failure is downstream of the base-character work.
 - Unity catalogue/equipment/importer/prefab validation run #15 (`31937872311`) from `bfa74b5e72080cc8554faf9ed385755441561e2d` passed.
 - Current branch: `feature/character-weapon-asset-pipeline`.
