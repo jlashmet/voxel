@@ -9,6 +9,7 @@ namespace VoxelEngine.Structures.Api
         MissingRooms,
         InvalidEntranceRoom,
         MultipleEntranceRooms,
+        EntrancePlacementMismatch,
         RoomIdMismatch,
         InvalidRoomSize,
         OverlappingRooms,
@@ -75,6 +76,17 @@ namespace VoxelEngine.Structures.Api
             if (entranceCount != 1)
             {
                 issue = DungeonPlanIssue.MultipleEntranceRooms;
+                return false;
+            }
+
+            DungeonRoomPlan entranceRoom = rooms[plan.EntranceRoomId];
+            int3 entrancePoint = new int3(
+                entranceRoom.Centre.x,
+                DungeonConnectionGeometry.RoomFloor(in entranceRoom),
+                entranceRoom.Centre.z);
+            if (!entrancePoint.Equals(plan.Entrance))
+            {
+                issue = DungeonPlanIssue.EntrancePlacementMismatch;
                 return false;
             }
 
