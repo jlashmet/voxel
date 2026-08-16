@@ -23,10 +23,13 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Greater(first.Dungeon.Rooms.Length, 0);
             Assert.Greater(first.KeepFloors.Length, 0);
             Assert.NotNull(first.KeepFloors[0].Accents);
+            Assert.Greater(first.Towers.Length, 0);
+            Assert.NotNull(first.Towers[0].Slits);
 
             int2 originalVertex = first.OuterWardVertices[0];
             DungeonRoomPlan originalRoom = first.Dungeon.Rooms[0];
             CastleRoomAccentPlan firstAccents = first.KeepFloors[0].Accents;
+            CastleTowerSlitPlan firstSlits = first.Towers[0].Slits;
             CastleSpatialProjection projectionBefore = build.Projection;
 
             first.OuterWardVertices[0] = originalVertex + new int2(777, -333);
@@ -47,6 +50,10 @@ namespace VoxelEngine.Tests.EditMode
                 "Detached keep-floor snapshots must not retain planner-owned room-accent identity.");
             CollectionAssert.AreEqual(firstAccents.Snapshot(), second.KeepFloors[0].Accents.Snapshot(),
                 "Deep-cloning room accents must preserve their semantic content.");
+            Assert.AreNotSame(firstSlits, second.Towers[0].Slits,
+                "Detached tower snapshots must not retain planner-owned slit-plan identity.");
+            CollectionAssert.AreEqual(firstSlits.Snapshot(), second.Towers[0].Slits.Snapshot(),
+                "Deep-cloning tower slit plans must preserve their authored phases.");
             Assert.AreEqual(projectionBefore.KeepCentreWorld, projectionAfter.KeepCentreWorld);
             Assert.AreEqual(
                 projectionBefore.PrimaryGateGeometry.Origin,
