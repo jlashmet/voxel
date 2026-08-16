@@ -1,0 +1,64 @@
+name: Import temporary placeholder humanoids
+
+on:
+  push:
+    branches:
+      - feature/temp-placeholder-humanoids
+
+permissions:
+  contents: write
+
+jobs:
+  import-assets:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/temp-placeholder-humanoids
+
+      - name: Download redistributable placeholder assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          root="Assets/ThirdParty/PlaceholderHumanoids"
+          mkdir -p "$root/Models" "$root/Animations" "$root/Licenses"
+
+          curl -L --fail --retry 3 \
+            "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/master/Assets/Avatars/Adults/Male_Adult_01/Export/Male_Adult_01.fbx" \
+            -o "$root/Models/Male_Adult_01.fbx"
+
+          curl -L --fail --retry 3 \
+            "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/master/Assets/Avatars/Adults/Female_Adult_01/Export/Female_Adult_01.fbx" \
+            -o "$root/Models/Female_Adult_01.fbx"
+
+          curl -L --fail --retry 3 \
+            "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/fbx/Knight.fbx" \
+            -o "$root/Animations/KayKit_Knight_AnimationLibrary.fbx"
+
+          curl -L --fail --retry 3 \
+            "https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/master/LICENSE.md" \
+            -o "$root/Licenses/Microsoft-Rocketbox-LICENSE.md"
+
+          curl -L --fail --retry 3 \
+            "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/LICENSE.txt" \
+            -o "$root/Licenses/KayKit-CC0-LICENSE.txt"
+
+          (cd "$root" && sha256sum \
+            Models/Male_Adult_01.fbx \
+            Models/Female_Adult_01.fbx \
+            Animations/KayKit_Knight_AnimationLibrary.fbx \
+            > Licenses/SOURCE_SHA256SUMS.txt)
+
+      - name: Commit imported assets and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/import-temp-placeholder-humanoids.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "assets: add temporary humanoid models and animations"
+          git push origin HEAD:feature/temp-placeholder-humanoids
