@@ -11,6 +11,17 @@ namespace VoxelEngine.Storage.Api
     }
 
     /// <summary>
+    /// Optional authoring-time placement behavior for a material row. A non-zero placement coating
+    /// means that placing this material onto an existing solid should preserve the base material and
+    /// apply the returned coating instead. The engine interprets the property generically; the game
+    /// decides which, if any, authored materials use it.
+    /// </summary>
+    public interface IMaterialPlacementCatalogue
+    {
+        byte GetPlacementCoating(byte materialId);
+    }
+
+    /// <summary>
     /// Read-only surface-style registration used by structure/content validation.
     /// </summary>
     public interface ISurfaceStyleAuthoringCatalogue
