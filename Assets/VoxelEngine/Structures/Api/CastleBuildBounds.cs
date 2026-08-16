@@ -5,9 +5,8 @@ namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// Conservative world-voxel envelope for one fully resolved spatial castle build.
-    /// Min is inclusive and MaxExclusive is exclusive. The envelope deliberately includes
-    /// headroom around authored decoration so streaming dependencies remain safe when small
-    /// realization details move without changing the semantic plan.
+    /// Min is inclusive and MaxExclusive is exclusive. Planned decoration contributes its actual
+    /// semantic footprint instead of inflating unrelated cave space with a fixed safety halo.
     /// </summary>
     public readonly struct CastleBuildBounds
     {
@@ -88,6 +87,7 @@ namespace VoxelEngine.Structures.Api
             IncludePlannedUnderground(
                 spatial.Dungeon,
                 spatial.Cave,
+                spatial.CaveDecoration,
                 ref minX,
                 ref maxX,
                 ref minY,
@@ -118,6 +118,7 @@ namespace VoxelEngine.Structures.Api
         private static void IncludePlannedUnderground(
             DungeonPlan dungeon,
             CavePlan cave,
+            CastleCaveDecorationPlan caveDecoration,
             ref int minX,
             ref int maxX,
             ref int minY,
@@ -143,14 +144,30 @@ namespace VoxelEngine.Structures.Api
                 throw new InvalidOperationException(
                     "Castle dungeon has a cave exit but the spatial plan has no attached cave plan.");
 
+            // CaveBuildBoundsResolver mirrors the generic CaveRealizer. Retain a small generic
+            // safety margin for rasterization/recipe evolution, but do not use that margin to stand
+            // in for castle-specific decorations now that their placements are planned explicitly.
             CaveBuildBounds caveBounds = CaveBuildBoundsResolver.Resolve(cave);
-            const int caveDecorationPadding = 48;
-            minX = math.min(minX, caveBounds.Min.x - caveDecorationPadding);
-            maxX = math.max(maxX, caveBounds.MaxExclusive.x - 1 + caveDecorationPadding);
-            minY = math.min(minY, caveBounds.Min.y - caveDecorationPadding);
-            maxY = math.max(maxY, caveBounds.MaxExclusive.y - 1 + caveDecorationPadding);
-            minZ = math.min(minZ, caveBounds.Min.z - caveDecorationPadding);
-            maxZ = math.max(maxZ, caveBounds.MaxExclusive.z - 1 + caveDecorationPadding);
+            const int cavePadding = 16;
+            minX = math.min(minX, caveBounds.Min.x - cavePadding);
+            maxX = math.max(maxX, caveBounds.MaxExclusive.x - 1 + cavePadding);
+            minY = math.min(minY, caveBounds.Min.y - cavePadding);
+            maxY = math.max(maxY, caveBounds.MaxExclusive.y - 1 + cavePadding);
+            minZ = math.min(minZ, caveBounds.Min.z - cavePadding);
+            maxZ = math.max(maxZ, caveBounds.MaxExclusive.z - 1 + cavePadding);
+
+            if (caveDecoration == null)
+                throw new InvalidOperationException(
+                    "Castle cave has no attached decoration plan for dependency sizing.");
+
+            CastleCaveDecorationBuildBounds decorationBounds =
+                CastleCaveDecorationBuildBoundsResolver.Resolve(cave, caveDecoration);
+            minX = math.min(minX, decorationBounds.Min.x);
+            maxX = math.max(maxX, decorationBounds.MaxExclusive.x - 1);
+            minY = math.min(minY, decorationBounds.Min.y);
+            maxY = math.max(maxY, decorationBounds.MaxExclusive.y - 1);
+            minZ = math.min(minZ, decorationBounds.Min.z);
+            maxZ = math.max(maxZ, decorationBounds.MaxExclusive.z - 1);
         }
 
         private static void IncludeApproachCorner(
