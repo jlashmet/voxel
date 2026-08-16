@@ -5,13 +5,16 @@ using VoxelEngine.Composition;
 namespace Game.Composition.Materials
 {
     /// <summary>
-    /// Installs this game's material presentation before scenes begin constructing renderer state.
-    /// The engine receives only semantic-free presentation rows.
+    /// Installs this game's material presentation and semantic-to-role bindings before scenes begin
+    /// constructing engine state. Engine systems receive only semantic-free rows and opaque roles.
     /// </summary>
     public static class GameMaterialPresentationBootstrap
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void Install() =>
+        private static void Install()
+        {
             MaterialPresentationComposition.Apply(GameMaterialRenderingDefinitions.Create());
+            ShowcaseMaterialComposition.Configure(in GameShowcaseMaterials.Default);
+        }
     }
 }
