@@ -9,8 +9,8 @@ This folder contains temporary third-party humanoid assets for character/NPC dev
 - `Models/placeholder_male.characterfactory.json` — routes the male FBX through the normal Character Factory Unity importer.
 - `Models/placeholder_female.characterfactory.json` — routes the female FBX through the normal Character Factory Unity importer.
 - `Animations/Idle.fbx` — neutral breathing idle.
-- `Animations/Walk.fbx` — neutral walking locomotion with translated root motion from Rocketbox's XY extraction set.
-- `Animations/Run.fbx` — neutral running locomotion with translated root motion from Rocketbox's XY extraction set.
+- `Animations/Walk.fbx` — neutral walking locomotion from Rocketbox's XY motion-extraction set.
+- `Animations/Run.fbx` — neutral running locomotion from Rocketbox's XY motion-extraction set.
 - `Animations/CrouchIdle.fbx` — crouched idle.
 - `Animations/Wave.fbx` — simple wave emote.
 - `Animations/Shrug.fbx` — simple shrug/interaction emote.
@@ -54,20 +54,20 @@ Choosing male versus female remains an authoring/spawn-data decision outside the
 
 ## Animation starter set
 
-| Clip | Intended prototype use | Root motion |
+| Clip | Intended prototype use | Movement policy |
 | --- | --- | --- |
-| `Idle` | looping neutral idle | no translated locomotion |
-| `Walk` | looping walk locomotion | XY translation available |
-| `Run` | looping run locomotion | XY translation available |
-| `CrouchIdle` | looping crouched idle | no translated locomotion |
-| `Wave` | one-shot emote/interaction | not intended for locomotion |
-| `Shrug` | one-shot emote/interaction | not intended for locomotion |
+| `Idle` | looping neutral idle | controller remains stationary |
+| `Walk` | looping walk locomotion | controller-driven translation |
+| `Run` | looping run locomotion | controller-driven translation |
+| `CrouchIdle` | looping crouched idle | controller remains stationary |
+| `Wave` | one-shot emote/interaction | no gameplay translation |
+| `Shrug` | one-shot emote/interaction | no gameplay translation |
 
 The animation FBXs are imported as Unity Humanoid clips and use semantic clip names (`Idle`, `Walk`, `Run`, `CrouchIdle`, `Wave`, `Shrug`). Idle/locomotion clips loop; Wave and Shrug are one-shot clips. They can be retargeted onto either placeholder body and later onto generated Humanoid characters without changing gameplay animation semantics.
 
-Walk/Run use the Rocketbox XY motion-extraction sources, and the Unity importer explicitly leaves horizontal root position unbaked so gameplay can consume root motion. EditMode coverage locks that importer policy. Walk is also evaluated through a `PlayableGraph` against both placeholder avatars to prove that the Humanoid clip actually drives a retargeted pose rather than only passing importer metadata checks.
+Walk/Run use Rocketbox's XY motion-extraction source files and the importer preserves their authored horizontal-position setting. In Unity 6000.5 these imported clips do **not** report `AnimationClip.hasMotionCurves`, so this package does not promise Unity root motion. Gameplay locomotion should remain driven by the character motor/controller. The Walk clip is evaluated through a `PlayableGraph` against both placeholder avatars to prove that the Humanoid clip actually drives a retargeted pose rather than only passing importer metadata checks.
 
-No temporary Animator state machine is defined here. Gameplay should consume these through the project's existing Unity Humanoid/Animator seam. Root motion remains opt-in at the gameplay Animator/controller layer.
+No temporary Animator state machine is defined here. Gameplay should consume these through the project's existing Unity Humanoid/Animator seam.
 
 ## Intended use
 
