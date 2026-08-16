@@ -35,6 +35,7 @@ namespace VoxelEngine.Structures.Api
         public int DesiredTowerCount;
         public bool HasPosternGate;
         public CastleSitePlan Site;
+        public CastleWallPlan Walls;
         public bool HasKeepAnnexPlan;
         public CastleKeepAnnexPlan KeepAnnexes;
 
@@ -61,6 +62,7 @@ namespace VoxelEngine.Structures.Api
         InvalidKeepTurretPlan,
         InvalidGatehousePlan,
         InvalidSitePlan,
+        InvalidWallPlan,
     }
 
     /// <summary>
@@ -129,6 +131,13 @@ namespace VoxelEngine.Structures.Api
             if (!CastleSitePlanValidator.TryValidate(in plan.Site, out _))
             {
                 issue = CastleTopologyPlanIssue.InvalidSitePlan;
+                return false;
+            }
+
+            CastleWallPlan walls = plan.Walls;
+            if (!CastleWallPlanValidator.TryValidate(in walls, out _))
+            {
+                issue = CastleTopologyPlanIssue.InvalidWallPlan;
                 return false;
             }
 
