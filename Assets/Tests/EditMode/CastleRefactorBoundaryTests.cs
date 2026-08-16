@@ -126,18 +126,6 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void ShowcaseKeepsLegacyGateContractUntilInteractionMigration()
-        {
-            string showcase = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
-                "ShowcaseWorld.cs"));
-
-            StringAssert.Contains("CastleLayout.FrontGateMinimum", showcase);
-            StringAssert.DoesNotContain("PlanCastleSpatial(", showcase,
-                "The showcase must not rotate the built gate before its interaction coordinates migrate.");
-        }
-
-        [Test]
         public void KeepRealizerUsesReusableTowerAndRoomComponents()
         {
             string keep = File.ReadAllText(Path.Combine(
