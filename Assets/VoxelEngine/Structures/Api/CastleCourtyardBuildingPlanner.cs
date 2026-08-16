@@ -179,6 +179,22 @@ namespace VoxelEngine.Structures.Api
                     return false;
             }
 
+            // Inner towers occupy the corners of the secondary ring. A building that stays just
+            // outside the inner polygon can still intersect a tower's circular footprint, so keep
+            // the full planned footprint plus ordinary building clearance away from every corner.
+            if (inner != null && inner.Length >= 3)
+            {
+                int innerTowerClearance = CastleInnerWardTowerPlanner.Radius(in plan)
+                                        + BuildingClearance;
+                long innerTowerClearanceSquared =
+                    (long)innerTowerClearance * innerTowerClearance;
+                for (int i = 0; i < inner.Length; i++)
+                {
+                    if (PointDistanceSquared(in candidate, inner[i]) < innerTowerClearanceSquared)
+                        return false;
+                }
+            }
+
             Bounds(in candidate, BuildingClearance,
                    out int minX, out int maxX, out int minZ, out int maxZ);
             int keepMinX = spatial.KeepCentre.x - plan.KeepHalfX - KeepClearance;
