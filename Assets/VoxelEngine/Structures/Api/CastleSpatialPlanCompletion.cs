@@ -19,7 +19,9 @@ namespace VoxelEngine.Structures.Api
                 return spatial;
 
             CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, spatial);
-            return AttachDungeon(in plan, withBuildings);
+            CastleSpatialPlan completed = AttachDungeon(in plan, withBuildings);
+            RequireCompleted(in plan, completed);
+            return completed;
         }
 
         public static CastleSpatialPlan AttachCourtyardBuildings(
@@ -30,8 +32,22 @@ namespace VoxelEngine.Structures.Api
             if (spatial.KeepRequiresTerrainResolution)
                 return spatial;
 
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            CastleGatePlacementSpec posternGate = spatial.PosternGate;
+            CastleGatePlacementSpec innerGate = spatial.InnerGate;
             CastleCourtyardBuildingSpec[] buildings =
-                CastleCourtyardBuildingPlanner.Create(in plan, spatial);
+                CastleCourtyardBuildingPlacementGeometry.Plan(
+                    in plan,
+                    spatial.OuterWardVertices,
+                    spatial.InnerWardVertices,
+                    in primaryGate,
+                    spatial.HasPosternGate,
+                    in posternGate,
+                    spatial.HasInnerGate,
+                    in innerGate,
+                    spatial.KeepCentre,
+                    spatial.HasWell,
+                    spatial.WellCentre);
             return Copy(spatial, buildings, spatial.Dungeon);
         }
 
@@ -45,7 +61,42 @@ namespace VoxelEngine.Structures.Api
 
             CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
             DungeonPlan dungeon = CastleDungeonPlanning.Create(in plan, in projection);
+            if (!DungeonPlanValidator.TryValidate(dungeon, out DungeonPlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle dungeon completion produced an invalid plan: {issue}.");
+            }
+
             return Copy(spatial, spatial.CourtyardBuildings, dungeon);
+        }
+
+        private static void RequireCompleted(
+            in CastlePlan plan,
+            CastleSpatialPlan completed)
+        {
+            if (!CastleSpatialPlanValidator.TryValidate(
+                    in plan, completed, out CastleSpatialPlanIssue spatialIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Completed castle spatial plan is structurally invalid: {spatialIssue}.");
+            }
+
+            if (completed.Dungeon == null)
+                throw new InvalidOperationException("Completed castle spatial plan has no dungeon plan.");
+
+            if (!DungeonPlanValidator.TryValidate(
+                    completed.Dungeon, out DungeonPlanIssue dungeonIssue))
+            {
+                throw new InvalidOperationException(
+                    $"Completed castle dungeon plan is structurally invalid: {dungeonIssue}.");
+            }
+
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, completed);
+            if (!completed.Dungeon.Entrance.Equals(projection.TrapdoorCentre))
+            {
+                throw new InvalidOperationException(
+                    "Completed castle dungeon entrance does not align with the projected trapdoor.");
+            }
         }
 
         private static CastleSpatialPlan Copy(
