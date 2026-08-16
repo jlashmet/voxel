@@ -43,5 +43,16 @@ namespace VoxelEngine.Storage.Api
     {
         ulong CurrentVersion { get; }
         bool ReadSince(ref ulong cursor, List<VoxelChangeRecord> destination);
+
+        /// <summary>
+        /// Reads at most <paramref name="maxRecords"/> retained records newer than
+        /// <paramref name="cursor"/>. On a valid incremental read, cursor advances only to the
+        /// last emitted record and <paramref name="hasMore"/> reports remaining backlog. If the
+        /// cursor has fallen behind retention, returns false, advances cursor to CurrentVersion,
+        /// clears destination and reports no replay backlog; the consumer must perform its own
+        /// bounded full-state recovery.
+        /// </summary>
+        bool ReadSince(ref ulong cursor, List<VoxelChangeRecord> destination,
+                       int maxRecords, out bool hasMore);
     }
 }

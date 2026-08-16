@@ -34,6 +34,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Limit capacity eviction to one off-screen entry per workspace `Prepare` call.
 - [x] Bound residency liveness checks with a persistent round-robin queue.
 - [x] Bound full-region invalidation with resumable candidate traversal; fine-grained brick edits remain immediate.
+- [x] Bound change-journal reads, record-to-brick expansion, and retention-overflow recovery.
 
 ### Publication and GPU ownership
 
@@ -59,7 +60,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 ### Visibility and clipmap residency
 
-- [ ] Replace `CollectVisible` scans of all known chunks with bounded ring/clipmap slot traversal.
+- [x] Replace `CollectVisible` scans of all known chunks with bounded ring/clipmap coordinate traversal.
 - [ ] Introduce fixed/toroidal `SurfaceChunkSlot` residency per LOD ring with slot generation IDs.
 - [ ] Recycle only newly exposed clipmap edges when the camera crosses a chunk boundary.
 - [ ] Move visibility/culling to batched/GPU-driven draw compaction after slot ownership is stable.

@@ -229,5 +229,19 @@ namespace VoxelEngine.Tests.EditMode
                 cache.Substring(cacheCollect, cacheCollectEnd - cacheCollect));
         }
 
+
+        [Test]
+        public void ChangeJournalAndOverflowRecoveryAreFrameBounded()
+        {
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            StringAssert.Contains("ChangeReadRecordsPerFrame", scheduler);
+            StringAssert.Contains("ChangeBrickExpansionsPerFrame", scheduler);
+            StringAssert.Contains("journal.ReadSince(", scheduler);
+            StringAssert.Contains("ChangeReadRecordsPerFrame", scheduler);
+            StringAssert.Contains("CopyResidentRegionCoords", scheduler);
+            StringAssert.DoesNotContain("storage.GetResidentRegionCoords(Allocator.Temp)", scheduler);
+        }
+
     }
 }

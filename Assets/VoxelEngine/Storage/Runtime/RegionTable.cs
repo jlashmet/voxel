@@ -166,6 +166,25 @@ namespace VoxelEngine.Storage.Runtime
         public NativeArray<int3> GetResidentCoords(Allocator allocator) =>
             _coordToSlot.GetKeyArray(allocator);
 
+        public bool CopyResidentCoords(ref int cursor, NativeArray<int3> destination,
+                                       out int count)
+        {
+            if (!destination.IsCreated || destination.Length == 0)
+                throw new ArgumentException("Destination must contain at least one slot.",
+                                            nameof(destination));
+            cursor = math.clamp(cursor, 0, _regions.Length);
+            count = 0;
+            int slotsExamined = 0;
+            while (cursor < _regions.Length && slotsExamined < destination.Length)
+            {
+                Region region = _regions[cursor++];
+                slotsExamined++;
+                if (!region.IsCreated) continue;
+                destination[count++] = region.Coord;
+            }
+            return cursor >= _regions.Length;
+        }
+
         public void Dispose()
         {
             if (_regions.IsCreated)

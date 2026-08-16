@@ -43,6 +43,10 @@ namespace VoxelEngine.Storage.Runtime
         public NativeArray<int3> GetResidentRegionCoords(Allocator allocator) =>
             _table.GetResidentCoords(allocator);
 
+        public bool CopyResidentRegionCoords(ref int cursor, NativeArray<int3> destination,
+                                             out int count) =>
+            _table.CopyResidentCoords(ref cursor, destination, out count);
+
         public bool TryAcquireRegionContainingBlock(int3 worldBlockCoord, out RegionReadView view)
         {
             int3 regionCoord = worldBlockCoord >> VoxelDimensions.RegionEdgeLog2;

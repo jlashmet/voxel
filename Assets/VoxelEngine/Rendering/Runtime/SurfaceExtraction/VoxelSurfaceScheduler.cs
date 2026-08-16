@@ -265,6 +265,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private static readonly ProfilerMarker s_VisibilityMarker = new("Voxel.Surface.Visibility");
         private const int SurfaceDiscoveryPublishBatch = 512;
         public const int NearSolidWorkerCount = 8;
+        [Obsolete("Use NearSolidWorkerCount for the base ring or WorkerCountForSourceStep for a specific LOD.")]
+        public const int SolidWorkerCount = NearSolidWorkerCount;
 
         /// <summary>
         /// Build workspaces are deliberately not uniform across LODs. Exact-sampling snapshot
@@ -335,13 +337,27 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];
         private int _lastVisibilityCandidateChecks;
         private readonly CpuWaterSurfaceChunkCache _water = new();
-        private readonly List<VoxelChangeRecord> _changeScratch = new(256);
+        private const int ChangeReadRecordsPerFrame = 64;
+        private const int ChangeBrickExpansionsPerFrame = 256;
+        private const int ChangeRecoverySlotsPerFrame = 32;
+        private readonly List<VoxelChangeRecord> _changeScratch = new(ChangeReadRecordsPerFrame);
+        private NativeArray<int3> _changeRecoveryRegions;
+        private int _changeRecordIndex;
+        private bool _changeFeedHasMore;
+        private bool _recoveringChangeOverflow;
+        private int _changeRecoveryCursor;
+        private bool _changeExpansionActive;
+        private int3 _changeExpansionMinBrick;
+        private int3 _changeExpansionCounts;
+        private int _changeExpansionCursor;
+        private bool _changeExpansionAffectsSolids;
+        private bool _changeExpansionAffectsWater;
         private readonly HashSet<int3> _changedSolidRegions = new();
         private readonly HashSet<int3> _changedWaterRegions = new();
         private readonly HashSet<int3> _changedBrickSet = new();
-        private readonly List<int3> _changedBricks = new(64);
+        private readonly List<int3> _changedBricks = new(ChangeBrickExpansionsPerFrame);
         private readonly HashSet<int3> _changedWaterBrickSet = new();
-        private readonly List<int3> _changedWaterBricks = new(64);
+        private readonly List<int3> _changedWaterBricks = new(ChangeBrickExpansionsPerFrame);
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
         private readonly Queue<int3> _surfaceDiscoveryQueue = new();
@@ -398,6 +414,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int LastAdvancedFrame => _lastAdvancedFrame;
         public int SolidBuildWorkspaceCount => _allWorkers.Length;
         public int LastVisibilityCandidateChecks => _lastVisibilityCandidateChecks;
+        public bool ChangeFeedBacklogged => _changeFeedHasMore
+            || _changeRecordIndex < _changeScratch.Count || _changeExpansionActive;
+        public bool RecoveringChangeFeedOverflow => _recoveringChangeOverflow;
         public int PendingSolidUploadBytes
         {
             get
@@ -452,6 +471,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 NativeArrayOptions.UninitializedMemory);
             _surfaceDiscoveryResults = new NativeList<int3>(
                 VoxelReadGrid.BlocksPerRegion, Allocator.Persistent);
+            _changeRecoveryRegions = new NativeArray<int3>(
+                ChangeRecoverySlotsPerFrame, Allocator.Persistent,
+                NativeArrayOptions.UninitializedMemory);
         }
 
         public void Prepare(IRegionReadSource storage, in MaterialPaletteView palette,
@@ -484,67 +506,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _discoveredSurfaceBricks.Clear();
 
             double journalStart = Time.realtimeSinceStartupAsDouble;
-            using (s_JournalMarker.Auto()) if (journal != null)
-            {
-                if (!ReferenceEquals(journal, _journal))
-                {
-                    _journal = journal;
-                    _changeCursor = 0;
-                }
-                bool complete = journal.ReadSince(ref _changeCursor, _changeScratch);
-                _lastChangeRecords = _changeScratch.Count;
-                if (!complete)
-                {
-                    using var resident = storage.GetResidentRegionCoords(Allocator.Temp);
-                    for (int i = 0; i < resident.Length; i++)
-                    {
-                        _changedSolidRegions.Add(resident[i]);
-                        _changedWaterRegions.Add(resident[i]);
-                        _surfaceDiscoveryRegions.Add(resident[i]);
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < _changeScratch.Count; i++)
-                    {
-                        VoxelChangeRecord change = _changeScratch[i];
-                        bool affectsSolids = (change.Kind & (VoxelChangeKind.Occupancy
-                            | VoxelChangeKind.BaseMaterial | VoxelChangeKind.SurfaceStyle
-                            | VoxelChangeKind.Coating | VoxelChangeKind.Residency)) != 0;
-                        bool affectsWater = (change.Kind & (VoxelChangeKind.Occupancy
-                            | VoxelChangeKind.BaseMaterial | VoxelChangeKind.Water
-                            | VoxelChangeKind.Residency)) != 0;
-                        int3 extent = change.MaxVoxelExclusive - change.MinVoxel;
-                        if (math.any(extent >= VoxelGrid.RegionVoxelEdge))
-                        {
-                            if (affectsSolids) _changedSolidRegions.Add(change.Region);
-                            if (affectsWater) _changedWaterRegions.Add(change.Region);
-                            _surfaceDiscoveryRegions.Add(change.Region);
-                            continue;
-                        }
-
-                        int3 minBrick = change.MinVoxel >> VoxelReadGrid.BlockEdgeLog2;
-                        int3 maxBrick = (change.MaxVoxelExclusive - 1)
-                                      >> VoxelReadGrid.BlockEdgeLog2;
-                        for (int z = minBrick.z; z <= maxBrick.z; z++)
-                        for (int y = minBrick.y; y <= maxBrick.y; y++)
-                        for (int x = minBrick.x; x <= maxBrick.x; x++)
-                        {
-                            int3 brick = new(x, y, z);
-                            if (affectsSolids && _changedBrickSet.Add(brick))
-                                _changedBricks.Add(brick);
-                            if (affectsWater && _changedWaterBrickSet.Add(brick))
-                                _changedWaterBricks.Add(brick);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                _journal = null;
-                _changeCursor = 0;
-                _lastChangeRecords = 0;
-            }
+            using (s_JournalMarker.Auto())
+                ProcessChangeFeed(storage, journal);
             _journalTiming.Add(ElapsedMs(journalStart));
 
             double invalidationStart = Time.realtimeSinceStartupAsDouble;
@@ -732,6 +695,150 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _visibilityTiming.Add(ElapsedMs(visibilityStart));
         }
 
+        private void ProcessChangeFeed(IRegionReadSource storage, IVoxelChangeSource journal)
+        {
+            _lastChangeRecords = 0;
+            if (journal == null)
+            {
+                ResetChangeFeedState(null);
+                return;
+            }
+
+            if (!ReferenceEquals(journal, _journal))
+                ResetChangeFeedState(journal);
+
+            if (_recoveringChangeOverflow)
+            {
+                StepChangeOverflowRecovery(storage);
+                return;
+            }
+
+            if (_changeRecordIndex >= _changeScratch.Count)
+            {
+                _changeScratch.Clear();
+                _changeRecordIndex = 0;
+                _changeExpansionActive = false;
+                bool incremental = journal.ReadSince(
+                    ref _changeCursor, _changeScratch, ChangeReadRecordsPerFrame,
+                    out _changeFeedHasMore);
+                if (!incremental)
+                {
+                    _changeScratch.Clear();
+                    _changeRecordIndex = 0;
+                    _changeExpansionActive = false;
+                    _changeFeedHasMore = false;
+                    _recoveringChangeOverflow = true;
+                    _changeRecoveryCursor = 0;
+                    StepChangeOverflowRecovery(storage);
+                    return;
+                }
+            }
+
+            StepChangeRecords();
+        }
+
+        private void ResetChangeFeedState(IVoxelChangeSource journal)
+        {
+            _journal = journal;
+            _changeCursor = 0;
+            _changeScratch.Clear();
+            _changeRecordIndex = 0;
+            _changeFeedHasMore = false;
+            _recoveringChangeOverflow = false;
+            _changeRecoveryCursor = 0;
+            _changeExpansionActive = false;
+            _changeExpansionCursor = 0;
+        }
+
+        private void StepChangeOverflowRecovery(IRegionReadSource storage)
+        {
+            bool complete = storage.CopyResidentRegionCoords(
+                ref _changeRecoveryCursor, _changeRecoveryRegions, out int count);
+            for (int i = 0; i < count; i++)
+            {
+                int3 region = _changeRecoveryRegions[i];
+                _changedSolidRegions.Add(region);
+                _changedWaterRegions.Add(region);
+                _surfaceDiscoveryRegions.Add(region);
+            }
+
+            if (!complete) return;
+            _recoveringChangeOverflow = false;
+            _changeRecoveryCursor = 0;
+        }
+
+        private void StepChangeRecords()
+        {
+            int brickBudget = ChangeBrickExpansionsPerFrame;
+            int recordBudget = ChangeReadRecordsPerFrame;
+            while (_changeRecordIndex < _changeScratch.Count && recordBudget > 0)
+            {
+                VoxelChangeRecord change = _changeScratch[_changeRecordIndex];
+                if (!_changeExpansionActive)
+                {
+                    bool affectsSolids = (change.Kind & (VoxelChangeKind.Occupancy
+                        | VoxelChangeKind.BaseMaterial | VoxelChangeKind.SurfaceStyle
+                        | VoxelChangeKind.Coating | VoxelChangeKind.Residency)) != 0;
+                    bool affectsWater = (change.Kind & (VoxelChangeKind.Occupancy
+                        | VoxelChangeKind.BaseMaterial | VoxelChangeKind.Water
+                        | VoxelChangeKind.Residency)) != 0;
+                    int3 extent = change.MaxVoxelExclusive - change.MinVoxel;
+                    if (!affectsSolids && !affectsWater || math.any(extent <= 0))
+                    {
+                        _changeRecordIndex++;
+                        _lastChangeRecords++;
+                        recordBudget--;
+                        continue;
+                    }
+
+                    if (math.any(extent >= VoxelGrid.RegionVoxelEdge))
+                    {
+                        if (affectsSolids) _changedSolidRegions.Add(change.Region);
+                        if (affectsWater) _changedWaterRegions.Add(change.Region);
+                        _surfaceDiscoveryRegions.Add(change.Region);
+                        _changeRecordIndex++;
+                        _lastChangeRecords++;
+                        recordBudget--;
+                        continue;
+                    }
+
+                    int3 minBrick = change.MinVoxel >> VoxelReadGrid.BlockEdgeLog2;
+                    int3 maxBrick = (change.MaxVoxelExclusive - 1)
+                                  >> VoxelReadGrid.BlockEdgeLog2;
+                    _changeExpansionMinBrick = minBrick;
+                    _changeExpansionCounts = maxBrick - minBrick + 1;
+                    _changeExpansionCursor = 0;
+                    _changeExpansionAffectsSolids = affectsSolids;
+                    _changeExpansionAffectsWater = affectsWater;
+                    _changeExpansionActive = true;
+                }
+
+                int total = _changeExpansionCounts.x
+                          * _changeExpansionCounts.y
+                          * _changeExpansionCounts.z;
+                while (_changeExpansionCursor < total && brickBudget > 0)
+                {
+                    int linear = _changeExpansionCursor++;
+                    int x = linear % _changeExpansionCounts.x;
+                    int y = (linear / _changeExpansionCounts.x) % _changeExpansionCounts.y;
+                    int z = linear / (_changeExpansionCounts.x * _changeExpansionCounts.y);
+                    int3 brick = _changeExpansionMinBrick + new int3(x, y, z);
+                    if (_changeExpansionAffectsSolids && _changedBrickSet.Add(brick))
+                        _changedBricks.Add(brick);
+                    if (_changeExpansionAffectsWater && _changedWaterBrickSet.Add(brick))
+                        _changedWaterBricks.Add(brick);
+                    brickBudget--;
+                }
+
+                if (_changeExpansionCursor < total) return;
+                _changeExpansionActive = false;
+                _changeExpansionCursor = 0;
+                _changeRecordIndex++;
+                _lastChangeRecords++;
+                recordBudget--;
+            }
+        }
+
         private void EnqueueSurfaceDiscovery(HashSet<int3> regions)
         {
             foreach (int3 region in regions)
@@ -861,6 +968,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _surfaceDiscoveryJobScheduled = false;
             }
             if (_surfaceDiscoveryResults.IsCreated) _surfaceDiscoveryResults.Dispose();
+            if (_changeRecoveryRegions.IsCreated) _changeRecoveryRegions.Dispose();
             if (_surfaceDiscoveryFlags.IsCreated) _surfaceDiscoveryFlags.Dispose();
             if (_surfaceDiscoveryOccupiedWords.IsCreated) _surfaceDiscoveryOccupiedWords.Dispose();
             if (_surfaceDiscoveryFullySolidWords.IsCreated) _surfaceDiscoveryFullySolidWords.Dispose();

@@ -64,6 +64,43 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ResidentRegionCopyCanBeConsumedInBoundedSlices()
+        {
+            var table = new RegionTable(4, Allocator.Persistent);
+            var pool = new BrickPool(1, Allocator.Persistent);
+            try
+            {
+                table.LoadRegion(new int3(0, 0, 0));
+                table.LoadRegion(new int3(1, 0, 0));
+                table.LoadRegion(new int3(2, 0, 0));
+                var source = new RegionReadSource(in table, in pool);
+                using var scratch = new NativeArray<int3>(1, Allocator.Temp);
+                var seen = new System.Collections.Generic.HashSet<int3>();
+                int cursor = 0;
+                bool complete;
+                int calls = 0;
+                do
+                {
+                    complete = source.CopyResidentRegionCoords(ref cursor, scratch, out int count);
+                    Assert.LessOrEqual(count, scratch.Length);
+                    for (int i = 0; i < count; i++) seen.Add(scratch[i]);
+                    calls++;
+                    Assert.Less(calls, 16, "Bounded resident scan failed to make progress.");
+                }
+                while (!complete);
+
+                Assert.AreEqual(3, seen.Count);
+                Assert.GreaterOrEqual(calls, 3,
+                    "A one-slot destination must not materialize the whole resident table at once.");
+            }
+            finally
+            {
+                if (table.IsCreated) table.Dispose();
+                if (pool.IsCreated) pool.Dispose();
+            }
+        }
+
+        [Test]
         public void WorldBlockCoordinatesRemainCorrectAcrossNegativeRegions()
         {
             var table = new RegionTable(2, Allocator.Persistent);
@@ -101,7 +138,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(1));
             Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(2));
             Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(4));
-            Assert.AreEqual(0, VoxelReadGrid.LevelForStride(8));
+            Assert.AreEqual(-1, VoxelReadGrid.LevelForStride(8));
             Assert.AreEqual(1, VoxelReadGrid.LevelForStride(16));
             Assert.AreEqual(2, VoxelReadGrid.LevelForStride(32));
             Assert.AreEqual(3, VoxelReadGrid.LevelForStride(64));

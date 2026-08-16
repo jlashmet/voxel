@@ -21,6 +21,16 @@ namespace VoxelEngine.Storage.Api
         NativeArray<int3> GetResidentRegionCoords(Allocator allocator);
 
         /// <summary>
+        /// Copies a bounded slice of the resident-region table into caller-owned memory.
+        /// <paramref name="cursor"/> is an opaque scan cursor owned by the consumer. At most
+        /// destination.Length internal region slots are inspected per call, so sparse/free slots
+        /// cannot turn recovery into an unbounded scan. Returns true when the current table scan
+        /// has reached its end; later residency changes are delivered through the change feed.
+        /// </summary>
+        bool CopyResidentRegionCoords(ref int cursor, NativeArray<int3> destination,
+                                      out int count);
+
+        /// <summary>
         /// Acquires a borrowed read view for a currently resident region. The returned view is
         /// valid only while that region remains resident and until the next mutation/publish
         /// boundary represented by <see cref="Version"/>.
