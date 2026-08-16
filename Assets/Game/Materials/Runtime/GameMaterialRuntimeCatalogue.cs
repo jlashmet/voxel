@@ -55,7 +55,8 @@ namespace Game.Materials.Runtime
         private static readonly GameMaterialRuntimeDefinition[] s_Definitions =
         {
             Row(GameMaterialIds.Empty, false,
-                Sim(GameMaterialIds.Empty, 0, DestructionClass.None, SurfaceStyles.Smooth, 0u),
+                Sim(GameMaterialIds.Empty, 0, DestructionClass.None, SurfaceStyles.Smooth, 0u,
+                    placementSurfaceStyle: SurfaceStyles.MaterialDefault),
                 Solid(GameMaterialIds.Empty, 1.00f, 0.00f, 1.00f)),
 
             Row(GameMaterialIds.Stone, true,
@@ -67,7 +68,8 @@ namespace Game.Materials.Runtime
                 Textured(GameMaterialIds.Wood, 0.46f, 0.29f, 0.14f, WoodTexture, false, 0.16f)),
 
             Row(GameMaterialIds.Sand, true,
-                Sim(GameMaterialIds.Sand, 20, DestructionClass.Powder, SurfaceStyles.Smooth, 1u << Coatings.Wet),
+                Sim(GameMaterialIds.Sand, 20, DestructionClass.Powder, SurfaceStyles.Smooth,
+                    1u << Coatings.Wet, placementSurfaceStyle: SurfaceStyles.MaterialDefault),
                 Textured(GameMaterialIds.Sand, 0.82f, 0.72f, 0.46f, SandTexture, true, 0.16f)),
 
             Row(GameMaterialIds.Glass, true,
@@ -100,11 +102,13 @@ namespace Game.Materials.Runtime
                 Solid(GameMaterialIds.Cloth, 0.62f, 0.12f, 0.14f)),
 
             Row(GameMaterialIds.Grass, true,
-                Sim(GameMaterialIds.Grass, 25, DestructionClass.Powder, SurfaceStyles.Smooth, WeatherCoatings),
+                Sim(GameMaterialIds.Grass, 25, DestructionClass.Powder, SurfaceStyles.Smooth,
+                    WeatherCoatings, placementSurfaceStyle: SurfaceStyles.MaterialDefault),
                 Textured(GameMaterialIds.Grass, 0.31f, 0.44f, 0.20f, GrassTexture, true, 0.16f)),
 
             Row(GameMaterialIds.Water, true,
-                Sim(GameMaterialIds.Water, 5, DestructionClass.Spreading, SurfaceStyles.Smooth, 0u),
+                Sim(GameMaterialIds.Water, 5, DestructionClass.Spreading, SurfaceStyles.Smooth, 0u,
+                    placementSurfaceStyle: SurfaceStyles.MaterialDefault),
                 Solid(GameMaterialIds.Water, 0.10f, 0.43f, 0.56f, roughness: 0.18f)),
 
             Row(GameMaterialIds.Gold, true,
@@ -112,12 +116,14 @@ namespace Game.Materials.Runtime
                 Solid(GameMaterialIds.Gold, 0.80f, 0.66f, 0.26f)),
 
             Row(GameMaterialIds.Dirt, true,
-                Sim(GameMaterialIds.Dirt, 30, DestructionClass.Powder, SurfaceStyles.Smooth, WeatherCoatings),
+                Sim(GameMaterialIds.Dirt, 30, DestructionClass.Powder, SurfaceStyles.Smooth,
+                    WeatherCoatings, placementSurfaceStyle: SurfaceStyles.MaterialDefault),
                 Textured(GameMaterialIds.Dirt, 0.38f, 0.31f, 0.24f, DirtTexture, true, 0.16f)),
 
             Row(GameMaterialIds.Moss, true,
                 Sim(GameMaterialIds.Moss, 40, DestructionClass.Powder, SurfaceStyles.Smooth,
-                    WeatherCoatings, placementCoating: Coatings.Moss),
+                    WeatherCoatings, placementSurfaceStyle: SurfaceStyles.MaterialDefault,
+                    placementCoating: Coatings.Moss),
                 Textured(GameMaterialIds.Moss, 0.32f, 0.40f, 0.24f, GrassTexture, true, 0.16f,
                     roughness: 0.48f)),
 
@@ -182,9 +188,10 @@ namespace Game.Materials.Runtime
             ushort surfaceStyle,
             uint allowedCoatings,
             bool flammable = false,
+            ushort placementSurfaceStyle = SurfaceStyles.Planar,
             byte placementCoating = Coatings.None) =>
             new(materialId, hardness, destructionClass, surfaceStyle, allowedCoatings,
-                flammable, placementCoating);
+                flammable, placementSurfaceStyle, placementCoating);
 
         private static MaterialPresentationDefinition Solid(
             byte materialIndex,
