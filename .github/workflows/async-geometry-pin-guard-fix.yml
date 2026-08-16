@@ -1,0 +1,42 @@
+name: Patch async geometry pinned payload architecture guard
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths:
+      - .github/workflows/async-geometry-pin-guard-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 1
+      - name: Update vanished mixed-pin source guard
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs')
+          text = p.read_text()
+          old = '''            StringAssert.Contains("_pool.BeginWrite(poolIndex)", store);\n            StringAssert.Contains("_pool.EndWrite(mutation.PoolIndex)", store);\n            StringAssert.Contains("_snapshotPinUnavailable", cache);'''
+          new = '''            StringAssert.Contains("_pool.BeginWrite(poolIndex)", store);\n            StringAssert.Contains("_pool.EndWrite(mutation.PoolIndex)", store);\n            StringAssert.Contains(\n                "if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))", cache);\n            StringAssert.Contains("_discardBuildAfterPinRelease = true;", cache);\n            StringAssert.DoesNotContain("_snapshotPinUnavailable", cache);'''
+          if text.count(old) != 1:
+              raise SystemExit('pinned payload architecture guard block mismatch')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit guard and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "jlashmet"
+          git config user.email "jlashmet@gmail.com"
+          git rm .github/workflows/async-geometry-pin-guard-fix.yml
+          git add Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+          git commit -m "test(rendering): guard vanished mixed-pin retry contract"
+          git push origin HEAD:refactor/async-geometry-pipeline
