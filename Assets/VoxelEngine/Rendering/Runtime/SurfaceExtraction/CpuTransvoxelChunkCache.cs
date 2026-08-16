@@ -249,7 +249,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             public bool Active;
             public int3 Coordinate;
-            public int Phase;   // 0 density, 1 continuous cells/decorations, 2 faceted planes
+            public int Phase;   // 0 snapshot, 1 jobs, 2 faceted job, 3 profiles, 4 seams, 5 result append
             public int Cursor;
             public ulong SourceVersion;
             public uint MaterialPaletteVersion;
@@ -335,6 +335,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private NativeArray<uint> _facetedMasks;
         private NativeList<SmoothSurfaceVertex> _facetedVertices;
         private NativeList<uint> _facetedIndices;
+        private const int AppendElementsPerDeadlineCheck = 512;
+        private int _resultAppendStage;
+        private int _topologyAppendVertexCursor;
+        private int _topologyAppendIndexCursor;
+        private uint _topologyAppendVertexBase;
+        private int _facetedAppendVertexCursor;
+        private int _facetedAppendIndexCursor;
+        private uint _facetedAppendVertexBase;
+        private bool _transitionResultPending;
+        private int _transitionAppendVertexCursor;
+        private int _transitionAppendIndexCursor;
+        private uint _transitionAppendVertexBase;
 
         private readonly float[] _cellDensity = new float[8];
         private readonly byte[] _cellMaterial = new byte[8];
@@ -522,18 +534,27 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 if (!_transitionJobHandle.IsCompleted) return false;
 
-                // Completion is non-blocking because IsCompleted was observed above. It is
-                // still required before reading the NativeLists written by the job.
+                // Completion is non-blocking because IsCompleted was observed above. The result
+                // is now CPU-owned, but merging it into final output is itself budgeted.
                 _transitionJobHandle.Complete();
                 _transitionJobScheduled = false;
+                _transitionResultPending = true;
+                _transitionAppendVertexCursor = 0;
+                _transitionAppendIndexCursor = 0;
+                _transitionAppendVertexBase = 0;
+            }
 
-                uint vertexBase = (uint)_vertices.Length;
-                NativeArray<SmoothSurfaceVertex> vertices = _transitionVertices.AsArray();
-                for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
-                NativeArray<uint> indices = _transitionIndices.AsArray();
-                for (int i = 0; i < indices.Length; i++)
-                    _indices.Add(vertexBase + indices[i]);
+            if (_transitionResultPending)
+            {
+                if (!StepAppendNativeGeometry(_transitionVertices.AsArray(),
+                                              _transitionIndices.AsArray(),
+                                              ref _transitionAppendVertexCursor,
+                                              ref _transitionAppendIndexCursor,
+                                              ref _transitionAppendVertexBase,
+                                              deadlineSeconds))
+                    return false;
 
+                _transitionResultPending = false;
                 _build.Cursor = _transitionFace + 1;
                 _transitionFace = -1;
                 _transitionSampleCursor = 0;
@@ -935,10 +956,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _topologyCompactJobScheduled = false;
                     _facetedMaskJobScheduled = false;
                     _facetedMergeJobScheduled = false;
-                    CompactTopology(voxelSize);
-                    AppendFacetedTopology();
-                    _build.Phase = 3;
-                    _build.Cursor = 0;
+                    BeginCompletedResultAppend(includeTopology: true);
+                    _build.Phase = 5;
                     continue;
                 }
 
@@ -951,7 +970,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _facetedTurnaroundTiming.Add(ElapsedMs(_build.FacetedScheduledSeconds));
                     _facetedMaskJobScheduled = false;
                     _facetedMergeJobScheduled = false;
-                    AppendFacetedTopology();
+                    BeginCompletedResultAppend(includeTopology: false);
+                    _build.Phase = 5;
+                    continue;
+                }
+
+                if (_build.Phase == 5)
+                {
+                    if (!StepCompletedResultAppend(deadline)) break;
                     _build.Phase = 3;
                     _build.Cursor = 0;
                     continue;
@@ -1029,28 +1055,100 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _topologyCompactJobScheduled = true;
         }
 
-        private void CompactTopology(float voxelSize)
+        private void BeginCompletedResultAppend(bool includeTopology)
         {
-            double compactStart = Time.realtimeSinceStartupAsDouble;
-            using var compactScope = s_CompactMarker.Auto();
-            int overflowCell = _topologyOverflowCell[0];
-            if (overflowCell >= 0)
-                throw new InvalidOperationException(
-                    $"Continuous topology output overflow in chunk {_build.Coordinate}, " +
-                    $"cell {overflowCell}; refusing to publish partial geometry.");
-            NativeArray<SmoothSurfaceVertex> vertices = _compactedTopologyVertices.AsArray();
-            for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
-            NativeArray<uint> indices = _compactedTopologyIndices.AsArray();
-            for (int i = 0; i < indices.Length; i++) _indices.Add(indices[i]);
-            _topologyOutput.Dispose();
-            _topologyOutput = default;
-            // Decorative coating clumps are intentionally not part of base-surface admission.
-            // Blocking complete castle/terrain geometry on optional moss relief produced visible
-            // holes and multi-millisecond compaction stalls. Coating colour remains present in
-            // every base vertex; relief is a separately schedulable decoration domain.
-            LastTopologyCompactMs =
-                (Time.realtimeSinceStartupAsDouble - compactStart) * 1000.0;
-            _topologyCompactTiming.Add(LastTopologyCompactMs);
+            _resultAppendStage = includeTopology ? 0 : 1;
+            _topologyAppendVertexCursor = 0;
+            _topologyAppendIndexCursor = 0;
+            _topologyAppendVertexBase = 0;
+            _facetedAppendVertexCursor = 0;
+            _facetedAppendIndexCursor = 0;
+            _facetedAppendVertexBase = 0;
+        }
+
+        private bool StepCompletedResultAppend(double deadlineSeconds)
+        {
+            if (_resultAppendStage == 0)
+            {
+                double start = Time.realtimeSinceStartupAsDouble;
+                using var scope = s_CompactMarker.Auto();
+                int overflowCell = _topologyOverflowCell[0];
+                if (overflowCell >= 0)
+                    throw new InvalidOperationException(
+                        $"Continuous topology output overflow in chunk {_build.Coordinate}, "
+                      + $"cell {overflowCell}; refusing to publish partial geometry.");
+
+                if (!StepAppendNativeGeometry(_compactedTopologyVertices.AsArray(),
+                                              _compactedTopologyIndices.AsArray(),
+                                              ref _topologyAppendVertexCursor,
+                                              ref _topologyAppendIndexCursor,
+                                              ref _topologyAppendVertexBase,
+                                              deadlineSeconds))
+                {
+                    LastTopologyCompactMs = ElapsedMs(start);
+                    _topologyCompactTiming.Add(LastTopologyCompactMs);
+                    return false;
+                }
+
+                if (_topologyOutput.IsCreated) _topologyOutput.Dispose();
+                _topologyOutput = default;
+                LastTopologyCompactMs = ElapsedMs(start);
+                _topologyCompactTiming.Add(LastTopologyCompactMs);
+                _resultAppendStage = 1;
+            }
+
+            if (_resultAppendStage == 1)
+            {
+                double start = Time.realtimeSinceStartupAsDouble;
+                using var scope = s_FacetedMergeMarker.Auto();
+                if (!StepAppendNativeGeometry(_facetedVertices.AsArray(),
+                                              _facetedIndices.AsArray(),
+                                              ref _facetedAppendVertexCursor,
+                                              ref _facetedAppendIndexCursor,
+                                              ref _facetedAppendVertexBase,
+                                              deadlineSeconds))
+                {
+                    _facetedMergeTiming.Add(ElapsedMs(start));
+                    return false;
+                }
+                _facetedMergeTiming.Add(ElapsedMs(start));
+                _resultAppendStage = 2;
+            }
+            return true;
+        }
+
+        private bool StepAppendNativeGeometry(NativeArray<SmoothSurfaceVertex> sourceVertices,
+                                              NativeArray<uint> sourceIndices,
+                                              ref int vertexCursor, ref int indexCursor,
+                                              ref uint vertexBase,
+                                              double deadlineSeconds)
+        {
+            if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) return false;
+            if (vertexCursor == 0 && indexCursor == 0)
+                vertexBase = (uint)_vertices.Length;
+
+            while (vertexCursor < sourceVertices.Length)
+            {
+                int end = math.min(sourceVertices.Length,
+                                   vertexCursor + AppendElementsPerDeadlineCheck);
+                for (; vertexCursor < end; vertexCursor++)
+                    _vertices.Add(sourceVertices[vertexCursor]);
+                if (vertexCursor < sourceVertices.Length
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                    return false;
+            }
+
+            while (indexCursor < sourceIndices.Length)
+            {
+                int end = math.min(sourceIndices.Length,
+                                   indexCursor + AppendElementsPerDeadlineCheck);
+                for (; indexCursor < end; indexCursor++)
+                    _indices.Add(vertexBase + sourceIndices[indexCursor]);
+                if (indexCursor < sourceIndices.Length
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                    return false;
+            }
+            return true;
         }
 
         private void ScheduleFacetedMaskJob(JobHandle dependency = default)
@@ -1111,18 +1209,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             };
             _facetedMergeJobHandle = job.Schedule(_facetedMaskJobHandle);
             _facetedMergeJobScheduled = true;
-        }
-
-        private void AppendFacetedTopology()
-        {
-            double start = Time.realtimeSinceStartupAsDouble;
-            using var scope = s_FacetedMergeMarker.Auto();
-            uint vertexBase = (uint)_vertices.Length;
-            NativeArray<SmoothSurfaceVertex> vertices = _facetedVertices.AsArray();
-            for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
-            NativeArray<uint> indices = _facetedIndices.AsArray();
-            for (int i = 0; i < indices.Length; i++) _indices.Add(vertexBase + indices[i]);
-            _facetedMergeTiming.Add(ElapsedMs(start));
         }
 
         private void MergeAllFacetedMasks(float voxelSize)
@@ -1203,6 +1289,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _indices.Clear();
             _transitionFace = -1;
             _transitionSampleCursor = 0;
+            _transitionResultPending = false;
+            _resultAppendStage = 0;
+            _topologyAppendVertexCursor = 0;
+            _topologyAppendIndexCursor = 0;
+            _facetedAppendVertexCursor = 0;
+            _facetedAppendIndexCursor = 0;
+            _transitionAppendVertexCursor = 0;
+            _transitionAppendIndexCursor = 0;
             _build = new BuildState
             {
                 Active = true, Coordinate = best, Phase = 0, Cursor = 0,
@@ -2476,6 +2570,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _indices.Clear();
             _transitionFace = -1;
             _transitionSampleCursor = 0;
+            _transitionResultPending = false;
+            _resultAppendStage = 0;
+            _topologyAppendVertexCursor = 0;
+            _topologyAppendIndexCursor = 0;
+            _facetedAppendVertexCursor = 0;
+            _facetedAppendIndexCursor = 0;
+            _transitionAppendVertexCursor = 0;
+            _transitionAppendIndexCursor = 0;
         }
 
         private void DropNoLongerResident(IRegionReadSource source)

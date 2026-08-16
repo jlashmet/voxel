@@ -139,5 +139,19 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("private bool SnapshotCoreHasSolid", cache);
         }
 
+
+        [Test]
+        public void CompletedJobResultsAreMergedUnderDeadline()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            StringAssert.Contains("StepCompletedResultAppend(deadline)", cache);
+            StringAssert.Contains("private bool StepAppendNativeGeometry", cache);
+            StringAssert.Contains("AppendElementsPerDeadlineCheck", cache);
+            StringAssert.Contains("_transitionResultPending", cache);
+            StringAssert.DoesNotContain("private void CompactTopology", cache);
+            StringAssert.DoesNotContain("private void AppendFacetedTopology", cache);
+        }
+
     }
 }
