@@ -51,6 +51,38 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void CastleDungeonAdaptersShareOneConstraintPolicy()
+        {
+            string root = RepoRoot;
+            string convenienceAdapter = File.ReadAllText(Path.Combine(
+                root, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleDungeonPlanner.cs"));
+            string policyAdapter = File.ReadAllText(Path.Combine(
+                root, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleDungeonPlanning.cs"));
+
+            StringAssert.Contains("CastleDungeonPlanning.Create", convenienceAdapter);
+            StringAssert.DoesNotContain("new DungeonPlanningConstraints", convenienceAdapter,
+                "CastleDungeonPlanner must not carry a second copy of castle dungeon dimensions.");
+            StringAssert.Contains("new DungeonPlanningConstraints", policyAdapter,
+                "CastleDungeonPlanning owns the castle-specific reusable-dungeon constraints.");
+
+            for (uint seed = 1; seed <= 64; seed++)
+            {
+                CastlePlan dimensions = CastlePlanner.Create(int3.zero, seed);
+                CastleTopologyPlan topology = CastleLayoutPlanner.Create(seed);
+                topology.KeepPlacement = CastleKeepPlacement.Central;
+                CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
+                CastleSpatialProjection projection = CastleSpatialProjection.Create(
+                    in dimensions, spatial);
+
+                DungeonPlan viaSpatial = CastleDungeonPlanner.Create(in dimensions, spatial);
+                DungeonPlan viaProjection = CastleDungeonPlanning.Create(in dimensions, in projection);
+                AssertEquivalent(viaProjection, viaSpatial, seed);
+            }
+        }
+
+        [Test]
         public void DungeonPlanningRemainsOutsideRuntime()
         {
             string root = RepoRoot;
@@ -66,6 +98,42 @@ namespace VoxelEngine.Tests.EditMode
                 string source = File.ReadAllText(file);
                 StringAssert.DoesNotContain("DungeonPlanner.Create", source,
                     $"{Path.GetFileName(file)} must consume a DungeonPlan rather than create one.");
+            }
+        }
+
+        private static void AssertEquivalent(DungeonPlan expected, DungeonPlan actual, uint seed)
+        {
+            Assert.AreEqual(expected.Seed, actual.Seed, $"seed {seed}: seed drifted");
+            Assert.AreEqual(expected.Entrance, actual.Entrance, $"seed {seed}: entrance drifted");
+            Assert.AreEqual(expected.EntranceRoomId, actual.EntranceRoomId,
+                $"seed {seed}: entrance room id drifted");
+            Assert.AreEqual(expected.CaveThresholdRoomId, actual.CaveThresholdRoomId,
+                $"seed {seed}: cave threshold id drifted");
+            Assert.AreEqual(expected.Rooms.Length, actual.Rooms.Length,
+                $"seed {seed}: room count drifted");
+            Assert.AreEqual(expected.Connections.Length, actual.Connections.Length,
+                $"seed {seed}: connection count drifted");
+
+            for (int i = 0; i < expected.Rooms.Length; i++)
+            {
+                Assert.AreEqual(expected.Rooms[i].Id, actual.Rooms[i].Id,
+                    $"seed {seed}, room {i}: id drifted");
+                Assert.AreEqual(expected.Rooms[i].Purpose, actual.Rooms[i].Purpose,
+                    $"seed {seed}, room {i}: purpose drifted");
+                Assert.AreEqual(expected.Rooms[i].Centre, actual.Rooms[i].Centre,
+                    $"seed {seed}, room {i}: centre drifted");
+                Assert.AreEqual(expected.Rooms[i].Size, actual.Rooms[i].Size,
+                    $"seed {seed}, room {i}: size drifted");
+            }
+
+            for (int i = 0; i < expected.Connections.Length; i++)
+            {
+                Assert.AreEqual(expected.Connections[i].FromRoomId, actual.Connections[i].FromRoomId,
+                    $"seed {seed}, connection {i}: source drifted");
+                Assert.AreEqual(expected.Connections[i].ToRoomId, actual.Connections[i].ToRoomId,
+                    $"seed {seed}, connection {i}: target drifted");
+                Assert.AreEqual(expected.Connections[i].Kind, actual.Connections[i].Kind,
+                    $"seed {seed}, connection {i}: kind drifted");
             }
         }
 
