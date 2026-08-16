@@ -63,7 +63,9 @@ namespace VoxelEngine.Tests.PlayMode
                 (1, 48f), (2, 144f), (4, 240f), (8, 340f),
             };
 
-            var target = new RenderTexture(160, 90, 24, RenderTextureFormat.ARGB32);
+            // 4:3 keeps the 24 m orthographic half-height to ~64 m horizontal, matching the
+            // maximum bailey+tower width instead of admitting unrelated terrain at 16:9.
+            var target = new RenderTexture(120, 90, 24, RenderTextureFormat.ARGB32);
             var readback = new Texture2D(target.width, target.height,
                                          TextureFormat.RGB24, false, true);
             bool oldOrthographic = camera.orthographic;
@@ -80,11 +82,11 @@ namespace VoxelEngine.Tests.PlayMode
                 VoxelRenderBridge.SolidBuildBudgetMs = 8.0;
                 camera.targetTexture = target;
                 camera.orthographic = true;
-                // Bailey width is roughly 44-56 m and the sculpted plateau stays below about
-                // 86 m diameter. A 45 m half-height keeps the whole landmark in frame while the
-                // central structure crop measures the castle, instead of exposing nearly the
-                // entire 192 m-wide near clipmap and turning arena capacity into the test target.
-                camera.orthographicSize = 45f;
+                // Bailey+tower masonry is at most about 64 m wide and the keep is below ~28 m
+                // tall. With the 4:3 target, a 24 m half-height gives a ~64x48 m architectural
+                // frame: enough for the castle while intentionally excluding most of its broad
+                // sculpted terrain skirt, which is not what this LOD edge-regression compares.
+                camera.orthographicSize = 24f;
                 CastleStructureSignature reference = default;
 
                 foreach (var band in bands)
@@ -94,12 +96,11 @@ namespace VoxelEngine.Tests.PlayMode
                     // measurable rather than hidden by perspective.
                     camera.transform.position = centre + new Vector3(0f, 20f, -band.distance);
                     camera.transform.LookAt(lookAt);
-                    // MissingVisible is frustum-scoped, so bound depth to the landmark too. The
-                    // castle/plateau fits within roughly +/-43 m of its centre; +/-50 m leaves a
-                    // halo for towers/cliffs while excluding unrelated clipmap rings hundreds of
-                    // metres in front of or behind the subject. The strict hole-free check stays.
-                    camera.nearClipPlane = Mathf.Max(0.3f, band.distance - 50f);
-                    camera.farClipPlane = band.distance + 50f;
+                    // The bailey plus towers fits within roughly +/-32 m in depth. Scope the
+                    // strict MissingVisible==0 precondition to that architecture instead of the
+                    // wider terrain skirt and unrelated rings in front of/behind the landmark.
+                    camera.nearClipPlane = Mathf.Max(0.3f, band.distance - 32f);
+                    camera.farClipPlane = band.distance + 32f;
 
                     // Geometry is deliberately asynchronous. Batchmode can advance dozens of
                     // Unity frames before a background HLOD job gets equivalent wall-clock time,
