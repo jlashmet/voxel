@@ -137,26 +137,6 @@ namespace VoxelEngine.Structures.Runtime
             _site = default;
         }
 
-        /// <summary>
-        /// Runtime-ready spatial constructor whose primary gatehouse dimensions have already been
-        /// frozen by planning. The compatibility spatial constructor above remains available to
-        /// older callers, but production Composition should use this overload.
-        /// </summary>
-        public CastleBuildPipeline(
-            IRegionReadSource reads,
-            IRegionMutationStore mutations,
-            in CastlePlan plan,
-            CastleSpatialPlan spatialPlan,
-            in CastleGatehousePlan gatehousePlan,
-            uint terrainSeed,
-            IMaterialAuthoringCatalogue materials)
-            : this(reads, mutations, in plan, spatialPlan, terrainSeed, materials)
-        {
-            CastleGatehousePlanValidator.RequireValid(in gatehousePlan);
-            _gatehousePlan = gatehousePlan;
-            _hasPlannedGatehouse = true;
-        }
-
         public bool IsComplete => _stage > 8;
         public int StageNumber => _stage;
         public long TotalVoxelsWritten => _brush.TotalVoxelsWritten;
@@ -412,6 +392,13 @@ namespace VoxelEngine.Structures.Runtime
 
             CastleTopologyPlan topology = spatialPlan.Topology;
             _keepAnnexes = topology.KeepAnnexes;
+            _hasPlannedGatehouse = topology.HasGatehousePlan;
+            if (_hasPlannedGatehouse)
+            {
+                CastleGatehousePlan gatehouse = topology.Gatehouse;
+                CastleGatehousePlanValidator.RequireValid(in gatehouse);
+                _gatehousePlan = gatehouse;
+            }
 
             _spatialDungeonPlan = spatialPlan.Dungeon != null
                 ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
