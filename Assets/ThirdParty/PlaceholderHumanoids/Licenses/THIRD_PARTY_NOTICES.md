@@ -5,6 +5,7 @@ These assets are temporary development placeholders and are isolated so they can
 ## Microsoft Rocketbox Avatar Library
 
 - Upstream: `https://github.com/microsoft/Microsoft-Rocketbox`
+- Upstream revision used: `0943055db6ec570bcef9f2c8b41c9e5467c808f9`
 - License: MIT (upstream `LICENSE.md`, copied into this folder during import)
 - Avatar files used:
   - `Assets/Avatars/Adults/Male_Adult_01/Export/Male_Adult_01.fbx` -> `../Models/Male_Adult_01.fbx`
