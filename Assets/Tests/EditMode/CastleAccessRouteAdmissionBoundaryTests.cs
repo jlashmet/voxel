@@ -34,6 +34,12 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleBuildPreflight.EvaluateRuntimeReady(", pipeline);
             StringAssert.DoesNotContain("CastleAccessRouteValidator.TryValidate(", pipeline,
                 "Runtime must consume the single preflight result rather than grow a second route admission path.");
+            StringAssert.DoesNotContain("CastleKeepAnnexBuildReadiness.TryValidate(", pipeline,
+                "Runtime must not repeat annex admission after EvaluateRuntimeReady.");
+            StringAssert.DoesNotContain("CastleKeepTurretPlanValidator.TryValidate(", pipeline,
+                "Runtime must not repeat keep-turret admission after EvaluateRuntimeReady.");
+            StringAssert.DoesNotContain("CastleWallPlanValidator.TryValidate(", pipeline,
+                "Runtime must not repeat wall admission after spatial/preflight validation.");
         }
     }
 }
