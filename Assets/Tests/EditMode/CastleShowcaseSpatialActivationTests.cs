@@ -40,21 +40,24 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void MainShowcaseRemainsLegacyUntilAllActivationCallsSwitchTogether()
+        public void MainShowcaseActivatesSpatialCastleAtomically()
         {
             string world = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
                 "ShowcaseWorld.cs"));
 
-            // This is intentionally an all-at-once activation boundary. Building a rotated gate
-            // while interaction still clears CastleLayout.FrontGateMinimum would create an
-            // invisible/unclickable door, so the main world must remain entirely legacy until the
-            // four seam calls below are wired in the same patch.
-            StringAssert.DoesNotContain("PreparePendingCastleSpatialPlan();", world);
-            StringAssert.DoesNotContain("BeginPendingSpatialCastleBuild(", world);
-            StringAssert.DoesNotContain("CommitPendingCastleSpatialPlan();", world);
-            StringAssert.Contains("CastleLayout.FrontGateMinimum", world);
-            StringAssert.Contains("CastleLayout.TrapdoorCentre", world);
+            StringAssert.Contains("PreparePendingCastleSpatialPlan();", world);
+            StringAssert.Contains("BeginPendingSpatialCastleBuild(", world);
+            StringAssert.Contains("CommitPendingCastleSpatialPlan();", world);
+            StringAssert.Contains("return ActiveCastleFrontGatePosition();", world);
+            StringAssert.Contains("OpenActiveCastleFrontGate();", world);
+            StringAssert.Contains("return ActiveCastleTrapdoorPosition();", world);
+            StringAssert.Contains("OpenActiveCastleTrapdoor();", world);
+
+            StringAssert.DoesNotContain("CastleLayout.FrontGateMinimum", world,
+                "The activated showcase must not interact with the historical fixed -Z gate.");
+            StringAssert.DoesNotContain("CastleLayout.TrapdoorCentre", world,
+                "The activated showcase must not derive its hatch from the unprojected CastlePlan.");
         }
     }
 }
