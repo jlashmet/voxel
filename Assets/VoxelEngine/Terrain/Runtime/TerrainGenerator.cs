@@ -21,14 +21,6 @@ namespace VoxelEngine.Terrain.Runtime
         private const int SandBelowHeight = TerrainQuery.BaseHeight;
 
         /// <summary>
-        /// Transitional overload for legacy callers. It resolves the application's configured
-        /// opaque terrain roles and deliberately contains no game material identities.
-        /// </summary>
-        [System.Obsolete("Pass TerrainMaterialSet explicitly; this overload exists only during migration.")]
-        public static void Generate(IRegionGenerationStore storage, int3 regionCoord, uint seed) =>
-            Generate(storage, regionCoord, seed, TerrainMaterialCompatibility.RequireConfigured());
-
-        /// <summary>
         /// Fills every logical 8^3 block in a region through Storage.Api using opaque material
         /// indices supplied by the caller.
         /// </summary>
