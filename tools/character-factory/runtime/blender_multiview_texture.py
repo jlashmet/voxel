@@ -17,6 +17,7 @@ class ImageInfo:
     y1: int
     source_width: int
     source_height: int
+    foreground_runs: tuple[tuple[tuple[int, int], ...], ...]
 
     @property
     def width(self) -> int:
@@ -53,32 +54,50 @@ def _load_subject_image(path: Path) -> ImageInfo:
                     background_levels.append((r + g + b) / 3.0)
     background = statistics.median(background_levels)
 
-    xs: list[int] = []
-    ys: list[int] = []
+    min_x = width
+    max_x = -1
+    min_y = height
+    max_y = -1
+    foreground_rows: list[tuple[tuple[int, int], ...]] = []
+
     for y in range(height):
         row = y * width * 4
+        runs: list[tuple[int, int]] = []
+        run_start: int | None = None
         for x in range(width):
             index = row + x * 4
             r, g, b, a = pixels[index : index + 4]
             mean = (r + g + b) / 3.0
             chroma = max(r, g, b) - min(r, g, b)
-            if a > 0.05 and (chroma > 0.025 or mean < background - 0.035):
-                xs.append(x)
-                ys.append(y)
+            foreground = a > 0.05 and (chroma > 0.025 or mean < background - 0.035)
+            if foreground:
+                min_x = min(min_x, x)
+                max_x = max(max_x, x)
+                min_y = min(min_y, y)
+                max_y = max(max_y, y)
+                if run_start is None:
+                    run_start = x
+            elif run_start is not None:
+                runs.append((run_start, x - 1))
+                run_start = None
+        if run_start is not None:
+            runs.append((run_start, width - 1))
+        foreground_rows.append(tuple(runs))
 
-    if not xs:
+    if max_x < min_x or max_y < min_y:
         raise RuntimeError(f"could not find subject against neutral background: {path}")
 
     pad_x = max(2, int(round(width * 0.01)))
     pad_y = max(2, int(round(height * 0.01)))
     info = ImageInfo(
         image=image,
-        x0=max(0, min(xs) - pad_x),
-        y0=max(0, min(ys) - pad_y),
-        x1=min(width - 1, max(xs) + pad_x),
-        y1=min(height - 1, max(ys) + pad_y),
+        x0=max(0, min_x - pad_x),
+        y0=max(0, min_y - pad_y),
+        x1=min(width - 1, max_x + pad_x),
+        y1=min(height - 1, max_y + pad_y),
         source_width=width,
         source_height=height,
+        foreground_runs=tuple(foreground_rows),
     )
     print(
         f"multiview source crop: {path.name} {width}x{height} "
@@ -167,6 +186,61 @@ def _source_uv(
     raise ValueError(name)
 
 
+def _nearest_foreground_uv(source: ImageInfo, u: float, v: float) -> tuple[float, float]:
+    """Keep a projected coordinate on visible turnaround pixels.
+
+    Global 3D bounds can be wider than a local silhouette slice—for example long
+    hair establishes the character's depth while the calves are much thinner.
+    A side projection can therefore land just outside a leg and sample the gray
+    canvas. Clamp only those misses to the nearest foreground run at the same or a
+    nearby image row; coordinates already inside the subject are left unchanged.
+    """
+
+    width = source.width
+    height = source.height
+    target_x = int(round(max(0.0, min(1.0, u)) * (width - 1)))
+    target_y = int(round(max(0.0, min(1.0, v)) * (height - 1)))
+    inset = max(1, int(round(min(width, height) * 0.002)))
+
+    best: tuple[float, int, int] | None = None
+    max_radius = max(height, width)
+    for radius in range(max_radius + 1):
+        rows = [target_y] if radius == 0 else [target_y - radius, target_y + radius]
+        found_at_radius = False
+        for y in rows:
+            if y < 0 or y >= height:
+                continue
+            runs = source.foreground_runs[y]
+            if not runs:
+                continue
+            for start, end in runs:
+                safe_start = min(end, start + inset)
+                safe_end = max(start, end - inset)
+                if safe_start > safe_end:
+                    safe_start, safe_end = start, end
+                x = min(max(target_x, safe_start), safe_end)
+                dx = x - target_x
+                dy = y - target_y
+                distance = float(dx * dx + dy * dy)
+                if best is None or distance < best[0]:
+                    best = (distance, x, y)
+                if safe_start <= target_x <= safe_end and y == target_y:
+                    return (
+                        target_x / max(1, width - 1),
+                        target_y / max(1, height - 1),
+                    )
+                found_at_radius = True
+        # Once rows at this radius contain foreground, any farther row has a larger
+        # vertical distance. The best candidate from this radius is sufficient.
+        if found_at_radius and best is not None:
+            break
+
+    if best is None:
+        return u, v
+    _, x, y = best
+    return x / max(1, width - 1), y / max(1, height - 1)
+
+
 def _subject_adjusted_uv(source: ImageInfo, u: float, v: float) -> tuple[float, float]:
     # Bounding boxes were measured before image.scale(). Keep the original source
     # dimensions stored in ImageInfo so later atlas resizing cannot corrupt the
@@ -175,7 +249,9 @@ def _subject_adjusted_uv(source: ImageInfo, u: float, v: float) -> tuple[float, 
     x1 = source.x1 / max(1, source.width - 1)
     y0 = source.y0 / max(1, source.height - 1)
     y1 = source.y1 / max(1, source.height - 1)
-    return x0 + u * (x1 - x0), y0 + v * (y1 - y0)
+    adjusted_u = x0 + u * (x1 - x0)
+    adjusted_v = y0 + v * (y1 - y0)
+    return _nearest_foreground_uv(source, adjusted_u, adjusted_v)
 
 
 def _atlas_uv(name: str, u: float, v: float) -> tuple[float, float]:
