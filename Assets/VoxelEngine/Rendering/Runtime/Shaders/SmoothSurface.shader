@@ -34,6 +34,7 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
             StructuredBuffer<SurfaceVertex> _SurfaceVertices;
             StructuredBuffer<uint> _SurfaceIndices;
             uint _SurfaceIndexBase;
+            uint _SurfaceVertexBase;
             float4 _BaseColor;
             float4 _MaterialAlbedo[32];
             float4 _MaterialSampling[32];
@@ -79,7 +80,7 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
 
             Varyings Vert(uint vertexID : SV_VertexID)
             {
-                SurfaceVertex vertex = _SurfaceVertices[_SurfaceIndices[_SurfaceIndexBase + vertexID]];
+                SurfaceVertex vertex = _SurfaceVertices[_SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
                 Varyings output;
                 output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;

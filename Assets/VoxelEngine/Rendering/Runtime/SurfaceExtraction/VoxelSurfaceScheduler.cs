@@ -258,7 +258,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public readonly CpuTransvoxelChunkCache[] Workers;
 
             public SurfaceRing(int sourceStep, float innerRadiusMetres, float outerRadiusMetres,
-                               int maxResidentChunks)
+                               int maxResidentChunks, SurfaceGeometryArena geometryArena)
             {
                 SourceStep = sourceStep;
                 InnerRadiusMetres = innerRadiusMetres;
@@ -266,7 +266,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Workers = new CpuTransvoxelChunkCache[SolidWorkerCount];
                 for (int i = 0; i < Workers.Length; i++)
                 {
-                    Workers[i] = new CpuTransvoxelChunkCache(sourceStep)
+                    Workers[i] = new CpuTransvoxelChunkCache(sourceStep, geometryArena)
                     {
                         ShardIndex = i,
                         ShardCount = Workers.Length,
@@ -292,7 +292,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         };
 
         public const float MaxVoxelRingRadiusMetres = 420f;
+        // Allocated once with the scheduler. Runtime streaming may wait for a free range but
+        // cannot grow these buffers and create a render-thread GPU allocation spike.
+        private const int SurfaceArenaVertexCapacity = 2 * 1024 * 1024;
+        private const int SurfaceArenaIndexCapacity = 6 * 1024 * 1024;
+        private const int SurfaceArenaDrawCapacity = 16 * 1024;
 
+        private readonly SurfaceGeometryArena _geometryArena;
         private readonly SurfaceRing[] _rings;
         private readonly CpuTransvoxelChunkCache[] _allWorkers;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
@@ -378,13 +384,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public VoxelSurfaceScheduler()
         {
+            _geometryArena = new SurfaceGeometryArena(SurfaceArenaVertexCapacity,
+                                                       SurfaceArenaIndexCapacity,
+                                                       SurfaceArenaDrawCapacity);
             _rings = new SurfaceRing[s_RingLayout.Length];
             _allWorkers = new CpuTransvoxelChunkCache[s_RingLayout.Length * SolidWorkerCount];
             int workerIndex = 0;
             for (int i = 0; i < s_RingLayout.Length; i++)
             {
                 var layout = s_RingLayout[i];
-                SurfaceRing ring = new(layout.SourceStep, layout.Inner, layout.Outer, 4096);
+                SurfaceRing ring = new(layout.SourceStep, layout.Inner, layout.Outer, 4096, _geometryArena);
                 _rings[i] = ring;
                 for (int worker = 0; worker < ring.Workers.Length; worker++)
                     _allWorkers[workerIndex++] = ring.Workers[worker];
@@ -754,6 +763,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             _water.Dispose();
             for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();
+            _geometryArena.Dispose();
         }
 
         private static double ElapsedMs(double startSeconds) =>
