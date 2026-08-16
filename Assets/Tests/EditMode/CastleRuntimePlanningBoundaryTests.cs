@@ -42,6 +42,26 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SpatialKeepTurretsConsumeFrozenRoofVariation()
+        {
+            string pipeline = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleBuildPipeline.cs"));
+            string planned = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedKeepTurretRealizer.cs"));
+            string legacy = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepRealizer.cs"));
+
+            StringAssert.Contains("CastlePlannedKeepTurretRealizer.BuildAll(", pipeline);
+            StringAssert.Contains("_keepTurrets = topology.KeepTurrets.Snapshot()", pipeline);
+            StringAssert.DoesNotContain("CastleSeedPartition.Derive(", planned);
+            StringAssert.Contains("CastleSeedPartition.Derive(", legacy,
+                "Compatibility keep realization must retain the historical roof choice.");
+        }
+
+        [Test]
         public void SpatialPipelineConsumesPlannedSurfaceAndLandscapeData()
         {
             string pipeline = File.ReadAllText(Path.Combine(
@@ -73,6 +93,7 @@ namespace VoxelEngine.Tests.EditMode
                 "CastleKeepCirculationRealizer.cs",
                 "CastleKeepWindowRealizer.cs",
                 "CastlePlannedKeepWindowRealizer.cs",
+                "CastlePlannedKeepTurretRealizer.cs",
                 "CastlePlannedKeepExteriorRealizer.cs",
                 "CastlePlannedKeepAnnexRealizer.cs",
                 "CastlePlannedDungeonRealizer.cs",
@@ -103,6 +124,7 @@ namespace VoxelEngine.Tests.EditMode
                 "CastleInnerWardTowerPlanner.Create(",
                 "CastleGatehousePlanner.Create(",
                 "CastleKeepInteriorPlanner.Create(",
+                "CastleKeepTurretPlanner.Create(",
                 "CastleKeepCirculationPlanner.Create(",
                 "CastleKeepAnnexPlanner.Create(",
                 "CastleKeepWindowPlanner.Create(",
