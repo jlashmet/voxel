@@ -90,13 +90,22 @@ namespace VoxelEngine.Tests.EditMode
                 "CastleBuildPreflight.EvaluateRuntimeReady(",
                 pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Walls(", pipeline);
-            StringAssert.Contains("CastlePerimeterRealizer.Towers(", pipeline);
+            StringAssert.Contains("CastlePlannedTowerRealizer.BuildAll(", pipeline);
+            StringAssert.Contains("spatialPlan.Towers.Clone()", pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Gatehouse(", pipeline);
             StringAssert.Contains("CastleCourtyardRealizer.BuildPlanned(", pipeline);
             StringAssert.Contains("spatialPlan.CourtyardBuildings.Clone()", pipeline);
             StringAssert.Contains("CastleSpatialProjection.Create(", pipeline);
             StringAssert.DoesNotContain("CastleSpatialPlanner.Create(", pipeline);
             StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", pipeline);
+
+            string plannedTowers = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedTowerRealizer.cs"));
+            StringAssert.Contains("tower.HeightVariation", plannedTowers);
+            StringAssert.Contains("tower.HasRoof", plannedTowers);
+            StringAssert.DoesNotContain("CastleSeedPartition", plannedTowers,
+                "Runtime must consume planned tower variation rather than choose it from a seed.");
 
             string courtyard = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
