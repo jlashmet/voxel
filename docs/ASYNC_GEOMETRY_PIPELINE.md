@@ -1,7 +1,7 @@
 # Async Geometry Pipeline Refactor
 
 **Branch:** `refactor/async-geometry-pipeline`  
-**Status:** In progress — runtime acceptance and final draw-path hardening  
+**Status:** In progress — runtime acceptance  
 **Primary invariant:** **The main frame never waits for geometry. Geometry waits for the main frame.**
 
 This plan owns the rendering/streaming work that was intentionally out of scope for
@@ -26,6 +26,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Advance journal/build/upload only once per `Time.frameCount`; extra cameras only recollect visibility.
 - [x] Make surface-brick discovery asynchronous and gate `Complete()` behind `IsCompleted`.
 - [x] Schedule transition-cell meshing instead of calling `TransitionMeshJob.Run()` inline.
+- [x] Explicitly dispatch buffered geometry jobs once per world frame with non-blocking `JobHandle.ScheduleBatchedJobs()`; never flush per worker.
 - [x] Defer residency removal when a chunk still owns an unfinished job instead of waiting for it.
 - [x] Slice exact-brick and mip snapshot construction across frame deadlines.
 - [x] Abort partial snapshots when a newer source generation arrives.
@@ -60,6 +61,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Split persistent surface chunk/slot state from reusable geometry build workspaces.
 - [x] Share immutable regular/transition Transvoxel lookup tables across all solid workers; keep writable face scratch per workspace.
 - [x] Instrument frame-scoped geometry managed allocations with `GC.GetAllocatedBytesForCurrentThread()` and add a repeated-path zero-allocation stress gate.
+- [x] Preallocate render-pass solid/water draw staging to fixed arena draw capacities; camera motion cannot call `Array.Resize`.
 - [ ] Remove/replace any remaining managed collection growth exposed by the zero-allocation gate.
 
 ### Visibility and clipmap residency
@@ -71,7 +73,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
   - [x] Retire outgoing slabs incrementally rather than scanning lifetime residency.
   - [x] Rediscover/readmit newly exposed clipmap regions incrementally rather than rescanning the full window.
 - [x] Cull solid visibility through the dense active set of toroidal slots rather than the full clipmap cube.
-- [ ] Move final draw submission to batched/GPU-driven draw compaction if CPU indirect-draw iteration remains material after profiling.
+- [ ] Move final draw submission to batched/GPU-driven draw compaction only if CPU indirect-draw iteration remains material after profiling.
 
 ### Storage snapshot boundary
 
@@ -127,8 +129,8 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 
 ## Current next slices
 
-1. Complete the current self-hosted EditMode + Metal PlayMode checkpoint for the integrated step-8 HLOD path; repair compile, seam, capacity, or anti-blob failures immediately.
-2. Land/validate fixed preallocated draw staging so camera visibility cannot trigger `Array.Resize` in `VoxelRenderPass`.
-3. Use the zero-allocation and P99 results to decide whether any remaining managed scheduler/cache structures need replacement.
-4. Profile CPU indirect draw submission after active-slot visibility/fixed staging; only then move to GPU-driven draw compaction if it is still a meaningful frame cost.
-5. Once the current merge gates pass on the same source SHA, mark runtime acceptance complete and prepare the branch for merge.
+1. Complete the current self-hosted focused EditMode checkpoint and Metal LOD checkpoint for the explicit job-dispatch fix; repair any remaining compile, convergence, seam, capacity, or anti-blob failure immediately.
+2. If LOD passes, run the existing async-geometry stress suite on the same runtime source state and close upload-budget, stale-generation, no-wait, P99, zero-allocation and arena-pressure gates from measured results.
+3. Replace managed scheduler/cache structures only where the zero-allocation gate demonstrates post-warmup growth; do not rewrite already-stable collections speculatively.
+4. Profile CPU indirect draw submission after active-slot visibility/fixed staging; move to GPU-driven draw compaction only if it is still a meaningful frame cost.
+5. Once the runtime gates pass on one source SHA, mark acceptance complete and prepare the branch for merge.
