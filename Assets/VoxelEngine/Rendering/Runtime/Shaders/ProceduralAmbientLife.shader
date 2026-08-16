@@ -9,6 +9,7 @@ Shader "VoxelEngine/ProceduralAmbientLife"
         _Shape ("Shape", Range(0, 9)) = 0
         _FlutterSpeed ("Flutter Speed", Range(0, 16)) = 5
         _Opacity ("Opacity", Range(0, 1)) = 1
+        _AnimationTime ("Animation Time", Float) = 0
         _SunDirection ("Sun Direction", Vector) = (-0.48, 0.76, -0.44, 0)
         _SkyHorizon ("Sky Horizon", Color) = (0.66, 0.75, 0.85, 1)
         _SkyZenith ("Sky Zenith", Color) = (0.24, 0.45, 0.76, 1)
@@ -47,6 +48,7 @@ Shader "VoxelEngine/ProceduralAmbientLife"
             float _Shape;
             float _FlutterSpeed;
             float _Opacity;
+            float _AnimationTime;
             float4 _SunDirection;
             float4 _SkyHorizon;
             float4 _SkyZenith;
@@ -85,7 +87,7 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                 float3 cameraRight = normalize(UNITY_MATRIX_I_V[0].xyz);
                 float3 cameraUp = normalize(UNITY_MATRIX_I_V[1].xyz);
 
-                float phase = dot(centreWS, float3(0.37, 0.23, 0.41)) + _Time.y * _FlutterSpeed;
+                float phase = dot(centreWS, float3(0.37, 0.23, 0.41)) + _AnimationTime * _FlutterSpeed;
                 float flutter = sin(phase);
                 float2 local = input.positionOS.xy;
                 if (_Shape > 0.5 && _Shape < 4.5)
@@ -269,7 +271,7 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                 float3 lit = albedo * (ambient * 0.42 + 0.58);
 
                 float pulse = 0.74 + 0.26 * sin(
-                    _Time.y * max(0.5, _FlutterSpeed * 0.42)
+                    _AnimationTime * max(0.5, _FlutterSpeed * 0.42)
                     + dot(input.positionWS, float3(0.27, 0.19, 0.31)));
                 float emissionCore = smoothstep(0.08, 0.58, mask);
                 lit += _EmissionColor.rgb * _EmissionStrength
