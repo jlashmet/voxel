@@ -125,11 +125,9 @@ namespace VoxelEngine.Structures.Runtime
             for (int i = 0; i < localCentres.Length; i++)
             {
                 int2 world = ToWorld(in plan, localCentres[i]);
-                uint variationSeed = CastleSeedPartition.Derive(
-                    plan.Seed, CastleSeedDomain.Walls, (uint)(0x2000 + i));
-                int heightVariation = 8 + (int)(variationSeed % 51u);
-                int height = plan.TowerHeight + heightVariation;
-                bool roof = i < corners && ((variationSeed >> 8) & 1u) != 0u;
+                CastleTowerVariation variation = CastleTowerVariationRecipe.Historical(
+                    plan.Seed, i, i < corners);
+                int height = plan.TowerHeight + variation.HeightVariation;
 
                 CastleTowerRealizer.Build(
                     ref brush,
@@ -137,7 +135,7 @@ namespace VoxelEngine.Structures.Runtime
                     new int3(world.x, baseY, world.y),
                     plan.TowerRadius,
                     height,
-                    roof);
+                    variation.HasRoof);
             }
         }
 
