@@ -6,7 +6,9 @@ namespace MountingForce.WorldGen.Architecture
     /// Kentridge is now a style plug-in rather than a branch inside the generic architecture
     /// compiler. Other cities can provide the same interface and compose their own registry.
     /// </summary>
-    internal sealed class KentridgeArchitectureStyleCompiler : IArchitectureStyleCompiler
+    internal sealed class KentridgeArchitectureStyleCompiler :
+        IArchitectureStyleCompiler,
+        IUrbanFabricGeometryProfileResolver
     {
         public static readonly KentridgeArchitectureStyleCompiler Instance =
             new KentridgeArchitectureStyleCompiler();
@@ -43,6 +45,11 @@ namespace MountingForce.WorldGen.Architecture
             int runIndex,
             int siteIndex) =>
             KentridgeUrbanFabricCompiler.Resolve(intent, seed, runIndex, siteIndex);
+
+        public StructureGeometryProfile ResolveUrbanFabricGeometry(
+            UrbanFabricIntent intent,
+            UrbanFabricForm form) =>
+            UrbanFabricGeometryProfiles.HumanSettlement(intent, form);
 
         public void ValidateUrbanFabric(
             UrbanFabricIntent intent,
