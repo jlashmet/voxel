@@ -35,19 +35,19 @@ jobs:
           UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
           test -x "$UNITY_PATH"
           echo "path=$UNITY_PATH" >> "$GITHUB_OUTPUT"
-      - name: Wait for Unity using runner checkout
+      - name: Honor single-Unity safety gate
         shell: bash
         run: |
           set -euo pipefail
-          deadline=$((SECONDS + 120))
-          while pgrep -alf '/Unity.app/Contents/MacOS/Unity' \
-              | grep -F -- "$GITHUB_WORKSPACE" >/dev/null 2>&1; do
+          # tools/unity-run.sh deliberately refuses any second Unity editor because concurrent
+          # editors previously froze this runner. Match that policy instead of bypassing it.
+          deadline=$((SECONDS + 2400))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
-              pgrep -alf '/Unity.app/Contents/MacOS/Unity' \
-                | grep -F -- "$GITHUB_WORKSPACE" || true
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
               exit 1
             fi
-            sleep 3
+            sleep 10
           done
       - name: Run all EditMode tests
         shell: bash
