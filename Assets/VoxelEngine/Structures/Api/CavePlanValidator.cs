@@ -10,6 +10,7 @@ namespace VoxelEngine.Structures.Api
         InvalidEntryChamber,
         ChamberIdMismatch,
         InvalidChamberRadii,
+        InvalidChamberRotation,
         EntranceOutsideEntryChamber,
         MissingPassages,
         InvalidPassageEndpoint,
@@ -52,6 +53,12 @@ namespace VoxelEngine.Structures.Api
                 if (math.any(chamber.Radii <= 0))
                 {
                     issue = CavePlanIssue.InvalidChamberRadii;
+                    return false;
+                }
+
+                if (!math.isfinite(chamber.RotationRadians))
+                {
+                    issue = CavePlanIssue.InvalidChamberRotation;
                     return false;
                 }
             }
