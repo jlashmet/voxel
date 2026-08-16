@@ -20,8 +20,9 @@ namespace VoxelEngine.Tests.PlayMode
         [UnityTest, Timeout(900000)]
         public IEnumerator ContinuousLodTraversalAndDestructionRespectFrameUploadBudget()
         {
-            yield return LoadShowcase(out VoxelShowcase showcase, out ShowcaseWorld world,
-                                     out Camera camera, out CastlePlan plan, out Vector3 centre);
+            yield return LoadShowcaseScene();
+            GetShowcaseContext(out _, out ShowcaseWorld world,
+                               out Camera camera, out CastlePlan plan, out Vector3 centre);
 
             int oldBudget = VoxelRenderBridge.SolidUploadBudgetBytes;
             int oldSlice = VoxelRenderBridge.SolidUploadSliceBytes;
@@ -105,8 +106,9 @@ namespace VoxelEngine.Tests.PlayMode
         [UnityTest, Timeout(900000)]
         public IEnumerator EditedVisibleChunkKeepsOldGeometryUntilReplacementPublishes()
         {
-            yield return LoadShowcase(out _, out ShowcaseWorld world,
-                                     out Camera camera, out CastlePlan plan, out Vector3 centre);
+            yield return LoadShowcaseScene();
+            GetShowcaseContext(out _, out ShowcaseWorld world,
+                               out Camera camera, out CastlePlan plan, out Vector3 centre);
 
             int oldBudget = VoxelRenderBridge.SolidUploadBudgetBytes;
             int oldSlice = VoxelRenderBridge.SolidUploadSliceBytes;
@@ -190,16 +192,19 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
-        private static IEnumerator LoadShowcase(out VoxelShowcase showcase,
-                                                out ShowcaseWorld world,
-                                                out Camera camera,
-                                                out CastlePlan plan,
-                                                out Vector3 centre)
+        private static IEnumerator LoadShowcaseScene()
         {
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
             yield return null;
+        }
 
+        private static void GetShowcaseContext(out VoxelShowcase showcase,
+                                               out ShowcaseWorld world,
+                                               out Camera camera,
+                                               out CastlePlan plan,
+                                               out Vector3 centre)
+        {
             showcase = Object.FindFirstObjectByType<VoxelShowcase>();
             Assert.NotNull(showcase);
             world = (ShowcaseWorld)typeof(VoxelShowcase)
