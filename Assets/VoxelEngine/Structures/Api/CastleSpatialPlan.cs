@@ -50,6 +50,7 @@ namespace VoxelEngine.Structures.Api
         public CastleKeepCirculationPlan KeepCirculation { get; }
         public DungeonPlan Dungeon { get; }
         public CavePlan Cave { get; }
+        public CastleCaveDecorationPlan CaveDecoration { get; }
         public CastleLandscapePlan Landscape { get; }
         public int2 KeepCentre { get; }
         public bool KeepRequiresTerrainResolution { get; }
@@ -327,7 +328,8 @@ namespace VoxelEngine.Structures.Api
             CavePlan cave,
             CastleLandscapePlan landscape,
             int2 keepCentre,
-            bool keepRequiresTerrainResolution)
+            bool keepRequiresTerrainResolution,
+            CastleCaveDecorationPlan caveDecoration = null)
         {
             Topology = topology;
             OuterWardVertices = outerWardVertices;
@@ -348,6 +350,7 @@ namespace VoxelEngine.Structures.Api
             KeepCirculation = keepCirculation;
             Dungeon = dungeon;
             Cave = cave;
+            CaveDecoration = caveDecoration;
             Landscape = landscape;
             KeepCentre = keepCentre;
             KeepRequiresTerrainResolution = keepRequiresTerrainResolution;
