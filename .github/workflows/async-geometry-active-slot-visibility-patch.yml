@@ -1,0 +1,39 @@
+name: Active toroidal slot visibility one-shot patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-active-slot-visibility-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded active-slot patch
+        run: python3 .github/scripts/async_geometry_active_slot_visibility_patch.py
+      - name: Static guards
+        run: |
+          grep -q 'int\[\] _activeSlotIndices' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceChunkSlotGrid.cs
+          grep -q 'ActiveCoordinateAt(int activeIndex)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceChunkSlotGrid.cs
+          grep -q 'ring.ActiveSlotCount' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          ! grep -q 'for (int z = -radius; z <= radius; z++)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'ToroidalSlotGridMaintainsDenseActiveCoordinatesAcrossReuse' Assets/Tests/EditMode/SurfaceRingBandTests.cs
+      - name: Commit active-slot visibility
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceChunkSlotGrid.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+                  Assets/Tests/EditMode/SurfaceRingBandTests.cs
+          git commit -m 'Cull solid visibility through active toroidal slots'
+          git fetch origin refactor/async-geometry-pipeline
+          git rebase origin/refactor/async-geometry-pipeline
+          git push origin HEAD:refactor/async-geometry-pipeline
