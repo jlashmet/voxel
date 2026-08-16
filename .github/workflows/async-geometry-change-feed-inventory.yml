@@ -14,12 +14,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: refactor/async-geometry-pipeline
-      - name: Find change feed implementations and callers
+      - name: Find change feed and region read implementations and callers
         shell: bash
         run: |
           echo '=== IVoxelChangeSource ==='
           grep -R --line-number --include='*.cs' 'IVoxelChangeSource' Assets Packages || true
           echo '=== ReadSince ==='
           grep -R --line-number --include='*.cs' 'ReadSince' Assets Packages || true
-          echo '=== VoxelChangeRecord ==='
-          grep -R --line-number --include='*.cs' 'VoxelChangeRecord' Assets Packages || true
+          echo '=== IRegionReadSource ==='
+          grep -R --line-number --include='*.cs' 'IRegionReadSource' Assets Packages || true
+          echo '=== GetResidentRegionCoords ==='
+          grep -R --line-number --include='*.cs' 'GetResidentRegionCoords' Assets Packages || true
