@@ -9,11 +9,15 @@ namespace VoxelEngine.Tests.EditMode
     {
         private const string MalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Male_Adult_01.fbx";
         private const string FemalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Female_Adult_01.fbx";
-        private const string AnimationPath = "Assets/ThirdParty/PlaceholderHumanoids/Animations/KayKit_Knight_AnimationLibrary.fbx";
 
         [TestCase(MalePath, false)]
         [TestCase(FemalePath, false)]
-        [TestCase(AnimationPath, true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Idle.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/CrouchIdle.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Wave.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Shrug.fbx", true)]
         public void PlaceholderFbx_UsesHumanoidImportContract(string path, bool importsAnimation)
         {
             var importer = AssetImporter.GetAtPath(path) as ModelImporter;
@@ -37,27 +41,33 @@ namespace VoxelEngine.Tests.EditMode
             var skinnedMeshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             Assert.That(skinnedMeshes.Length, Is.GreaterThan(0), $"{path} has no skinned mesh renderer");
 
-            var avatar = AssetDatabase.LoadAllAssetsAtPath(path).OfType<Avatar>().FirstOrDefault();
-            Assert.That(avatar, Is.Not.Null, $"{path} did not generate a Humanoid Avatar");
-            Assert.That(avatar.isValid, Is.True, $"{path} generated an invalid Avatar");
-            Assert.That(avatar.isHuman, Is.True, $"{path} did not generate a Humanoid Avatar");
+            AssertValidHumanoidAvatar(path);
         }
 
-        [Test]
-        public void AnimationLibrary_ContainsRetargetableClips()
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Idle.fbx")]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx")]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx")]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/CrouchIdle.fbx")]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Wave.fbx")]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Shrug.fbx")]
+        public void AnimationFile_ContainsRetargetableClip(string path)
         {
-            var avatar = AssetDatabase.LoadAllAssetsAtPath(AnimationPath).OfType<Avatar>().FirstOrDefault();
-            Assert.That(avatar, Is.Not.Null, "Animation library did not generate a Humanoid Avatar");
-            Assert.That(avatar.isValid, Is.True);
-            Assert.That(avatar.isHuman, Is.True);
+            AssertValidHumanoidAvatar(path);
 
-            var clips = AssetDatabase.LoadAllAssetsAtPath(AnimationPath)
+            var clips = AssetDatabase.LoadAllAssetsAtPath(path)
                 .OfType<AnimationClip>()
                 .Where(clip => !clip.name.StartsWith("__preview__"))
                 .ToArray();
 
-            Assert.That(clips.Length, Is.GreaterThanOrEqualTo(10),
-                "Expected the temporary animation library to expose a useful set of clips");
+            Assert.That(clips.Length, Is.GreaterThanOrEqualTo(1), $"{path} exposes no animation clip");
+        }
+
+        private static void AssertValidHumanoidAvatar(string path)
+        {
+            var avatar = AssetDatabase.LoadAllAssetsAtPath(path).OfType<Avatar>().FirstOrDefault();
+            Assert.That(avatar, Is.Not.Null, $"{path} did not generate a Humanoid Avatar");
+            Assert.That(avatar.isValid, Is.True, $"{path} generated an invalid Avatar");
+            Assert.That(avatar.isHuman, Is.True, $"{path} did not generate a Humanoid Avatar");
         }
     }
 }
