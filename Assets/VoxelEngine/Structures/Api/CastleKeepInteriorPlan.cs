@@ -12,7 +12,7 @@ namespace VoxelEngine.Structures.Api
 
     /// <summary>
     /// Pure planning data for one keep floor. Geometry/furnishing code consumes this contract;
-    /// it does not decide the floor's purpose.
+    /// it does not decide the floor's purpose or reroll its variable accent placements.
     /// </summary>
     public readonly struct CastleKeepFloorPlan
     {
@@ -20,17 +20,20 @@ namespace VoxelEngine.Structures.Api
         public readonly CastleKeepFloorPurpose Purpose;
         public readonly bool HasPartition;
         public readonly uint SemanticSeed;
+        public readonly CastleRoomAccentPlan Accents;
 
         public CastleKeepFloorPlan(
             int floorIndex,
             CastleKeepFloorPurpose purpose,
             bool hasPartition,
-            uint semanticSeed)
+            uint semanticSeed,
+            CastleRoomAccentPlan accents = null)
         {
             FloorIndex = floorIndex;
             Purpose = purpose;
             HasPartition = hasPartition;
             SemanticSeed = semanticSeed;
+            Accents = accents;
         }
     }
 
@@ -64,7 +67,8 @@ namespace VoxelEngine.Structures.Api
 
     /// <summary>
     /// Pure keep-interior semantic planner. Per-floor seeds come from the named Rooms stream so
-    /// adding unrelated wall, dungeon, or decoration choices cannot perturb room identity.
+    /// adding unrelated wall, dungeon, or decoration choices cannot perturb room identity. Any
+    /// variable furnishing accents are resolved here and carried as immutable plan data.
     /// </summary>
     public static class CastleKeepInteriorPlanner
     {
@@ -94,12 +98,21 @@ namespace VoxelEngine.Structures.Api
                     partitioned = true;
                 }
 
+                uint semanticSeed = CastleSeedPartition.Derive(
+                    plan.Seed, CastleSeedDomain.Rooms, (uint)floor);
+                var semanticFloor = new CastleKeepFloorPlan(
+                    floor,
+                    purpose,
+                    partitioned,
+                    semanticSeed);
+                CastleRoomAccentPlan accents = CastleRoomAccentPlanner.Create(
+                    in plan, in semanticFloor);
                 floors[floor] = new CastleKeepFloorPlan(
                     floor,
                     purpose,
                     partitioned,
-                    CastleSeedPartition.Derive(
-                        plan.Seed, CastleSeedDomain.Rooms, (uint)floor));
+                    semanticSeed,
+                    accents);
             }
 
             return new CastleKeepInteriorPlan(floors);
