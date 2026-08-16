@@ -75,6 +75,70 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                 return saturate(1.0 - dot(q, q));
             }
 
+            float2 ArticulateLocal(float2 local, float shape, float flutter, float phase)
+            {
+                float flap = abs(flutter);
+
+                // Butterfly / moth: strongly readable wing opening and closing.
+                if (shape > 0.5 && shape < 1.5)
+                {
+                    local.x *= 0.70 + flap * 0.48;
+                    local.y *= 1.04 - flap * 0.08;
+                }
+                // Bee / compact insect: quick, smaller wing beat.
+                else if (shape > 1.5 && shape < 2.5)
+                {
+                    local.x *= 0.84 + flap * 0.26;
+                    local.y *= 1.03 - flap * 0.04;
+                }
+                // Dragonfly: narrower high-frequency wing stroke around a stable body.
+                else if (shape > 2.5 && shape < 3.5)
+                {
+                    local.x *= 0.86 + flap * 0.22;
+                }
+                // Ground insect: deliberately stable silhouette; tiny gait compression only.
+                else if (shape > 3.5 && shape < 4.5)
+                {
+                    float gait = sin(phase * 0.58);
+                    local.x *= 1.0 + gait * 0.018;
+                    local.y *= 1.0 - gait * 0.012;
+                }
+                // Frog: subtle body compression, while actual hop translation remains CPU-driven.
+                else if (shape > 4.5 && shape < 5.5)
+                {
+                    float squat = 0.5 + 0.5 * sin(phase * 0.42);
+                    local.x *= 1.0 + squat * 0.045;
+                    local.y *= 1.0 - squat * 0.055;
+                }
+                // Bird / bat: clear wing-span change. This was previously static.
+                else if (shape > 5.5 && shape < 6.5)
+                {
+                    local.x *= 0.66 + flap * 0.54;
+                    local.y *= 1.08 - flap * 0.13;
+                }
+                // Spores gently breathe rather than flap.
+                else if (shape > 6.5 && shape < 7.5)
+                {
+                    float breathe = 0.96 + 0.06 * sin(phase * 0.31);
+                    local *= breathe;
+                }
+                // Wisps stretch vertically and contract horizontally.
+                else if (shape > 7.5 && shape < 8.5)
+                {
+                    float wisp = sin(phase * 0.39);
+                    local.x *= 1.0 - wisp * 0.055;
+                    local.y *= 1.0 + wisp * 0.085;
+                }
+                // Emberfly: small magical wing beat. This was previously static.
+                else if (shape > 8.5)
+                {
+                    local.x *= 0.78 + flap * 0.34;
+                    local.y *= 1.04 - flap * 0.06;
+                }
+
+                return local;
+            }
+
             Varyings Vert(Attributes input)
             {
                 Varyings output;
@@ -89,9 +153,7 @@ Shader "VoxelEngine/ProceduralAmbientLife"
 
                 float phase = dot(centreWS, float3(0.37, 0.23, 0.41)) + _AnimationTime * _FlutterSpeed;
                 float flutter = sin(phase);
-                float2 local = input.positionOS.xy;
-                if (_Shape > 0.5 && _Shape < 4.5)
-                    local.x *= 0.82 + abs(flutter) * 0.32;
+                float2 local = ArticulateLocal(input.positionOS.xy, _Shape, flutter, phase);
 
                 centreWS += cameraUp * sin(phase * 0.53) * 0.025
                           + cameraRight * cos(phase * 0.37) * 0.018;

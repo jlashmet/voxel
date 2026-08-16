@@ -16,6 +16,7 @@ on:
       - 'Assets/VoxelEngine/CI/PlayMode/AnimationSemanticQualityTests.cs'
       - 'Assets/VoxelEngine/CI/PlayMode/TemporalAnimationVisualTests.cs'
       - 'Assets/VoxelEngine/CI/PlayMode/DeterministicVegetationAnimationVisualTests.cs'
+      - 'Assets/VoxelEngine/CI/PlayMode/AmbientLifeArticulationVisualTests.cs'
       - '.github/workflows/animation-quality-validation.yml'
 
 concurrency:
@@ -64,6 +65,18 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_trajectory_samples.csv"
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/flock_coherence.txt"
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_animation_policy.csv"
+
+      - name: Run fixed-position articulation gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeArticulationVisualTests.AllVisualShapeFamilies_HaveExpectedArticulationWithoutLocomotion" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-articulation-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-articulation.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_articulation_quality.csv"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_articulation_contact_sheet.png"
 
       - name: Run temporal visual animation gate
         shell: bash
