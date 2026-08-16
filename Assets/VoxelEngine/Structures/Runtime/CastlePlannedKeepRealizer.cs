@@ -30,10 +30,7 @@ namespace VoxelEngine.Structures.Runtime
 
             int3 min = CastleSpatialProjection.KeepMinimum(in keepPlan);
             int baseY = min.y;
-            var size = new int3(
-                keepPlan.KeepHalfX * 2,
-                keepPlan.KeepHeight,
-                keepPlan.KeepHalfZ * 2);
+            int3 size = CastleSpatialProjection.KeepSize(in keepPlan);
 
             switch (stage)
             {

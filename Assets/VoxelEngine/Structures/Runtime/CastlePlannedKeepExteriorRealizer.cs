@@ -19,10 +19,7 @@ namespace VoxelEngine.Structures.Runtime
 
             int3 min = CastleSpatialProjection.KeepMinimum(in plan);
             int baseY = min.y;
-            var size = new int3(
-                plan.KeepHalfX * 2,
-                plan.KeepHeight,
-                plan.KeepHalfZ * 2);
+            int3 size = CastleSpatialProjection.KeepSize(in plan);
 
             CastleKeepFacadeRealizer.Build(
                 ref brush, in plan, min, size, baseY, plan.Floors);
