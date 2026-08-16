@@ -7,11 +7,9 @@
     "VoxelEngine.Composition.Api",
     "VoxelEngine.Composition",
     "VoxelEngine.Storage.Api",
-    "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Rendering.Api",
-    "VoxelEngine.Rendering.Runtime",
     "Unity.Collections",
     "Unity.Mathematics"
   ],
