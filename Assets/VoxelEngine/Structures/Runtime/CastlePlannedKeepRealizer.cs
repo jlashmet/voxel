@@ -28,18 +28,12 @@ namespace VoxelEngine.Structures.Runtime
             if (stage >= 7)
                 return true;
 
-            int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
-            int halfX = keepPlan.KeepHalfX;
-            int halfZ = keepPlan.KeepHalfZ;
-            int2 actualKeepCentre = CastleSpatialProjection.ActualKeepCentre(in keepPlan);
-            var min = new int3(
-                actualKeepCentre.x - halfX,
-                baseY,
-                actualKeepCentre.y - halfZ);
+            int3 min = CastleSpatialProjection.KeepMinimum(in keepPlan);
+            int baseY = min.y;
             var size = new int3(
-                halfX * 2,
+                keepPlan.KeepHalfX * 2,
                 keepPlan.KeepHeight,
-                halfZ * 2);
+                keepPlan.KeepHalfZ * 2);
 
             switch (stage)
             {
