@@ -51,6 +51,8 @@ jobs:
           echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
 
       - name: Run semantic trajectory quality gate
+        id: semantic
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -67,6 +69,8 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_animation_policy.csv"
 
       - name: Run fixed-position articulation gate
+        id: articulation
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -79,6 +83,8 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_articulation_contact_sheet.png"
 
       - name: Run temporal visual animation gate
+        id: temporal
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -96,6 +102,8 @@ jobs:
           test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_woody_motion.txt"
 
       - name: Run deterministic vegetation shader-time gate
+        id: vegetation
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -118,3 +126,28 @@ jobs:
           path: Artifacts/VegetationLifeVisual/
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Enforce aggregate animation quality result
+        if: always()
+        shell: bash
+        env:
+          SEMANTIC_OUTCOME: ${{ steps.semantic.outcome }}
+          ARTICULATION_OUTCOME: ${{ steps.articulation.outcome }}
+          TEMPORAL_OUTCOME: ${{ steps.temporal.outcome }}
+          VEGETATION_OUTCOME: ${{ steps.vegetation.outcome }}
+        run: |
+          set -euo pipefail
+          failed=0
+          for gate in SEMANTIC ARTICULATION TEMPORAL VEGETATION; do
+            outcome_var="${gate}_OUTCOME"
+            outcome="${!outcome_var}"
+            echo "${gate,,} gate: ${outcome}"
+            if [[ "$outcome" != "success" ]]; then
+              failed=1
+            fi
+          done
+          if (( failed != 0 )); then
+            echo "One or more animation quality gates failed; see the uploaded artifacts for every gate." >&2
+            exit 1
+          fi
+          echo "All animation quality gates passed."
