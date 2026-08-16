@@ -19,9 +19,7 @@ namespace VoxelEngine.Structures.Runtime
                 throw new ArgumentNullException(nameof(windows));
 
             int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
-            int2 worldKeepCentre = new int2(
-                keepPlan.Centre.x,
-                keepPlan.Centre.z + CastleLayout.LegacyKeepCentreZOffset);
+            int2 worldKeepCentre = CastleSpatialProjection.ActualKeepCentre(in keepPlan);
 
             for (int i = 0; i < windows.Length; i++)
             {
