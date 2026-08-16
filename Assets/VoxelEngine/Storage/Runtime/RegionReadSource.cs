@@ -75,6 +75,27 @@ namespace VoxelEngine.Storage.Runtime
             return true;
         }
 
+        public bool TryCopyBlockSummary(int3 regionCoord,
+                                        NativeArray<ulong> occupiedWords,
+                                        NativeArray<ulong> fullySolidWords,
+                                        out ulong version)
+        {
+            version = Version;
+            int wordCount = VoxelReadGrid.BlockSummaryWordCount;
+            if (occupiedWords.Length < wordCount || fullySolidWords.Length < wordCount
+                || !_table.TryGetRegion(regionCoord, out Region region)
+                || !region.OccupiedBlockWords.IsCreated || !region.FullySolidBlockWords.IsCreated)
+                return false;
+
+            NativeArray<ulong>.Copy(region.OccupiedBlockWords, 0, occupiedWords, 0, wordCount);
+            NativeArray<ulong>.Copy(region.FullySolidBlockWords, 0, fullySolidWords, 0, wordCount);
+
+            // Authoritative mutation is currently serialized by the world owner, but retain a
+            // version check at this API boundary so the snapshot remains correct if Storage later
+            // permits concurrent publication. The caller simply retries a rejected copy.
+            return Version == version;
+        }
+
         public RegionSnapshotCaptureResult CaptureSemanticSnapshot(
             int3 regionCoord,
             int maxBytes,
