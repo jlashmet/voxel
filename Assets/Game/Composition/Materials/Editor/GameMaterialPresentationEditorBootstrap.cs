@@ -15,6 +15,7 @@ namespace Game.Composition.Materials.Editor
         static GameMaterialPresentationEditorBootstrap()
         {
             MaterialPresentationComposition.Apply(GameMaterialRenderingDefinitions.Create());
+            TerrainMaterialComposition.Configure(in GameTerrainMaterials.Default);
             ShowcaseMaterialComposition.Configure(in GameShowcaseMaterials.Default);
             StructureMaterialComposition.Configure(in GameStructureMaterials.Default);
         }
