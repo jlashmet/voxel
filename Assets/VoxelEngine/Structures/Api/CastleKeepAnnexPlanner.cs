@@ -37,15 +37,22 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public static class CastleKeepAnnexPlanner
     {
+        /// <summary>
+        /// Current behavior-preserving semantic recipe. This overload is used by topology planning,
+        /// which deliberately runs before dimension/spatial realization.
+        /// </summary>
+        public static CastleKeepAnnexPlan Create() =>
+            new CastleKeepAnnexPlan(
+                hasGreatHallWing: true,
+                hasChapelWing: true,
+                hasBellTower: true);
+
         public static CastleKeepAnnexPlan Create(in CastlePlan plan)
         {
             if (plan.KeepHalfX <= 0 || plan.KeepHalfZ <= 0 || plan.KeepHeight <= 0)
                 throw new ArgumentOutOfRangeException(nameof(plan), "Keep dimensions must be positive.");
 
-            return new CastleKeepAnnexPlan(
-                hasGreatHallWing: true,
-                hasChapelWing: true,
-                hasBellTower: true);
+            return Create();
         }
     }
 
