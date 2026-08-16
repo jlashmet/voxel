@@ -6,7 +6,7 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class CastleKeepTurretPlanningTests
     {
         [Test]
-        public void LayoutPlannerFreezesLegacyKeepTurretRoofChoices()
+        public void LayoutPlannerFreezesCurrentKeepTurretRoofRecipe()
         {
             for (uint seed = 1; seed <= 256; seed++)
             {
@@ -24,11 +24,8 @@ namespace VoxelEngine.Tests.EditMode
                 {
                     Assert.AreEqual((CastleKeepTurretCorner)i, turrets[i].Corner,
                         $"seed {seed}: corner {i} identity drifted");
-                    uint legacySeed = CastleSeedPartition.Derive(
-                        seed, CastleSeedDomain.Keep, (uint)(0x100 + i));
-                    bool legacyRoof = (legacySeed & 1u) != 0u;
-                    Assert.AreEqual(legacyRoof, turrets[i].HasRoof,
-                        $"seed {seed}: corner {i} roof choice changed during planning migration");
+                    Assert.IsTrue(turrets[i].HasRoof,
+                        $"seed {seed}: current compatibility recipe roofs every keep turret");
                 }
             }
         }
