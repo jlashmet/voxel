@@ -94,5 +94,21 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("TryPublishPending(", visibility);
             StringAssert.DoesNotContain(".Prepare(storage,", visibility);
         }
+
+        [Test]
+        public void SolidBuildOutputStaysNativeThroughArenaUpload()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string arena = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "SurfaceGeometryArena.cs"));
+            StringAssert.Contains("private NativeList<SmoothSurfaceVertex> _vertices;", cache);
+            StringAssert.Contains("private NativeList<uint> _indices;", cache);
+            StringAssert.DoesNotContain("private readonly List<SmoothSurfaceVertex> _vertices", cache);
+            StringAssert.DoesNotContain("private readonly List<uint> _indices", cache);
+            StringAssert.Contains("NativeArray<SmoothSurfaceVertex> source", arena);
+            StringAssert.Contains("NativeArray<uint> source", arena);
+        }
+
     }
 }

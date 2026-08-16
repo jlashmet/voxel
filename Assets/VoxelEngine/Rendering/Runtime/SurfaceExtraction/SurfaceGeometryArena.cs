@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -142,13 +143,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _argsRanges.Release(lease.ArgsWordStart, ArgsWordsPerDraw);
         }
 
-        public void UploadVertices(List<SmoothSurfaceVertex> source, int sourceStart,
+        public void UploadVertices(NativeArray<SmoothSurfaceVertex> source, int sourceStart,
                                    in SurfaceGeometryLease lease, int count)
         {
             Vertices.SetData(source, sourceStart, lease.VertexStart + sourceStart, count);
         }
 
-        public void UploadIndices(List<uint> source, int sourceStart,
+        public void UploadIndices(NativeArray<uint> source, int sourceStart,
                                   in SurfaceGeometryLease lease, int count)
         {
             Indices.SetData(source, sourceStart, lease.IndexStart + sourceStart, count);

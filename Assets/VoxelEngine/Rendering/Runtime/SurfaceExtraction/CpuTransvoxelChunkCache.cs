@@ -123,34 +123,36 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                      + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
             }
 
-            internal bool AdvanceUpload(List<SmoothSurfaceVertex> vertices,
-                                        List<uint> indices,
+            internal bool AdvanceUpload(NativeList<SmoothSurfaceVertex> vertices,
+                                        NativeList<uint> indices,
                                         int byteBudget,
                                         out int uploadedBytes)
             {
                 uploadedBytes = 0;
-                if (byteBudget <= 0 || !EnsureUploadStaging(vertices.Count, indices.Count))
+                if (byteBudget <= 0 || !EnsureUploadStaging(vertices.Length, indices.Length))
                     return false;
 
                 int remainingBudget = byteBudget;
-                int vertexRemaining = vertices.Count - _stagingVertexCursor;
+                int vertexRemaining = vertices.Length - _stagingVertexCursor;
                 if (vertexRemaining > 0 && remainingBudget >= SmoothSurfaceVertex.Stride)
                 {
                     int count = math.min(vertexRemaining,
                         remainingBudget / SmoothSurfaceVertex.Stride);
-                    _arena.UploadVertices(vertices, _stagingVertexCursor, in _stagingLease, count);
+                    _arena.UploadVertices(vertices.AsArray(), _stagingVertexCursor,
+                                          in _stagingLease, count);
                     int bytes = count * SmoothSurfaceVertex.Stride;
                     _stagingVertexCursor += count;
                     remainingBudget -= bytes;
                     uploadedBytes += bytes;
                 }
 
-                int indexRemaining = indices.Count - _stagingIndexCursor;
-                if (_stagingVertexCursor == vertices.Count && indexRemaining > 0
+                int indexRemaining = indices.Length - _stagingIndexCursor;
+                if (_stagingVertexCursor == vertices.Length && indexRemaining > 0
                     && remainingBudget >= sizeof(uint))
                 {
                     int count = math.min(indexRemaining, remainingBudget / sizeof(uint));
-                    _arena.UploadIndices(indices, _stagingIndexCursor, in _stagingLease, count);
+                    _arena.UploadIndices(indices.AsArray(), _stagingIndexCursor,
+                                         in _stagingLease, count);
                     int bytes = count * sizeof(uint);
                     _stagingIndexCursor += count;
                     remainingBudget -= bytes;
@@ -158,12 +160,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
 
                 const int argsBytes = SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-                if (_stagingVertexCursor != vertices.Count
-                    || _stagingIndexCursor != indices.Count
+                if (_stagingVertexCursor != vertices.Length
+                    || _stagingIndexCursor != indices.Length
                     || remainingBudget < argsBytes)
                     return false;
 
-                _indirectArgs[0] = (uint)indices.Count;
+                _indirectArgs[0] = (uint)indices.Length;
                 _indirectArgs[1] = 1u;
                 _indirectArgs[2] = 0u;
                 _indirectArgs[3] = 0u;
@@ -175,7 +177,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _stagingLease = default;
                 _stagingVertexCursor = 0;
                 _stagingIndexCursor = 0;
-                IndexCount = indices.Count;
+                IndexCount = indices.Length;
                 VertexCapacity = _liveLease.VertexCapacity;
                 IndexCapacity = _liveLease.IndexCapacity;
                 GpuBytes = _arena.ReservedBytes(in _liveLease);
@@ -337,8 +339,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly byte[] _cellBoundary = new byte[8];
         private readonly SmoothSurfaceVertex[] _cellVertices = new SmoothSurfaceVertex[16];
         private readonly uint[] _faceMask = new uint[CellsPerAxis * CellsPerAxis];
-        private readonly List<SmoothSurfaceVertex> _vertices = new(16_384);
-        private readonly List<uint> _indices = new(24_576);
+        // Final build output stays in persistent native memory from Burst completion through
+        // bounded arena upload. Streaming must not grow managed geometry Lists on the frame path.
+        private NativeList<SmoothSurfaceVertex> _vertices;
+        private NativeList<uint> _indices;
         private BuildState _build;
         private bool _pendingUpload;
         private SurfaceGeometryArena _geometryArena;
@@ -442,6 +446,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 6 * CellsPerAxis * CellsPerAxis * CellsPerAxis, Allocator.Persistent);
             _facetedVertices = new NativeList<SmoothSurfaceVertex>(16_384, Allocator.Persistent);
             _facetedIndices = new NativeList<uint>(24_576, Allocator.Persistent);
+            _vertices = new NativeList<SmoothSurfaceVertex>(32_768, Allocator.Persistent);
+            _indices = new NativeList<uint>(49_152, Allocator.Persistent);
             InitialiseTopologyTables();
             InitialiseTransitionTables();
         }
@@ -518,7 +524,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _transitionJobHandle.Complete();
                 _transitionJobScheduled = false;
 
-                uint vertexBase = (uint)_vertices.Count;
+                uint vertexBase = (uint)_vertices.Length;
                 NativeArray<SmoothSurfaceVertex> vertices = _transitionVertices.AsArray();
                 for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
                 NativeArray<uint> indices = _transitionIndices.AsArray();
@@ -712,7 +718,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (!_pendingUpload
                     || !_entries.TryGetValue(_build.Coordinate, out Entry entry))
                     return 0;
-                return entry.RemainingUploadBytes(_vertices.Count, _indices.Count);
+                return entry.RemainingUploadBytes(_vertices.Length, _indices.Length);
             }
         }
         public double LastSnapshotMs { get; private set; }
@@ -1094,7 +1100,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             double start = Time.realtimeSinceStartupAsDouble;
             using var scope = s_FacetedMergeMarker.Auto();
-            uint vertexBase = (uint)_vertices.Count;
+            uint vertexBase = (uint)_vertices.Length;
             NativeArray<SmoothSurfaceVertex> vertices = _facetedVertices.AsArray();
             for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
             NativeArray<uint> indices = _facetedIndices.AsArray();
@@ -1692,7 +1698,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     a.Normal = face;
                     b.Normal = face;
                     c.Normal = face;
-                    uint triangleBase = (uint)_vertices.Count;
+                    uint triangleBase = (uint)_vertices.Length;
                     _vertices.Add(a);
                     _vertices.Add(b);
                     _vertices.Add(c);
@@ -1703,7 +1709,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             else
             {
-                uint baseVertex = (uint)_vertices.Count;
+                uint baseVertex = (uint)_vertices.Length;
                 for (int i = 0; i < vertexCount; i++) _vertices.Add(_cellVertices[i]);
                 for (int i = 0; i < indexCount; i++)
                     _indices.Add(baseVertex + localIndices[i]);
@@ -1908,7 +1914,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                              FloorDiv((int)math.floor(centroid.z), VoxelsPerAxis));
             if (!owner.Equals(_build.Coordinate)) return;
             p0 *= voxelSize; p1 *= voxelSize; p2 *= voxelSize; p3 *= voxelSize;
-            uint baseVertex = (uint)_vertices.Count;
+            uint baseVertex = (uint)_vertices.Length;
             var n = (Vector3)math.normalizesafe(normal, new float3(0f, 1f, 0f));
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p0, Normal = n, Material = attributes, Active = FullyLitOcclusion });
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p1, Normal = n, Material = attributes, Active = FullyLitOcclusion });
@@ -1999,7 +2005,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             centre[axisA] += jitterA;
             centre[axisB] += jitterB;
             uint attributes = PackSurfaceAttributes(material, surface);
-            uint baseVertex = (uint)_vertices.Count;
+            uint baseVertex = (uint)_vertices.Length;
             const int sides = 6;
             for (int ring = 0; ring < 2; ring++)
             {
@@ -2217,7 +2223,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             p3 *= voxelSize;
             float3 normal = float3.zero;
             normal[axis] = sign;
-            uint baseVertex = (uint)_vertices.Count;
+            uint baseVertex = (uint)_vertices.Length;
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p0, Normal = (Vector3)normal, Material = attributes, Active = FullyLitOcclusion });
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p1, Normal = (Vector3)normal, Material = attributes, Active = FullyLitOcclusion });
             _vertices.Add(new SmoothSurfaceVertex { Position = (Vector3)p2, Normal = (Vector3)normal, Material = attributes, Active = FullyLitOcclusion });
@@ -2325,7 +2331,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             // An empty result is complete immediately because there is no GPU payload to
             // publish. Removing an old ready entry is the atomic publication of "air".
-            if (_indices.Count == 0)
+            if (_indices.Length == 0)
             {
                 if (_entries.TryGetValue(_build.Coordinate, out Entry stale))
                 {
@@ -2809,6 +2815,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (_facetedMasks.IsCreated) _facetedMasks.Dispose();
             if (_facetedVertices.IsCreated) _facetedVertices.Dispose();
             if (_facetedIndices.IsCreated) _facetedIndices.Dispose();
+            if (_vertices.IsCreated) _vertices.Dispose();
+            if (_indices.IsCreated) _indices.Dispose();
             _build = default;
             if (_ownsGeometryArena)
             {
