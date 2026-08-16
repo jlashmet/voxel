@@ -1,0 +1,237 @@
+using Unity.Mathematics;
+
+namespace VoxelEngine.Structures.Api
+{
+    public enum CastleSpatialPlanIssue : byte
+    {
+        None,
+        MissingOuterWard,
+        DegeneratePerimeter,
+        PerimeterOutsidePlateau,
+        InvalidGateEdge,
+        GateDetachedFromPerimeter,
+        InvalidGateNormal,
+        TowerCountMismatch,
+        TowerIdMismatch,
+        DuplicateTower,
+        MissingCornerTower,
+        TowerOffPerimeter,
+        InnerWardMismatch,
+        InnerWardOutsideOuterWard,
+        InvalidKeepResolution,
+        KeepOutsideOuterWard,
+    }
+
+    /// <summary>
+    /// Pure structural validation for the spatial castle plan. This deliberately has no terrain,
+    /// storage, material, or runtime dependencies so a plan can be rejected before voxel mutation.
+    /// </summary>
+    public static class CastleSpatialPlanValidator
+    {
+        public static bool TryValidate(
+            in CastlePlan dimensions,
+            CastleSpatialPlan spatial,
+            out CastleSpatialPlanIssue issue)
+        {
+            if (spatial == null || spatial.OuterWardVertices == null ||
+                spatial.OuterWardVertices.Length < 4)
+            {
+                issue = CastleSpatialPlanIssue.MissingOuterWard;
+                return false;
+            }
+
+            int2[] outer = spatial.OuterWardVertices;
+            long signedAreaTwice = 0;
+            long plateauRadiusSquared =
+                (long)dimensions.PlateauRadius * dimensions.PlateauRadius;
+
+            for (int i = 0; i < outer.Length; i++)
+            {
+                int2 a = outer[i];
+                int2 b = outer[(i + 1) % outer.Length];
+                if (a.Equals(b))
+                {
+                    issue = CastleSpatialPlanIssue.DegeneratePerimeter;
+                    return false;
+                }
+
+                long radiusSquared = (long)a.x * a.x + (long)a.y * a.y;
+                if (radiusSquared > plateauRadiusSquared)
+                {
+                    issue = CastleSpatialPlanIssue.PerimeterOutsidePlateau;
+                    return false;
+                }
+
+                signedAreaTwice += (long)a.x * b.y - (long)b.x * a.y;
+            }
+
+            if (signedAreaTwice == 0)
+            {
+                issue = CastleSpatialPlanIssue.DegeneratePerimeter;
+                return false;
+            }
+
+            CastleGatePlacementSpec gate = spatial.PrimaryGate;
+            if (gate.EdgeIndex < 0 || gate.EdgeIndex >= outer.Length)
+            {
+                issue = CastleSpatialPlanIssue.InvalidGateEdge;
+                return false;
+            }
+
+            int2 gateStart = outer[gate.EdgeIndex];
+            int2 gateEnd = outer[(gate.EdgeIndex + 1) % outer.Length];
+            int2 expectedGateCentre = new int2(
+                (gateStart.x + gateEnd.x) / 2,
+                (gateStart.y + gateEnd.y) / 2);
+            if (!gate.Centre.Equals(expectedGateCentre))
+            {
+                issue = CastleSpatialPlanIssue.GateDetachedFromPerimeter;
+                return false;
+            }
+
+            if (!math.all(math.isfinite(gate.Outward)) || math.lengthsq(gate.Outward) < 0.25f)
+            {
+                issue = CastleSpatialPlanIssue.InvalidGateNormal;
+                return false;
+            }
+
+            float2 centroid = float2.zero;
+            for (int i = 0; i < outer.Length; i++)
+                centroid += new float2(outer[i].x, outer[i].y);
+            centroid /= outer.Length;
+            float2 toGate = new float2(gate.Centre.x, gate.Centre.y) - centroid;
+            if (math.dot(toGate, gate.Outward) <= 0f)
+            {
+                issue = CastleSpatialPlanIssue.InvalidGateNormal;
+                return false;
+            }
+
+            CastleTowerPlacementSpec[] towers = spatial.Towers;
+            if (towers == null || towers.Length != spatial.Topology.DesiredTowerCount)
+            {
+                issue = CastleSpatialPlanIssue.TowerCountMismatch;
+                return false;
+            }
+
+            for (int i = 0; i < towers.Length; i++)
+            {
+                if (towers[i].Id != i)
+                {
+                    issue = CastleSpatialPlanIssue.TowerIdMismatch;
+                    return false;
+                }
+
+                for (int other = 0; other < i; other++)
+                {
+                    if (!towers[i].Centre.Equals(towers[other].Centre)) continue;
+                    issue = CastleSpatialPlanIssue.DuplicateTower;
+                    return false;
+                }
+
+                if (!PointOnPerimeter(towers[i].Centre, outer))
+                {
+                    issue = CastleSpatialPlanIssue.TowerOffPerimeter;
+                    return false;
+                }
+            }
+
+            for (int vertex = 0; vertex < outer.Length; vertex++)
+            {
+                bool foundCorner = false;
+                for (int tower = 0; tower < towers.Length; tower++)
+                {
+                    if (towers[tower].Role != CastleTowerPlacementRole.Corner ||
+                        !towers[tower].Centre.Equals(outer[vertex])) continue;
+                    foundCorner = true;
+                    break;
+                }
+
+                if (!foundCorner)
+                {
+                    issue = CastleSpatialPlanIssue.MissingCornerTower;
+                    return false;
+                }
+            }
+
+            int2[] inner = spatial.InnerWardVertices;
+            bool expectsInner = spatial.Topology.Wards == CastleWardPattern.InnerAndOuterWards;
+            if (inner == null || (expectsInner && inner.Length != outer.Length) ||
+                (!expectsInner && inner.Length != 0))
+            {
+                issue = CastleSpatialPlanIssue.InnerWardMismatch;
+                return false;
+            }
+
+            if (expectsInner)
+            {
+                for (int i = 0; i < inner.Length; i++)
+                {
+                    if (PointInOrOnPolygon(inner[i], outer)) continue;
+                    issue = CastleSpatialPlanIssue.InnerWardOutsideOuterWard;
+                    return false;
+                }
+            }
+
+            bool highestGround =
+                spatial.Topology.KeepPlacement == CastleKeepPlacement.HighestGround;
+            if (spatial.KeepRequiresTerrainResolution != highestGround ||
+                (highestGround && !spatial.KeepCentre.Equals(int2.zero)))
+            {
+                issue = CastleSpatialPlanIssue.InvalidKeepResolution;
+                return false;
+            }
+
+            if (!highestGround && !PointInOrOnPolygon(spatial.KeepCentre, outer))
+            {
+                issue = CastleSpatialPlanIssue.KeepOutsideOuterWard;
+                return false;
+            }
+
+            issue = CastleSpatialPlanIssue.None;
+            return true;
+        }
+
+        private static bool PointOnPerimeter(int2 point, int2[] perimeter)
+        {
+            for (int i = 0; i < perimeter.Length; i++)
+            {
+                if (PointOnSegment(point, perimeter[i], perimeter[(i + 1) % perimeter.Length]))
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool PointOnSegment(int2 point, int2 a, int2 b)
+        {
+            long cross = (long)(point.x - a.x) * (b.y - a.y) -
+                         (long)(point.y - a.y) * (b.x - a.x);
+            if (cross != 0) return false;
+
+            long dot = (long)(point.x - a.x) * (point.x - b.x) +
+                       (long)(point.y - a.y) * (point.y - b.y);
+            return dot <= 0;
+        }
+
+        private static bool PointInOrOnPolygon(int2 point, int2[] polygon)
+        {
+            bool inside = false;
+            for (int i = 0, previous = polygon.Length - 1;
+                 i < polygon.Length;
+                 previous = i++)
+            {
+                int2 a = polygon[previous];
+                int2 b = polygon[i];
+                if (PointOnSegment(point, a, b)) return true;
+
+                bool crossesY = (a.y > point.y) != (b.y > point.y);
+                if (!crossesY) continue;
+
+                double crossingX =
+                    (double)(b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
+                if (point.x < crossingX)
+                    inside = !inside;
+            }
+            return inside;
+        }
+    }
+}
