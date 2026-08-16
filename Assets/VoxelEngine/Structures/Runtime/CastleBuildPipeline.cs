@@ -68,7 +68,8 @@ namespace VoxelEngine.Structures.Runtime
             _brush = new VoxelBrush(reads, mutations, materials);
             CastleBuildPreflightResult preflight = spatialPlan == null
                 ? CastleBuildPreflight.Evaluate(in plan, _brush.WriteBudget)
-                : CastleBuildPreflight.Evaluate(in plan, spatialPlan, _brush.WriteBudget);
+                : CastleBuildPreflight.EvaluateRuntimeReady(
+                    in plan, spatialPlan, _brush.WriteBudget);
 
             if (!preflight.IsValid)
             {
@@ -84,6 +85,12 @@ namespace VoxelEngine.Structures.Runtime
                         $"Castle spatial plan is structurally invalid: {preflight.SpatialPlanIssue}.");
                 }
 
+                if (preflight.Issue == CastleBuildPreflightIssue.IncompleteSpatialPlan)
+                {
+                    throw new InvalidOperationException(
+                        $"Castle spatial plan is not runtime-ready: {preflight.ReadinessIssue}.");
+                }
+
                 throw new InvalidOperationException(
                     $"Castle build preflight rejected ~{preflight.EstimatedWrites:N0} expensive-write " +
                     $"equivalents against a {preflight.WriteBudget:N0} write budget.");
@@ -96,16 +103,7 @@ namespace VoxelEngine.Structures.Runtime
             _spatialDungeonPlan = null;
 
             if (spatialPlan != null)
-            {
-                if (spatialPlan.KeepRequiresTerrainResolution)
-                {
-                    throw new InvalidOperationException(
-                        "Castle spatial plan still requires terrain resolution for its keep. " +
-                        "Resolve HighestGround placement before starting runtime realization.");
-                }
-
                 SnapshotSpatialPlan(in plan, spatialPlan);
-            }
 
             _terrainSeed = terrainSeed;
             _stage = 1;
