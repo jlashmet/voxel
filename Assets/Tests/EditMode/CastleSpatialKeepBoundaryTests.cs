@@ -28,6 +28,10 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastlePlannedKeepRealizer.cs"));
 
+            StringAssert.Contains("private bool _hasSpatialPlan;", pipeline,
+                "Runtime should have one spatial-plan mode rather than independently toggled fortification/keep modes.");
+            StringAssert.DoesNotContain("_hasSpatialFortifications", pipeline);
+            StringAssert.DoesNotContain("_hasSpatialKeep", pipeline);
             StringAssert.Contains("CastlePlannedKeepRealizer.Step(", pipeline);
             StringAssert.Contains("CastleKeepRealizer.TryStep(", pipeline,
                 "Compatibility builds should retain the historical staged dispatcher.");
