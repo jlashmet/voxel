@@ -307,6 +307,13 @@ namespace MountingForce.WorldGen.Voxel
                 AddTimberFrame(b, upperX, upperZ, upperW, upperD,
                     f + floor, upperH, beam, timber);
 
+            // The public doorway is a gameplay aperture, not decoration. Timber framing is emitted
+            // after the first shell carve and its horizontal rails span the full facade, so without
+            // this final authoritative carve those rails refill the opening at ankle and chest height.
+            // Re-carve only the authored doorway after facade framing; later roof/chimney primitives
+            // live above it and cannot change traversal.
+            b.Carve(doorX, f, z0, doorW, doorH, t + s);
+
             if (hasWing)
             {
                 PrismProfile wingProfile = form.Roof == KentridgeRoofForm.GableWithLeanTo
