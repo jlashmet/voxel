@@ -37,4 +37,101 @@ namespace VoxelEngine.Structures.Api
         public bool HasKeepAnnexPlan;
         public CastleKeepAnnexPlan KeepAnnexes;
     }
+
+    public enum CastleTopologyPlanIssue : byte
+    {
+        None,
+        InvalidPerimeter,
+        InvalidKeepPlacement,
+        InvalidWardPattern,
+        InvalidTowerCount,
+        ConcentricRequiresNestedWards,
+        InvalidKeepAnnexPlan,
+        UnexpectedKeepAnnexPlan,
+    }
+
+    /// <summary>
+    /// Pure semantic grammar validation performed before any castle coordinates are assigned.
+    /// This is the shared contract for generated and caller-supplied topology plans.
+    /// </summary>
+    public static class CastleTopologyPlanValidator
+    {
+        public static bool TryValidate(
+            in CastleTopologyPlan plan,
+            out CastleTopologyPlanIssue issue)
+        {
+            switch (plan.Perimeter)
+            {
+                case CastlePerimeterKind.Rectangular:
+                case CastlePerimeterKind.IrregularQuadrilateral:
+                case CastlePerimeterKind.IrregularPolygon:
+                case CastlePerimeterKind.Concentric:
+                    break;
+                default:
+                    issue = CastleTopologyPlanIssue.InvalidPerimeter;
+                    return false;
+            }
+
+            switch (plan.KeepPlacement)
+            {
+                case CastleKeepPlacement.Central:
+                case CastleKeepPlacement.Rear:
+                case CastleKeepPlacement.HighestGround:
+                case CastleKeepPlacement.WallIntegrated:
+                    break;
+                default:
+                    issue = CastleTopologyPlanIssue.InvalidKeepPlacement;
+                    return false;
+            }
+
+            switch (plan.Wards)
+            {
+                case CastleWardPattern.SingleWard:
+                case CastleWardPattern.InnerAndOuterWards:
+                    break;
+                default:
+                    issue = CastleTopologyPlanIssue.InvalidWardPattern;
+                    return false;
+            }
+
+            int minimumTowerCount = plan.Perimeter switch
+            {
+                CastlePerimeterKind.IrregularPolygon => 5,
+                CastlePerimeterKind.Concentric => 6,
+                _ => 4,
+            };
+            if (plan.DesiredTowerCount < minimumTowerCount || plan.DesiredTowerCount > 8)
+            {
+                issue = CastleTopologyPlanIssue.InvalidTowerCount;
+                return false;
+            }
+
+            if (plan.Perimeter == CastlePerimeterKind.Concentric &&
+                plan.Wards != CastleWardPattern.InnerAndOuterWards)
+            {
+                issue = CastleTopologyPlanIssue.ConcentricRequiresNestedWards;
+                return false;
+            }
+
+            if (plan.HasKeepAnnexPlan)
+            {
+                CastleKeepAnnexPlan annexes = plan.KeepAnnexes;
+                if (!CastleKeepAnnexPlanValidator.TryValidate(in annexes, out _))
+                {
+                    issue = CastleTopologyPlanIssue.InvalidKeepAnnexPlan;
+                    return false;
+                }
+            }
+            else if (plan.KeepAnnexes.HasGreatHallWing ||
+                     plan.KeepAnnexes.HasChapelWing ||
+                     plan.KeepAnnexes.HasBellTower)
+            {
+                issue = CastleTopologyPlanIssue.UnexpectedKeepAnnexPlan;
+                return false;
+            }
+
+            issue = CastleTopologyPlanIssue.None;
+            return true;
+        }
+    }
 }
