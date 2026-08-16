@@ -10,16 +10,16 @@ cd "$REPO_ROOT"
 BLENDER_BIN="${BLENDER_BIN:-/Applications/Blender.app/Contents/MacOS/Blender}"
 test -x "$BLENDER_BIN"
 
-# The original binary JPEG entries on this branch were truncated during an earlier
-# transport step. Keep the approved full-resolution turnaround losslessly transportable
-# as base64 text in git, decode it into the build audit directory, and only ever feed
-# those validated bytes to preprocessing/Hunyuan.
-PAYLOAD_DIR="$SCRIPT_DIR/views-valid"
+# The approved binary turnaround images contain all usable scan data but some older
+# git copies have an incomplete JPEG trailer. Do not route them through text/base64
+# transport. Pillow can decode the scan data permissively; we immediately re-encode
+# fresh complete JPEGs and only those validated copies are fed to preprocessing/Hunyuan.
+VIEW_DIR="$SCRIPT_DIR/views"
 FACE="$SCRIPT_DIR/refs/madeline_face_front.png"
 for name in front back left right; do
-  payload="$PAYLOAD_DIR/$name.jpg.b64"
-  if [ ! -s "$payload" ]; then
-    echo "Missing Madeline production reference payload: $payload" >&2
+  source="$VIEW_DIR/$name.jpg"
+  if [ ! -s "$source" ]; then
+    echo "Missing Madeline production reference: $source" >&2
     echo "See $SCRIPT_DIR/README.md." >&2
     exit 2
   fi
@@ -50,24 +50,27 @@ export PYTHONUNBUFFERED=1
 # the mesh toward the donor for reliable skin-weight transfer.
 export CHARACTER_FACTORY_ALIGNMENT_BLEND="${CHARACTER_FACTORY_ALIGNMENT_BLEND:-0.15}"
 
-printf '%s\n' '[1/9] Decode and validate the approved Madeline turnaround'
+printf '%s\n' '[1/9] Decode, re-encode, and validate the approved Madeline turnaround'
 for name in front back left right; do
-  python3 - "$PAYLOAD_DIR/$name.jpg.b64" "$OUT/reference/raw/$name.jpg" <<'PY'
-import base64
+  "$HUNYUAN_PY" - "$VIEW_DIR/$name.jpg" "$OUT/reference/raw/$name.jpg" <<'PY'
 from pathlib import Path
 import sys
+from PIL import Image, ImageFile
 
 source = Path(sys.argv[1])
 destination = Path(sys.argv[2])
-# Base64 payloads are wrapped across lines in git for manageable diffs. Strip all
-# ASCII whitespace before strict validation; validate=True intentionally still
-# rejects any non-base64 character after wrapping is removed.
-encoded = "".join(source.read_text(encoding="ascii").split())
-data = base64.b64decode(encoded, validate=True)
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+image = Image.open(source)
+image.load()
+rgb = image.convert("RGB")
+if rgb.width < 256 or rgb.height < 384:
+    raise SystemExit(f"Madeline reference decoded unexpectedly small: {source} -> {rgb.size}")
+destination.parent.mkdir(parents=True, exist_ok=True)
+rgb.save(destination, format="JPEG", quality=95, subsampling=0)
+data = destination.read_bytes()
 if len(data) < 4096 or not data.startswith(b"\xff\xd8") or not data.endswith(b"\xff\xd9"):
-    raise SystemExit(f"invalid JPEG payload: {source}")
-destination.write_bytes(data)
-print(f"decoded {source.name}: {len(data)} bytes -> {destination}")
+    raise SystemExit(f"re-encoded Madeline JPEG is invalid: {destination}")
+print(f"validated {source.name}: {rgb.width}x{rgb.height}, {len(data)} bytes -> {destination}")
 PY
 done
 cp "$FACE" "$OUT/reference/madeline_face_front.png"
