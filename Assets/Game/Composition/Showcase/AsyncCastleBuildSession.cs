@@ -25,7 +25,7 @@ namespace VoxelEngine.Showcase
     /// the existing scheduler to one bounded castle slice per player-loop iteration without
     /// conflating worker completion with live-world completion across frames.
     /// </summary>
-    internal sealed class AsyncCastleBuildSession : ICastleBuildSession
+    internal sealed class AsyncCastleBuildSession : ICastleBuildSession, IDisposable
     {
         private const int BlocksPerPublishSlice = 32;
         private const int PrivateMixedBrickCapacity = 1 << 17;
@@ -37,7 +37,7 @@ namespace VoxelEngine.Showcase
         private readonly uint _terrainSeed;
         private readonly int3[] _regions;
         private readonly RegionSemanticSnapshot[] _sourceSnapshots;
-        private readonly IVoxelStorageRuntime _privateStorage;
+        private IVoxelStorageRuntime _privateStorage;
 
         private int _captureCursor;
         private Task<BuildResult> _worker;
@@ -45,6 +45,8 @@ namespace VoxelEngine.Showcase
         private int _publishCursor;
         private int _lastStepFrame = -1;
         private bool _terminalComplete;
+        private volatile bool _cancelRequested;
+        private bool _disposed;
 
         public AsyncCastleBuildSession(
             IRegionReadSource liveReads,
@@ -67,11 +69,13 @@ namespace VoxelEngine.Showcase
 
             // Allocate the isolated native store on the Unity/main thread. Worker execution below
             // only mutates this private lifetime; Unity objects and the live allocator never cross
-            // the thread boundary.
+            // the thread boundary. WorldClearing owns the teardown handshake so a scene replacement
+            // cannot orphan this comparatively large pool while the worker is still authoring.
             _privateStorage = VoxelEngineBootstrap.CreateStorage(
                 math.max(16, _regions.Length * 2),
                 PrivateMixedBrickCapacity,
                 1024);
+            RenderingComposition.WorldClearing += Dispose;
         }
 
         /// <summary>
@@ -95,6 +99,8 @@ namespace VoxelEngine.Showcase
 
         public bool Step()
         {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(AsyncCastleBuildSession));
             if (_terminalComplete) return true;
             _lastStepFrame = Time.frameCount;
 
@@ -127,9 +133,12 @@ namespace VoxelEngine.Showcase
 
             if (_result == null)
             {
-                // Propagate worker exceptions on the main thread with their original stack.
+                // Propagate worker exceptions on the main thread with their original stack. The
+                // worker owns/disposes the private store in finally, including failure paths.
                 _result = _worker.GetAwaiter().GetResult();
-                _privateStorage.Dispose();
+                _privateStorage = null;
+                if (_result == null)
+                    throw new OperationCanceledException("Castle build was cancelled before publication.");
             }
 
             int end = math.min(_result.Blocks.Count,
@@ -141,46 +150,100 @@ namespace VoxelEngine.Showcase
                 return false;
 
             _terminalComplete = true;
+            RenderingComposition.WorldClearing -= Dispose;
             return true;
         }
 
         private BuildResult BuildOnPrivateStore()
         {
-            for (int i = 0; i < _sourceSnapshots.Length; i++)
+            IVoxelStorageRuntime storage = _privateStorage
+                ?? throw new ObjectDisposedException(nameof(AsyncCastleBuildSession));
+            try
             {
-                RegionSemanticSnapshot snapshot = _sourceSnapshots[i];
-                if (!_privateStorage.SnapshotMutations.TryApplySemanticSnapshot(
-                        snapshot.RegionCoord,
-                        snapshot.Bytes,
-                        snapshot.SemanticHash,
-                        true))
-                    throw new InvalidOperationException(
-                        $"Private castle store rejected source snapshot {snapshot.RegionCoord}.");
+                for (int i = 0; i < _sourceSnapshots.Length; i++)
+                {
+                    if (_cancelRequested) return null;
+                    RegionSemanticSnapshot snapshot = _sourceSnapshots[i];
+                    if (!storage.SnapshotMutations.TryApplySemanticSnapshot(
+                            snapshot.RegionCoord,
+                            snapshot.Bytes,
+                            snapshot.SemanticHash,
+                            true))
+                        throw new InvalidOperationException(
+                            $"Private castle store rejected source snapshot {snapshot.RegionCoord}.");
+                }
+
+                if (_cancelRequested) return null;
+                var tracking = new TrackingMutationStore(storage.Mutations);
+                IStructureAuthoringSession authoring =
+                    VoxelEngine.Composition.StructuresComposition.CreateAuthoringSession(
+                        storage.Reads,
+                        tracking,
+                        _materials);
+                var build = new CastleAuthoringBuild(authoring, in _plan, _terrainSeed);
+                while (!build.Step())
+                {
+                    if (_cancelRequested) return null;
+                }
+                if (_cancelRequested) return null;
+
+                var blocks = new List<BlockImage>(tracking.Touched.Count);
+                foreach (KeyValuePair<int3, bool> touched in tracking.Touched)
+                {
+                    if (_cancelRequested) return null;
+                    blocks.Add(CaptureBlock(storage.Reads, touched.Key, touched.Value));
+                }
+
+                // Stable order keeps publication deterministic and makes frame-budget regressions
+                // reproducible rather than dependent on Dictionary iteration order.
+                blocks.Sort(static (a, b) =>
+                {
+                    int c = a.WorldBlock.z.CompareTo(b.WorldBlock.z);
+                    if (c != 0) return c;
+                    c = a.WorldBlock.y.CompareTo(b.WorldBlock.y);
+                    return c != 0 ? c : a.WorldBlock.x.CompareTo(b.WorldBlock.x);
+                });
+                return new BuildResult(build.TotalVoxelsWritten, blocks);
+            }
+            finally
+            {
+                storage.Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _cancelRequested = true;
+            RenderingComposition.WorldClearing -= Dispose;
+
+            Task<BuildResult> worker = _worker;
+            if (worker != null)
+            {
+                // World teardown is a lifecycle boundary rather than the player-loop frame path.
+                // Join so the worker cannot outlive the live material catalogue it borrowed. The
+                // worker's finally block owns the private native storage on every exit path.
+                try
+                {
+                    worker.GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // A cancelled world's result is intentionally discarded. Runtime failures are
+                    // surfaced by Step while the world is active; teardown must still release the
+                    // live world even if the background task happened to fault concurrently.
+                }
+                _worker = null;
+                _privateStorage = null;
+            }
+            else
+            {
+                _privateStorage?.Dispose();
+                _privateStorage = null;
             }
 
-            var tracking = new TrackingMutationStore(_privateStorage.Mutations);
-            IStructureAuthoringSession authoring =
-                VoxelEngine.Composition.StructuresComposition.CreateAuthoringSession(
-                    _privateStorage.Reads,
-                    tracking,
-                    _materials);
-            var build = new CastleAuthoringBuild(authoring, in _plan, _terrainSeed);
-            while (!build.Step()) { }
-
-            var blocks = new List<BlockImage>(tracking.Touched.Count);
-            foreach (KeyValuePair<int3, bool> touched in tracking.Touched)
-                blocks.Add(CaptureBlock(_privateStorage.Reads, touched.Key, touched.Value));
-
-            // Stable order keeps publication deterministic and makes frame-budget regressions
-            // reproducible rather than dependent on Dictionary iteration order.
-            blocks.Sort(static (a, b) =>
-            {
-                int c = a.WorldBlock.z.CompareTo(b.WorldBlock.z);
-                if (c != 0) return c;
-                c = a.WorldBlock.y.CompareTo(b.WorldBlock.y);
-                return c != 0 ? c : a.WorldBlock.x.CompareTo(b.WorldBlock.x);
-            });
-            return new BuildResult(build.TotalVoxelsWritten, blocks);
+            _result = null;
         }
 
         private void PublishBlock(BlockImage image)
