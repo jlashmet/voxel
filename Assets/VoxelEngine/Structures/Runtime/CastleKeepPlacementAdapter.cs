@@ -3,12 +3,6 @@ using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Structures.Runtime
 {
-    /// <summary>
-    /// Bridges semantic keep placement to the legacy keep recipe while that recipe still carries
-    /// its historical +60 Z authoring offset internally. Spatial planning owns the actual keep
-    /// centre; this adapter is the only place that knows how to translate it for migrated runtime
-    /// realization.
-    /// </summary>
     internal static class CastleKeepPlacementAdapter
     {
         internal const int LegacyKeepCentreZOffset = 60;
