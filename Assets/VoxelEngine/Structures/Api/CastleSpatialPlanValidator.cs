@@ -39,6 +39,7 @@ namespace VoxelEngine.Structures.Api
         InvalidKeepResolution,
         KeepOutsideOuterWard,
         KeepOutsideInnerWard,
+        CentralKeepPlacementMismatch,
         RearKeepPlacementMismatch,
         WallIntegratedKeepNotAgainstWard,
         InvalidWellResolution,
@@ -305,6 +306,13 @@ namespace VoxelEngine.Structures.Api
             if (!spatial.KeepRequiresTerrainResolution)
             {
                 int2[] keepWard = expectsInner ? inner : outer;
+                if (spatial.Topology.KeepPlacement == CastleKeepPlacement.Central &&
+                    !spatial.KeepCentre.Equals(int2.zero))
+                {
+                    issue = CastleSpatialPlanIssue.CentralKeepPlacementMismatch;
+                    return false;
+                }
+
                 if (spatial.Topology.KeepPlacement == CastleKeepPlacement.Rear &&
                     !CastleKeepPlacementGeometry.IsRearKeepCentreAlong(
                         in dimensions, spatial.KeepCentre, -primaryGate.Outward, keepWard))
