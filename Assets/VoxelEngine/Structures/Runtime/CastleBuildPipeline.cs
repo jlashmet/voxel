@@ -273,7 +273,9 @@ namespace VoxelEngine.Structures.Runtime
             _hasSpatialWell = spatialPlan.HasWell;
             _spatialWellCentre = spatialPlan.WellCentre;
             _courtyardBuildings = (CastleCourtyardBuildingSpec[])spatialPlan.CourtyardBuildings.Clone();
-            _spatialDungeonPlan = spatialPlan.Dungeon;
+            _spatialDungeonPlan = spatialPlan.Dungeon != null
+                ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
+                : null;
 
             CastleTowerPlacementSpec[] towers = spatialPlan.Towers;
             _towerCentres = new int2[towers.Length];
