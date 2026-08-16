@@ -62,17 +62,6 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
-        // Transitional alias while the planned keep sequencer moves to the explicit name.
-        internal static void Build(
-            ref VoxelBrush brush,
-            in CastlePlan plan,
-            int3 min,
-            int3 size,
-            int baseY,
-            int floors,
-            CastleKeepFloorPlan[] roomPlans) =>
-            BuildPlanned(ref brush, in plan, min, size, baseY, floors, roomPlans);
-
         private static void BuildFloorSlab(
             ref VoxelBrush brush,
             int3 min,
