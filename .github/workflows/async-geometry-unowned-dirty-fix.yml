@@ -1,0 +1,59 @@
+name: Patch async geometry unowned dirty admission
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths:
+      - .github/workflows/async-geometry-unowned-dirty-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 1
+      - name: Keep rejected clipmap discoveries out of the dirty queue
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          cache = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
+          text = cache.read_text()
+          old = '''                    int3 chunk = baseChunk + new int3(x, y, z);\n                    if (!OwnsShard(chunk)) continue;\n                    TrackKnown(chunk);\n                    Invalidate(chunk);'''
+          new = '''                    int3 chunk = baseChunk + new int3(x, y, z);\n                    if (!OwnsShard(chunk) || !TrackKnown(chunk)) continue;\n                    Invalidate(chunk);'''
+          if text.count(old) != 1:
+              raise SystemExit('InvalidateSurfaceBricks admission block mismatch')
+          text = text.replace(old, new, 1)
+
+          old = '''        private void TrackKnown(int3 chunk)\n        {\n            // Surface discovery/change feeds can cover a much larger resident Storage window than\n            // this LOD ring draws. Render residency is admitted only inside the camera clipmap;\n            // otherwise _known grows with world streaming rather than a fixed view footprint.\n            if (!WithinClipmapWindow(chunk)) return;\n            if (!_known.Add(chunk)) return;\n            if (!_slotGrid.TryAcquire(chunk, out _))\n            {\n                _known.Remove(chunk);\n                return;\n            }\n            RequeueResidency(chunk);\n        }'''
+          new = '''        private bool TrackKnown(int3 chunk)\n        {\n            // Surface discovery/change feeds can cover a much larger resident Storage window than\n            // this LOD ring draws. Render residency is admitted only inside the camera clipmap;\n            // otherwise _known and, critically, the build queue would grow with world streaming\n            // rather than the fixed view footprint.\n            if (!WithinClipmapWindow(chunk)) return false;\n            if (_known.Contains(chunk)) return true;\n            if (!_slotGrid.TryAcquire(chunk, out _)) return false;\n\n            _known.Add(chunk);\n            RequeueResidency(chunk);\n            return true;\n        }'''
+          if text.count(old) != 1:
+              raise SystemExit('TrackKnown method mismatch')
+          cache.write_text(text.replace(old, new, 1))
+
+          tests = Path('Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs')
+          text = tests.read_text()
+          marker = '''        [Test]\n        public void SchedulerPrepareDiscoversSurfaceBricksWithoutMips()'''
+          test = '''        [Test]\n        public void SurfaceDiscoveryOutsideClipmapDoesNotCreateDirtyBuildWork()\n        {\n            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);\n            cache.SetClipmapWindow(int3.zero, radius: 1);\n\n            // A step-4 chunk spans 32 Storage blocks per axis. This block maps to chunk +10,\n            // well outside the [-1,+1] clipmap window. Discovery may observe it in the broader\n            // resident Storage stream, but rejected render residency must not leak into _dirty.\n            cache.InvalidateSurfaceBricks(new[] { new int3(10 * cache.BricksPerAxis, 0, 0) });\n\n            Assert.AreEqual(0, cache.KnownCount,\n                \"Out-of-window discovery must not acquire render residency.\");\n            Assert.AreEqual(0, cache.DirtyCount,\n                \"Out-of-window discovery must not enqueue build work for an unowned chunk.\");\n        }\n\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('SurfaceBrickDiscoveryTests insertion point mismatch')
+          tests.write_text(text.replace(marker, test + marker, 1))
+          PY
+      - name: Commit admission fix and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "jlashmet"
+          git config user.email "jlashmet@gmail.com"
+          git rm .github/workflows/async-geometry-unowned-dirty-fix.yml
+          git add \
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+            Assets/Tests/EditMode/SurfaceBrickDiscoveryTests.cs
+          git commit -m "fix(rendering): reject dirty work outside clipmap ownership"
+          git push origin HEAD:refactor/async-geometry-pipeline
