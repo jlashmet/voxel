@@ -4,10 +4,11 @@ namespace VoxelEngine.Showcase
 {
     public sealed partial class ShowcaseWorld
     {
-        // Spatial planning remains separate from the historical CastlePlan dimensions. The
-        // pending plan is handed to Runtime once every dependency region is resident; the compact
-        // projection is retained afterwards for interaction/presentation coordinates.
-        private CastleSpatialPlan _pendingCastleSpatialPlan;
+        // Keep the runtime-ready planning bundle intact from dependency calculation through build
+        // admission. The compact projection is retained after commit for interaction/presentation
+        // so those systems follow the exact geometry that Runtime realized.
+        private PlannedCastleBuild _pendingPlannedCastle;
+        private PlannedCastleBuild _plannedCastle;
         private CastleSpatialProjection _castleSpatialProjection;
     }
 }
