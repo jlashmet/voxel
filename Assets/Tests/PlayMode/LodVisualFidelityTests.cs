@@ -17,13 +17,16 @@ namespace VoxelEngine.Tests.PlayMode
     /// required 18% of one front-facing edge map to survive, which can certify an obviously bad
     /// blocky castle. This gate compares the same fixed orthographic framing at three viewpoints
     /// and requires silhouette/detail edges, regional structure, and material colour distribution
-    /// to remain recognisably close to the step-1 reference.
+    /// to remain recognisably close to the step-1 reference. Each eligible capture also inspects
+    /// the production scheduler's visible entry covering the castle centre, so moving a camera to
+    /// a nominal band cannot accidentally certify a finer cached LOD.
     /// </summary>
     public sealed class LodVisualFidelityTests
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
         private const int Width = 180;
         private const int Height = 135;
+        private const float VoxelSize = 0.1f;
 
         [UnityTest, Timeout(900000)]
         public IEnumerator EveryLod_PreservesCastleAppearanceFromMultipleViews()
@@ -38,8 +41,28 @@ namespace VoxelEngine.Tests.PlayMode
             ShowcaseWorld world = (ShowcaseWorld)typeof(VoxelShowcase)
                 .GetField("_world", BindingFlags.NonPublic | BindingFlags.Instance)
                 .GetValue(showcase);
+            Assert.NotNull(world);
             Camera camera = Camera.main;
             Assert.NotNull(camera);
+
+            // Never photograph a partially published castle. This waits through detached worker
+            // authoring, bounded live block publication and the terminal landmark/far-field pass.
+            double castleDeadline = Time.realtimeSinceStartupAsDouble + 90.0;
+            int castleFrames = 0;
+            while ((world.CastleBuildStage < 9 || world.CastleVoxels <= 100_000)
+                   && castleFrames++ < 7200
+                   && Time.realtimeSinceStartupAsDouble < castleDeadline)
+                yield return null;
+            Assert.GreaterOrEqual(world.CastleBuildStage, 9,
+                $"LOD fixture reached capture before castle publication completed; "
+              + $"stage={world.CastleBuildStage}, voxels={world.CastleVoxels}.");
+            Assert.Greater(world.CastleVoxels, 100_000,
+                "LOD fixture did not build the production-size showcase castle.");
+
+            VoxelRenderFeature renderFeature = FindActiveVoxelRenderFeature();
+            Assert.NotNull(renderFeature,
+                "Could not inspect the production voxel renderer used by VoxelShowcase.");
+            Assert.NotNull(renderFeature.Pass);
 
             typeof(VoxelShowcase)
                 .GetField("m_FlyMode", BindingFlags.NonPublic | BindingFlags.Instance)
@@ -52,11 +75,13 @@ namespace VoxelEngine.Tests.PlayMode
             CastlePlan plan = StructuresComposition.PlanCastle(
                 new int3(256, ground, 376), world.Seed);
             Vector3 centre = new(
-                plan.Centre.x * 0.1f,
-                (plan.Centre.y + plan.PlateauHeight) * 0.1f,
-                plan.Centre.z * 0.1f);
+                plan.Centre.x * VoxelSize,
+                (plan.Centre.y + plan.PlateauHeight) * VoxelSize,
+                plan.Centre.z * VoxelSize);
             Vector3 lookAt = centre + Vector3.up * 10f;
 
+            // These distances sit well inside, not on, the production scheduler bands:
+            // [0,96), [96,192), [192,288), [288,409.6] metres.
             var bands = new (int step, float distance)[]
             {
                 (1, 48f), (2, 144f), (4, 240f), (8, 340f),
@@ -102,6 +127,7 @@ namespace VoxelEngine.Tests.PlayMode
                         bool havePrevious = false;
                         int stableCount = 0;
                         bool converged = false;
+                        int observedStepMask = 0;
                         double deadline = Time.realtimeSinceStartupAsDouble + 20.0;
                         for (int frame = 0; frame < 1200
                              && Time.realtimeSinceStartupAsDouble < deadline; frame++)
@@ -110,9 +136,14 @@ namespace VoxelEngine.Tests.PlayMode
                             yield return null;
                             if ((frame % 10) != 0) continue;
 
-                            VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                            var metrics = VoxelRenderBridge.SurfaceMetrics;
+                            observedStepMask = VisibleSourceStepMaskAt(
+                                renderFeature.Pass, centre, VoxelSize);
                             VisualSignature candidate = Capture(target, readback);
-                            bool substantial = metrics.VisibleSolidChunks > 0
+                            bool exactProductionLod = observedStepMask == step;
+                            bool substantial = exactProductionLod
+                                            && metrics.VisibleSolidChunks > 0
+                                            && metrics.FramePathBlockingCompletionViolations == 0ul
                                             && candidate.EdgeCount > 100;
                             bool stable = substantial && havePrevious
                                        && EdgeF1(previous, candidate, 1) >= 0.97f
@@ -127,7 +158,12 @@ namespace VoxelEngine.Tests.PlayMode
                         }
 
                         Assert.True(converged,
-                            $"LOD {step}, view {view} never reached a stable production capture.");
+                            $"LOD {step}, view {view} never reached a stable production capture "
+                          + $"using exactly source step {step}; observed centre-step mask="
+                          + $"{observedStepMask}.");
+                        Assert.AreEqual(step, observedStepMask,
+                            $"LOD {step}, view {view} was photographed with the wrong production "
+                          + "source step at the castle centre.");
 
                         if (step == 1)
                         {
@@ -186,6 +222,55 @@ namespace VoxelEngine.Tests.PlayMode
                 "Showcase world never reached atomic render publication.");
             Assert.True(VoxelRenderBridge.TryGetWorld(out _),
                 "Showcase lost the renderer world binding before LOD validation.");
+        }
+
+        private static VoxelRenderFeature FindActiveVoxelRenderFeature()
+        {
+            VoxelRenderFeature[] features = Resources.FindObjectsOfTypeAll<VoxelRenderFeature>();
+            for (int i = 0; i < features.Length; i++)
+                if (features[i] != null && features[i].Pass != null)
+                    return features[i];
+            return null;
+        }
+
+        /// <summary>
+        /// Reads the actual ready entries the production render pass will draw. SourceStep values
+        /// are powers of two, so OR-ing entries whose world bounds contain the castle centre yields
+        /// exactly 1/2/4/8 when one intended ring owns the point, and a different value if a stale
+        /// finer/coarser ring overlaps it. This is diagnostic observation only; it does not drive
+        /// scheduler selection.
+        /// </summary>
+        private static int VisibleSourceStepMaskAt(
+            VoxelRenderPass pass, Vector3 worldPoint, float voxelSize)
+        {
+            FieldInfo schedulerField = typeof(VoxelRenderPass).GetField(
+                "_scheduler", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(schedulerField);
+            object scheduler = schedulerField.GetValue(pass);
+            Assert.NotNull(scheduler);
+            PropertyInfo visibleProperty = scheduler.GetType().GetProperty(
+                "VisibleSolids", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(visibleProperty);
+            var visible = visibleProperty.GetValue(scheduler) as IEnumerable;
+            Assert.NotNull(visible);
+
+            int stepMask = 0;
+            foreach (object entry in visible)
+            {
+                if (entry == null) continue;
+                Type entryType = entry.GetType();
+                FieldInfo sourceStepField = entryType.GetField(
+                    "SourceStep", BindingFlags.Public | BindingFlags.Instance);
+                MethodInfo worldBoundsMethod = entryType.GetMethod(
+                    "WorldBounds", BindingFlags.Public | BindingFlags.Instance);
+                Assert.NotNull(sourceStepField);
+                Assert.NotNull(worldBoundsMethod);
+                Bounds bounds = (Bounds)worldBoundsMethod.Invoke(
+                    entry, new object[] { voxelSize });
+                if (!bounds.Contains(worldPoint)) continue;
+                stepMask |= (int)sourceStepField.GetValue(entry);
+            }
+            return stepMask;
         }
 
         private static void RenderUrpCamera(Camera camera)
@@ -316,7 +401,6 @@ namespace VoxelEngine.Tests.PlayMode
             bool measured = false;
             for (int i = 0; i < reference.RegionEdges.Length; i++)
             {
-                // Ignore cells that contain almost no castle structure in the reference.
                 if (reference.RegionEdges[i] < 12) continue;
                 measured = true;
                 float ratio = candidate.RegionEdges[i] / (float)reference.RegionEdges[i];
