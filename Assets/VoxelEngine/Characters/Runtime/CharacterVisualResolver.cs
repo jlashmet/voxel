@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace VoxelEngine.Characters.Runtime
@@ -16,6 +17,8 @@ namespace VoxelEngine.Characters.Runtime
 
         private GameObject currentVisual;
         private GameObject currentSourcePrefab;
+
+        public event Action<GameObject> VisualChanged;
 
         public Transform VisualRoot
         {
@@ -73,12 +76,13 @@ namespace VoxelEngine.Characters.Runtime
                 return currentVisual;
             }
 
-            ClearVisual();
+            DestroyCurrentVisual();
 
             currentVisual = Instantiate(source, root, false);
             currentVisual.name = source.name;
             NormalizeVisualTransform(currentVisual.transform, root);
             currentSourcePrefab = source;
+            VisualChanged?.Invoke(currentVisual);
             return currentVisual;
         }
 
@@ -105,6 +109,16 @@ namespace VoxelEngine.Characters.Runtime
         }
 
         public void ClearVisual()
+        {
+            bool hadVisual = currentVisual != null || currentSourcePrefab != null;
+            DestroyCurrentVisual();
+            if (hadVisual)
+            {
+                VisualChanged?.Invoke(null);
+            }
+        }
+
+        private void DestroyCurrentVisual()
         {
             if (currentVisual != null)
             {
