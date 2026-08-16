@@ -4,6 +4,8 @@
   "references": [
     "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Storage.Api",
+    "VoxelEngine.Simulation.Api",
+    "VoxelEngine.Simulation.Runtime",
     "VoxelEngine.Composition",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Rendering.Runtime",
