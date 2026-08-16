@@ -14,6 +14,8 @@ namespace VoxelEngine.Structures.Api
         public int Id;
         public int2 Centre;
         public CastleTowerPlacementRole Role;
+        public int HeightVariation;
+        public bool HasRoof;
     }
 
     public struct CastleGatePlacementSpec
