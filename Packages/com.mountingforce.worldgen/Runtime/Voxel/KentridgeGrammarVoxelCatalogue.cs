@@ -307,12 +307,20 @@ namespace MountingForce.WorldGen.Voxel
                 AddTimberFrame(b, upperX, upperZ, upperW, upperD,
                     f + floor, upperH, beam, timber);
 
-            // The public doorway is a gameplay aperture, not decoration. Timber framing is emitted
-            // after the first shell carve and its horizontal rails span the full facade, so without
-            // this final authoritative carve those rails refill the opening at ankle and chest height.
-            // Re-carve only the authored doorway after facade framing; later roof/chimney primitives
-            // live above it and cannot change traversal.
-            b.Carve(doorX, f, z0, doorW, doorH, t + s);
+            // Public entrances are gameplay apertures, not facade decoration. The front timber rails
+            // are two beams deep (6 dm in the Kentridge theme), one voxel deeper than the shell's
+            // historical doorway carve. Shopfront sills also project two decimetres outside the wall.
+            // Clear the entire decorated facade depth after every facade primitive so no later rail or
+            // sill can leave a collision strip inside an otherwise visible doorway.
+            int doorExteriorClearance = form.IsShop ? 2 * s : 0;
+            int doorFacadeDepth = math.max(t + s, 2 * beam);
+            b.Carve(
+                doorX,
+                f,
+                z0 - doorExteriorClearance,
+                doorW,
+                doorH,
+                doorExteriorClearance + doorFacadeDepth);
 
             if (hasWing)
             {
