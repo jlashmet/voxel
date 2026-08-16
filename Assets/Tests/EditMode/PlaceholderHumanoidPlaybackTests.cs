@@ -24,7 +24,7 @@ namespace VoxelEngine.Tests.EditMode
                 .OfType<AnimationClip>()
                 .FirstOrDefault(clip => clip.name == "Walk");
             Assert.That(walk, Is.Not.Null, "The semantic Walk clip was not imported from the placeholder animation FBX");
-            Assert.That(walk.isHumanMotion, Is.True, "Walk must remain Humanoid motion for retargeting");
+            Assert.That(walk.humanMotion, Is.True, "Walk must remain Humanoid motion for retargeting");
             Assert.That(walk.length, Is.GreaterThan(0.05f), "Walk clip is too short to exercise a retargeted pose");
 
             var instance = Object.Instantiate(body);
