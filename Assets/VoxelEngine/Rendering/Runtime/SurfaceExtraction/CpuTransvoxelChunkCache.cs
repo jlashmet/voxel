@@ -272,6 +272,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Dictionary<int3, Entry> _entries = new();
         private readonly HashSet<int3> _known = new();
         private readonly HashSet<int3> _dirty = new();
+        // Dirty work is also kept in a persistent FIFO. The HashSet remains the authoritative
+        // membership/coalescing structure; the queue gives build admission bounded incremental
+        // traversal instead of rescanning every dirty chunk whenever one workspace becomes free.
+        private readonly Queue<int3> _dirtyQueue = new();
+        private readonly HashSet<int3> _queuedDirty = new();
+        private const int BuildSelectionCandidatesPerSlice = 64;
         private readonly Dictionary<int3, ulong> _desiredVersions = new();
         // Chunks whose last completed build produced no geometry, and the source version that
         // proved it. They hold no Entry and no GPU memory, so they cost a dictionary slot
@@ -909,7 +915,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (!_build.Active)
                 {
                     double selectionStart = Time.realtimeSinceStartupAsDouble;
-                    bool selected = BeginNearestBuild(camera, voxelSize);
+                    bool selected = BeginNearestBuild(camera, voxelSize, deadline);
                     _buildSelectionTiming.Add(ElapsedMs(selectionStart));
                     if (!selected) break;
                 }
@@ -1258,32 +1264,58 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return _visible;
         }
 
-        private bool BeginNearestBuild(Camera camera, float voxelSize)
+        private bool BeginNearestBuild(Camera camera, float voxelSize,
+                                       double deadlineSeconds)
         {
-            if (_dirty.Count == 0) return false;
+            if (_dirty.Count == 0 || _dirtyQueue.Count == 0
+                || Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                return false;
 
             int3 best = default;
+            bool hasBest = false;
             float bestScore = float.PositiveInfinity;
             float chunkMetres = VoxelsPerAxis * voxelSize;
             Vector3 cameraWorldPosition = camera.transform.position;
             GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-            foreach (int3 candidate in _dirty)
+
+            int candidates = math.min(BuildSelectionCandidatesPerSlice, _dirtyQueue.Count);
+            for (int i = 0; i < candidates; i++)
             {
+                int3 candidate = _dirtyQueue.Dequeue();
+                _queuedDirty.Remove(candidate);
+                if (!_dirty.Contains(candidate)) continue; // stale queue record
+
                 Bounds bounds = ChunkWorldBounds(candidate, voxelSize);
-                if (!WithinRingBand(bounds, cameraWorldPosition)) continue;
+                if (!WithinRingBand(bounds, cameraWorldPosition))
+                {
+                    RequeueDirty(candidate);
+                    continue;
+                }
+
                 Vector3 centre = (new Vector3(candidate.x, candidate.y, candidate.z)
                                 + Vector3.one * 0.5f) * chunkMetres;
                 float distance = (centre - cameraWorldPosition).sqrMagnitude;
-                // Every visible candidate ranks ahead of every off-screen candidate. Distance
-                // then fills the centre of the view before its edges.
                 float score = GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds)
                     ? distance : distance + 1_000_000_000f;
-                if (score >= bestScore) continue;
-                bestScore = score;
-                best = candidate;
+                if (!hasBest || score < bestScore)
+                {
+                    if (hasBest) RequeueDirty(best);
+                    bestScore = score;
+                    best = candidate;
+                    hasBest = true;
+                }
+                else
+                {
+                    RequeueDirty(candidate);
+                }
+
+                // Score checks are cheap, but a destruction burst can enqueue thousands. The
+                // frame contract wins over exact global nearest ordering; later slices continue
+                // from the queue tail and converge without a scan spike.
+                if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) break;
             }
 
-            if (float.IsPositiveInfinity(bestScore)) return false;
+            if (!hasBest) return false;
             _dirty.Remove(best);
             _vertices.Clear();
             _indices.Clear();
@@ -1316,9 +1348,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             _emptyVersions.Remove(chunk);
             _desiredVersions[chunk] = ++_versionCounter;
-            if (!_dirty.Contains(chunk) && (!_build.Active || !_build.Coordinate.Equals(chunk)))
+            MarkDirty(chunk);
+        }
+
+        private void MarkDirty(int3 chunk)
+        {
+            if (_dirty.Add(chunk))
                 _queuedAtSeconds[chunk] = Time.realtimeSinceStartupAsDouble;
-            _dirty.Add(chunk);
+            RequeueDirty(chunk);
+        }
+
+        private void RequeueDirty(int3 chunk)
+        {
+            if (!_dirty.Contains(chunk) || !_queuedDirty.Add(chunk)) return;
+            _dirtyQueue.Enqueue(chunk);
         }
 
         private bool OwnsShard(int3 chunk)
@@ -2648,45 +2691,44 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (farthest < 0f) return false;
             if (_entries.TryGetValue(victim, out Entry entry)) entry.Dispose();
             _entries.Remove(victim);
-            _dirty.Add(victim);
+            MarkDirty(victim);
             return true;
         }
 
         private void EnforceCapacity(Camera camera, float voxelSize)
         {
-            while (_entries.Count >= MaxResidentChunks && _dirty.Count > 0)
+            if (_entries.Count < MaxResidentChunks || _dirty.Count == 0) return;
+
+            int3 victim = default;
+            float farthest = -1f;
+            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
+
+            foreach (var pair in _entries)
             {
-                int3 victim = default;
-                float farthest = -1f;
-                Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
-                float chunkMetres = VoxelsPerAxis * voxelSize;
-                if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-
-                foreach (var pair in _entries)
-                {
-                    // A capacity limit may delay new work, but may never create a visible hole.
-                    if (camera != null && GeometryUtility.TestPlanesAABB(
-                            _frustumPlanes, ChunkWorldBounds(pair.Key, voxelSize)))
-                        continue;
-                    Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
-                                    + Vector3.one * 0.5f) * chunkMetres;
-                    float distance = (centre - cameraPosition).sqrMagnitude;
-                    if (distance <= farthest) continue;
-                    farthest = distance;
-                    victim = pair.Key;
-                }
-
-                if (farthest < 0f)
-                {
-                    CapacityPressureCount++;
-                    break;
-                }
-                if (_entries.TryGetValue(victim, out Entry entry)) entry.Dispose();
-                _entries.Remove(victim);
-                // Keep it known and queued. If the camera returns, nearest-first admission can
-                // rebuild it; an evicted chunk must never become a permanent silent hole.
-                _dirty.Add(victim);
+                // Capacity pressure is also bounded: at most one offscreen lease retires from
+                // this workspace per Prepare call. Repeated eviction loops turn a cache miss into
+                // a frame spike exactly when streaming is already under pressure.
+                if (camera != null && GeometryUtility.TestPlanesAABB(
+                        _frustumPlanes, ChunkWorldBounds(pair.Key, voxelSize)))
+                    continue;
+                Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
+                                + Vector3.one * 0.5f) * chunkMetres;
+                float distance = (centre - cameraPosition).sqrMagnitude;
+                if (distance <= farthest) continue;
+                farthest = distance;
+                victim = pair.Key;
             }
+
+            if (farthest < 0f)
+            {
+                CapacityPressureCount++;
+                return;
+            }
+            if (_entries.TryGetValue(victim, out Entry entry)) entry.Dispose();
+            _entries.Remove(victim);
+            MarkDirty(victim);
         }
 
         /// <summary>
@@ -2787,6 +2829,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             _known.Remove(chunk);
             _dirty.Remove(chunk);
+            _queuedDirty.Remove(chunk);
             _desiredVersions.Remove(chunk);
             _emptyVersions.Remove(chunk);
             _queuedAtSeconds.Remove(chunk);

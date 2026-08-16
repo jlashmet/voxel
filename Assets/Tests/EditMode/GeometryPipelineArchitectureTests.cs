@@ -153,5 +153,18 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("private void AppendFacetedTopology", cache);
         }
 
+
+        [Test]
+        public void DirtyBuildSelectionIsIncremental()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            StringAssert.Contains("BuildSelectionCandidatesPerSlice", cache);
+            StringAssert.Contains("private readonly Queue<int3> _dirtyQueue", cache);
+            StringAssert.Contains("BeginNearestBuild(camera, voxelSize, deadline)", cache);
+            StringAssert.DoesNotContain("foreach (int3 candidate in _dirty)", cache);
+            StringAssert.DoesNotContain("while (_entries.Count >= MaxResidentChunks", cache);
+        }
+
     }
 }
