@@ -1,0 +1,85 @@
+name: Fix halo-aware geometry residency
+
+on:
+  push:
+    branches:
+      - refactor/async-geometry-pipeline
+    paths:
+      - .github/workflows/async-geometry-halo-residency-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Keep snapshot-halo chunks resident
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          cache_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
+          s = cache_path.read_text()
+          old = ('            int3 minVoxel = chunk * VoxelsPerAxis;\n'
+                 '            int3 maxVoxel = minVoxel + (VoxelsPerAxis - 1);\n')
+          new = ('            int halo = Padding * SourceStep;\n'
+                 '            int3 minVoxel = chunk * VoxelsPerAxis - halo;\n'
+                 '            int3 maxVoxel = (chunk + 1) * VoxelsPerAxis + halo - 1;\n')
+          if s.count(old) != 1:
+              raise SystemExit(f'residency extent anchor count={s.count(old)}')
+          s = s.replace(old, new, 1)
+          old_comment = ('        /// Whether any region the chunk overlaps is still resident. A coarse ring\'s chunk can be\n'
+                         '        /// larger than a region and straddle several, so testing only the origin region would\n'
+                         '        /// discard a chunk that still has most of its data — and, worse, keep one whose origin\n'
+                         '        /// happens to survive while the rest of it has gone.\n')
+          new_comment = ('        /// Whether any region sampled by the chunk is still resident. The exact snapshot owns a\n'
+                         '        /// one-sample halo, so discovery-admitted neighbour chunks must remain alive while that\n'
+                         '        /// halo reaches resident Storage even when their core lies just outside it. Otherwise\n'
+                         '        /// prune/remove and discovery/readmission can restart the same metadata job every frame.\n')
+          if s.count(old_comment) != 1:
+              raise SystemExit(f'residency comment anchor count={s.count(old_comment)}')
+          cache_path.write_text(s.replace(old_comment, new_comment, 1))
+
+          tests_path = Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs')
+          t = tests_path.read_text()
+          anchor = '        [Test]\n        public void SurfaceEntriesAreReusedAfterResidencyChurn()\n'
+          test = ('        [Test]\n'
+                  '        public void GeometryResidencyIncludesTheSnapshotHalo()\n'
+                  '        {\n'
+                  '            string cache = ReadRenderingSource(\n'
+                  '                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));\n'
+                  '            int start = cache.IndexOf("private bool AnyOverlappedRegionResident",\n'
+                  '                                      StringComparison.Ordinal);\n'
+                  '            int end = cache.IndexOf("internal bool TryEvictOneForArenaPressure", start,\n'
+                  '                                    StringComparison.Ordinal);\n'
+                  '            Assert.GreaterOrEqual(start, 0);\n'
+                  '            Assert.Greater(end, start);\n'
+                  '            string residency = cache.Substring(start, end - start);\n'
+                  '            StringAssert.Contains("int halo = Padding * SourceStep;", residency);\n'
+                  '            StringAssert.Contains("chunk * VoxelsPerAxis - halo", residency);\n'
+                  '            StringAssert.Contains("(chunk + 1) * VoxelsPerAxis + halo - 1", residency);\n'
+                  '        }\n\n\n')
+          if t.count(anchor) != 1:
+              raise SystemExit(f'test insertion anchor count={t.count(anchor)}')
+          if 'GeometryResidencyIncludesTheSnapshotHalo' in t:
+              raise SystemExit('halo residency test already exists')
+          tests_path.write_text(t.replace(anchor, test + anchor, 1))
+          PY
+      - name: Static guards
+        run: |
+          grep -q 'int halo = Padding \* SourceStep;' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'GeometryResidencyIncludesTheSnapshotHalo' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+      - name: Commit fix
+        run: |
+          rm .github/workflows/async-geometry-halo-residency-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Keep snapshot halo inside geometry residency'
+          git push origin HEAD:refactor/async-geometry-pipeline
