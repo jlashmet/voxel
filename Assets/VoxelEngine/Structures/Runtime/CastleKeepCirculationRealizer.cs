@@ -103,13 +103,13 @@ namespace VoxelEngine.Structures.Runtime
             for (int step = 0; step < steps; step++)
             for (int runOffset = 0; runOffset < run; runOffset++)
             for (int widthOffset = 0; widthOffset < width; widthOffset++)
-            for (int y = 0; y < rise; y++)
             {
                 int inward = step * run + runOffset;
                 int2 point = origin
                            + frame.Tangent * widthOffset
                            + frame.Inward * inward;
-                brush.Set(point.x, baseY + step * rise + y, point.y, material);
+                int minY = baseY + step * rise;
+                brush.FillColumnBulk(point.x, minY, minY + rise, point.y, material);
             }
         }
 
