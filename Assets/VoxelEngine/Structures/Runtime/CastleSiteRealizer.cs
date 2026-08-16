@@ -11,6 +11,8 @@ namespace VoxelEngine.Structures.Runtime
     /// </summary>
     internal static class CastleSiteRealizer
     {
+        private const uint SiteRandomElementId = 0x53495445u; // "SITE"
+
         internal struct State
         {
             public int Phase;
@@ -48,7 +50,12 @@ namespace VoxelEngine.Structures.Runtime
 
             if (state.Phase == 0)
             {
-                if (state.Cursor == 0) state.Random = new Random(plan.Seed ^ 0x51E5u);
+                if (state.Cursor == 0)
+                {
+                    uint siteSeed = CastleSeedPartition.Derive(
+                        plan.Seed, CastleSeedDomain.Decor, SiteRandomElementId);
+                    state.Random = new Random(siteSeed);
+                }
                 int rowEnd = math.min(skirt * 2 + 1, state.Cursor + 4);
                 for (; state.Cursor < rowEnd; state.Cursor++)
                 {
