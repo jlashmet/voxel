@@ -1,5 +1,6 @@
 using System;
 using Game.Materials.Api;
+using Game.Materials.Runtime;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Composition;
@@ -54,26 +55,15 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Compatibility overload for callers that rely on application composition. It deliberately
-        /// has no numeric fallback: an engine world must never invent the game's material identities.
+        /// Game-showcase convenience constructor. Because this composition root is itself game-owned,
+        /// it may bind the game's default showcase roles directly without a global engine-side
+        /// configuration channel.
         /// </summary>
-        [Obsolete("Prefer the overload with an explicit ShowcaseMaterialSet.")]
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
                              int unloadRadiusRegions, MaterialDefinition[] materialDefinitions)
             : this(seed, brickPoolCapacity, loadRadiusRegions, unloadRadiusRegions,
-                   materialDefinitions, RequireConfiguredRoles())
+                   materialDefinitions, GameShowcaseMaterials.Default)
         {
-        }
-
-        private static ShowcaseMaterialSet RequireConfiguredRoles()
-        {
-            if (ShowcaseMaterialComposition.TryGet(out ShowcaseMaterialSet roles))
-                return roles;
-
-            throw new InvalidOperationException(
-                "Showcase material roles were not configured. Pass a ShowcaseMaterialSet explicitly " +
-                "or configure ShowcaseMaterialComposition from application/game composition before " +
-                "constructing ShowcaseWorld.");
         }
     }
 }
