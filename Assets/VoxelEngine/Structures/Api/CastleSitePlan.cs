@@ -1,3 +1,5 @@
+using Unity.Mathematics;
+
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
@@ -178,6 +180,60 @@ namespace VoxelEngine.Structures.Api
         private static byte ClampPercent(byte value) => value > 100 ? (byte)100 : value;
     }
 
+    public enum CastleSitePlanIssue : byte
+    {
+        None,
+        InvalidEdgeRecipe,
+        InvalidCliffRecipe,
+        InvalidApproachRecipe,
+    }
+
+    /// <summary>Rejects malformed site recipes before any terrain realization begins.</summary>
+    public static class CastleSitePlanValidator
+    {
+        public static bool TryValidate(in CastleSitePlan plan, out CastleSitePlanIssue issue)
+        {
+            CastleSiteGeometryPlan geometry = plan.Geometry;
+            if (!PositiveFinite(geometry.EdgeFrequencyA) || geometry.EdgeAmplitudeA < 0f ||
+                !PositiveFinite(geometry.EdgeFrequencyB) || geometry.EdgeAmplitudeB < 0f ||
+                !PositiveFinite(geometry.EdgeFrequencyC) || geometry.EdgeAmplitudeC < 0f ||
+                !math.isfinite(geometry.EdgeAmplitudeA) ||
+                !math.isfinite(geometry.EdgeAmplitudeB) ||
+                !math.isfinite(geometry.EdgeAmplitudeC))
+            {
+                issue = CastleSitePlanIssue.InvalidEdgeRecipe;
+                return false;
+            }
+
+            if (!PositiveFinite(geometry.CliffFalloffExponent) ||
+                !PositiveFinite(geometry.CliffNoiseAngularFrequency) ||
+                !PositiveFinite(geometry.CliffNoiseProgressFrequency) ||
+                geometry.CliffNoiseAmplitude < 0f || !math.isfinite(geometry.CliffNoiseAmplitude) ||
+                geometry.CliffGroundInset < 0 || geometry.GrassEdgeInset < 0)
+            {
+                issue = CastleSitePlanIssue.InvalidCliffRecipe;
+                return false;
+            }
+
+            if (geometry.ApproachReachInset < 0 || geometry.RiverOffset <= 0 ||
+                geometry.RiverHalfWidth <= 0 || geometry.WaterHalfWidth <= 0 ||
+                geometry.WaterHalfWidth > geometry.RiverHalfWidth || geometry.RiverDepth <= 0 ||
+                geometry.MeanderFrequencyA < 0f || !math.isfinite(geometry.MeanderFrequencyA) ||
+                geometry.MeanderAmplitudeA < 0f || !math.isfinite(geometry.MeanderAmplitudeA) ||
+                geometry.MeanderFrequencyB < 0f || !math.isfinite(geometry.MeanderFrequencyB) ||
+                geometry.MeanderAmplitudeB < 0f || !math.isfinite(geometry.MeanderAmplitudeB))
+            {
+                issue = CastleSitePlanIssue.InvalidApproachRecipe;
+                return false;
+            }
+
+            issue = CastleSitePlanIssue.None;
+            return true;
+        }
+
+        private static bool PositiveFinite(float value) => value > 0f && math.isfinite(value);
+    }
+
     /// <summary>Creates the site choices attached to generated castle topology.</summary>
     public static class CastleSitePlanner
     {
@@ -187,7 +243,7 @@ namespace VoxelEngine.Structures.Api
         public static CastleSitePlan Create(uint rootSeed)
         {
             CastleSiteGeometryPlan geometry = CastleSiteGeometryPlan.Historical;
-            return new CastleSitePlan(
+            var plan = new CastleSitePlan(
                 CastleSeedPartition.Derive(
                     rootSeed, CastleSeedDomain.Decor, GrassPatternElementId),
                 92,
@@ -195,6 +251,10 @@ namespace VoxelEngine.Structures.Api
                     rootSeed, CastleSeedDomain.Decor, CourtyardPatternElementId),
                 82,
                 in geometry);
+
+            if (!CastleSitePlanValidator.TryValidate(in plan, out _))
+                throw new System.InvalidOperationException("Castle site planner produced an invalid recipe.");
+            return plan;
         }
     }
 }
