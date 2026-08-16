@@ -137,12 +137,18 @@ namespace VoxelEngine.Tests.EditMode
             string projection = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastleSpatialProjection.cs"));
+            string layout = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastlePlan.cs"));
 
             StringAssert.Contains("CastleSpatialProjection.Create(", pipeline);
             StringAssert.Contains("CastleKeepRealizer.TryStep(ref _brush, in keepPlan", pipeline);
             StringAssert.Contains("CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan)", pipeline);
             StringAssert.Contains("CastleDungeonRealizer.Build(ref _brush, in dungeonPlan)", pipeline);
-            StringAssert.Contains("LegacyKeepCentreZOffset = 60", projection);
+            StringAssert.Contains("LegacyKeepCentreZOffset = 60", layout);
+            StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", projection);
+            StringAssert.DoesNotContain("LegacyKeepCentreZOffset = 60", projection,
+                "The migration offset must have one API-owned declaration, not a projection copy.");
             StringAssert.DoesNotContain("Structures.Runtime", projection);
         }
 
