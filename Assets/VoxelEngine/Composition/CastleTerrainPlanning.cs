@@ -32,7 +32,7 @@ namespace VoxelEngine.Composition
                     in plan, spatial, chosen);
             }
 
-            return CastleSpatialPlanCompletion.AttachCourtyardBuildings(in plan, resolved);
+            return CastleSpatialPlanCompletion.CompleteResolved(in plan, resolved);
         }
 
         private static int2 FindHighestGroundKeep(
