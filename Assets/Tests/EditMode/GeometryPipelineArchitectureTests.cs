@@ -379,5 +379,19 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("internal sealed class TransvoxelLookupTables", tables);
         }
 
+
+        [Test]
+        public void BrickPoolSupportsGenerationStampedCowReaders()
+        {
+            string pool = File.ReadAllText(Path.Combine(
+                Application.dataPath, "VoxelEngine", "Storage", "Runtime", "BrickPool.cs"));
+            StringAssert.Contains("public readonly struct PinToken", pool);
+            StringAssert.Contains("private NativeArray<int> _pinCounts", pool);
+            StringAssert.Contains("private NativeArray<uint> _slotGenerations", pool);
+            StringAssert.Contains("public int EnsureWritable", pool);
+            StringAssert.Contains("CopyBrick(brickIndex, clone)", pool);
+            StringAssert.Contains("if (count == 0 && _retiredSlots[token.Slot] != 0)", pool);
+        }
+
     }
 }
