@@ -39,10 +39,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Post-master final Metal checkpoint: feature-preserving step-8 HLOD with trimmed scratch,
-          # COW pins retained through profile emission, fixed draw staging, toroidal/active slots,
-          # stale-build rejection, zero-allocation/P99/non-blocking gates, arena backpressure,
-          # latest master, and continuous camera/destruction validation on the real Metal device.
+          # Clean final Metal checkpoint: latest master and no one-shot patch scaffolding;
+          # feature-preserving step-8 HLOD with trimmed scratch, COW pins through profile emission,
+          # fixed draw staging, toroidal/active slots, stale-build rejection,
+          # zero-allocation/P99/non-blocking gates, arena backpressure, and continuous
+          # camera/destruction validation on the real Metal graphics device.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
