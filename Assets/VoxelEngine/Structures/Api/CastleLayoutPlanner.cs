@@ -21,6 +21,7 @@ namespace VoxelEngine.Structures.Api
                 : (layoutRng.NextInt(0, 100) < 30
                     ? CastleWardPattern.InnerAndOuterWards
                     : CastleWardPattern.SingleWard);
+            CastleKeepAnnexPlan annexes = CastleKeepAnnexPlanner.Create();
 
             return new CastleTopologyPlan
             {
@@ -29,6 +30,8 @@ namespace VoxelEngine.Structures.Api
                 Wards = wards,
                 DesiredTowerCount = ChooseTowerCount(perimeter, ref wallRng),
                 HasPosternGate = wallRng.NextInt(0, 100) < 25,
+                HasKeepAnnexPlan = true,
+                KeepAnnexes = annexes,
             };
         }
 
