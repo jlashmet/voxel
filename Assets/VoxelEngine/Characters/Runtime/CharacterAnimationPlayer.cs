@@ -8,6 +8,8 @@ namespace VoxelEngine.Characters.Runtime
     /// Plays arbitrary animation clips directly on a character Animator through Playables.
     /// The driver deliberately owns no clip catalogue, state machine, or placeholder-specific
     /// knowledge so the same runtime seam can drive temporary and generated Humanoid visuals.
+    /// Resolver-driven visual swaps preserve the currently requested clip and retarget it to
+    /// the replacement Animator.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class CharacterAnimationPlayer : MonoBehaviour
@@ -67,11 +69,14 @@ namespace VoxelEngine.Characters.Runtime
             ResolveAnimatorIfNeeded();
         }
 
+        /// <summary>
+        /// Explicitly replaces the animation target and stops the currently playing clip.
+        /// Resolver-owned visual changes use a separate rebind path that preserves animation
+        /// intent across generated/fallback visual swaps.
+        /// </summary>
         public void SetVisual(GameObject visual)
         {
-            SetAnimator(visual != null
-                ? visual.GetComponentInChildren<Animator>(true)
-                : null);
+            SetAnimator(FindAnimator(visual));
         }
 
         public void SetAnimator(Animator value)
@@ -99,27 +104,14 @@ namespace VoxelEngine.Characters.Runtime
             }
 
             Stop();
-
-            graph = PlayableGraph.Create($"{name}: Character Animation");
-            graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
-
-            AnimationClipPlayable clipPlayable = AnimationClipPlayable.Create(graph, clip);
-            AnimationPlayableOutput output =
-                AnimationPlayableOutput.Create(graph, "Character Animation", animator);
-            output.SetSourcePlayable(clipPlayable);
-
             currentClip = clip;
-            graph.Play();
+            StartCurrentClip();
             return true;
         }
 
         public void Stop()
         {
-            if (graph.IsValid())
-            {
-                graph.Destroy();
-            }
-
+            DestroyGraph();
             currentClip = null;
         }
 
@@ -140,7 +132,7 @@ namespace VoxelEngine.Characters.Runtime
 
             if (visualResolver != null && visualResolver.CurrentVisual != null)
             {
-                animator = visualResolver.CurrentVisual.GetComponentInChildren<Animator>(true);
+                animator = FindAnimator(visualResolver.CurrentVisual);
                 if (animator != null)
                 {
                     return;
@@ -175,7 +167,51 @@ namespace VoxelEngine.Characters.Runtime
 
         private void HandleVisualChanged(GameObject visual)
         {
-            SetVisual(visual);
+            RebindAnimator(FindAnimator(visual));
+        }
+
+        private void RebindAnimator(Animator value)
+        {
+            if (animator == value)
+            {
+                return;
+            }
+
+            DestroyGraph();
+            animator = value;
+
+            if (animator != null && currentClip != null)
+            {
+                StartCurrentClip();
+            }
+        }
+
+        private void StartCurrentClip()
+        {
+            graph = PlayableGraph.Create($"{name}: Character Animation");
+            graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+
+            AnimationClipPlayable clipPlayable = AnimationClipPlayable.Create(graph, currentClip);
+            AnimationPlayableOutput output =
+                AnimationPlayableOutput.Create(graph, "Character Animation", animator);
+            output.SetSourcePlayable(clipPlayable);
+
+            graph.Play();
+        }
+
+        private void DestroyGraph()
+        {
+            if (graph.IsValid())
+            {
+                graph.Destroy();
+            }
+        }
+
+        private static Animator FindAnimator(GameObject visual)
+        {
+            return visual != null
+                ? visual.GetComponentInChildren<Animator>(true)
+                : null;
         }
 
         private void OnDisable()
