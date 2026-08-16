@@ -2015,11 +2015,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _pinnedRegionSource = source;
             _exactMixedBrickIndices.Clear();
 
-            JobHandle dependency = new ExactBrickMetadataClearJob
+            JobHandle clearHandle = new ExactBrickMetadataClearJob
             {
                 Bricks = _densityBricks,
                 MixedFlags = _exactMixedFlags,
             }.Schedule(BrickCacheCount, 256);
+            // Region intersections are disjoint cache ranges. Schedule every copy behind the
+            // shared clear only, then combine their handles once before compaction. Chaining each
+            // copy behind the previous region serializes phase-0 snapshot work and can starve
+            // coarse LOD workers on Metal even though the copies are independent.
+            JobHandle dependency = clearHandle;
 
             int edge = VoxelReadGrid.BlocksPerRegionEdge;
             int3 cacheMaxExclusive = cacheOrigin + BrickCacheEdge;
@@ -2050,7 +2055,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 int volume = size.x * size.y * size.z;
                 if (volume <= 0) continue;
 
-                dependency = new ExactBrickMetadataRegionJob
+                JobHandle regionHandle = new ExactBrickMetadataRegionJob
                 {
                     EncodedBlockRefs = pinned.EncodedBlockRefs,
                     RegionCoord = regionCoord,
@@ -2060,7 +2065,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     BrickCacheEdge = BrickCacheEdge,
                     Bricks = _densityBricks,
                     MixedFlags = _exactMixedFlags,
-                }.Schedule(volume, 128, dependency);
+                }.Schedule(volume, 128, clearHandle);
+                dependency = JobHandle.CombineDependencies(dependency, regionHandle);
             }
 
             _exactMetadataJobHandle = new ExactMixedBrickCompactJob

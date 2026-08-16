@@ -98,6 +98,18 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ExactMetadataRegionCopiesFanOutFromSharedClear()
+        {
+            string cacheSource = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            StringAssert.Contains("JobHandle clearHandle = new ExactBrickMetadataClearJob", cacheSource);
+            StringAssert.Contains(".Schedule(volume, 128, clearHandle);", cacheSource);
+            StringAssert.Contains("JobHandle.CombineDependencies(dependency, regionHandle)", cacheSource);
+            StringAssert.DoesNotContain(".Schedule(volume, 128, dependency);", cacheSource,
+                "Exact metadata region copies must not form a serial dependency ladder.");
+        }
+
+        [Test]
         public void GeometryJobsAreFlushedOnceWithoutWaiting()
         {
             string scheduler = ReadRenderingSource(
