@@ -131,6 +131,9 @@ namespace VoxelEngine.Characters.Runtime
 
             if (Application.isPlaying)
             {
+                // Object.Destroy is deferred until the end of the frame. Hide the replaced
+                // visual immediately so a generated/fallback swap cannot double-render.
+                instance.SetActive(false);
                 Object.Destroy(instance);
             }
             else
