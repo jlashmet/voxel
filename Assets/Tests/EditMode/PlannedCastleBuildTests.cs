@@ -16,29 +16,33 @@ namespace VoxelEngine.Tests.EditMode
                 uint terrainSeed = seed ^ 0x71A5u;
                 PlannedCastleBuild build = StructuresComposition.PlanCastleBuild(
                     centre, seed, terrainSeed);
+                CastlePlan dimensions = build.Dimensions;
+                CastleSpatialPlan spatial = build.Spatial;
 
-                Assert.AreEqual(seed, build.Dimensions.Seed);
+                Assert.AreEqual(seed, dimensions.Seed);
                 Assert.AreEqual(terrainSeed, build.TerrainSeed);
-                Assert.NotNull(build.Spatial);
-                Assert.IsFalse(build.Spatial.KeepRequiresTerrainResolution,
+                Assert.NotNull(spatial);
+                Assert.IsFalse(spatial.KeepRequiresTerrainResolution,
                     $"seed {seed}: runtime bundle retained unresolved keep placement");
                 Assert.IsTrue(
                     CastleSpatialPlanValidator.TryValidate(
-                        in build.Dimensions,
-                        build.Spatial,
+                        in dimensions,
+                        spatial,
                         out CastleSpatialPlanIssue issue),
                     $"seed {seed}: runtime bundle invalid: {issue}");
 
                 CastleSpatialProjection projection = build.Projection;
                 Assert.AreEqual(
                     new int2(
-                        build.Dimensions.Centre.x + build.Spatial.KeepCentre.x,
-                        build.Dimensions.Centre.z + build.Spatial.KeepCentre.y),
+                        dimensions.Centre.x + spatial.KeepCentre.x,
+                        dimensions.Centre.z + spatial.KeepCentre.y),
                     projection.KeepCentreWorld,
                     $"seed {seed}: projection drifted from semantic keep centre");
+
+                CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
                 Assert.AreEqual(
-                    build.Spatial.PrimaryGate.Centre,
-                    CastleApproachFrame.FromGate(in build.Spatial.PrimaryGate).GateCentre);
+                    primaryGate.Centre,
+                    CastleApproachFrame.FromGate(in primaryGate).GateCentre);
             }
         }
     }
