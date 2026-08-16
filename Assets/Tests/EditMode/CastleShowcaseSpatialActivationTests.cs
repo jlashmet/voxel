@@ -47,6 +47,25 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SpatialBuildAdmissionQueuesFullThreeDimensionalDependencyBounds()
+        {
+            string seam = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "Showcase",
+                "ShowcaseWorld.CastleSpatial.cs"));
+
+            StringAssert.Contains("CastleBuildBoundsResolver.Resolve(", seam);
+            StringAssert.Contains("bounds.Min >> shift", seam);
+            StringAssert.Contains("(bounds.MaxExclusive - 1) >> shift", seam);
+            StringAssert.Contains("for (int ry = minRegion.y; ry <= maxRegion.y; ry++)", seam,
+                "Upper castle layers must be generated before voxel mutation begins.");
+            StringAssert.Contains("QueuePendingCastleDependencyRegions();", seam);
+            StringAssert.Contains("DependencyGatedCastleBuildSession", seam);
+            StringAssert.Contains("PendingCastleDependenciesReady()", seam);
+            StringAssert.Contains("public bool IsComplete => _inner == null || _inner.IsComplete", seam,
+                "The pre-build gate must stay quiescent so terrain streaming can satisfy dependencies.");
+        }
+
+        [Test]
         public void MainShowcaseActivatesSpatialCastleAtomically()
         {
             string world = File.ReadAllText(Path.Combine(
