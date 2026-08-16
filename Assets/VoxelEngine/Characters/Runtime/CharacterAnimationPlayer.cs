@@ -15,10 +15,16 @@ namespace VoxelEngine.Characters.Runtime
         [SerializeField]
         private Animator animator;
 
+        [SerializeField]
+        private CharacterVisualResolver visualResolver;
+
         private PlayableGraph graph;
         private AnimationClip currentClip;
+        private bool resolverSubscribed;
 
         public Animator Animator => animator;
+
+        public CharacterVisualResolver VisualResolver => visualResolver;
 
         public AnimationClip CurrentClip => currentClip;
 
@@ -26,7 +32,46 @@ namespace VoxelEngine.Characters.Runtime
 
         private void Awake()
         {
+            ResolveVisualResolverIfNeeded();
+            SubscribeToResolver();
             ResolveAnimatorIfNeeded();
+        }
+
+        private void OnEnable()
+        {
+            ResolveVisualResolverIfNeeded();
+            SubscribeToResolver();
+
+            if (visualResolver != null && visualResolver.CurrentVisual != null)
+            {
+                SetVisual(visualResolver.CurrentVisual);
+            }
+            else
+            {
+                ResolveAnimatorIfNeeded();
+            }
+        }
+
+        public void SetVisualResolver(CharacterVisualResolver value)
+        {
+            if (visualResolver == value)
+            {
+                return;
+            }
+
+            UnsubscribeFromResolver();
+            Stop();
+            animator = null;
+            visualResolver = value;
+            SubscribeToResolver();
+            ResolveAnimatorIfNeeded();
+        }
+
+        public void SetVisual(GameObject visual)
+        {
+            SetAnimator(visual != null
+                ? visual.GetComponentInChildren<Animator>(true)
+                : null);
         }
 
         public void SetAnimator(Animator value)
@@ -78,21 +123,70 @@ namespace VoxelEngine.Characters.Runtime
             currentClip = null;
         }
 
+        private void ResolveVisualResolverIfNeeded()
+        {
+            if (visualResolver == null)
+            {
+                visualResolver = GetComponent<CharacterVisualResolver>();
+            }
+        }
+
         private void ResolveAnimatorIfNeeded()
         {
-            if (animator == null)
+            if (animator != null)
             {
-                animator = GetComponentInChildren<Animator>(true);
+                return;
             }
+
+            if (visualResolver != null && visualResolver.CurrentVisual != null)
+            {
+                animator = visualResolver.CurrentVisual.GetComponentInChildren<Animator>(true);
+                if (animator != null)
+                {
+                    return;
+                }
+            }
+
+            animator = GetComponentInChildren<Animator>(true);
+        }
+
+        private void SubscribeToResolver()
+        {
+            if (resolverSubscribed || visualResolver == null)
+            {
+                return;
+            }
+
+            visualResolver.VisualChanged += HandleVisualChanged;
+            resolverSubscribed = true;
+        }
+
+        private void UnsubscribeFromResolver()
+        {
+            if (!resolverSubscribed || visualResolver == null)
+            {
+                resolverSubscribed = false;
+                return;
+            }
+
+            visualResolver.VisualChanged -= HandleVisualChanged;
+            resolverSubscribed = false;
+        }
+
+        private void HandleVisualChanged(GameObject visual)
+        {
+            SetVisual(visual);
         }
 
         private void OnDisable()
         {
+            UnsubscribeFromResolver();
             Stop();
         }
 
         private void OnDestroy()
         {
+            UnsubscribeFromResolver();
             Stop();
         }
     }
