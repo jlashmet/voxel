@@ -63,11 +63,14 @@ namespace VoxelGame.Editor
 
             var importer = (ModelImporter)assetImporter;
             var clips = importer.defaultClipAnimations;
-            var shouldLoop = LoopingAnimationNames.Contains(
-                Path.GetFileNameWithoutExtension(assetPath));
+            var semanticName = Path.GetFileNameWithoutExtension(assetPath);
+            var shouldLoop = LoopingAnimationNames.Contains(semanticName);
 
             foreach (var clip in clips)
             {
+                // Hide Rocketbox's source take names behind the same small semantic contract
+                // used by the local asset paths and future generated-character animation data.
+                clip.name = semanticName;
                 clip.loopTime = shouldLoop;
             }
 
