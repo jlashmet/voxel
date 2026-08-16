@@ -25,6 +25,20 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            CastleTopologyPlan topology = spatial.Topology;
+            if (!topology.HasGatehousePlan)
+            {
+                issue = CastleSpatialBuildReadinessIssue.MissingGatehousePlan;
+                return false;
+            }
+
+            CastleGatehousePlan gatehouse = topology.Gatehouse;
+            if (!CastleGatehousePlanValidator.TryValidate(in gatehouse, out _))
+            {
+                issue = CastleSpatialBuildReadinessIssue.InvalidGatehousePlan;
+                return false;
+            }
+
             CastleKeepFloorPlan[] floors = spatial.KeepFloors;
             if (!CastleKeepFloorPlanValidator.TryValidate(
                     in plan, floors, out CastleKeepFloorPlanIssue floorIssue))
@@ -67,7 +81,7 @@ namespace VoxelEngine.Structures.Api
             }
 
             if (!CastleKeepAnnexBuildReadiness.TryValidate(
-                    in spatial.Topology,
+                    in topology,
                     out CastleKeepAnnexBuildReadinessIssue annexIssue))
             {
                 issue = annexIssue == CastleKeepAnnexBuildReadinessIssue.MissingPlan
