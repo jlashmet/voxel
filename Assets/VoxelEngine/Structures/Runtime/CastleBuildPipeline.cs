@@ -26,6 +26,7 @@ namespace VoxelEngine.Structures.Runtime
         private int2[] _outerWardVertices;
         private int2[] _innerWardVertices;
         private int2[] _towerCentres;
+        private int2[] _innerTowerCentres;
         private int _cornerTowerCount;
         private CastleGatePlacementSpec _primaryGate;
         private CastleApproachFrame _approach;
@@ -89,6 +90,7 @@ namespace VoxelEngine.Structures.Runtime
 
             _plan = plan;
             _spatialKeepPlan = plan;
+            _innerTowerCentres = Array.Empty<int2>();
             _courtyardBuildings = Array.Empty<CastleCourtyardBuildingSpec>();
 
             if (spatialPlan != null)
@@ -149,6 +151,18 @@ namespace VoxelEngine.Structures.Runtime
                     {
                         CastlePerimeterRealizer.Towers(
                             ref _brush, in _plan, _towerCentres, _cornerTowerCount);
+
+                        if (_innerTowerCentres.Length != 0)
+                        {
+                            CastlePlan innerTowerPlan = _plan;
+                            innerTowerPlan.TowerRadius = CastleInnerWardTowerPlanner.Radius(in _plan);
+                            innerTowerPlan.TowerHeight = CastleInnerWardTowerPlanner.Height(in _plan);
+                            CastlePerimeterRealizer.Towers(
+                                ref _brush,
+                                in innerTowerPlan,
+                                _innerTowerCentres,
+                                _innerTowerCentres.Length);
+                        }
                     }
                     else
                     {
@@ -274,6 +288,11 @@ namespace VoxelEngine.Structures.Runtime
                 if (towers[i].Role == CastleTowerPlacementRole.Corner) continue;
                 _towerCentres[cursor++] = towers[i].Centre;
             }
+
+            CastleTowerPlacementSpec[] innerTowers = spatialPlan.InnerTowers;
+            _innerTowerCentres = new int2[innerTowers.Length];
+            for (int i = 0; i < innerTowers.Length; i++)
+                _innerTowerCentres[i] = innerTowers[i].Centre;
 
             CastleSpatialProjection projection = CastleSpatialProjection.Create(
                 in plan, spatialPlan);
