@@ -25,7 +25,7 @@ Open/import the project normally. The two `*.characterfactory.json` descriptors 
 - `Models/placeholder_female.prefab`
 - `PlaceholderCharacterParts.asset`
 
-These three files are **generated import products and are intentionally not committed**. The committed FBXs, descriptors, importer, licenses, and their `.meta` files are the source of truth. This follows the existing Character Factory ownership model and avoids source-controlling generated prefab/catalogue churn.
+These three files are **generated import products, gitignored, and intentionally not committed**. The committed FBXs, descriptors, importer, licenses, and their `.meta` files are the source of truth. This follows the existing Character Factory ownership model and avoids source-controlling generated prefab/catalogue churn.
 
 The generated prefabs use the normal Character Factory character-prefab shape: the imported skinned model is nested under a stable character root, an `Equipment` child is created, and `CharacterEquipmentController` is wired to the imported skeleton plus the shared part catalogue. Prototype gameplay should use those generated prefabs instead of depending directly on Rocketbox bone names or FBX hierarchy details.
 
