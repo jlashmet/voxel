@@ -1110,11 +1110,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _hlodJobScheduled = false;
                         _build.HasOwnedSolid = _indices.Length > 0;
                     }
-                    if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
                     if (_hlodOverflow[0] != 0)
                         throw new InvalidOperationException(
                             $"Feature-preserving HLOD output overflow in chunk {_build.Coordinate}; "
                           + "refusing to allocate or publish partial coarse geometry.");
+                    // Profile blocks validate their backing against the same immutable mixed-brick
+                    // payloads. Keep COW pins alive through profile emission; phase 3 releases
+                    // them under the normal deadline once the last profile has consumed them.
+                    if (_buildProfileBlocks.Length == 0
+                        && !StepReleasePinnedSnapshotBlocks(deadline))
+                        break;
                     _build.Phase = 3;
                     _build.Cursor = 0;
                     continue;
@@ -1122,7 +1127,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 if (_build.Phase == 6)
                 {
-                    if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
+                    // Profile geometry may still need mixed-brick backing from the immutable COW
+                    // snapshot. Do not release those pins until profile emission has finished.
+                    if (_buildProfileBlocks.Length == 0
+                        && !StepReleasePinnedSnapshotBlocks(deadline))
+                        break;
                     _build.Phase = 5;
                     continue;
                 }
@@ -1143,6 +1152,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         profilesDone = StepProfileBlocks(voxelSize);
                     _profileEmitTiming.Add(ElapsedMs(profileStart));
                     if (!profilesDone) continue;
+
+                    // Profile backing reads are complete. Drain the exact mixed-brick pins now,
+                    // still under the worker deadline, before transition/publication can proceed.
+                    if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
 
                     // The step-8 HLOD grid and the step-4 inner ring both resolve geometry on a
                     // four-voxel lattice. Do not feed faceted HLOD through Transvoxel transition
@@ -2898,10 +2911,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             int3 local = voxel & VoxelReadGrid.BlockEdgeMask;
             int voxelIndex = local.x | (local.y << 3) | (local.z << 6);
-            material = _densityMixedVoxels[brick.MixedOffset + voxelIndex];
+            NativeArray<byte> mixedVoxels = PinnedMixedVoxelsOrFallback();
+            NativeArray<ushort> mixedSurfaces = PinnedMixedSurfaceSemanticsOrFallback();
+            NativeArray<byte> mixedBoundaries = PinnedMixedBoundarySamplesOrFallback();
+            material = mixedVoxels[brick.MixedOffset + voxelIndex];
             surface = VoxelSurfaceSemantics.FromStorage(
-                _densityMixedSurfaceSemantics[brick.MixedOffset + voxelIndex]).Packed;
-            boundary = _densityMixedBoundarySamples[brick.MixedOffset + voxelIndex];
+                mixedSurfaces[brick.MixedOffset + voxelIndex]).Packed;
+            boundary = mixedBoundaries[brick.MixedOffset + voxelIndex];
             if ((ushort)surface == SurfaceStyles.MaterialDefault)
                 surface = (surface & 0xFFFF0000u)
                         | _buildPalette.GetDefaultSurfaceStyle(material);

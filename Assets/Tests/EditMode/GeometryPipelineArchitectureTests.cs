@@ -629,6 +629,33 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
+        public void ProfileBackingKeepsCowPinsUntilProfileEmissionFinishes()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            int profilePhase = cache.IndexOf("if (_build.Phase == 3)",
+                                             StringComparison.Ordinal);
+            int transitionPhase = cache.IndexOf("if (_build.Phase == 4)", profilePhase,
+                                                StringComparison.Ordinal);
+            Assert.GreaterOrEqual(profilePhase, 0);
+            Assert.Greater(transitionPhase, profilePhase);
+            string profile = cache.Substring(profilePhase, transitionPhase - profilePhase);
+            StringAssert.Contains("StepReleasePinnedSnapshotBlocks(deadline)", profile);
+
+            int read = cache.IndexOf("private void ReadSnapshotCell", StringComparison.Ordinal);
+            int readEnd = cache.IndexOf("private float3 DensityNormal", read,
+                                        StringComparison.Ordinal);
+            Assert.GreaterOrEqual(read, 0);
+            Assert.Greater(readEnd, read);
+            string readSnapshot = cache.Substring(read, readEnd - read);
+            StringAssert.Contains("PinnedMixedVoxelsOrFallback()", readSnapshot);
+            StringAssert.Contains("PinnedMixedSurfaceSemanticsOrFallback()", readSnapshot);
+            StringAssert.Contains("PinnedMixedBoundarySamplesOrFallback()", readSnapshot);
+            StringAssert.DoesNotContain("_densityMixedVoxels[brick.MixedOffset", readSnapshot);
+        }
+
+
+        [Test]
         public void ExactGeometrySnapshotsBorrowPinnedCowPayloads()
         {
             string api = File.ReadAllText(Path.Combine(
