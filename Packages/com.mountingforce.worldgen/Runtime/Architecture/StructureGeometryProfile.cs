@@ -13,43 +13,54 @@ namespace MountingForce.WorldGen.Architecture
     /// </summary>
     public readonly struct StructureGeometryProfile
     {
-        /// <summary>Radius applied to foundation/coursing box primitives, in decimetres.</summary>
+        /// <summary>Radius applied to foundation/coursing solids, in decimetres.</summary>
         public readonly int FoundationCornerRadiusDm;
 
-        /// <summary>Radius applied to primary wall/shell box primitives, in decimetres.</summary>
+        /// <summary>Radius applied to primary wall/shell solids, in decimetres.</summary>
         public readonly int ShellCornerRadiusDm;
 
         /// <summary>
-        /// Radius available to a backend for smaller architectural solids such as piers, trims and
-        /// chimneys. The first voxel realiser intentionally keeps these sharp unless it can identify
-        /// them semantically; the field is part of the stable contract for more granular backends.
+        /// Radius applied to door/window/opening cuts, in decimetres. This is intentionally separate
+        /// from shell rounding: a city can keep a heavy masonry mass while using softer reveals, or
+        /// vice versa.
+        /// </summary>
+        public readonly int OpeningCornerRadiusDm;
+
+        /// <summary>
+        /// Radius available to a backend for smaller architectural solids such as piers, trims,
+        /// frames, awnings and chimneys.
         /// </summary>
         public readonly int DetailCornerRadiusDm;
 
         public StructureGeometryProfile(
             int foundationCornerRadiusDm,
             int shellCornerRadiusDm,
+            int openingCornerRadiusDm,
             int detailCornerRadiusDm)
         {
             if (foundationCornerRadiusDm < 0)
                 throw new ArgumentOutOfRangeException(nameof(foundationCornerRadiusDm));
             if (shellCornerRadiusDm < 0)
                 throw new ArgumentOutOfRangeException(nameof(shellCornerRadiusDm));
+            if (openingCornerRadiusDm < 0)
+                throw new ArgumentOutOfRangeException(nameof(openingCornerRadiusDm));
             if (detailCornerRadiusDm < 0)
                 throw new ArgumentOutOfRangeException(nameof(detailCornerRadiusDm));
 
             FoundationCornerRadiusDm = foundationCornerRadiusDm;
             ShellCornerRadiusDm = shellCornerRadiusDm;
+            OpeningCornerRadiusDm = openingCornerRadiusDm;
             DetailCornerRadiusDm = detailCornerRadiusDm;
         }
 
         public bool HasRoundedGeometry =>
             FoundationCornerRadiusDm > 0
             || ShellCornerRadiusDm > 0
+            || OpeningCornerRadiusDm > 0
             || DetailCornerRadiusDm > 0;
 
         public static StructureGeometryProfile Sharp =>
-            new StructureGeometryProfile(0, 0, 0);
+            new StructureGeometryProfile(0, 0, 0, 0);
     }
 
     /// <summary>
@@ -98,10 +109,12 @@ namespace MountingForce.WorldGen.Architecture
                 shellRadius = 1;
 
             int foundationRadius = Math.Max(1, shellRadius - 1);
+            int openingRadius = shellRadius >= 3 ? 2 : 1;
             int detailRadius = shellRadius >= 3 ? 2 : 1;
             return new StructureGeometryProfile(
                 foundationRadius,
                 shellRadius,
+                openingRadius,
                 detailRadius);
         }
     }
