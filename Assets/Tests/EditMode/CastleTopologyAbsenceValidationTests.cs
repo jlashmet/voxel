@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -30,6 +31,20 @@ namespace VoxelEngine.Tests.EditMode
                 CastleTopologyPlanValidator.TryValidate(
                     in plan, out CastleTopologyPlanIssue issue));
             Assert.AreEqual(CastleTopologyPlanIssue.UnexpectedInnerWardDoorPlan, issue);
+        }
+
+        [Test]
+        public void TopologyValidatorRejectsGatehouseRecipeWhenGatehouseIsAbsent()
+        {
+            CastlePlan dimensions = CastlePlanner.Create(int3.zero, 37u);
+            CastleTopologyPlan plan = CastleLayoutPlanner.Create(37u);
+            plan.HasGatehousePlan = false;
+            plan.Gatehouse = CastleGatehousePlanner.Create(in dimensions);
+
+            Assert.IsFalse(
+                CastleTopologyPlanValidator.TryValidate(
+                    in plan, out CastleTopologyPlanIssue issue));
+            Assert.AreEqual(CastleTopologyPlanIssue.UnexpectedGatehousePlan, issue);
         }
     }
 }
