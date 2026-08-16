@@ -37,10 +37,15 @@ namespace VoxelEngine.Tests.EditMode
                     PassageHeight = 30,
                 };
                 CavePlan plan = CavePlanner.Create(97u, in constraints);
+                CastleCaveDecorationPlan decoration = CastleCaveDecorationPlanner.Create(plan);
+                Assert.IsTrue(
+                    CastleCaveDecorationPlanValidator.TryValidate(
+                        plan, decoration, out CastleCaveDecorationPlanIssue decorationIssue),
+                    decorationIssue.ToString());
 
                 var brush = new VoxelBrush(reads, mutations, writeBudget: 2_000_000);
                 CaveRealizer.Build(ref brush, plan);
-                CastlePlannedCaveDecorator.Build(ref brush, plan);
+                CastlePlannedCaveDecorator.Build(ref brush, plan, decoration);
 
                 CaveChamberPlan entry = plan.Chambers[plan.EntryChamberId];
                 int floor = entry.Centre.y - entry.Radii.y + 1;
@@ -64,12 +69,21 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.Greater(waterSamples, 4,
                     "The entry chamber should retain visible planned-cave water around the causeway.");
 
-                int side = -1;
-                int lightX = entry.Centre.x + side * math.max(8, entry.Radii.x / 4);
-                int lightZ = entry.Centre.z + math.max(6, entry.Radii.z / 6);
-                int lightY = entry.Centre.y - math.max(1, entry.Radii.y / 4);
-                Assert.AreEqual(Mat.Glass, brush.Get(lightX, lightY, lightZ),
-                    "The deterministic chamber light marker should be present after decoration.");
+                CastleCaveDecorationSpec light = default;
+                bool foundLight = false;
+                for (int i = 0; i < decoration.Elements.Length; i++)
+                {
+                    CastleCaveDecorationSpec candidate = decoration.Elements[i];
+                    if (candidate.ChamberId != entry.Id ||
+                        candidate.Kind != CastleCaveDecorationKind.LightMarker) continue;
+                    light = candidate;
+                    foundLight = true;
+                    break;
+                }
+                Assert.IsTrue(foundLight, "Entry chamber has no planned light marker.");
+                Assert.AreEqual(Mat.Glass,
+                    brush.Get(light.Position.x, light.Position.y, light.Position.z),
+                    "The planned chamber light marker should be present after decoration.");
             }
             finally
             {
