@@ -32,7 +32,7 @@ namespace VoxelEngine.Structures.Api
                 DesiredTowerCount = ChooseTowerCount(perimeter, ref wallRng),
                 HasPosternGate = wallRng.NextInt(0, 100) < 25,
                 Site = CastleSitePlanner.Create(seed),
-                Walls = CastleWallPlanner.Create(),
+                Walls = CastleWallPlanner.Create(seed),
                 HasKeepAnnexPlan = true,
                 KeepAnnexes = annexes,
                 KeepTurrets = CastleKeepTurretPlanner.Create(seed),
