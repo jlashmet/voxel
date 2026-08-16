@@ -1,7 +1,7 @@
+using Game.Composition.Materials;
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
-using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
@@ -129,7 +129,7 @@ namespace Game.Materials.Tests
         [Test]
         public void LegacyStructurePalette_ResolvesTheGameOwnedRoleBindingDuringMigration()
         {
-            StructureMaterialComposition.Configure(in GameStructureMaterials.Default);
+            GameMaterialComposition.Install();
 
             Assert.That(Mat.Empty, Is.EqualTo(GameMaterialIds.Empty));
             Assert.That(Mat.Stone, Is.EqualTo(GameMaterialIds.Stone));
