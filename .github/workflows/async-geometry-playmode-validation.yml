@@ -41,8 +41,9 @@ jobs:
         run: |
           set -euo pipefail
           # Authoritative Metal checkpoint after EditMode passed all 82 focused tests.
-          # LOD and stress now use URP SingleCameraRequest and wait for the showcase's
-          # atomic-world SurfaceBuildEnabled barrier before issuing explicit render requests.
+          # LOD and stress use URP SingleCameraRequest and wait for the showcase's atomic-world
+          # SurfaceBuildEnabled barrier. The readiness failure now reports castle region/stage
+          # progress so this run distinguishes slow startup from a stalled dependency.
           # Geometry source remains unchanged from the compile-corrected foundation.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
