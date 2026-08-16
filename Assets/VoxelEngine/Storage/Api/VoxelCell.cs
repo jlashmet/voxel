@@ -66,6 +66,7 @@ namespace VoxelEngine.Storage.Api
         public const byte Snow = 2;
         public const byte Soot = 3;
         public const byte Wet = 4;
+        public const byte Fire = 5;
     }
 
     [Flags]

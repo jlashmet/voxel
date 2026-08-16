@@ -22,7 +22,11 @@ namespace VoxelEngine.Storage.Api
         /// <summary>Liquid — spreads to adjacent logical voxel blocks on destruction.</summary>
         Spreading = 4,
 
-        /// <summary>Flammable — ignites adjacent logical voxel blocks on destruction.</summary>
+        /// <summary>
+        /// Legacy shorthand for content authored before flammability became an independent
+        /// material property. New content may keep its physical destruction class and opt into
+        /// fire simulation separately.
+        /// </summary>
         Flammable = 5,
     }
 }
