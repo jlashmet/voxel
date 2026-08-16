@@ -112,19 +112,20 @@ namespace VoxelEngine.Showcase
 
                 GameObject labelObject = new GameObject(cluster.Kind + " Label");
                 labelObject.transform.SetParent(_labelsRoot, false);
-                // Flying populations are presented above the ground plane. Keep their labels with
-                // that visual cell instead of dropping them into the row in front of them.
+                // Put the caption in the gap below its cell rather than over the swarm itself.
+                // Flying captions stay slightly elevated so they remain associated with the same row.
                 labelObject.transform.position = new Vector3(
                     cluster.PositionMetres.x,
-                    flying ? 0.95f : 0.12f,
-                    cluster.PositionMetres.z - 1.55f);
+                    flying ? 0.65f : 0.10f,
+                    cluster.PositionMetres.z - 2.35f);
 
                 TextMesh label = labelObject.AddComponent<TextMesh>();
                 label.text = cluster.Kind + "\n" + profile.Movement;
                 label.anchor = TextAnchor.UpperCenter;
                 label.alignment = TextAlignment.Center;
-                label.characterSize = 0.052f;
+                label.characterSize = 0.045f;
                 label.fontSize = 48;
+                label.fontStyle = FontStyle.Bold;
                 label.color = new Color(0.96f, 0.98f, 1f, 1f);
             }
 
