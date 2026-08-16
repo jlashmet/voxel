@@ -49,7 +49,7 @@ namespace VoxelGame.Editor
         {
             // Bump when import behavior changes so Unity reimports associated FBXs even
             // when CI/editor sessions retain a warm Library cache.
-            return 4;
+            return 5;
         }
 
         private void OnPreprocessModel()
@@ -125,11 +125,10 @@ namespace VoxelGame.Editor
         private static void AssignPlaceholderMaterial(GameObject root)
         {
             // We deliberately do not import Rocketbox's large legacy TGA material set.
-            // Instead, bind the active render pipeline's own default 3D material so these
-            // temporary bodies are visibly renderable in URP without adding disposable
-            // texture/material assets. Fall back to Unity's built-in default for projects
-            // using the Built-in Render Pipeline.
-            var pipeline = GraphicsSettings.currentRenderPipeline;
+            // Prefer the currently active SRP, but asset import can run before that pipeline
+            // is instantiated (notably in batchmode). In that case use the project's configured
+            // default pipeline before considering the Built-in Render Pipeline fallback.
+            var pipeline = GraphicsSettings.currentRenderPipeline ?? GraphicsSettings.defaultRenderPipeline;
             var material = pipeline != null
                 ? pipeline.defaultMaterial
                 : AssetDatabase.GetBuiltinExtraResource<Material>("Default-Material.mat");
