@@ -12,6 +12,7 @@ on:
       - 'tools/character-factory/runtime/blender_prepare_character.py'
       - 'tools/character-factory/runtime/blender_gameplay_animation.py'
       - 'tools/character-factory/runtime/pipelines/character.py'
+      - 'tools/character-factory/ci/verify_madeline_base_contract.py'
       - 'tools/character-factory/character_factory.py'
       - '.github/workflows/madeline-base-body-build.yml'
   workflow_dispatch:
@@ -52,6 +53,15 @@ jobs:
         run: |
           set -euo pipefail
           bash tools/character-factory/production/madeline/build.sh "$GITHUB_WORKSPACE/$OUT"
+
+      - name: Verify reusable Madeline base contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="${BLENDER_BIN:-/Applications/Blender.app/Contents/MacOS/Blender}"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_madeline_base_contract.py -- \
+            --input "$GITHUB_WORKSPACE/$OUT/madeline_body_01.fbx"
 
       - name: Upload generated character
         uses: actions/upload-artifact@v4
