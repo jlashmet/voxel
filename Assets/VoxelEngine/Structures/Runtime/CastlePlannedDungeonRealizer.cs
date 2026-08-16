@@ -13,28 +13,8 @@ namespace VoxelEngine.Structures.Runtime
     internal static class CastlePlannedDungeonRealizer
     {
         /// <summary>
-        /// Compatibility overload retained while callers migrate to the explicit CavePlan handoff.
-        /// It preserves the historical fixed castle-cave recipe only for those legacy callers.
-        /// </summary>
-        internal static void Build(
-            ref VoxelBrush brush,
-            in CastlePlan keepPlan,
-            DungeonPlan dungeonPlan)
-        {
-            ValidateDungeon(dungeonPlan);
-            BuildDesigned(ref brush, dungeonPlan);
-
-            if (!dungeonPlan.HasCaveExit)
-                return;
-
-            DungeonRoomPlan threshold = dungeonPlan.Rooms[dungeonPlan.CaveThresholdRoomId];
-            int3 caveOrigin = CaveEntrance(in threshold);
-            CastleCaveRealizer.Build(ref brush, in keepPlan, caveOrigin);
-        }
-
-        /// <summary>
         /// Runtime path for a fully completed spatial castle. Both designed and natural topology
-        /// are supplied by planning; this overload contains no cave-planning or castle-scale choice.
+        /// are supplied by planning; this component contains no cave-planning or castle-scale choice.
         /// </summary>
         internal static void Build(
             ref VoxelBrush brush,
