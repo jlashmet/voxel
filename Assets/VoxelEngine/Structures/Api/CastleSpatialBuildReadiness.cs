@@ -63,6 +63,17 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            if (!CastleTowerSlitPlanCompletion.TryValidate(
+                    in plan,
+                    spatial,
+                    out CastleTowerSlitBuildReadinessIssue towerSlitIssue))
+            {
+                issue = towerSlitIssue == CastleTowerSlitBuildReadinessIssue.InvalidSlitPlan
+                    ? CastleSpatialBuildReadinessIssue.InvalidTowerSlitPlan
+                    : CastleSpatialBuildReadinessIssue.MissingTowerSlitPlan;
+                return false;
+            }
+
             CastleKeepFloorPlan[] floors = spatial.KeepFloors;
             if (!CastleKeepFloorPlanValidator.TryValidate(
                     in plan, floors, out CastleKeepFloorPlanIssue floorIssue))
