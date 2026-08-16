@@ -9,15 +9,18 @@ namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Spatial-castle activation seam for the showcase. The large streaming world keeps owning
-    /// lifecycle and mutation, while this partial owns the planned layout/projection state and all
+    /// lifecycle and mutation, while this partial owns the runtime-ready planning bundle and all
     /// interaction geometry that would otherwise duplicate castle placement math in application code.
     /// </summary>
     public sealed partial class ShowcaseWorld
     {
         private void PreparePendingCastleSpatialPlan()
         {
-            _pendingCastleSpatialPlan = StructuresComposition.PlanCastleSpatial(
-                in _pendingCastlePlan, Seed);
+            _pendingPlannedCastle = StructuresComposition.PlanCastleBuild(
+                _pendingCastlePlan.Centre,
+                _pendingCastlePlan.Seed,
+                Seed);
+            _pendingCastlePlan = _pendingPlannedCastle.Dimensions;
             QueuePendingCastleDependencyRegions();
         }
 
@@ -28,8 +31,10 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private void QueuePendingCastleDependencyRegions()
         {
+            CastlePlan dimensions = _pendingPlannedCastle.Dimensions;
+            CastleSpatialPlan spatial = _pendingPlannedCastle.Spatial;
             CastleBuildBounds bounds = CastleBuildBoundsResolver.Resolve(
-                in _pendingCastlePlan, _pendingCastleSpatialPlan);
+                in dimensions, spatial);
             int shift = VoxelDimensions.RegionVoxelEdgeLog2;
             int3 minRegion = bounds.Min >> shift;
             int3 maxRegion = (bounds.MaxExclusive - 1) >> shift;
@@ -53,9 +58,9 @@ namespace VoxelEngine.Showcase
             IRegionMutationStore mutations,
             IMaterialAuthoringCatalogue materials)
         {
-            // QueueLandmarks still carries its historical y=0 dependency loop. Reassert the
-            // authoritative spatial envelope at admission so that legacy list cannot permit voxel
-            // mutation before upper or offset castle regions have been generated.
+            // Reassert the authoritative spatial envelope at admission so mutation cannot start
+            // after a caller or future planner changed dependency geometry without refreshing the
+            // queue. The runtime-ready bundle keeps that geometry tied to its terrain seed.
             QueuePendingCastleDependencyRegions();
             return new DependencyGatedCastleBuildSession(this, materials);
         }
@@ -99,9 +104,7 @@ namespace VoxelEngine.Showcase
                     _inner = StructuresComposition.BeginCastleBuild(
                         readyReads,
                         readyMutations,
-                        in _world._pendingCastlePlan,
-                        _world._pendingCastleSpatialPlan,
-                        _world.Seed,
+                        in _world._pendingPlannedCastle,
                         _materials);
                 }
 
@@ -111,9 +114,9 @@ namespace VoxelEngine.Showcase
 
         private void CommitPendingCastleSpatialPlan()
         {
-            _castlePlan = _pendingCastlePlan;
-            _castleSpatialProjection = CastleSpatialProjection.Create(
-                in _castlePlan, _pendingCastleSpatialPlan);
+            _plannedCastle = _pendingPlannedCastle;
+            _castlePlan = _plannedCastle.Dimensions;
+            _castleSpatialProjection = _plannedCastle.Projection;
             _hasCastlePlan = true;
             _castleTrapdoorOpen = false;
             _castleFrontGateOpen = false;
