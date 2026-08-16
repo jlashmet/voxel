@@ -18,24 +18,24 @@ namespace VoxelEngine.Showcase
     {
         internal GameCastlePlan Value;
 
-        public int3 Centre { readonly get => Value.Centre; set => Value.Centre = value; }
-        public int PlateauRadius { readonly get => Value.PlateauRadius; set => Value.PlateauRadius = value; }
-        public int PlateauHeight { readonly get => Value.PlateauHeight; set => Value.PlateauHeight = value; }
-        public int CliffDrop { readonly get => Value.CliffDrop; set => Value.CliffDrop = value; }
-        public int BaileyHalfX { readonly get => Value.BaileyHalfX; set => Value.BaileyHalfX = value; }
-        public int BaileyHalfZ { readonly get => Value.BaileyHalfZ; set => Value.BaileyHalfZ = value; }
-        public int WallHeight { readonly get => Value.WallHeight; set => Value.WallHeight = value; }
-        public int WallThickness { readonly get => Value.WallThickness; set => Value.WallThickness = value; }
-        public int TowerRadius { readonly get => Value.TowerRadius; set => Value.TowerRadius = value; }
-        public int TowerHeight { readonly get => Value.TowerHeight; set => Value.TowerHeight = value; }
-        public int GateTowerRadius { readonly get => Value.GateTowerRadius; set => Value.GateTowerRadius = value; }
-        public int GateTowerHeight { readonly get => Value.GateTowerHeight; set => Value.GateTowerHeight = value; }
-        public int KeepHalfX { readonly get => Value.KeepHalfX; set => Value.KeepHalfX = value; }
-        public int KeepHalfZ { readonly get => Value.KeepHalfZ; set => Value.KeepHalfZ = value; }
-        public int KeepHeight { readonly get => Value.KeepHeight; set => Value.KeepHeight = value; }
-        public int FloorHeight { readonly get => Value.FloorHeight; set => Value.FloorHeight = value; }
-        public int Floors { readonly get => Value.Floors; set => Value.Floors = value; }
-        public uint Seed { readonly get => Value.Seed; set => Value.Seed = value; }
+        public int3 Centre { get => Value.Centre; set => Value.Centre = value; }
+        public int PlateauRadius { get => Value.PlateauRadius; set => Value.PlateauRadius = value; }
+        public int PlateauHeight { get => Value.PlateauHeight; set => Value.PlateauHeight = value; }
+        public int CliffDrop { get => Value.CliffDrop; set => Value.CliffDrop = value; }
+        public int BaileyHalfX { get => Value.BaileyHalfX; set => Value.BaileyHalfX = value; }
+        public int BaileyHalfZ { get => Value.BaileyHalfZ; set => Value.BaileyHalfZ = value; }
+        public int WallHeight { get => Value.WallHeight; set => Value.WallHeight = value; }
+        public int WallThickness { get => Value.WallThickness; set => Value.WallThickness = value; }
+        public int TowerRadius { get => Value.TowerRadius; set => Value.TowerRadius = value; }
+        public int TowerHeight { get => Value.TowerHeight; set => Value.TowerHeight = value; }
+        public int GateTowerRadius { get => Value.GateTowerRadius; set => Value.GateTowerRadius = value; }
+        public int GateTowerHeight { get => Value.GateTowerHeight; set => Value.GateTowerHeight = value; }
+        public int KeepHalfX { get => Value.KeepHalfX; set => Value.KeepHalfX = value; }
+        public int KeepHalfZ { get => Value.KeepHalfZ; set => Value.KeepHalfZ = value; }
+        public int KeepHeight { get => Value.KeepHeight; set => Value.KeepHeight = value; }
+        public int FloorHeight { get => Value.FloorHeight; set => Value.FloorHeight = value; }
+        public int Floors { get => Value.Floors; set => Value.Floors = value; }
+        public uint Seed { get => Value.Seed; set => Value.Seed = value; }
 
         public static implicit operator CastlePlan(GameCastlePlan plan) =>
             new() { Value = plan };
@@ -54,23 +54,41 @@ namespace VoxelEngine.Showcase
         public const int FrontGateDepth = GameCastleLayout.FrontGateDepth;
         public const int LowerRiverDepth = GameCastleLayout.LowerRiverDepth;
 
-        public static int3 TrapdoorCentre(in CastlePlan plan) =>
-            GameCastleLayout.TrapdoorCentre(in plan.Value);
+        public static int3 TrapdoorCentre(in CastlePlan plan)
+        {
+            GameCastlePlan gamePlan = plan.Value;
+            return GameCastleLayout.TrapdoorCentre(in gamePlan);
+        }
 
-        public static int3 FrontGateMinimum(in CastlePlan plan) =>
-            GameCastleLayout.FrontGateMinimum(in plan.Value);
+        public static int3 FrontGateMinimum(in CastlePlan plan)
+        {
+            GameCastlePlan gamePlan = plan.Value;
+            return GameCastleLayout.FrontGateMinimum(in gamePlan);
+        }
 
-        public static int WaterfallStreamX(in CastlePlan plan) =>
-            GameCastleLayout.WaterfallStreamX(in plan.Value);
+        public static int WaterfallStreamX(in CastlePlan plan)
+        {
+            GameCastlePlan gamePlan = plan.Value;
+            return GameCastleLayout.WaterfallStreamX(in gamePlan);
+        }
 
-        public static int LowerRiverZAt(in CastlePlan plan, int x) =>
-            GameCastleLayout.LowerRiverZAt(in plan.Value, x);
+        public static int LowerRiverZAt(in CastlePlan plan, int x)
+        {
+            GameCastlePlan gamePlan = plan.Value;
+            return GameCastleLayout.LowerRiverZAt(in gamePlan, x);
+        }
 
-        public static int WaterfallLipZ(in CastlePlan plan) =>
-            GameCastleLayout.WaterfallLipZ(in plan.Value);
+        public static int WaterfallLipZ(in CastlePlan plan)
+        {
+            GameCastlePlan gamePlan = plan.Value;
+            return GameCastleLayout.WaterfallLipZ(in gamePlan);
+        }
 
-        public static int3 ChapelBellTowerCentre(in CastlePlan plan) =>
-            GameCastleLayout.ChapelBellTowerCentre(in plan.Value);
+        public static int3 ChapelBellTowerCentre(in CastlePlan plan)
+        {
+            GameCastlePlan gamePlan = plan.Value;
+            return GameCastleLayout.ChapelBellTowerCentre(in gamePlan);
+        }
     }
 
     /// <summary>Showcase-local incremental build contract backed by game-owned castle content.</summary>
@@ -102,8 +120,14 @@ namespace VoxelEngine.Showcase
         public static IStructureAuthoringSession CreateAuthoringSession(
             IRegionReadSource reads,
             IRegionMutationStore mutations,
+            IMaterialAuthoringCatalogue materials) =>
+            EngineStructuresComposition.CreateAuthoringSession(reads, mutations, materials);
+
+        public static IStructureAuthoringSession CreateAuthoringSession(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations,
             IMaterialAuthoringCatalogue materials,
-            int writeBudget = 4_000_000) =>
+            int writeBudget) =>
             EngineStructuresComposition.CreateAuthoringSession(
                 reads, mutations, materials, writeBudget);
 
@@ -117,8 +141,9 @@ namespace VoxelEngine.Showcase
             IStructureAuthoringSession authoring =
                 EngineStructuresComposition.CreateAuthoringSession(
                     reads, mutations, materials);
+            GameCastlePlan gamePlan = plan.Value;
             return new CastleBuildSession(
-                new CastleAuthoringBuild(authoring, in plan.Value, terrainSeed));
+                new CastleAuthoringBuild(authoring, in gamePlan, terrainSeed));
         }
 
         public static VoxelEngine.Composition.ReferenceArchBuildResult BuildReferenceArch(
