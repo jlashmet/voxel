@@ -47,6 +47,7 @@ namespace VoxelEngine.Structures.Api
         public int2 WellCentre { get; }
         public CastleCourtyardBuildingSpec[] CourtyardBuildings { get; }
         public DungeonPlan Dungeon { get; }
+        public CavePlan Cave { get; }
         public int2 KeepCentre { get; }
         public bool KeepRequiresTerrainResolution { get; }
 
@@ -164,6 +165,43 @@ namespace VoxelEngine.Structures.Api
             DungeonPlan dungeon,
             int2 keepCentre,
             bool keepRequiresTerrainResolution)
+            : this(
+                in topology,
+                outerWardVertices,
+                innerWardVertices,
+                towers,
+                in primaryGate,
+                hasPosternGate,
+                in posternGate,
+                hasInnerGate,
+                in innerGate,
+                hasWell,
+                wellCentre,
+                courtyardBuildings,
+                dungeon,
+                null,
+                keepCentre,
+                keepRequiresTerrainResolution)
+        {
+        }
+
+        internal CastleSpatialPlan(
+            in CastleTopologyPlan topology,
+            int2[] outerWardVertices,
+            int2[] innerWardVertices,
+            CastleTowerPlacementSpec[] towers,
+            in CastleGatePlacementSpec primaryGate,
+            bool hasPosternGate,
+            in CastleGatePlacementSpec posternGate,
+            bool hasInnerGate,
+            in CastleGatePlacementSpec innerGate,
+            bool hasWell,
+            int2 wellCentre,
+            CastleCourtyardBuildingSpec[] courtyardBuildings,
+            DungeonPlan dungeon,
+            CavePlan cave,
+            int2 keepCentre,
+            bool keepRequiresTerrainResolution)
         {
             Topology = topology;
             OuterWardVertices = outerWardVertices;
@@ -181,6 +219,7 @@ namespace VoxelEngine.Structures.Api
             WellCentre = wellCentre;
             CourtyardBuildings = courtyardBuildings ?? Array.Empty<CastleCourtyardBuildingSpec>();
             Dungeon = dungeon;
+            Cave = cave;
             KeepCentre = keepCentre;
             KeepRequiresTerrainResolution = keepRequiresTerrainResolution;
         }
