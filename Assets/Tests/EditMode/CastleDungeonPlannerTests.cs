@@ -71,7 +71,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.IsTrue(spatial.KeepRequiresTerrainResolution);
             Assert.Throws<InvalidOperationException>(() =>
-                CastleDungeonPlanner.Create(in dimensions, spatial));
+                CastleDungeonPlanner.Create(dimensions, spatial));
         }
 
         private static DungeonRoomPlan Find(DungeonPlan plan, DungeonRoomPurpose purpose)
