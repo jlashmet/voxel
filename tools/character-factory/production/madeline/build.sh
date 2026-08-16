@@ -182,7 +182,7 @@ cat > "$SPEC" <<JSON
     "steps": 5,
     "octreeResolution": 256,
     "numChunks": 16000,
-    "removeBackground": false,
+    "removeBackground": true,
     "enableFlashVdm": false
   },
   "rig": {
