@@ -22,9 +22,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
     /// <summary>
     /// Maps one physically pinned region's compact block-ref metadata into the worker's padded
-    /// exact brick cache. Region jobs are chained sequentially; each writes a disjoint intersection
-    /// and therefore never contends with another region. Encoded refs may be authoritatively
-    /// replaced while the job runs; the owning region revision is validated before output is used.
+    /// exact brick cache. Region jobs may run concurrently after the shared clear; each writes a
+    /// provably disjoint intersection of the cache. Container safety is therefore disabled for the
+    /// two shared output arrays so Unity does not reject sibling write jobs that cannot alias by
+    /// construction. Encoded refs may be authoritatively replaced while the job runs; the owning
+    /// region revision is validated before output is used.
     /// </summary>
     [BurstCompile]
     internal struct ExactBrickMetadataRegionJob : IJobParallelFor
@@ -37,9 +39,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         public int3 CacheOrigin;
         public int BrickCacheEdge;
 
-        [NativeDisableParallelForRestriction]
+        [NativeDisableContainerSafetyRestriction, NativeDisableParallelForRestriction]
         public NativeArray<TransvoxelDensityBrick> Bricks;
-        [NativeDisableParallelForRestriction]
+        [NativeDisableContainerSafetyRestriction, NativeDisableParallelForRestriction]
         public NativeArray<byte> MixedFlags;
 
         public void Execute(int index)
