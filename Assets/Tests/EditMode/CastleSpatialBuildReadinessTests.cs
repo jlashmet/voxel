@@ -26,8 +26,7 @@ namespace VoxelEngine.Tests.EditMode
             CastlePlan plan = CastlePlanner.Create(int3.zero, 101u);
             CastleTopologyPlan topology = CastleLayoutPlanner.Create(101u);
             topology.KeepPlacement = CastleKeepPlacement.Central;
-            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
-            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
+            CastleSpatialPlan completed = CompleteWithGatehouse(in plan, in topology);
 
             Assert.IsTrue(
                 CastleSpatialBuildReadiness.TryValidate(
@@ -37,13 +36,27 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void CompletedSpatialPlanWithoutFrozenGatehouseIsNotRuntimeReady()
+        {
+            CastlePlan plan = CastlePlanner.Create(int3.zero, 102u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(102u);
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
+
+            Assert.IsFalse(
+                CastleSpatialBuildReadiness.TryValidate(
+                    in plan, completed, out CastleSpatialBuildReadinessIssue issue));
+            Assert.AreEqual(CastleSpatialBuildReadinessIssue.MissingGatehousePlan, issue);
+        }
+
+        [Test]
         public void RuntimeReadyPreflightReportsIncompletePlanBeforeWriteBudget()
         {
             CastlePlan plan = CastlePlanner.Create(int3.zero, 103u);
             CastleTopologyPlan topology = CastleLayoutPlanner.Create(103u);
             topology.KeepPlacement = CastleKeepPlacement.Central;
-            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
-            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
+            CastleSpatialPlan completed = CompleteWithGatehouse(in plan, in topology);
 
             CastleLandscapeDecorationSpec[] decorations = completed.Landscape.Decorations;
             Assert.Greater(decorations.Length, 0);
@@ -66,8 +79,7 @@ namespace VoxelEngine.Tests.EditMode
             CastlePlan plan = CastlePlanner.Create(int3.zero, 107u);
             CastleTopologyPlan topology = CastleLayoutPlanner.Create(107u);
             topology.KeepPlacement = CastleKeepPlacement.Central;
-            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
-            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
+            CastleSpatialPlan completed = CompleteWithGatehouse(in plan, in topology);
 
             CastleKeepWindowSpec window = completed.KeepWindows[0];
             completed.KeepWindows[0] = new CastleKeepWindowSpec(
@@ -92,11 +104,24 @@ namespace VoxelEngine.Tests.EditMode
         {
             string preflight = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api", "CastleBuildPreflight.cs"));
+            string composition = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "StructuresComposition.cs"));
 
             StringAssert.Contains("CastleSpatialBuildReadiness.TryValidate(", preflight);
             StringAssert.DoesNotContain("CastleKeepAnnexBuildReadiness.TryValidate(", preflight);
             StringAssert.DoesNotContain("CastleCaveBuildReadiness.TryValidate(", preflight);
             StringAssert.DoesNotContain("CastleKeepWindowPlanner.TryValidate(", preflight);
+            StringAssert.DoesNotContain("Gatehouse = CastleGatehousePlanner.Create(in dimensions)", composition,
+                "The runtime-ready bundle must consume the gatehouse frozen into Spatial.Topology.");
+        }
+
+        private static CastleSpatialPlan CompleteWithGatehouse(
+            in CastlePlan plan,
+            in CastleTopologyPlan topology)
+        {
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+            CastleSpatialPlan withGatehouse = CastleGatehousePlanCompletion.Attach(in plan, spatial);
+            return CastleSpatialPlanCompletion.CompleteResolved(in plan, withGatehouse);
         }
     }
 }
