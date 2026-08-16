@@ -118,6 +118,10 @@ Every completed build writes `manifest.json` containing the actual generator bac
 
 Clothing uses `SkinnedToCharacterSkeleton`; rigid weapons/accessories use `BoneSocket`.
 
+## Integration validation
+
+After synchronizing the feature branch with `master`, the Character Factory workflow must pass on the resulting feature head before the branch is merged into `master`.
+
 ## Current limitations
 
 The mechanics are now end-to-end validated, but production fitting and art quality still need work. Current body/garment alignment is global rather than semantic or landmark-driven. Remaining quality work includes realistic proportions, faces/fingers/hair, loose-garment conforming, collision/poke-through correction, body-region hiding, LOD generation, weapon-grip inference, and accessory-mount inference.
