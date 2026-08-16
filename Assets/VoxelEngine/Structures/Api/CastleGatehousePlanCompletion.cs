@@ -4,9 +4,9 @@ using Unity.Mathematics;
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
-    /// Attaches the dimensional primary-gatehouse recipe once CastlePlan is available. Seed-only
-    /// topology deliberately cannot choose these dimensions; completed spatial plans must carry
-    /// the frozen recipe so Runtime never needs to derive it while mutating voxels.
+    /// Attaches the dimensional primary-gatehouse recipe once CastlePlan and primary-gate geometry
+    /// are available. Completed spatial plans carry both structural dimensions and frozen gate-tower
+    /// slit phases so Runtime never derives authored gatehouse variation while mutating voxels.
     /// </summary>
     public static class CastleGatehousePlanCompletion
     {
@@ -16,19 +16,22 @@ namespace VoxelEngine.Structures.Api
         {
             if (spatial == null) throw new ArgumentNullException(nameof(spatial));
 
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleTopologyPlan topology = spatial.Topology;
             if (!topology.HasGatehousePlan)
             {
-                topology.Gatehouse = CastleGatehousePlanner.Create(in dimensions);
+                topology.Gatehouse = CastleGatehousePlanner.Create(
+                    in dimensions, in primaryGate);
                 topology.HasGatehousePlan = true;
             }
             else
             {
                 CastleGatehousePlan gatehouse = topology.Gatehouse;
                 CastleGatehousePlanValidator.RequireValid(in gatehouse);
+                CastleGatehousePlanValidator.RequireTowerDetails(
+                    in gatehouse, dimensions.FloorHeight);
             }
 
-            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleGatePlacementSpec posternGate = spatial.PosternGate;
             CastleGatePlacementSpec innerGate = spatial.InnerGate;
 
