@@ -15,11 +15,11 @@ namespace VoxelEngine.Structures.Runtime
             int2 worldKeepCentre,
             CastleKeepWindowSpec[] windows)
         {
-            CastlePlan keepPlan = plan;
-            keepPlan.Centre = new int3(
-                worldKeepCentre.x,
-                plan.Centre.y,
-                worldKeepCentre.y - CastleLayout.LegacyKeepCentreZOffset);
+            int2 localKeepCentre = new int2(
+                worldKeepCentre.x - plan.Centre.x,
+                worldKeepCentre.y - plan.Centre.z);
+            CastlePlan keepPlan = CastleSpatialProjection.ProjectKeepPlan(
+                in plan, localKeepCentre);
             CastlePlannedKeepWindowRealizer.BuildAll(ref brush, in keepPlan, windows);
         }
     }
