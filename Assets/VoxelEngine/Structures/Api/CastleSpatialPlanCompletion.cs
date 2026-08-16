@@ -126,7 +126,7 @@ namespace VoxelEngine.Structures.Api
             return Copy(
                 spatial,
                 spatial.Towers,
-                floors: spatial.KeepFloors,
+                spatial.KeepFloors,
                 buildings,
                 spatial.Dungeon,
                 spatial.Cave);
