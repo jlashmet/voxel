@@ -56,6 +56,8 @@ namespace VoxelEngine.Tests.EditMode
 
             StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", keep,
                 "Planned shell/floor bounds must come from the shared projection.");
+            StringAssert.Contains("CastleSpatialProjection.KeepSize(", keep,
+                "Planned shell/floor size must come from the shared projection.");
             StringAssert.Contains("CastleKeepShellRealizer.Build(", keep);
             StringAssert.Contains("CastlePlannedKeepTurretRealizer.BuildAll(", keep);
             StringAssert.Contains("CastleKeepFloorRealizer.BuildPlanned(", keep);
@@ -66,8 +68,14 @@ namespace VoxelEngine.Tests.EditMode
 
             StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", exterior,
                 "Planned exterior bounds must use the same projection as shell/floors.");
+            StringAssert.Contains("CastleSpatialProjection.KeepSize(", exterior,
+                "Planned exterior size must use the same projection as shell/floors.");
             StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", annex,
                 "Shared annex geometry must use the projected keep bounds on both compatibility and spatial paths.");
+            StringAssert.DoesNotContain("keepPlan.KeepHalfX * 2", keep,
+                "Planned keep realization must not rebuild keep dimensions locally.");
+            StringAssert.DoesNotContain("plan.KeepHalfX * 2", exterior,
+                "Planned exterior realization must not rebuild keep dimensions locally.");
             StringAssert.DoesNotContain("plan.Centre.z - hz + 60", annex,
                 "Annex geometry must not reconstruct the legacy keep anchor locally.");
             StringAssert.DoesNotContain("CastleLayout.LegacyKeepCentreZOffset", keep,
