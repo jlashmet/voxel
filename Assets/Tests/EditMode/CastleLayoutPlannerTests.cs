@@ -21,6 +21,17 @@ namespace VoxelEngine.Tests.EditMode
                     $"seed {seed}: tower count");
                 Assert.AreEqual(first.HasPosternGate, second.HasPosternGate,
                     $"seed {seed}: postern gate");
+                Assert.AreEqual(first.HasKeepAnnexPlan, second.HasKeepAnnexPlan,
+                    $"seed {seed}: annex planning presence");
+                Assert.AreEqual(first.KeepAnnexes.HasGreatHallWing,
+                                second.KeepAnnexes.HasGreatHallWing,
+                    $"seed {seed}: great-hall wing");
+                Assert.AreEqual(first.KeepAnnexes.HasChapelWing,
+                                second.KeepAnnexes.HasChapelWing,
+                    $"seed {seed}: chapel wing");
+                Assert.AreEqual(first.KeepAnnexes.HasBellTower,
+                                second.KeepAnnexes.HasBellTower,
+                    $"seed {seed}: bell tower");
             }
         }
 
@@ -33,6 +44,18 @@ namespace VoxelEngine.Tests.EditMode
 
                 Assert.GreaterOrEqual(plan.DesiredTowerCount, 4, $"seed {seed}: tower minimum");
                 Assert.LessOrEqual(plan.DesiredTowerCount, 8, $"seed {seed}: tower maximum");
+                Assert.IsTrue(plan.HasKeepAnnexPlan, $"seed {seed}: missing keep-annex plan");
+                CastleKeepAnnexPlan annexes = plan.KeepAnnexes;
+                Assert.IsTrue(
+                    CastleKeepAnnexPlanValidator.TryValidate(
+                        in annexes, out CastleKeepAnnexPlanIssue annexIssue),
+                    $"seed {seed}: invalid keep-annex plan: {annexIssue}");
+                Assert.IsTrue(annexes.HasGreatHallWing,
+                    $"seed {seed}: compatibility recipe lost Great Hall wing");
+                Assert.IsTrue(annexes.HasChapelWing,
+                    $"seed {seed}: compatibility recipe lost chapel wing");
+                Assert.IsTrue(annexes.HasBellTower,
+                    $"seed {seed}: compatibility recipe lost bell tower");
 
                 if (plan.Perimeter == CastlePerimeterKind.Concentric)
                 {
