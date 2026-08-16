@@ -470,6 +470,19 @@ namespace VoxelEngine.Tests.EditMode
 
 
         [Test]
+        public void MissingMixedSnapshotPinRejectsGenerationInsteadOfSpinning()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            StringAssert.Contains(
+                "if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))", cache);
+            StringAssert.Contains("ReleasePinnedRegionMetadataImmediate();", cache);
+            StringAssert.Contains("_discardBuildAfterPinRelease = true;", cache);
+            StringAssert.DoesNotContain("_snapshotPinUnavailable", cache,
+                "A pin failure must reject/retry the snapshot, not park on an unused flag.");
+        }
+
+        [Test]
         public void WaterPublicationUsesFixedArenaAndBoundedSlices()
         {
             string water = ReadRenderingSource(

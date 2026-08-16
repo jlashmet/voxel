@@ -372,7 +372,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private NativeArray<byte> _pinnedMixedBoundarySamples;
         private int _pinnedReleaseCursor;
         private bool _discardBuildAfterPinRelease;
-        private bool _snapshotPinUnavailable;
         private readonly PinnedRegionBlockRefs[] _pinnedRegionBlockRefs =
             new PinnedRegionBlockRefs[MaxExactSnapshotRegions];
         private IRegionReadSource _pinnedRegionSource;
@@ -1758,10 +1757,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 {
                     int cacheIndex = _exactMixedBrickIndices[_exactMixedPinCursor];
                     int3 worldBlock = WorldBlockForCacheIndex(cacheIndex, cacheOrigin);
-                    _snapshotPinUnavailable = false;
                     if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))
                     {
-                        _snapshotPinUnavailable = true;
+                        // Metadata said this block was mixed, but the coordinate can no longer
+                        // supply that immutable COW payload. The optimistic snapshot is no longer
+                        // coherent (for example, residency or a writer raced the metadata copy).
+                        // Do not spin forever on the same cursor: reject this generation and let
+                        // the existing bounded pin-release path retry from fresh metadata.
+                        ReleasePinnedRegionMetadataImmediate();
+                        _discardBuildAfterPinRelease = true;
                         AccumulateSnapshotSlice(sliceStart, completed: false);
                         return false;
                     }
@@ -2179,7 +2183,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void ClearPinnedSnapshotState()
         {
             _pinnedReadSource = null;
-            _snapshotPinUnavailable = false;
             _pinnedMixedVoxels = default;
             _pinnedMixedSurfaceSemantics = default;
             _pinnedMixedBoundarySamples = default;
