@@ -18,6 +18,9 @@ namespace VoxelEngine.Structures.Api
         KeepRequiresTerrainResolution,
         MissingKeepFloorPlan,
         InvalidKeepFloorPlan,
+        InvalidKeepCirculationPlan,
+        MissingKeepAnnexPlan,
+        InvalidKeepAnnexPlan,
         MissingDungeonPlan,
         InvalidDungeonPlan,
         DungeonEntranceMismatch,
@@ -262,6 +265,26 @@ namespace VoxelEngine.Structures.Api
                         CastleSpatialBuildReadinessIssue.InvalidKeepFloorPlan,
                         writeBudget);
                 }
+            }
+
+            CastleKeepCirculationPlan circulation = spatialPlan.KeepCirculation;
+            if (!CastleKeepCirculationPlanner.TryValidate(
+                    in plan, in circulation, out _))
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.InvalidKeepCirculationPlan,
+                    writeBudget);
+            }
+
+            if (!CastleKeepAnnexBuildReadiness.TryValidate(
+                    in spatialPlan.Topology,
+                    out CastleKeepAnnexBuildReadinessIssue annexIssue))
+            {
+                CastleSpatialBuildReadinessIssue readinessIssue =
+                    annexIssue == CastleKeepAnnexBuildReadinessIssue.MissingPlan
+                        ? CastleSpatialBuildReadinessIssue.MissingKeepAnnexPlan
+                        : CastleSpatialBuildReadinessIssue.InvalidKeepAnnexPlan;
+                return ReadinessFailure(readinessIssue, writeBudget);
             }
 
             DungeonPlan dungeon = spatialPlan.Dungeon;
