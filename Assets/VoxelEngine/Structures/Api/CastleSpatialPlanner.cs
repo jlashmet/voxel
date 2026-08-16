@@ -43,6 +43,20 @@ namespace VoxelEngine.Structures.Api
             bool hasWell = !requiresTerrainResolution &&
                 CastleCourtyardPlacementGeometry.TryChooseWell(
                     in dimensions, outer, in gate, keepCentre, out wellCentre);
+            CastleCourtyardBuildingSpec[] courtyardBuildings = requiresTerrainResolution
+                ? Array.Empty<CastleCourtyardBuildingSpec>()
+                : CastleCourtyardBuildingPlacementGeometry.Plan(
+                    in dimensions,
+                    outer,
+                    inner,
+                    in gate,
+                    hasPosternGate,
+                    in posternGate,
+                    hasInnerGate,
+                    in innerGate,
+                    keepCentre,
+                    hasWell,
+                    wellCentre);
 
             return new CastleSpatialPlan(
                 in topology,
@@ -56,6 +70,7 @@ namespace VoxelEngine.Structures.Api
                 in innerGate,
                 hasWell,
                 wellCentre,
+                courtyardBuildings,
                 keepCentre,
                 requiresTerrainResolution);
         }
@@ -101,6 +116,19 @@ namespace VoxelEngine.Structures.Api
                 in primaryGate,
                 localKeepCentre,
                 out int2 wellCentre);
+            CastleCourtyardBuildingSpec[] courtyardBuildings =
+                CastleCourtyardBuildingPlacementGeometry.Plan(
+                    in dimensions,
+                    spatial.OuterWardVertices,
+                    spatial.InnerWardVertices,
+                    in primaryGate,
+                    spatial.HasPosternGate,
+                    in posternGate,
+                    spatial.HasInnerGate,
+                    in innerGate,
+                    localKeepCentre,
+                    hasWell,
+                    wellCentre);
             var resolved = new CastleSpatialPlan(
                 in topology,
                 (int2[])spatial.OuterWardVertices.Clone(),
@@ -113,6 +141,7 @@ namespace VoxelEngine.Structures.Api
                 in innerGate,
                 hasWell,
                 wellCentre,
+                courtyardBuildings,
                 localKeepCentre,
                 false);
 
