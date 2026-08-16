@@ -459,7 +459,9 @@ namespace VoxelEngine.Tests.EditMode
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
             StringAssert.Contains("public void SetClipmapWindow", cache);
-            StringAssert.Contains("if (!WithinClipmapWindow(chunk)) return;", cache);
+            StringAssert.Contains("private bool TrackKnown", cache);
+            StringAssert.Contains("if (!WithinClipmapWindow(chunk)) return false;", cache);
+            StringAssert.Contains("!TrackKnown(chunk)) continue;", cache);
             StringAssert.Contains("WithinClipmapWindow(_build.Coordinate)", cache);
             StringAssert.Contains("UpdateClipmapWindow(cameraPosition, voxelSize)", scheduler);
             StringAssert.Contains("ClipmapCentre", scheduler);
