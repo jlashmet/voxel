@@ -20,6 +20,9 @@ namespace VoxelEngine.Tests.PlayMode
         private const string SceneName = "KentridgePlayableSlice";
         private const string DriverTypeName = "Game.Kentridge.PlayableSlice.KentridgePlayableSlice";
         private const float DecimetresToMetres = 0.1f;
+        private const float WaypointToleranceMetres = 0.35f;
+        private const int MaxWalkFramesPerLeg = 600;
+        private const float WalkDeltaTime = 1f / 60f;
 
         private Scene _loadedScene;
         private Scene _previousActiveScene;
@@ -64,6 +67,7 @@ namespace VoxelEngine.Tests.PlayMode
             object pubAccess = ReadPrivateField<object>(driver, "_pubAccess");
 
             Vector3 entrance = ReadRealizedPoint(pubAccess, "Entrance");
+            Vector3 interiorApproach = ReadRealizedPoint(pubAccess, "InteriorApproach");
             Vector3 exteriorTarget = ReadRealizedPoint(pubAccess, "ExteriorApproach");
             Vector3 inward = ReadInt2Direction(pubAccess, "Inward");
 
@@ -71,27 +75,40 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(initialDepth, Is.GreaterThan(0.5f),
                 "When gameplay control returns, the actual scene player must still be physically inside the generated pub.");
 
-            // Feed movement to the exact CharacterMotor owned by the loaded scene. The production
-            // scene continues running each frame, including streaming and its normal exit detection.
-            // No teleport or semantic location mutation is used: success requires voxel collision
-            // to permit the physical crossing and the scene itself to observe the exterior position.
-            Time.captureDeltaTime = 1f / 60f;
-            for (var frame = 0; frame < 600 && !ReadBoolProperty(driver, "HasExitedPub"); frame++)
+            // InteriorGatheringArea intentionally spreads the cutscene actors laterally. The lead's
+            // final stage point therefore is not guaranteed to be on the doorway centreline. A real
+            // player would first line up with the door rather than walking diagonally through the
+            // front wall. Drive the exact scene-owned CharacterMotor to the architecture-owned
+            // interior approach, then through the public entrance. No teleport or semantic location
+            // mutation is used on either leg.
+            Time.captureDeltaTime = WalkDeltaTime;
+            yield return WalkMotorTo(
+                motor,
+                world,
+                interiorApproach,
+                "generated pub interior doorway approach");
+
+            float approachDepth = Vector3.Dot(motor.Position - entrance, inward);
+            Assert.That(approachDepth, Is.GreaterThan(0.5f),
+                "The interior approach must remain on the pub side of the generated public entrance.");
+
+            for (var frame = 0;
+                 frame < MaxWalkFramesPerLeg && !ReadBoolProperty(driver, "HasExitedPub");
+                 frame++)
             {
-                Vector3 delta = exteriorTarget - motor.Position;
-                delta.y = 0f;
-                Vector3 wish = delta.sqrMagnitude <= 1e-6f ? Vector3.zero : delta.normalized;
-                motor.Step(world, wish, sprint: false, jumpHeld: false, dt: 1f / 60f);
+                StepToward(motor, world, exteriorTarget);
                 yield return null;
             }
             Time.captureDeltaTime = 0f;
 
             Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.True,
-                "The launched game scene did not allow the player to walk through the generated pub doorway into Kentridge.");
+                "The launched game scene reached the generated doorway approach but could not walk through the public entrance into Kentridge. " +
+                PositionDiagnostic(motor.Position, exteriorTarget, entrance, inward));
 
             float exteriorDepth = Vector3.Dot(motor.Position - entrance, inward);
             Assert.That(exteriorDepth, Is.LessThanOrEqualTo(-0.75f),
-                "The player must finish on the Kentridge-town side of the generated pub entrance.");
+                "The player must finish on the Kentridge-town side of the generated pub entrance. " +
+                PositionDiagnostic(motor.Position, exteriorTarget, entrance, inward));
         }
 
         [UnityTearDown]
@@ -115,6 +132,63 @@ namespace VoxelEngine.Tests.PlayMode
             _loadedScene = default;
             _previousActiveScene = default;
         }
+
+        private static IEnumerator WalkMotorTo(
+            CharacterMotor motor,
+            ShowcaseWorld world,
+            Vector3 target,
+            string waypointName)
+        {
+            Vector3 start = motor.Position;
+            var frame = 0;
+            for (; frame < MaxWalkFramesPerLeg; frame++)
+            {
+                float remaining = HorizontalDistance(motor.Position, target);
+                if (remaining <= WaypointToleranceMetres) break;
+                StepToward(motor, world, target);
+                yield return null;
+            }
+
+            float finalDistance = HorizontalDistance(motor.Position, target);
+            Assert.That(finalDistance, Is.LessThanOrEqualTo(WaypointToleranceMetres),
+                "Player could not physically reach " + waypointName +
+                ". start=" + FormatVector(start) +
+                ", final=" + FormatVector(motor.Position) +
+                ", target=" + FormatVector(target) +
+                ", remainingHorizontalMetres=" + finalDistance.ToString("F3") +
+                ", frames=" + frame + ".");
+        }
+
+        private static void StepToward(CharacterMotor motor, ShowcaseWorld world, Vector3 target)
+        {
+            Vector3 delta = target - motor.Position;
+            delta.y = 0f;
+            Vector3 wish = delta.sqrMagnitude <= 1e-6f ? Vector3.zero : delta.normalized;
+            motor.Step(world, wish, sprint: false, jumpHeld: false, dt: WalkDeltaTime);
+        }
+
+        private static float HorizontalDistance(Vector3 a, Vector3 b)
+        {
+            float dx = a.x - b.x;
+            float dz = a.z - b.z;
+            return Mathf.Sqrt(dx * dx + dz * dz);
+        }
+
+        private static string PositionDiagnostic(
+            Vector3 position,
+            Vector3 target,
+            Vector3 entrance,
+            Vector3 inward)
+        {
+            float signedDepth = Vector3.Dot(position - entrance, inward);
+            return "position=" + FormatVector(position) +
+                   ", target=" + FormatVector(target) +
+                   ", remainingHorizontalMetres=" + HorizontalDistance(position, target).ToString("F3") +
+                   ", signedEntranceDepthMetres=" + signedDepth.ToString("F3") + ".";
+        }
+
+        private static string FormatVector(Vector3 value) =>
+            "(" + value.x.ToString("F3") + ", " + value.y.ToString("F3") + ", " + value.z.ToString("F3") + ")";
 
         private static Component FindDriver(Scene scene)
         {
