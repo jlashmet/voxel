@@ -158,7 +158,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void KentridgeCombinedCatalogueContainsRoundedMassingOpeningsAndExplicitSurfaceStyles()
+        public void KentridgeCombinedCatalogueContainsRoundedNamedAndAnonymousArchitecture()
         {
             FeatureCatalogue catalogue = KentridgeCombinedVoxelCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
@@ -230,6 +230,61 @@ namespace VoxelEngine.Tests.EditMode
                     "Foundation/detail geometry should explicitly request beveled reconstruction.");
                 Assert.Greater(smoothRoofPrism, 0,
                     "Active Kentridge roof prisms should consume the style's roof reconstruction policy.");
+
+                int roundedFabricDefinitions = 0;
+                int fabricArchitecturalRounded = 0;
+                int fabricRoundedOpenings = 0;
+                int fabricSmoothRoofs = 0;
+                for (int definitionIndex = 0;
+                     definitionIndex < catalogue.Definitions.Length;
+                     definitionIndex++)
+                {
+                    FeatureDefinition definition = catalogue.Definitions[definitionIndex];
+                    if (!definition.Name.ToString().StartsWith("kentridge-fabric-"))
+                        continue;
+
+                    bool definitionRounded = false;
+                    int pc = definition.ProgramOffset;
+                    int end = definition.ProgramOffset + definition.ProgramLength;
+                    while (pc < end)
+                    {
+                        ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                        int length = ShapeOps.InstructionLength(op);
+                        Assert.GreaterOrEqual(length, 2, definition.Name.ToString());
+
+                        if (op == ShapeOp.EmitRoundedBox)
+                        {
+                            definitionRounded = true;
+                            ushort surface = (ushort)catalogue.Program[pc + 10];
+                            PrimitiveMode mode = (PrimitiveMode)catalogue.Program[pc + 12];
+                            if (surface == SurfaceStyles.ArchitecturalRounded)
+                                fabricArchitecturalRounded++;
+                            if (mode == PrimitiveMode.Carve
+                                && surface == SurfaceStyles.ArchitecturalRounded)
+                                fabricRoundedOpenings++;
+                        }
+                        else if (op == ShapeOp.EmitPrism)
+                        {
+                            ushort surface = (ushort)catalogue.Program[pc + 10];
+                            if (surface == SurfaceStyles.Smooth)
+                                fabricSmoothRoofs++;
+                        }
+
+                        pc += length;
+                        if (op == ShapeOp.End) break;
+                    }
+
+                    if (definitionRounded) roundedFabricDefinitions++;
+                }
+
+                Assert.Greater(roundedFabricDefinitions, 0,
+                    "Anonymous Kentridge frontage must consume low-level geometry profiles too.");
+                Assert.Greater(fabricArchitecturalRounded, 0,
+                    "Anonymous shells should request architecture-specific smooth reconstruction.");
+                Assert.Greater(fabricRoundedOpenings, 0,
+                    "Anonymous door/window cuts should receive independent opening rounding.");
+                Assert.Greater(fabricSmoothRoofs, 0,
+                    "Anonymous roof prisms should receive the city style's roof treatment.");
             }
             finally
             {
