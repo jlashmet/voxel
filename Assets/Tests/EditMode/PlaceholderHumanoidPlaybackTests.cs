@@ -38,6 +38,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(animator.avatar.isValid, Is.True, $"{bodyPath} Animator Avatar is invalid");
                 Assert.That(animator.avatar.isHuman, Is.True, $"{bodyPath} Animator Avatar is not Humanoid");
 
+                // Prototype movement is character-controller driven. This playback test only
+                // proves that the shared Humanoid clip retargets and animates the body pose.
                 animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
                 animator.applyRootMotion = false;
                 animator.Rebind();
