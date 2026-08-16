@@ -43,7 +43,8 @@ namespace VoxelEngine.Structures.Api
     {
         public static CastleKeepPlan Create(in CastlePlan plan)
         {
-            CastleKeepFloorPlan[] floors = CastleKeepRoomPlanner.Create(in plan);
+            CastleKeepInteriorPlan interior = CastleKeepInteriorPlanner.Create(in plan);
+            CastleKeepFloorPlan[] floors = interior.SnapshotFloors();
             CastleKeepCirculationPlan circulation = CastleKeepCirculationPlanner.Create(in plan);
             CastleKeepAnnexPlan annexes = CastleKeepAnnexPlanner.Create(in plan);
             var keep = new CastleKeepPlan(floors, in circulation, in annexes);
