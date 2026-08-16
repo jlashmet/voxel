@@ -90,7 +90,7 @@ namespace VoxelEngine.Structures.Api
     public static class CastleBuildPreflight
     {
         private const double LegacyUndergroundEstimate = 1_500_000.0;
-        private const double PlannedCaveEstimate = 400_000.0;
+        private const double UnplannedCaveAllowance = 400_000.0;
 
         /// <summary>
         /// Historical rectangular estimate retained byte-for-byte for compatibility callers.
@@ -149,7 +149,7 @@ namespace VoxelEngine.Structures.Api
             double keep = plan.KeepHalfX * (double)plan.KeepHalfZ * plan.Floors * 4.0;
             double courtyard = PolygonArea(spatialPlan.OuterWardVertices) * 0.2;
             double courtyardBuildings = CourtyardBuildingCost(spatialPlan.CourtyardBuildings);
-            double underground = DungeonCost(spatialPlan.Dungeon);
+            double underground = UndergroundCost(spatialPlan.Dungeon, spatialPlan.Cave);
 
             double primaryGateLeaf = CastleLayout.FrontGateWidth
                                    * (double)CastleLayout.FrontGateHeight
@@ -347,14 +347,19 @@ namespace VoxelEngine.Structures.Api
                 writeBudget);
         }
 
-        private static double DungeonCost(DungeonPlan dungeon)
+        private static double UndergroundCost(DungeonPlan dungeon, CavePlan cave)
         {
             if (dungeon == null || !DungeonPlanValidator.TryValidate(dungeon, out _))
                 return LegacyUndergroundEstimate;
 
             double designed = DungeonBuildEstimate.Estimate(dungeon);
-            double cave = dungeon.HasCaveExit ? PlannedCaveEstimate : 0.0;
-            return designed + cave;
+            if (!dungeon.HasCaveExit)
+                return designed;
+
+            double natural = cave != null && CavePlanValidator.TryValidate(cave, out _)
+                ? CaveBuildEstimate.Estimate(cave)
+                : UnplannedCaveAllowance;
+            return designed + natural;
         }
 
         private static double CourtyardBuildingCost(CastleCourtyardBuildingSpec[] buildings)
