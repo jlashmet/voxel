@@ -50,6 +50,8 @@ resolver.SetPreferredVisual(generatedCharacterPrefab);
 
 The generated/preferred prefab immediately replaces the owned fallback instance. Setting the preferred visual back to `null` resolves the fallback again. The resolver only destroys/replaces the visual instance it owns, preserves unrelated character children, and normalizes the spawned visual to local position zero, identity rotation, and unit scale.
 
+`CharacterVisualResolver` publishes `VisualChanged` whenever its owned visual changes. Generic runtime systems can use that signal to rebind visual-local components without knowing whether the visual came from Rocketbox, Character Factory, or another source.
+
 `CharacterVisualResolver` deliberately does **not** rebind an external `CharacterEquipmentController` when the visual skeleton changes. Treat it as a visual replacement seam, not an equipped-character hot-swap API. Use the Character Factory wrapper when equipment/skeleton wiring is required, or let the generated-character lifecycle own equipment rebinding once that runtime contract exists.
 
 Choosing male versus female remains an authoring/spawn-data decision outside the resolver; the runtime component deliberately has no placeholder-specific gender enum or asset path.
@@ -69,7 +71,24 @@ The animation FBXs are imported as Unity Humanoid clips and use semantic clip na
 
 Walk/Run use Rocketbox's XY motion-extraction source files, but the placeholder importer explicitly bakes horizontal displacement into the pose so every starter clip plays in-place. Unity 6000.5 also does not expose usable root-motion curves from these Humanoid imports. Gameplay locomotion therefore stays driven by the character motor/controller. A `PlayableGraph` test drives Walk on both placeholder avatars and verifies an actual retargeted leg-pose change.
 
-No temporary Animator state machine is defined here. Gameplay should consume these through the project's existing Unity Humanoid/Animator seam.
+### Runtime clip playback
+
+`VoxelEngine.Characters.Runtime.CharacterAnimationPlayer` is the generic runtime playback seam. It plays any `AnimationClip` directly through a Unity `PlayableGraph`; it has no Rocketbox paths, clip-name table, or AnimatorController dependency.
+
+Add it to the same character root as `CharacterVisualResolver`. It automatically binds to the current visual's child `Animator`. When the resolver swaps from a fallback visual to a preferred/generated visual, the player stops the graph bound to the old Animator and retargets itself to the new visual's Animator.
+
+Gameplay remains responsible for deciding **which** semantic clip should play:
+
+```csharp
+animationPlayer.Play(idleClip);
+animationPlayer.Play(walkClip);
+animationPlayer.Play(waveClip);
+animationPlayer.Stop();
+```
+
+That keeps locomotion/emote policy outside the temporary asset package. A later gameplay animation policy can choose Idle/Walk/Run from movement state and use the same player after the Rocketbox placeholders are removed.
+
+No temporary Animator state machine is defined here.
 
 ## Intended use
 
