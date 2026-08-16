@@ -132,9 +132,13 @@ namespace VoxelEngine.Showcase
                 labelObject.transform.SetParent(_labelsRoot, false);
                 // Keep each caption in the inter-row gap but biased toward its own species row so
                 // tall agents from the following row cannot occlude the text in the review plate.
+                // The top row gets extra lift because the tall GlowMoth flock can otherwise cover
+                // SeedLight's movement classification in the labelled human-review capture.
+                int row = i / 4;
+                float labelHeight = row == 0 ? 0.85f : 0.10f;
                 labelObject.transform.position = new Vector3(
                     cluster.PositionMetres.x,
-                    0.10f,
+                    labelHeight,
                     cluster.PositionMetres.z - 1.65f);
 
                 TextMesh label = labelObject.AddComponent<TextMesh>();
