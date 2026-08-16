@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
         description=(
             "Project an approved frontal face crop onto the Head-weighted, front-facing "
             "polygons of a Character Factory FBX. The canonical Character Factory rig "
-            "faces Blender -Y, so X/Z are used for planar face UVs."
+            "faces Blender world -Y, so world X/Z are used for planar face UVs."
         )
     )
     parser.add_argument("--input", required=True)
@@ -93,8 +93,12 @@ def head_vertex_indices(
     return result
 
 
+def world_point(body: bpy.types.Object, vertex_index: int):
+    return body.matrix_world @ body.data.vertices[vertex_index].co
+
+
 def bounds_xz(body: bpy.types.Object, indices: set[int]) -> tuple[float, float, float, float]:
-    points = [body.data.vertices[index].co for index in indices]
+    points = [world_point(body, index) for index in indices]
     min_x = min(point.x for point in points)
     max_x = max(point.x for point in points)
     min_z = min(point.z for point in points)
@@ -106,6 +110,8 @@ def bounds_xz(body: bpy.types.Object, indices: set[int]) -> tuple[float, float, 
 
 def create_face_material(face_path: Path) -> bpy.types.Material:
     image = bpy.data.images.load(str(face_path), check_existing=False)
+    if not image.has_data or image.size[0] <= 0 or image.size[1] <= 0:
+        raise RuntimeError(f"Unable to decode face source image: {face_path}")
     image.name = "MadelineFaceSource"
 
     material = bpy.data.materials.get(FACE_MATERIAL_NAME)
@@ -175,16 +181,28 @@ def project_face(
     uv_layer = ensure_face_uv(body)
     slot = material_slot(body, face_material)
     projected = 0
+    candidate_world_normal_y: list[float] = []
+
+    # FBX import can preserve the canonical -Y facing direction through an object
+    # transform instead of baking it into mesh-local coordinates. Transform normals
+    # with the inverse-transpose and evaluate the face gate in canonical world space.
+    normal_matrix = body.matrix_world.to_3x3().inverted().transposed()
 
     for polygon in body.data.polygons:
         head_count = sum(1 for vertex_index in polygon.vertices if vertex_index in head_indices)
         if head_count < max(1, (len(polygon.vertices) + 1) // 2):
             continue
 
-        # The Character Factory canonical mannequin faces -Y. Requiring a negative
-        # Y normal keeps this source photograph on the face instead of wrapping it
-        # over the rear of the skull. Cheek polygons remain eligible at low angles.
-        if polygon.normal.y >= -abs(front_normal_threshold):
+        world_normal = normal_matrix @ polygon.normal
+        if world_normal.length_squared > 0.0:
+            world_normal.normalize()
+        candidate_world_normal_y.append(float(world_normal.y))
+
+        # The Character Factory canonical mannequin faces world -Y. Requiring a
+        # negative world-space Y normal keeps this source photograph on the face
+        # instead of wrapping it over the rear of the skull. Cheeks remain eligible
+        # at low angles through the intentionally small threshold.
+        if world_normal.y >= -abs(front_normal_threshold):
             continue
 
         polygon.material_index = slot
@@ -192,7 +210,7 @@ def project_face(
 
         for loop_index in polygon.loop_indices:
             vertex_index = body.data.loops[loop_index].vertex_index
-            point = body.data.vertices[vertex_index].co
+            point = world_point(body, vertex_index)
             u = (point.x - min_x) / span_x
             v = (point.z - min_z) / span_z
 
@@ -203,9 +221,16 @@ def project_face(
             uv_layer.data[loop_index].uv = (u, v)
 
     if projected == 0:
+        normal_range = "unavailable"
+        if candidate_world_normal_y:
+            normal_range = (
+                f"{min(candidate_world_normal_y):.4f}.."
+                f"{max(candidate_world_normal_y):.4f}"
+            )
         raise RuntimeError(
-            "No front-facing Head polygons were selected. Check canonical orientation "
-            "or --front-normal before accepting this build."
+            "No front-facing Head polygons were selected in canonical world space. "
+            f"headCandidateNormalY={normal_range} threshold={front_normal_threshold:.4f} "
+            f"bodyMatrix={tuple(round(value, 5) for row in body.matrix_world for value in row)}"
         )
 
     return projected
