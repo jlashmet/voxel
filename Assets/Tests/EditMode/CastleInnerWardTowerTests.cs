@@ -103,11 +103,14 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("_innerTowers = CastleInnerWardTowerPlanner.Create(innerWardVertices);", plan);
             StringAssert.Contains("spatialPlan.InnerTowers", pipeline);
             StringAssert.Contains("CastleInnerWardTowerRealizer.BuildAll(", pipeline);
-            StringAssert.Contains("_innerTowerCentres", pipeline);
+            StringAssert.Contains("_innerTowerSpecs", pipeline);
+            StringAssert.Contains("tower.HasRoof", realizer);
+            StringAssert.DoesNotContain("CastleSeedPartition", realizer,
+                "Runtime must consume planned inner-tower appearance rather than draw seed choices.");
             StringAssert.DoesNotContain("CastleInnerWardTowerPlanner.", pipeline,
                 "Runtime must consume the materialized tower plan rather than invoke planning policy.");
             StringAssert.DoesNotContain("CastleInnerWardTowerPlanner.", realizer,
-                "The realizer owns only voxel profile decisions for supplied tower centres.");
+                "The realizer owns only voxel profile decisions for supplied tower specs.");
         }
 
         private static string RepoRoot()
