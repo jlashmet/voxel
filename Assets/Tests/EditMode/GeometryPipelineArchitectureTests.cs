@@ -243,5 +243,19 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("storage.GetResidentRegionCoords(Allocator.Temp)", scheduler);
         }
 
+
+        [Test]
+        public void SurfaceEntriesAreReusedAfterResidencyChurn()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            StringAssert.Contains("private readonly Stack<Entry> _entryPool", cache);
+            StringAssert.Contains("private Entry AcquireEntry", cache);
+            StringAssert.Contains("private void RecycleEntry", cache);
+            StringAssert.Contains("entry.Reinitialize(coordinate)", cache);
+            StringAssert.DoesNotContain(
+                "entry = new Entry(_build.Coordinate, VoxelsPerAxis, SourceStep", cache);
+        }
+
     }
 }

@@ -75,7 +75,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public sealed class Entry : IDisposable
         {
-            public readonly int3 Coordinate;
+            public int3 Coordinate { get; private set; }
             /// <summary>Voxels this chunk spans per axis — ring-dependent, so bounds and
             /// any consumer's world-space reasoning must use it rather than a constant.</summary>
             public readonly int VoxelsPerAxis;
@@ -107,6 +107,28 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 VoxelsPerAxis = voxelsPerAxis;
                 SourceStep = sourceStep;
                 _arena = arena ?? throw new ArgumentNullException(nameof(arena));
+            }
+
+            internal void Reinitialize(int3 coordinate)
+            {
+                if (Ready || _liveLease.IsValid || _stagingLease.IsValid)
+                    throw new InvalidOperationException(
+                        "A surface entry must release its arena leases before reuse.");
+                Coordinate = coordinate;
+                IndexCount = 0;
+                LastUsedFrame = 0;
+                GpuBytes = 0;
+                VertexCapacity = 0;
+                IndexCapacity = 0;
+                SourceVersion = 0;
+                MaterialPaletteVersion = 0;
+                SurfaceCatalogueVersion = 0;
+                SurfaceCatalogueHash = 0;
+                CoatingCatalogueVersion = 0;
+                CoatingCatalogueHash = 0;
+                WaitingForArena = false;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
             }
 
             private int _stagingVertexCursor;
@@ -265,6 +287,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         private readonly Dictionary<int3, Entry> _entries = new();
+        private readonly Stack<Entry> _entryPool = new();
         private readonly HashSet<int3> _known = new();
         // Known-chunk liveness is maintained incrementally. A full HashSet scan in every worker
         // turns residency pressure into O(world-residency) frame work, so each known chunk owns
@@ -2604,6 +2627,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return _geometryArena;
         }
 
+        private Entry AcquireEntry(int3 coordinate)
+        {
+            if (_entryPool.Count == 0)
+                return new Entry(coordinate, VoxelsPerAxis, SourceStep, GetGeometryArena());
+
+            Entry entry = _entryPool.Pop();
+            entry.Reinitialize(coordinate);
+            return entry;
+        }
+
+        private void RecycleEntry(Entry entry)
+        {
+            if (entry == null) return;
+            entry.Dispose();
+            _entryPool.Push(entry);
+        }
+
         private void FinishBuild(int frame)
         {
             if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
@@ -2619,7 +2659,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             {
                 if (_entries.TryGetValue(_build.Coordinate, out Entry stale))
                 {
-                    stale.Dispose();
+                    RecycleEntry(stale);
                     _entries.Remove(_build.Coordinate);
                 }
                 _emptyVersions[_build.Coordinate] = _build.SourceVersion;
@@ -2634,7 +2674,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _emptyVersions.Remove(_build.Coordinate);
             if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
             {
-                entry = new Entry(_build.Coordinate, VoxelsPerAxis, SourceStep, GetGeometryArena());
+                entry = AcquireEntry(_build.Coordinate);
                 _entries.Add(_build.Coordinate, entry);
             }
 
@@ -2698,7 +2738,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 entry.CancelUpload();
                 if (!entry.Ready)
                 {
-                    entry.Dispose();
+                    RecycleEntry(entry);
                     _entries.Remove(_build.Coordinate);
                 }
             }
@@ -2808,7 +2848,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
 
             if (farthest < 0f) return false;
-            if (_entries.TryGetValue(victim, out Entry entry)) entry.Dispose();
+            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
             _entries.Remove(victim);
             MarkDirty(victim);
             return true;
@@ -2845,7 +2885,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 CapacityPressureCount++;
                 return;
             }
-            if (_entries.TryGetValue(victim, out Entry entry)) entry.Dispose();
+            if (_entries.TryGetValue(victim, out Entry entry)) RecycleEntry(entry);
             _entries.Remove(victim);
             MarkDirty(victim);
         }
@@ -2955,7 +2995,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _queuedAtSeconds.Remove(chunk);
             if (_entries.TryGetValue(chunk, out Entry entry))
             {
-                entry.Dispose();
+                RecycleEntry(entry);
                 _entries.Remove(chunk);
             }
             if (_build.Active && _build.Coordinate.Equals(chunk))
@@ -3089,6 +3129,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             CompleteJobs();
             foreach (Entry entry in _entries.Values) entry.Dispose();
             _entries.Clear();
+            foreach (Entry entry in _entryPool) entry.Dispose();
+            _entryPool.Clear();
             _known.Clear();
             _dirty.Clear();
             _desiredVersions.Clear();
