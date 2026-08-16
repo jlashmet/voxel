@@ -42,5 +42,15 @@ namespace VoxelEngine.Structures.Api
         {
             _decorations = decorations ?? Array.Empty<CastleLandscapeDecorationSpec>();
         }
+
+        /// <summary>
+        /// Defensive copy for long-lived realization. Authoring/tests may mutate the planning array,
+        /// but an in-flight build must not change after Runtime preflight has accepted it.
+        /// </summary>
+        public CastleLandscapePlan Snapshot() =>
+            new CastleLandscapePlan(
+                _decorations != null
+                    ? (CastleLandscapeDecorationSpec[])_decorations.Clone()
+                    : Array.Empty<CastleLandscapeDecorationSpec>());
     }
 }
