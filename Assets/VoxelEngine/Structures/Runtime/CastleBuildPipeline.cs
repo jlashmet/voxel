@@ -39,6 +39,7 @@ namespace VoxelEngine.Structures.Runtime
         private CastleKeepFloorPlan[] _keepFloorPlans;
         private CastleKeepCirculationPlan _keepCirculation;
         private CastleKeepAnnexPlan _keepAnnexes;
+        private int2 _worldKeepCentre;
         private DungeonPlan _spatialDungeonPlan;
         private CavePlan _spatialCavePlan;
 
@@ -118,6 +119,7 @@ namespace VoxelEngine.Structures.Runtime
             _keepFloorPlans = Array.Empty<CastleKeepFloorPlan>();
             _keepCirculation = default;
             _keepAnnexes = default;
+            _worldKeepCentre = default;
             _spatialDungeonPlan = null;
             _spatialCavePlan = null;
 
@@ -228,8 +230,8 @@ namespace VoxelEngine.Structures.Runtime
                     // planner-owned anchors directly; compatibility builds keep the legacy path.
                     if (_hasSpatialKeep && _keepStage == 3)
                     {
-                        CastlePlannedKeepCirculationRealizer.Build(
-                            ref _brush, in keepPlan, in _keepCirculation);
+                        CastleKeepCirculationRealizer.Build(
+                            ref _brush, in _plan, _worldKeepCentre, in _keepCirculation);
                         _keepStage++;
                         RequireBudget("keep 4");
                         return false;
@@ -344,6 +346,7 @@ namespace VoxelEngine.Structures.Runtime
             CastleSpatialProjection projection = CastleSpatialProjection.Create(
                 in plan, spatialPlan);
             _spatialKeepPlan = projection.KeepPlan;
+            _worldKeepCentre = projection.KeepCentreWorld;
             _hasSpatialKeep = true;
         }
 
