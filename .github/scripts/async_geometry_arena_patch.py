@@ -8,311 +8,149 @@ def once(text, old, new, label):
     return text.replace(old, new, 1)
 
 
-# Shared-buffer shader addressing.
-shader_path = Path('Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader')
-shader = shader_path.read_text()
-shader = once(shader,
-    '            uint _SurfaceIndexBase;\n',
-    '            uint _SurfaceIndexBase;\n            uint _SurfaceVertexBase;\n',
-    'shader vertex base declaration')
-shader = once(shader,
-    '                SurfaceVertex vertex = _SurfaceVertices[_SurfaceIndices[_SurfaceIndexBase + vertexID]];',
-    '                SurfaceVertex vertex = _SurfaceVertices[_SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];',
-    'shader vertex base use')
-shader_path.write_text(shader)
+arena_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceGeometryArena.cs')
+a = arena_path.read_text()
+a = once(a,
+    '        public int UsedArgsRecords => _argsRanges.Used / ArgsWordsPerDraw;\n        public long CommittedGpuBytes =>',
+    '        public int UsedArgsRecords => _argsRanges.Used / ArgsWordsPerDraw;\n        public ulong AllocationFailureCount { get; private set; }\n        public long UsedGpuBytes =>\n            (long)UsedVertices * SmoothSurfaceVertex.Stride\n            + (long)UsedIndices * sizeof(uint)\n            + (long)UsedArgsRecords * ArgsWordsPerDraw * sizeof(uint);\n        public long CommittedGpuBytes =>',
+    'arena metrics')
+a = once(a,
+    '            if (!_vertexRanges.TryAllocate(vertices, out int vertexStart)) return false;',
+    '            if (!_vertexRanges.TryAllocate(vertices, out int vertexStart))\n            {\n                AllocationFailureCount++;\n                return false;\n            }',
+    'vertex allocation failure')
+a = once(a,
+    '                _vertexRanges.Release(vertexStart, vertices);\n                return false;',
+    '                _vertexRanges.Release(vertexStart, vertices);\n                AllocationFailureCount++;\n                return false;',
+    'index allocation failure')
+a = once(a,
+    '                _indexRanges.Release(indexStart, indices);\n                _vertexRanges.Release(vertexStart, vertices);\n                return false;',
+    '                _indexRanges.Release(indexStart, indices);\n                _vertexRanges.Release(vertexStart, vertices);\n                AllocationFailureCount++;\n                return false;',
+    'args allocation failure')
+arena_path.write_text(a)
 
 
 cache_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
 s = cache_path.read_text()
 s = once(s,
-    '        private static readonly int s_SurfaceIndexBase = Shader.PropertyToID("_SurfaceIndexBase");\n',
-    '        private static readonly int s_SurfaceIndexBase = Shader.PropertyToID("_SurfaceIndexBase");\n        private static readonly int s_SurfaceVertexBase = Shader.PropertyToID("_SurfaceVertexBase");\n',
-    'shader id')
-
-# Replace Entry GPU ownership with arena leases while preserving bounds/draw code below.
-entry_start = s.index('        public sealed class Entry : IDisposable')
-bounds_start = s.index('            public Bounds WorldBounds(float voxelSize)', entry_start)
-entry_prefix = '''        public sealed class Entry : IDisposable
-        {
-            public readonly int3 Coordinate;
-            /// <summary>Voxels this chunk spans per axis — ring-dependent, so bounds and
-            /// any consumer's world-space reasoning must use it rather than a constant.</summary>
-            public readonly int VoxelsPerAxis;
-            /// <summary>Voxels between adjacent samples in the ring that produced this entry.</summary>
-            public readonly int SourceStep;
-            private readonly SurfaceGeometryArena _arena;
-            private SurfaceGeometryLease _liveLease;
-            private SurfaceGeometryLease _stagingLease;
-            public ComputeBuffer Vertices => _arena.Vertices;
-            public ComputeBuffer Indices => _arena.Indices;
-            public ComputeBuffer Args => _arena.Args;
-            public bool Ready;
-            public int IndexCount;
-            public int LastUsedFrame;
-            public long GpuBytes { get; private set; }
-            public int VertexCapacity { get; private set; }
-            public int IndexCapacity { get; private set; }
-            public ulong SourceVersion { get; internal set; }
-            public uint MaterialPaletteVersion { get; internal set; }
-            public uint SurfaceCatalogueVersion { get; internal set; }
-            public ulong SurfaceCatalogueHash { get; internal set; }
-            public uint CoatingCatalogueVersion { get; internal set; }
-            public ulong CoatingCatalogueHash { get; internal set; }
-
-            internal Entry(int3 coordinate, int voxelsPerAxis, int sourceStep,
-                           SurfaceGeometryArena arena)
-            {
-                Coordinate = coordinate;
-                VoxelsPerAxis = voxelsPerAxis;
-                SourceStep = sourceStep;
-                _arena = arena ?? throw new ArgumentNullException(nameof(arena));
-            }
-
-            private int _stagingVertexCursor;
-            private int _stagingIndexCursor;
-            private readonly uint[] _indirectArgs = new uint[4];
-
-            internal int RemainingUploadBytes(int vertexCount, int indexCount)
-            {
-                int verticesRemaining = math.max(0, vertexCount - _stagingVertexCursor);
-                int indicesRemaining = math.max(0, indexCount - _stagingIndexCursor);
-                return verticesRemaining * SmoothSurfaceVertex.Stride
-                     + indicesRemaining * sizeof(uint)
-                     + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-            }
-
-            internal bool AdvanceUpload(List<SmoothSurfaceVertex> vertices,
-                                        List<uint> indices,
-                                        int byteBudget,
-                                        out int uploadedBytes)
-            {
-                uploadedBytes = 0;
-                if (byteBudget <= 0 || !EnsureUploadStaging(vertices.Count, indices.Count))
-                    return false;
-
-                int remainingBudget = byteBudget;
-                int vertexRemaining = vertices.Count - _stagingVertexCursor;
-                if (vertexRemaining > 0 && remainingBudget >= SmoothSurfaceVertex.Stride)
-                {
-                    int count = math.min(vertexRemaining,
-                        remainingBudget / SmoothSurfaceVertex.Stride);
-                    _arena.UploadVertices(vertices, _stagingVertexCursor, in _stagingLease, count);
-                    int bytes = count * SmoothSurfaceVertex.Stride;
-                    _stagingVertexCursor += count;
-                    remainingBudget -= bytes;
-                    uploadedBytes += bytes;
-                }
-
-                int indexRemaining = indices.Count - _stagingIndexCursor;
-                if (_stagingVertexCursor == vertices.Count && indexRemaining > 0
-                    && remainingBudget >= sizeof(uint))
-                {
-                    int count = math.min(indexRemaining, remainingBudget / sizeof(uint));
-                    _arena.UploadIndices(indices, _stagingIndexCursor, in _stagingLease, count);
-                    int bytes = count * sizeof(uint);
-                    _stagingIndexCursor += count;
-                    remainingBudget -= bytes;
-                    uploadedBytes += bytes;
-                }
-
-                const int argsBytes = SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-                if (_stagingVertexCursor != vertices.Count
-                    || _stagingIndexCursor != indices.Count
-                    || remainingBudget < argsBytes)
-                    return false;
-
-                _indirectArgs[0] = (uint)indices.Count;
-                _indirectArgs[1] = 1u;
-                _indirectArgs[2] = 0u;
-                _indirectArgs[3] = 0u;
-                _arena.UploadArgs(_indirectArgs, in _stagingLease);
-                uploadedBytes += argsBytes;
-
-                SurfaceGeometryLease previous = _liveLease;
-                _liveLease = _stagingLease;
-                _stagingLease = default;
-                _stagingVertexCursor = 0;
-                _stagingIndexCursor = 0;
-                IndexCount = indices.Count;
-                VertexCapacity = _liveLease.VertexCapacity;
-                IndexCapacity = _liveLease.IndexCapacity;
-                GpuBytes = _arena.ReservedBytes(in _liveLease);
-                Ready = true;
-                _arena.Release(in previous);
-                return true;
-            }
-
-            private bool EnsureUploadStaging(int vertexCount, int indexCount)
-            {
-                if (_stagingLease.IsValid) return true;
-                if (!_arena.TryAcquire(vertexCount, indexCount, out _stagingLease)) return false;
-                _stagingVertexCursor = 0;
-                _stagingIndexCursor = 0;
-                return true;
-            }
-
-            internal void CancelUpload()
-            {
-                _arena.Release(in _stagingLease);
-                _stagingLease = default;
-                _stagingVertexCursor = 0;
-                _stagingIndexCursor = 0;
-            }
-
-'''
-s = s[:entry_start] + entry_prefix + s[bounds_start:]
-
+    '            private readonly uint[] _indirectArgs = new uint[4];\n',
+    '            private readonly uint[] _indirectArgs = new uint[4];\n            internal bool WaitingForArena { get; private set; }\n',
+    'entry arena wait flag')
 s = once(s,
-    '''                properties.SetBuffer(s_SurfaceVertices, Vertices);
-                properties.SetBuffer(s_SurfaceIndices, Indices);
-                properties.SetInt(s_SurfaceIndexBase, 0);
-                commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
-                    MeshTopology.Triangles, Args, 0, properties);''',
-    '''                properties.SetBuffer(s_SurfaceVertices, _arena.Vertices);
-                properties.SetBuffer(s_SurfaceIndices, _arena.Indices);
-                properties.SetInt(s_SurfaceVertexBase, _liveLease.VertexStart);
-                properties.SetInt(s_SurfaceIndexBase, _liveLease.IndexStart);
-                commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
-                    MeshTopology.Triangles, _arena.Args,
-                    _liveLease.ArgsWordStart * sizeof(uint), properties);''',
-    'arena draw binding')
+    '                if (_stagingLease.IsValid) return true;\n                if (!_arena.TryAcquire(vertexCount, indexCount, out _stagingLease)) return false;\n                _stagingVertexCursor = 0;',
+    '                if (_stagingLease.IsValid) return true;\n                if (!_arena.TryAcquire(vertexCount, indexCount, out _stagingLease))\n                {\n                    WaitingForArena = true;\n                    return false;\n                }\n                WaitingForArena = false;\n                _stagingVertexCursor = 0;',
+    'entry arena acquisition')
+s = once(s,
+    '                _stagingLease = default;\n                _stagingVertexCursor = 0;\n                _stagingIndexCursor = 0;\n            }\n\n            public Bounds WorldBounds',
+    '                _stagingLease = default;\n                WaitingForArena = false;\n                _stagingVertexCursor = 0;\n                _stagingIndexCursor = 0;\n            }\n\n            public Bounds WorldBounds',
+    'cancel arena wait')
 
-old_entry_dispose = '''            public void Dispose()
+# Bounded emergency reclamation: only off-frustum, never the entry being replaced.
+pressure_method = '''        internal bool TryEvictOneForArenaPressure(Camera camera, float voxelSize)
+        {
+            if (_entries.Count == 0) return false;
+
+            int3 victim = default;
+            float farthest = -1f;
+            Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            if (camera != null) GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
+
+            foreach (var pair in _entries)
             {
-                CancelUpload();
-                Vertices?.Release();
-                Indices?.Release();
-                Args?.Release();
-                Vertices = null;
-                Indices = null;
-                Args = null;
-                Ready = false;
-                IndexCount = 0;
-                GpuBytes = 0;
-                VertexCapacity = 0;
-                IndexCapacity = 0;
-            }'''
-new_entry_dispose = '''            public void Dispose()
-            {
-                CancelUpload();
-                _arena.Release(in _liveLease);
-                _liveLease = default;
-                Ready = false;
-                IndexCount = 0;
-                GpuBytes = 0;
-                VertexCapacity = 0;
-                IndexCapacity = 0;
-            }'''
-s = once(s, old_entry_dispose, new_entry_dispose, 'entry dispose')
+                if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;
+                Bounds bounds = ChunkWorldBounds(pair.Key, voxelSize);
+                if (camera != null && GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
+                    continue;
 
-s = once(s,
-    '        private BuildState _build;\n        private bool _pendingUpload;\n',
-    '        private BuildState _build;\n        private bool _pendingUpload;\n        private SurfaceGeometryArena _geometryArena;\n        private readonly bool _ownsGeometryArena;\n',
-    'cache arena fields')
+                Vector3 centre = (new Vector3(pair.Key.x, pair.Key.y, pair.Key.z)
+                                + Vector3.one * 0.5f) * chunkMetres;
+                float distance = (centre - cameraPosition).sqrMagnitude;
+                if (distance <= farthest) continue;
+                farthest = distance;
+                victim = pair.Key;
+            }
 
-s = once(s,
-    '        public CpuTransvoxelChunkCache(int sourceStep = 1)\n        {\n',
-    '''        public CpuTransvoxelChunkCache(int sourceStep = 1)
-            : this(sourceStep, null, true)
-        {
-        }
-
-        internal CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena)
-            : this(sourceStep, geometryArena, false)
-        {
-        }
-
-        private CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
-                                         bool ownsGeometryArena)
-        {
-            _geometryArena = geometryArena;
-            _ownsGeometryArena = ownsGeometryArena;
-''',
-    'cache constructors')
-
-s = once(s,
-    '                entry = new Entry(_build.Coordinate, VoxelsPerAxis, SourceStep);',
-    '                entry = new Entry(_build.Coordinate, VoxelsPerAxis, SourceStep, GetGeometryArena());',
-    'entry arena construction')
-
-get_arena = '''        private SurfaceGeometryArena GetGeometryArena()
-        {
-            // Scheduler workers receive an eagerly allocated shared arena. Standalone caches
-            // remain cheap until they actually publish their first piece of geometry.
-            if (_geometryArena == null)
-                _geometryArena = new SurfaceGeometryArena(256 * 1024, 768 * 1024, 512);
-            return _geometryArena;
+            if (farthest < 0f) return false;
+            if (_entries.TryGetValue(victim, out Entry entry)) entry.Dispose();
+            _entries.Remove(victim);
+            _dirty.Add(victim);
+            return true;
         }
 
 '''
-s = once(s, '        private void FinishBuild(int frame)\n',
-         get_arena + '        private void FinishBuild(int frame)\n', 'lazy standalone arena')
-
-s = once(s,
-    '            _build = default;\n        }\n\n        private static double ElapsedMs',
-    '            _build = default;\n            if (_ownsGeometryArena)\n            {\n                _geometryArena?.Dispose();\n                _geometryArena = null;\n            }\n        }\n\n        private static double ElapsedMs',
-    'owned arena dispose')
+s = once(s, '        private void EnforceCapacity(Camera camera, float voxelSize)\n',
+         pressure_method + '        private void EnforceCapacity(Camera camera, float voxelSize)\n',
+         'arena pressure eviction method')
 cache_path.write_text(s)
 
 
 scheduler_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs')
 q = scheduler_path.read_text()
 q = once(q,
-    '''            public SurfaceRing(int sourceStep, float innerRadiusMetres, float outerRadiusMetres,
-                               int maxResidentChunks)
-            {''',
-    '''            public SurfaceRing(int sourceStep, float innerRadiusMetres, float outerRadiusMetres,
-                               int maxResidentChunks, SurfaceGeometryArena geometryArena)
-            {''',
-    'ring ctor signature')
+    '        public readonly int LastFrameSolidUploadCompletions;\n        public readonly double LastSolidSnapshotMs;',
+    '        public readonly int LastFrameSolidUploadCompletions;\n        public readonly long SolidArenaCommittedBytes;\n        public readonly long SolidArenaUsedBytes;\n        public readonly ulong SolidArenaAllocationFailures;\n        public readonly ulong SolidArenaPressureEvictions;\n        public readonly double LastSolidSnapshotMs;',
+    'metric arena fields')
 q = once(q,
-    '                    Workers[i] = new CpuTransvoxelChunkCache(sourceStep)\n',
-    '                    Workers[i] = new CpuTransvoxelChunkCache(sourceStep, geometryArena)\n',
-    'ring worker arena')
+    '            LastFrameSolidUploadCompletions = 0;\n            LastSolidSnapshotMs = solids.LastSnapshotMs;',
+    '            LastFrameSolidUploadCompletions = 0;\n            SolidArenaCommittedBytes = 0;\n            SolidArenaUsedBytes = 0;\n            SolidArenaAllocationFailures = 0;\n            SolidArenaPressureEvictions = 0;\n            LastSolidSnapshotMs = solids.LastSnapshotMs;',
+    'single cache arena metrics')
 q = once(q,
-    '        public const float MaxVoxelRingRadiusMetres = 420f;\n\n        private readonly SurfaceRing[] _rings;',
-    '''        public const float MaxVoxelRingRadiusMetres = 420f;
-        // Allocated once with the scheduler. Runtime streaming may wait for a free range but
-        // cannot grow these buffers and create a render-thread GPU allocation spike.
-        private const int SurfaceArenaVertexCapacity = 2 * 1024 * 1024;
-        private const int SurfaceArenaIndexCapacity = 6 * 1024 * 1024;
-        private const int SurfaceArenaDrawCapacity = 16 * 1024;
+    '                                     int lastFrameSolidUploadCompletions,\n                                     in VoxelTimingSummary schedulerPrepare,',
+    '                                     int lastFrameSolidUploadCompletions,\n                                     long solidArenaCommittedBytes,\n                                     long solidArenaUsedBytes,\n                                     ulong solidArenaAllocationFailures,\n                                     ulong solidArenaPressureEvictions,\n                                     in VoxelTimingSummary schedulerPrepare,',
+    'aggregate arena metric signature')
+q = once(q,
+    '            LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;\n            CompletedSolidBuilds = completed;',
+    '            LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;\n            SolidArenaCommittedBytes = solidArenaCommittedBytes;\n            SolidArenaUsedBytes = solidArenaUsedBytes;\n            SolidArenaAllocationFailures = solidArenaAllocationFailures;\n            SolidArenaPressureEvictions = solidArenaPressureEvictions;\n            CompletedSolidBuilds = completed;',
+    'aggregate arena metric assignments')
+q = once(q,
+    '        private int _lastFrameSolidUploadCompletions;\n        private int _lastAdvancedFrame = -1;',
+    '        private int _lastFrameSolidUploadCompletions;\n        private int _arenaPressureCursor;\n        private ulong _observedArenaAllocationFailures;\n        private ulong _arenaPressureEvictions;\n        private int _lastAdvancedFrame = -1;',
+    'scheduler pressure state')
+q = once(q,
+    '            _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,\n            _lastFrameSolidUploadCompletions, _prepareTiming.Snapshot(),',
+    '            _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,\n            _lastFrameSolidUploadCompletions, _geometryArena.CommittedGpuBytes,\n            _geometryArena.UsedGpuBytes, _geometryArena.AllocationFailureCount,\n            _arenaPressureEvictions, _prepareTiming.Snapshot(),',
+    'metrics arena values')
 
-        private readonly SurfaceGeometryArena _geometryArena;
-        private readonly SurfaceRing[] _rings;''',
-    'scheduler arena fields')
-q = once(q,
-    '''        public VoxelSurfaceScheduler()
-        {
-            _rings = new SurfaceRing[s_RingLayout.Length];''',
-    '''        public VoxelSurfaceScheduler()
-        {
-            _geometryArena = new SurfaceGeometryArena(SurfaceArenaVertexCapacity,
-                                                       SurfaceArenaIndexCapacity,
-                                                       SurfaceArenaDrawCapacity);
-            _rings = new SurfaceRing[s_RingLayout.Length];''',
-    'scheduler arena creation')
-q = once(q,
-    '                SurfaceRing ring = new(layout.SourceStep, layout.Inner, layout.Outer, 4096);',
-    '                SurfaceRing ring = new(layout.SourceStep, layout.Inner, layout.Outer, 4096, _geometryArena);',
-    'ring arena argument')
-q = once(q,
-    '            for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();\n        }',
-    '            for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();\n            _geometryArena.Dispose();\n        }',
-    'scheduler arena disposal')
+# Reclaim at most one offscreen entry in a frame after a new allocation failure. The waiting
+# upload retries on a later frame, preserving the no-stall contract and old visible geometry.
+needle = '''            if (workerCount > 0)
+                _uploadAdmissionCursor = (_uploadAdmissionCursor
+                                         + Math.Max(1, uploadScanAdvance)) % workerCount;
+
+            _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);'''
+replacement = '''            if (workerCount > 0)
+                _uploadAdmissionCursor = (_uploadAdmissionCursor
+                                         + Math.Max(1, uploadScanAdvance)) % workerCount;
+
+            ulong arenaFailures = _geometryArena.AllocationFailureCount;
+            if (arenaFailures > _observedArenaAllocationFailures && workerCount > 0)
+            {
+                _observedArenaAllocationFailures = arenaFailures;
+                for (int offset = 0; offset < workerCount; offset++)
+                {
+                    int index = (_arenaPressureCursor + offset) % workerCount;
+                    if (!_allWorkers[index].TryEvictOneForArenaPressure(camera, voxelSize))
+                        continue;
+                    _arenaPressureCursor = (index + 1) % workerCount;
+                    _arenaPressureEvictions++;
+                    break;
+                }
+            }
+
+            _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);'''
+q = once(q, needle, replacement, 'scheduler arena pressure policy')
 scheduler_path.write_text(q)
 
 
-# Structural guards. These fail before git commit if any old per-entry GPU ownership survives.
+# Guards
+arena = arena_path.read_text()
 cache = cache_path.read_text()
 scheduler = scheduler_path.read_text()
-shader = shader_path.read_text()
-arena = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceGeometryArena.cs').read_text()
-assert '_SurfaceVertexBase' in shader
-assert '_SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]' in shader
-assert 'new ComputeBuffer' not in cache
-assert '_arena.TryAcquire' in cache
-assert '_liveLease.ArgsWordStart * sizeof(uint)' in cache
-assert 'new SurfaceGeometryArena(SurfaceArenaVertexCapacity' in scheduler
-assert 'Workers[i] = new CpuTransvoxelChunkCache(sourceStep, geometryArena)' in scheduler
-assert 'Streaming never creates a ComputeBuffer' in arena
+assert 'AllocationFailureCount++' in arena
+assert 'public long UsedGpuBytes' in arena
+assert 'TryEvictOneForArenaPressure' in cache
+assert 'pair.Key.Equals(_build.Coordinate)' in cache
+assert 'GeometryUtility.TestPlanesAABB' in cache
+assert '_arenaPressureEvictions++' in scheduler
+assert 'SolidArenaAllocationFailures' in scheduler
+assert 'SolidArenaUsedBytes' in scheduler
