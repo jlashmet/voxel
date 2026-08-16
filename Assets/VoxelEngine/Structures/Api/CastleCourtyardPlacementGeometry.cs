@@ -67,13 +67,14 @@ namespace VoxelEngine.Structures.Api
             int2 keepCentre,
             int2 candidate)
         {
+            int wardClearance = WardBoundaryClearance(in plan);
             int2[] probes =
             {
                 candidate,
-                candidate + new int2(WellClearanceRadius, 0),
-                candidate + new int2(-WellClearanceRadius, 0),
-                candidate + new int2(0, WellClearanceRadius),
-                candidate + new int2(0, -WellClearanceRadius),
+                candidate + new int2(wardClearance, 0),
+                candidate + new int2(-wardClearance, 0),
+                candidate + new int2(0, wardClearance),
+                candidate + new int2(0, -wardClearance),
             };
             for (int i = 0; i < probes.Length; i++)
             {
@@ -103,16 +104,17 @@ namespace VoxelEngine.Structures.Api
             if (perimeter == null || perimeter.Length < 3 || stride <= 0)
                 return false;
 
-            int minX = perimeter[0].x + WellClearanceRadius;
-            int maxX = perimeter[0].x - WellClearanceRadius;
-            int minZ = perimeter[0].y + WellClearanceRadius;
-            int maxZ = perimeter[0].y - WellClearanceRadius;
+            int wardClearance = WardBoundaryClearance(in plan);
+            int minX = perimeter[0].x + wardClearance;
+            int maxX = perimeter[0].x - wardClearance;
+            int minZ = perimeter[0].y + wardClearance;
+            int maxZ = perimeter[0].y - wardClearance;
             for (int i = 1; i < perimeter.Length; i++)
             {
-                minX = math.min(minX, perimeter[i].x + WellClearanceRadius);
-                maxX = math.max(maxX, perimeter[i].x - WellClearanceRadius);
-                minZ = math.min(minZ, perimeter[i].y + WellClearanceRadius);
-                maxZ = math.max(maxZ, perimeter[i].y - WellClearanceRadius);
+                minX = math.min(minX, perimeter[i].x + wardClearance);
+                maxX = math.max(maxX, perimeter[i].x - wardClearance);
+                minZ = math.min(minZ, perimeter[i].y + wardClearance);
+                maxZ = math.max(maxZ, perimeter[i].y - wardClearance);
             }
             if (minX > maxX || minZ > maxZ)
                 return false;
@@ -148,6 +150,9 @@ namespace VoxelEngine.Structures.Api
 
             return found;
         }
+
+        private static int WardBoundaryClearance(in CastlePlan plan) =>
+            math.max(WellClearanceRadius, CastleInnerWardTowerPlanner.Radius(in plan) + 8);
 
         private static int2 Round(float2 value) =>
             new int2((int)math.round(value.x), (int)math.round(value.y));
