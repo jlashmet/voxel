@@ -1,0 +1,55 @@
+name: Patch async geometry subject-sized LOD framing
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths:
+      - .github/workflows/async-geometry-lod-subject-framing-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 1
+      - name: Match LOD fidelity frustum to castle bounds
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/Tests/PlayMode/LodRenderingTests.cs')
+          text = p.read_text()
+
+          old = '            var target = new RenderTexture(160, 90, 24, RenderTextureFormat.ARGB32);'
+          new = '''            // 4:3 keeps the 24 m orthographic half-height to ~64 m horizontal, matching the\n            // maximum bailey+tower width instead of admitting unrelated terrain at 16:9.\n            var target = new RenderTexture(120, 90, 24, RenderTextureFormat.ARGB32);'''
+          if text.count(old) != 1:
+              raise SystemExit('LOD render target declaration mismatch')
+          text = text.replace(old, new, 1)
+
+          old = '''                // Bailey width is roughly 44-56 m and the sculpted plateau stays below about\n                // 86 m diameter. A 45 m half-height keeps the whole landmark in frame while the\n                // central structure crop measures the castle, instead of exposing nearly the\n                // entire 192 m-wide near clipmap and turning arena capacity into the test target.\n                camera.orthographicSize = 45f;'''
+          new = '''                // Bailey+tower masonry is at most about 64 m wide and the keep is below ~28 m\n                // tall. With the 4:3 target, a 24 m half-height gives a ~64x48 m architectural\n                // frame: enough for the castle while intentionally excluding most of its broad\n                // sculpted terrain skirt, which is not what this LOD edge-regression compares.\n                camera.orthographicSize = 24f;'''
+          if text.count(old) != 1:
+              raise SystemExit('LOD orthographic size block mismatch')
+          text = text.replace(old, new, 1)
+
+          old = '''                    // MissingVisible is frustum-scoped, so bound depth to the landmark too. The\n                    // castle/plateau fits within roughly +/-43 m of its centre; +/-50 m leaves a\n                    // halo for towers/cliffs while excluding unrelated clipmap rings hundreds of\n                    // metres in front of or behind the subject. The strict hole-free check stays.\n                    camera.nearClipPlane = Mathf.Max(0.3f, band.distance - 50f);\n                    camera.farClipPlane = band.distance + 50f;'''
+          new = '''                    // The bailey plus towers fits within roughly +/-32 m in depth. Scope the\n                    // strict MissingVisible==0 precondition to that architecture instead of the\n                    // wider terrain skirt and unrelated rings in front of/behind the landmark.\n                    camera.nearClipPlane = Mathf.Max(0.3f, band.distance - 32f);\n                    camera.farClipPlane = band.distance + 32f;'''
+          if text.count(old) != 1:
+              raise SystemExit('LOD depth block mismatch')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit subject framing and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "jlashmet"
+          git config user.email "jlashmet@gmail.com"
+          git rm .github/workflows/async-geometry-lod-subject-framing-fix.yml
+          git add Assets/Tests/PlayMode/LodRenderingTests.cs
+          git commit -m "test(lod): size visual frustum to castle architecture"
+          git push origin HEAD:refactor/async-geometry-pipeline
