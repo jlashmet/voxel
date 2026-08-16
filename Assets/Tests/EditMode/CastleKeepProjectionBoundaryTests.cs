@@ -19,7 +19,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void CompatibilityKeepAndSpatialProjectionOwnLegacyOffsetAtTheirBoundary()
+        public void RuntimeKeepCoordinatorsConsumeProjectionOwnedLegacyOffset()
         {
             string keep = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
@@ -34,7 +34,10 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastlePlan.cs"));
 
-            StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", keep);
+            StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", keep);
+            StringAssert.Contains("CastleSpatialProjection.KeepSize(", keep);
+            StringAssert.DoesNotContain("CastleLayout.LegacyKeepCentreZOffset", keep,
+                "Compatibility keep realization must consume projected bounds instead of knowing the offset.");
             StringAssert.DoesNotContain("plan.Centre.z - hz + 60", keep,
                 "The compatibility keep coordinator must not own a second copy of the anchor.");
 
