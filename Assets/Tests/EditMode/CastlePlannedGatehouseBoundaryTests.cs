@@ -26,9 +26,13 @@ namespace VoxelEngine.Tests.EditMode
                 "CastlePlannedGatehouseRealizer.cs"));
 
             StringAssert.Contains("CastleGatehousePlanValidator.RequireValid", source);
+            StringAssert.Contains("CastleGatehousePlanValidator.RequireTowerDetails", source);
             StringAssert.Contains("gatehouse.TowerSpacing", source);
             StringAssert.Contains("gatehouse.LeftTowerHeight", source);
             StringAssert.Contains("gatehouse.RightTowerHeight", source);
+            StringAssert.Contains("gatehouse.LeftTowerSlits", source);
+            StringAssert.Contains("gatehouse.RightTowerSlits", source);
+            StringAssert.Contains("CastleTowerRealizer.BuildPlanned(", source);
             StringAssert.Contains("gatehouse.BlockHeight", source);
             StringAssert.Contains("gatehouse.OpeningHeight", source);
             StringAssert.Contains("gatehouse.BridgeNearDistance", source);
@@ -38,6 +42,8 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("gatehouse.BridgeRailYOffset", source);
 
             StringAssert.DoesNotContain("CastleGatehousePlanner.Create", source);
+            StringAssert.DoesNotContain("CastleTowerRealizer.Build(\n", source,
+                "Planned gate towers must not fall back to the legacy RNG tower path.");
             StringAssert.DoesNotContain("plan.GateTowerHeight + 38", source);
             StringAssert.DoesNotContain("plan.GateTowerHeight + 12", source);
             StringAssert.DoesNotContain("nearDistance + 150", source);
@@ -50,7 +56,9 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastlePerimeterRealizer.cs"));
 
-            StringAssert.Contains("CastleGatehouseRecipe.Historical(in plan)", source);
+            StringAssert.Contains("CastleGatehouseRecipe.Historical(", source);
+            StringAssert.Contains("in plan, in placement", source,
+                "Compatibility recipe must bind its slit phases to the supplied gate placement.");
             StringAssert.Contains("CastlePlannedGatehouseRealizer.Build(", source);
             StringAssert.DoesNotContain("CastleGatehousePlanner.Create(", source,
                 "Runtime compatibility must not invoke planning entry points.");
