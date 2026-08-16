@@ -17,7 +17,7 @@ namespace VoxelEngine.Rendering.Vegetation
         private readonly Dictionary<VegetationKind, List<Matrix4x4>> _batches =
             new Dictionary<VegetationKind, List<Matrix4x4>>();
         private readonly Matrix4x4[] _scratch = new Matrix4x4[MaxInstancesPerDraw];
-        private readonly MaterialPropertyBlock _properties = new MaterialPropertyBlock();
+        private MaterialPropertyBlock _properties;
         private int _instanceCount;
 
         public int InstanceCount => _instanceCount;
@@ -56,6 +56,7 @@ namespace VoxelEngine.Rendering.Vegetation
         public void DrawNow()
         {
             if (_instanceCount == 0) return;
+            if (_properties == null) _properties = new MaterialPropertyBlock();
             ProceduralVegetationMaterials.ApplyLighting();
             ProceduralTreeMaterials.ApplyLighting();
 
