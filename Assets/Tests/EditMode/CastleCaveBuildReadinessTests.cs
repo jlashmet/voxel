@@ -32,6 +32,27 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void RuntimePreflightRequiresNaturalCaveAfterOtherPlanningIsComplete()
+        {
+            CastlePlan castle = CastlePlanner.Create(new int3(512, 220, 512), 1u);
+            CastleSpatialPlan spatial = CentralSpatial(in castle);
+            spatial = CastleSpatialPlanCompletion.AttachTowerVariation(in castle, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachKeepFloors(in castle, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachCourtyardBuildings(in castle, spatial);
+            spatial = CastleSpatialPlanCompletion.AttachDungeon(in castle, spatial);
+
+            CastleBuildPreflightResult missing = CastleBuildPreflight.EvaluateRuntimeReady(
+                in castle, spatial, long.MaxValue);
+            Assert.AreEqual(CastleBuildPreflightIssue.IncompleteSpatialPlan, missing.Issue);
+            Assert.AreEqual(CastleSpatialBuildReadinessIssue.MissingCavePlan, missing.ReadinessIssue);
+
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.AttachCave(in castle, spatial);
+            CastleBuildPreflightResult ready = CastleBuildPreflight.EvaluateRuntimeReady(
+                in castle, completed, long.MaxValue);
+            Assert.IsTrue(ready.IsValid, ready.ReadinessIssue.ToString());
+        }
+
+        [Test]
         public void DungeonWithoutThresholdRequiresNoNaturalCave()
         {
             CastlePlan castle = CastlePlanner.Create(new int3(512, 220, 512), 18u);
