@@ -1,0 +1,42 @@
+name: Bounded geometry maintenance one-shot patch
+
+on:
+  push:
+    branches:
+      - refactor/async-geometry-pipeline
+    paths:
+      - .github/workflows/async-geometry-bounded-maintenance-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded patch
+        run: python3 .github/scripts/async_geometry_bounded_maintenance_patch.py
+      - name: Static guards
+        run: |
+          ! grep -q 'new uint\[4\]' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          ! grep -q 'private void DropNoLongerResident' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          ! grep -q 'List<int3> affected' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'ResidencyChecksPerPrepare' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'RegionInvalidationCandidatesPerPrepare' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'NativeArray<uint> _argsScratch' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceGeometryArena.cs
+          grep -q 'VerboseSurfaceDiagnostics' Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs
+      - name: Commit renderer changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceGeometryArena.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs \
+                  Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+          git commit -m 'Bound geometry maintenance and remove frame garbage'
+          git push origin HEAD:refactor/async-geometry-pipeline
