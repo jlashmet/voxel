@@ -23,7 +23,8 @@ namespace VoxelEngine.Tests.EditMode
                 var start = new int2(8, 8);
                 var end = new int2(48, 48);
                 VoxelWallRasterizer.FillSegment(
-                    ref brush, start, end, baseY: 4, height: 24, thickness: 7, Mat.Stone);
+                    ref brush, start, end, baseY: 4, height: 24, thickness: 7,
+                    material: Mat.Stone);
 
                 for (int offset = 0; offset <= 40; offset++)
                 {
@@ -74,9 +75,11 @@ namespace VoxelEngine.Tests.EditMode
                 var corner = new int2(34, 28);
                 var b = new int2(24, 54);
                 VoxelWallRasterizer.FillSegment(
-                    ref brush, a, corner, baseY: 3, height: 16, thickness: 6, Mat.Stone);
+                    ref brush, a, corner, baseY: 3, height: 16, thickness: 6,
+                    material: Mat.Stone);
                 VoxelWallRasterizer.FillSegment(
-                    ref brush, corner, b, baseY: 3, height: 16, thickness: 6, Mat.Stone);
+                    ref brush, corner, b, baseY: 3, height: 16, thickness: 6,
+                    material: Mat.Stone);
 
                 Assert.AreEqual(Mat.Stone, brush.Get(corner.x, 3, corner.y));
                 Assert.AreEqual(Mat.Stone, brush.Get(corner.x, 18, corner.y));

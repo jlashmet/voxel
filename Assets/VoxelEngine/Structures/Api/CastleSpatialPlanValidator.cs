@@ -76,9 +76,10 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             if (!TryValidateGate(
                     outer,
-                    in spatial.PrimaryGate,
+                    in primaryGate,
                     CastleSpatialPlanIssue.InvalidGateEdge,
                     CastleSpatialPlanIssue.GateDetachedFromPerimeter,
                     CastleSpatialPlanIssue.InvalidGateNormal,
@@ -156,17 +157,18 @@ namespace VoxelEngine.Structures.Api
                     return false;
                 }
 
+                CastleGatePlacementSpec innerGate = spatial.InnerGate;
                 if (!TryValidateGate(
                         inner,
-                        in spatial.InnerGate,
+                        in innerGate,
                         CastleSpatialPlanIssue.InvalidInnerGateEdge,
                         CastleSpatialPlanIssue.InnerGateDetachedFromPerimeter,
                         CastleSpatialPlanIssue.InvalidInnerGateNormal,
                         out issue))
                     return false;
 
-                if (spatial.InnerGate.EdgeIndex != spatial.PrimaryGate.EdgeIndex ||
-                    math.dot(spatial.InnerGate.Outward, spatial.PrimaryGate.Outward) <= 0.5f)
+                if (innerGate.EdgeIndex != primaryGate.EdgeIndex ||
+                    math.dot(innerGate.Outward, primaryGate.Outward) <= 0.5f)
                 {
                     issue = CastleSpatialPlanIssue.InnerGateMisaligned;
                     return false;
