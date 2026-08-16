@@ -54,6 +54,19 @@ jobs:
           set -euo pipefail
           bash tools/character-factory/production/madeline/build.sh "$GITHUB_WORKSPACE/$OUT"
 
+      # Preserve expensive reconstruction/rigging intermediates when a later identity,
+      # verification, render, or staging step fails. This is intentionally separate
+      # from the successful production artifact so downstream composition never treats
+      # a failed build as an approved Madeline base.
+      - name: Upload failed-build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: madeline-base-body-failure-${{ github.run_number }}
+          path: Artifacts/MadelineProduction/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Verify reusable Madeline base contract
         shell: bash
         run: |
