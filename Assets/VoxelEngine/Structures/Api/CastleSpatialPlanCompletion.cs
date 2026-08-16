@@ -6,7 +6,8 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Final pure-data completion for castle details that depend on already-resolved core geometry.
     /// Composition calls this after terrain-dependent keep placement is finished; Runtime receives
-    /// courtyard buildings and the designed dungeon graph without choosing either layout itself.
+    /// tower variation, courtyard buildings, and the designed dungeon graph without choosing any
+    /// of those authored details itself.
     /// </summary>
     public static class CastleSpatialPlanCompletion
     {
@@ -18,10 +19,43 @@ namespace VoxelEngine.Structures.Api
             if (spatial.KeepRequiresTerrainResolution)
                 return spatial;
 
-            CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, spatial);
+            CastleSpatialPlan withTowerVariation = AttachTowerVariation(in plan, spatial);
+            CastleSpatialPlan withBuildings = AttachCourtyardBuildings(in plan, withTowerVariation);
             CastleSpatialPlan completed = AttachDungeon(in plan, withBuildings);
             RequireCompleted(in plan, completed);
             return completed;
+        }
+
+        /// <summary>
+        /// Freezes the historical outer-tower height/roof variation into the plan. This uses the
+        /// exact seed stream previously consumed by CastlePerimeterRealizer so moving the decision
+        /// into planning does not perturb existing castle appearance.
+        /// </summary>
+        public static CastleSpatialPlan AttachTowerVariation(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial)
+        {
+            if (spatial == null) throw new ArgumentNullException(nameof(spatial));
+
+            CastleTowerPlacementSpec[] towers = spatial.Towers != null
+                ? (CastleTowerPlacementSpec[])spatial.Towers.Clone()
+                : Array.Empty<CastleTowerPlacementSpec>();
+            for (int i = 0; i < towers.Length; i++)
+            {
+                uint variationSeed = CastleSeedPartition.Derive(
+                    plan.Seed,
+                    CastleSeedDomain.Walls,
+                    (uint)(0x2000 + towers[i].Id));
+                towers[i].HeightVariation = 8 + (int)(variationSeed % 51u);
+                towers[i].HasRoof = towers[i].Role == CastleTowerPlacementRole.Corner
+                                 && ((variationSeed >> 8) & 1u) != 0u;
+            }
+
+            return Copy(
+                spatial,
+                towers,
+                spatial.CourtyardBuildings,
+                spatial.Dungeon);
         }
 
         public static CastleSpatialPlan AttachCourtyardBuildings(
@@ -48,7 +82,7 @@ namespace VoxelEngine.Structures.Api
                     spatial.KeepCentre,
                     spatial.HasWell,
                     spatial.WellCentre);
-            return Copy(spatial, buildings, spatial.Dungeon);
+            return Copy(spatial, spatial.Towers, buildings, spatial.Dungeon);
         }
 
         public static CastleSpatialPlan AttachDungeon(
@@ -67,7 +101,7 @@ namespace VoxelEngine.Structures.Api
                     $"Castle dungeon completion produced an invalid plan: {issue}.");
             }
 
-            return Copy(spatial, spatial.CourtyardBuildings, dungeon);
+            return Copy(spatial, spatial.Towers, spatial.CourtyardBuildings, dungeon);
         }
 
         private static void RequireCompleted(
@@ -101,6 +135,7 @@ namespace VoxelEngine.Structures.Api
 
         private static CastleSpatialPlan Copy(
             CastleSpatialPlan spatial,
+            CastleTowerPlacementSpec[] towers,
             CastleCourtyardBuildingSpec[] buildings,
             DungeonPlan dungeon)
         {
@@ -113,7 +148,9 @@ namespace VoxelEngine.Structures.Api
                 in topology,
                 (int2[])spatial.OuterWardVertices.Clone(),
                 (int2[])spatial.InnerWardVertices.Clone(),
-                (CastleTowerPlacementSpec[])spatial.Towers.Clone(),
+                towers != null
+                    ? (CastleTowerPlacementSpec[])towers.Clone()
+                    : Array.Empty<CastleTowerPlacementSpec>(),
                 in primaryGate,
                 spatial.HasPosternGate,
                 in posternGate,
