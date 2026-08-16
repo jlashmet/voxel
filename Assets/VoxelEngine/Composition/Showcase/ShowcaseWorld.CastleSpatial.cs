@@ -41,17 +41,73 @@ namespace VoxelEngine.Showcase
                 _castleRegions.Add(new int3(rx, ry, rz));
         }
 
+        private bool PendingCastleDependenciesReady()
+        {
+            for (int i = 0; i < _castleRegions.Count; i++)
+                if (!_generated.Contains(_castleRegions[i])) return false;
+            return true;
+        }
+
         private ICastleBuildSession BeginPendingSpatialCastleBuild(
             IRegionReadSource reads,
             IRegionMutationStore mutations,
-            IMaterialAuthoringCatalogue materials) =>
-            StructuresComposition.BeginCastleBuild(
-                reads,
-                mutations,
-                in _pendingCastlePlan,
-                _pendingCastleSpatialPlan,
-                Seed,
-                materials);
+            IMaterialAuthoringCatalogue materials)
+        {
+            // QueueLandmarks still carries its historical y=0 dependency loop. Reassert the
+            // authoritative spatial envelope at admission so that legacy list cannot permit voxel
+            // mutation before upper or offset castle regions have been generated.
+            QueuePendingCastleDependencyRegions();
+            return new DependencyGatedCastleBuildSession(this, materials);
+        }
+
+        /// <summary>
+        /// Quiescent gate between dependency streaming and mutation ownership. Before the real
+        /// pipeline exists IsComplete intentionally reports true so StepStreaming keeps servicing
+        /// region loads instead of granting exclusive castle-write ownership too early. Once every
+        /// dependency is resident, the next landmark step creates the real session and normal
+        /// incremental ownership semantics take over.
+        /// </summary>
+        private sealed class DependencyGatedCastleBuildSession : ICastleBuildSession
+        {
+            private readonly ShowcaseWorld _world;
+            private readonly IMaterialAuthoringCatalogue _materials;
+            private ICastleBuildSession _inner;
+
+            internal DependencyGatedCastleBuildSession(
+                ShowcaseWorld world,
+                IMaterialAuthoringCatalogue materials)
+            {
+                _world = world;
+                _materials = materials;
+            }
+
+            public bool IsComplete => _inner == null || _inner.IsComplete;
+            public int StageNumber => _inner != null ? _inner.StageNumber : 0;
+            public long TotalVoxelsWritten => _inner != null ? _inner.TotalVoxelsWritten : 0L;
+
+            public bool Step()
+            {
+                if (_inner == null)
+                {
+                    if (!_world.PendingCastleDependenciesReady())
+                        return false;
+
+                    var readyReads = _world._readSource;
+                    var readyMutations = _world._mutationStore;
+                    readyReads.Refresh(in _world._table, in _world._pool);
+                    readyMutations.Refresh(in _world._table, in _world._pool);
+                    _inner = StructuresComposition.BeginCastleBuild(
+                        readyReads,
+                        readyMutations,
+                        in _world._pendingCastlePlan,
+                        _world._pendingCastleSpatialPlan,
+                        _world.Seed,
+                        _materials);
+                }
+
+                return _inner.Step();
+            }
+        }
 
         private void CommitPendingCastleSpatialPlan()
         {
