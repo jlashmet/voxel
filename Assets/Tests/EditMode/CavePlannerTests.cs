@@ -60,6 +60,19 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ValidatorRejectsNonFiniteChamberRotation()
+        {
+            CavePlanningConstraints constraints = StandardConstraints();
+            CavePlan plan = CavePlanner.Create(19u, in constraints);
+            CaveChamberPlan corrupted = plan.Chambers[1];
+            corrupted.RotationRadians = float.NaN;
+            plan.Chambers[1] = corrupted;
+
+            Assert.IsFalse(CavePlanValidator.TryValidate(plan, out CavePlanIssue issue));
+            Assert.AreEqual(CavePlanIssue.InvalidChamberRotation, issue);
+        }
+
+        [Test]
         public void SnapshotDetachesMutablePlanningArrays()
         {
             CavePlanningConstraints constraints = StandardConstraints();
