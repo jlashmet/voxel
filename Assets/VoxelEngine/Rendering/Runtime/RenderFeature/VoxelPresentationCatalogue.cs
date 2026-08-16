@@ -134,6 +134,10 @@ namespace VoxelEngine.Rendering.Runtime
                 blendStrength: 0.58f, noiseStrength: 0.18f, roughness: 0.9f));
             SetCoating(4, new VoxelCoatingPresentation(new Color(0.12f, 0.20f, 0.23f),
                 blendStrength: 0.30f, roughness: 0.18f));
+            // HDR-hot noisy overlay used while a flammable voxel is actively burning.
+            SetCoating(5, new VoxelCoatingPresentation(new Color(2.8f, 0.42f, 0.025f),
+                blendStrength: 0.94f, verticalFloor: 0.78f, verticalCeiling: 1f,
+                noiseStrength: 0.38f, roughness: 0.12f));
 
             SetSurface(5, new VoxelSurfacePresentation(false, 5f, 9f, 0f,
                 new Color(0.34f, 0.31f, 0.24f), detailColourBlend: 0.48f,
