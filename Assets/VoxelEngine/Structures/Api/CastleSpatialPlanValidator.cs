@@ -42,6 +42,7 @@ namespace VoxelEngine.Structures.Api
         CentralKeepPlacementMismatch,
         RearKeepPlacementMismatch,
         WallIntegratedKeepNotAgainstWard,
+        InvalidAccessRoute,
         InvalidWellResolution,
         InvalidWellPlacement,
         InvalidCourtyardBuildingResolution,
@@ -326,6 +327,14 @@ namespace VoxelEngine.Structures.Api
                         in dimensions, spatial.KeepCentre, -primaryGate.Outward, keepWard))
                 {
                     issue = CastleSpatialPlanIssue.WallIntegratedKeepNotAgainstWard;
+                    return false;
+                }
+
+                CastleAccessRoute accessRoute = CastleAccessRoute.Create(in dimensions, spatial);
+                if (!CastleAccessRouteValidator.TryValidate(
+                        in accessRoute, outer, inner, out _))
+                {
+                    issue = CastleSpatialPlanIssue.InvalidAccessRoute;
                     return false;
                 }
             }
