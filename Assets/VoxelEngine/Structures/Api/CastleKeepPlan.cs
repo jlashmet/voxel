@@ -38,15 +38,44 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Plans keep-internal semantics in one pure API pass. Runtime should consume this aggregate
     /// instead of independently deriving room purpose, circulation anchors, or annex presence.
+    /// Annex presence is owned by CastleTopologyPlan and is therefore supplied to the preferred
+    /// overload rather than chosen again inside keep planning.
     /// </summary>
     public static class CastleKeepPlanner
     {
+        public static CastleKeepPlan Create(
+            in CastlePlan plan,
+            in CastleTopologyPlan topology)
+        {
+            if (!topology.HasKeepAnnexPlan)
+            {
+                throw new InvalidOperationException(
+                    "Castle keep planning requires topology-owned keep annex semantics.");
+            }
+
+            CastleKeepAnnexPlan annexes = topology.KeepAnnexes;
+            CastleKeepAnnexPlanValidator.RequireValid(in annexes);
+            return CreateCore(in plan, in annexes);
+        }
+
+        /// <summary>
+        /// Compatibility overload for callers that have not yet retained CastleTopologyPlan.
+        /// New planning code should pass the topology so annex semantics have one source of truth.
+        /// </summary>
+        [Obsolete("Use Create(in CastlePlan, in CastleTopologyPlan) so keep annexes come from topology.")]
         public static CastleKeepPlan Create(in CastlePlan plan)
+        {
+            CastleKeepAnnexPlan annexes = CastleKeepAnnexPlanner.Create(in plan);
+            return CreateCore(in plan, in annexes);
+        }
+
+        private static CastleKeepPlan CreateCore(
+            in CastlePlan plan,
+            in CastleKeepAnnexPlan annexes)
         {
             CastleKeepInteriorPlan interior = CastleKeepInteriorPlanner.Create(in plan);
             CastleKeepFloorPlan[] floors = interior.SnapshotFloors();
             CastleKeepCirculationPlan circulation = CastleKeepCirculationPlanner.Create(in plan);
-            CastleKeepAnnexPlan annexes = CastleKeepAnnexPlanner.Create(in plan);
             var keep = new CastleKeepPlan(floors, in circulation, in annexes);
 
             if (!CastleKeepPlanValidator.TryValidate(in plan, keep, out CastleKeepPlanIssue issue))
