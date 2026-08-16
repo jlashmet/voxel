@@ -18,11 +18,11 @@ namespace VoxelEngine.Structures.Api
             in CastleTopologyPlan topology)
         {
             int2[] outer = BuildOuterWard(in dimensions, in topology);
+            CastleGatePlacementSpec gate = PlacePrimaryGate(in dimensions, outer);
             int2[] inner = topology.Wards == CastleWardPattern.InnerAndOuterWards
-                ? BuildInnerWard(in dimensions, outer)
+                ? BuildInnerWard(in dimensions, in topology, outer, in gate)
                 : Array.Empty<int2>();
 
-            CastleGatePlacementSpec gate = PlacePrimaryGate(in dimensions, outer);
             bool hasPosternGate = topology.HasPosternGate;
             CastleGatePlacementSpec posternGate = hasPosternGate
                 ? PlacePosternGate(in dimensions, outer, gate.EdgeIndex, gate.Outward)
@@ -78,6 +78,36 @@ namespace VoxelEngine.Structures.Api
         }
 
         /// <summary>
+        /// Returns true when a terrain-selected HighestGround keep centre supports the complete
+        /// dependent courtyard programme, not merely the keep footprint itself.
+        /// </summary>
+        public static bool CanResolveHighestGroundKeep(
+            in CastlePlan dimensions,
+            CastleSpatialPlan spatial,
+            int2 localKeepCentre)
+        {
+            if (spatial == null ||
+                spatial.Topology.KeepPlacement != CastleKeepPlacement.HighestGround ||
+                !spatial.KeepRequiresTerrainResolution)
+                return false;
+
+            int2[] keepWard = spatial.InnerWardVertices != null && spatial.InnerWardVertices.Length != 0
+                ? spatial.InnerWardVertices
+                : spatial.OuterWardVertices;
+            if (!CastlePolygonGeometry.ContainsKeepFootprint(
+                    in dimensions, localKeepCentre, keepWard))
+                return false;
+
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            return CastleCourtyardPlacementGeometry.TryChooseWell(
+                in dimensions,
+                keepWard,
+                in primaryGate,
+                localKeepCentre,
+                out _);
+        }
+
+        /// <summary>
         /// Finishes an unresolved HighestGround placement after a site-aware caller has selected a
         /// concrete local X/Z centre. The resolver does not query terrain itself; it only validates
         /// that the supplied centre fits the ward and returns a new immutable planning result.
@@ -97,17 +127,16 @@ namespace VoxelEngine.Structures.Api
             if (!spatial.KeepRequiresTerrainResolution)
                 return spatial;
 
-            int2[] keepWard = spatial.InnerWardVertices != null && spatial.InnerWardVertices.Length != 0
-                ? spatial.InnerWardVertices
-                : spatial.OuterWardVertices;
-            if (!CastlePolygonGeometry.ContainsKeepFootprint(
-                    in dimensions, localKeepCentre, keepWard))
+            if (!CanResolveHighestGroundKeep(in dimensions, spatial, localKeepCentre))
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(localKeepCentre),
-                    "Resolved keep footprint must fit completely inside its assigned ward.");
+                    "Resolved keep centre must fit its assigned ward and preserve a valid courtyard well/access route.");
             }
 
+            int2[] keepWard = spatial.InnerWardVertices != null && spatial.InnerWardVertices.Length != 0
+                ? spatial.InnerWardVertices
+                : spatial.OuterWardVertices;
             CastleTopologyPlan topology = spatial.Topology;
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleGatePlacementSpec posternGate = spatial.PosternGate;
@@ -245,7 +274,11 @@ namespace VoxelEngine.Structures.Api
             return vertices;
         }
 
-        private static int2[] BuildInnerWard(in CastlePlan dimensions, int2[] outer)
+        private static int2[] BuildInnerWard(
+            in CastlePlan dimensions,
+            in CastleTopologyPlan topology,
+            int2[] outer,
+            in CastleGatePlacementSpec primaryGate)
         {
             const float minimumScale = 0.64f;
             const float maximumScale = 0.84f;
@@ -257,13 +290,32 @@ namespace VoxelEngine.Structures.Api
                 float t = step / (float)scaleSteps;
                 float scale = math.lerp(minimumScale, maximumScale, t);
                 candidate = ScaleRing(outer, scale);
-                if (CastlePolygonGeometry.KeepFootprintFits(
-                        in dimensions, int2.zero, candidate))
+
+                int2 sizingKeep = PlaceKeep(
+                    in dimensions,
+                    topology.KeepPlacement,
+                    in primaryGate,
+                    candidate,
+                    out bool requiresTerrainResolution);
+                if (!CastlePolygonGeometry.KeepFootprintFits(
+                        in dimensions, sizingKeep, candidate))
+                    continue;
+
+                if (requiresTerrainResolution)
+                    sizingKeep = int2.zero;
+
+                if (CastleCourtyardPlacementGeometry.TryChooseWell(
+                        in dimensions,
+                        candidate,
+                        in primaryGate,
+                        sizingKeep,
+                        out _))
                     return candidate;
             }
 
-            // Validation will reject a castle whose keep cannot fit even at the maximum nested
-            // ward scale. Keeping the cap below 1 preserves a meaningful defensive gap.
+            // Validation will reject a castle whose dependent inner-courtyard programme cannot fit
+            // even at the maximum nested-ward scale. Keeping the cap below 1 preserves a meaningful
+            // defensive gap to the outer ring and its towers.
             return candidate;
         }
 
