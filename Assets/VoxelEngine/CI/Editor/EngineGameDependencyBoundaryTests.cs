@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.CI
 {
@@ -33,6 +35,22 @@ namespace VoxelEngine.CI
                 "VoxelEngine assemblies must not depend on Game assemblies. Move semantic/content " +
                 "ownership to Assets/Game and depend on VoxelEngine APIs instead.\n" +
                 string.Join("\n", violations));
+        }
+
+        [Test]
+        public void LegacyStructureMaterialFacade_HasNoCompileTimeMaterialIds()
+        {
+            FieldInfo[] fields = typeof(Mat).GetFields(BindingFlags.Public | BindingFlags.Static);
+            var constants = new List<string>();
+            for (int i = 0; i < fields.Length; i++)
+            {
+                if (fields[i].IsLiteral && fields[i].FieldType == typeof(byte))
+                    constants.Add(fields[i].Name);
+            }
+
+            Assert.That(constants, Is.Empty,
+                "The transitional Mat facade may resolve application-configured roles, but it must " +
+                "never define numeric material IDs in VoxelEngine: " + string.Join(", ", constants));
         }
     }
 }
