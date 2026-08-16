@@ -86,18 +86,5 @@ namespace VoxelEngine.Structures.Api
             EntranceRoomId = entranceRoomId;
             CaveThresholdRoomId = caveThresholdRoomId;
         }
-
-        /// <summary>
-        /// Returns a detached copy suitable for a realization trust boundary. DungeonPlan owns
-        /// arrays for efficient deterministic planning, so callers that retain a plan while an
-        /// incremental build runs must snapshot those arrays rather than observing later mutation.
-        /// </summary>
-        public DungeonPlan Snapshot() => new DungeonPlan(
-            Seed,
-            Entrance,
-            Rooms != null ? (DungeonRoomPlan[])Rooms.Clone() : null,
-            Connections != null ? (DungeonConnectionPlan[])Connections.Clone() : null,
-            EntranceRoomId,
-            CaveThresholdRoomId);
     }
 }
