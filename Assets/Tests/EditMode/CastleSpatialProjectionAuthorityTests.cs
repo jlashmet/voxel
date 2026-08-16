@@ -19,11 +19,11 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void StructuresApiHasSingleLegacyKeepProjectionAuthority()
+        public void StructuresApiHasSingleLegacyKeepOffsetAuthority()
         {
             string apiDirectory = Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api");
-            int offsetAuthorities = 0;
+            int offsetDeclarations = 0;
 
             foreach (string file in Directory.GetFiles(apiDirectory, "*.cs"))
             {
@@ -33,14 +33,21 @@ namespace VoxelEngine.Tests.EditMode
                     source,
                     $"{Path.GetFileName(file)} reintroduced a second spatial castle projection.");
 
-                if (source.Contains("LegacyKeepCentreZOffset"))
-                    offsetAuthorities++;
+                if (source.Contains("public const int LegacyKeepCentreZOffset"))
+                    offsetDeclarations++;
             }
 
             Assert.AreEqual(
                 1,
-                offsetAuthorities,
-                "CastleSpatialProjection must be the only Structures.Api authority for the legacy +60 keep anchor.");
+                offsetDeclarations,
+                "CastleLayout must be the only Structures.Api declaration of the legacy keep anchor offset.");
+
+            string completion = File.ReadAllText(Path.Combine(
+                apiDirectory, "CastleKeepTurretPlanCompletion.cs"));
+            StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", completion,
+                "Keep turret completion must share the authoritative compatibility projection offset.");
+            StringAssert.DoesNotContain("KeepHalfZ + 60", completion,
+                "Keep turret completion must not reintroduce raw legacy keep-anchor math.");
         }
     }
 }
