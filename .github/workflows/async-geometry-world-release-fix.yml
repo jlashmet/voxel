@@ -1,0 +1,92 @@
+name: Patch async geometry renderer world release lifetime
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths:
+      - .github/workflows/async-geometry-world-release-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 1
+      - name: Release renderer borrows before Storage disposal
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          bridge = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs')
+          text = bridge.read_text()
+          old = '''        /// <summary>Versioned changes consumed independently by every derived render domain.</summary>\n        public static IVoxelChangeSource Changes;\n\n        /// <summary>\n        /// Read-only diagnostics from the most recent production surface pass.'''
+          new = '''        /// <summary>Versioned changes consumed independently by every derived render domain.</summary>\n        public static IVoxelChangeSource Changes;\n\n        // The URP renderer feature outlives individual application worlds. A world owner must be\n        // able to synchronously retire renderer-side jobs/pins before disposing the Storage that\n        // backs them. Keep the callback private to Rendering.Runtime; Composition gets only the\n        // release operation, not scheduler ownership.\n        private static event System.Action s_WorldReleasing;\n\n        internal static void RegisterWorldReleaseHandler(System.Action handler) =>\n            s_WorldReleasing += handler;\n\n        internal static void UnregisterWorldReleaseHandler(System.Action handler) =>\n            s_WorldReleasing -= handler;\n\n        public static void ReleaseWorldResources()\n        {\n            s_WorldReleasing?.Invoke();\n            SurfaceMetrics = default;\n        }\n\n        /// <summary>\n        /// Read-only diagnostics from the most recent production surface pass.'''
+          if text.count(old) != 1:
+              raise SystemExit('VoxelRenderBridge insertion point mismatch')
+          bridge.write_text(text.replace(old, new, 1))
+
+          composition = Path('Assets/VoxelEngine/Composition/RenderingComposition.cs')
+          text = composition.read_text()
+          old = '''        public static void ClearWorld()\n        {\n            s_hasWorld = false;'''
+          new = '''        public static void ClearWorld()\n        {\n            // Renderer-derived caches may still own immutable Storage pins. Release them while\n            // the application world is alive; clearing the binding and disposing Storage first\n            // would leave the persistent URP feature holding dead NativeArray safety handles.\n            VoxelRenderBridge.ReleaseWorldResources();\n            s_hasWorld = false;'''
+          if text.count(old) != 1:
+              raise SystemExit('RenderingComposition ClearWorld insertion point mismatch')
+          composition.write_text(text.replace(old, new, 1))
+
+          render_pass = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs')
+          text = render_pass.read_text()
+          old = '''        private readonly VoxelSurfaceScheduler _scheduler = new();\n        // Draw staging is bounded by the fixed arena args capacities.'''
+          new = '''        private VoxelSurfaceScheduler _scheduler = new();\n        // Draw staging is bounded by the fixed arena args capacities.'''
+          if text.count(old) != 1:
+              raise SystemExit('VoxelRenderPass scheduler field mismatch')
+          text = text.replace(old, new, 1)
+
+          old = '''        public float RenderScale { get; set; } = 1f;\n        public float VoxelSize { get; set; } = 0.1f;\n        public bool Enabled { get; set; } = true;\n        public VoxelSurfaceMetrics Metrics => _scheduler.Metrics;\n\n        public void Setup(Shader surfaceShader = null,'''
+          new = '''        public float RenderScale { get; set; } = 1f;\n        public float VoxelSize { get; set; } = 0.1f;\n        public bool Enabled { get; set; } = true;\n        public VoxelSurfaceMetrics Metrics => _scheduler != null ? _scheduler.Metrics : default;\n\n        public VoxelRenderPass()\n        {\n            VoxelRenderBridge.RegisterWorldReleaseHandler(ReleaseWorldResources);\n        }\n\n        public void Setup(Shader surfaceShader = null,'''
+          if text.count(old) != 1:
+              raise SystemExit('VoxelRenderPass constructor insertion point mismatch')
+          text = text.replace(old, new, 1)
+
+          old = '''        public void Dispose()\n        {\n            _scheduler.Dispose();\n            CoreUtils.Destroy(_surfaceMaterial);'''
+          new = '''        private void ReleaseWorldResources()\n        {\n            if (_scheduler == null) return;\n\n            // Dispose is deliberately synchronous here: world teardown is a lifecycle boundary,\n            // not the frame path. Completing ready/running jobs and releasing every Storage pin\n            // before the application disposes its BrickPool is the ownership contract. Recreate\n            // fixed renderer state immediately so the next world does not allocate on its first\n            // RenderGraph frame.\n            _scheduler.Dispose();\n            _scheduler = new VoxelSurfaceScheduler();\n            Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);\n            Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);\n        }\n\n        public void Dispose()\n        {\n            VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);\n            _scheduler?.Dispose();\n            _scheduler = null;\n            CoreUtils.Destroy(_surfaceMaterial);'''
+          if text.count(old) != 1:
+              raise SystemExit('VoxelRenderPass Dispose insertion point mismatch')
+          render_pass.write_text(text.replace(old, new, 1))
+
+          lod = Path('Assets/Tests/PlayMode/LodRenderingTests.cs')
+          text = lod.read_text()
+          old = '''                    Assert.True(converged,\n                        $\"LOD step {band.step} did not converge to visible, hole-free geometry \"\n                      + $\"within {convergenceFrames} frames / 8 seconds.\");'''
+          new = '''                    Assert.True(converged,\n                        $\"LOD step {band.step} did not converge to visible, hole-free geometry \"\n                      + $\"within {convergenceFrames} frames / 8 seconds; \"\n                      + $\"known={metrics.SolidKnownChunks} resident={metrics.SolidResidentChunks} \"\n                      + $\"dirty={metrics.SolidDirtyChunks} visible={metrics.VisibleSolidChunks} \"\n                      + $\"missing={metrics.MissingVisibleSolidChunks} jobs={metrics.RunningSolidJobs} \"\n                      + $\"pendingUpload={metrics.SolidPendingUploadBytes} \"\n                      + $\"completed={metrics.CompletedSolidBuilds} uploaded={metrics.UploadedGeometryBytes}.\");'''
+          if text.count(old) != 1:
+              raise SystemExit('LOD convergence assertion mismatch')
+          lod.write_text(text.replace(old, new, 1))
+
+          architecture = Path('Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs')
+          text = architecture.read_text()
+          marker = '''        private static void AssertCellsEqual(ref RegionTable aTable, in BrickPool aPool,'''
+          test = '''        [Test]\n        public void WorldTeardownReleasesRendererBorrowsBeforeStorageBindingIsCleared()\n        {\n            string composition = File.ReadAllText(\n                \"Assets/VoxelEngine/Composition/RenderingComposition.cs\");\n            int release = composition.IndexOf(\"VoxelRenderBridge.ReleaseWorldResources();\",\n                                              System.StringComparison.Ordinal);\n            int clear = composition.IndexOf(\"s_hasWorld = false;\",\n                                            System.StringComparison.Ordinal);\n            Assert.GreaterOrEqual(release, 0,\n                \"world teardown must synchronously release renderer Storage borrows\");\n            Assert.Greater(clear, release,\n                \"renderer Storage borrows must be released before the world binding is cleared\");\n\n            string pass = File.ReadAllText(\n                \"Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs\");\n            StringAssert.Contains(\"RegisterWorldReleaseHandler(ReleaseWorldResources)\", pass);\n            StringAssert.Contains(\"UnregisterWorldReleaseHandler(ReleaseWorldResources)\", pass);\n            StringAssert.Contains(\"_scheduler.Dispose();\", pass,\n                \"world release must synchronously drain jobs/pins, not abandon the scheduler\");\n        }\n\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('architecture test insertion point mismatch')
+          architecture.write_text(text.replace(marker, test + marker, 1))
+          PY
+      - name: Commit lifetime fix and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "jlashmet"
+          git config user.email "jlashmet@gmail.com"
+          git rm .github/workflows/async-geometry-world-release-fix.yml
+          git add \
+            Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs \
+            Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs \
+            Assets/VoxelEngine/Composition/RenderingComposition.cs \
+            Assets/Tests/PlayMode/LodRenderingTests.cs \
+            Assets/Tests/EditMode/VoxelSurfaceArchitectureTests.cs
+          git commit -m "fix(rendering): release world pins before Storage teardown"
+          git push origin HEAD:refactor/async-geometry-pipeline
