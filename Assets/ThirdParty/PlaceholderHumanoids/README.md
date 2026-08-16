@@ -19,15 +19,30 @@ This folder contains temporary third-party humanoid assets for character/NPC dev
 
 ## Using the placeholders
 
-Open/import the project normally. The two `*.characterfactory.json` descriptors are consumed by the existing `CharacterFactoryAssetImporter`, which generates:
+Open/import the project normally. The two `*.characterfactory.json` descriptors are consumed by the existing `CharacterFactoryAssetImporter`, which derives:
 
 - `Models/placeholder_male.prefab`
 - `Models/placeholder_female.prefab`
 - `PlaceholderCharacterParts.asset`
 
-Those prefabs use the same Character Factory character-prefab shape planned for generated characters: the imported skinned model is nested under a stable character root, an `Equipment` child is created, and `CharacterEquipmentController` is wired to the imported skeleton plus the shared part catalogue. Prototype gameplay should use those generated prefabs instead of depending directly on Rocketbox bone names or FBX hierarchy details.
+These three files are **generated import products and are intentionally not committed**. The committed FBXs, descriptors, importer, licenses, and their `.meta` files are the source of truth. This follows the existing Character Factory ownership model and avoids source-controlling generated prefab/catalogue churn.
+
+The generated prefabs use the normal Character Factory character-prefab shape: the imported skinned model is nested under a stable character root, an `Equipment` child is created, and `CharacterEquipmentController` is wired to the imported skeleton plus the shared part catalogue. Prototype gameplay should use those generated prefabs instead of depending directly on Rocketbox bone names or FBX hierarchy details.
 
 The animation FBXs are imported as Unity Humanoid clips. They can therefore be retargeted onto either placeholder prefab and later onto generated Humanoid characters without changing gameplay animation semantics.
+
+## Animation starter set
+
+| Clip | Intended prototype use | Root motion |
+| --- | --- | --- |
+| `Idle` | looping neutral idle | no translated locomotion |
+| `Walk` | looping walk locomotion | XY translation available |
+| `Run` | looping run locomotion | XY translation available |
+| `CrouchIdle` | looping crouched idle | no translated locomotion |
+| `Wave` | one-shot emote/interaction | not intended for locomotion |
+| `Shrug` | one-shot emote/interaction | not intended for locomotion |
+
+No temporary Animator state machine is defined here. Gameplay should consume these through the project's existing Unity Humanoid/Animator seam so a future generated-character implementation can replace the Rocketbox bodies and clips without changing actor logic.
 
 ## Intended use
 
