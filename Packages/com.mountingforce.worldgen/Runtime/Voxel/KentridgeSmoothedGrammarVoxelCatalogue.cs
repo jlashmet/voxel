@@ -8,8 +8,9 @@ namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
     /// Kentridge's composition adapter. Settlement and architecture resolve the same semantic forms
-    /// used by gameplay; this backend supplies reusable low-level geometry profiles to the generic
-    /// voxel realiser. No Kentridge policy is required by ArchitectureGeometryCatalogue itself.
+    /// used by gameplay; the selected architecture style supplies renderer-neutral low-level
+    /// geometry policy to the generic voxel realiser. No Kentridge policy is required by
+    /// ArchitectureGeometryCatalogue itself.
     /// </summary>
     internal static class KentridgeSmoothedGrammarVoxelCatalogue
     {
@@ -24,8 +25,6 @@ namespace MountingForce.WorldGen.Voxel
             {
                 SettlementPlan plan = KentridgeDefinition.Build(seed);
                 var profiles = new StructureGeometryProfile[source.Definitions.Length];
-                IStructureGeometryProfileResolver resolver =
-                    HumanSettlementGeometryProfileResolver.Instance;
 
                 for (int i = 0; i < plan.Plots.Count; i++)
                 {
@@ -35,8 +34,10 @@ namespace MountingForce.WorldGen.Voxel
                             "Kentridge role is outside the grammar catalogue: " + plot.RoleId);
 
                     StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
-                    StructureForm form = ArchitectureCompiler.Resolve(intent, plan.Theme, seed);
-                    profiles[plot.RoleId] = resolver.Resolve(intent, form);
+                    IArchitectureStyleCompiler style =
+                        BuiltInArchitectureStyles.Registry.Require(intent.StyleId);
+                    StructureForm form = style.ResolveStructure(intent, plan.Theme, seed);
+                    profiles[plot.RoleId] = style.ResolveGeometry(intent, form);
                 }
 
                 return ArchitectureGeometryCatalogue.Apply(
