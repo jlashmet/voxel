@@ -1,0 +1,27 @@
+name: BrickPool mutation inventory
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-storage-mutation-inventory.yml]
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+      - name: Find pool mutation and free callsites
+        shell: bash
+        run: |
+          echo '=== .SetVoxel ==='
+          grep -R --line-number --include='*.cs' '\.SetVoxel(' Assets Packages || true
+          echo '=== .SetCell ==='
+          grep -R --line-number --include='*.cs' '\.SetCell(' Assets Packages || true
+          echo '=== .FillBrick ==='
+          grep -R --line-number --include='*.cs' '\.FillBrick(' Assets Packages || true
+          echo '=== .Free ==='
+          grep -R --line-number --include='*.cs' '\.Free(' Assets/VoxelEngine Packages || true
+          echo '=== pool.Voxels direct writes ==='
+          grep -R --line-number --include='*.cs' 'pool\.Voxels\|_pool\.Voxels' Assets Packages || true
