@@ -104,6 +104,7 @@ namespace VoxelEngine.Structures.Api
 
             double keep = plan.KeepHalfX * (double)plan.KeepHalfZ * plan.Floors * 4.0;
             double courtyard = PolygonArea(spatialPlan.OuterWardVertices) * 0.2;
+            double courtyardBuildings = CourtyardBuildingCost(spatialPlan.CourtyardBuildings);
             double underground = 1_500_000.0;
 
             double primaryGateLeaf = CastleLayout.FrontGateWidth
@@ -115,7 +116,8 @@ namespace VoxelEngine.Structures.Api
                 : 0.0;
 
             return (long)(siteCap + cliffCap + walls + towers + gatehouseTowers + keep
-                        + courtyard + underground + primaryGateLeaf + posternLeaf);
+                        + courtyard + courtyardBuildings + underground
+                        + primaryGateLeaf + posternLeaf);
         }
 
         public static CastleBuildPreflightResult Evaluate(in CastlePlan plan, long writeBudget)
@@ -191,6 +193,26 @@ namespace VoxelEngine.Structures.Api
                 CastleSpatialPlanIssue.None,
                 estimate,
                 writeBudget);
+        }
+
+        private static double CourtyardBuildingCost(CastleCourtyardBuildingSpec[] buildings)
+        {
+            if (buildings == null) return 0.0;
+
+            double cost = 0.0;
+            for (int i = 0; i < buildings.Length; i++)
+            {
+                int width = math.max(0, buildings[i].HalfExtents.x * 2);
+                int depth = math.max(0, buildings[i].HalfExtents.y * 2);
+                int height = math.max(0, buildings[i].Height);
+
+                // Five-voxel masonry shell plus a six-layer-equivalent roof skin. This is
+                // intentionally conservative; admission should grow whenever the planner adds
+                // courtyard structures even though most shell work is later executed in bulk.
+                cost += 2.0 * (width + depth) * height * 5.0;
+                cost += width * (double)depth * 6.0;
+            }
+            return cost;
         }
 
         private static double PolygonPerimeter(int2[] polygon)
