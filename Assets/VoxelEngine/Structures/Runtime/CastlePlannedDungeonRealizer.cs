@@ -50,6 +50,7 @@ namespace VoxelEngine.Structures.Runtime
             }
 
             CaveRealizer.Build(ref brush, cavePlan);
+            CastlePlannedCaveDecorator.Build(ref brush, cavePlan);
         }
 
         private static void ValidateDungeon(DungeonPlan dungeonPlan)
