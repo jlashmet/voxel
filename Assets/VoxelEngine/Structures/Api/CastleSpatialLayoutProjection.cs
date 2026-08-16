@@ -54,7 +54,7 @@ namespace VoxelEngine.Structures.Api
                     "Castle spatial plan still requires terrain resolution for its keep.");
             }
 
-            CastlePlan keepPlan = ProjectKeepPlan(in plan, spatial.KeepCentre);
+            CastlePlan keepPlan = PlaceKeepPlan(in plan, spatial.KeepCentre);
             CastleGatePlacementSpec primaryGatePlacement = spatial.PrimaryGate;
             CastleGateGeometry primaryGate = CastleGateGeometryResolver.Resolve(
                 in plan, in primaryGatePlacement);
@@ -73,7 +73,7 @@ namespace VoxelEngine.Structures.Api
         /// extracted legacy keep/dungeon recipe. Callers should not reproduce the historical +60 Z
         /// offset themselves.
         /// </summary>
-        public static CastlePlan ProjectKeepPlan(
+        public static CastlePlan PlaceKeepPlan(
             in CastlePlan plan,
             int2 localKeepCentre)
         {
@@ -84,6 +84,12 @@ namespace VoxelEngine.Structures.Api
                 plan.Centre.z + localKeepCentre.y - LegacyKeepCentreZOffset);
             return placed;
         }
+
+        /// <summary>Compatibility alias for callers that adopted the earlier projector name.</summary>
+        public static CastlePlan ProjectKeepPlan(
+            in CastlePlan plan,
+            int2 localKeepCentre) =>
+            PlaceKeepPlan(in plan, localKeepCentre);
 
         /// <summary>Returns the actual world X/Z centre represented by a projected keep plan.</summary>
         public static int2 ActualKeepCentre(in CastlePlan projectedKeepPlan) =>
