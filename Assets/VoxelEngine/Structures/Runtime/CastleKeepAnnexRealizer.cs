@@ -38,6 +38,43 @@ namespace VoxelEngine.Structures.Runtime
             BuildChapelWing(ref brush, in plan, min, size, baseY);
         }
 
+        internal static void BuildPlanned(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            in CastleKeepAnnexPlan annexes)
+        {
+            CastleKeepAnnexPlanValidator.RequireValid(in annexes);
+
+            int baseY = plan.Centre.y + plan.PlateauHeight;
+            int hx = plan.KeepHalfX;
+            int hz = plan.KeepHalfZ;
+            var min = new int3(plan.Centre.x - hx, baseY, plan.Centre.z - hz + 60);
+            var size = new int3(hx * 2, plan.KeepHeight, hz * 2);
+            int topY = baseY + plan.Floors * plan.FloorHeight;
+
+            brush.Box(new int3(min.x - 5, topY, min.z - 5),
+                      new int3(size.x + 10, 6, size.z + 10), Mat.DarkStone);
+
+            for (int i = 0; i < size.x + 10; i += 44)
+            {
+                brush.Box(new int3(min.x - 5 + i, topY + 6, min.z - 5),
+                          new int3(24, 20, 7), Mat.Stone);
+                brush.Box(new int3(min.x - 5 + i, topY + 6, min.z + size.z + 3),
+                          new int3(24, 20, 7), Mat.Stone);
+            }
+
+            brush.Gable(new int3(min.x, topY + 8, min.z),
+                        new int3(size.x, 70, size.z), true, Mat.Tile);
+
+            BuildRooflineDetails(ref brush, in plan, min, size, topY);
+
+            if (annexes.HasGreatHallWing)
+                BuildGreatHallWing(ref brush, in plan, min, size, baseY);
+            if (annexes.HasChapelWing)
+                BuildChapelWing(
+                    ref brush, in plan, min, size, baseY, annexes.HasBellTower);
+        }
+
         private static void BuildRooflineDetails(ref VoxelBrush brush, in CastlePlan plan,
                                                  int3 min, int3 size, int topY)
         {
@@ -126,7 +163,8 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         private static void BuildChapelWing(ref VoxelBrush brush, in CastlePlan plan,
-                                            int3 keepMin, int3 keepSize, int baseY)
+                                            int3 keepMin, int3 keepSize, int baseY,
+                                            bool buildBellTower = true)
         {
             int width = math.max(78, keepSize.x / 3);
             int depth = math.max(96, keepSize.z * 3 / 5);
@@ -270,7 +308,8 @@ namespace VoxelEngine.Structures.Runtime
                           new int3(7, 25, 7), Mat.Stone);
             }
 
-            BuildChapelBellTower(ref brush, in plan, baseY);
+            if (buildBellTower)
+                BuildChapelBellTower(ref brush, in plan, baseY);
         }
 
         private static void BuildChapelBellTower(ref VoxelBrush brush, in CastlePlan plan, int baseY)
