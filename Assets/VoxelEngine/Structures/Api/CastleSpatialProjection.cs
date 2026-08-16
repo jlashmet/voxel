@@ -10,8 +10,6 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public readonly struct CastleSpatialProjection
     {
-        private const int LegacyKeepCentreZOffset = 60;
-
         public readonly CastlePlan KeepPlan;
         public readonly CastleGateGeometry PrimaryGateGeometry;
         public readonly CastleApproachFrame Approach;
@@ -52,7 +50,7 @@ namespace VoxelEngine.Structures.Api
             keepPlan.Centre = new int3(
                 plan.Centre.x + spatial.KeepCentre.x,
                 plan.Centre.y,
-                plan.Centre.z + spatial.KeepCentre.y - LegacyKeepCentreZOffset);
+                plan.Centre.z + spatial.KeepCentre.y - CastleLayout.LegacyKeepCentreZOffset);
 
             CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
             CastleGateGeometry gateGeometry = CastleGateGeometryResolver.Resolve(
@@ -67,7 +65,9 @@ namespace VoxelEngine.Structures.Api
 
         /// <summary>Actual world-space X/Z centre of the projected keep.</summary>
         public int2 KeepCentreWorld =>
-            new int2(KeepPlan.Centre.x, KeepPlan.Centre.z + LegacyKeepCentreZOffset);
+            new int2(
+                KeepPlan.Centre.x,
+                KeepPlan.Centre.z + CastleLayout.LegacyKeepCentreZOffset);
 
         /// <summary>World-space secret-hatch centre for the projected keep/dungeon recipe.</summary>
         public int3 TrapdoorCentre => CastleLayout.TrapdoorCentre(in KeepPlan);
