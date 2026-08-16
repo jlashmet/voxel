@@ -40,9 +40,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Step-4 still ends in phase 0 / exact-metadata after explicit batch dispatch. This run
-          # records scheduled/completed metadata chains plus region-revision and mixed-pin rejects
-          # so true job non-execution is distinguishable from optimistic Storage retry livelock.
+          # Previous telemetry proved an invalidation storm: step 4 scheduled exact metadata 3609
+          # times with zero revision/pin rejects while thousands of builds went stale. Discovery is
+          # now admission-only for known chunks; this run must collapse that churn and converge.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
