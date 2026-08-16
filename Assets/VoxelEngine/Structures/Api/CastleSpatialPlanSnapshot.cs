@@ -24,7 +24,7 @@ namespace VoxelEngine.Structures.Api
             CastleCaveDecorationPlan caveDecoration = source.CaveDecoration?.Snapshot();
             CastleLandscapePlan landscape = CloneLandscape(source.Landscape);
 
-            var clone = new CastleSpatialPlan(
+            return new CastleSpatialPlan(
                 in topology,
                 Clone(source.OuterWardVertices),
                 Clone(source.InnerWardVertices),
@@ -45,20 +45,8 @@ namespace VoxelEngine.Structures.Api
                 source.KeepCentre,
                 source.KeepRequiresTerrainResolution,
                 caveDecoration,
-                Clone(source.KeepWindows));
-
-            // The CastleSpatialPlan constructor derives inner tower identities from the cloned
-            // ring. Preserve any planner-owned variation fields from the source without retaining
-            // the source array itself.
-            CastleTowerPlacementSpec[] sourceInner = source.InnerTowers;
-            CastleTowerPlacementSpec[] targetInner = clone.InnerTowers;
-            if (sourceInner != null && targetInner != null &&
-                sourceInner.Length == targetInner.Length)
-            {
-                Array.Copy(sourceInner, targetInner, sourceInner.Length);
-            }
-
-            return clone;
+                Clone(source.KeepWindows),
+                Clone(source.InnerTowers));
         }
 
         public static CastleSpatialPlan CloneRuntimeReady(
