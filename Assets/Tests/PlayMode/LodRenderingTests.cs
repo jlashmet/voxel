@@ -68,13 +68,14 @@ namespace VoxelEngine.Tests.PlayMode
                                          TextureFormat.RGB24, false, true);
             bool oldOrthographic = camera.orthographic;
             float oldOrthographicSize = camera.orthographicSize;
+            float oldNearClipPlane = camera.nearClipPlane;
+            float oldFarClipPlane = camera.farClipPlane;
             double oldSolidBuildBudgetMs = VoxelRenderBridge.SolidBuildBudgetMs;
             try
             {
                 // This fixture is an offline visual-fidelity capture, not the frame-budget gate.
-                // Its 70 m orthographic half-height exposes roughly the whole near clipmap at
-                // once, far more surface chunks than a gameplay perspective view. Give extraction
-                // enough CPU admission to make the existing 8-second hole-free precondition
+                // The capture is castle-focused rather than a whole-clipmap residency test. Give
+                // extraction enough CPU admission to make the existing 8-second hole-free precondition
                 // meaningful; the separate budget/stress fixtures keep production constraints.
                 VoxelRenderBridge.SolidBuildBudgetMs = 8.0;
                 camera.targetTexture = target;
@@ -93,6 +94,12 @@ namespace VoxelEngine.Tests.PlayMode
                     // measurable rather than hidden by perspective.
                     camera.transform.position = centre + new Vector3(0f, 20f, -band.distance);
                     camera.transform.LookAt(lookAt);
+                    // MissingVisible is frustum-scoped, so bound depth to the landmark too. The
+                    // castle/plateau fits within roughly +/-43 m of its centre; +/-50 m leaves a
+                    // halo for towers/cliffs while excluding unrelated clipmap rings hundreds of
+                    // metres in front of or behind the subject. The strict hole-free check stays.
+                    camera.nearClipPlane = Mathf.Max(0.3f, band.distance - 50f);
+                    camera.farClipPlane = band.distance + 50f;
 
                     // Geometry is deliberately asynchronous. Batchmode can advance dozens of
                     // Unity frames before a background HLOD job gets equivalent wall-clock time,
@@ -169,6 +176,8 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.targetTexture = null;
                 camera.orthographic = oldOrthographic;
                 camera.orthographicSize = oldOrthographicSize;
+                camera.nearClipPlane = oldNearClipPlane;
+                camera.farClipPlane = oldFarClipPlane;
                 target.Release();
                 Object.DestroyImmediate(target);
                 Object.DestroyImmediate(readback);
