@@ -19,6 +19,7 @@ namespace VoxelEngine.Tests.EditMode
                     spatial = CastleSpatialPlanner.ResolveHighestGroundKeep(
                         in plan, spatial, int2.zero);
                 }
+                spatial = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
 
                 CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
                 CastleBuildBounds bounds = CastleBuildBoundsResolver.Resolve(in plan, spatial);
@@ -40,8 +41,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.IsTrue(bounds.Contains(farApproach),
                     $"seed {seed}: gate-oriented gorge escaped build bounds");
 
-                // Keep compatibility details retain a broad historical envelope. Planned dungeon
-                // rooms/caves are additionally included from their actual semantic coordinates.
+                // Keep compatibility details retain a broad historical envelope. Planned dungeon,
+                // cave, and cave-decoration geometry are additionally included from their actual
+                // semantic coordinates.
                 var farDungeon = new int3(
                     projection.KeepCentreWorld.x + 276,
                     baseY - 178,
@@ -63,7 +65,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PlannedForwardCaveExitExtendsDependencyEnvelopePastThreshold()
+        public void PlannedForwardCaveExitIncludesCaveAndDecorationEnvelopes()
         {
             bool foundForwardExit = false;
 
@@ -77,8 +79,9 @@ namespace VoxelEngine.Tests.EditMode
                     spatial = CastleSpatialPlanner.ResolveHighestGroundKeep(
                         in plan, spatial, int2.zero);
                 }
+                spatial = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
 
-                DungeonPlan dungeon = spatial.Dungeon ?? CastleDungeonPlanning.Create(in plan, spatial);
+                DungeonPlan dungeon = spatial.Dungeon;
                 if (!dungeon.HasCaveExit) continue;
 
                 DungeonRoomPlan threshold = dungeon.Rooms[dungeon.CaveThresholdRoomId];
@@ -96,32 +99,33 @@ namespace VoxelEngine.Tests.EditMode
                 if (threshold.Centre.z <= hall.Centre.z) continue;
 
                 foundForwardExit = true;
+                Assert.NotNull(spatial.Cave, $"seed {seed}: completed cave exit has no CavePlan");
+                Assert.NotNull(spatial.CaveDecoration,
+                    $"seed {seed}: completed cave exit has no decoration plan");
+
                 CastleBuildBounds bounds = CastleBuildBoundsResolver.Resolve(in plan, spatial);
-                CavePlan cave = CastleCavePlanning.Create(in plan, dungeon);
-                CaveBuildBounds caveBounds = CaveBuildBoundsResolver.Resolve(cave);
-                int caveFloorY = threshold.Centre.y - threshold.Size.y / 2;
-                var forwardCaveDetail = new int3(
-                    threshold.Centre.x + 240,
-                    caveFloorY + 100,
-                    threshold.Centre.z + 240);
+                CaveBuildBounds caveBounds = CaveBuildBoundsResolver.Resolve(spatial.Cave);
+                CastleCaveDecorationBuildBounds decorationBounds =
+                    CastleCaveDecorationBuildBoundsResolver.Resolve(
+                        spatial.Cave, spatial.CaveDecoration);
 
-                Assert.IsTrue(bounds.Contains(forwardCaveDetail),
-                    $"seed {seed}: +Z cave detail escaped planned dungeon dependency bounds");
-                Assert.Greater(bounds.MaxExclusive.z, threshold.Centre.z + 256,
-                    $"seed {seed}: dependency envelope did not reserve cave margin past threshold");
-
-                for (int chamber = 0; chamber < cave.Chambers.Length; chamber++)
+                for (int chamber = 0; chamber < spatial.Cave.Chambers.Length; chamber++)
                 {
-                    CaveChamberPlan planned = cave.Chambers[chamber];
+                    CaveChamberPlan planned = spatial.Cave.Chambers[chamber];
                     Assert.IsTrue(bounds.Contains(planned.Centre - planned.Radii),
                         $"seed {seed}: planned cave chamber {chamber} minimum escaped castle bounds");
                     Assert.IsTrue(bounds.Contains(planned.Centre + planned.Radii),
                         $"seed {seed}: planned cave chamber {chamber} maximum escaped castle bounds");
                 }
+
                 Assert.IsTrue(bounds.Contains(caveBounds.Min),
                     $"seed {seed}: planned cave bounds minimum escaped castle bounds");
                 Assert.IsTrue(bounds.Contains(caveBounds.MaxExclusive - 1),
                     $"seed {seed}: planned cave bounds maximum escaped castle bounds");
+                Assert.IsTrue(bounds.Contains(decorationBounds.Min),
+                    $"seed {seed}: planned decoration minimum escaped castle bounds");
+                Assert.IsTrue(bounds.Contains(decorationBounds.MaxExclusive - 1),
+                    $"seed {seed}: planned decoration maximum escaped castle bounds");
             }
 
             Assert.IsTrue(foundForwardExit,
@@ -135,6 +139,7 @@ namespace VoxelEngine.Tests.EditMode
             CastleTopologyPlan topology = CastleLayoutPlanner.Create(131u);
             topology.KeepPlacement = CastleKeepPlacement.Central;
             CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+            spatial = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
             CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
             CastleBuildBounds bounds = CastleBuildBoundsResolver.Resolve(in plan, spatial);
             int baseY = plan.Centre.y + plan.PlateauHeight;
