@@ -1,4 +1,5 @@
 using Unity.Mathematics;
+using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures.Api
 {
@@ -91,6 +92,17 @@ namespace VoxelEngine.Structures.Api
                 BridgeRailThickness = 4,
             };
 
+            AttachTowerSlits(in plan, in placement, ref gatehouse);
+            CastleGatehousePlanValidator.RequireValid(in gatehouse);
+            CastleGatehousePlanValidator.RequireTowerDetails(in gatehouse, plan.FloorHeight);
+            return gatehouse;
+        }
+
+        internal static void AttachTowerSlits(
+            in CastlePlan plan,
+            in CastleGatePlacementSpec placement,
+            ref CastleGatehousePlan gatehouse)
+        {
             CastleGateGeometry geometry = CastleGateGeometryResolver.Resolve(in plan, in placement);
             float2 gate = geometry.PerimeterCentre;
             float2 tangent = geometry.Tangent;
@@ -100,10 +112,6 @@ namespace VoxelEngine.Structures.Api
                 left, gatehouse.LeftTowerHeight, plan.FloorHeight);
             gatehouse.RightTowerSlits = CastleTowerSlitPlanner.Create(
                 right, gatehouse.RightTowerHeight, plan.FloorHeight);
-
-            CastleGatehousePlanValidator.RequireValid(in gatehouse);
-            CastleGatehousePlanValidator.RequireTowerDetails(in gatehouse, plan.FloorHeight);
-            return gatehouse;
         }
 
         private static int2 Round(float2 value) =>
@@ -111,8 +119,8 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Pure planner for the historical gatehouse recipe. Keeping the exact current values makes
-    /// the planning migration behavior-preserving while removing those choices from realization.
+    /// Pure gatehouse planner. Existing overloads preserve the historical recipe for compatibility;
+    /// the seeded overload freezes production variation on an independent Walls substream.
     /// </summary>
     public static class CastleGatehousePlanner
     {
@@ -123,6 +131,47 @@ namespace VoxelEngine.Structures.Api
             in CastlePlan plan,
             in CastleGatePlacementSpec placement) =>
             CastleGatehouseRecipe.Historical(in plan, in placement);
+
+        public static CastleGatehousePlan Create(
+            in CastlePlan plan,
+            in CastleGatePlacementSpec placement,
+            uint seed)
+        {
+            CastleGatehousePlan gatehouse = CastleGatehouseRecipe.Historical(
+                in plan, in placement);
+            var rng = new Random(CastleSeedPartition.Derive(
+                seed, CastleSeedDomain.Walls, 0x6A7Eu));
+
+            int minimumSpacing = math.max(
+                54,
+                plan.GateTowerRadius + CastleLayout.FrontGateWidth / 2 + 6);
+            gatehouse.TowerSpacing = minimumSpacing + rng.NextInt(0, 17);
+            gatehouse.LeftTowerHeight = plan.GateTowerHeight + rng.NextInt(22, 49);
+            gatehouse.RightTowerHeight = plan.GateTowerHeight + rng.NextInt(10, 41);
+            gatehouse.BlockHeight = plan.WallHeight + rng.NextInt(18, 31);
+            gatehouse.OpeningHeight = CastleLayout.FrontGateHeight + rng.NextInt(10, 18);
+
+            gatehouse.BridgeNearDistance = plan.WallThickness + rng.NextInt(3, 9);
+            gatehouse.BridgeLength = rng.NextInt(132, 181);
+            gatehouse.BridgeWidth = rng.NextInt(62, 77);
+            gatehouse.BridgeDeckYOffset = rng.NextInt(-3, 0);
+            gatehouse.BridgeDeckHeight = rng.NextInt(2, 5);
+            gatehouse.BridgeSupportOffset = math.max(
+                8,
+                gatehouse.BridgeWidth / 2 - rng.NextInt(3, 8));
+            gatehouse.BridgeSupportYOffset = rng.NextInt(-9, -4);
+            gatehouse.BridgeSupportHeight = rng.NextInt(4, 8);
+            gatehouse.BridgeSupportThickness = rng.NextInt(6, 11);
+            gatehouse.BridgeRailYOffset = rng.NextInt(7, 12);
+            gatehouse.BridgeRailHeight = rng.NextInt(3, 7);
+            gatehouse.BridgeRailThickness = rng.NextInt(3, 7);
+
+            CastleGatehouseRecipe.AttachTowerSlits(
+                in plan, in placement, ref gatehouse);
+            CastleGatehousePlanValidator.RequireValid(in gatehouse);
+            CastleGatehousePlanValidator.RequireTowerDetails(in gatehouse, plan.FloorHeight);
+            return gatehouse;
+        }
     }
 
     /// <summary>Structural validation for a frozen primary-gatehouse recipe.</summary>
