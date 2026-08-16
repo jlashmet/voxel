@@ -1,0 +1,150 @@
+name: Async geometry multi-camera one-shot patch
+
+on:
+  push:
+    branches:
+      - refactor/async-geometry-pipeline
+    paths:
+      - .github/workflows/async-geometry-multicamera-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+
+      - name: Make geometry advancement once-per-frame
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs')
+          s = path.read_text()
+
+          def once(text, old, new, label):
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected one match, found {n}')
+              return text.replace(old, new, 1)
+
+          s = once(s,
+              '        private int _lastFrameSolidUploadCompletions;\n        private readonly VoxelTimingWindow _prepareTiming',
+              '        private int _lastFrameSolidUploadCompletions;\n        private int _lastAdvancedFrame = -1;\n        private readonly VoxelTimingWindow _prepareTiming',
+              'last advanced frame field')
+
+          s = once(s,
+              '        public int LastFrameSolidUploadCompletions => _lastFrameSolidUploadCompletions;\n        public int PendingSolidUploadBytes',
+              '        public int LastFrameSolidUploadCompletions => _lastFrameSolidUploadCompletions;\n        public int LastAdvancedFrame => _lastAdvancedFrame;\n        public int PendingSolidUploadBytes',
+              'last advanced frame diagnostic')
+
+          s = once(s,
+              '''            if (storage == null) throw new ArgumentNullException(nameof(storage));
+
+                      double prepareStart = Time.realtimeSinceStartupAsDouble;''',
+              '''            if (storage == null) throw new ArgumentNullException(nameof(storage));
+
+                      // RenderGraph records this pass once per camera. Geometry derivation is world/frame
+                      // work, not camera work: a second camera in the same Unity frame may change only
+                      // visibility, never consume another journal/build/upload budget.
+                      if (_lastAdvancedFrame == frame)
+                      {
+                          CollectVisibility(camera, voxelSize, frame);
+                          return;
+                      }
+                      _lastAdvancedFrame = frame;
+
+                      double prepareStart = Time.realtimeSinceStartupAsDouble;''',
+              'same-frame guard')
+
+          s = once(s,
+              '            _visibleSolids.Clear();\n            double workersStart = Time.realtimeSinceStartupAsDouble;',
+              '            double workersStart = Time.realtimeSinceStartupAsDouble;',
+              'remove early visibility clear')
+
+          old_visibility = '''            double visibilityStart = Time.realtimeSinceStartupAsDouble;
+                      using (s_VisibilityMarker.Auto())
+                      {
+                          for (int i = 0; i < _allWorkers.Length; i++)
+                          {
+                              IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible =
+                                  _allWorkers[i].CollectVisible(camera, voxelSize, frame);
+                              for (int j = 0; j < visible.Count; j++) _visibleSolids.Add(visible[j]);
+                          }
+                      }
+                      double visibilityMs = ElapsedMs(visibilityStart);
+
+                      _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
+                      _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
+                      _water.CollectVisible(camera, voxelSize);
+                      _workerPrepareTiming.Add(workerPrepareMs);
+                      _visibilityTiming.Add(visibilityMs);
+                      _prepareTiming.Add(ElapsedMs(prepareStart));
+                  }
+
+                  private void EnqueueSurfaceDiscovery(HashSet<int3> regions)'''
+          new_visibility = '''            _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
+                      _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
+                      _workerPrepareTiming.Add(workerPrepareMs);
+                      CollectVisibility(camera, voxelSize, frame);
+                      _prepareTiming.Add(ElapsedMs(prepareStart));
+                  }
+
+                  /// <summary>
+                  /// Camera-specific half of scheduling. This may run multiple times in one Unity
+                  /// frame; it never consumes change, extraction, water-build, or GPU-upload budgets.
+                  /// </summary>
+                  private void CollectVisibility(Camera camera, float voxelSize, int frame)
+                  {
+                      _visibleSolids.Clear();
+                      double visibilityStart = Time.realtimeSinceStartupAsDouble;
+                      using (s_VisibilityMarker.Auto())
+                      {
+                          for (int i = 0; i < _allWorkers.Length; i++)
+                          {
+                              IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible =
+                                  _allWorkers[i].CollectVisible(camera, voxelSize, frame);
+                              for (int j = 0; j < visible.Count; j++) _visibleSolids.Add(visible[j]);
+                          }
+                          _water.CollectVisible(camera, voxelSize);
+                      }
+                      _visibilityTiming.Add(ElapsedMs(visibilityStart));
+                  }
+
+                  private void EnqueueSurfaceDiscovery(HashSet<int3> regions)'''
+          s = once(s, old_visibility, new_visibility, 'visibility split')
+
+          path.write_text(s)
+          PY
+
+      - name: Static once-per-frame guards
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs').read_text()
+          assert 'if (_lastAdvancedFrame == frame)' in s
+          assert '_lastAdvancedFrame = frame;' in s
+          assert 'private void CollectVisibility(Camera camera, float voxelSize, int frame)' in s
+          guard = s[s.index('if (_lastAdvancedFrame == frame)'):s.index('double prepareStart')]
+          assert 'CollectVisibility(camera, voxelSize, frame);' in guard
+          assert 'return;' in guard
+          visibility = s[s.index('private void CollectVisibility'):s.index('private void EnqueueSurfaceDiscovery')]
+          for forbidden in ('ReadSince(', 'ProcessSurfaceDiscovery(', '.Prepare(storage,', 'TryPublishPending('):
+              assert forbidden not in visibility, forbidden
+          PY
+
+      - name: Commit scheduler change
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          git commit -m 'Advance voxel geometry once per Unity frame'
+          git push origin HEAD:refactor/async-geometry-pipeline
