@@ -378,6 +378,123 @@ namespace VoxelEngine.Tests.PlayMode
 
 
         [UnityTest, Timeout(900000)]
+        public IEnumerator ArenaPressureDelaysConvergenceWithoutGrowingBuffersOrOpeningHoles()
+        {
+            yield return LoadShowcaseScene();
+            GetShowcaseContext(out _, out ShowcaseWorld world,
+                               out Camera camera, out CastlePlan plan, out Vector3 centre);
+
+            int oldArenaLeaseCap = VoxelRenderBridge.SolidArenaMaxActiveLeases;
+            int oldBudget = VoxelRenderBridge.SolidUploadBudgetBytes;
+            int oldSlice = VoxelRenderBridge.SolidUploadSliceBytes;
+            int oldWorkers = VoxelRenderBridge.SolidUploadWorkerBudget;
+            double oldUploadMs = VoxelRenderBridge.SolidUploadBudgetMs;
+            var target = new RenderTexture(64, 36, 24, RenderTextureFormat.ARGB32);
+            try
+            {
+                camera.targetTexture = target;
+                camera.transform.position = centre + new Vector3(0f, 18f, -48f);
+                camera.transform.LookAt(centre + Vector3.up * 8f);
+
+                bool warmed = false;
+                for (int frame = 0; frame < 300; frame++)
+                {
+                    camera.Render();
+                    yield return null;
+                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    warmed = metrics.VisibleSolidChunks > 0
+                          && metrics.MissingVisibleSolidChunks == 0
+                          && metrics.SolidDirtyChunks == 0
+                          && metrics.RunningSolidJobs == 0
+                          && metrics.SolidPendingUploadBytes == 0
+                          && metrics.SolidArenaActiveLeases >= 2;
+                    if (warmed) break;
+                }
+                Assert.True(warmed,
+                    "Could not establish an idle published baseline with multiple solid arena leases.");
+
+                VoxelSurfaceMetrics baseline = VoxelRenderBridge.SurfaceMetrics;
+                long committedBytes = baseline.SolidArenaCommittedBytes;
+                int leaseCap = baseline.SolidArenaActiveLeases;
+                ulong failureBaseline = baseline.SolidArenaAllocationFailures;
+                ulong evictionBaseline = baseline.SolidArenaPressureEvictions;
+                ulong completedBaseline = baseline.CompletedSolidBuilds;
+
+                // Keep the physical arena exactly as-is but disallow one extra staging lease.
+                // A visible replacement must hit pressure first, after which the scheduler may
+                // retire one different offscreen live lease and retry on a later frame.
+                VoxelRenderBridge.SolidArenaMaxActiveLeases = leaseCap;
+                VoxelRenderBridge.SolidUploadBudgetBytes = 16 * 1024;
+                VoxelRenderBridge.SolidUploadSliceBytes = 4 * 1024;
+                VoxelRenderBridge.SolidUploadWorkerBudget = 2;
+                VoxelRenderBridge.SolidUploadBudgetMs = 5.0;
+
+                Assert.Greater(ExplodeAtOffset(world, plan, 24, -24), 0,
+                    "Arena-pressure test did not mutate the visible step-1 chunk.");
+
+                bool sawFailure = false;
+                bool sawPressureEviction = false;
+                bool sawBacklog = false;
+                bool converged = false;
+                for (int frame = 0; frame < 480; frame++)
+                {
+                    camera.Render();
+                    yield return null;
+                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+
+                    Assert.AreEqual(committedBytes, metrics.SolidArenaCommittedBytes,
+                        "Arena pressure changed committed GPU bytes instead of applying backpressure.");
+                    Assert.LessOrEqual(metrics.SolidArenaActiveLeases, leaseCap,
+                        "Arena soft pressure ceiling was exceeded by a staging publication.");
+                    Assert.LessOrEqual(metrics.LastFrameSolidUploadedBytes,
+                        metrics.SolidUploadBudgetBytes,
+                        "Arena-pressure retry exceeded the renderer-wide upload cap.");
+                    Assert.AreEqual(0UL, metrics.FramePathBlockingCompletionViolations,
+                        "Arena pressure caused a frame-path geometry wait.");
+
+                    sawFailure |= metrics.SolidArenaAllocationFailures > failureBaseline;
+                    sawPressureEviction |= metrics.SolidArenaPressureEvictions > evictionBaseline;
+                    sawBacklog |= metrics.SolidPendingUploadBytes > 0;
+                    if (metrics.SolidPendingUploadBytes > 0)
+                    {
+                        Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
+                            "Arena pressure removed visible old geometry while replacement was queued.");
+                        Assert.Greater(metrics.VisibleSolidChunks, 0,
+                            "Arena pressure created a visible geometry hole.");
+                    }
+
+                    if (sawFailure && sawPressureEviction && sawBacklog
+                        && metrics.CompletedSolidBuilds > completedBaseline
+                        && metrics.SolidPendingUploadBytes == 0
+                        && metrics.RunningSolidJobs == 0
+                        && metrics.SolidDirtyChunks == 0)
+                    {
+                        converged = true;
+                        break;
+                    }
+                }
+
+                Assert.True(sawFailure,
+                    "The soft arena ceiling never produced a real staging allocation failure.");
+                Assert.True(sawPressureEviction,
+                    "Arena pressure did not reclaim one bounded offscreen lease for retry.");
+                Assert.True(sawBacklog,
+                    "Arena pressure never delayed publication into a queued replacement state.");
+                Assert.True(converged,
+                    "Arena pressure did not converge after bounded eviction/backpressure.");
+            }
+            finally
+            {
+                VoxelRenderBridge.SolidArenaMaxActiveLeases = oldArenaLeaseCap;
+                RestoreUploadBudget(oldBudget, oldSlice, oldWorkers, oldUploadMs);
+                camera.targetTexture = null;
+                target.Release();
+                Object.DestroyImmediate(target);
+            }
+        }
+
+
+        [UnityTest, Timeout(900000)]
         public IEnumerator WarmRepeatedClipmapTraversalAllocatesNoManagedGeometryMemory()
         {
             yield return LoadShowcaseScene();

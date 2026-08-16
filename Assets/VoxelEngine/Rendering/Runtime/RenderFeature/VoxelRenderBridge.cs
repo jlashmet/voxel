@@ -75,6 +75,12 @@ namespace VoxelEngine.Rendering.Runtime
         public static int SolidUploadSliceBytes = 256 * 1024;
         public static int SolidUploadWorkerBudget = 4;
         public static double SolidUploadBudgetMs = 0.20;
+        /// <summary>
+        /// Soft cap for active solid arena leases. The default does not constrain the fixed
+        /// arena; tests/debugging may lower it to exercise real backpressure without reallocating
+        /// GPU buffers or changing the arena's committed byte size.
+        /// </summary>
+        public static int SolidArenaMaxActiveLeases = int.MaxValue;
         public static double WaterBuildBudgetMs = 0.15;
         public static bool SurfaceBuildEnabled = true;
 

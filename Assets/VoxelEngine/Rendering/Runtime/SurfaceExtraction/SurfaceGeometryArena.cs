@@ -58,6 +58,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int UsedVertices => _vertexRanges.Used;
         public int UsedIndices => _indexRanges.Used;
         public int UsedArgsRecords => _argsRanges.Used / ArgsWordsPerDraw;
+        private int _maxActiveLeases = int.MaxValue;
+        /// <summary>
+        /// Soft publication-pressure ceiling. This never resizes the GPU buffers; it only makes
+        /// new staging leases observe backpressure once the configured number of live/staging
+        /// draws is reached. Production defaults to unlimited relative to the fixed arena.
+        /// </summary>
+        public int MaxActiveLeases
+        {
+            get => _maxActiveLeases;
+            set => _maxActiveLeases = math.max(1, value);
+        }
         public ulong AllocationFailureCount { get; private set; }
         public long UsedGpuBytes =>
             (long)UsedVertices * SmoothSurfaceVertex.Stride
@@ -112,6 +123,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             lease = default;
             if (_disposed) return false;
+            if (UsedArgsRecords >= _maxActiveLeases)
+            {
+                AllocationFailureCount++;
+                return false;
+            }
 
             int vertices = Align(math.max(1, vertexCount), VertexAlignment);
             int indices = Align(math.max(1, indexCount), IndexAlignment);

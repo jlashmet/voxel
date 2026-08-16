@@ -196,6 +196,8 @@ namespace VoxelEngine.Rendering.Runtime
             _scheduler.SolidUploadSliceBytes = Math.Max(0, VoxelRenderBridge.SolidUploadSliceBytes);
             _scheduler.SolidUploadWorkerBudget = Math.Max(0, VoxelRenderBridge.SolidUploadWorkerBudget);
             _scheduler.SolidUploadBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidUploadBudgetMs);
+            _scheduler.SolidArenaMaxActiveLeases = Math.Max(
+                1, VoxelRenderBridge.SolidArenaMaxActiveLeases);
             _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
             _scheduler.Prepare(world.Storage, in world.Palette,
                                in world.SurfaceCatalogueView, in world.CoatingCatalogueView,

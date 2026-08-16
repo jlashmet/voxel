@@ -41,6 +41,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int LastFrameSolidUploadCompletions;
         public readonly long SolidArenaCommittedBytes;
         public readonly long SolidArenaUsedBytes;
+        public readonly int SolidArenaActiveLeases;
         public readonly ulong SolidArenaAllocationFailures;
         public readonly ulong SolidArenaPressureEvictions;
         public readonly double LastSolidSnapshotMs;
@@ -103,6 +104,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             LastFrameSolidUploadCompletions = 0;
             SolidArenaCommittedBytes = 0;
             SolidArenaUsedBytes = 0;
+            SolidArenaActiveLeases = 0;
             SolidArenaAllocationFailures = 0;
             SolidArenaPressureEvictions = 0;
             LastSolidSnapshotMs = solids.LastSnapshotMs;
@@ -139,6 +141,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                      int lastFrameSolidUploadCompletions,
                                      long solidArenaCommittedBytes,
                                      long solidArenaUsedBytes,
+                                     int solidArenaActiveLeases,
                                      ulong solidArenaAllocationFailures,
                                      ulong solidArenaPressureEvictions,
                                      in VoxelTimingSummary schedulerPrepare,
@@ -204,6 +207,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;
             SolidArenaCommittedBytes = solidArenaCommittedBytes;
             SolidArenaUsedBytes = solidArenaUsedBytes;
+            SolidArenaActiveLeases = solidArenaActiveLeases;
             SolidArenaAllocationFailures = solidArenaAllocationFailures;
             SolidArenaPressureEvictions = solidArenaPressureEvictions;
             CompletedSolidBuilds = completed;
@@ -508,6 +512,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int SolidBuildWorkspaceCount => _allWorkers.Length;
         public int LastVisibilityCandidateChecks => _lastVisibilityCandidateChecks;
         public long LastFrameManagedAllocationBytes => _lastFrameManagedAllocationBytes;
+        public int SolidArenaMaxActiveLeases
+        {
+            get => _geometryArena.MaxActiveLeases;
+            set => _geometryArena.MaxActiveLeases = value;
+        }
         internal int KnownChunkCountForSourceStep(int sourceStep)
         {
             int count = 0;
@@ -546,7 +555,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
             _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
             _lastFrameSolidUploadCompletions, _geometryArena.CommittedGpuBytes,
-            _geometryArena.UsedGpuBytes, _geometryArena.AllocationFailureCount,
+            _geometryArena.UsedGpuBytes, _geometryArena.UsedArgsRecords,
+            _geometryArena.AllocationFailureCount,
             _arenaPressureEvictions, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),
             _invalidationTiming.Snapshot(), _discoveryTiming.Snapshot(),
             _workerPrepareTiming.Snapshot(), _visibilityTiming.Snapshot(),

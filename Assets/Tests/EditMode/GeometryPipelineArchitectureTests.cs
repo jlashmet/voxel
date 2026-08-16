@@ -53,6 +53,35 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("_lastFrameSolidUploadedBytes += uploadedBytes", scheduler);
         }
 
+
+        [Test]
+        public void SolidArenaPressureIsBackpressureNotBufferGrowth()
+        {
+            string arena = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "SurfaceGeometryArena.cs"));
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            string renderPass = ReadRenderingSource(
+                Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
+            string bridge = ReadRenderingSource(
+                Path.Combine("RenderFeature", "VoxelRenderBridge.cs"));
+
+            StringAssert.Contains("public int MaxActiveLeases", arena);
+            StringAssert.Contains("if (UsedArgsRecords >= _maxActiveLeases)", arena);
+            StringAssert.Contains("AllocationFailureCount++", arena);
+            StringAssert.Contains("SolidArenaMaxActiveLeases", scheduler);
+            StringAssert.Contains("SolidArenaActiveLeases", scheduler);
+            StringAssert.Contains("SolidArenaMaxActiveLeases", bridge);
+            StringAssert.Contains("_scheduler.SolidArenaMaxActiveLeases", renderPass);
+
+            int acquire = arena.IndexOf("public bool TryAcquire", StringComparison.Ordinal);
+            int release = arena.IndexOf("public void Release", acquire, StringComparison.Ordinal);
+            Assert.GreaterOrEqual(acquire, 0);
+            Assert.Greater(release, acquire);
+            string streamingAcquire = arena.Substring(acquire, release - acquire);
+            StringAssert.DoesNotContain("new ComputeBuffer", streamingAcquire);
+        }
+
         [Test]
         public void KnownFramePathJobCompletionsAreReadinessGated()
         {
