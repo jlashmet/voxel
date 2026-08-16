@@ -73,6 +73,25 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ValidatorUsesRotatedEllipsoidForEntryContainment()
+        {
+            CavePlanningConstraints constraints = StandardConstraints();
+            CavePlan plan = CavePlanner.Create(21u, in constraints);
+            CaveChamberPlan entry = plan.Chambers[0];
+
+            // The entrance is 20 voxels along world Z from the chamber centre. In the old
+            // axis-aligned test that fits rz=30. After a 90-degree rotation that direction maps
+            // onto the 10-voxel local X radius and must be rejected by the actual ellipsoid.
+            entry.Centre = plan.Entrance - new int3(0, 0, 20);
+            entry.Radii = new int3(10, 30, 30);
+            entry.RotationRadians = math.PI * 0.5f;
+            plan.Chambers[0] = entry;
+
+            Assert.IsFalse(CavePlanValidator.TryValidate(plan, out CavePlanIssue issue));
+            Assert.AreEqual(CavePlanIssue.EntranceOutsideEntryChamber, issue);
+        }
+
+        [Test]
         public void SnapshotDetachesMutablePlanningArrays()
         {
             CavePlanningConstraints constraints = StandardConstraints();
