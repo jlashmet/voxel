@@ -38,22 +38,24 @@ namespace VoxelEngine.Tests.EditMode
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             Assert.That(model, Is.Not.Null, $"Unity could not load placeholder body {path}");
 
-            var activeSkinnedMeshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(false);
-            Assert.That(activeSkinnedMeshes.Length, Is.GreaterThan(0), $"{path} has no active skinned mesh renderer");
+            var allTransforms = model.GetComponentsInChildren<Transform>(true);
+            var lodNodes = allTransforms.Where(IsRocketboxLodNode).ToArray();
+            Assert.That(lodNodes.Length, Is.GreaterThan(0), $"{path} did not expose Rocketbox LOD nodes");
+            Assert.That(lodNodes.Any(IsMidpolyNode), Is.True, $"{path} has no midpoly hierarchy");
 
-            var polyNodes = model.GetComponentsInChildren<Transform>(true)
-                .Where(transform => transform.name.ToLowerInvariant().Contains("poly"))
-                .ToArray();
-            Assert.That(polyNodes.Length, Is.GreaterThan(0), $"{path} did not expose Rocketbox poly-level nodes");
-            Assert.That(polyNodes.Any(node => node.name.ToLowerInvariant().Contains("midpoly")), Is.True,
-                $"{path} has no midpoly hierarchy");
-
-            foreach (var node in polyNodes)
+            foreach (var node in lodNodes)
             {
-                var isMidpoly = node.name.ToLowerInvariant().Contains("midpoly");
-                Assert.That(node.gameObject.activeSelf, Is.EqualTo(isMidpoly),
+                Assert.That(node.gameObject.activeSelf, Is.EqualTo(IsMidpolyNode(node)),
                     $"Unexpected active state for Rocketbox LOD node {node.name} in {path}");
             }
+
+            var activeSkinnedMeshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(false);
+            Assert.That(activeSkinnedMeshes.Length, Is.GreaterThan(0),
+                $"{path} has no active skinned mesh renderer");
+            Assert.That(activeSkinnedMeshes.Any(renderer => HasAncestor(renderer.transform, IsMidpolyNode)), Is.True,
+                $"{path} has no active skinned mesh under its midpoly hierarchy");
+            Assert.That(activeSkinnedMeshes.Any(renderer => HasAncestor(renderer.transform, IsNonMidpolyLodNode)), Is.False,
+                $"{path} left a non-midpoly Rocketbox LOD renderer active");
 
             AssertValidHumanoidAvatar(path);
         }
@@ -74,6 +76,38 @@ namespace VoxelEngine.Tests.EditMode
                 .ToArray();
 
             Assert.That(clips.Length, Is.GreaterThanOrEqualTo(1), $"{path} exposes no animation clip");
+        }
+
+        private static bool IsRocketboxLodNode(Transform transform)
+        {
+            var name = transform.name.ToLowerInvariant();
+            return name.Contains("midpoly") ||
+                   name.Contains("hipoly") ||
+                   name.Contains("ultralowpoly") ||
+                   name.Contains("lowpoly");
+        }
+
+        private static bool IsMidpolyNode(Transform transform)
+        {
+            return transform.name.ToLowerInvariant().Contains("midpoly");
+        }
+
+        private static bool IsNonMidpolyLodNode(Transform transform)
+        {
+            return IsRocketboxLodNode(transform) && !IsMidpolyNode(transform);
+        }
+
+        private static bool HasAncestor(Transform transform, System.Func<Transform, bool> predicate)
+        {
+            for (var current = transform; current != null; current = current.parent)
+            {
+                if (predicate(current))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static void AssertValidHumanoidAvatar(string path)
