@@ -289,6 +289,15 @@ namespace VoxelEngine.Structures.Runtime
                         return false;
                     }
 
+                    if (_hasSpatialKeep && _keepStage == 5)
+                    {
+                        CastlePlannedKeepExteriorRealizer.Build(
+                            ref _brush, in keepPlan, in _keepAnnexes);
+                        _keepStage++;
+                        RequireBudget("keep 6");
+                        return false;
+                    }
+
                     if (_keepStage < 6)
                     {
                         string keepStage = $"keep {_keepStage + 1}";
