@@ -67,8 +67,39 @@ namespace VoxelEngine.CI
                 for (int i = 0; i < cases.Length; i++)
                 {
                     ArticulationCase c = cases[i];
-                    Texture2D first = CaptureFixed(camera, target, subjectObject.transform, subjectRenderer, c.Kind, c.TimeA);
-                    Texture2D second = CaptureFixed(camera, target, subjectObject.transform, subjectRenderer, c.Kind, c.TimeB);
+                    Texture2D first;
+                    Texture2D second;
+                    FrameMetrics a;
+                    FrameMetrics b;
+                    float timeA;
+                    float timeB;
+
+                    if (c.Expectation == ArticulationExpectation.Width)
+                    {
+                        CaptureWingEnvelope(
+                            camera,
+                            target,
+                            background,
+                            subjectObject.transform,
+                            subjectRenderer,
+                            c,
+                            out first,
+                            out second,
+                            out a,
+                            out b,
+                            out timeA,
+                            out timeB);
+                    }
+                    else
+                    {
+                        timeA = c.TimeA;
+                        timeB = c.TimeB;
+                        first = CaptureFixed(camera, target, subjectObject.transform, subjectRenderer, c.Kind, timeA);
+                        second = CaptureFixed(camera, target, subjectObject.transform, subjectRenderer, c.Kind, timeB);
+                        a = Measure(first, background);
+                        b = Measure(second, background);
+                    }
+
                     captures.Add(first);
                     captures.Add(second);
 
@@ -79,8 +110,6 @@ namespace VoxelEngine.CI
                         VegetationLifeRenderingVisualTests.ArtifactPath($"ambient_articulation_{c.Kind}_b.png"),
                         second.EncodeToPNG());
 
-                    FrameMetrics a = Measure(first, background);
-                    FrameMetrics b = Measure(second, background);
                     float widthChange = RelativeChange(a.Width, b.Width);
                     float heightChange = RelativeChange(a.Height, b.Height);
                     float areaChange = RelativeChange(a.ForegroundPixels, b.ForegroundPixels);
@@ -88,7 +117,7 @@ namespace VoxelEngine.CI
                     AmbientVisualShape shape = ProceduralAmbientLifeMaterials.StyleFor(c.Kind).Shape;
 
                     report.AppendLine(
-                        $"{c.Kind},{shape},{c.TimeA:0.000},{c.TimeB:0.000},{a.Width},{b.Width},{a.Height},{b.Height}," +
+                        $"{c.Kind},{shape},{timeA:0.000},{timeB:0.000},{a.Width},{b.Width},{a.Height},{b.Height}," +
                         $"{a.ForegroundPixels},{b.ForegroundPixels},{a.MeanLuminance:0.0000},{b.MeanLuminance:0.0000}," +
                         $"{widthChange:0.0000},{heightChange:0.0000},{areaChange:0.0000},{lumaChange:0.0000}");
                     // Persist progress before assertions so a later species failure still leaves useful metrics.
@@ -127,8 +156,54 @@ namespace VoxelEngine.CI
 
         private static ArticulationCase WingCase(AmbientLifeKind kind, float flutterSpeed, float minimumWidthChange)
         {
-            float quarterCycle = Mathf.PI / (2f * flutterSpeed);
-            return new ArticulationCase(kind, 0f, quarterCycle, ArticulationExpectation.Width, minimumWidthChange);
+            // AmbientMask uses abs(sin(phase)), whose articulation period is PI. Sample one complete
+            // envelope rather than assuming a particular world-space phase origin.
+            float flapPeriod = Mathf.PI / flutterSpeed;
+            return new ArticulationCase(kind, 0f, flapPeriod, ArticulationExpectation.Width, minimumWidthChange);
+        }
+
+        private static void CaptureWingEnvelope(
+            Camera camera,
+            RenderTexture target,
+            Texture2D background,
+            Transform subject,
+            MeshRenderer renderer,
+            ArticulationCase c,
+            out Texture2D narrowest,
+            out Texture2D widest,
+            out FrameMetrics narrowestMetrics,
+            out FrameMetrics widestMetrics,
+            out float narrowestTime,
+            out float widestTime)
+        {
+            const int sampleCount = 5;
+            Texture2D[] samples = new Texture2D[sampleCount];
+            FrameMetrics[] metrics = new FrameMetrics[sampleCount];
+            int minIndex = 0;
+            int maxIndex = 0;
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float alpha = i / (float)(sampleCount - 1);
+                float time = Mathf.Lerp(c.TimeA, c.TimeB, alpha);
+                samples[i] = CaptureFixed(camera, target, subject, renderer, c.Kind, time);
+                metrics[i] = Measure(samples[i], background);
+                if (metrics[i].Width < metrics[minIndex].Width) minIndex = i;
+                if (metrics[i].Width > metrics[maxIndex].Width) maxIndex = i;
+            }
+
+            narrowest = samples[minIndex];
+            widest = samples[maxIndex];
+            narrowestMetrics = metrics[minIndex];
+            widestMetrics = metrics[maxIndex];
+            narrowestTime = Mathf.Lerp(c.TimeA, c.TimeB, minIndex / (float)(sampleCount - 1));
+            widestTime = Mathf.Lerp(c.TimeA, c.TimeB, maxIndex / (float)(sampleCount - 1));
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                if (i == minIndex || i == maxIndex) continue;
+                UnityEngine.Object.DestroyImmediate(samples[i]);
+            }
         }
 
         private static void AssertExpectation(
