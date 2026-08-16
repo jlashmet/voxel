@@ -22,6 +22,9 @@ namespace VoxelEngine.Tests.EditMode
         {
             string terrainPlanning = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Composition", "CastleTerrainPlanning.cs"));
+            string completion = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialPlanCompletion.cs"));
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
@@ -29,7 +32,9 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleCourtyardRealizer.cs"));
 
-            StringAssert.Contains("CastleSpatialPlanCompletion.AttachCourtyardBuildings", terrainPlanning);
+            StringAssert.Contains("CastleSpatialPlanCompletion.CompleteResolved", terrainPlanning);
+            StringAssert.Contains("AttachCourtyardBuildings", completion);
+            StringAssert.Contains("AttachDungeon", completion);
             StringAssert.Contains("spatialPlan.CourtyardBuildings.Clone()", pipeline);
             StringAssert.Contains("_courtyardBuildings);", pipeline);
             StringAssert.Contains("CastleCourtyardBuildingRealizer.BuildAll", courtyard);
@@ -39,6 +44,8 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("RoofRidgeAlongX", courtyard);
             StringAssert.DoesNotContain("CastleCourtyardBuildingPlanner.Create", pipeline,
                 "Runtime must consume completed building specs rather than re-plan courtyard semantics.");
+            StringAssert.DoesNotContain("DungeonPlanner.Create", pipeline,
+                "Runtime must consume the completed dungeon graph rather than plan it.");
         }
 
         [Test]
