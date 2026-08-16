@@ -1,0 +1,39 @@
+name: Async geometry arena pressure gate patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-arena-pressure-gate.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded pressure gate patch
+        run: python3 .github/scripts/async_geometry_arena_pressure_gate.py
+      - name: Static guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'GeometryArenaPressureKeepsPublishedLeaseUntilReplacementConverges' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          grep -q 'entryA.WaitingForArena' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          grep -q 'arena.AllocationFailureCount' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          grep -q 'Assert.AreEqual(6, entryA.IndexCount' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          grep -q 'Assert.AreEqual(3, entryA.IndexCount' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+      - name: Commit arena pressure gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Assets/Tests/PlayMode/AsyncGeometryStressTests.cs docs/ASYNC_GEOMETRY_PIPELINE.md
+          git commit -m 'Add fixed-arena pressure convergence gate'
+          git push origin HEAD:refactor/async-geometry-pipeline
