@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -16,12 +17,25 @@ namespace VoxelGame.Editor
         private const string ModelFolder = "/Models/";
         private const string AnimationFolder = "/Animations/";
 
+        private static readonly HashSet<string> LoopingAnimationNames =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Idle",
+                "Walk",
+                "Run",
+                "CrouchIdle"
+            };
+
         private bool IsPlaceholderAsset =>
             assetPath.StartsWith(Root, StringComparison.OrdinalIgnoreCase);
 
         private bool IsBodyModel =>
             IsPlaceholderAsset &&
             assetPath.IndexOf(ModelFolder, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        private bool IsAnimationAsset =>
+            IsPlaceholderAsset &&
+            assetPath.IndexOf(AnimationFolder, StringComparison.OrdinalIgnoreCase) >= 0;
 
         private void OnPreprocessModel()
         {
@@ -37,8 +51,30 @@ namespace VoxelGame.Editor
             importer.importLights = false;
             importer.importBlendShapes = false;
             importer.materialImportMode = ModelImporterMaterialImportMode.None;
-            importer.importAnimation =
-                assetPath.IndexOf(AnimationFolder, StringComparison.OrdinalIgnoreCase) >= 0;
+            importer.importAnimation = IsAnimationAsset;
+        }
+
+        private void OnPreprocessAnimation()
+        {
+            if (!IsAnimationAsset)
+            {
+                return;
+            }
+
+            var importer = (ModelImporter)assetImporter;
+            var clips = importer.defaultClipAnimations;
+            var shouldLoop = LoopingAnimationNames.Contains(
+                Path.GetFileNameWithoutExtension(assetPath));
+
+            foreach (var clip in clips)
+            {
+                clip.loopTime = shouldLoop;
+            }
+
+            // On first import Unity leaves clipAnimations empty. Persisting the default
+            // take definitions here gives the temporary pack explicit gameplay semantics:
+            // locomotion/idles loop, while interaction emotes remain one-shot.
+            importer.clipAnimations = clips;
         }
 
         private void OnPostprocessMeshHierarchy(GameObject root)
