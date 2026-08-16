@@ -19,7 +19,7 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Frozen authored variation for the four keep corner turrets. Their exact coordinates,
     /// radius, and height remain geometric consequences of CastlePlan; this plan owns the visual
-    /// choice that historically came from Runtime seed derivation.
+    /// choice so Runtime does not invent turret styling while realizing the keep.
     /// </summary>
     public sealed class CastleKeepTurretPlan
     {
@@ -91,20 +91,20 @@ namespace VoxelEngine.Structures.Api
     public static class CastleKeepTurretPlanner
     {
         /// <summary>
-        /// Freezes the exact roof choices used by the historical keep-turret recipe so moving the
-        /// choice into planning is behavior-preserving for every seed.
+        /// Freezes the historical keep-turret recipe. The pre-refactor castle always roofed all
+        /// four corner turrets; the seed is retained in this API so intentional seeded variation
+        /// can be introduced later without moving that decision back into Runtime.
         /// </summary>
         public static CastleKeepTurretPlan Create(uint seed)
         {
+            _ = seed;
             var turrets = new CastleKeepTurretSpec[4];
             for (int i = 0; i < turrets.Length; i++)
             {
-                uint variationSeed = CastleSeedPartition.Derive(
-                    seed, CastleSeedDomain.Keep, (uint)(0x100 + i));
                 turrets[i] = new CastleKeepTurretSpec
                 {
                     Corner = (CastleKeepTurretCorner)i,
-                    HasRoof = (variationSeed & 1u) != 0u,
+                    HasRoof = true,
                 };
             }
 
