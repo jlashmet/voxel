@@ -5,13 +5,15 @@ namespace VoxelEngine.Structures.Api
     /// <summary>
     /// Frozen authored recipe for the primary gatehouse and its approach bridge. Coordinates and
     /// orientation still come from the spatial primary gate; this value freezes the dimensional
-    /// choices that Runtime historically derived while realizing the gatehouse.
+    /// choices and gate-tower slit patterns that Runtime historically derived during realization.
     /// </summary>
     public struct CastleGatehousePlan
     {
         public int TowerSpacing;
         public int LeftTowerHeight;
         public int RightTowerHeight;
+        public CastleTowerSlitPlan LeftTowerSlits;
+        public CastleTowerSlitPlan RightTowerSlits;
         public int BlockHeight;
         public int OpeningHeight;
 
@@ -34,6 +36,8 @@ namespace VoxelEngine.Structures.Api
         None,
         InvalidTowerSpacing,
         InvalidTowerHeight,
+        MissingTowerSlitPlan,
+        InvalidTowerSlitPlan,
         InvalidMasonry,
         InvalidBridgeSpan,
         InvalidBridgeDeck,
@@ -49,6 +53,19 @@ namespace VoxelEngine.Structures.Api
     public static class CastleGatehouseRecipe
     {
         public static CastleGatehousePlan Historical(in CastlePlan plan)
+        {
+            var legacyPlacement = new CastleGatePlacementSpec
+            {
+                EdgeIndex = 0,
+                Centre = new int2(0, -plan.BaileyHalfZ),
+                Outward = new float2(0f, -1f),
+            };
+            return Historical(in plan, in legacyPlacement);
+        }
+
+        public static CastleGatehousePlan Historical(
+            in CastlePlan plan,
+            in CastleGatePlacementSpec placement)
         {
             var gatehouse = new CastleGatehousePlan
             {
@@ -74,9 +91,23 @@ namespace VoxelEngine.Structures.Api
                 BridgeRailThickness = 4,
             };
 
+            CastleGateGeometry geometry = CastleGateGeometryResolver.Resolve(in plan, in placement);
+            float2 gate = geometry.PerimeterCentre;
+            float2 tangent = geometry.Tangent;
+            int2 left = Round(gate - tangent * gatehouse.TowerSpacing);
+            int2 right = Round(gate + tangent * gatehouse.TowerSpacing);
+            gatehouse.LeftTowerSlits = CastleTowerSlitPlanner.Create(
+                left, gatehouse.LeftTowerHeight, plan.FloorHeight);
+            gatehouse.RightTowerSlits = CastleTowerSlitPlanner.Create(
+                right, gatehouse.RightTowerHeight, plan.FloorHeight);
+
             CastleGatehousePlanValidator.RequireValid(in gatehouse);
+            CastleGatehousePlanValidator.RequireTowerDetails(in gatehouse, plan.FloorHeight);
             return gatehouse;
         }
+
+        private static int2 Round(float2 value) =>
+            new int2((int)math.round(value.x), (int)math.round(value.y));
     }
 
     /// <summary>
@@ -87,6 +118,11 @@ namespace VoxelEngine.Structures.Api
     {
         public static CastleGatehousePlan Create(in CastlePlan plan) =>
             CastleGatehouseRecipe.Historical(in plan);
+
+        public static CastleGatehousePlan Create(
+            in CastlePlan plan,
+            in CastleGatePlacementSpec placement) =>
+            CastleGatehouseRecipe.Historical(in plan, in placement);
     }
 
     /// <summary>Structural validation for a frozen primary-gatehouse recipe.</summary>
@@ -145,12 +181,53 @@ namespace VoxelEngine.Structures.Api
             return true;
         }
 
+        public static bool TryValidateTowerDetails(
+            in CastleGatehousePlan plan,
+            int floorHeight,
+            out CastleGatehousePlanIssue issue)
+        {
+            if (plan.LeftTowerSlits == null || plan.RightTowerSlits == null)
+            {
+                issue = CastleGatehousePlanIssue.MissingTowerSlitPlan;
+                return false;
+            }
+
+            if (!CastleTowerSlitPlanValidator.TryValidate(
+                    plan.LeftTowerSlits,
+                    plan.LeftTowerHeight,
+                    floorHeight,
+                    out _) ||
+                !CastleTowerSlitPlanValidator.TryValidate(
+                    plan.RightTowerSlits,
+                    plan.RightTowerHeight,
+                    floorHeight,
+                    out _))
+            {
+                issue = CastleGatehousePlanIssue.InvalidTowerSlitPlan;
+                return false;
+            }
+
+            issue = CastleGatehousePlanIssue.None;
+            return true;
+        }
+
         public static void RequireValid(in CastleGatehousePlan plan)
         {
             if (TryValidate(in plan, out CastleGatehousePlanIssue issue))
                 return;
 
             throw new System.InvalidOperationException($"Castle gatehouse plan is invalid: {issue}.");
+        }
+
+        public static void RequireTowerDetails(
+            in CastleGatehousePlan plan,
+            int floorHeight)
+        {
+            if (TryValidateTowerDetails(in plan, floorHeight, out CastleGatehousePlanIssue issue))
+                return;
+
+            throw new System.InvalidOperationException(
+                $"Castle gatehouse tower detail plan is invalid: {issue}.");
         }
     }
 }
