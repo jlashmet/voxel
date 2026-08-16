@@ -41,8 +41,15 @@ namespace VoxelEngine.Structures.Runtime
             float invRxSq = 1f / (rx * (float)rx);
             float invRzSq = 1f / (rz * (float)rz);
 
-            for (int dz = -rz; dz <= rz; dz++)
-            for (int dx = -rx; dx <= rx; dx++)
+            // A rotated ellipse can extend beyond its unrotated rx/rz box. Iterate the exact
+            // projected AABB (rounded outward) and let the ellipse test reject unused columns.
+            int extentX = (int)math.ceil(math.sqrt(
+                rx * (float)rx * cos * cos + rz * (float)rz * sin * sin));
+            int extentZ = (int)math.ceil(math.sqrt(
+                rx * (float)rx * sin * sin + rz * (float)rz * cos * cos));
+
+            for (int dz = -extentZ; dz <= extentZ; dz++)
+            for (int dx = -extentX; dx <= extentX; dx++)
             {
                 float rotatedX = cos * dx + sin * dz;
                 float rotatedZ = -sin * dx + cos * dz;
