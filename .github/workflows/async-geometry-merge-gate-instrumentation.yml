@@ -1,0 +1,48 @@
+name: Async geometry merge-gate instrumentation patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/async-geometry-merge-gate-instrumentation.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded instrumentation patch
+        run: python3 .github/scripts/async_geometry_merge_gate_instrumentation.py
+      - name: Static guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q 'public readonly double P99Ms' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelTiming.cs
+          grep -q 'FramePathBlockingCompletionViolations' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'RunningGeometryJobs' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'GeometryFrameJobCompletionGuard.TryCompleteReady' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'GeometryFrameJobCompletionGuard.TryCompleteReady' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs
+          grep -q 'MaxGeometryOrchestrationP99Ms' Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+      - name: Commit merge-gate instrumentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/GeometryFrameJobCompletionGuard.cs \
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/GeometryFrameJobCompletionGuard.cs.meta \
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelTiming.cs \
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs \
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs \
+            Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs \
+            Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+            Assets/Tests/PlayMode/AsyncGeometryStressTests.cs
+          git commit -m 'Instrument async geometry merge gates'
+          git push origin HEAD:refactor/async-geometry-pipeline
