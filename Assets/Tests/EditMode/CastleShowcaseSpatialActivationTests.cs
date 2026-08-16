@@ -71,8 +71,10 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("public bool IsComplete => _inner == null || _inner.IsComplete", seam,
                 "The pre-build gate must stay quiescent so terrain streaming can satisfy dependencies.");
 
-            StringAssert.Contains("bounds.Min >> RegionVoxelEdgeLog2", regionRange);
-            StringAssert.Contains("(bounds.MaxExclusive - 1) >> RegionVoxelEdgeLog2", regionRange);
+            StringAssert.Contains("int shift = VoxelDimensions.RegionVoxelEdgeLog2;", regionRange);
+            StringAssert.Contains("min >> shift", regionRange);
+            StringAssert.Contains("(maxExclusive - 1) >> shift", regionRange,
+                "Half-open bounds ending exactly on a region boundary must not queue the next region.");
         }
 
         [Test]
