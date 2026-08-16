@@ -32,6 +32,7 @@ namespace VoxelEngine.Composition
                     in plan, spatial, chosen);
             }
 
+            resolved = CastleGatehousePlanCompletion.Attach(in plan, resolved);
             return CastleSpatialPlanCompletion.CompleteResolved(in plan, resolved);
         }
 
