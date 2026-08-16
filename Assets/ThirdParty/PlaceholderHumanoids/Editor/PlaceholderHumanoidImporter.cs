@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace VoxelGame.Editor
 {
@@ -48,7 +49,7 @@ namespace VoxelGame.Editor
         {
             // Bump when import behavior changes so Unity reimports associated FBXs even
             // when CI/editor sessions retain a warm Library cache.
-            return 2;
+            return 3;
         }
 
         private void OnPreprocessModel()
@@ -109,6 +110,47 @@ namespace VoxelGame.Editor
             // for development when it exists, but some Rocketbox Export FBXs contain only
             // hipoly; in that case never deactivate the only usable body mesh.
             SelectPreferredLod(root.transform);
+        }
+
+        private void OnPostprocessModel(GameObject root)
+        {
+            if (!IsBodyModel)
+            {
+                return;
+            }
+
+            AssignPlaceholderMaterial(root);
+        }
+
+        private static void AssignPlaceholderMaterial(GameObject root)
+        {
+            // We deliberately do not import Rocketbox's large legacy TGA material set.
+            // Instead, bind the active render pipeline's own default 3D material so these
+            // temporary bodies are visibly renderable in URP without adding disposable
+            // texture/material assets. Fall back to Unity's built-in default for projects
+            // using the Built-in Render Pipeline.
+            var pipeline = GraphicsSettings.currentRenderPipeline;
+            var material = pipeline != null
+                ? pipeline.defaultMaterial
+                : AssetDatabase.GetBuiltinExtraResource<Material>("Default-Material.mat");
+
+            if (material == null)
+            {
+                throw new InvalidOperationException(
+                    "Unity did not provide a default material for placeholder humanoid import.");
+            }
+
+            foreach (var renderer in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                var slotCount = Math.Max(1, renderer.sharedMaterials?.Length ?? 0);
+                var materials = new Material[slotCount];
+                for (var index = 0; index < materials.Length; index++)
+                {
+                    materials[index] = material;
+                }
+
+                renderer.sharedMaterials = materials;
+            }
         }
 
         private static bool TryGetLoopPolicy(string path, out bool shouldLoop)
