@@ -9,8 +9,12 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Kentridge's composition adapter. Settlement and architecture resolve the same semantic forms
     /// used by gameplay; the selected architecture style supplies renderer-neutral low-level
-    /// geometry policy to the generic voxel realiser. No Kentridge policy is required by
-    /// ArchitectureGeometryCatalogue itself.
+    /// geometry policy to the generic voxel realiser.
+    ///
+    /// Generated houses already author semantic foundation/shell/opening/detail/roof bytecode through
+    /// ArchitectureShapeProgramBuilder, so they deliberately bypass compatibility rewriting here.
+    /// Only the copied bespoke legacy source programs still need ArchitectureGeometryCatalogue to
+    /// infer roles until those landmark programs are migrated to semantic authoring too.
     /// </summary>
     internal static class KentridgeSmoothedGrammarVoxelCatalogue
     {
@@ -41,7 +45,10 @@ namespace MountingForce.WorldGen.Voxel
                         plan.Theme,
                         seed,
                         BuiltInArchitectureStyles.Registry);
-                    profiles[plot.RoleId] = style.ResolveGeometry(intent, form);
+
+                    profiles[plot.RoleId] = form.IsGenerated
+                        ? StructureGeometryProfile.Sharp
+                        : style.ResolveGeometry(intent, form);
                 }
 
                 return ArchitectureGeometryCatalogue.Apply(
