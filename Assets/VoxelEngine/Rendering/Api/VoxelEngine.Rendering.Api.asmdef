@@ -1,7 +1,10 @@
 {
   "name": "VoxelEngine.Rendering.Api",
   "rootNamespace": "VoxelEngine.Rendering.Api",
-  "references": [],
+  "references": [
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.AmbientLife.Api"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

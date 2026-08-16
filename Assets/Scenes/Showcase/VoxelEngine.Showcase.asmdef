@@ -14,6 +14,7 @@
     "Unity.Mathematics",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.AmbientLife.Api",
     "VoxelEngine.Collision.Api"
   ],
   "includePlatforms": [],

@@ -4,17 +4,15 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Storage.Runtime
 {
     /// <summary>
-    /// Material palette with destruction behaviour classes.
+    /// Material palette with physical destruction classes and independent simulation properties.
     ///
     /// FR-005 requires at least two classes of distinct destruction behaviour — e.g., stone
-    /// that crumbles into debris vs wood that splinters and catches fire. The palette maps
-    /// material indices to their properties: hardness, destructibility, debris type, and
-    /// what happens when a voxel of that material is targeted by a destruction event.
+    /// that crumbles into debris vs wood that splinters. The palette maps material indices to
+    /// their properties: hardness, destructibility, debris type, surface defaults, and independent
+    /// simulation traits such as flammability.
     ///
-    /// Each material has a DestructionClass that determines:
-    ///   - What fraction of targeted voxels actually change (hard materials resist partial destruction)
-    ///   - The type of debris generated on destruction (none, particles, physics bodies)
-    ///   - Whether the material spreads fire/chemical reactions to adjacent bricks
+    /// DestructionClass determines the physical response when a voxel is destroyed. Flammability
+    /// remains a separate property so a material can, for example, splinter and also catch fire.
     /// </summary>
     public unsafe struct MaterialPalette : IMaterialAuthoringCatalogue,
                                            IMaterialPresentationCatalogue,
@@ -26,11 +24,11 @@ namespace VoxelEngine.Storage.Runtime
 
         private byte _count;
 
-        // Both entry fields are single bytes, so the palette is two parallel fixed buffers
-        // rather than a buffer of structs — C# fixed buffers admit only primitive element
-        // types, and this keeps MaterialPalette blittable and usable inside Burst jobs.
+        // Primitive parallel fixed buffers keep MaterialPalette blittable and usable inside Burst
+        // jobs while allowing independent properties to evolve without exposing a storage layout.
         private fixed byte _hardness[MaxMaterials];
         private fixed byte _destructionClass[MaxMaterials];
+        private fixed byte _flammable[MaxMaterials];
         private fixed ushort _defaultSurfaceStyle[MaxMaterials];
         private fixed uint _allowedCoatings[MaxMaterials];
         private fixed byte _registered[MaxMaterials];
@@ -52,12 +50,31 @@ namespace VoxelEngine.Storage.Runtime
 
             _hardness[index] = hardness;
             _destructionClass[index] = (byte)destructionClass;
+            // Preserve the old authoring shorthand while making the property independent. Existing
+            // Splinter materials are organic wood/cloth and therefore default to flammable too.
+            _flammable[index] = destructionClass == DestructionClass.Flammable
+                             || destructionClass == DestructionClass.Splinter ? (byte)1 : (byte)0;
             _defaultSurfaceStyle[index] = defaultSurfaceStyle;
             _allowedCoatings[index] = allowedCoatings;
             _registered[index] = 1;
             Version++;
             if (index + 1 > _count) _count = (byte)(index + 1);
         }
+
+        /// <summary>Overrides whether an already registered material participates in fire.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetFlammable(byte materialIndex, bool flammable = true)
+        {
+            if (!IsRegistered(materialIndex)) return;
+            byte value = flammable ? (byte)1 : (byte)0;
+            if (_flammable[materialIndex] == value) return;
+            _flammable[materialIndex] = value;
+            Version++;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool IsFlammable(byte materialIndex) =>
+            IsRegistered(materialIndex) && _flammable[materialIndex] != 0;
 
         public ushort GetDefaultSurfaceStyle(byte materialIndex) =>
             IsRegistered(materialIndex)

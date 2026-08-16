@@ -1,0 +1,318 @@
+name: Sunlit Cleric multiview build
+
+on:
+  push:
+    branches: [feature/character-weapon-asset-pipeline]
+    paths:
+      - 'tools/character-factory/**'
+      - 'Assets/VoxelEngine/Characters/**'
+      - 'tools/check-compile.sh'
+      - '.github/workflows/sunlit-cleric-multiview-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sunlit-cleric-multiview-build
+  cancel-in-progress: true
+
+jobs:
+  build-multiview-cleric:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[persist-mv-views]')
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 90
+    env:
+      PYTORCH_ENABLE_MPS_FALLBACK: '1'
+      PYTHONUNBUFFERED: '1'
+      CLERIC_FRONT_BLOB: '755068074ad5e01b6dcab2df39a6e1cfadd9f536'
+      CLERIC_BACK_BLOB: '9ede77dd90933f80f7c3ab705e1a1cc2794e0dfa'
+      CLERIC_LEFT_BLOB: 'f196ff7aa5de344bdec79f4b4ec4739f33932f32'
+      CLERIC_RIGHT_BLOB: 'bec2a8aa730e130fcb5486d7b3fff39922a0031d'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 1
+
+      - name: Compile character subsystem
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x tools/check-compile.sh
+          tools/check-compile.sh VoxelEngine.Characters
+
+      - name: Run Character Factory unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tools/character-factory/tests -p 'test_*.py' -v
+
+      - name: Materialize four-view Cleric source
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/Artifacts/SunlitClericMultiview"
+          VIEWS="$OUT/views"
+          rm -rf "$OUT"
+          mkdir -p "$VIEWS"
+
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GITHUB_TOKEN']
+          output = Path('Artifacts/SunlitClericMultiview/views')
+          blobs = {
+              'front': os.environ['CLERIC_FRONT_BLOB'],
+              'back': os.environ['CLERIC_BACK_BLOB'],
+              'left': os.environ['CLERIC_LEFT_BLOB'],
+              'right': os.environ['CLERIC_RIGHT_BLOB'],
+          }
+
+          for name, sha in blobs.items():
+              request = Request(
+                  f'https://api.github.com/repos/{repo}/git/blobs/{sha}',
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+              )
+              with urlopen(request, timeout=60) as response:
+                  payload = json.load(response)
+              image = base64.b64decode(payload['content'])
+              path = output / f'{name}.jpg'
+              path.write_bytes(image)
+              if image[:2] != b'\xff\xd8' or image[-2:] != b'\xff\xd9':
+                  raise SystemExit(f'{name} source blob is not a complete JPEG')
+              print(f'{name}: {sha} -> {path} ({len(image)} bytes)')
+          PY
+
+          for view in front back left right; do
+            test -s "$VIEWS/$view.jpg"
+          done
+
+      - name: Resolve Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          BLENDER_BIN="/Applications/Blender.app/Contents/MacOS/Blender"
+          if [ ! -x "$BLENDER_BIN" ]; then
+            if ! command -v brew >/dev/null 2>&1; then
+              echo "Blender is not installed and Homebrew is unavailable" >&2
+              exit 1
+            fi
+            brew install --cask blender
+          fi
+          test -x "$BLENDER_BIN"
+          echo "BLENDER_BIN=$BLENDER_BIN" >> "$GITHUB_ENV"
+
+      - name: Bootstrap Hunyuan multiview MPS backend
+        timeout-minutes: 50
+        shell: bash
+        run: |
+          set -euo pipefail
+          HUNYUAN_REV="f8db63096c8282cb27354314d896feba5ba6ff8a"
+          CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character-factory}"
+          HUNYUAN_PY="$CACHE_ROOT/hunyuan3d-2-$HUNYUAN_REV-venv/bin/python"
+          MODEL_ROOT="${HY3DGEN_MODELS:-$CACHE_ROOT/models}"
+
+          chmod +x tools/character-factory/ci/bootstrap_hunyuan_macos.sh
+          tools/character-factory/ci/bootstrap_hunyuan_macos.sh
+          test -x "$HUNYUAN_PY"
+
+          export HY3DGEN_MODELS="$MODEL_ROOT"
+          export HF_XET_HIGH_PERFORMANCE="${HF_XET_HIGH_PERFORMANCE:-1}"
+          "$HUNYUAN_PY" - <<'PY'
+          from pathlib import Path
+          import os
+          from huggingface_hub import snapshot_download
+
+          repo_id = 'tencent/Hunyuan3D-2mv'
+          root = Path(os.environ['HY3DGEN_MODELS']).expanduser()
+          repo_root = root / repo_id
+          repo_root.mkdir(parents=True, exist_ok=True)
+          patterns = [
+              'hunyuan3d-dit-v2-mv-turbo/**',
+              'hunyuan3d-vae-v2-mv/**',
+              'hunyuan3d-vae-v2/**',
+          ]
+          print(f'prefetching {repo_id} multiview turbo shape files into {repo_root}', flush=True)
+          snapshot_download(
+              repo_id=repo_id,
+              allow_patterns=patterns,
+              local_dir=str(repo_root),
+          )
+          dit = repo_root / 'hunyuan3d-dit-v2-mv-turbo'
+          if not (dit / 'config.yaml').is_file():
+              raise RuntimeError(f'missing multiview turbo config: {dit / "config.yaml"}')
+          if not (dit / 'model.fp16.safetensors').is_file():
+              raise RuntimeError(f'missing multiview turbo model: {dit / "model.fp16.safetensors"}')
+          print(f'multiview turbo model ready: {dit}')
+          PY
+
+          echo "HUNYUAN_PY=$HUNYUAN_PY" >> "$GITHUB_ENV"
+          echo "HY3DGEN_MODELS=$MODEL_ROOT" >> "$GITHUB_ENV"
+
+      - name: Create canonical animation skeleton
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/Artifacts/SunlitClericMultiview"
+          CANONICAL="$OUT/canonical_female.glb"
+          DONOR_RENDER="$OUT/canonical_female.input.png"
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/create_canonical_character_fixture.py -- \
+            --canonical "$CANONICAL" \
+            --input "$DONOR_RENDER"
+          test -s "$CANONICAL"
+          echo "CLERIC_CANONICAL=$CANONICAL" >> "$GITHUB_ENV"
+
+      - name: Reconstruct four-view Cleric geometry and rig
+        timeout-minutes: 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/Artifacts/SunlitClericMultiview"
+          VIEWS="$OUT/views"
+          SPEC="$RUNNER_TEMP/sunlit-cleric-multiview.json"
+          cat > "$SPEC" <<JSON
+          {
+            "id": "sunlit_cleric_mv_01",
+            "assetType": "character",
+            "views": {
+              "front": "$VIEWS/front.jpg",
+              "back": "$VIEWS/back.jpg",
+              "left": "$VIEWS/left.jpg",
+              "right": "$VIEWS/right.jpg"
+            },
+            "outputDir": "$OUT",
+            "generator": {
+              "python": "$HUNYUAN_PY",
+              "backend": "hunyuan-pytorch",
+              "preset": "quality",
+              "model": "tencent/Hunyuan3D-2mv",
+              "subfolder": "hunyuan3d-dit-v2-mv-turbo",
+              "device": "auto",
+              "seed": 12345,
+              "steps": 5,
+              "octreeResolution": 256,
+              "numChunks": 16000,
+              "removeBackground": false,
+              "enableFlashVdm": false
+            },
+            "rig": {
+              "blender": "$BLENDER_BIN",
+              "canonicalBody": "$CLERIC_CANONICAL",
+              "bodyObject": "Body",
+              "armatureObject": "Armature",
+              "maxTransferDistance": 0.45
+            }
+          }
+          JSON
+
+          python3 tools/character-factory/character_factory.py build "$SPEC"
+          test -s "$OUT/sunlit_cleric_mv_01.raw.glb"
+          test -s "$OUT/sunlit_cleric_mv_01.fbx"
+          test -s "$OUT/manifest.json"
+
+      - name: Verify multiview rig and embedded animations
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/Artifacts/SunlitClericMultiview"
+          FBX="$OUT/sunlit_cleric_mv_01.fbx"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_skinned_character.py -- \
+            --input "$FBX"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/verify_character_animations.py -- \
+            --input "$FBX"
+
+      - name: Render multiview Cleric previews
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/Artifacts/SunlitClericMultiview"
+          FBX="$OUT/sunlit_cleric_mv_01.fbx"
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/render_pipeline_artifact.py -- \
+            --input "$FBX" \
+            --output "$OUT/cleric_mv_bind_preview.png" \
+            --preserve-materials
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/render_character_clip.py -- \
+            --input "$FBX" --output "$OUT/cleric_mv_idle.png" --clip Idle --frame 30
+
+          "$BLENDER_BIN" --background --python-exit-code 1 \
+            --python tools/character-factory/ci/render_character_clip.py -- \
+            --input "$FBX" --output "$OUT/cleric_mv_cast.png" --clip Cast --frame 28
+
+          ls -lh "$OUT"
+
+      - name: Upload multiview Cleric prototype
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunlit-cleric-multiview-prototype
+          path: Artifacts/SunlitClericMultiview/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Persist validated turnaround views on branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/character-weapon-asset-pipeline'
+        uses: actions/github-script@v7
+        env:
+          FRONT_BLOB: ${{ env.CLERIC_FRONT_BLOB }}
+          BACK_BLOB: ${{ env.CLERIC_BACK_BLOB }}
+          LEFT_BLOB: ${{ env.CLERIC_LEFT_BLOB }}
+          RIGHT_BLOB: ${{ env.CLERIC_RIGHT_BLOB }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = 'feature/character-weapon-asset-pipeline';
+            const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+            if (ref.data.object.sha !== context.sha) {
+              core.notice(`Branch moved from ${context.sha} to ${ref.data.object.sha}; skipping source persistence.`);
+              return;
+            }
+            const commit = await github.rest.git.getCommit({ owner, repo, commit_sha: context.sha });
+            const tree = await github.rest.git.createTree({
+              owner,
+              repo,
+              base_tree: commit.data.tree.sha,
+              tree: [
+                { path: 'tools/character-factory/production/sunlit-cleric/views/front.jpg', mode: '100644', type: 'blob', sha: process.env.FRONT_BLOB },
+                { path: 'tools/character-factory/production/sunlit-cleric/views/back.jpg', mode: '100644', type: 'blob', sha: process.env.BACK_BLOB },
+                { path: 'tools/character-factory/production/sunlit-cleric/views/left.jpg', mode: '100644', type: 'blob', sha: process.env.LEFT_BLOB },
+                { path: 'tools/character-factory/production/sunlit-cleric/views/right.jpg', mode: '100644', type: 'blob', sha: process.env.RIGHT_BLOB },
+              ],
+            });
+            const persisted = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: 'assets(characters): persist validated cleric multiview sources [persist-mv-views]',
+              tree: tree.data.sha,
+              parents: [context.sha],
+            });
+            await github.rest.git.updateRef({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+              sha: persisted.data.sha,
+              force: false,
+            });
+            core.notice(`Persisted validated Cleric views in ${persisted.data.sha}`);

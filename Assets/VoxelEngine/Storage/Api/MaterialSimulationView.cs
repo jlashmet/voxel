@@ -11,12 +11,13 @@ namespace VoxelEngine.Storage.Api
         uint Version { get; }
         byte GetHardness(byte materialId);
         DestructionClass GetDestructionClass(byte materialId);
+        bool IsFlammable(byte materialId);
     }
 
     /// <summary>
-    /// Small blittable snapshot of material hardness/destruction behavior. Materials are fixed
-    /// session vocabulary, so callers can capture once after registration and use the value in
-    /// hot simulation loops without interface dispatch or a Runtime assembly dependency.
+    /// Small blittable snapshot of material behavior. Materials are fixed session vocabulary, so
+    /// callers can capture once after registration and use the value in hot simulation loops
+    /// without interface dispatch or a Runtime assembly dependency.
     /// </summary>
     public struct MaterialSimulationView
     {
@@ -24,6 +25,7 @@ namespace VoxelEngine.Storage.Api
         {
             public byte Hardness;
             public DestructionClass DestructionClass;
+            public byte Flammable;
         }
 
         private FixedList128Bytes<Entry> _entries;
@@ -41,6 +43,7 @@ namespace VoxelEngine.Storage.Api
                 {
                     Hardness = source.GetHardness(materialId),
                     DestructionClass = source.GetDestructionClass(materialId),
+                    Flammable = source.IsFlammable(materialId) ? (byte)1 : (byte)0,
                 });
             }
             return view;
@@ -53,6 +56,9 @@ namespace VoxelEngine.Storage.Api
             materialId < _entries.Length
                 ? _entries[materialId].DestructionClass
                 : DestructionClass.None;
+
+        public bool IsFlammable(byte materialId) =>
+            materialId < _entries.Length && _entries[materialId].Flammable != 0;
 
         public bool IsDestructible(byte materialId) =>
             GetDestructionClass(materialId) != DestructionClass.None;

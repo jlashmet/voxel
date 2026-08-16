@@ -1,0 +1,166 @@
+name: Vegetation and Ambient-Life Visual Validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Assets/VoxelEngine/Vegetation/**'
+      - 'Assets/VoxelEngine/AmbientLife/**'
+      - 'Assets/VoxelEngine/Rendering/Runtime/Vegetation/**'
+      - 'Assets/VoxelEngine/Rendering/Runtime/AmbientLife/**'
+      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVegetation*.shader'
+      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVine.shader'
+      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralAmbientLife.shader'
+      - 'Assets/Scenes/Showcase/VegetationRenderingShowcase.cs'
+      - 'Assets/Scenes/Showcase/AmbientLifeRenderingShowcase.cs'
+      - 'Assets/Scenes/Showcase/VegetationLifeRenderingShowcases.cs'
+      - 'Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef'
+      - 'Assets/VoxelEngine/CI/PlayMode/VegetationLifeRenderingTests.cs'
+      - 'Assets/VoxelEngine/CI/PlayMode/AmbientLifeMotionTests.cs'
+      - 'Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef'
+      - '.github/workflows/vegetation-life-visual.yml'
+  pull_request:
+    paths:
+      - 'Assets/VoxelEngine/Vegetation/**'
+      - 'Assets/VoxelEngine/AmbientLife/**'
+      - 'Assets/VoxelEngine/Rendering/Runtime/Vegetation/**'
+      - 'Assets/VoxelEngine/Rendering/Runtime/AmbientLife/**'
+      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVegetation*.shader'
+      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralVine.shader'
+      - 'Assets/VoxelEngine/Rendering/Runtime/Shaders/ProceduralAmbientLife.shader'
+      - 'Assets/Scenes/Showcase/VegetationRenderingShowcase.cs'
+      - 'Assets/Scenes/Showcase/AmbientLifeRenderingShowcase.cs'
+      - 'Assets/Scenes/Showcase/VegetationLifeRenderingShowcases.cs'
+      - 'Assets/Scenes/Showcase/VoxelEngine.Showcase.asmdef'
+      - 'Assets/VoxelEngine/CI/PlayMode/VegetationLifeRenderingTests.cs'
+      - 'Assets/VoxelEngine/CI/PlayMode/AmbientLifeMotionTests.cs'
+      - 'Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef'
+      - '.github/workflows/vegetation-life-visual.yml'
+
+concurrency:
+  group: vegetation-life-visual-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  visual-validation:
+    name: Validate vegetation and ambient-life rendering
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          echo "Unity version: ${UNITY_VERSION}"
+          if [[ ! -x "${UNITY_PATH}" ]]; then
+            echo "Unity executable was not found at ${UNITY_PATH}" >&2
+            exit 1
+          fi
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Run vegetation rendering contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.VegetationRenderingTests.StandaloneShowcase_CoversCatalogue_AndDrawsThroughInstancedRenderer" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation-contract-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation-contract.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation-contract-results.xml"
+
+      - name: Run ambient-life rendering contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeRenderingTests.StandaloneShowcase_CoversCatalogue_AndReconstructsAllAgents" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-contract-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-contract.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-contract-results.xml"
+
+      - name: Run ambient movement-form contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeMotionTests.AllMovementForms_AreDeterministicBoundedAndActuallyMove" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-form-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-form.log"
+
+      - name: Run ambient reconstructed-agent movement contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeMotionTests.Showcase_ReconstructedAgentsMoveOverTime_WithoutChangingAuthority" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-contract-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-contract.log"
+
+      - name: Run vegetation image-space fidelity test
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.VegetationLifeRenderingVisualTests.VegetationShowcase_RendersReadableDiverseFullFrameComposition" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation-fidelity-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation-fidelity.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/vegetation_all_kinds.png"
+
+      - name: Run ambient-life image-space fidelity test
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.VegetationLifeRenderingVisualTests.AmbientLifeShowcase_RendersDistributedDistinctVisibleAgents" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-fidelity-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-fidelity.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_all_kinds.png"
+
+      - name: Run ambient-life silhouette readability test
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeSilhouetteQualityTests.AmbientLifeShowcase_PreservesDistinctReadableAgentSilhouettes" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-silhouette-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-silhouette.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_silhouette.png"
+
+      - name: Run ambient-life rendered motion test
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
+            -testFilter "VoxelEngine.CI.AmbientLifeMotionTests.Showcase_RenderedFrameChangesSubstantiallyAcrossTime" \
+            -testResults "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-visual-results.xml" \
+            -logFile "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient-motion-visual.log"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_motion_t0.png"
+          test -s "$GITHUB_WORKSPACE/Artifacts/VegetationLifeVisual/ambient_life_motion_t175.png"
+
+      - name: Upload rendering validation artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vegetation-life-visual-${{ github.sha }}
+          path: Artifacts/VegetationLifeVisual/
+          if-no-files-found: warn
+          retention-days: 14

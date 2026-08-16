@@ -3,11 +3,13 @@
   "rootNamespace": "VoxelEngine.CI",
   "references": [
     "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Rendering.Api",
     "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Showcase",
     "Unity.Mathematics",
     "VoxelEngine.Vegetation.Api",
-    "VoxelEngine.Vegetation.Runtime"
+    "VoxelEngine.Vegetation.Runtime",
+    "VoxelEngine.AmbientLife.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

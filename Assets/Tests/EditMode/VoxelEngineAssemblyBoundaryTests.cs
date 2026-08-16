@@ -35,24 +35,9 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         // Exact dependencies present at the refactor baseline. Every entry must disappear
-        // in the named cutover. If a dependency disappears earlier, the test deliberately
-        // fails until this list is tightened. Never add an entry just to make CI green.
-        private static readonly LegacyException[] LegacyExceptions =
-        {
-            new LegacyException("VoxelEngine.Collision", "VoxelEngine.Core", 9),
-            new LegacyException("VoxelEngine.Net", "VoxelEngine.Core", 11),
-            new LegacyException("VoxelEngine.Rendering", "VoxelEngine.Core", 12),
-            new LegacyException("VoxelEngine.Rendering", "VoxelEngine.Tiering", 7),
-            new LegacyException("VoxelEngine.Rendering", "VoxelEngine.Vegetation", 10),
-            new LegacyException("VoxelEngine.Streaming", "VoxelEngine.Core", 8),
-            new LegacyException("VoxelEngine.Streaming", "VoxelEngine.Net", 8),
-            new LegacyException("VoxelEngine.Streaming", "VoxelEngine.Tiering", 7),
-            new LegacyException("VoxelEngine.Structures", "VoxelEngine.Core", 4),
-            new LegacyException("VoxelEngine.Tiering", "VoxelEngine.Core", 7),
-            new LegacyException("MountingForce.WorldGen.Voxel", "VoxelEngine.Core", 4),
-            new LegacyException("MountingForce.WorldGen.Voxel", "VoxelEngine.Structures", 4),
-            new LegacyException("MountingForce.WorldGen.Voxel", "VoxelEngine.Vegetation", 10)
-        };
+        // in the named cutover. The cutover is complete, so no legacy production leak remains
+        // allowed. Never add an entry just to make CI green.
+        private static readonly LegacyException[] LegacyExceptions = Array.Empty<LegacyException>();
 
         private static readonly HashSet<string> LegacyEngineAssemblies = new HashSet<string>(
             new[]
@@ -257,7 +242,9 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         private static bool IsRuntimeAssembly(string assemblyName) =>
-            assemblyName.EndsWith(".Runtime", StringComparison.Ordinal);
+            (assemblyName.StartsWith("VoxelEngine.", StringComparison.Ordinal)
+             || assemblyName.StartsWith("Game.", StringComparison.Ordinal))
+            && assemblyName.EndsWith(".Runtime", StringComparison.Ordinal);
 
         private static bool IsCompositionAssembly(string assemblyName) =>
             string.Equals(assemblyName, "VoxelEngine.Composition", StringComparison.Ordinal)

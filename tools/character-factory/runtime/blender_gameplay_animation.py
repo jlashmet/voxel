@@ -152,7 +152,17 @@ def _new_action(armature: bpy.types.Object, name: str) -> bpy.types.Action:
 
 def _finish_action(action: bpy.types.Action, loop: bool) -> None:
     action["characterFactoryLoop"] = bool(loop)
-    for curve in action.fcurves:
+
+    # Blender 5.x moved Actions to the layered/slotted animation model and no
+    # longer exposes Action.fcurves directly. Key insertion above already gives
+    # us usable interpolation, so curve tweaking is an optional compatibility
+    # enhancement rather than a requirement for exporting the clips. Keep the
+    # legacy path for Blender 4.x and simply leave Blender 5.x defaults intact.
+    curves = getattr(action, "fcurves", None)
+    if curves is None:
+        return
+
+    for curve in curves:
         for point in curve.keyframe_points:
             point.interpolation = "BEZIER"
             if loop:

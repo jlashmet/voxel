@@ -4,6 +4,8 @@
   "references": [
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Simulation.Api",
+    "VoxelEngine.Simulation.Runtime",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Rendering.Api",
     "VoxelEngine.Rendering.Runtime",
@@ -13,6 +15,7 @@
     "Unity.Collections",
     "Unity.Mathematics",
     "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.AmbientLife.Api",
     "VoxelEngine.Vegetation.Runtime",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",

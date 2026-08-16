@@ -21,12 +21,14 @@ namespace VoxelEngine.Storage.Api
         public const int BlocksPerRegion = BlocksPerRegionEdge * BlocksPerRegionEdge * BlocksPerRegionEdge;
 
         /// <summary>
-        /// Mip level whose cells span <paramref name="sourceStep"/> voxels, or -1 when the
-        /// stride is finer than one read block and exact voxel sampling is required.
+        /// Mip level whose cells span <paramref name="sourceStep"/> voxels, or -1 when exact
+        /// voxel sampling is required. Level zero is a conservative any-solid 8^3 block summary,
+        /// so an 8-voxel render stride must stay on exact samples; otherwise thin structures
+        /// expand to whole coarse cells and architectural openings disappear.
         /// </summary>
         public static int LevelForStride(int sourceStep)
         {
-            if (sourceStep < BlockEdge) return -1;
+            if (sourceStep <= BlockEdge) return -1;
             int level = 0;
             for (int span = BlockEdge; span < sourceStep; span <<= 1) level++;
             return level;
