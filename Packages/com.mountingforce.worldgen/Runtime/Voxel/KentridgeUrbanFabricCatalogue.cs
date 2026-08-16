@@ -1,17 +1,19 @@
 using System;
 using System.Collections.Generic;
+using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-
 using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
     /// Realises KentridgeUrbanMassingPlan as varied anonymous buildings instead of silhouette boxes.
-    /// Every site gets a deterministic form and definition, while remaining Infrastructure so named
-    /// gameplay roles and the seventeen-Structure invariant are untouched.
+    /// Every site gets a deterministic architectural form and low-level geometry profile, while
+    /// remaining Infrastructure so named gameplay roles and the seventeen-Structure invariant are
+    /// untouched. Geometry roles are authored directly through ArchitectureShapeProgramBuilder;
+    /// renderer-specific surface ids never enter settlement or architecture planning.
     /// </summary>
     public static class KentridgeUrbanFabricCatalogue
     {
@@ -21,6 +23,7 @@ namespace MountingForce.WorldGen.Voxel
         {
             public readonly KentridgeFrontageRun Run;
             public readonly KentridgeUrbanFabricForm Form;
+            public readonly StructureGeometryProfile Geometry;
             public readonly Int2 PositionDm;
             public readonly int RunIndex;
             public readonly int SiteIndex;
@@ -28,12 +31,14 @@ namespace MountingForce.WorldGen.Voxel
             public FabricSite(
                 KentridgeFrontageRun run,
                 KentridgeUrbanFabricForm form,
+                StructureGeometryProfile geometry,
                 Int2 positionDm,
                 int runIndex,
                 int siteIndex)
             {
                 Run = run;
                 Form = form;
+                Geometry = geometry;
                 PositionDm = positionDm;
                 RunIndex = runIndex;
                 SiteIndex = siteIndex;
@@ -191,9 +196,15 @@ namespace MountingForce.WorldGen.Voxel
                         + segment.LengthDm * (2 * i + 1) / (2 * count);
                     KentridgeUrbanFabricForm form = KentridgeUrbanFabricGrammar.Resolve(
                         run, seed, runIndex, siteIndex);
+                    UrbanFabricIntent intent = KentridgeDefinition.UrbanFabricIntent(run);
+                    StructureGeometryProfile geometry = UrbanFabricGeometryProfiles.Resolve(
+                        intent,
+                        form.Inner,
+                        BuiltInArchitectureStyles.Registry);
                     sites.Add(new FabricSite(
                         run,
                         form,
+                        geometry,
                         SiteOrigin(run, centreAlong),
                         runIndex,
                         siteIndex));
@@ -285,8 +296,8 @@ namespace MountingForce.WorldGen.Voxel
                 : settings.Materials.Resolve(theme.Roof);
             byte cloth = settings.Materials.Resolve(MaterialRole.Cloth);
 
-            var b = new ProgramBuilder();
-            b.Box(x0, 0, z0, w, f, d, foundation);
+            var b = new ProgramBuilder(site.Geometry, s);
+            b.FoundationBox(x0, 0, z0, w, f, d, foundation);
             EmitShell(b, x0, f, z0, w, floor, d, t, wall);
 
             int upperX = x0 - overhang;
@@ -370,8 +381,8 @@ namespace MountingForce.WorldGen.Voxel
             int t,
             byte wall)
         {
-            b.Box(x, y, z, w, h, d, wall);
-            b.Carve(x + t, y, z + t, w - 2 * t, h, d - 2 * t);
+            b.ShellBox(x, y, z, w, h, d, wall);
+            b.InteriorCarve(x + t, y, z + t, w - 2 * t, h, d - 2 * t);
         }
 
         private static void AddFrontWindows(
@@ -544,49 +555,50 @@ namespace MountingForce.WorldGen.Voxel
 
         private sealed class ProgramBuilder
         {
-            private readonly List<int> _code = new List<int>();
+            private readonly ArchitectureShapeProgramBuilder _inner;
+
+            public ProgramBuilder(StructureGeometryProfile profile, int voxelsPerDecimetre)
+            {
+                _inner = new ArchitectureShapeProgramBuilder(profile, voxelsPerDecimetre);
+            }
+
+            public void FoundationBox(
+                int x, int y, int z,
+                int sx, int sy, int sz,
+                byte material) =>
+                _inner.FoundationBox(x, y, z, sx, sy, sz, material);
+
+            public void ShellBox(
+                int x, int y, int z,
+                int sx, int sy, int sz,
+                byte material) =>
+                _inner.ShellBox(x, y, z, sx, sy, sz, material);
 
             public void Box(
                 int x, int y, int z,
                 int sx, int sy, int sz,
                 byte material,
-                PrimitiveMode mode = PrimitiveMode.Fill)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                    material, 0, 0, (int)mode);
-            }
+                PrimitiveMode mode = PrimitiveMode.Fill) =>
+                _inner.DetailBox(x, y, z, sx, sy, sz, material, mode);
 
             public void Carve(
                 int x, int y, int z,
-                int sx, int sy, int sz)
-            {
-                Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
-            }
+                int sx, int sy, int sz) =>
+                _inner.OpeningCarve(x, y, z, sx, sy, sz);
+
+            public void InteriorCarve(
+                int x, int y, int z,
+                int sx, int sy, int sz) =>
+                _inner.InteriorCarve(x, y, z, sx, sy, sz);
 
             public void Prism(
                 int x, int y, int z,
                 int sx, int sy, int sz,
                 PrismProfile profile,
-                byte material)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
-                    (int)profile, material, 0, 0, (int)PrimitiveMode.Fill);
-            }
+                byte material) =>
+                _inner.Prism(x, y, z, sx, sy, sz, profile, material);
 
-            public int[] Finish()
-            {
-                Op(ShapeOp.End);
-                return _code.ToArray();
-            }
-
-            private void Op(ShapeOp op, params int[] operands)
-            {
-                _code.Add((int)op);
-                _code.Add(0);
-                _code.AddRange(operands);
-            }
+            public int[] Finish() => _inner.Finish();
         }
     }
 }
