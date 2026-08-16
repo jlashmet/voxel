@@ -5,8 +5,8 @@ using VoxelEngine.Structures.Api;
 namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
-    /// Realizes outer towers exactly as planned. Height/roof variation belongs to planning; this
-    /// component performs no seeded choices and only translates local tower specs into voxels.
+    /// Realizes outer towers exactly as planned. Height/roof/slit variation belongs to planning;
+    /// this component performs no seeded choices and only translates local tower specs into voxels.
     /// </summary>
     internal static class CastlePlannedTowerRealizer
     {
@@ -25,13 +25,14 @@ namespace VoxelEngine.Structures.Runtime
                 int worldZ = plan.Centre.z + tower.Centre.y;
                 int height = plan.TowerHeight + math.max(0, tower.HeightVariation);
 
-                CastleTowerRealizer.Build(
+                CastleTowerRealizer.BuildPlanned(
                     ref brush,
                     in plan,
                     new int3(worldX, baseY, worldZ),
                     plan.TowerRadius,
                     height,
-                    tower.HasRoof);
+                    tower.HasRoof,
+                    tower.Slits);
             }
         }
     }
