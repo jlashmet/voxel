@@ -771,6 +771,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong ExactMetadataCompleteCount { get; private set; }
         public ulong ExactMetadataRevisionRejectCount { get; private set; }
         public ulong ExactMetadataPinRejectCount { get; private set; }
+        public ulong MaterialPaletteInvalidationCount { get; private set; }
+        public ulong SurfaceCatalogueInvalidationCount { get; private set; }
+        public ulong CoatingCatalogueInvalidationCount { get; private set; }
+        public ulong ProfileBlockInvalidationCount { get; private set; }
         public ulong UploadedGeometryBytes { get; private set; }
         public ulong CompletedDecorationClumps { get; private set; }
         public int MissingVisibleCount { get; private set; }
@@ -1656,6 +1660,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             // Catalogue data participates in geometry. Existing meshes may remain visible while
             // every known chunk queues a replacement built from the new immutable snapshot.
+            SurfaceCatalogueInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 
@@ -1663,6 +1668,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             if (_materialPaletteVersion == version) return;
             _materialPaletteVersion = version;
+            MaterialPaletteInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 
@@ -1676,6 +1682,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _coatingCatalogue = catalogue;
             if (_coatingCatalogue.CatalogueHash == 0)
                 _coatingCatalogue.Seal(_coatingCatalogue.Version, hash);
+            CoatingCatalogueInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 
@@ -1688,6 +1695,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _profileBlockVersion = version;
             _profileBlocks = store?.Snapshot() ?? Array.Empty<ProfileBlock>();
             RebuildProfileBlockIndex();
+            ProfileBlockInvalidationCount++;
             foreach (int3 chunk in _known) Invalidate(chunk);
         }
 

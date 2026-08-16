@@ -173,6 +173,10 @@ namespace VoxelEngine.Tests.PlayMode
                       + $"meta:{metrics.Step4ExactMetadataScheduled}/{metrics.Step4ExactMetadataCompleted}/"
                       + $"revReject:{metrics.Step4ExactMetadataRevisionRejects}/"
                       + $"pinReject:{metrics.Step4ExactMetadataPinRejects} "
+                      + $"globalInvalidations=palette:{metrics.MaterialPaletteInvalidations}/"
+                      + $"surface:{metrics.SurfaceCatalogueInvalidations}/"
+                      + $"coating:{metrics.CoatingCatalogueInvalidations}/"
+                      + $"profile:{metrics.ProfileBlockInvalidations} "
                       + $"stale:{metrics.RejectedStaleSolidBuilds}.");
                     Assert.Greater(metrics.VisibleSolidChunks, 0,
                         $"LOD step {band.step} produced no visible voxel geometry; "
