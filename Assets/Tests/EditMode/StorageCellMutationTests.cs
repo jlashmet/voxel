@@ -92,6 +92,82 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void BulkStoragePayloadCopyPreservesMixedBlockAndOccupancy()
+        {
+            var table = new RegionTable(1, Allocator.TempJob);
+            var pool = new BrickPool(8, Allocator.TempJob);
+            using var materials = new NativeArray<byte>(
+                VoxelReadGrid.VoxelsPerBlock, Allocator.TempJob);
+            using var surfaces = new NativeArray<ushort>(
+                VoxelReadGrid.VoxelsPerBlock, Allocator.TempJob);
+            using var boundaries = new NativeArray<byte>(
+                VoxelReadGrid.VoxelsPerBlock, Allocator.TempJob);
+            try
+            {
+                table.LoadRegion(int3.zero);
+                var authoredSurface = new VoxelSurfaceSemantics
+                {
+                    StyleId = SurfaceStyles.Planar,
+                    CoatingId = Coatings.Moss,
+                    Flags = VoxelSurfaceFlags.PreserveFeature,
+                    Detail = 11,
+                };
+                ushort packedSurface = authoredSurface.PackedStorage;
+
+                for (int i = 0; i < VoxelReadGrid.VoxelsPerBlock; i++)
+                {
+                    bool solid = (i % 5) != 0;
+                    materials[i] = solid ? (byte)7 : VoxelGrid.MaterialEmpty;
+                    surfaces[i] = solid ? packedSurface : (ushort)0;
+                    boundaries[i] = (byte)((i * 13) & 0xFF);
+                }
+
+                var storage = new RegionMutationStore(in table, in pool);
+                Assert.That(storage.TryBeginCellBlock(
+                    int3.zero, true, out VoxelBlockMutation mutation), Is.True);
+                Assert.That(mutation.CopyStoragePayload(
+                    materials, surfaces, boundaries, 0), Is.True);
+                Assert.That(storage.CompletePartialBlock(ref mutation, true), Is.True);
+
+                var source = new RegionReadSource(in table, in pool);
+                Assert.That(source.TryPinWorldBlock(
+                    int3.zero, out PinnedVoxelReadBlock block), Is.True);
+                Assert.That(block.Kind, Is.EqualTo(VoxelReadBlockKind.Mixed));
+                Assert.That(block.HasPinnedPayload, Is.True);
+                try
+                {
+                    for (int i = 0; i < VoxelReadGrid.VoxelsPerBlock; i++)
+                    {
+                        int offset = block.MixedOffset + i;
+                        Assert.That(block.MixedVoxels[offset], Is.EqualTo(materials[i]));
+                        Assert.That(block.MixedSurfaceSemantics[offset], Is.EqualTo(surfaces[i]));
+                        Assert.That(block.MixedBoundarySamples[offset], Is.EqualTo(boundaries[i]));
+                    }
+                }
+                finally
+                {
+                    source.ReleasePinnedWorldBlock(in block.Pin);
+                }
+
+                using var occupied = new NativeArray<ulong>(
+                    VoxelReadGrid.BlockSummaryWordCount, Allocator.TempJob);
+                using var fullySolid = new NativeArray<ulong>(
+                    VoxelReadGrid.BlockSummaryWordCount, Allocator.TempJob);
+                Assert.That(source.TryCopyBlockSummary(
+                    int3.zero, occupied, fullySolid, out _), Is.True);
+                Assert.That((occupied[0] & 1UL) != 0UL, Is.True,
+                    "Bulk copy must rebuild the block occupancy summary.");
+                Assert.That((fullySolid[0] & 1UL) == 0UL, Is.True,
+                    "Sparse empty cells must keep the mixed block from becoming fully solid.");
+            }
+            finally
+            {
+                table.Dispose();
+                pool.Dispose();
+            }
+        }
+
+        [Test]
         public void EmptyBoundaryKeepsBlockMixedUntilBoundaryIsRemoved()
         {
             var table = new RegionTable(1, Allocator.TempJob);
