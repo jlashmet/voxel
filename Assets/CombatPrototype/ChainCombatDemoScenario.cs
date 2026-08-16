@@ -151,7 +151,7 @@ namespace MountingForce.CombatPrototype
                 return Fail(_reservations.LastMessage);
 
             _reservations.Synchronize();
-            _environment?.NotifyTreeFelled(tree.Position, tree.FallDirection, tree.Prepared ? 7 : 5);
+            _environment?.NotifyTreeFelled(tree.Position, tree.FallDirection, tree.IsNotched ? 7 : 5);
             LastMessage = $"Cascade complete: {_board.LastCascadeSteps} deliberate steps, {_board.LastCascadePlayers} players, {_board.LastHandoffs} handoffs.";
             return true;
         }
