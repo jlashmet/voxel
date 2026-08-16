@@ -143,12 +143,12 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.IsTrue(KentridgeGameplaySiteAccessResolver.TryResolve(
                     plan, roleId, 1, out KentridgeGameplaySiteAccess access));
 
-                // CharacterMotor has a 0.3 m radius. Validate a full 0.6 m-wide traversal corridor,
-                // not merely the door centreline, and probe through the decorated facade depth. The
-                // original bug carved the masonry and then wrote 6 dm-deep timber rails across it;
-                // a 5 dm recarve still left the innermost 10 cm collision strip intact.
+                // CharacterMotor has a 0.3 m radius. Validate a full 0.6 m-wide traversal corridor
+                // from the exterior air landing through the decorated facade and into the interior.
+                // The two historical blockers were a 6 dm-deep timber rail left at the inner edge and
+                // the first composed-world voxel immediately outside an inward-only doorway carve.
                 int[] lateralOffsets = { -3, 0, 3 };
-                int[] depthOffsets = { 0, 1, 2, 3, 4, 5, 6 };
+                int[] depthOffsets = { -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6 };
                 int[] heightOffsets = { 0, 1, 4, 8, 12, 16, 18, 21 };
                 Int2 inward = access.Inward;
                 var lateral = new Int2(-inward.Y, inward.X);
