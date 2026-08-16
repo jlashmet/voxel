@@ -86,7 +86,7 @@ namespace VoxelEngine.Structures.Api
             }
 
             CastleKeepCirculationPlan circulation = spatial.KeepCirculation;
-            if (!CastleKeepCirculationPlanner.TryValidate(
+            if (!CastleKeepCirculationPlanValidator.TryValidate(
                     in plan, in circulation, out _))
             {
                 issue = CastleSpatialBuildReadinessIssue.InvalidKeepCirculationPlan;
