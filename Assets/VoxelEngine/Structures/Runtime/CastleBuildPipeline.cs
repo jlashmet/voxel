@@ -116,8 +116,12 @@ namespace VoxelEngine.Structures.Runtime
                     _legacy.KeepStage++;
                     return CompleteStage("keep 7");
 
+                case 7:
+                    CastleDungeonRealizer.Build(ref _legacy.Brush, in _legacy.Plan);
+                    return CompleteStage("dungeon");
+
                 default:
-                    // Dungeon and landscape dressing are the only remaining legacy stages.
+                    // Landscape dressing is the only remaining legacy stage.
                     return CastleBuilder.StepBuild(ref _legacy);
             }
         }
