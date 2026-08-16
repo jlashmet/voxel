@@ -110,7 +110,37 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PipelineRealizesMaterializedInnerTowersWithoutPlanningInRuntime()
+        public void CompletionPreservesPlannedInnerTowerAppearance()
+        {
+            CastlePlan plan = CastlePlanner.Create(int3.zero, 127u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(127u);
+            topology.Perimeter = CastlePerimeterKind.Rectangular;
+            topology.Wards = CastleWardPattern.InnerAndOuterWards;
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            topology.DesiredTowerCount = 4;
+            topology.HasPosternGate = false;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+            CastleTowerPlacementSpec[] planned =
+                (CastleTowerPlacementSpec[])spatial.InnerTowers.Clone();
+
+            CastleSpatialPlan completedVariation =
+                CastleSpatialPlanCompletion.AttachTowerVariation(in plan, spatial);
+
+            Assert.AreEqual(planned.Length, completedVariation.InnerTowers.Length);
+            for (int i = 0; i < planned.Length; i++)
+            {
+                Assert.AreEqual(planned[i].Centre, completedVariation.InnerTowers[i].Centre,
+                    $"inner tower {i}: centre changed during completion");
+                Assert.AreEqual(planned[i].HeightVariation,
+                    completedVariation.InnerTowers[i].HeightVariation,
+                    $"inner tower {i}: height variation changed during completion");
+                Assert.AreEqual(planned[i].HasRoof, completedVariation.InnerTowers[i].HasRoof,
+                    $"inner tower {i}: roof choice changed during completion");
+            }
+        }
+
+        [Test]
+        public void PipelineRealizesMaterializedInnerTowersWithoutPlanningInRuntimeOrPlanData()
         {
             string root = RepoRoot();
             string pipeline = File.ReadAllText(Path.Combine(
@@ -122,10 +152,24 @@ namespace VoxelEngine.Tests.EditMode
             string plan = File.ReadAllText(Path.Combine(
                 root, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastleSpatialPlan.cs"));
+            string planner = File.ReadAllText(Path.Combine(
+                root, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialPlanner.cs"));
+            string completion = File.ReadAllText(Path.Combine(
+                root, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialPlanCompletion.cs"));
 
             StringAssert.Contains("private readonly CastleTowerPlacementSpec[] _innerTowers;", plan);
             StringAssert.Contains("public CastleTowerPlacementSpec[] InnerTowers => _innerTowers;", plan);
-            StringAssert.Contains("_innerTowers = CastleInnerWardTowerPlanner.Create(innerWardVertices);", plan);
+            StringAssert.Contains("_innerTowers = innerTowers != null", plan);
+            StringAssert.DoesNotContain("CastleInnerWardTowerPlanner.", plan,
+                "CastleSpatialPlan must remain a passive data carrier.");
+            StringAssert.Contains("CastleInnerWardTowerPlanner.Create(inner)", planner,
+                "Spatial planning must materialize inner-tower data before plan construction.");
+            StringAssert.Contains("spatial.InnerTowers", completion,
+                "Plan completion must carry existing inner-tower data through copies.");
+            StringAssert.DoesNotContain("0x2A00", completion,
+                "Completion must not draw a second inner-tower roof choice from another seed stream.");
             StringAssert.Contains("spatialPlan.InnerTowers", pipeline);
             StringAssert.Contains("CastleInnerWardTowerRealizer.BuildAll(", pipeline);
             StringAssert.Contains("_innerTowerSpecs", pipeline);
