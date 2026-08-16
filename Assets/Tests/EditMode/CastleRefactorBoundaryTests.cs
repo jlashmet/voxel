@@ -69,6 +69,25 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ExperimentalSpatialPlanRemainsPlanningOnlyUntilRealizersSupportIt()
+        {
+            string planning = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api", "CastleSpatialPlanner.cs"));
+            StringAssert.DoesNotContain("VoxelBrush", planning);
+            StringAssert.DoesNotContain("Structures.Runtime", planning);
+
+            string runtimeDirectory = Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime");
+            foreach (string file in Directory.GetFiles(runtimeDirectory, "*.cs"))
+            {
+                string runtimeSource = File.ReadAllText(file);
+                StringAssert.DoesNotContain("CastleSpatialPlan", runtimeSource,
+                    $"{Path.GetFileName(file)} consumed experimental spatial planning before " +
+                    "arbitrary wall/gate/tower realization was migrated.");
+            }
+        }
+
+        [Test]
         public void KeepRealizerUsesReusableTowerAndRoomComponents()
         {
             string keep = File.ReadAllText(Path.Combine(
