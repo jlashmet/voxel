@@ -9,6 +9,8 @@ namespace VoxelEngine.Tests.EditMode
     {
         private const string MalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Male_Adult_01.fbx";
         private const string FemalePath = "Assets/ThirdParty/PlaceholderHumanoids/Models/Female_Adult_01.fbx";
+        private const string MaleDescriptorPath = "Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.characterfactory.json";
+        private const string FemaleDescriptorPath = "Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.characterfactory.json";
         private const string MalePrefabPath = "Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab";
         private const string FemalePrefabPath = "Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab";
 
@@ -80,10 +82,17 @@ namespace VoxelEngine.Tests.EditMode
             AssertValidHumanoidAvatar(path);
         }
 
-        [TestCase(MalePrefabPath)]
-        [TestCase(FemalePrefabPath)]
-        public void PlaceholderDescriptor_GeneratesCharacterFactoryPrefab(string path)
+        [TestCase(MalePrefabPath, MaleDescriptorPath)]
+        [TestCase(FemalePrefabPath, FemaleDescriptorPath)]
+        public void PlaceholderDescriptor_GeneratesCharacterFactoryPrefab(string path, string descriptorPath)
         {
+            // Generated Character Factory outputs are intentionally ignored by Git. Force the
+            // committed descriptor through the normal importer here so the contract remains
+            // deterministic even when CI keeps a warm Unity Library after cleaning the workspace.
+            AssetDatabase.ImportAsset(
+                descriptorPath,
+                ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             Assert.That(prefab, Is.Not.Null,
                 $"CharacterFactoryAssetImporter did not generate {path}");
@@ -142,6 +151,10 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(importer, Is.Not.Null, $"Expected a ModelImporter for {path}");
             Assert.That(importer.clipAnimations.Length, Is.GreaterThanOrEqualTo(1),
                 $"{path} has no explicit clip import configuration");
+
+            var expectedName = System.IO.Path.GetFileNameWithoutExtension(path);
+            Assert.That(importer.clipAnimations.All(clip => clip.name == expectedName), Is.True,
+                $"{path} exposes Rocketbox source take names instead of semantic clip name {expectedName}");
             Assert.That(importer.clipAnimations.All(clip => clip.loopTime == expectedLoop), Is.True,
                 $"{path} loopTime does not match expected gameplay semantics ({expectedLoop})");
         }
