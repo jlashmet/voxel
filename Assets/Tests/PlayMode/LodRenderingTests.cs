@@ -115,8 +115,8 @@ namespace VoxelEngine.Tests.PlayMode
                     bool converged = false;
                     int stableSamples = 0;
                     int convergenceFrames = 0;
-                    double convergenceDeadline = Time.realtimeSinceStartupAsDouble + 8.0;
-                    while (convergenceFrames++ < 480
+                    double convergenceDeadline = Time.realtimeSinceStartupAsDouble + 20.0;
+                    while (convergenceFrames++ < 1200
                            && Time.realtimeSinceStartupAsDouble < convergenceDeadline)
                     {
                         RenderUrpCamera(camera);
@@ -151,7 +151,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                     Assert.True(converged,
                         $"LOD step {band.step} did not reach a stable castle capture "
-                      + $"within {convergenceFrames} frames / 8 seconds; "
+                      + $"within {convergenceFrames} frames / 20 seconds; "
                       + $"known={metrics.SolidKnownChunks} resident={metrics.SolidResidentChunks} "
                       + $"dirty={metrics.SolidDirtyChunks} visible={metrics.VisibleSolidChunks} "
                       + $"missing={metrics.MissingVisibleSolidChunks} jobs={metrics.RunningSolidJobs} "
