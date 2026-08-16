@@ -45,16 +45,16 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         /// <summary>
-        /// Realizes only geometry that is meaningful for an arbitrary planned perimeter. Paving is
-        /// clipped to the polygon and the well is placed beside the keep while the old axis-aligned
-        /// rear-wall sheds remain on the legacy path until semantic building placement exists.
+        /// Realizes geometry from an already-planned arbitrary perimeter. Runtime clips paving to
+        /// the supplied polygon and consumes the planned well coordinate without making any
+        /// semantic placement choices of its own.
         /// </summary>
         internal static void BuildPlanned(
             ref VoxelBrush brush,
             in CastlePlan plan,
             int2[] localPerimeter,
-            in CastleGatePlacementSpec primaryGate,
-            int2 localKeepCentre)
+            bool hasWell,
+            int2 localWellCentre)
         {
             if (localPerimeter == null || localPerimeter.Length < 3)
                 return;
@@ -86,77 +86,14 @@ namespace VoxelEngine.Structures.Runtime
                                      plan.Centre.z + z, material);
             }
 
-            if (TryChooseWell(
-                    in plan, localPerimeter, in primaryGate, localKeepCentre,
-                    out int2 localWell))
+            if (hasWell)
             {
                 BuildWell(
                     ref brush,
-                    plan.Centre.x + localWell.x,
-                    plan.Centre.z + localWell.y,
+                    plan.Centre.x + localWellCentre.x,
+                    plan.Centre.z + localWellCentre.y,
                     baseY);
             }
-        }
-
-        private static bool TryChooseWell(
-            in CastlePlan plan,
-            int2[] perimeter,
-            in CastleGatePlacementSpec gate,
-            int2 keepCentre,
-            out int2 well)
-        {
-            float2 approach = new float2(gate.Centre.x - keepCentre.x,
-                                         gate.Centre.y - keepCentre.y);
-            float length = math.length(approach);
-            float2 direction = length > 0.001f ? approach / length : new float2(0f, -1f);
-            float2 tangent = new float2(-direction.y, direction.x);
-            int sideDistance = math.max(plan.KeepHalfX, plan.KeepHalfZ) + 58;
-            int sideSign = (CastleSeedPartition.Derive(
-                plan.Seed, CastleSeedDomain.Decor, 0xC048u) & 1u) == 0u ? -1 : 1;
-
-            int2 first = Round(new float2(keepCentre.x, keepCentre.y)
-                               + tangent * (sideSign * sideDistance));
-            if (WellFits(in plan, perimeter, keepCentre, first))
-            {
-                well = first;
-                return true;
-            }
-
-            int2 second = Round(new float2(keepCentre.x, keepCentre.y)
-                                - tangent * (sideSign * sideDistance));
-            if (WellFits(in plan, perimeter, keepCentre, second))
-            {
-                well = second;
-                return true;
-            }
-
-            well = default;
-            return false;
-        }
-
-        private static bool WellFits(
-            in CastlePlan plan,
-            int2[] perimeter,
-            int2 keepCentre,
-            int2 candidate)
-        {
-            const int clearanceRadius = 20;
-            int2[] probes =
-            {
-                candidate,
-                candidate + new int2(clearanceRadius, 0),
-                candidate + new int2(-clearanceRadius, 0),
-                candidate + new int2(0, clearanceRadius),
-                candidate + new int2(0, -clearanceRadius),
-            };
-            for (int i = 0; i < probes.Length; i++)
-            {
-                if (!CastlePolygonGeometry.ContainsPoint(probes[i], perimeter))
-                    return false;
-            }
-
-            return math.abs(candidate.x - keepCentre.x) > plan.KeepHalfX + clearanceRadius
-                || math.abs(candidate.y - keepCentre.y) > plan.KeepHalfZ + clearanceRadius;
         }
 
         private static void BuildWell(ref VoxelBrush brush, int wx, int wz, int baseY)
@@ -165,8 +102,5 @@ namespace VoxelEngine.Structures.Runtime
             brush.Cylinder(wx, baseY - 60, wz, 11, 60, Mat.Empty);
             brush.Cylinder(wx, baseY - 60, wz, 10, 14, Mat.Water);
         }
-
-        private static int2 Round(float2 value) =>
-            new int2((int)math.round(value.x), (int)math.round(value.y));
     }
 }
