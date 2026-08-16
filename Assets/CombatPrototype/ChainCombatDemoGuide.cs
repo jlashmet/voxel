@@ -29,6 +29,7 @@ namespace MountingForce.CombatPrototype
         private ChainReactionReservationCoordinator _reservations;
         private ChainRoundReadinessCoordinator _readiness;
         private ChainExecutionPlanner _planner;
+        private IChainCombatEnvironmentBridge _environmentBridge;
         private ChainCombatDemoScenario _scenario;
         private ChainCombatBoard _scenarioBoard;
         private Coroutine _showcaseRoutine;
@@ -123,6 +124,24 @@ namespace MountingForce.CombatPrototype
             }
 
             GUILayout.EndArea();
+        }
+
+        /// <summary>
+        /// Higher-level game composition may inject production environment capabilities without
+        /// making CombatPrototype reference their runtime implementations.
+        /// </summary>
+        public void SetEnvironmentBridge(IChainCombatEnvironmentBridge environmentBridge)
+        {
+            if (ReferenceEquals(_environmentBridge, environmentBridge))
+            {
+                return;
+            }
+
+            _environmentBridge = environmentBridge;
+            _scenario = null;
+            _scenarioBoard = null;
+            ResolveDependencies();
+            EnsureScenario();
         }
 
         public void PlayExampleCascade()
@@ -262,7 +281,7 @@ namespace MountingForce.CombatPrototype
 
             if (_scenario == null || !ReferenceEquals(_scenarioBoard, _board))
             {
-                _scenario = new ChainCombatDemoScenario(_board, _reservations);
+                _scenario = new ChainCombatDemoScenario(_board, _reservations, _environmentBridge);
                 _scenarioBoard = _board;
             }
         }
