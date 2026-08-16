@@ -33,13 +33,14 @@ namespace MountingForce.WorldGen.Voxel
 
                     FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
                     int pc = definition.ProgramOffset;
-                    if ((ShapeOp)catalogue.Program[pc] != ShapeOp.EmitBox)
+                    ShapeOp firstOp = (ShapeOp)catalogue.Program[pc];
+                    if (firstOp != ShapeOp.EmitBox && firstOp != ShapeOp.EmitRoundedBox)
                         throw new InvalidOperationException(
-                            "Kentridge anonymous fabric must begin with its foundation box.");
+                            "Kentridge anonymous fabric must begin with its foundation solid.");
 
-                    // Canonical EmitBox is: op, mask, x, y, z, sx, sy, sz, material, style,
-                    // coating, mode. The first foundation box is centred inside the fixed envelope,
-                    // so its local z is exactly the unwanted facade setback.
+                    // EmitBox and EmitRoundedBox both begin x,y,z,sx,sy,sz after op/mask. The first
+                    // semantic foundation is centred inside the fixed envelope, so local z is exactly
+                    // the unwanted facade setback regardless of its rounded reconstruction policy.
                     int frontInset = catalogue.Program[pc + 4];
                     if (frontInset <= 0) continue;
 
