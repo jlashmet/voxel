@@ -19,6 +19,7 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public readonly struct CastleKeepCirculationPlan
     {
+        public readonly CastleKeepFace EntranceFace;
         public readonly int2 EntranceCentre;
         public readonly int2 GrandStairOrigin;
         public readonly int GrandStairWidth;
@@ -28,6 +29,7 @@ namespace VoxelEngine.Structures.Api
         public readonly int SpiralStairRadius;
         public readonly int VerticalReach;
 
+        /// <summary>Compatibility constructor for the historical south-facing keep recipe.</summary>
         public CastleKeepCirculationPlan(
             int2 entranceCentre,
             int2 grandStairOrigin,
@@ -37,7 +39,31 @@ namespace VoxelEngine.Structures.Api
             int2 spiralStairCentre,
             int spiralStairRadius,
             int verticalReach)
+            : this(
+                CastleKeepFace.South,
+                entranceCentre,
+                grandStairOrigin,
+                grandStairWidth,
+                grandStairRise,
+                grandStairRun,
+                spiralStairCentre,
+                spiralStairRadius,
+                verticalReach)
         {
+        }
+
+        public CastleKeepCirculationPlan(
+            CastleKeepFace entranceFace,
+            int2 entranceCentre,
+            int2 grandStairOrigin,
+            int grandStairWidth,
+            int grandStairRise,
+            int grandStairRun,
+            int2 spiralStairCentre,
+            int spiralStairRadius,
+            int verticalReach)
+        {
+            EntranceFace = entranceFace;
             EntranceCentre = entranceCentre;
             GrandStairOrigin = grandStairOrigin;
             GrandStairWidth = grandStairWidth;
@@ -50,22 +76,27 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Plans the current keep circulation recipe without voxel/storage dependencies. The values
-    /// deliberately preserve the authored entrance and stair locations while making them explicit
-    /// planning data that later layouts can vary independently of Runtime geometry code.
+    /// Plans keep circulation without voxel/storage dependencies. The compatibility overload
+    /// preserves the historical south-facing recipe; the facade-aware overload expresses that same
+    /// recipe in a cardinal keep basis so planning can later align the entrance with the approach.
     /// </summary>
     public static class CastleKeepCirculationPlanner
     {
         private const int InnerShellInset = 8;
-        private const int GrandStairX = -68;
-        private const int GrandStairZInset = 28;
+        private const int GrandStairTangent = -68;
+        private const int GrandStairFrontInset = 28;
         private const int GrandStairWidth = 18;
         private const int GrandStairRise = 2;
         private const int GrandStairRun = 3;
         private const int SpiralStairInset = 34;
         private const int SpiralStairRadius = 22;
 
-        public static CastleKeepCirculationPlan Create(in CastlePlan plan)
+        public static CastleKeepCirculationPlan Create(in CastlePlan plan) =>
+            Create(in plan, CastleKeepFace.South);
+
+        public static CastleKeepCirculationPlan Create(
+            in CastlePlan plan,
+            CastleKeepFace entranceFace)
         {
             if (plan.KeepHalfX <= 0 || plan.KeepHalfZ <= 0 ||
                 plan.FloorHeight <= 0 || plan.Floors <= 0)
@@ -74,14 +105,20 @@ namespace VoxelEngine.Structures.Api
                     nameof(plan), "Castle keep dimensions must be positive before circulation planning.");
             }
 
+            CastleKeepFacadeFrame frame = CastleKeepFacadeFrame.For(entranceFace);
+            int tangentHalf = frame.TangentHalfExtent(in plan);
             var circulation = new CastleKeepCirculationPlan(
-                new int2(0, -plan.KeepHalfZ),
-                new int2(GrandStairX, -plan.KeepHalfZ + GrandStairZInset),
+                entranceFace,
+                frame.PointFromFacade(in plan, 0, 0),
+                frame.PointFromFacade(
+                    in plan, GrandStairTangent, GrandStairFrontInset),
                 GrandStairWidth,
                 GrandStairRise,
                 GrandStairRun,
-                new int2(-plan.KeepHalfX + SpiralStairInset,
-                         -plan.KeepHalfZ + SpiralStairInset),
+                frame.PointFromFacade(
+                    in plan,
+                    -tangentHalf + SpiralStairInset,
+                    SpiralStairInset),
                 SpiralStairRadius,
                 plan.Floors * plan.FloorHeight);
 
@@ -99,8 +136,13 @@ namespace VoxelEngine.Structures.Api
             in CastleKeepCirculationPlan circulation,
             out CastleKeepCirculationPlanIssue issue)
         {
-            if (circulation.EntranceCentre.y != -plan.KeepHalfZ ||
-                math.abs(circulation.EntranceCentre.x) > plan.KeepHalfX - InnerShellInset)
+            CastleKeepFacadeFrame frame = CastleKeepFacadeFrame.For(circulation.EntranceFace);
+            int normalHalf = frame.NormalHalfExtent(in plan);
+            int tangentHalf = frame.TangentHalfExtent(in plan);
+            int entranceNormal = math.dot(circulation.EntranceCentre, frame.Outward);
+            int entranceTangent = math.dot(circulation.EntranceCentre, frame.Tangent);
+            if (entranceNormal != normalHalf ||
+                math.abs(entranceTangent) > tangentHalf - InnerShellInset)
             {
                 issue = CastleKeepCirculationPlanIssue.InvalidEntrance;
                 return false;
@@ -116,22 +158,26 @@ namespace VoxelEngine.Structures.Api
             }
 
             int grandSteps = plan.FloorHeight / circulation.GrandStairRise;
-            int grandMinX = circulation.GrandStairOrigin.x;
-            int grandMaxX = grandMinX + circulation.GrandStairWidth;
-            int grandMinZ = circulation.GrandStairOrigin.y;
-            int grandMaxZ = grandMinZ + grandSteps * circulation.GrandStairRun;
-            int innerMinX = -plan.KeepHalfX + InnerShellInset;
-            int innerMaxX = plan.KeepHalfX - InnerShellInset;
-            int innerMinZ = -plan.KeepHalfZ + InnerShellInset;
-            int innerMaxZ = plan.KeepHalfZ - InnerShellInset;
-            if (grandMinX < innerMinX || grandMaxX > innerMaxX ||
-                grandMinZ < innerMinZ || grandMaxZ > innerMaxZ)
+            int grandDepth = grandSteps * circulation.GrandStairRun;
+            int2 grandTangentEnd = circulation.GrandStairOrigin
+                                 + frame.Tangent * circulation.GrandStairWidth;
+            int2 grandInwardEnd = circulation.GrandStairOrigin
+                                + frame.Inward * grandDepth;
+            int2 grandFarCorner = grandTangentEnd + frame.Inward * grandDepth;
+            if (!InsideInnerShell(in plan, circulation.GrandStairOrigin) ||
+                !InsideInnerShell(in plan, grandTangentEnd) ||
+                !InsideInnerShell(in plan, grandInwardEnd) ||
+                !InsideInnerShell(in plan, grandFarCorner))
             {
                 issue = CastleKeepCirculationPlanIssue.InvalidGrandStair;
                 return false;
             }
 
             int radius = circulation.SpiralStairRadius;
+            int innerMinX = -plan.KeepHalfX + InnerShellInset;
+            int innerMaxX = plan.KeepHalfX - InnerShellInset;
+            int innerMinZ = -plan.KeepHalfZ + InnerShellInset;
+            int innerMaxZ = plan.KeepHalfZ - InnerShellInset;
             if (radius <= 0 ||
                 circulation.SpiralStairCentre.x - radius < innerMinX ||
                 circulation.SpiralStairCentre.x + radius > innerMaxX ||
@@ -152,5 +198,11 @@ namespace VoxelEngine.Structures.Api
             issue = CastleKeepCirculationPlanIssue.None;
             return true;
         }
+
+        private static bool InsideInnerShell(in CastlePlan plan, int2 point) =>
+            point.x >= -plan.KeepHalfX + InnerShellInset &&
+            point.x <= plan.KeepHalfX - InnerShellInset &&
+            point.y >= -plan.KeepHalfZ + InnerShellInset &&
+            point.y <= plan.KeepHalfZ - InnerShellInset;
     }
 }
