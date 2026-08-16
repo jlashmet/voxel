@@ -2,6 +2,7 @@ using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Api;
 
 namespace Game.Materials.Tests
@@ -44,10 +45,9 @@ namespace Game.Materials.Tests
             for (byte materialId = 0; materialId < GameMaterialCatalogue.Count; materialId++)
             {
                 Assert.That(GameMaterialCatalogue.IsCanonicalId(materialId), Is.True);
-                ref readonly GameMaterialDefinition definition = ref GameMaterialCatalogue.Get(materialId);
-                Assert.That(definition.Id, Is.EqualTo(materialId));
-                Assert.That(definition.Name, Is.Not.Empty);
-                Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.EqualTo(definition.Name));
+                ref readonly MaterialDefinition definition = ref GameMaterialCatalogue.Get(materialId);
+                Assert.That(definition.MaterialId, Is.EqualTo(materialId));
+                Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.Not.Empty);
             }
 
             byte firstUnknownId = (byte)GameMaterialCatalogue.Count;
@@ -56,11 +56,30 @@ namespace Game.Materials.Tests
         }
 
         [Test]
+        public void CanonicalDefinitions_RegisterWithoutPaletteHoles()
+        {
+            MaterialPalette palette = default;
+            foreach (MaterialDefinition definition in GameMaterialCatalogue.Definitions)
+                palette.Register(in definition);
+
+            Assert.That(palette.Count, Is.EqualTo(GameMaterialCatalogue.Count));
+            for (byte materialId = 0; materialId < GameMaterialCatalogue.Count; materialId++)
+            {
+                Assert.That(palette.IsRegistered(materialId), Is.True,
+                    $"Material {materialId} ({GameMaterialCatalogue.NameOf(materialId)}) was not registered.");
+                ref readonly MaterialDefinition definition = ref GameMaterialCatalogue.Get(materialId);
+                Assert.That(palette.GetHardness(materialId), Is.EqualTo(definition.Hardness));
+                Assert.That(palette.GetDestructionClass(materialId), Is.EqualTo(definition.DestructionClass));
+                Assert.That(palette.IsFlammable(materialId), Is.EqualTo(definition.Flammable));
+            }
+        }
+
+        [Test]
         public void PreviouslyUnregisteredMaterials_NowHaveExplicitPhysicalDefinitions()
         {
-            ref readonly GameMaterialDefinition cascade = ref GameMaterialCatalogue.Get(GameMaterialIds.Cascade);
-            ref readonly GameMaterialDefinition crystal = ref GameMaterialCatalogue.Get(GameMaterialIds.Crystal);
-            ref readonly GameMaterialDefinition flower = ref GameMaterialCatalogue.Get(GameMaterialIds.FlowerWhite);
+            ref readonly MaterialDefinition cascade = ref GameMaterialCatalogue.Get(GameMaterialIds.Cascade);
+            ref readonly MaterialDefinition crystal = ref GameMaterialCatalogue.Get(GameMaterialIds.Crystal);
+            ref readonly MaterialDefinition flower = ref GameMaterialCatalogue.Get(GameMaterialIds.FlowerWhite);
 
             Assert.That(cascade.DestructionClass, Is.EqualTo(DestructionClass.Spreading));
             Assert.That(cascade.Hardness, Is.GreaterThan(0));
