@@ -19,7 +19,9 @@ namespace VoxelEngine.Storage.Runtime
             _regionCoord = region.Coord;
             _view = new RegionGenerationWriteView(
                 region.Coord,
-                region.BrickRefs.Reinterpret<int>());
+                region.BrickRefs.Reinterpret<int>(),
+                region.OccupiedBlockWords,
+                region.FullySolidBlockWords);
         }
 
         public RegionGenerationWriteView AcquireRegion(int3 regionCoord)
