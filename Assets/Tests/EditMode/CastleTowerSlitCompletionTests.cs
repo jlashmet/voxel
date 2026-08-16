@@ -25,6 +25,9 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(CastleTowerSlitPlanCompletion.TryValidate(
                 in plan, spatial, out CastleTowerSlitBuildReadinessIssue issue),
                 issue.ToString());
+            Assert.IsTrue(CastleSpatialBuildReadiness.TryValidate(
+                in plan, spatial, out CastleSpatialBuildReadinessIssue readinessIssue),
+                readinessIssue.ToString());
         }
 
         [Test]
@@ -40,7 +43,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void TowerSlitReadinessRejectsMissingOuterTowerSlitPlan()
+        public void RuntimeReadinessRejectsMissingOuterTowerSlitPlan()
         {
             PlannedCastleBuild build = StructuresComposition.PlanCastleBuild(
                 int3.zero, 313u, 0x91D5u);
@@ -51,8 +54,12 @@ namespace VoxelEngine.Tests.EditMode
             spatial.Towers[0].Slits = null;
 
             Assert.IsFalse(CastleTowerSlitPlanCompletion.TryValidate(
-                in plan, spatial, out CastleTowerSlitBuildReadinessIssue issue));
-            Assert.AreEqual(CastleTowerSlitBuildReadinessIssue.MissingSlitPlan, issue);
+                in plan, spatial, out CastleTowerSlitBuildReadinessIssue slitIssue));
+            Assert.AreEqual(CastleTowerSlitBuildReadinessIssue.MissingSlitPlan, slitIssue);
+
+            Assert.IsFalse(CastleSpatialBuildReadiness.TryValidate(
+                in plan, spatial, out CastleSpatialBuildReadinessIssue readinessIssue));
+            Assert.AreEqual(CastleSpatialBuildReadinessIssue.MissingTowerSlitPlan, readinessIssue);
         }
 
         [Test]
