@@ -17,7 +17,7 @@ namespace VoxelEngine.Rendering.AmbientLife
         private readonly Dictionary<AmbientLifeKind, List<Matrix4x4>> _batches =
             new Dictionary<AmbientLifeKind, List<Matrix4x4>>();
         private readonly Matrix4x4[] _scratch = new Matrix4x4[MaxInstancesPerDraw];
-        private readonly MaterialPropertyBlock _properties = new MaterialPropertyBlock();
+        private MaterialPropertyBlock _properties;
         private int _agentCount;
 
         private static Mesh s_BillboardQuad;
@@ -85,6 +85,7 @@ namespace VoxelEngine.Rendering.AmbientLife
             if (_agentCount == 0) return;
             Material material = ProceduralAmbientLifeMaterials.Shared;
             if (material == null) return;
+            if (_properties == null) _properties = new MaterialPropertyBlock();
 
             ProceduralAmbientLifeMaterials.ApplyLighting();
             Mesh mesh = BillboardQuad;
