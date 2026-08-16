@@ -393,5 +393,32 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("if (count == 0 && _retiredSlots[token.Slot] != 0)", pool);
         }
 
+
+        private static int CountOccurrences(string text, string value)
+        {
+            int count = 0;
+            int offset = 0;
+            while ((offset = text.IndexOf(value, offset, StringComparison.Ordinal)) >= 0)
+            {
+                count++;
+                offset += value.Length;
+            }
+            return count;
+        }
+
+
+        [Test]
+        public void ProductionMixedBrickMutationsPublishCowVersions()
+        {
+            string storageRoot = Path.Combine(Application.dataPath, "VoxelEngine", "Storage", "Runtime");
+            string voxelAccess = File.ReadAllText(Path.Combine(storageRoot, "VoxelAccess.cs"));
+            string mutationStore = File.ReadAllText(Path.Combine(storageRoot, "RegionMutationStore.cs"));
+            string showcase = File.ReadAllText(Path.Combine(
+                Application.dataPath, "VoxelEngine", "Composition", "Showcase", "ShowcaseWorld.cs"));
+            StringAssert.Contains("pool.EnsureWritable(poolIndex)", voxelAccess);
+            Assert.GreaterOrEqual(CountOccurrences(mutationStore, "_pool.EnsureWritable("), 2);
+            Assert.GreaterOrEqual(CountOccurrences(showcase, "_pool.EnsureWritable(brick.PoolIndex)"), 2);
+        }
+
     }
 }

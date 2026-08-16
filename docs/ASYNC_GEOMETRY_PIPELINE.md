@@ -73,7 +73,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
 - [x] Never retain borrowed `RegionReadView` state across frame slices or jobs; copy into owned native snapshot memory first.
 - [ ] Add immutable/versioned or copy-on-write mixed-brick/page publication so snapshot copying can move off the frame thread.
   - [x] Add generation-stamped mixed-brick pins, COW cloning, and deferred slot retirement in `BrickPool`.
-  - [ ] Route every production mixed-brick mutation through `EnsureWritable` before rendering may pin payloads.
+  - [x] Route every production mixed-brick mutation through `EnsureWritable` before rendering may pin payloads.
   - [ ] Expose bounded Storage snapshot leases to rendering and retire them after jobs complete.
 - [ ] Replace global-world version dependence with region/brick dependency revisions where appropriate.
 

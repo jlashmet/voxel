@@ -220,6 +220,32 @@ namespace VoxelEngine.Tests.EditMode
             _pool.Free(reused);
         }
 
+
+        [Test]
+        public void VoxelAccessPublishesCowCloneBeforeEditingPinnedBrick()
+        {
+            int3 voxel = new int3(1, 2, 3);
+            Assert.True(VoxelAccess.SetVoxel(ref _table, ref _pool, voxel, 5));
+            VoxelAccess.Decompose(voxel, out int3 regionCoord,
+                                  out int3 brickInRegion, out int3 voxelInBrick);
+            Assert.True(_table.TryGetRegion(regionCoord, out Region before));
+            int blockIndex = Region.BrickIndex(brickInRegion.x, brickInRegion.y, brickInRegion.z);
+            int oldSlot = before.BrickRefs[blockIndex].PoolIndex;
+            int voxelIndex = VoxelEngine.Storage.Runtime.Occupancy.OccupancyMask.VoxelIndex(
+                voxelInBrick.x, voxelInBrick.y, voxelInBrick.z);
+            BrickPool.PinToken pin = _pool.Pin(oldSlot);
+
+            Assert.True(VoxelAccess.SetVoxel(ref _table, ref _pool, voxel, 7));
+            Assert.True(_table.TryGetRegion(regionCoord, out Region after));
+            int newSlot = after.BrickRefs[blockIndex].PoolIndex;
+            Assert.AreNotEqual(oldSlot, newSlot);
+            Assert.AreEqual(5, _pool.GetVoxel(oldSlot, voxelIndex),
+                "Pinned reader version was mutated in place.");
+            Assert.AreEqual(7, _pool.GetVoxel(newSlot, voxelIndex));
+
+            _pool.Unpin(in pin);
+        }
+
         [Test]
         public void BrickRefEncodingRoundTrips()
         {

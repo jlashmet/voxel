@@ -1505,6 +1505,12 @@ namespace VoxelEngine.Showcase
                 if (_pool.GetVoxel(brick.PoolIndex, voxelIndex)
                     == VoxelDimensions.MaterialEmpty) continue;
 
+                int writableIndex = _pool.EnsureWritable(brick.PoolIndex);
+                if (writableIndex != brick.PoolIndex)
+                {
+                    brick = BrickRef.FromPoolIndex(writableIndex);
+                    region.BrickRefs[brickIndex] = brick;
+                }
                 _pool.SetVoxel(brick.PoolIndex, voxelIndex, VoxelDimensions.MaterialEmpty);
                 touchedBricks.Add(position >> VoxelDimensions.BrickEdgeLog2);
                 touchedRegions.Add(regionCoord);
@@ -1846,6 +1852,13 @@ namespace VoxelEngine.Showcase
                         int poolIndex = _pool.Allocate();
                         _pool.FillBrick(poolIndex, brick.UniformMaterial);
                         brick = BrickRef.FromPoolIndex(poolIndex);
+                        region.BrickRefs[brickIndex] = brick;
+                    }
+
+                    int writableIndex = _pool.EnsureWritable(brick.PoolIndex);
+                    if (writableIndex != brick.PoolIndex)
+                    {
+                        brick = BrickRef.FromPoolIndex(writableIndex);
                         region.BrickRefs[brickIndex] = brick;
                     }
 

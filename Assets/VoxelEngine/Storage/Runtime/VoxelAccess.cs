@@ -158,6 +158,14 @@ namespace VoxelEngine.Storage.Runtime
             };
             if (current.Equals(normalized)) return false;
 
+            int writableIndex = pool.EnsureWritable(poolIndex);
+            if (writableIndex != poolIndex)
+            {
+                // Publish the new live version before mutation. Readers pinned to the old slot
+                // keep observing its immutable payload until they release their generation token.
+                poolIndex = writableIndex;
+                region.BrickRefs[brickIdx] = BrickRef.FromPoolIndex(poolIndex);
+            }
             pool.SetCell(poolIndex, voxelIdx, in normalized);
 
             // Collapse check. Cheap relative to the write itself, and the only thing

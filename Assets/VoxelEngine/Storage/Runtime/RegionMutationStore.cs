@@ -83,7 +83,9 @@ namespace VoxelEngine.Storage.Runtime
                 int poolIndex;
                 if (current.IsMixed)
                 {
-                    poolIndex = current.PoolIndex;
+                    poolIndex = _pool.EnsureWritable(current.PoolIndex);
+                    if (poolIndex != current.PoolIndex)
+                        region.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
                 }
                 else
                 {
@@ -213,7 +215,14 @@ namespace VoxelEngine.Storage.Runtime
             }
             else
             {
-                poolIndex = original.PoolIndex;
+                poolIndex = _pool.EnsureWritable(original.PoolIndex);
+                if (poolIndex != original.PoolIndex)
+                {
+                    // The NativeArray backing BrickRefs is shared by Region copies, so publishing
+                    // this ref is immediately visible even though no semantic metadata changed.
+                    Region writable = region;
+                    writable.BrickRefs[blockIndex] = BrickRef.FromPoolIndex(poolIndex);
+                }
             }
 
             return new VoxelBlockMutation(
