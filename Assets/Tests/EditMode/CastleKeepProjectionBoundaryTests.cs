@@ -19,11 +19,11 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void RuntimeKeepAdapterDelegatesLegacyOffsetToApiProjection()
+        public void RuntimeKeepCoordinatorAndProjectionShareApiOwnedLegacyOffset()
         {
-            string adapter = File.ReadAllText(Path.Combine(
+            string keep = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
-                "CastleKeepPlacementAdapter.cs"));
+                "CastleKeepRealizer.cs"));
             string projection = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastleSpatialProjection.cs"));
@@ -31,10 +31,9 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastlePlan.cs"));
 
-            StringAssert.Contains("CastleSpatialProjection.ProjectKeepPlan", adapter);
-            StringAssert.Contains("CastleSpatialProjection.ActualKeepCentre", adapter);
-            StringAssert.DoesNotContain("LegacyKeepCentreZOffset = 60", adapter,
-                "Runtime must not own a second copy of the legacy keep anchor.");
+            StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", keep);
+            StringAssert.DoesNotContain("plan.Centre.z - hz + 60", keep,
+                "The keep coordinator must not own a second copy of the compatibility anchor.");
             StringAssert.Contains("CastleLayout.LegacyKeepCentreZOffset", projection);
             StringAssert.Contains("LegacyKeepCentreZOffset = 60", layout);
         }
