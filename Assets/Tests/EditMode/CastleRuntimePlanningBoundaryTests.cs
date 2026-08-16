@@ -85,10 +85,12 @@ namespace VoxelEngine.Tests.EditMode
             string[] realizationFiles =
             {
                 "CastleBuildPipeline.cs",
+                "CastlePlannedSiteRealizer.cs",
                 "CastlePerimeterRealizer.cs",
                 "CastlePlannedTowerRealizer.cs",
                 "CastleInnerWardTowerRealizer.cs",
                 "CastlePlannedGatehouseRealizer.cs",
+                "CastlePlannedCourtyardRealizer.cs",
                 "CastleCourtyardBuildingRealizer.cs",
                 "CastleKeepCirculationRealizer.cs",
                 "CastleKeepWindowRealizer.cs",
