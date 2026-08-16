@@ -332,6 +332,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly SurfaceRing[] _rings;
         private readonly CpuTransvoxelChunkCache[] _allWorkers;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
+        private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];
+        private int _lastVisibilityCandidateChecks;
         private readonly CpuWaterSurfaceChunkCache _water = new();
         private readonly List<VoxelChangeRecord> _changeScratch = new(256);
         private readonly HashSet<int3> _changedSolidRegions = new();
@@ -395,6 +397,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int LastFrameSolidUploadCompletions => _lastFrameSolidUploadCompletions;
         public int LastAdvancedFrame => _lastAdvancedFrame;
         public int SolidBuildWorkspaceCount => _allWorkers.Length;
+        public int LastVisibilityCandidateChecks => _lastVisibilityCandidateChecks;
         public int PendingSolidUploadBytes
         {
             get
@@ -671,15 +674,59 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void CollectVisibility(Camera camera, float voxelSize, int frame)
         {
             _visibleSolids.Clear();
+            _lastVisibilityCandidateChecks = 0;
             double visibilityStart = Time.realtimeSinceStartupAsDouble;
             using (s_VisibilityMarker.Auto())
             {
-                for (int i = 0; i < _allWorkers.Length; i++)
+                if (camera != null)
                 {
-                    IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible =
-                        _allWorkers[i].CollectVisible(camera, voxelSize, frame);
-                    for (int j = 0; j < visible.Count; j++) _visibleSolids.Add(visible[j]);
+                    GeometryUtility.CalculateFrustumPlanes(camera, _visibilityFrustumPlanes);
+                    Vector3 cameraPosition = camera.transform.position;
+                    for (int r = 0; r < _rings.Length; r++)
+                    {
+                        SurfaceRing ring = _rings[r];
+                        for (int w = 0; w < ring.Workers.Length; w++)
+                            ring.Workers[w].BeginVisibilityCollection();
+
+                        float chunkMetres = CpuTransvoxelChunkCache.CellsPerAxis
+                                          * ring.SourceStep * voxelSize;
+                        int radius = Mathf.CeilToInt(ring.OuterRadiusMetres / chunkMetres) + 1;
+                        int3 centre = new(
+                            Mathf.FloorToInt(cameraPosition.x / chunkMetres),
+                            Mathf.FloorToInt(cameraPosition.y / chunkMetres),
+                            Mathf.FloorToInt(cameraPosition.z / chunkMetres));
+
+                        // One bounded clipmap-coordinate walk per ring. Sharding chooses the
+                        // workspace in O(1); it no longer causes each workspace to rescan the
+                        // same coordinate volume or the lifetime-sized _known set.
+                        for (int z = -radius; z <= radius; z++)
+                        for (int y = -radius; y <= radius; y++)
+                        for (int x = -radius; x <= radius; x++)
+                        {
+                            int3 coordinate = centre + new int3(x, y, z);
+                            int shard = CpuTransvoxelChunkCache.ShardForChunk(
+                                coordinate, ring.Workers.Length);
+                            ring.Workers[shard].CollectVisibleCoordinate(
+                                coordinate, _visibilityFrustumPlanes, cameraPosition,
+                                voxelSize, frame);
+                            _lastVisibilityCandidateChecks++;
+                        }
+
+                        for (int w = 0; w < ring.Workers.Length; w++)
+                        {
+                            IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible =
+                                ring.Workers[w].Visible;
+                            for (int i = 0; i < visible.Count; i++)
+                                _visibleSolids.Add(visible[i]);
+                        }
+                    }
                 }
+                else
+                {
+                    for (int i = 0; i < _allWorkers.Length; i++)
+                        _allWorkers[i].BeginVisibilityCollection();
+                }
+
                 _water.CollectVisible(camera, voxelSize);
             }
             _visibilityTiming.Add(ElapsedMs(visibilityStart));

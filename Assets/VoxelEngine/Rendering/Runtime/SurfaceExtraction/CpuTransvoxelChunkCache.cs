@@ -1302,32 +1302,63 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
-        public IReadOnlyList<Entry> CollectVisible(Camera camera, float voxelSize, int frame)
+        public void BeginVisibilityCollection()
         {
             _visible.Clear();
             MissingVisibleCount = 0;
+        }
+
+        /// <summary>
+        /// Evaluates one clipmap coordinate already routed to this shard. Visibility traversal is
+        /// driven by the bounded camera-centred ring grid, never by the lifetime size of _known.
+        /// </summary>
+        public void CollectVisibleCoordinate(int3 coordinate, Plane[] frustumPlanes,
+                                             Vector3 cameraPosition, float voxelSize, int frame)
+        {
+            if (!_known.Contains(coordinate)) return;
+
+            Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
+            if (!WithinRingBand(bounds, cameraPosition)) return;
+            if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
+
+            if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
+            {
+                // A known-empty chunk is a completed build with nothing to draw, not a hole.
+                if (!_emptyVersions.ContainsKey(coordinate)) MissingVisibleCount++;
+                return;
+            }
+            if (entry.IndexCount == 0) return;
+            entry.LastUsedFrame = frame;
+            _visible.Add(entry);
+        }
+
+        /// <summary>
+        /// Compatibility entry point for focused tests/tools. Production scheduling performs one
+        /// ring traversal in VoxelSurfaceScheduler and routes coordinates directly to shards.
+        /// This fallback is still bounded by the ring's configured view distance.
+        /// </summary>
+        public IReadOnlyList<Entry> CollectVisible(Camera camera, float voxelSize, int frame)
+        {
+            BeginVisibilityCollection();
             if (camera == null) return _visible;
 
             GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
             Vector3 cameraPosition = camera.transform.position;
-            foreach (int3 coordinate in _known)
+            float chunkMetres = VoxelsPerAxis * voxelSize;
+            int radius = Mathf.CeilToInt(MaxViewDistanceMetres / chunkMetres) + 1;
+            int3 centre = new(
+                Mathf.FloorToInt(cameraPosition.x / chunkMetres),
+                Mathf.FloorToInt(cameraPosition.y / chunkMetres),
+                Mathf.FloorToInt(cameraPosition.z / chunkMetres));
+
+            for (int z = -radius; z <= radius; z++)
+            for (int y = -radius; y <= radius; y++)
+            for (int x = -radius; x <= radius; x++)
             {
-                Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
-                if (!WithinRingBand(bounds, cameraPosition)) continue;
-                if (!GeometryUtility.TestPlanesAABB(_frustumPlanes, bounds))
-                    continue;
-                if (!_entries.TryGetValue(coordinate, out Entry entry) || !entry.Ready)
-                {
-                    // A known-empty chunk is a completed build with nothing to draw, not a
-                    // hole waiting on work. Counting it as missing would keep the metric
-                    // permanently alarmed across the mostly-air volume of any view sphere.
-                    if (!_emptyVersions.ContainsKey(coordinate)) MissingVisibleCount++;
-                    continue;
-                }
-                // A ready zero-index entry is a complete, intentionally empty result.
-                if (entry.IndexCount == 0) continue;
-                entry.LastUsedFrame = frame;
-                _visible.Add(entry);
+                int3 coordinate = centre + new int3(x, y, z);
+                if (!OwnsShard(coordinate)) continue;
+                CollectVisibleCoordinate(coordinate, _frustumPlanes, cameraPosition,
+                                         voxelSize, frame);
             }
             return _visible;
         }
@@ -1432,12 +1463,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _dirtyQueue.Enqueue(chunk);
         }
 
-        private bool OwnsShard(int3 chunk)
+        public static int ShardForChunk(int3 chunk, int shardCount)
         {
-            int count = math.max(1, ShardCount);
-            uint hash = math.hash(chunk);
-            return (int)(hash % (uint)count) == math.clamp(ShardIndex, 0, count - 1);
+            int count = math.max(1, shardCount);
+            return (int)(math.hash(chunk) % (uint)count);
         }
+
+        private bool OwnsShard(int3 chunk) =>
+            ShardForChunk(chunk, ShardCount) == math.clamp(ShardIndex, 0, math.max(1, ShardCount) - 1);
 
         private void SetSurfaceCatalogue(in SurfaceCatalogueView catalogue)
         {

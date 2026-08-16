@@ -201,5 +201,33 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("LastSurfacePassState = \"feature-aware\"", renderPass);
         }
 
+
+        [Test]
+        public void SolidVisibilityTraversesBoundedClipmapCoordinatesOncePerRing()
+        {
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string scheduler = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
+            int collect = scheduler.IndexOf("private void CollectVisibility", StringComparison.Ordinal);
+            int collectEnd = scheduler.IndexOf("private void EnqueueSurfaceDiscovery", collect,
+                                               StringComparison.Ordinal);
+            Assert.GreaterOrEqual(collect, 0);
+            Assert.Greater(collectEnd, collect);
+            string productionVisibility = scheduler.Substring(collect, collectEnd - collect);
+            StringAssert.Contains("for (int r = 0; r < _rings.Length; r++)", productionVisibility);
+            StringAssert.Contains("ShardForChunk", productionVisibility);
+            StringAssert.Contains("CollectVisibleCoordinate", productionVisibility);
+            StringAssert.DoesNotContain("_allWorkers[i].CollectVisible", productionVisibility);
+
+            int cacheCollect = cache.IndexOf("public IReadOnlyList<Entry> CollectVisible(",
+                                             StringComparison.Ordinal);
+            int cacheCollectEnd = cache.IndexOf("private bool BeginNearestBuild", cacheCollect,
+                                                StringComparison.Ordinal);
+            Assert.GreaterOrEqual(cacheCollect, 0);
+            StringAssert.DoesNotContain("foreach (int3 coordinate in _known)",
+                cache.Substring(cacheCollect, cacheCollectEnd - cacheCollect));
+        }
+
     }
 }
