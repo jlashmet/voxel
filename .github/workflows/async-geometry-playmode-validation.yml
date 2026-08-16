@@ -39,8 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Acceptance checkpoint includes exact step-8 sampling, 409.6 m render/streaming
-          # agreement, async exact metadata, water Burst extraction and the destruction stress gate.
+          # Acceptance checkpoint includes exact step-8 sampling, 409.6 m render/streaming,
+          # async exact metadata, water Burst extraction, stale-build rejection, bounded clipmap
+          # edge retirement, and the continuous camera/destruction stress gate.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
