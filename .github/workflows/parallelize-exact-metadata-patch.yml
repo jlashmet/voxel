@@ -1,0 +1,38 @@
+name: Parallelize exact metadata patch
+
+on:
+  push:
+    branches: [refactor/async-geometry-pipeline]
+    paths: [.github/workflows/parallelize-exact-metadata-patch.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Apply guarded patch
+        run: python3 .github/scripts/parallelize_exact_metadata_patch.py
+      - name: Static guards
+        shell: bash
+        run: |
+          grep -q 'JobHandle clearHandle = new ExactBrickMetadataClearJob' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'Schedule(volume, 128, clearHandle)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'CombineDependencies(dependency, regionHandle)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          ! grep -q 'Schedule(volume, 128, dependency)' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          grep -q 'ExactMetadataRegionCopiesFanOutFromSharedClear' Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+      - name: Commit fix
+        shell: bash
+        run: |
+          rm .github/scripts/parallelize_exact_metadata_patch.py
+          rm .github/workflows/parallelize-exact-metadata-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Parallelize exact metadata region copies'
+          git push origin HEAD:refactor/async-geometry-pipeline
