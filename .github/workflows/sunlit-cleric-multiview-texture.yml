@@ -49,8 +49,6 @@ jobs:
           import json
           import os
           from pathlib import Path
-          import shutil
-          import time
           from urllib.parse import urlencode
           from urllib.request import Request, urlopen
           import zipfile
@@ -78,15 +76,12 @@ jobs:
               f'https://api.github.com/repos/{repo}/actions/workflows/'
               f'sunlit-cleric-multiview-build.yml/runs?{params}'
           )
-          run = None
-          for attempt in range(30):
-              runs = get_json(runs_url).get('workflow_runs', [])
-              if runs:
-                  run = runs[0]
-                  break
-              if attempt == 29:
-                  raise RuntimeError('no successful multiview geometry run found')
-              time.sleep(10)
+          runs = get_json(runs_url).get('workflow_runs', [])
+          if not runs:
+              raise RuntimeError(
+                  'no successful multiview geometry run found; build geometry first'
+              )
+          run = runs[0]
 
           run_id = int(run['id'])
           artifacts = get_json(

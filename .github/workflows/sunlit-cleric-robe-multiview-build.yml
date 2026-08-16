@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build-modular-robe:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 90
+    timeout-minutes: 180
     env:
       PYTORCH_ENABLE_MPS_FALLBACK: '1'
       PYTHONUNBUFFERED: '1'
@@ -28,6 +28,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          clean: false
 
       - name: Resolve Blender
         shell: bash
@@ -37,47 +38,17 @@ jobs:
           test -x "$BLENDER_BIN"
           echo "BLENDER_BIN=$BLENDER_BIN" >> "$GITHUB_ENV"
 
-      - name: Bootstrap cached Hunyuan multiview backend
-        timeout-minutes: 50
+      - name: Reuse cached Hunyuan multiview backend
+        timeout-minutes: 120
         shell: bash
         run: |
           set -euo pipefail
-          HUNYUAN_REV="f8db63096c8282cb27354314d896feba5ba6ff8a"
           CACHE_ROOT="${CHARACTER_FACTORY_CACHE_ROOT:-$HOME/Library/Caches/voxel-character-factory}"
-          HUNYUAN_PY="$CACHE_ROOT/hunyuan3d-2-$HUNYUAN_REV-venv/bin/python"
           MODEL_ROOT="${HY3DGEN_MODELS:-$CACHE_ROOT/models}"
           export HY3DGEN_MODELS="$MODEL_ROOT"
-          export HF_XET_HIGH_PERFORMANCE="${HF_XET_HIGH_PERFORMANCE:-1}"
-
-          chmod +x tools/character-factory/ci/bootstrap_hunyuan_macos.sh
-          tools/character-factory/ci/bootstrap_hunyuan_macos.sh
+          HUNYUAN_PY="$(bash tools/character-factory/production/madeline/bootstrap_hunyuan_quality_macos.sh | tail -n 1)"
           test -x "$HUNYUAN_PY"
-
-          "$HUNYUAN_PY" - <<'PY'
-          from pathlib import Path
-          import os
-          from huggingface_hub import snapshot_download
-
-          repo_id = 'tencent/Hunyuan3D-2mv'
-          root = Path(os.environ['HY3DGEN_MODELS']).expanduser()
-          repo_root = root / repo_id
-          dit = repo_root / 'hunyuan3d-dit-v2-mv-turbo'
-          required = (dit / 'config.yaml', dit / 'model.fp16.safetensors')
-          if not all(path.is_file() and path.stat().st_size > 0 for path in required):
-              snapshot_download(
-                  repo_id=repo_id,
-                  allow_patterns=[
-                      'hunyuan3d-dit-v2-mv-turbo/**',
-                      'hunyuan3d-vae-v2-mv/**',
-                      'hunyuan3d-vae-v2/**',
-                  ],
-                  local_dir=str(repo_root),
-              )
-          missing = [str(path) for path in required if not path.is_file() or path.stat().st_size == 0]
-          if missing:
-              raise RuntimeError('multiview model cache incomplete: ' + ', '.join(missing))
-          PY
-
+          test -s "$MODEL_ROOT/tencent/Hunyuan3D-2mv/hunyuan3d-dit-v2-mv-turbo/model.fp16.safetensors"
           echo "HUNYUAN_PY=$HUNYUAN_PY" >> "$GITHUB_ENV"
           echo "HY3DGEN_MODELS=$MODEL_ROOT" >> "$GITHUB_ENV"
 
