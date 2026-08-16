@@ -267,6 +267,41 @@ namespace VoxelEngine.Structures.Runtime
                 {
                     CastlePlan keepPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
 
+                    if (_hasSpatialKeep && (_keepStage == 0 || _keepStage == 2))
+                    {
+                        int baseY = keepPlan.Centre.y + keepPlan.PlateauHeight;
+                        int halfX = keepPlan.KeepHalfX;
+                        int halfZ = keepPlan.KeepHalfZ;
+                        var min = new int3(
+                            keepPlan.Centre.x - halfX,
+                            baseY,
+                            keepPlan.Centre.z - halfZ + 60);
+                        var size = new int3(
+                            halfX * 2,
+                            keepPlan.KeepHeight,
+                            halfZ * 2);
+
+                        if (_keepStage == 0)
+                        {
+                            CastleKeepShellRealizer.Build(ref _brush, min, size, baseY);
+                            _keepStage++;
+                            RequireBudget("keep 1");
+                            return false;
+                        }
+
+                        CastleKeepFloorRealizer.Build(
+                            ref _brush,
+                            in keepPlan,
+                            min,
+                            size,
+                            baseY,
+                            keepPlan.Floors,
+                            _keepFloorPlans);
+                        _keepStage++;
+                        RequireBudget("keep 3");
+                        return false;
+                    }
+
                     if (_hasSpatialKeep && _keepStage == 1)
                     {
                         CastlePlannedKeepTurretRealizer.BuildAll(
@@ -306,12 +341,8 @@ namespace VoxelEngine.Structures.Runtime
                     if (_keepStage < 6)
                     {
                         string keepStage = $"keep {_keepStage + 1}";
-                        bool realized = _hasSpatialKeep
-                            ? CastleKeepRealizer.TryStep(
-                                ref _brush, in keepPlan, _keepFloorPlans, ref _keepStage)
-                            : CastleKeepRealizer.TryStep(
-                                ref _brush, in keepPlan, ref _keepStage);
-                        if (!realized)
+                        if (!CastleKeepRealizer.TryStep(
+                                ref _brush, in keepPlan, ref _keepStage))
                         {
                             throw new InvalidOperationException(
                                 "CastleKeepRealizer refused a migrated keep substage.");
