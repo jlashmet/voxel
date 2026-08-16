@@ -729,7 +729,10 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("public bool TryPin", pool);
             StringAssert.Contains("_pool.BeginWrite(poolIndex)", store);
             StringAssert.Contains("_pool.EndWrite(mutation.PoolIndex)", store);
-            StringAssert.Contains("_snapshotPinUnavailable", cache);
+            StringAssert.Contains(
+                "if (!source.TryPinWorldBlock(worldBlock, out PinnedVoxelReadBlock pinned))", cache);
+            StringAssert.Contains("_discardBuildAfterPinRelease = true;", cache);
+            StringAssert.DoesNotContain("_snapshotPinUnavailable", cache);
         }
 
 
