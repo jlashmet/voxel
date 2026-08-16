@@ -73,7 +73,8 @@ namespace VoxelEngine.Structures.Runtime
         /// <summary>
         /// Compatibility wrapper for callers that still provide only gate placement. Production
         /// spatial builds carry a frozen CastleGatehousePlan and call CastlePlannedGatehouseRealizer
-        /// directly through CastleBuildPipeline.
+        /// directly through CastleBuildPipeline. The historical recipe is an API compatibility value,
+        /// not a Runtime planner invocation.
         /// </summary>
         public static void Gatehouse(
             ref VoxelBrush brush,
@@ -87,7 +88,7 @@ namespace VoxelEngine.Structures.Runtime
                 Centre = localGateCentre,
                 Outward = outward,
             };
-            CastleGatehousePlan gatehouse = CastleGatehousePlanner.Create(in plan);
+            CastleGatehousePlan gatehouse = CastleGatehouseRecipe.Historical(in plan);
             CastlePlannedGatehouseRealizer.Build(
                 ref brush, in plan, in placement, in gatehouse);
         }
