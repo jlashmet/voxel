@@ -10,22 +10,22 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class CastleBuilderTests
     {
         [Test]
-        public void PlanHeightMatchesItsFloorStack()
+        public void PlannerHeightMatchesItsFloorStack()
         {
             for (uint seed = 1; seed <= 64; seed++)
             {
-                var plan = CastleBuilder.Plan(int3.zero, seed);
+                var plan = CastlePlanner.Create(int3.zero, seed);
                 Assert.AreEqual(plan.Floors * plan.FloorHeight, plan.KeepHeight,
                     $"Seed {seed} produced a keep shell that disagrees with its floors.");
             }
         }
 
         [Test]
-        public void PlanIsApproximatelyDoubleTheFormerFootprintWithoutExceedingPreflightBudget()
+        public void PlannerIsApproximatelyDoubleTheFormerFootprintWithoutExceedingPreflightBudget()
         {
             for (uint seed = 1; seed <= 64; seed++)
             {
-                var plan = CastleBuilder.Plan(int3.zero, seed);
+                var plan = CastlePlanner.Create(int3.zero, seed);
 
                 // The former minimum bailey was 300 x 300 voxels. A 440 x 440 minimum is 2.15
                 // times that area while retaining the same 10 cm voxel/player scale.
@@ -36,6 +36,30 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.LessOrEqual(CastleBuilder.EstimateWrites(in plan),
                     VoxelBrush.DefaultWriteBudget,
                     $"seed {seed} would be rejected before construction");
+            }
+        }
+
+        [Test]
+        public void PlannerProducesStructurallyValidPlans()
+        {
+            for (uint seed = 1; seed <= 256; seed++)
+            {
+                var plan = CastlePlanner.Create(new int3((int)seed * 3, 64, -(int)seed * 2), seed);
+                Assert.IsTrue(CastlePlanValidator.TryValidate(in plan, out CastlePlanIssue issue),
+                    $"Seed {seed} produced invalid castle plan: {issue}");
+                Assert.AreEqual(CastlePlanIssue.None, issue);
+            }
+        }
+
+        [Test]
+        public void PlannerPreservesLegacyBuilderPlansDuringMigration()
+        {
+            for (uint seed = 1; seed <= 256; seed++)
+            {
+                var centre = new int3((int)seed * 3, 64, -(int)seed * 2);
+                var planned = CastlePlanner.Create(centre, seed);
+                var legacy = CastleBuilder.Plan(centre, seed);
+                AssertPlansEqual(in legacy, in planned, seed);
             }
         }
 
@@ -116,6 +140,28 @@ namespace VoxelEngine.Tests.EditMode
                 table.Dispose();
                 pool.Dispose();
             }
+        }
+
+        private static void AssertPlansEqual(in CastlePlan expected, in CastlePlan actual, uint seed)
+        {
+            Assert.AreEqual(expected.Centre, actual.Centre, $"seed {seed}: centre");
+            Assert.AreEqual(expected.Seed, actual.Seed, $"seed {seed}: seed");
+            Assert.AreEqual(expected.PlateauRadius, actual.PlateauRadius, $"seed {seed}: plateau radius");
+            Assert.AreEqual(expected.PlateauHeight, actual.PlateauHeight, $"seed {seed}: plateau height");
+            Assert.AreEqual(expected.CliffDrop, actual.CliffDrop, $"seed {seed}: cliff drop");
+            Assert.AreEqual(expected.BaileyHalfX, actual.BaileyHalfX, $"seed {seed}: bailey X");
+            Assert.AreEqual(expected.BaileyHalfZ, actual.BaileyHalfZ, $"seed {seed}: bailey Z");
+            Assert.AreEqual(expected.WallHeight, actual.WallHeight, $"seed {seed}: wall height");
+            Assert.AreEqual(expected.WallThickness, actual.WallThickness, $"seed {seed}: wall thickness");
+            Assert.AreEqual(expected.TowerRadius, actual.TowerRadius, $"seed {seed}: tower radius");
+            Assert.AreEqual(expected.TowerHeight, actual.TowerHeight, $"seed {seed}: tower height");
+            Assert.AreEqual(expected.GateTowerRadius, actual.GateTowerRadius, $"seed {seed}: gate tower radius");
+            Assert.AreEqual(expected.GateTowerHeight, actual.GateTowerHeight, $"seed {seed}: gate tower height");
+            Assert.AreEqual(expected.KeepHalfX, actual.KeepHalfX, $"seed {seed}: keep X");
+            Assert.AreEqual(expected.KeepHalfZ, actual.KeepHalfZ, $"seed {seed}: keep Z");
+            Assert.AreEqual(expected.KeepHeight, actual.KeepHeight, $"seed {seed}: keep height");
+            Assert.AreEqual(expected.FloorHeight, actual.FloorHeight, $"seed {seed}: floor height");
+            Assert.AreEqual(expected.Floors, actual.Floors, $"seed {seed}: floors");
         }
     }
 }
