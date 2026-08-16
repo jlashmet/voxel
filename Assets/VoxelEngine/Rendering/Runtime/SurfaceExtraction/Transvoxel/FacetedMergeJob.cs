@@ -15,6 +15,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         public NativeList<uint> Indices;
         public int3 ChunkOrigin;
         public int CellsPerAxis;
+        public int SourceStep;
         public float VoxelSize;
 
         public void Execute()
@@ -58,15 +59,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         private void Emit(int axis, int sign, int layer, int a, int b, int width,
                           int height, uint attributes)
         {
+            int step = math.max(1, SourceStep);
             int axisA = (axis + 1) % 3;
             int axisB = (axis + 2) % 3;
             float3 p0 = ChunkOrigin;
-            p0[axis] += layer + (sign > 0 ? 1 : 0);
-            p0[axisA] += a;
-            p0[axisB] += b;
+            p0[axis] += (layer + (sign > 0 ? 1 : 0)) * step;
+            p0[axisA] += a * step;
+            p0[axisB] += b * step;
             float3 p1 = p0, p2 = p0, p3 = p0;
-            p1[axisA] += width; p2[axisA] += width;
-            p2[axisB] += height; p3[axisB] += height;
+            p1[axisA] += width * step; p2[axisA] += width * step;
+            p2[axisB] += height * step; p3[axisB] += height * step;
             p0 *= VoxelSize; p1 *= VoxelSize; p2 *= VoxelSize; p3 *= VoxelSize;
             float3 normal = float3.zero; normal[axis] = sign;
             uint baseVertex = (uint)Vertices.Length;
