@@ -69,7 +69,9 @@ namespace VoxelEngine.Showcase
             output.Clear();
             const int columns = 4;
             const float spacingX = 4.4f;
-            const float spacingZ = 4.2f;
+            // A little more depth spacing plus an orthographic review camera keeps all four rows
+            // equally readable instead of perspective-compressing the distant labels together.
+            const float spacingZ = 5.0f;
 
             for (int i = 0; i < AmbientLifeCatalogue.Count; i++)
             {
@@ -129,9 +131,14 @@ namespace VoxelEngine.Showcase
         {
             Camera camera = Camera.main;
             if (camera == null) return;
-            camera.fieldOfView = 49f;
+
+            // This is a species/movement review plate, not a perspective beauty shot. Orthographic
+            // framing prevents the back two rows from shrinking into the front rows and makes the
+            // labelled scene useful for actual human inspection.
+            camera.orthographic = true;
+            camera.orthographicSize = 5.2f;
             camera.transform.position = new Vector3(0f, 10.4f, -17.8f);
-            camera.transform.LookAt(new Vector3(0f, 1.35f, 7.7f));
+            camera.transform.LookAt(new Vector3(0f, 1.35f, 8.9f));
         }
 
         private void FaceLabelsToCamera()
