@@ -18,6 +18,6 @@ These assets are temporary development placeholders and are isolated so they can
   - `Assets/Animations/all_animations_max_motextr_static/m_wave_01.max.fbx` -> `../Animations/Wave.fbx`
   - `Assets/Animations/all_animations_max_motextr_static/m_gestic_shrug_01.max.fbx` -> `../Animations/Shrug.fbx`
 
-Locomotion uses Rocketbox's XY motion-extraction variants so translated root motion is available when the gameplay controller chooses to consume it. Idle/emote clips use the static variants.
+Walk and Run come from Rocketbox's XY motion-extraction variants; the other starter clips use static variants. The Unity 6000.5 Humanoid imports used here retarget and play correctly, but Walk/Run do not report Unity `AnimationClip.hasMotionCurves`, so the placeholder package does not make a root-motion guarantee and expects gameplay translation to remain controller-driven.
 
 `SOURCE_SHA256SUMS.txt` records the SHA-256 hashes captured for the exact downloaded FBX binaries used by this placeholder package.
