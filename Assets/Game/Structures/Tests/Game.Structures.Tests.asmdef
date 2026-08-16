@@ -1,0 +1,24 @@
+{
+  "name": "Game.Structures.Tests",
+  "rootNamespace": "Game.Structures.Tests",
+  "references": [
+    "Game.Structures.Api",
+    "Game.Structures.Runtime",
+    "Game.Materials.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Terrain.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

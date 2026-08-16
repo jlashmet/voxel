@@ -56,15 +56,6 @@ namespace VoxelEngine.Composition
         }
     }
 
-    /// <summary>Composition-owned incremental castle authoring session.</summary>
-    public interface ICastleBuildSession
-    {
-        bool IsComplete { get; }
-        int StageNumber { get; }
-        long TotalVoxelsWritten { get; }
-        bool Step();
-    }
-
     /// <summary>Stable retained-profile handle; mutable Runtime storage stays private.</summary>
     public interface IStructureProfileStore : IProfileBlockReadSource
     {
@@ -84,20 +75,13 @@ namespace VoxelEngine.Composition
         }
     }
 
-    /// <summary>Application wiring for structure planning and authoring.</summary>
+    /// <summary>Application wiring for generic structure authoring.</summary>
     public static class StructuresComposition
     {
         /// <summary>
-        /// Draws the deterministic castle plan while keeping the concrete runtime planner private
-        /// to Composition. The returned plan is a Structures.Api value contract.
-        /// </summary>
-        public static CastlePlan PlanCastle(int3 centre, uint seed) =>
-            CastleBuilder.Plan(centre, seed);
-
-        /// <summary>
         /// Wires the hero-arch lookdev request into Structures.Runtime without exposing concrete
         /// feature definitions, profile storage, rasterizers, brushes, or weathering helpers to
-        /// scene code. The structure algorithm remains owned by Structures.Runtime.
+        /// scene code. Structure semantics remain outside the reusable engine Runtime.
         /// </summary>
         public static ArchLookdevBuildResult BuildArchLookdev(
             IVoxelStorageRuntime storage,
@@ -138,18 +122,23 @@ namespace VoxelEngine.Composition
             storage.PublishAllResidentRegions();
             return new ArchLookdevBuildResult(profiles, width, height);
         }
+
         public static IStructureProfileStore CreateProfileStore() => new StructureProfileStore();
 
-        public static ICastleBuildSession BeginCastleBuild(
+        /// <summary>
+        /// Creates the generic structure-authoring capability backed by the engine's optimized
+        /// runtime brush. Callers own all semantic content and see only Structures.Api; this
+        /// method does not know which kind of structure will be authored.
+        /// </summary>
+        public static IStructureAuthoringSession CreateAuthoringSession(
             IRegionReadSource reads,
             IRegionMutationStore mutations,
-            in CastlePlan plan,
-            uint terrainSeed,
-            IMaterialAuthoringCatalogue materials)
+            IMaterialAuthoringCatalogue materials,
+            int writeBudget = VoxelBrush.DefaultWriteBudget)
         {
             if (reads == null) throw new ArgumentNullException(nameof(reads));
             if (mutations == null) throw new ArgumentNullException(nameof(mutations));
-            return new CastleBuildSession(reads, mutations, in plan, terrainSeed, materials);
+            return new StructureAuthoringSession(reads, mutations, materials, writeBudget);
         }
 
         public static ReferenceArchBuildResult BuildReferenceArch(
@@ -204,23 +193,6 @@ namespace VoxelEngine.Composition
             }
         }
 
-        private sealed class CastleBuildSession : ICastleBuildSession
-        {
-            private CastleBuilder.IncrementalBuild _build;
-
-            public CastleBuildSession(
-                IRegionReadSource reads, IRegionMutationStore mutations,
-                in CastlePlan plan, uint terrainSeed, IMaterialAuthoringCatalogue materials)
-            {
-                _build = CastleBuilder.BeginBuild(reads, mutations, in plan, terrainSeed, materials);
-            }
-
-            public bool IsComplete => _build.IsComplete;
-            public int StageNumber => _build.StageNumber;
-            public long TotalVoxelsWritten => _build.TotalVoxelsWritten;
-            public bool Step() => CastleBuilder.StepBuild(ref _build);
-        }
-
         private sealed class StructureProfileStore : IStructureProfileStore
         {
             internal ProfileBlockStore Runtime { get; } = new ProfileBlockStore();
@@ -228,6 +200,5 @@ namespace VoxelEngine.Composition
             public int Count => Runtime.Count;
             public ProfileBlock[] Snapshot() => Runtime.Snapshot();
         }
-
     }
 }

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
-using VoxelEngine.Structures.Api;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Structures.Runtime
 {
@@ -194,7 +194,7 @@ namespace VoxelEngine.Structures.Runtime
             for (int i = 0; i < doomed.Count; i++)
             {
                 int3 v = doomed[i];
-                brush.Set(v.x, v.y, v.z, Mat.Empty);
+                brush.Set(v.x, v.y, v.z, VoxelGrid.MaterialEmpty);
             }
 
             return doomed.Count;
