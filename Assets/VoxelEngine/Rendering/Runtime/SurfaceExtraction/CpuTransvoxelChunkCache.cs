@@ -251,6 +251,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool _facetedMaskJobScheduled;
         private JobHandle _facetedMergeJobHandle;
         private bool _facetedMergeJobScheduled;
+        private JobHandle _transitionJobHandle;
+        private bool _transitionJobScheduled;
         private NativeArray<byte> _topologyCellClass;
         private NativeArray<byte> _topologyGeometryCounts;
         private NativeArray<byte> _topologyCellVertexIndices;
@@ -275,6 +277,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private int _transitionIndexStride;
         private NativeList<SmoothSurfaceVertex> _transitionVertices;
         private NativeList<uint> _transitionIndices;
+        private int _transitionFace = -1;
+        private int _transitionSampleCursor;
         private NativeArray<uint> _facetedMasks;
         private NativeList<SmoothSurfaceVertex> _facetedVertices;
         private NativeList<uint> _facetedIndices;
@@ -429,29 +433,63 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         /// <summary>
-        /// Stitches every face of the in-flight chunk that borders a finer ring.
-        ///
-        /// Runs after the regular cells are appended, so transition geometry is added to the
-        /// same vertex and index lists and ships in one mesh. A chunk with no finer neighbour —
-        /// the common case, and every chunk in the innermost ring — does no work here.
+        /// Advances transition-face generation without ever waiting for an unfinished job.
+        /// Face snapshots are sliced by the worker deadline, then the Burst transition mesh
+        /// runs asynchronously. The previous ready chunk remains published until every seam
+        /// face for the replacement has completed.
         /// </summary>
-        private void AppendTransitionFaces(IRegionReadSource source,
-                                           in MaterialPaletteView palette,
-                                           Camera camera, float voxelSize)
+        private bool StepTransitionFaces(IRegionReadSource source,
+                                         in MaterialPaletteView palette,
+                                         Camera camera, float voxelSize,
+                                         double deadlineSeconds)
         {
-            if (MinViewDistanceMetres <= 0f || camera == null) return;
+            if (MinViewDistanceMetres <= 0f || camera == null) return true;
+
+            if (_transitionJobScheduled)
+            {
+                if (!_transitionJobHandle.IsCompleted) return false;
+
+                // Completion is non-blocking because IsCompleted was observed above. It is
+                // still required before reading the NativeLists written by the job.
+                _transitionJobHandle.Complete();
+                _transitionJobScheduled = false;
+
+                uint vertexBase = (uint)_vertices.Count;
+                NativeArray<SmoothSurfaceVertex> vertices = _transitionVertices.AsArray();
+                for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
+                NativeArray<uint> indices = _transitionIndices.AsArray();
+                for (int i = 0; i < indices.Length; i++)
+                    _indices.Add(vertexBase + indices[i]);
+
+                _build.Cursor = _transitionFace + 1;
+                _transitionFace = -1;
+                _transitionSampleCursor = 0;
+            }
 
             Vector3 cameraPosition = camera.transform.position;
-            for (int face = 0; face < 6; face++)
+            while (_build.Cursor < 6)
             {
-                if (!FaceNeedsTransition(_build.Coordinate, face, voxelSize, cameraPosition))
+                int face = _build.Cursor;
+                if (!FaceNeedsTransition(_build.Coordinate, face, voxelSize,
+                                         cameraPosition))
+                {
+                    _build.Cursor++;
                     continue;
+                }
 
-                SnapshotTransitionFace(source, in palette, face);
+                if (_transitionFace != face)
+                {
+                    _transitionFace = face;
+                    _transitionSampleCursor = 0;
+                }
+
+                if (!StepTransitionFaceSnapshot(source, in palette, face,
+                                                deadlineSeconds))
+                    return false;
 
                 _transitionVertices.Clear();
                 _transitionIndices.Clear();
-                new TransitionMeshJob
+                var job = new TransitionMeshJob
                 {
                     FaceDensity = _faceDensity,
                     FaceMaterials = _faceMaterials,
@@ -470,27 +508,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     SourceStep = SourceStep,
                     VoxelSize = voxelSize,
                     Face = face,
-                }.Run();
-
-                uint vertexBase = (uint)_vertices.Count;
-                NativeArray<SmoothSurfaceVertex> vertices = _transitionVertices.AsArray();
-                for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
-                NativeArray<uint> indices = _transitionIndices.AsArray();
-                for (int i = 0; i < indices.Length; i++) _indices.Add(vertexBase + indices[i]);
+                };
+                _transitionJobHandle = job.Schedule();
+                _transitionJobScheduled = true;
+                return false;
             }
+
+            return true;
         }
 
         /// <summary>
-        /// Samples one chunk face at half this ring's stride — the finer neighbour's spacing.
-        ///
-        /// The chunk lattice cannot supply these: it is sampled at the ring's own stride and
-        /// simply does not contain the intermediate positions. Reading them from the same
-        /// authoritative source the finer ring reads is what makes the two sides agree on where
-        /// the surface crosses, which is the whole mechanism by which the seam closes.
+        /// Snapshots a transition face at the finer neighbour's sample spacing without
+        /// monopolising the frame. Region read views are borrowed only inside this call;
+        /// no borrowed Storage state survives across frames while the snapshot is sliced.
         /// </summary>
-        private void SnapshotTransitionFace(IRegionReadSource source,
-                                            in MaterialPaletteView palette, int face)
+        private bool StepTransitionFaceSnapshot(IRegionReadSource source,
+                                                in MaterialPaletteView palette, int face,
+                                                double deadlineSeconds)
         {
+            if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) return false;
+
             int axis = face >> 1;
             bool positive = (face & 1) != 0;
             int3 uAxis, vAxis;
@@ -506,30 +543,46 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (positive) faceOrigin[axis] += VoxelsPerAxis;
 
             int halfStep = math.max(1, SourceStep / 2);
-            // Half a ring stride is one level finer than the ring itself; for the finest ring
-            // that reaches actual voxels, which LevelForStride reports as a negative level.
             int mipLevel = VoxelReadGrid.LevelForStride(halfStep);
+            int sampleCount = FaceSamplesPerAxis * FaceSamplesPerAxis;
             RegionSampleCursor cursor = default;
+            const int SamplesPerDeadlineCheck = 64;
 
-            for (int v = 0; v < FaceSamplesPerAxis; v++)
-            for (int u = 0; u < FaceSamplesPerAxis; u++)
+            while (_transitionSampleCursor < sampleCount)
             {
-                int3 voxel = faceOrigin + uAxis * (u * halfStep) + vAxis * (v * halfStep);
-                bool occupied = false;
-                byte material = VoxelGrid.MaterialEmpty;
-                if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
-                                   out bool sampled, out byte sampledMaterial))
+                int end = math.min(sampleCount,
+                                   _transitionSampleCursor + SamplesPerDeadlineCheck);
+                for (; _transitionSampleCursor < end; _transitionSampleCursor++)
                 {
-                    occupied = sampled;
-                    material = sampledMaterial;
+                    int index = _transitionSampleCursor;
+                    int u = index % FaceSamplesPerAxis;
+                    int v = index / FaceSamplesPerAxis;
+                    int3 voxel = faceOrigin
+                               + uAxis * (u * halfStep)
+                               + vAxis * (v * halfStep);
+
+                    bool occupied = false;
+                    byte material = VoxelGrid.MaterialEmpty;
+                    if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
+                                       out bool sampled,
+                                       out byte sampledMaterial))
+                    {
+                        occupied = sampled;
+                        material = sampledMaterial;
+                    }
+
+                    _faceDensity[index] = occupied ? 0.5f : -0.5f;
+                    _faceMaterials[index] = material;
+                    _faceSurfaces[index] = occupied
+                        ? palette.GetDefaultSurfaceStyle(material) : 0u;
                 }
 
-                int index = u + FaceSamplesPerAxis * v;
-                _faceDensity[index] = occupied ? 0.5f : -0.5f;
-                _faceMaterials[index] = material;
-                _faceSurfaces[index] = occupied
-                    ? palette.GetDefaultSurfaceStyle(material) : 0u;
+                if (_transitionSampleCursor < sampleCount
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                    return false;
             }
+
+            return true;
         }
 
         private void InitialiseTopologyTables()
@@ -585,7 +638,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int MissingVisibleCount { get; private set; }
         public ulong CapacityPressureCount { get; private set; }
         public int RunningJobCount => _densityJobScheduled || _topologyJobScheduled
-                                   || _facetedMaskJobScheduled ? 1 : 0;
+                                   || _facetedMaskJobScheduled || _transitionJobScheduled
+                                    ? 1 : 0;
         public int PendingUploadCount => _build.Active && _build.Phase >= 2 ? 1 : 0;
         public double LastSnapshotMs { get; private set; }
         public double LastTopologyCompactMs { get; private set; }
@@ -805,13 +859,27 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     continue;
                 }
 
-                double profileStart = Time.realtimeSinceStartupAsDouble;
-                bool profilesDone;
-                using (s_ProfileMarker.Auto()) profilesDone = StepProfileBlocks(voxelSize);
-                _profileEmitTiming.Add(ElapsedMs(profileStart));
-                if (profilesDone)
+                if (_build.Phase == 3)
                 {
-                    AppendTransitionFaces(source, in palette, camera, voxelSize);
+                    double profileStart = Time.realtimeSinceStartupAsDouble;
+                    bool profilesDone;
+                    using (s_ProfileMarker.Auto())
+                        profilesDone = StepProfileBlocks(voxelSize);
+                    _profileEmitTiming.Add(ElapsedMs(profileStart));
+                    if (!profilesDone) continue;
+
+                    _build.Phase = 4;
+                    _build.Cursor = 0;
+                    _transitionFace = -1;
+                    _transitionSampleCursor = 0;
+                    continue;
+                }
+
+                if (_build.Phase == 4)
+                {
+                    if (!StepTransitionFaces(source, in palette, camera, voxelSize,
+                                             deadline))
+                        break;
                     FinishBuild(frame);
                 }
             }
@@ -1034,6 +1102,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _dirty.Remove(best);
             _vertices.Clear();
             _indices.Clear();
+            _transitionFace = -1;
+            _transitionSampleCursor = 0;
             _build = new BuildState
             {
                 Active = true, Coordinate = best, Phase = 0, Cursor = 0,
@@ -1179,6 +1249,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 _mipSampleOccupancy[index] = occupied ? (byte)1 : (byte)0;
                 _mipSampleMaterials[index] = material;
+                anySolid |= occupied && IsSolidSurfaceMaterial(material);
             }
 
             _buildSurfaceCatalogue = _surfaceCatalogue;
@@ -2169,6 +2240,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _build = default;
                 _vertices.Clear();
                 _indices.Clear();
+                _transitionFace = -1;
+                _transitionSampleCursor = 0;
                 return;
             }
 
@@ -2191,6 +2264,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _build = default;
                 _vertices.Clear();
                 _indices.Clear();
+                _transitionFace = -1;
+                _transitionSampleCursor = 0;
                 return;
             }
 
@@ -2233,7 +2308,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
 
             if (gone == null) return;
-            for (int i = 0; i < gone.Count; i++) RemoveChunk(gone[i]);
+            for (int i = 0; i < gone.Count; i++) TryRemoveChunk(gone[i]);
         }
 
         /// <summary>
@@ -2367,8 +2442,32 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                               Vector3.one * (size + SourceStep * voxelSize * 2f));
         }
 
-        private void RemoveChunk(int3 chunk)
+        private bool ScheduledJobsComplete()
         {
+            if (_densityJobScheduled && !_densityJobHandle.IsCompleted) return false;
+            if (_topologyJobScheduled
+                && !(_topologyCompactJobScheduled
+                    ? _topologyCompactJobHandle.IsCompleted
+                    : _topologyJobHandle.IsCompleted)) return false;
+            if (_facetedMaskJobScheduled
+                && !(_facetedMergeJobScheduled
+                    ? _facetedMergeJobHandle.IsCompleted
+                    : _facetedMaskJobHandle.IsCompleted)) return false;
+            if (_transitionJobScheduled && !_transitionJobHandle.IsCompleted) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Removes a no-longer-resident chunk only when doing so cannot wait for worker
+        /// geometry. If its build is still running, residency pruning defers removal to
+        /// a later frame instead of converting eviction pressure into a frame barrier.
+        /// </summary>
+        private bool TryRemoveChunk(int3 chunk)
+        {
+            if (_build.Active && _build.Coordinate.Equals(chunk)
+                && !ScheduledJobsComplete())
+                return false;
+
             _known.Remove(chunk);
             _dirty.Remove(chunk);
             _desiredVersions.Remove(chunk);
@@ -2381,11 +2480,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
             if (_build.Active && _build.Coordinate.Equals(chunk))
             {
+                // Every handle was observed complete above, so these Complete calls only
+                // release job safety dependencies; none can stall the frame.
                 CompleteJobs();
                 _build = default;
                 _vertices.Clear();
                 _indices.Clear();
+                _transitionFace = -1;
+                _transitionSampleCursor = 0;
             }
+            return true;
         }
 
         private void CompleteJobs()
@@ -2408,6 +2512,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 else _facetedMaskJobHandle.Complete();
                 _facetedMaskJobScheduled = false;
                 _facetedMergeJobScheduled = false;
+            }
+            if (_transitionJobScheduled)
+            {
+                _transitionJobHandle.Complete();
+                _transitionJobScheduled = false;
             }
         }
 
