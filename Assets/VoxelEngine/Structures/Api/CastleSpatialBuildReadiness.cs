@@ -1,6 +1,136 @@
 namespace VoxelEngine.Structures.Api
 {
+    /// <summary>
+    /// Canonical runtime-admission contract for a completed spatial castle plan. General spatial
+    /// validation deliberately permits intermediate planning snapshots; this stricter check proves
+    /// that every planner-owned sub-plan required by Runtime is present, valid, and attached to the
+    /// same semantic castle before voxel mutation begins.
+    /// </summary>
     public static class CastleSpatialBuildReadiness
     {
+        public static bool TryValidate(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial,
+            out CastleSpatialBuildReadinessIssue issue)
+        {
+            if (spatial == null)
+            {
+                issue = CastleSpatialBuildReadinessIssue.MissingSpatialPlan;
+                return false;
+            }
+
+            if (spatial.KeepRequiresTerrainResolution)
+            {
+                issue = CastleSpatialBuildReadinessIssue.KeepRequiresTerrainResolution;
+                return false;
+            }
+
+            CastleKeepFloorPlan[] floors = spatial.KeepFloors;
+            if (!CastleKeepFloorPlanValidator.TryValidate(
+                    in plan, floors, out CastleKeepFloorPlanIssue floorIssue))
+            {
+                issue = floorIssue == CastleKeepFloorPlanIssue.MissingFloors ||
+                        floorIssue == CastleKeepFloorPlanIssue.FloorCountMismatch
+                    ? CastleSpatialBuildReadinessIssue.MissingKeepFloorPlan
+                    : CastleSpatialBuildReadinessIssue.InvalidKeepFloorPlan;
+                return false;
+            }
+
+            CastleKeepCirculationPlan circulation = spatial.KeepCirculation;
+            if (!CastleKeepCirculationPlanner.TryValidate(
+                    in plan, in circulation, out _))
+            {
+                issue = CastleSpatialBuildReadinessIssue.InvalidKeepCirculationPlan;
+                return false;
+            }
+
+            CastleKeepWindowSpec[] windows = spatial.KeepWindows;
+            if (windows == null || windows.Length == 0)
+            {
+                issue = CastleSpatialBuildReadinessIssue.MissingKeepWindowPlan;
+                return false;
+            }
+
+            if (!CastleKeepWindowPlanner.TryValidate(in plan, windows, out _))
+            {
+                issue = CastleSpatialBuildReadinessIssue.InvalidKeepWindowPlan;
+                return false;
+            }
+
+            if (!CastleKeepAnnexBuildReadiness.TryValidate(
+                    in spatial.Topology,
+                    out CastleKeepAnnexBuildReadinessIssue annexIssue))
+            {
+                issue = annexIssue == CastleKeepAnnexBuildReadinessIssue.MissingPlan
+                    ? CastleSpatialBuildReadinessIssue.MissingKeepAnnexPlan
+                    : CastleSpatialBuildReadinessIssue.InvalidKeepAnnexPlan;
+                return false;
+            }
+
+            if (!CastleLandscapeBuildReadiness.TryValidate(
+                    spatial, out CastleLandscapeBuildReadinessIssue landscapeIssue))
+            {
+                issue = landscapeIssue == CastleLandscapeBuildReadinessIssue.MissingLandscapePlan
+                    ? CastleSpatialBuildReadinessIssue.MissingLandscapePlan
+                    : CastleSpatialBuildReadinessIssue.InvalidLandscapePlan;
+                return false;
+            }
+
+            DungeonPlan dungeon = spatial.Dungeon;
+            if (dungeon == null)
+            {
+                issue = CastleSpatialBuildReadinessIssue.MissingDungeonPlan;
+                return false;
+            }
+
+            if (!DungeonPlanValidator.TryValidate(dungeon, out _))
+            {
+                issue = CastleSpatialBuildReadinessIssue.InvalidDungeonPlan;
+                return false;
+            }
+
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
+            if (!dungeon.Entrance.Equals(projection.TrapdoorCentre))
+            {
+                issue = CastleSpatialBuildReadinessIssue.DungeonEntranceMismatch;
+                return false;
+            }
+
+            if (!CastleCaveBuildReadiness.TryValidate(
+                    spatial, out CastleCaveBuildReadinessIssue caveIssue))
+            {
+                issue = MapCaveReadiness(caveIssue);
+                return false;
+            }
+
+            issue = CastleSpatialBuildReadinessIssue.None;
+            return true;
+        }
+
+        private static CastleSpatialBuildReadinessIssue MapCaveReadiness(
+            CastleCaveBuildReadinessIssue issue)
+        {
+            switch (issue)
+            {
+                case CastleCaveBuildReadinessIssue.MissingCavePlan:
+                    return CastleSpatialBuildReadinessIssue.MissingCavePlan;
+                case CastleCaveBuildReadinessIssue.UnexpectedCavePlan:
+                    return CastleSpatialBuildReadinessIssue.UnexpectedCavePlan;
+                case CastleCaveBuildReadinessIssue.InvalidCavePlan:
+                    return CastleSpatialBuildReadinessIssue.InvalidCavePlan;
+                case CastleCaveBuildReadinessIssue.CaveEntranceMismatch:
+                    return CastleSpatialBuildReadinessIssue.CaveEntranceMismatch;
+                case CastleCaveBuildReadinessIssue.InvalidDungeonPlan:
+                    return CastleSpatialBuildReadinessIssue.InvalidDungeonPlan;
+                case CastleCaveBuildReadinessIssue.MissingCaveDecorationPlan:
+                    return CastleSpatialBuildReadinessIssue.MissingCaveDecorationPlan;
+                case CastleCaveBuildReadinessIssue.UnexpectedCaveDecorationPlan:
+                    return CastleSpatialBuildReadinessIssue.UnexpectedCaveDecorationPlan;
+                case CastleCaveBuildReadinessIssue.InvalidCaveDecorationPlan:
+                    return CastleSpatialBuildReadinessIssue.InvalidCaveDecorationPlan;
+                default:
+                    return CastleSpatialBuildReadinessIssue.None;
+            }
+        }
     }
 }
