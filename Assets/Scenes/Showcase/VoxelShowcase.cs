@@ -198,7 +198,7 @@ namespace VoxelEngine.Showcase
             // The landmark is owned by the origin region. Build it first even though the safe
             // approach spawn is just south of that region; landmark construction also preloads
             // every neighbouring region its terrain sculpt can touch.
-            _world.GenerateRegionBlocking(int3.zero);
+            _world.GenerateCastleOriginBlocking();
 
             var spawn = _world.SpawnPosition();
 
