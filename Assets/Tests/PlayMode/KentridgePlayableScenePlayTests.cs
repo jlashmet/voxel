@@ -17,7 +17,7 @@ namespace VoxelEngine.Tests.PlayMode
     /// </summary>
     public sealed class KentridgePlayableScenePlayTests
     {
-        private const string ScenePath = "Assets/Scenes/KentridgePlayableSlice.unity";
+        private const string SceneName = "KentridgePlayableSlice";
         private const string DriverTypeName = "Game.Kentridge.PlayableSlice.KentridgePlayableSlice";
         private const float DecimetresToMetres = 0.1f;
 
@@ -29,11 +29,11 @@ namespace VoxelEngine.Tests.PlayMode
         {
             _previousActiveScene = SceneManager.GetActiveScene();
 
-            AsyncOperation load = SceneManager.LoadSceneAsync(ScenePath, LoadSceneMode.Additive);
+            AsyncOperation load = SceneManager.LoadSceneAsync(SceneName, LoadSceneMode.Additive);
             Assert.That(load, Is.Not.Null, "The Kentridge playable launch scene must be loadable from build settings.");
             while (!load.isDone) yield return null;
 
-            _loadedScene = SceneManager.GetSceneByPath(ScenePath);
+            _loadedScene = SceneManager.GetSceneByName(SceneName);
             Assert.That(_loadedScene.IsValid() && _loadedScene.isLoaded, Is.True,
                 "The Kentridge playable launch scene failed to load.");
             Assert.That(SceneManager.SetActiveScene(_loadedScene), Is.True);
