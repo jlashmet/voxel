@@ -33,7 +33,8 @@ namespace VoxelEngine.Structures.Runtime
         private CastleGatePlacementSpec _posternGate;
         private bool _hasInnerGate;
         private CastleGatePlacementSpec _innerGate;
-        private int2 _spatialKeepCentre;
+        private bool _hasSpatialWell;
+        private int2 _spatialWellCentre;
 
         public CastleBuildPipeline(
             IRegionReadSource reads,
@@ -174,8 +175,8 @@ namespace VoxelEngine.Structures.Runtime
                             ref _brush,
                             in _plan,
                             _outerWardVertices,
-                            in _primaryGate,
-                            _spatialKeepCentre);
+                            _hasSpatialWell,
+                            _spatialWellCentre);
                     }
                     else
                     {
@@ -242,7 +243,8 @@ namespace VoxelEngine.Structures.Runtime
             _posternGate = spatialPlan.PosternGate;
             _hasInnerGate = spatialPlan.HasInnerGate;
             _innerGate = spatialPlan.InnerGate;
-            _spatialKeepCentre = spatialPlan.KeepCentre;
+            _hasSpatialWell = spatialPlan.HasWell;
+            _spatialWellCentre = spatialPlan.WellCentre;
 
             CastleTowerPlacementSpec[] towers = spatialPlan.Towers;
             _towerCentres = new int2[towers.Length];
