@@ -325,6 +325,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private int _uploadAdmissionCursor;
         private int _lastFrameSolidUploadedBytes;
         private int _lastFrameSolidUploadCompletions;
+        private int _lastAdvancedFrame = -1;
         private readonly VoxelTimingWindow _prepareTiming = new();
         private readonly VoxelTimingWindow _journalTiming = new();
         private readonly VoxelTimingWindow _invalidationTiming = new();
@@ -353,6 +354,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public double SolidUploadBudgetMs { get; set; } = 0.20;
         public int LastFrameSolidUploadedBytes => _lastFrameSolidUploadedBytes;
         public int LastFrameSolidUploadCompletions => _lastFrameSolidUploadCompletions;
+        public int LastAdvancedFrame => _lastAdvancedFrame;
         public int PendingSolidUploadBytes
         {
             get
@@ -408,6 +410,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             IVoxelChangeSource journal, Camera camera, float voxelSize, int frame)
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
+
+            // RenderGraph records this pass once per camera. Geometry derivation is world/frame
+            // work, not camera work: a second camera in the same Unity frame may change only
+            // visibility, never consume another journal/build/upload budget.
+            if (_lastAdvancedFrame == frame)
+            {
+                CollectVisibility(camera, voxelSize, frame);
+                return;
+            }
+            _lastAdvancedFrame = frame;
 
             double prepareStart = Time.realtimeSinceStartupAsDouble;
             using var prepareScope = s_PrepareMarker.Auto();
@@ -510,7 +522,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int i = 0; i < _allWorkers.Length; i++)
                 _allWorkers[i].InvalidateSurfaceBricks(_discoveredSurfaceBricks);
 
-            _visibleSolids.Clear();
             double workersStart = Time.realtimeSinceStartupAsDouble;
             double solidDeadline = workersStart + Math.Max(0.0, SolidBuildBudgetMs) * 0.001;
             int admittedWorkers = 0;
@@ -580,6 +591,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _uploadAdmissionCursor = (_uploadAdmissionCursor
                                         + Math.Max(1, uploadScanAdvance)) % workerCount;
 
+            _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
+            _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
+            _workerPrepareTiming.Add(workerPrepareMs);
+            CollectVisibility(camera, voxelSize, frame);
+            _prepareTiming.Add(ElapsedMs(prepareStart));
+        }
+
+        /// <summary>
+        /// Camera-specific half of scheduling. This may run multiple times in one Unity
+        /// frame; it never consumes change, extraction, water-build, or GPU-upload budgets.
+        /// </summary>
+        private void CollectVisibility(Camera camera, float voxelSize, int frame)
+        {
+            _visibleSolids.Clear();
             double visibilityStart = Time.realtimeSinceStartupAsDouble;
             using (s_VisibilityMarker.Auto())
             {
@@ -589,15 +614,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _allWorkers[i].CollectVisible(camera, voxelSize, frame);
                     for (int j = 0; j < visible.Count; j++) _visibleSolids.Add(visible[j]);
                 }
+                _water.CollectVisible(camera, voxelSize);
             }
-            double visibilityMs = ElapsedMs(visibilityStart);
-
-            _water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);
-            _water.Prepare(storage, camera, voxelSize, WaterBuildBudgetMs);
-            _water.CollectVisible(camera, voxelSize);
-            _workerPrepareTiming.Add(workerPrepareMs);
-            _visibilityTiming.Add(visibilityMs);
-            _prepareTiming.Add(ElapsedMs(prepareStart));
+            _visibilityTiming.Add(ElapsedMs(visibilityStart));
         }
 
         private void EnqueueSurfaceDiscovery(HashSet<int3> regions)
