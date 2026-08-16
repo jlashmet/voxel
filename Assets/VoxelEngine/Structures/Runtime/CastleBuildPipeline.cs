@@ -151,18 +151,8 @@ namespace VoxelEngine.Structures.Runtime
                     {
                         CastlePerimeterRealizer.Towers(
                             ref _brush, in _plan, _towerCentres, _cornerTowerCount);
-
-                        if (_innerTowerCentres.Length != 0)
-                        {
-                            CastlePlan innerTowerPlan = _plan;
-                            innerTowerPlan.TowerRadius = CastleInnerWardTowerPlanner.Radius(in _plan);
-                            innerTowerPlan.TowerHeight = CastleInnerWardTowerPlanner.Height(in _plan);
-                            CastlePerimeterRealizer.Towers(
-                                ref _brush,
-                                in innerTowerPlan,
-                                _innerTowerCentres,
-                                _innerTowerCentres.Length);
-                        }
+                        CastleInnerWardTowerRealizer.BuildAll(
+                            ref _brush, in _plan, _innerTowerCentres);
                     }
                     else
                     {
