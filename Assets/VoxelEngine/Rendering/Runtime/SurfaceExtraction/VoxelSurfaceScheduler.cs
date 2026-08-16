@@ -305,6 +305,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private IVoxelChangeSource _journal;
         private int _lastChangeRecords;
         private int _workerAdmissionCursor;
+        private int _uploadAdmissionCursor;
+        private int _lastFrameSolidUploadedBytes;
+        private int _lastFrameSolidUploadCompletions;
         private readonly VoxelTimingWindow _prepareTiming = new();
         private readonly VoxelTimingWindow _journalTiming = new();
         private readonly VoxelTimingWindow _invalidationTiming = new();
@@ -323,6 +326,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// memory. Ordinary edits bypass this path through the fine-grained change journal.
         /// </summary>
         public double SurfaceDiscoveryBudgetMs { get; set; } = 0.10;
+        /// <summary>Maximum solid geometry payload copied to GPU buffers per frame.</summary>
+        public int SolidUploadBudgetBytes { get; set; } = 1024 * 1024;
+        /// <summary>Maximum payload slice given to one worker in a frame.</summary>
+        public int SolidUploadSliceBytes { get; set; } = 256 * 1024;
+        /// <summary>Caps workers touched by GPU publication, including staging starts.</summary>
+        public int SolidUploadWorkerBudget { get; set; } = 4;
+        /// <summary>Wall-clock admission deadline around upload slices.</summary>
+        public double SolidUploadBudgetMs { get; set; } = 0.20;
+        public int LastFrameSolidUploadedBytes => _lastFrameSolidUploadedBytes;
+        public int LastFrameSolidUploadCompletions => _lastFrameSolidUploadCompletions;
+        public int PendingSolidUploadBytes
+        {
+            get
+            {
+                int total = 0;
+                for (int i = 0; i < _allWorkers.Length; i++)
+                    total += _allWorkers[i].PendingUploadBytes;
+                return total;
+            }
+        }
         public double WaterBuildBudgetMs { get; set; } = 0.15;
 
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
@@ -498,6 +521,47 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
 
             double workerPrepareMs = ElapsedMs(workersStart);
+
+            // GPU publication has its own global frame contract. Each worker receives at
+            // most one bounded slice, so a large completed chunk naturally spans frames
+            // while its previous ready geometry remains visible.
+            _lastFrameSolidUploadedBytes = 0;
+            _lastFrameSolidUploadCompletions = 0;
+            int uploadBudget = Math.Max(0, SolidUploadBudgetBytes);
+            int uploadSlice = Math.Max(0, SolidUploadSliceBytes);
+            int uploadWorkerBudget = Math.Max(0, SolidUploadWorkerBudget);
+            double uploadDeadline = Time.realtimeSinceStartupAsDouble
+                                  + Math.Max(0.0, SolidUploadBudgetMs) * 0.001;
+            int uploadWorkersVisited = 0;
+            int uploadScanAdvance = 0;
+            if (uploadBudget > 0 && uploadSlice > 0 && uploadWorkerBudget > 0)
+            {
+                for (int offset = 0; offset < workerCount; offset++)
+                {
+                    if (_lastFrameSolidUploadedBytes >= uploadBudget
+                        || uploadWorkersVisited >= uploadWorkerBudget
+                        || Time.realtimeSinceStartupAsDouble >= uploadDeadline)
+                        break;
+
+                    int index = (_uploadAdmissionCursor + offset) % workerCount;
+                    uploadScanAdvance = offset + 1;
+                    CpuTransvoxelChunkCache worker = _allWorkers[index];
+                    if (worker.PendingUploadCount == 0) continue;
+
+                    int remaining = uploadBudget - _lastFrameSolidUploadedBytes;
+                    int slice = Math.Min(remaining, uploadSlice);
+                    if (slice <= 0) break;
+                    bool completed = worker.TryPublishPending(frame, slice,
+                                                              out int uploadedBytes);
+                    _lastFrameSolidUploadedBytes += uploadedBytes;
+                    uploadWorkersVisited++;
+                    if (completed) _lastFrameSolidUploadCompletions++;
+                }
+            }
+            if (workerCount > 0)
+                _uploadAdmissionCursor = (_uploadAdmissionCursor
+                                        + Math.Max(1, uploadScanAdvance)) % workerCount;
+
             double visibilityStart = Time.realtimeSinceStartupAsDouble;
             using (s_VisibilityMarker.Auto())
             {

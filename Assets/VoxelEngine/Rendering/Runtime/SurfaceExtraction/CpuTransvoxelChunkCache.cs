@@ -103,38 +103,124 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 SourceStep = sourceStep;
             }
 
-            internal void Upload(List<SmoothSurfaceVertex> vertices, List<uint> indices)
+            private ComputeBuffer _stagingVertices;
+            private ComputeBuffer _stagingIndices;
+            private ComputeBuffer _stagingArgs;
+            private int _stagingVertexCapacity;
+            private int _stagingIndexCapacity;
+            private int _stagingVertexCursor;
+            private int _stagingIndexCursor;
+            private readonly uint[] _indirectArgs = new uint[4];
+
+            internal int RemainingUploadBytes(int vertexCount, int indexCount)
             {
-                int requiredVertices = math.max(1, vertices.Count);
-                int requiredIndices = math.max(1, indices.Count);
-                if (Vertices != null && Indices != null && Args != null
-                    && VertexCapacity >= requiredVertices && IndexCapacity >= requiredIndices)
+                int verticesRemaining = math.max(0, vertexCount - _stagingVertexCursor);
+                int indicesRemaining = math.max(0, indexCount - _stagingIndexCursor);
+                return verticesRemaining * SmoothSurfaceVertex.Stride
+                     + indicesRemaining * sizeof(uint)
+                     + 4 * sizeof(uint);
+            }
+
+            /// <summary>
+            /// Copies at most <paramref name="byteBudget"/> payload bytes into private
+            /// staging buffers. The currently published buffers remain untouched until
+            /// every vertex, index and indirect argument is ready, then the buffers swap
+            /// atomically from the renderer's point of view.
+            /// </summary>
+            internal bool AdvanceUpload(List<SmoothSurfaceVertex> vertices,
+                                        List<uint> indices,
+                                        int byteBudget,
+                                        out int uploadedBytes)
+            {
+                uploadedBytes = 0;
+                if (byteBudget <= 0) return false;
+                EnsureUploadStaging(vertices.Count, indices.Count);
+
+                int remainingBudget = byteBudget;
+                int vertexRemaining = vertices.Count - _stagingVertexCursor;
+                if (vertexRemaining > 0 && remainingBudget >= SmoothSurfaceVertex.Stride)
                 {
-                    if (vertices.Count > 0) Vertices.SetData(vertices, 0, 0, vertices.Count);
-                    if (indices.Count > 0) Indices.SetData(indices, 0, 0, indices.Count);
-                    Args.SetData(new uint[] { (uint)indices.Count, 1u, 0u, 0u });
-                    IndexCount = indices.Count;
-                    Ready = true;
-                    return;
+                    int count = math.min(vertexRemaining,
+                        remainingBudget / SmoothSurfaceVertex.Stride);
+                    _stagingVertices.SetData(vertices, _stagingVertexCursor,
+                                             _stagingVertexCursor, count);
+                    int bytes = count * SmoothSurfaceVertex.Stride;
+                    _stagingVertexCursor += count;
+                    remainingBudget -= bytes;
+                    uploadedBytes += bytes;
                 }
+
+                int indexRemaining = indices.Count - _stagingIndexCursor;
+                if (_stagingVertexCursor == vertices.Count && indexRemaining > 0
+                    && remainingBudget >= sizeof(uint))
+                {
+                    int count = math.min(indexRemaining, remainingBudget / sizeof(uint));
+                    _stagingIndices.SetData(indices, _stagingIndexCursor,
+                                            _stagingIndexCursor, count);
+                    int bytes = count * sizeof(uint);
+                    _stagingIndexCursor += count;
+                    remainingBudget -= bytes;
+                    uploadedBytes += bytes;
+                }
+
+                const int argsBytes = 4 * sizeof(uint);
+                if (_stagingVertexCursor != vertices.Count
+                    || _stagingIndexCursor != indices.Count
+                    || remainingBudget < argsBytes)
+                    return false;
+
+                _indirectArgs[0] = (uint)indices.Count;
+                _indirectArgs[1] = 1u;
+                _indirectArgs[2] = 0u;
+                _indirectArgs[3] = 0u;
+                _stagingArgs.SetData(_indirectArgs);
+                uploadedBytes += argsBytes;
+
+                ComputeBuffer previousVertices = Vertices;
+                ComputeBuffer previousIndices = Indices;
+                ComputeBuffer previousArgs = Args;
+                Vertices = _stagingVertices;
+                Indices = _stagingIndices;
+                Args = _stagingArgs;
+                _stagingVertices = null;
+                _stagingIndices = null;
+                _stagingArgs = null;
+                VertexCapacity = _stagingVertexCapacity;
+                IndexCapacity = _stagingIndexCapacity;
+                _stagingVertexCapacity = 0;
+                _stagingIndexCapacity = 0;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
+                IndexCount = indices.Count;
+                GpuBytes = (long)VertexCapacity * SmoothSurfaceVertex.Stride
+                         + (long)IndexCapacity * sizeof(uint) + argsBytes;
+                Ready = true;
+
+                previousVertices?.Release();
+                previousIndices?.Release();
+                previousArgs?.Release();
+                return true;
+            }
+
+            private void EnsureUploadStaging(int vertexCount, int indexCount)
+            {
+                if (_stagingVertices != null) return;
+
+                int requiredVertices = math.max(1, vertexCount);
+                int requiredIndices = math.max(1, indexCount);
+                int vertexCapacity = math.ceilpow2(requiredVertices);
+                int indexCapacity = math.ceilpow2(requiredIndices);
                 ComputeBuffer nextVertices = null;
                 ComputeBuffer nextIndices = null;
                 ComputeBuffer nextArgs = null;
-
                 try
                 {
-                    int nextVertexCapacity = math.ceilpow2(requiredVertices);
-                    int nextIndexCapacity = math.ceilpow2(requiredIndices);
-                    nextVertices = new ComputeBuffer(nextVertexCapacity,
-                                                     SmoothSurfaceVertex.Stride,
-                                                     ComputeBufferType.Structured);
-                    nextIndices = new ComputeBuffer(nextIndexCapacity, sizeof(uint),
-                                                    ComputeBufferType.Structured);
+                    nextVertices = new ComputeBuffer(vertexCapacity,
+                        SmoothSurfaceVertex.Stride, ComputeBufferType.Structured);
+                    nextIndices = new ComputeBuffer(indexCapacity, sizeof(uint),
+                        ComputeBufferType.Structured);
                     nextArgs = new ComputeBuffer(4, sizeof(uint),
-                                                 ComputeBufferType.IndirectArguments);
-                    if (vertices.Count > 0) nextVertices.SetData(vertices);
-                    if (indices.Count > 0) nextIndices.SetData(indices);
-                    nextArgs.SetData(new uint[] { (uint)indices.Count, 1u, 0u, 0u });
+                        ComputeBufferType.IndirectArguments);
                 }
                 catch
                 {
@@ -144,18 +230,27 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     throw;
                 }
 
-                Vertices?.Release();
-                Indices?.Release();
-                Args?.Release();
-                Vertices = nextVertices;
-                Indices = nextIndices;
-                Args = nextArgs;
-                IndexCount = indices.Count;
-                VertexCapacity = nextVertices.count;
-                IndexCapacity = nextIndices.count;
-                GpuBytes = (long)VertexCapacity * SmoothSurfaceVertex.Stride
-                         + (long)IndexCapacity * sizeof(uint) + 4L * sizeof(uint);
-                Ready = true;
+                _stagingVertices = nextVertices;
+                _stagingIndices = nextIndices;
+                _stagingArgs = nextArgs;
+                _stagingVertexCapacity = vertexCapacity;
+                _stagingIndexCapacity = indexCapacity;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
+            }
+
+            internal void CancelUpload()
+            {
+                _stagingVertices?.Release();
+                _stagingIndices?.Release();
+                _stagingArgs?.Release();
+                _stagingVertices = null;
+                _stagingIndices = null;
+                _stagingArgs = null;
+                _stagingVertexCapacity = 0;
+                _stagingIndexCapacity = 0;
+                _stagingVertexCursor = 0;
+                _stagingIndexCursor = 0;
             }
 
             public Bounds WorldBounds(float voxelSize)
@@ -181,6 +276,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             public void Dispose()
             {
+                CancelUpload();
                 Vertices?.Release();
                 Indices?.Release();
                 Args?.Release();
@@ -292,6 +388,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<SmoothSurfaceVertex> _vertices = new(16_384);
         private readonly List<uint> _indices = new(24_576);
         private BuildState _build;
+        private bool _pendingUpload;
         private SurfaceCatalogueView _surfaceCatalogue;
         private SurfaceCatalogueView _buildSurfaceCatalogue;
         private CoatingCatalogueView _coatingCatalogue;
@@ -640,7 +737,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int RunningJobCount => _densityJobScheduled || _topologyJobScheduled
                                    || _facetedMaskJobScheduled || _transitionJobScheduled
                                     ? 1 : 0;
-        public int PendingUploadCount => _build.Active && _build.Phase >= 2 ? 1 : 0;
+        public int PendingUploadCount => _pendingUpload ? 1 : 0;
+        public int PendingUploadBytes
+        {
+            get
+            {
+                if (!_pendingUpload
+                    || !_entries.TryGetValue(_build.Coordinate, out Entry entry))
+                    return 0;
+                return entry.RemainingUploadBytes(_vertices.Count, _indices.Count);
+            }
+        }
         public double LastSnapshotMs { get; private set; }
         public double LastTopologyCompactMs { get; private set; }
         public double LastUploadMs { get; private set; }
@@ -772,6 +879,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             sectionStart = Time.realtimeSinceStartupAsDouble;
             DropNoLongerResident(source);
             _residencyPruneTiming.Add(ElapsedMs(sectionStart));
+            if (_pendingUpload) return;
             sectionStart = Time.realtimeSinceStartupAsDouble;
             EnforceCapacity(camera, voxelSize);
             _capacityTiming.Add(ElapsedMs(sectionStart));
@@ -881,6 +989,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                              deadline))
                         break;
                     FinishBuild(frame);
+                    if (_pendingUpload) break;
                 }
             }
             while (Time.realtimeSinceStartupAsDouble < deadline);
@@ -2234,21 +2343,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
                 && desired > _build.SourceVersion)
             {
-                // Input changed while the immutable snapshot/job was in flight. Never publish
-                // stale geometry; the newer invalidation remains queued.
-                StaleBuildCount++;
-                _build = default;
-                _vertices.Clear();
-                _indices.Clear();
-                _transitionFace = -1;
-                _transitionSampleCursor = 0;
+                RejectPendingOrCompletedBuild(stale: true);
                 return;
             }
 
-            // An empty result is a complete answer, but it owns no geometry, so it must not
-            // hold a resident slot. Air dominates any view sphere; letting it consume capacity
-            // 1:1 with geometry is what drove real surfaces out of the cache and produced the
-            // evict/rebuild churn. Record it as known-empty and reclaim the slot instead.
+            // An empty result is complete immediately because there is no GPU payload to
+            // publish. Removing an old ready entry is the atomic publication of "air".
             if (_indices.Count == 0)
             {
                 if (_entries.TryGetValue(_build.Coordinate, out Entry stale))
@@ -2261,11 +2361,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
                 _desiredVersions.Remove(_build.Coordinate);
                 _queuedAtSeconds.Remove(_build.Coordinate);
-                _build = default;
-                _vertices.Clear();
-                _indices.Clear();
-                _transitionFace = -1;
-                _transitionSampleCursor = 0;
+                ResetCompletedBuild();
                 return;
             }
 
@@ -2276,13 +2372,44 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _entries.Add(_build.Coordinate, entry);
             }
 
+            // CPU geometry is complete, but GPU publication is a scheduler-owned phase.
+            // Keep the build payload and any previous ready Entry alive until the global
+            // upload budget admits this replacement.
+            _pendingUpload = true;
+        }
+
+        /// <summary>
+        /// Advances one pending GPU publication by at most <paramref name="byteBudget"/>
+        /// payload bytes. Returns true only when the replacement became visible.
+        /// </summary>
+        public bool TryPublishPending(int frame, int byteBudget, out int uploadedBytes)
+        {
+            uploadedBytes = 0;
+            if (!_pendingUpload || byteBudget <= 0) return false;
+
+            if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
+                && desired > _build.SourceVersion)
+            {
+                RejectPendingOrCompletedBuild(stale: true);
+                return false;
+            }
+
+            if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
+            {
+                RejectPendingOrCompletedBuild(stale: false);
+                return false;
+            }
+
             double uploadStart = Time.realtimeSinceStartupAsDouble;
-            using (s_UploadMarker.Auto()) entry.Upload(_vertices, _indices);
+            bool published;
+            using (s_UploadMarker.Auto())
+                published = entry.AdvanceUpload(_vertices, _indices, byteBudget,
+                                                out uploadedBytes);
             LastUploadMs = (Time.realtimeSinceStartupAsDouble - uploadStart) * 1000.0;
             _uploadTiming.Add(LastUploadMs);
-            _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
-            CompletedBuildCount++;
-            UploadedGeometryBytes += (ulong)entry.GpuBytes;
+            UploadedGeometryBytes += (ulong)math.max(0, uploadedBytes);
+            if (!published) return false;
+
             entry.LastUsedFrame = frame;
             entry.SourceVersion = _build.SourceVersion;
             entry.MaterialPaletteVersion = _build.MaterialPaletteVersion;
@@ -2290,11 +2417,37 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             entry.SurfaceCatalogueHash = _build.SurfaceCatalogueHash;
             entry.CoatingCatalogueVersion = _build.CoatingCatalogueVersion;
             entry.CoatingCatalogueHash = _build.CoatingCatalogueHash;
+            CompletedBuildCount++;
+            _buildLatencyTiming.Add(ElapsedMs(_build.BuildStartSeconds));
             _desiredVersions.Remove(_build.Coordinate);
             _queuedAtSeconds.Remove(_build.Coordinate);
+            ResetCompletedBuild();
+            return true;
+        }
+
+        private void RejectPendingOrCompletedBuild(bool stale)
+        {
+            if (_entries.TryGetValue(_build.Coordinate, out Entry entry))
+            {
+                entry.CancelUpload();
+                if (!entry.Ready)
+                {
+                    entry.Dispose();
+                    _entries.Remove(_build.Coordinate);
+                }
+            }
+            if (stale) StaleBuildCount++;
+            ResetCompletedBuild();
+        }
+
+        private void ResetCompletedBuild()
+        {
+            _pendingUpload = false;
             _build = default;
             _vertices.Clear();
             _indices.Clear();
+            _transitionFace = -1;
+            _transitionSampleCursor = 0;
         }
 
         private void DropNoLongerResident(IRegionReadSource source)
@@ -2483,6 +2636,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // Every handle was observed complete above, so these Complete calls only
                 // release job safety dependencies; none can stall the frame.
                 CompleteJobs();
+                _pendingUpload = false;
                 _build = default;
                 _vertices.Clear();
                 _indices.Clear();
