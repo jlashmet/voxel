@@ -51,7 +51,6 @@ namespace VoxelEngine.Tests.PlayMode
 
             var frameTimesMs = new List<double>(4096);
             var frameClock = Stopwatch.StartNew();
-            int frames = 0;
             int firstFrame = Time.frameCount;
             int convergedFrames = 0;
             bool sawCastleBuild = world.CastleBuildStage > 0;
@@ -66,8 +65,10 @@ namespace VoxelEngine.Tests.PlayMode
             // stop there: that same frame enables the production surface scheduler, so continue
             // sampling until dirty/running/upload/missing-visible solid work has remained empty for
             // several consecutive frames. This covers the player-visible remesh tail as well.
+            // Use elapsed real time rather than a frame-count timeout: headless/batchmode runners can
+            // advance thousands of empty player-loop frames per second while worker authoring is in
+            // flight, so a frame cap can expire in a few seconds without representing a player stall.
             while (convergedFrames < RequiredConvergedFrames
-                   && frames++ < 12000
                    && Time.realtimeSinceStartupAsDouble < deadline)
             {
                 frameClock.Restart();
@@ -108,8 +109,8 @@ namespace VoxelEngine.Tests.PlayMode
                 "The real showcase never entered castle construction during the measured window.");
             Assert.True(CastleFullyFinalised(world),
                 $"Castle did not fully finalise while frames continued to advance; "
-              + $"stage={world.CastleBuildStage}, voxels={world.CastleVoxels}, frames={frames}, "
-              + $"maxCastleMainThread={world.MaxCastleStageMs:F2} ms.");
+              + $"stage={world.CastleBuildStage}, voxels={world.CastleVoxels}, "
+              + $"sampledFrames={frameTimesMs.Count}, maxCastleMainThread={world.MaxCastleStageMs:F2} ms.");
             Assert.True(VoxelRenderBridge.SurfaceBuildEnabled,
                 "Production solid rendering did not become enabled after atomic castle publication.");
             Assert.True(sawSurfaceBuildWork,
