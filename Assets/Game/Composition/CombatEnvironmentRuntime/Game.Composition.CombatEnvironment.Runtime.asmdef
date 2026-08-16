@@ -1,8 +1,10 @@
 {
-  "name": "MountingForce.CombatPrototype",
-  "rootNamespace": "MountingForce.CombatPrototype",
+  "name": "Game.Composition.CombatEnvironment.Runtime",
+  "rootNamespace": "Game.Composition.CombatEnvironment.Runtime",
   "references": [
-    "VoxelEngine.Vegetation.Api"
+    "MountingForce.CombatPrototype",
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.Vegetation.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
