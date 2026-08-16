@@ -56,7 +56,7 @@ namespace VoxelEngine.Tests.EditMode
                 Seed,
                 runIndex: 3,
                 siteIndex: 9,
-                styles);
+                styles: styles);
 
             Assert.AreEqual(3, form.Storeys);
             Assert.AreEqual(62, form.WidthDm);
