@@ -140,9 +140,12 @@ namespace VoxelEngine.Structures.Api
                 (outerRadius * outerRadius - plan.PlateauRadius * (double)plan.PlateauRadius);
             double cliffCap = cliffArea * 4.0;
 
-            double perimeter = PolygonPerimeter(spatialPlan.OuterWardVertices)
-                             + PolygonPerimeter(spatialPlan.InnerWardVertices);
-            double walls = perimeter * 240.0;
+            CastleWallPlan wallPlan = spatialPlan.Topology.Walls;
+            double walls = CastleWallBuildEstimate.EstimateEquivalentWrites(
+                in plan,
+                spatialPlan.OuterWardVertices,
+                spatialPlan.InnerWardVertices,
+                in wallPlan);
 
             int towerCount = spatialPlan.Towers != null ? spatialPlan.Towers.Length : 0;
             double towers = towerCount * math.PI_DBL * plan.TowerRadius * plan.TowerRadius * 30.0;
