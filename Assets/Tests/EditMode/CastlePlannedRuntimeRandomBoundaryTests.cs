@@ -81,5 +81,29 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastlePlannedSiteRealizer", pipeline,
                 "The spatial pipeline must name the dedicated no-RNG site realizer.");
         }
+
+        [Test]
+        public void SpatialCourtyardDelegatesToDedicatedNoRngRealizer()
+        {
+            string compatibility = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleCourtyardRealizer.cs"));
+            string planned = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedCourtyardRealizer.cs"));
+
+            StringAssert.Contains("CastlePlannedCourtyardRealizer.Build(", compatibility,
+                "The spatial courtyard entry point must delegate to the dedicated planned realizer.");
+            StringAssert.Contains("sitePlan.ShouldUseCourtyardStone(x, z)", planned,
+                "Planned courtyard paving must consume the frozen site surface mask.");
+            StringAssert.Contains("CastleCourtyardBuildingRealizer.BuildAll", planned,
+                "Planned courtyard buildings must be realized from planner-owned building specs.");
+            StringAssert.DoesNotContain("new Random(", planned);
+            StringAssert.DoesNotContain("NextInt(", planned);
+            StringAssert.DoesNotContain("NextFloat(", planned);
+            StringAssert.DoesNotContain("NextBool(", planned);
+            StringAssert.DoesNotContain("CastleSeedPartition.Derive(", planned);
+            StringAssert.DoesNotContain("plan.Seed", planned);
+        }
     }
 }
