@@ -20,10 +20,11 @@ namespace VoxelEngine.Structures.Runtime
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int hx = plan.KeepHalfX;
             int hz = plan.KeepHalfZ;
+            int2 keepCentre = CastleSpatialProjection.ActualKeepCentre(in plan);
             var min = new int3(
-                plan.Centre.x - hx,
+                keepCentre.x - hx,
                 baseY,
-                plan.Centre.z - hz + CastleLayout.LegacyKeepCentreZOffset);
+                keepCentre.y - hz);
             var size = new int3(hx * 2, plan.KeepHeight, hz * 2);
 
             CastleKeepFacadeRealizer.Build(
