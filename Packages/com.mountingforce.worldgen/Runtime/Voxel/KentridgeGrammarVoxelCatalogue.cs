@@ -1,9 +1,8 @@
 using System;
-using System.Collections.Generic;
+using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
-
 using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
@@ -15,6 +14,8 @@ namespace MountingForce.WorldGen.Voxel
     /// from KentridgeBuildingGrammar; the already-distinct church/inn/warehouse/mansion/well programs
     /// are copied from the legacy catalogue as a temporary source library. This keeps exactly seventeen
     /// gameplay Structure instances while removing the old "one geometry per archetype" restriction.
+    /// Generated structures author semantic geometry roles directly; only copied legacy programs need
+    /// the compatibility realization pass used by KentridgeSmoothedGrammarVoxelCatalogue.
     /// </summary>
     public static class KentridgeGrammarVoxelCatalogue
     {
@@ -238,9 +239,12 @@ namespace MountingForce.WorldGen.Voxel
                 : settings.Materials.Resolve(theme.Roof);
             byte cloth = settings.Materials.Resolve(MaterialRole.Cloth);
 
-            var b = new ProgramBuilder();
+            IArchitectureStyleCompiler style =
+                BuiltInArchitectureStyles.Registry.Require(form.Intent.StyleId);
+            StructureGeometryProfile geometry = style.ResolveGeometry(form.Intent, form.Inner);
+            var b = new ProgramBuilder(geometry, s);
 
-            b.Box(x0, 0, z0, w, f, d, foundation);
+            b.FoundationBox(x0, 0, z0, w, f, d, foundation);
             EmitShell(b, x0, f, z0, w, floor, d, t, wall);
 
             int upperX = x0 - overhang;
@@ -259,7 +263,7 @@ namespace MountingForce.WorldGen.Voxel
             {
                 ResolveWing(form, envelopeW, envelopeD, x0, z0, w, d, s,
                     out wingX, out wingZ, out wingW, out wingD);
-                b.Box(wingX, 0, wingZ, wingW, f, wingD, foundation);
+                b.FoundationBox(wingX, 0, wingZ, wingW, f, wingD, foundation);
                 EmitShell(b, wingX, f, wingZ, wingW, floor, wingD, t, wall);
                 AddTimberFrame(b, wingX, wingZ, wingW, wingD, f, floor, beam, timber);
             }
@@ -305,11 +309,12 @@ namespace MountingForce.WorldGen.Voxel
             // A public entrance owns the whole gameplay approach corridor, not just the wall
             // aperture. Keep this tied to the access resolver contract: if gameplay is asked to reach
             // ExteriorApproach, generation must guarantee body-height air all the way to that point.
-            // The carve begins at threshold height so walkable ground below remains intact.
+            // Use a sharp spatial carve here so rounded opening policy cannot shrink guaranteed body
+            // clearance; the visible doorway above already uses the semantic opening treatment.
             int doorExteriorClearance =
                 KentridgeGameplaySiteAccessResolver.ApproachDistanceDecimetres * s;
             int doorFacadeDepth = math.max(t + s, 2 * beam);
-            b.Carve(
+            b.InteriorCarve(
                 doorX,
                 f,
                 z0 - doorExteriorClearance,
@@ -363,8 +368,8 @@ namespace MountingForce.WorldGen.Voxel
             int thickness,
             byte material)
         {
-            b.Box(x, y, z, w, h, d, material);
-            b.Carve(x + thickness, y, z + thickness,
+            b.ShellBox(x, y, z, w, h, d, material);
+            b.InteriorCarve(x + thickness, y, z + thickness,
                 w - 2 * thickness, h, d - 2 * thickness);
         }
 
@@ -630,56 +635,60 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
+        /// <summary>
+        /// Kentridge-specific vocabulary over the generic architecture bytecode builder. This keeps
+        /// the house grammar readable while ensuring semantic roles are authored at the source instead
+        /// of reconstructed later from material ids and dimensions.
+        /// </summary>
         private sealed class ProgramBuilder
         {
-            private readonly List<int> _code = new List<int>();
+            private readonly ArchitectureShapeProgramBuilder _inner;
+
+            public ProgramBuilder(StructureGeometryProfile profile, int voxelsPerDecimetre)
+            {
+                _inner = new ArchitectureShapeProgramBuilder(profile, voxelsPerDecimetre);
+            }
+
+            public void FoundationBox(
+                int x, int y, int z,
+                int sx, int sy, int sz,
+                byte material) =>
+                _inner.FoundationBox(x, y, z, sx, sy, sz, material);
+
+            public void ShellBox(
+                int x, int y, int z,
+                int sx, int sy, int sz,
+                byte material) =>
+                _inner.ShellBox(x, y, z, sx, sy, sz, material);
 
             public void Box(
                 int x, int y, int z,
                 int sx, int sy, int sz,
                 byte material,
-                PrimitiveMode mode = PrimitiveMode.Fill)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz,
-                    material, 0, 0, (int)mode);
-            }
+                PrimitiveMode mode = PrimitiveMode.Fill) =>
+                _inner.DetailBox(x, y, z, sx, sy, sz, material, mode);
 
             public void Carve(
                 int x, int y, int z,
-                int sx, int sy, int sz)
-            {
-                Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
-            }
+                int sx, int sy, int sz) =>
+                _inner.OpeningCarve(x, y, z, sx, sy, sz);
+
+            public void InteriorCarve(
+                int x, int y, int z,
+                int sx, int sy, int sz) =>
+                _inner.InteriorCarve(x, y, z, sx, sy, sz);
 
             public void Prism(
                 int x, int y, int z,
                 int sx, int sy, int sz,
                 PrismProfile profile,
-                byte material)
-            {
-                if (sx <= 0 || sy <= 0 || sz <= 0) return;
-                Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
-                    (int)profile, material, 0, 0, (int)PrimitiveMode.Fill);
-            }
+                byte material) =>
+                _inner.Prism(x, y, z, sx, sy, sz, profile, material);
 
-            public void Anchor(int index, int3 p, Facing facing)
-            {
-                Op(ShapeOp.SetAnchor, index, p.x, p.y, p.z, (int)facing);
-            }
+            public void Anchor(int index, int3 p, Facing facing) =>
+                _inner.Anchor(index, p, facing);
 
-            public int[] Finish()
-            {
-                Op(ShapeOp.End);
-                return _code.ToArray();
-            }
-
-            private void Op(ShapeOp op, params int[] operands)
-            {
-                _code.Add((int)op);
-                _code.Add(0);
-                _code.AddRange(operands);
-            }
+            public int[] Finish() => _inner.Finish();
         }
     }
 }
