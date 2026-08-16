@@ -39,23 +39,40 @@ namespace VoxelGame.Editor
                 assetPath.IndexOf(AnimationFolder, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        private void OnPostprocessMeshHierarchy(GameObject gameObject)
+        private void OnPostprocessMeshHierarchy(GameObject root)
         {
             if (!IsBodyModel)
             {
                 return;
             }
 
-            // Rocketbox exposes hipoly/midpoly/lowpoly/ultralowpoly nodes while the
-            // FBX mesh hierarchy is being imported. Unity may collapse those naming
-            // nodes before OnPostprocessModel/the persisted prefab hierarchy, so make
-            // the LOD choice at the same import stage as Rocketbox's upstream Unity
-            // postprocessor. Keep midpoly as the development-friendly default.
-            var name = gameObject.name.ToLowerInvariant();
-            if (name.Contains("poly"))
+            // Unity invokes this callback once for each imported root hierarchy, not once
+            // for every node. Rocketbox's LOD nodes can therefore be nested below the root.
+            // Select the development-friendly midpoly branch before avatar/skinned-mesh
+            // generation, while the source FBX node names are still available.
+            SelectMidpoly(root.transform);
+        }
+
+        private static void SelectMidpoly(Transform transform)
+        {
+            var name = transform.name.ToLowerInvariant();
+            if (IsRocketboxLodName(name))
             {
-                gameObject.SetActive(name.Contains("midpoly"));
+                transform.gameObject.SetActive(name.Contains("midpoly"));
             }
+
+            foreach (Transform child in transform)
+            {
+                SelectMidpoly(child);
+            }
+        }
+
+        private static bool IsRocketboxLodName(string name)
+        {
+            return name.Contains("midpoly") ||
+                   name.Contains("hipoly") ||
+                   name.Contains("ultralowpoly") ||
+                   name.Contains("lowpoly");
         }
     }
 }

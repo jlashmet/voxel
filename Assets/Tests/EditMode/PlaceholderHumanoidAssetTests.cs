@@ -38,34 +38,35 @@ namespace VoxelEngine.Tests.EditMode
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             Assert.That(model, Is.Not.Null, $"Unity could not load placeholder body {path}");
 
-            var allTransforms = model.GetComponentsInChildren<Transform>(true);
-            var lodNodes = allTransforms.Where(IsRocketboxLodNode).ToArray();
-            Assert.That(lodNodes.Length, Is.GreaterThan(0), $"{path} did not expose Rocketbox LOD nodes");
-            Assert.That(lodNodes.Any(IsMidpolyNode), Is.True, $"{path} has no midpoly hierarchy");
-
-            foreach (var node in lodNodes)
-            {
-                Assert.That(node.gameObject.activeSelf, Is.EqualTo(IsMidpolyNode(node)),
-                    $"Unexpected active state for Rocketbox LOD node {node.name} in {path}");
-            }
-
-            // Imported FBX assets are persistent prefab assets rather than scene instances,
-            // so activeInHierarchy/GetComponentsInChildren(includeInactive: false) can report
-            // them as inactive simply because they are not attached to a Scene. Evaluate the
-            // activeSelf chain relative to the imported model root instead.
+            // Humanoid import can collapse source transform nodes before the persistent FBX
+            // prefab is written. Validate the resulting renderer state and use either retained
+            // transform ancestry or the imported mesh name to recover the Rocketbox LOD label.
             var allSkinnedMeshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             Assert.That(allSkinnedMeshes.Length, Is.GreaterThan(0),
                 $"{path} has no skinned mesh renderer");
+
+            var lodMeshes = allSkinnedMeshes.Where(IsRocketboxLodRenderer).ToArray();
+            Assert.That(lodMeshes.Length, Is.GreaterThan(0),
+                $"{path} exposes no Rocketbox LOD identity after import. {DescribeRenderers(allSkinnedMeshes, model.transform)}");
+            Assert.That(lodMeshes.Any(IsMidpolyRenderer), Is.True,
+                $"{path} exposes no midpoly mesh after import. {DescribeRenderers(allSkinnedMeshes, model.transform)}");
+
+            foreach (var renderer in lodMeshes)
+            {
+                var active = IsActiveWithinAsset(renderer.transform, model.transform);
+                Assert.That(active, Is.EqualTo(IsMidpolyRenderer(renderer)),
+                    $"Unexpected active state for Rocketbox LOD renderer {DescribeRenderer(renderer, model.transform)} in {path}");
+            }
 
             var assetActiveMeshes = allSkinnedMeshes
                 .Where(renderer => IsActiveWithinAsset(renderer.transform, model.transform))
                 .ToArray();
             Assert.That(assetActiveMeshes.Length, Is.GreaterThan(0),
-                $"{path} has no skinned mesh enabled by the imported asset hierarchy");
-            Assert.That(assetActiveMeshes.Any(renderer => HasAncestor(renderer.transform, IsMidpolyNode)), Is.True,
-                $"{path} has no active skinned mesh under its midpoly hierarchy");
-            Assert.That(assetActiveMeshes.Any(renderer => HasAncestor(renderer.transform, IsNonMidpolyLodNode)), Is.False,
-                $"{path} left a non-midpoly Rocketbox LOD renderer active");
+                $"{path} has no skinned mesh enabled by the imported asset hierarchy. {DescribeRenderers(allSkinnedMeshes, model.transform)}");
+            Assert.That(assetActiveMeshes.Any(IsMidpolyRenderer), Is.True,
+                $"{path} has no active midpoly skinned mesh. {DescribeRenderers(allSkinnedMeshes, model.transform)}");
+            Assert.That(assetActiveMeshes.Any(renderer => IsRocketboxLodRenderer(renderer) && !IsMidpolyRenderer(renderer)), Is.False,
+                $"{path} left a non-midpoly Rocketbox LOD renderer active. {DescribeRenderers(allSkinnedMeshes, model.transform)}");
 
             AssertValidHumanoidAvatar(path);
         }
@@ -88,23 +89,35 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(clips.Length, Is.GreaterThanOrEqualTo(1), $"{path} exposes no animation clip");
         }
 
-        private static bool IsRocketboxLodNode(Transform transform)
+        private static bool IsRocketboxLodRenderer(SkinnedMeshRenderer renderer)
         {
-            var name = transform.name.ToLowerInvariant();
+            return HasAncestor(renderer.transform, transform => IsRocketboxLodName(transform.name)) ||
+                   IsRocketboxLodName(renderer.sharedMesh?.name);
+        }
+
+        private static bool IsMidpolyRenderer(SkinnedMeshRenderer renderer)
+        {
+            return HasAncestor(renderer.transform, transform => ContainsMidpoly(transform.name)) ||
+                   ContainsMidpoly(renderer.sharedMesh?.name);
+        }
+
+        private static bool IsRocketboxLodName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+
+            name = name.ToLowerInvariant();
             return name.Contains("midpoly") ||
                    name.Contains("hipoly") ||
                    name.Contains("ultralowpoly") ||
                    name.Contains("lowpoly");
         }
 
-        private static bool IsMidpolyNode(Transform transform)
+        private static bool ContainsMidpoly(string name)
         {
-            return transform.name.ToLowerInvariant().Contains("midpoly");
-        }
-
-        private static bool IsNonMidpolyLodNode(Transform transform)
-        {
-            return IsRocketboxLodNode(transform) && !IsMidpolyNode(transform);
+            return !string.IsNullOrEmpty(name) && name.ToLowerInvariant().Contains("midpoly");
         }
 
         private static bool IsActiveWithinAsset(Transform transform, Transform root)
@@ -136,6 +149,33 @@ namespace VoxelEngine.Tests.EditMode
             }
 
             return false;
+        }
+
+        private static string DescribeRenderers(SkinnedMeshRenderer[] renderers, Transform root)
+        {
+            return "Renderers: " + string.Join("; ", renderers.Select(renderer => DescribeRenderer(renderer, root)));
+        }
+
+        private static string DescribeRenderer(SkinnedMeshRenderer renderer, Transform root)
+        {
+            var meshName = renderer.sharedMesh != null ? renderer.sharedMesh.name : "<null>";
+            return $"{GetPath(renderer.transform, root)} mesh={meshName} active={IsActiveWithinAsset(renderer.transform, root)}";
+        }
+
+        private static string GetPath(Transform transform, Transform root)
+        {
+            var names = new System.Collections.Generic.List<string>();
+            for (var current = transform; current != null; current = current.parent)
+            {
+                names.Add(current.name);
+                if (current == root)
+                {
+                    break;
+                }
+            }
+
+            names.Reverse();
+            return string.Join("/", names);
         }
 
         private static void AssertValidHumanoidAvatar(string path)
