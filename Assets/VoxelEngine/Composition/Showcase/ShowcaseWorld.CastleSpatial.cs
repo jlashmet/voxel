@@ -26,8 +26,9 @@ namespace VoxelEngine.Showcase
 
         /// <summary>
         /// Queues every region intersected by the conservative spatial build envelope before any
-        /// castle mutation begins. This includes upper Y layers: generating an unqueued Y=1 region
-        /// after the keep has already written into it would overwrite the completed structure.
+        /// castle mutation begins. This includes upper and negative Y layers: generating an
+        /// unqueued region after the castle has already written into it would overwrite the
+        /// completed structure.
         /// </summary>
         private void QueuePendingCastleDependencyRegions()
         {
@@ -35,14 +36,13 @@ namespace VoxelEngine.Showcase
             CastleSpatialPlan spatial = _pendingPlannedCastle.Spatial;
             CastleBuildBounds bounds = CastleBuildBoundsResolver.Resolve(
                 in dimensions, spatial);
-            int shift = VoxelDimensions.RegionVoxelEdgeLog2;
-            int3 minRegion = bounds.Min >> shift;
-            int3 maxRegion = (bounds.MaxExclusive - 1) >> shift;
+            ShowcaseCastleDependencyRegionRange regionRange =
+                ShowcaseCastleDependencyRegionRange.FromCastleBounds(in bounds);
 
             _castleRegions.Clear();
-            for (int rz = minRegion.z; rz <= maxRegion.z; rz++)
-            for (int ry = minRegion.y; ry <= maxRegion.y; ry++)
-            for (int rx = minRegion.x; rx <= maxRegion.x; rx++)
+            for (int rz = regionRange.Min.z; rz <= regionRange.MaxInclusive.z; rz++)
+            for (int ry = regionRange.Min.y; ry <= regionRange.MaxInclusive.y; ry++)
+            for (int rx = regionRange.Min.x; rx <= regionRange.MaxInclusive.x; rx++)
                 _castleRegions.Add(new int3(rx, ry, rz));
         }
 
