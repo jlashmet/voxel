@@ -39,5 +39,18 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleGateGeometryResolver.Resolve", projection);
             StringAssert.Contains("CastleApproachFrame.FromGate", projection);
         }
+
+        [Test]
+        public void RuntimeReadinessUsesPureKeepProjectionWithoutReenteringFullProjection()
+        {
+            string readiness = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Api",
+                "CastleSpatialBuildReadiness.cs"));
+
+            StringAssert.Contains("CastleSpatialProjection.ProjectKeepPlan(", readiness,
+                "Runtime readiness may derive keep-local geometry from the pure keep projection.");
+            StringAssert.DoesNotContain("CastleSpatialProjection.Create(", readiness,
+                "Runtime readiness must not re-enter the validating full projection while admitting the plan.");
+        }
     }
 }
