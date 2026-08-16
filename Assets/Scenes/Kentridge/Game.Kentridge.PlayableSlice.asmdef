@@ -5,6 +5,7 @@
     "VoxelEngine.Showcase",
     "VoxelEngine.Composition",
     "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Tiering.Api",
     "Game.Composition.Campaign",
@@ -18,6 +19,7 @@
     "Game.Cutscenes.Content",
     "Game.WorldBuilder.Api",
     "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Architecture",
     "MountingForce.WorldGen.Voxel",
     "Unity.Collections"
   ],
