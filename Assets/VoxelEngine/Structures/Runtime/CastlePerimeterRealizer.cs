@@ -70,93 +70,26 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
+        /// <summary>
+        /// Compatibility wrapper for callers that still provide only gate placement. Production
+        /// spatial builds carry a frozen CastleGatehousePlan and call CastlePlannedGatehouseRealizer
+        /// directly through CastleBuildPipeline.
+        /// </summary>
         public static void Gatehouse(
             ref VoxelBrush brush,
             in CastlePlan plan,
             int2 localGateCentre,
             float2 outward)
         {
-            CastleGateGeometry gateGeometry = CastleGateGeometryResolver.Resolve(
-                in plan, localGateCentre, outward);
-            float2 normal = gateGeometry.Outward;
-            float2 tangent = gateGeometry.Tangent;
-            float2 gate = gateGeometry.PerimeterCentre;
-            int baseY = plan.Centre.y + plan.PlateauHeight;
-
-            int spacing = math.max(
-                54,
-                plan.GateTowerRadius + gateGeometry.Width / 2 + 8);
-            int2 left = Round(gate - tangent * spacing);
-            int2 right = Round(gate + tangent * spacing);
-
-            CastleTowerRealizer.Build(
-                ref brush,
-                in plan,
-                new int3(left.x, baseY, left.y),
-                plan.GateTowerRadius,
-                plan.GateTowerHeight + 38,
-                false);
-            CastleTowerRealizer.Build(
-                ref brush,
-                in plan,
-                new int3(right.x, baseY, right.y),
-                plan.GateTowerRadius,
-                plan.GateTowerHeight + 12,
-                false);
-
-            int blockHeight = plan.WallHeight + 22;
-            int openingHeight = gateGeometry.Height + 14;
-            if (blockHeight > openingHeight)
+            var placement = new CastleGatePlacementSpec
             {
-                VoxelWallRasterizer.FillSegment(
-                    ref brush,
-                    left,
-                    right,
-                    baseY + openingHeight,
-                    blockHeight - openingHeight,
-                    plan.WallThickness * 2,
-                    Mat.Stone);
-            }
-
-            BuildGateLeaf(ref brush, in gateGeometry);
-
-            Crenellate(
-                ref brush,
-                left,
-                right,
-                baseY + blockHeight,
-                plan.WallThickness * 2);
-            ApproachBridge(ref brush, gate, tangent, normal, baseY, plan.WallThickness);
-        }
-
-        private static void BuildGateLeaf(ref VoxelBrush brush, in CastleGateGeometry geometry)
-        {
-            for (int d = 0; d < geometry.Depth; d++)
-            for (int w = 0; w < geometry.Width; w++)
-            for (int h = 0; h < geometry.Height; h++)
-            {
-                if (!geometry.ContainsArchVoxel(w, h))
-                    continue;
-
-                int3 voxel = geometry.WorldVoxel(w, h, d);
-                bool ironBand = (h >= 10 && h < 13)
-                             || (h >= 23 && h < 26)
-                             || (h >= 36 && h < 39);
-                if (ironBand)
-                {
-                    brush.Set(voxel.x, voxel.y, voxel.z, Mat.DarkStone);
-                    continue;
-                }
-
-                brush.SetStyled(
-                    voxel.x,
-                    voxel.y,
-                    voxel.z,
-                    Mat.Wood,
-                    SurfaceStyles.Rounded,
-                    Coatings.None,
-                    VoxelSurfaceFlags.PreserveFeature);
-            }
+                EdgeIndex = -1,
+                Centre = localGateCentre,
+                Outward = outward,
+            };
+            CastleGatehousePlan gatehouse = CastleGatehousePlanner.Create(in plan);
+            CastlePlannedGatehouseRealizer.Build(
+                ref brush, in plan, in placement, in gatehouse);
         }
 
         private static void WallWithOpening(
@@ -287,34 +220,6 @@ namespace VoxelEngine.Structures.Runtime
                     20,
                     thickness,
                     Mat.Stone);
-            }
-        }
-
-        private static void ApproachBridge(
-            ref VoxelBrush brush,
-            float2 gate,
-            float2 tangent,
-            float2 outward,
-            int baseY,
-            int wallThickness)
-        {
-            float nearDistance = wallThickness + 4f;
-            float farDistance = nearDistance + 150f;
-            float2 near = gate + outward * nearDistance;
-            float2 far = gate + outward * farDistance;
-
-            VoxelWallRasterizer.FillSegment(
-                ref brush, Round(near), Round(far), baseY - 2, 2, 68, Mat.Wood);
-
-            for (int side = -1; side <= 1; side += 2)
-            {
-                float2 offset = tangent * (side * 32f);
-                int2 supportNear = Round(near + offset);
-                int2 supportFar = Round(far + offset);
-                VoxelWallRasterizer.FillSegment(
-                    ref brush, supportNear, supportFar, baseY - 7, 5, 8, Mat.DarkStone);
-                VoxelWallRasterizer.FillSegment(
-                    ref brush, supportNear, supportFar, baseY + 8, 4, 4, Mat.Wood);
             }
         }
 
