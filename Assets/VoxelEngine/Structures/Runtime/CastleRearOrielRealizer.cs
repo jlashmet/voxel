@@ -13,7 +13,7 @@ namespace VoxelEngine.Structures.Runtime
         {
             int baseY = plan.Centre.y + plan.PlateauHeight;
             int hz = plan.KeepHalfZ;
-            int keepMinZ = plan.Centre.z - hz + 60;
+            int keepMinZ = plan.Centre.z - hz + CastleLayout.LegacyKeepCentreZOffset;
             int keepDepth = hz * 2;
 
             const int width = 44;
