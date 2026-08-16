@@ -65,8 +65,8 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
-            CastleSpatialProjection keepProjection = CastleSpatialProjection.Create(in plan, spatial);
-            CastlePlan keepPlan = keepProjection.KeepPlan;
+            CastlePlan keepPlan = CastleSpatialProjection.ProjectKeepPlan(
+                in plan, spatial.KeepCentre);
             if (!CastleKeepTurretPlanValidator.TryValidateSlits(
                     in keepPlan, topology.KeepTurrets, out _))
             {
@@ -159,8 +159,7 @@ namespace VoxelEngine.Structures.Api
                 return false;
             }
 
-            CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
-            if (!dungeon.Entrance.Equals(projection.TrapdoorCentre))
+            if (!dungeon.Entrance.Equals(CastleLayout.TrapdoorCentre(in keepPlan)))
             {
                 issue = CastleSpatialBuildReadinessIssue.DungeonEntranceMismatch;
                 return false;
