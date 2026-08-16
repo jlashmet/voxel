@@ -80,16 +80,16 @@ jobs:
           test -f Assets/ThirdParty/PlaceholderHumanoids/Editor/PlaceholderHumanoidImporter.cs.meta
           test -f Assets/Tests/EditMode/PlaceholderHumanoidAssetTests.cs.meta
 
-      - name: Commit generated metadata and remove one-shot workflow
+      - name: Commit generated metadata
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/workflows/generate-placeholder-unity-meta.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A Assets/ThirdParty/PlaceholderHumanoids Assets/Tests/EditMode/PlaceholderHumanoidAssetTests.cs.meta .github/workflows/generate-placeholder-unity-meta.yml
+          git add -A Assets/ThirdParty/PlaceholderHumanoids Assets/Tests/EditMode/PlaceholderHumanoidAssetTests.cs.meta
           git diff --cached --quiet && exit 0
           git commit -m "assets: commit Unity metadata for placeholder humanoids"
+          git pull --rebase origin feature/temp-placeholder-humanoids
           git push origin HEAD:feature/temp-placeholder-humanoids
 
       - name: Show Unity import log tail
