@@ -33,7 +33,6 @@ jobs:
 
           scheduler_path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs')
           s = scheduler_path.read_text()
-
           s = once(s,
           '''        public readonly int RunningSolidJobs;
                   public readonly int SolidMeshesAwaitingUpload;
@@ -46,7 +45,6 @@ jobs:
                   public readonly int LastFrameSolidUploadCompletions;
                   public readonly double LastSolidSnapshotMs;''',
           'metric fields')
-
           s = once(s,
           '''            RunningSolidJobs = solids.RunningJobCount;
                       SolidMeshesAwaitingUpload = solids.PendingUploadCount;
@@ -58,28 +56,29 @@ jobs:
                       LastFrameSolidUploadedBytes = 0;
                       LastFrameSolidUploadCompletions = 0;
                       LastSolidSnapshotMs = solids.LastSnapshotMs;''',
-          'single-worker metric values')
-
+          'single worker metrics')
           s = once(s,
-          '''                                     int changeRecords, int discoveredSurfaceBricks,
+          '''        internal VoxelSurfaceMetrics(CpuTransvoxelChunkCache[] workers,
+                                             CpuWaterSurfaceChunkCache water,
+                                             int changeRecords, int discoveredSurfaceBricks,
                                              int visibleSolidChunks,
                                              in VoxelTimingSummary schedulerPrepare,''',
-          '''                                     int changeRecords, int discoveredSurfaceBricks,
+          '''        internal VoxelSurfaceMetrics(CpuTransvoxelChunkCache[] workers,
+                                             CpuWaterSurfaceChunkCache water,
+                                             int changeRecords, int discoveredSurfaceBricks,
                                              int visibleSolidChunks,
                                              int solidUploadBudgetBytes,
                                              int lastFrameSolidUploadedBytes,
                                              int lastFrameSolidUploadCompletions,
                                              in VoxelTimingSummary schedulerPrepare,''',
           'aggregate metric signature')
-
           s = once(s,
           '''            int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;
                       ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;''',
           '''            int known = 0, resident = 0, dirty = 0, missing = 0, running = 0, uploads = 0;
                       long pendingUploadBytes = 0;
                       ulong completed = 0, stale = 0, uploadedBytes = water.UploadedGeometryBytes;''',
-          'aggregate pending bytes local')
-
+          'aggregate pending local')
           s = once(s,
           '''                running += worker.RunningJobCount;
                           uploads += worker.PendingUploadCount;
@@ -88,8 +87,7 @@ jobs:
                           uploads += worker.PendingUploadCount;
                           pendingUploadBytes += worker.PendingUploadBytes;
                           completed += worker.CompletedBuildCount;''',
-          'aggregate pending bytes')
-
+          'aggregate pending sum')
           s = once(s,
           '''            RunningSolidJobs = running;
                       SolidMeshesAwaitingUpload = uploads;
@@ -102,7 +100,6 @@ jobs:
                       LastFrameSolidUploadCompletions = lastFrameSolidUploadCompletions;
                       CompletedSolidBuilds = completed;''',
           'aggregate metric assignments')
-
           s = once(s,
           '''            _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
                       _visibleSolids.Count, _prepareTiming.Snapshot(), _journalTiming.Snapshot(),''',
@@ -111,7 +108,6 @@ jobs:
                       _lastFrameSolidUploadCompletions,
                       _prepareTiming.Snapshot(), _journalTiming.Snapshot(),''',
           'scheduler metric construction')
-
           scheduler_path.write_text(s)
 
           bridge_path = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs')
@@ -122,7 +118,8 @@ jobs:
                   // proceeds off-thread; 0.20 ms fell below useful post-job granularity on Apple silicon.
                   public static double SolidBuildBudgetMs = 0.50;
                   public static double WaterBuildBudgetMs = 0.15;''',
-          '''        // This is a renderer-wide admission budget, shared across every LOD ring/shard.
+          '''        // Renderer-wide admission/publication controls. These are shared across every
+                  // LOD ring and worker; adding workers must never multiply the frame budget.
                   public static double SolidBuildBudgetMs = 0.50;
                   public static int SolidUploadBudgetBytes = 1024 * 1024;
                   public static int SolidUploadSliceBytes = 256 * 1024;
@@ -148,7 +145,9 @@ jobs:
 
           test_path = Path('Assets/Tests/PlayMode/LodRenderingTests.cs')
           t = test_path.read_text()
-          insert = '''
+          if 'GeometryUploadStaysWithinGlobalBudgetWhileCrossingLodBands' in t:
+              raise SystemExit('upload budget PlayMode test already exists')
+          insert = r'''
 
                   [UnityTest, Timeout(900000)]
                   public IEnumerator GeometryUploadStaysWithinGlobalBudgetWhileCrossingLodBands()
@@ -185,9 +184,8 @@ jobs:
                       bool sawQueuedReplacement = false;
                       try
                       {
-                          // Deliberately force sizeable chunks to publish over multiple frames.
-                          VoxelRenderBridge.SolidUploadBudgetBytes = 64 * 1024;
-                          VoxelRenderBridge.SolidUploadSliceBytes = 16 * 1024;
+                          VoxelRenderBridge.SolidUploadBudgetBytes = 16 * 1024;
+                          VoxelRenderBridge.SolidUploadSliceBytes = 4 * 1024;
                           VoxelRenderBridge.SolidUploadWorkerBudget = 4;
                           VoxelRenderBridge.SolidUploadBudgetMs = 5.0;
                           camera.targetTexture = target;
@@ -203,9 +201,8 @@ jobs:
                               yield return null;
 
                               VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
-                              if (metrics.SolidUploadBudgetBytes <= 0) continue;
-                              Assert.AreEqual(64 * 1024, metrics.SolidUploadBudgetBytes,
-                                  "Render pass did not apply the global upload budget.");
+                              Assert.AreEqual(16 * 1024, metrics.SolidUploadBudgetBytes,
+                                  "Render pass did not apply the renderer-wide upload budget.");
                               Assert.LessOrEqual(metrics.LastFrameSolidUploadedBytes,
                                   metrics.SolidUploadBudgetBytes,
                                   "Solid geometry upload exceeded the renderer-wide frame budget.");
@@ -216,7 +213,7 @@ jobs:
                           Assert.IsTrue(sawUpload,
                               "LOD traversal never exercised solid geometry publication.");
                           Assert.IsTrue(sawQueuedReplacement,
-                              "A 64 KiB frame budget should force at least one replacement to remain queued.");
+                              "A 16 KiB frame cap should force at least one replacement to remain queued.");
                       }
                       finally
                       {
@@ -233,9 +230,8 @@ jobs:
           marker = '\n    }\n}'
           pos = t.rfind(marker)
           if pos < 0:
-              raise SystemExit('LodRenderingTests class closing marker not found')
-          t = t[:pos] + insert + t[pos:]
-          test_path.write_text(t)
+              raise SystemExit('LodRenderingTests closing marker not found')
+          test_path.write_text(t[:pos] + insert + t[pos:])
 
           guard_path = Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs')
           if guard_path.exists():
@@ -268,14 +264,15 @@ jobs:
                   {
                       string source = ReadRenderingSource(
                           Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
-                      StringAssert.Contains("_transitionJobHandle = job.Schedule();", source);
-                      StringAssert.Contains("if (!_transitionJobHandle.IsCompleted) return false;", source);
-                      StringAssert.DoesNotContain("TransitionMeshJob", source.Substring(
-                          source.IndexOf("private bool StepTransitionFaces", StringComparison.Ordinal),
-                          source.IndexOf("private void InitialiseTopologyTables", StringComparison.Ordinal)
-                          - source.IndexOf("private bool StepTransitionFaces", StringComparison.Ordinal))
-                          .Replace("TransitionMeshJob", string.Empty).Replace(".Schedule()", string.Empty)
-                          .Contains(".Run()") ? "TransitionMeshJob" : "__no_inline_transition_run__");
+                      int start = source.IndexOf("private bool StepTransitionFaces", StringComparison.Ordinal);
+                      int end = source.IndexOf("private void InitialiseTopologyTables", start,
+                                               StringComparison.Ordinal);
+                      Assert.GreaterOrEqual(start, 0);
+                      Assert.Greater(end, start);
+                      string transition = source.Substring(start, end - start);
+                      StringAssert.Contains("_transitionJobHandle = job.Schedule();", transition);
+                      StringAssert.Contains("if (!_transitionJobHandle.IsCompleted) return false;", transition);
+                      StringAssert.DoesNotContain(".Run();", transition);
                   }
 
                   [Test]
@@ -301,13 +298,16 @@ jobs:
                           Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
                       StringAssert.Contains("if (!_transitionJobHandle.IsCompleted) return false;", cache);
                       StringAssert.Contains("&& !ScheduledJobsComplete())", cache);
-                      StringAssert.Contains("if (!_surfaceDiscoveryJobHandle.IsCompleted)", scheduler);
-                      StringAssert.Contains("return;", scheduler.Substring(
-                          scheduler.IndexOf("if (!_surfaceDiscoveryJobHandle.IsCompleted)", StringComparison.Ordinal), 120));
+                      int discovery = scheduler.IndexOf(
+                          "if (!_surfaceDiscoveryJobHandle.IsCompleted)", StringComparison.Ordinal);
+                      Assert.GreaterOrEqual(discovery, 0);
+                      StringAssert.Contains("return;", scheduler.Substring(discovery, 140));
                   }
               }
           }
           ''')
+          Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs.meta').write_text(
+              'fileFormatVersion: 2\nguid: 6cd76dcd12b94c98800527e57e4a1a22\n')
           PY
 
       - name: Static validation guards
@@ -319,11 +319,13 @@ jobs:
           bridge = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs').read_text()
           render_pass = Path('Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs').read_text()
           tests = Path('Assets/Tests/PlayMode/LodRenderingTests.cs').read_text()
-          assert 'LastFrameSolidUploadedBytes' in scheduler
+          guard = Path('Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs').read_text()
           assert 'SolidPendingUploadBytes' in scheduler
+          assert 'LastFrameSolidUploadedBytes' in scheduler
           assert 'SolidUploadBudgetBytes = 1024 * 1024' in bridge
           assert '_scheduler.SolidUploadBudgetBytes' in render_pass
           assert 'GeometryUploadStaysWithinGlobalBudgetWhileCrossingLodBands' in tests
+          assert 'StringAssert.DoesNotContain(".Run();", transition);' in guard
           PY
 
       - name: Commit validation and observability
@@ -335,6 +337,7 @@ jobs:
                   Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderBridge.cs \
                   Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs \
                   Assets/Tests/PlayMode/LodRenderingTests.cs \
-                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs \
+                  Assets/Tests/EditMode/GeometryPipelineArchitectureTests.cs.meta
           git commit -m 'Add geometry upload budget regression coverage'
           git push origin HEAD:refactor/async-geometry-pipeline
