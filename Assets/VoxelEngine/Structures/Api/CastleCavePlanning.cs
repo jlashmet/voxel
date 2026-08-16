@@ -10,8 +10,6 @@ namespace VoxelEngine.Structures.Api
     /// </summary>
     public static class CastleCavePlanning
     {
-        private const uint CaveRandomElementId = 0x43415645u; // "CAVE"
-
         public static CavePlan Create(in CastlePlan castle, DungeonPlan dungeon)
         {
             if (dungeon == null) throw new ArgumentNullException(nameof(dungeon));
@@ -42,7 +40,7 @@ namespace VoxelEngine.Structures.Api
                 PassageHeight = 30,
             };
             uint caveSeed = CastleSeedPartition.Derive(
-                castle.Seed, CastleSeedDomain.Dungeon, CaveRandomElementId);
+                castle.Seed, CastleSeedDomain.Cave);
             return CavePlanner.Create(caveSeed, in constraints);
         }
     }
