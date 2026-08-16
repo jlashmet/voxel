@@ -25,6 +25,9 @@ namespace VoxelEngine.Tests.EditMode
                          plan.Centre.z + spatial.KeepCentre.y),
                 projection.KeepCentreWorld);
             Assert.AreEqual(
+                CastleSpatialProjection.KeepMinimum(in projection.KeepPlan),
+                projection.KeepMinimumWorld);
+            Assert.AreEqual(
                 CastleLayout.TrapdoorCentre(in projection.KeepPlan),
                 projection.TrapdoorCentre);
             Assert.AreEqual(
@@ -33,7 +36,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void KeepProjectionHelpersRoundTripSemanticCentre()
+        public void KeepProjectionHelpersRoundTripSemanticCentreAndBounds()
         {
             CastlePlan plan = CastlePlanner.Create(new int3(180, 210, 410), 47u);
             var localKeepCentre = new int2(73, -54);
@@ -41,12 +44,34 @@ namespace VoxelEngine.Tests.EditMode
             CastlePlan projected = CastleSpatialProjection.ProjectKeepPlan(
                 in plan, localKeepCentre);
             int2 actual = CastleSpatialProjection.ActualKeepCentre(in projected);
+            int3 minimum = CastleSpatialProjection.KeepMinimum(in projected);
 
             Assert.AreEqual(
                 new int2(plan.Centre.x + localKeepCentre.x,
                          plan.Centre.z + localKeepCentre.y),
                 actual);
+            Assert.AreEqual(
+                new int3(
+                    actual.x - plan.KeepHalfX,
+                    plan.Centre.y + plan.PlateauHeight,
+                    actual.y - plan.KeepHalfZ),
+                minimum);
             Assert.AreEqual(plan.Centre.y, projected.Centre.y);
+        }
+
+        [Test]
+        public void KeepMinimumPreservesHistoricalCompatibilityPlacement()
+        {
+            CastlePlan plan = CastlePlanner.Create(new int3(210, 205, 390), 49u);
+
+            int3 minimum = CastleSpatialProjection.KeepMinimum(in plan);
+
+            Assert.AreEqual(
+                new int3(
+                    plan.Centre.x - plan.KeepHalfX,
+                    plan.Centre.y + plan.PlateauHeight,
+                    plan.Centre.z - plan.KeepHalfZ + CastleLayout.LegacyKeepCentreZOffset),
+                minimum);
         }
 
         [Test]
