@@ -19,18 +19,23 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void CompatibilityKeepDoesNotAcceptSemanticFloorPlans()
+        public void CompatibilityAndPlannedKeepFloorsUseExplicitEntryPoints()
         {
             string runtime = Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime");
             string keep = File.ReadAllText(Path.Combine(runtime, "CastleKeepRealizer.cs"));
             string floors = File.ReadAllText(Path.Combine(runtime, "CastleKeepFloorRealizer.cs"));
+            string plannedKeep = File.ReadAllText(Path.Combine(runtime, "CastlePlannedKeepRealizer.cs"));
 
             StringAssert.Contains("CastleKeepFloorRealizer.BuildCompatibility(", keep);
             StringAssert.DoesNotContain("CastleKeepFloorPlan[]", keep,
                 "Spatial floor semantics must bypass the compatibility keep dispatcher.");
 
             StringAssert.Contains("internal static void BuildCompatibility(", floors);
+            StringAssert.Contains("internal static void BuildPlanned(", floors);
+            StringAssert.DoesNotContain("internal static void Build(\n", floors,
+                "Floor realization must not reintroduce an ambiguous mode-switching entry point.");
+            StringAssert.Contains("CastleKeepFloorRealizer.BuildPlanned(", plannedKeep);
             StringAssert.Contains(
                 "Planned keep floor realization requires one semantic room plan per floor.",
                 floors);
