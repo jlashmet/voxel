@@ -37,5 +37,36 @@ namespace VoxelEngine.Structures.Runtime
                     tower.HasRoof);
             }
         }
+
+        /// <summary>
+        /// Transitional compatibility overload for an in-flight pipeline snapshot that still
+        /// carries only centres. The spatial pipeline is being migrated to the spec overload above;
+        /// this preserves historical output until that caller lands and prevents a broken branch.
+        /// </summary>
+        internal static void BuildAll(
+            ref VoxelBrush brush,
+            in CastlePlan plan,
+            int2[] localCentres)
+        {
+            if (localCentres == null || localCentres.Length == 0)
+                return;
+
+            var towers = new CastleTowerPlacementSpec[localCentres.Length];
+            for (int i = 0; i < towers.Length; i++)
+            {
+                uint variation = CastleSeedPartition.Derive(
+                    plan.Seed, CastleSeedDomain.Walls, (uint)(0x2A00 + i));
+                towers[i] = new CastleTowerPlacementSpec
+                {
+                    Id = i,
+                    Centre = localCentres[i],
+                    Role = CastleTowerPlacementRole.Corner,
+                    HeightVariation = 0,
+                    HasRoof = (variation & 1u) != 0u,
+                };
+            }
+
+            BuildAll(ref brush, in plan, towers);
+        }
     }
 }
