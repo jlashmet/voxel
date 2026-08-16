@@ -1,0 +1,101 @@
+name: Kentridge Playable Slice
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/actual-game-world-integration
+    paths:
+      - 'Assets/Scenes/KentridgePlayableSlice.unity'
+      - 'Assets/Scenes/KentridgePlayableSlice.unity.meta'
+      - 'Assets/Scenes/Kentridge/**'
+      - 'Assets/Tests/EditMode/KentridgeBuildingGrammarTests.cs'
+      - 'Assets/Tests/PlayMode/KentridgePlayableScenePlayTests.cs'
+      - 'Assets/Tests/PlayMode/KentridgePubExitPlayTests.cs'
+      - 'Assets/Tests/PlayMode/KentridgeOpeningVerticalSlicePlayTests.cs'
+      - 'Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef'
+      - 'Assets/Game/**'
+      - 'Assets/VoxelEngine/Composition/Showcase/**'
+      - 'Packages/com.mountingforce.worldgen/**'
+      - 'ProjectSettings/EditorBuildSettings.asset'
+      - '.github/workflows/kentridge-playable-slice.yml'
+
+concurrency:
+  group: kentridge-playable-slice-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playable-slice:
+    name: Load pub, play intro, walk into Kentridge
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Locate Unity editor
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNITY_VERSION="$(awk '/m_EditorVersion:/ { print $2 }' ProjectSettings/ProjectVersion.txt)"
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${UNITY_VERSION}/Unity.app/Contents/MacOS/Unity"
+          echo "Unity version: ${UNITY_VERSION}"
+          echo "Unity path: ${UNITY_PATH}"
+          if [[ ! -x "${UNITY_PATH}" ]]; then
+            echo "Unity executable was not found at ${UNITY_PATH}" >&2
+            exit 1
+          fi
+          echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Prove generated pub doorway remains carved
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/KentridgePlayableSlice"
+          mkdir -p "$ROOT"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform EditMode \
+            -testFilter VoxelEngine.Tests.EditMode.KentridgeBuildingGrammarTests.PubDoorwayRemainsCarvedAfterFacadeFraming \
+            -testResults "$ROOT/doorway-ordering-results.xml" \
+            -logFile "$ROOT/doorway-ordering-unity.log"
+          status=$?
+          if [[ -f "$ROOT/doorway-ordering-unity.log" ]]; then
+            cat "$ROOT/doorway-ordering-unity.log"
+          fi
+          exit $status
+
+      - name: Run playable Kentridge acceptances
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/KentridgePlayableSlice"
+          mkdir -p "$ROOT"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform PlayMode \
+            -testFilter 'VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests;VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests' \
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log"
+          status=$?
+          if [[ -f "$ROOT/unity.log" ]]; then
+            cat "$ROOT/unity.log"
+          fi
+          exit $status
+
+      - name: Upload playable-slice evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kentridge-playable-slice-${{ github.sha }}
+          path: Artifacts/KentridgePlayableSlice/
+          if-no-files-found: warn
+          retention-days: 14
