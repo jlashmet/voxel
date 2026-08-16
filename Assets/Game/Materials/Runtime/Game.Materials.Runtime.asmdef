@@ -7,7 +7,6 @@
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Rendering.Api",
-    "VoxelEngine.Structures.Api",
     "Unity.Mathematics"
   ],
   "includePlatforms": [],
