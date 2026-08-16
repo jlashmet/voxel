@@ -1,4 +1,5 @@
 using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Structures.Runtime
@@ -75,16 +76,16 @@ namespace VoxelEngine.Structures.Runtime
             int2 localGateCentre,
             float2 outward)
         {
-            float length = math.length(outward);
-            float2 normal = length > 0.001f ? outward / length : new float2(0f, -1f);
-            float2 tangent = new float2(-normal.y, normal.x);
-            int2 gateCentre = ToWorld(in plan, localGateCentre);
-            float2 gate = new float2(gateCentre.x, gateCentre.y);
+            CastleGateGeometry gateGeometry = CastleGateGeometryResolver.Resolve(
+                in plan, localGateCentre, outward);
+            float2 normal = gateGeometry.Outward;
+            float2 tangent = gateGeometry.Tangent;
+            float2 gate = gateGeometry.PerimeterCentre;
             int baseY = plan.Centre.y + plan.PlateauHeight;
 
             int spacing = math.max(
                 54,
-                plan.GateTowerRadius + CastleLayout.FrontGateWidth / 2 + 8);
+                plan.GateTowerRadius + gateGeometry.Width / 2 + 8);
             int2 left = Round(gate - tangent * spacing);
             int2 right = Round(gate + tangent * spacing);
 
@@ -104,7 +105,7 @@ namespace VoxelEngine.Structures.Runtime
                 false);
 
             int blockHeight = plan.WallHeight + 22;
-            int openingHeight = CastleLayout.FrontGateHeight + 14;
+            int openingHeight = gateGeometry.Height + 14;
             if (blockHeight > openingHeight)
             {
                 VoxelWallRasterizer.FillSegment(
@@ -117,28 +118,7 @@ namespace VoxelEngine.Structures.Runtime
                     Mat.Stone);
             }
 
-            float2 halfGate = tangent * (CastleLayout.FrontGateWidth * 0.5f);
-            int2 gateLeft = Round(gate - halfGate);
-            int2 gateRight = Round(gate + halfGate);
-            VoxelWallRasterizer.FillSegment(
-                ref brush,
-                gateLeft,
-                gateRight,
-                baseY + 1,
-                CastleLayout.FrontGateHeight,
-                4,
-                Mat.Wood);
-            for (int band = 0; band < 3; band++)
-            {
-                VoxelWallRasterizer.FillSegment(
-                    ref brush,
-                    gateLeft,
-                    gateRight,
-                    baseY + 11 + band * 13,
-                    3,
-                    5,
-                    Mat.DarkStone);
-            }
+            BuildGateLeaf(ref brush, in gateGeometry);
 
             Crenellate(
                 ref brush,
@@ -147,6 +127,36 @@ namespace VoxelEngine.Structures.Runtime
                 baseY + blockHeight,
                 plan.WallThickness * 2);
             ApproachBridge(ref brush, gate, tangent, normal, baseY, plan.WallThickness);
+        }
+
+        private static void BuildGateLeaf(ref VoxelBrush brush, in CastleGateGeometry geometry)
+        {
+            for (int d = 0; d < geometry.Depth; d++)
+            for (int w = 0; w < geometry.Width; w++)
+            for (int h = 0; h < geometry.Height; h++)
+            {
+                if (!geometry.ContainsArchVoxel(w, h))
+                    continue;
+
+                int3 voxel = geometry.WorldVoxel(w, h, d);
+                bool ironBand = (h >= 10 && h < 13)
+                             || (h >= 23 && h < 26)
+                             || (h >= 36 && h < 39);
+                if (ironBand)
+                {
+                    brush.Set(voxel.x, voxel.y, voxel.z, Mat.DarkStone);
+                    continue;
+                }
+
+                brush.SetStyled(
+                    voxel.x,
+                    voxel.y,
+                    voxel.z,
+                    Mat.Wood,
+                    SurfaceStyles.Rounded,
+                    Coatings.None,
+                    VoxelSurfaceFlags.PreserveFeature);
+            }
         }
 
         private static void WallWithOpening(
