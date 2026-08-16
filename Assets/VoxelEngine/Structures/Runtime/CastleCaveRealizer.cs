@@ -11,9 +11,13 @@ namespace VoxelEngine.Structures.Runtime
     /// </summary>
     internal static class CastleCaveRealizer
     {
+        private const uint CaveRandomElementId = 0x43415645u; // "CAVE"
+
         internal static void Build(ref VoxelBrush brush, in CastlePlan plan, int3 at)
         {
-            var rng = new Random(plan.Seed ^ 0xCAFEu);
+            uint caveSeed = CastleSeedPartition.Derive(
+                plan.Seed, CastleSeedDomain.Dungeon, CaveRandomElementId);
+            var rng = new Random(caveSeed);
 
             CarveCavernEllipsoid(ref brush, at + new int3(0, 27, 0),
                                  new int3(82, 36, 104), 0.17f);
