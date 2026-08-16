@@ -15,9 +15,9 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Structural contract for the currently supported keep-floor recipe. The planner owns each
-    /// floor's semantic purpose and variable room accents; Runtime may rely on this validator
-    /// instead of inferring or rerolling those decisions during voxel realization.
+    /// Structural contract for supported keep-floor semantics. Runtime may rely on this validator
+    /// instead of inferring meaning from physical floor index: anchor floors are fixed, while
+    /// intermediate upper floors may use either supported upper-room recipe.
     /// </summary>
     public static class CastleKeepFloorPlanValidator
     {
@@ -47,18 +47,14 @@ namespace VoxelEngine.Structures.Api
                     return false;
                 }
 
-                CastleKeepFloorPurpose expectedPurpose = floor == 0
-                    ? CastleKeepFloorPurpose.GreatHall
-                    : floor == 1
-                        ? CastleKeepFloorPurpose.Bedchamber
-                        : CastleKeepFloorPurpose.LibraryAndStores;
-                if (planned.Purpose != expectedPurpose)
+                if (!PurposeAllowed(floor, floors.Length, planned.Purpose))
                 {
                     issue = CastleKeepFloorPlanIssue.PurposeMismatch;
                     return false;
                 }
 
-                bool expectedPartition = floor >= 2;
+                bool expectedPartition =
+                    planned.Purpose == CastleKeepFloorPurpose.LibraryAndStores;
                 if (planned.HasPartition != expectedPartition)
                 {
                     issue = CastleKeepFloorPlanIssue.PartitionMismatch;
@@ -90,6 +86,25 @@ namespace VoxelEngine.Structures.Api
 
             throw new InvalidOperationException(
                 $"Castle keep floor plan is invalid: {issue}.");
+        }
+
+        private static bool PurposeAllowed(
+            int floor,
+            int floorCount,
+            CastleKeepFloorPurpose purpose)
+        {
+            if (floor == 0)
+                return purpose == CastleKeepFloorPurpose.GreatHall;
+
+            if (floor == 1)
+                return purpose == CastleKeepFloorPurpose.Bedchamber;
+
+            // Keeps with at least three floors retain a guaranteed library/storey at the top.
+            if (floor == floorCount - 1)
+                return purpose == CastleKeepFloorPurpose.LibraryAndStores;
+
+            return purpose == CastleKeepFloorPurpose.Bedchamber ||
+                   purpose == CastleKeepFloorPurpose.LibraryAndStores;
         }
     }
 }
