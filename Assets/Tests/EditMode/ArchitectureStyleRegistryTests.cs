@@ -10,7 +10,7 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x5354594Cu;
 
         [Test]
-        public void CustomStyleResolvesNamedStructureWithoutKentridgeDispatch()
+        public void CustomStyleResolvesNamedStructureAndGeometryWithoutKentridgeDispatch()
         {
             var compiler = new TestStyleCompiler();
             var styles = new ArchitectureStyleRegistry(compiler);
@@ -28,12 +28,18 @@ namespace VoxelEngine.Tests.EditMode
                 KentridgeDefinition.Theme,
                 Seed,
                 styles);
+            StructureGeometryProfile geometry =
+                styles.Require(intent.StyleId).ResolveGeometry(intent, form);
 
             Assert.AreEqual(42, form.RoleId);
             Assert.AreEqual(StructureArchetype.Townhouse, form.Archetype);
             Assert.AreEqual(DistrictKind.Residential, form.District);
             Assert.AreEqual(StructureGenerationMode.Generated, form.Mode);
             Assert.AreEqual(78, form.WidthDm);
+            Assert.AreEqual(5, geometry.ShellCornerRadiusDm,
+                "A non-Kentridge style should own its own low-level shell geometry.");
+            Assert.AreEqual(StructureSurfaceTreatment.MasonryJoint, geometry.ShellSurface);
+            Assert.AreEqual(StructureSurfaceTreatment.Planar, geometry.RoofSurface);
             Assert.IsTrue(compiler.NamedValidated,
                 "The shared compiler must still enforce style-specific validation hooks.");
         }
@@ -126,6 +132,22 @@ namespace VoxelEngine.Tests.EditMode
                 StructureForm form)
             {
                 NamedValidated = true;
+            }
+
+            public StructureGeometryProfile ResolveGeometry(
+                StructureIntent intent,
+                StructureForm form)
+            {
+                return new StructureGeometryProfile(
+                    foundationCornerRadiusDm: 2,
+                    shellCornerRadiusDm: 5,
+                    openingCornerRadiusDm: 3,
+                    detailCornerRadiusDm: 1,
+                    foundationSurface: StructureSurfaceTreatment.Beveled,
+                    shellSurface: StructureSurfaceTreatment.MasonryJoint,
+                    openingSurface: StructureSurfaceTreatment.Rounded,
+                    detailSurface: StructureSurfaceTreatment.Smooth,
+                    roofSurface: StructureSurfaceTreatment.Planar);
             }
 
             public UrbanFabricForm ResolveUrbanFabric(
