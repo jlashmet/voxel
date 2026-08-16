@@ -27,6 +27,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         public int3 BrickCacheOrigin;
         public int BrickCacheEdge;
         public int CellsPerAxis;
+        public int SourceStep;
         [NativeDisableParallelForRestriction, WriteOnly] public NativeArray<uint> FaceMasks;
 
         public void Execute(int index)
@@ -35,7 +36,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             int3 local = new(index % CellsPerAxis,
                              index / CellsPerAxis % CellsPerAxis,
                              index / cellsPerPlane);
-            int3 voxel = ChunkOriginVoxel + local;
+            int step = math.max(1, SourceStep);
+            int3 voxel = ChunkOriginVoxel + local * step;
             byte material = Read(voxel, out uint surface, out byte boundary);
             SurfaceStyleReadDefinition style = Catalogue.Get((ushort)surface);
             bool displaced = Coatings.Get((byte)(surface >> 16)).Displacement != 0;
@@ -65,7 +67,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                         continue;
                     }
                     int3 neighbour = voxel;
-                    neighbour[axis] += side == 0 ? -1 : 1;
+                    neighbour[axis] += side == 0 ? -step : step;
                     byte adjacent = Read(neighbour, out _, out byte neighbourBoundary);
                     FaceMasks[output] = IsSolid(adjacent)
                         || new VoxelBoundarySample { Packed = neighbourBoundary }
