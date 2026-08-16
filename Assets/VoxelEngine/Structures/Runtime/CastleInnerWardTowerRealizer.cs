@@ -5,7 +5,7 @@ namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
     /// Voxel profile for already-planned inner-ward towers. Planning owns whether these towers
-    /// exist, where they stand, and whether each has a roof; Runtime owns only the smaller
+    /// exist, where they stand, and their roof/slit variation; Runtime owns only the smaller
     /// secondary-ring geometry profile.
     /// </summary>
     internal static class CastleInnerWardTowerRealizer
@@ -25,7 +25,8 @@ namespace VoxelEngine.Structures.Runtime
             for (int i = 0; i < towers.Length; i++)
             {
                 CastleTowerPlacementSpec tower = towers[i];
-                CastleTowerRealizer.Build(
+                int realizedHeight = height + math.max(0, tower.HeightVariation);
+                CastleTowerRealizer.BuildPlanned(
                     ref brush,
                     in plan,
                     new int3(
@@ -33,8 +34,9 @@ namespace VoxelEngine.Structures.Runtime
                         baseY,
                         plan.Centre.z + tower.Centre.y),
                     radius,
-                    height + math.max(0, tower.HeightVariation),
-                    tower.HasRoof);
+                    realizedHeight,
+                    tower.HasRoof,
+                    tower.Slits);
             }
         }
     }
