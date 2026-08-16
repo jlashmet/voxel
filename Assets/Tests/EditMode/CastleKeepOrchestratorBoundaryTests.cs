@@ -64,7 +64,9 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleKeepCirculationRealizer.Build(", keep);
             StringAssert.Contains("CastlePlannedKeepWindowRealizer.BuildAll(", keep);
             StringAssert.Contains("CastlePlannedKeepExteriorRealizer.Build(", keep);
-            StringAssert.Contains("CastlePlannedKeepAnnexRealizer.Build(", keep);
+            StringAssert.Contains("CastleKeepAnnexRealizer.BuildPlanned(", keep);
+            StringAssert.DoesNotContain("CastlePlannedKeepAnnexRealizer", keep,
+                "Planned keep sequencing should call the real annex component directly.");
 
             StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", exterior,
                 "Planned exterior bounds must use the same projection as shell/floors.");
