@@ -36,8 +36,8 @@ namespace VoxelEngine.Structures.Api
             CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
             int baseY = plan.Centre.y + plan.PlateauHeight;
 
-            // Site sculpt: CastleSiteRealizer iterates the full plateau + cliff skirt. Keep a small
-            // extra horizontal margin for tower faces and later wall-foot dressing.
+            // Site phase 0 iterates the plateau + cliff skirt square. Keep a small extra horizontal
+            // margin for tower faces and later wall-foot dressing.
             int siteReach = plan.PlateauRadius + plan.CliffDrop + plan.TowerRadius + 24;
             int minX = plan.Centre.x - siteReach;
             int maxX = plan.Centre.x + siteReach;
@@ -54,24 +54,14 @@ namespace VoxelEngine.Structures.Api
                 math.max(plan.TowerHeight, plan.GateTowerHeight) + 128);
             int maxY = baseY + authoredHeight;
 
-            // Gate-oriented site/approach work. Current terrain carving runs approximately one
-            // plateau+cliff span along the wall and ~220 voxels outside it. These margins remain a
-            // conservative compatibility envelope for the site recipe; the frozen gatehouse and
-            // landscape plans are additionally included from their exact semantic footprints below.
-            int tangentReach = plan.PlateauRadius + plan.CliffDrop + 64;
-            int outwardReach = plan.WallThickness + 256;
-            IncludeApproachCorner(
-                in plan, in projection.Approach, -tangentReach, -64,
-                ref minX, ref maxX, ref minZ, ref maxZ);
-            IncludeApproachCorner(
-                in plan, in projection.Approach, tangentReach, -64,
-                ref minX, ref maxX, ref minZ, ref maxZ);
-            IncludeApproachCorner(
-                in plan, in projection.Approach, -tangentReach, outwardReach,
-                ref minX, ref maxX, ref minZ, ref maxZ);
-            IncludeApproachCorner(
-                in plan, in projection.Approach, tangentReach, outwardReach,
-                ref minX, ref maxX, ref minZ, ref maxZ);
+            IncludePlannedSiteApproach(
+                in plan,
+                spatial,
+                in projection.Approach,
+                ref minX,
+                ref maxX,
+                ref minZ,
+                ref maxZ);
 
             IncludePlannedGatehouse(
                 in plan,
@@ -134,6 +124,45 @@ namespace VoxelEngine.Structures.Api
             return new CastleBuildBounds(
                 new int3(minX, minY, minZ),
                 new int3(maxX + 1, maxY + 1, maxZ + 1));
+        }
+
+        private static void IncludePlannedSiteApproach(
+            in CastlePlan plan,
+            CastleSpatialPlan spatial,
+            in CastleApproachFrame approach,
+            ref int minX,
+            ref int maxX,
+            ref int minZ,
+            ref int maxZ)
+        {
+            CastleSitePlan site = spatial.Topology.Site;
+            if (!CastleSitePlanValidator.TryValidate(in site, out CastleSitePlanIssue issue))
+            {
+                throw new InvalidOperationException(
+                    $"Castle dependency bounds require a valid site plan: {issue}.");
+            }
+
+            CastleSiteGeometryPlan geometry = site.Geometry;
+            int tangentReach = math.max(
+                0,
+                plan.PlateauRadius + plan.CliffDrop - geometry.ApproachReachInset);
+            float meanderReach = geometry.MeanderAmplitudeA + geometry.MeanderAmplitudeB;
+            float riverDistance = plan.WallThickness + geometry.RiverOffset;
+            float minimumOutward = riverDistance - meanderReach - geometry.RiverHalfWidth;
+            float maximumOutward = riverDistance + meanderReach + geometry.RiverHalfWidth;
+
+            IncludeApproachCorner(
+                in plan, in approach, -tangentReach, minimumOutward,
+                ref minX, ref maxX, ref minZ, ref maxZ);
+            IncludeApproachCorner(
+                in plan, in approach, tangentReach, minimumOutward,
+                ref minX, ref maxX, ref minZ, ref maxZ);
+            IncludeApproachCorner(
+                in plan, in approach, -tangentReach, maximumOutward,
+                ref minX, ref maxX, ref minZ, ref maxZ);
+            IncludeApproachCorner(
+                in plan, in approach, tangentReach, maximumOutward,
+                ref minX, ref maxX, ref minZ, ref maxZ);
         }
 
         private static void IncludePlannedGatehouse(
