@@ -141,7 +141,7 @@ jobs:
           for gate in SEMANTIC ARTICULATION TEMPORAL VEGETATION; do
             outcome_var="${gate}_OUTCOME"
             outcome="${!outcome_var}"
-            echo "${gate,,} gate: ${outcome}"
+            echo "${gate} gate: ${outcome}"
             if [[ "$outcome" != "success" ]]; then
               failed=1
             fi
