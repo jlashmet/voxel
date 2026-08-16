@@ -277,13 +277,10 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(player.CurrentClip, Is.SameAs(oneShot),
                 "Changing locomotion interrupted the active one-shot");
 
-            for (var frame = 0; frame < 5 && policy.ActiveOneShot != null; frame++)
-            {
-                yield return null;
-            }
+            policy.Tick();
 
             Assert.That(policy.ActiveOneShot, Is.Null,
-                "The completed one-shot did not return to locomotion within five frames");
+                "The completed one-shot did not return to locomotion when the policy advanced");
             Assert.That(policy.LocomotionState, Is.EqualTo(CharacterLocomotionState.Run));
             Assert.That(player.CurrentClip, Is.SameAs(run));
 
@@ -324,13 +321,10 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(player.CurrentClip, Is.SameAs(oneShot));
             Assert.That(player.IsPlaying, Is.True);
 
-            for (var frame = 0; frame < 5 && policy.ActiveOneShot != null; frame++)
-            {
-                yield return null;
-            }
+            policy.Tick();
 
             Assert.That(policy.ActiveOneShot, Is.Null,
-                "The swapped one-shot did not return to locomotion within five frames");
+                "The swapped one-shot did not return to locomotion when the policy advanced");
             Assert.That(player.CurrentClip, Is.SameAs(walk));
 
             Object.Destroy(host);
