@@ -50,6 +50,8 @@ Shader "VoxelEngine/ProceduralVine"
             float4 _SunDirection;
             float4 _SkyHorizon;
             float4 _SkyZenith;
+            float _ValidationAnimationTime;
+            float _UseValidationAnimationTime;
 
             struct Attributes
             {
@@ -68,6 +70,11 @@ Shader "VoxelEngine/ProceduralVine"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
+            float AnimationTime()
+            {
+                return _UseValidationAnimationTime > 0.5 ? _ValidationAnimationTime : _Time.y;
+            }
+
             Varyings Vert(Attributes input)
             {
                 Varyings output;
@@ -75,7 +82,7 @@ Shader "VoxelEngine/ProceduralVine"
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
 
                 float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
-                float phase = dot(positionWS.xz, float2(0.41, 0.29)) + _Time.y * 1.35 + input.uv.y * 7.0;
+                float phase = dot(positionWS.xz, float2(0.41, 0.29)) + AnimationTime() * 1.35 + input.uv.y * 7.0;
                 float freeEnd = smoothstep(0.18, 1.0, input.uv.y);
                 positionWS.x += sin(phase) * _WindStrength * 0.07 * freeEnd;
                 positionWS.z += cos(phase * 0.73) * _WindStrength * 0.05 * freeEnd;
@@ -103,7 +110,7 @@ Shader "VoxelEngine/ProceduralVine"
                 float ndl = abs(dot(n, sun));
                 float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, saturate(abs(n.y) * 0.62 + 0.20));
                 float3 lit = albedo * (ambient * 0.48 + (0.36 + ndl * 0.64));
-                float pulse = 0.86 + 0.14 * sin(_Time.y * 1.4 + input.uv.y * 9.0);
+                float pulse = 0.86 + 0.14 * sin(AnimationTime() * 1.4 + input.uv.y * 9.0);
                 lit += _EmissionColor.rgb * _EmissionStrength * pulse;
                 return half4(lit, 1.0);
             }

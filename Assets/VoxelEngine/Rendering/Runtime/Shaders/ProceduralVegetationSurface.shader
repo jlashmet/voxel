@@ -49,6 +49,8 @@ Shader "VoxelEngine/ProceduralVegetationSurface"
             float4 _SunDirection;
             float4 _SkyHorizon;
             float4 _SkyZenith;
+            float _ValidationAnimationTime;
+            float _UseValidationAnimationTime;
 
             struct Attributes
             {
@@ -72,6 +74,11 @@ Shader "VoxelEngine/ProceduralVegetationSurface"
                 p = frac(p * float2(123.34, 456.21));
                 p += dot(p, p + 45.32);
                 return frac(p.x * p.y);
+            }
+
+            float AnimationTime()
+            {
+                return _UseValidationAnimationTime > 0.5 ? _ValidationAnimationTime : _Time.y;
             }
 
             Varyings Vert(Attributes input)
@@ -104,7 +111,7 @@ Shader "VoxelEngine/ProceduralVegetationSurface"
                 float ndl = abs(dot(n, sun));
                 float3 ambient = lerp(_SkyHorizon.rgb, _SkyZenith.rgb, saturate(abs(n.y) * 0.62 + 0.20));
                 float3 lit = albedo * (ambient * 0.50 + (0.34 + ndl * 0.66));
-                float shimmer = 0.88 + 0.12 * sin(_Time.y * 1.2 + dot(input.positionWS, float3(0.21, 0.36, 0.17)));
+                float shimmer = 0.88 + 0.12 * sin(AnimationTime() * 1.2 + dot(input.positionWS, float3(0.21, 0.36, 0.17)));
                 lit += _EmissionColor.rgb * _EmissionStrength * shimmer;
                 return half4(lit, 1.0);
             }

@@ -50,6 +50,8 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
             float4 _SunDirection;
             float4 _SkyHorizon;
             float4 _SkyZenith;
+            float _ValidationAnimationTime;
+            float _UseValidationAnimationTime;
 
             struct Attributes
             {
@@ -70,6 +72,11 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
+            float AnimationTime()
+            {
+                return _UseValidationAnimationTime > 0.5 ? _ValidationAnimationTime : _Time.y;
+            }
+
             Varyings Vert(Attributes input)
             {
                 Varyings output;
@@ -78,7 +85,7 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
 
                 float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 float bend = saturate(input.uv.y);
-                float phase = dot(positionWS.xz, float2(0.31, 0.23)) + _Time.y * 1.85;
+                float phase = dot(positionWS.xz, float2(0.31, 0.23)) + AnimationTime() * 1.85;
                 float gust = sin(phase) * 0.68 + sin(phase * 0.43 + 1.7) * 0.32;
                 positionWS.x += gust * _WindStrength * 0.12 * bend * bend;
                 positionWS.z += cos(phase * 0.79) * _WindStrength * 0.08 * bend * bend;
@@ -101,7 +108,6 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
             {
                 float2 p = uv * 2.0 - 1.0;
 
-                // Blade / reed: broad at the root and sharply tapered at the tip.
                 if (shape < 0.5)
                 {
                     float width = lerp(0.58, 0.055, saturate(uv.y));
@@ -110,14 +116,12 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                     return min(side, tip);
                 }
 
-                // Frond / broad leaf.
                 if (shape < 1.5)
                 {
                     float taper = lerp(0.70, 0.24, saturate(uv.y));
                     return 1.0 - (p.x * p.x / max(taper * taper, 0.02) + p.y * p.y * 0.92);
                 }
 
-                // Flower / bloom: a procedural petal rosette.
                 if (shape < 2.5)
                 {
                     float r = length(p);
@@ -127,7 +131,6 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                     return max(petals - r, stem);
                 }
 
-                // Fungus: cap plus stem, useful for mushrooms and glowshrooms.
                 if (shape < 3.5)
                 {
                     float cap = Ellipse(p - float2(0.0, 0.36), float2(0.86, 0.42));
@@ -135,7 +138,6 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                     return max(cap, stem);
                 }
 
-                // Shrub card: deliberately irregular instead of a rectangular billboard.
                 float a = atan2(p.y, p.x);
                 float r = length(p);
                 float outline = 0.76 + 0.08 * sin(a * 5.0) + 0.06 * sin(a * 9.0 + 1.2);
@@ -158,7 +160,7 @@ Shader "VoxelEngine/ProceduralVegetationFoliage"
                 float3 albedo = lerp(_BaseColor.rgb, _TipColor.rgb, height * 0.72);
                 albedo *= lerp(float3(1,1,1), input.color.rgb, 0.30);
                 float3 lit = albedo * (ambient * 0.48 + (0.36 + ndl * 0.64));
-                float pulse = 0.88 + 0.12 * sin(_Time.y * 1.6 + dot(input.positionWS, float3(0.31, 0.19, 0.27)));
+                float pulse = 0.88 + 0.12 * sin(AnimationTime() * 1.6 + dot(input.positionWS, float3(0.31, 0.19, 0.27)));
                 lit += _EmissionColor.rgb * _EmissionStrength * pulse;
                 return half4(lit, 1.0);
             }
