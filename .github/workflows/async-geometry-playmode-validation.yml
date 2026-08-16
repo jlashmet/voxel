@@ -40,9 +40,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Previous telemetry proved an invalidation storm: step 4 scheduled exact metadata 3609
-          # times with zero revision/pin rejects while thousands of builds went stale. Discovery is
-          # now admission-only for known chunks; this run must collapse that churn and converge.
+          # Discovery-only Metal still produced meta:3609/2 and stale:6039. A newly attached
+          # change journal now baselines at CurrentVersion and performs one bounded current-state
+          # recovery, so retained atomic-world startup edits must no longer churn coarse builds.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
