@@ -1081,11 +1081,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void ResetChangeFeedState(IVoxelChangeSource journal)
         {
             _journal = journal;
-            _changeCursor = 0;
+            // A newly attached journal describes changes relative to the current Storage state.
+            // Replaying retained history from version zero would repeatedly invalidate geometry
+            // that has never been rendered. Baseline at the latest committed version and use
+            // the existing bounded resident-region recovery to reconcile current state once.
+            _changeCursor = journal?.CurrentVersion ?? 0;
             _changeScratch.Clear();
             _changeRecordIndex = 0;
             _changeFeedHasMore = false;
-            _recoveringChangeOverflow = false;
+            _recoveringChangeOverflow = journal != null;
             _changeRecoveryCursor = 0;
             _changeExpansionActive = false;
             _changeExpansionCursor = 0;
