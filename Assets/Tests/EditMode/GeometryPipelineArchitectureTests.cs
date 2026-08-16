@@ -324,6 +324,14 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("foreach (int3 candidate in _dirty)", water);
             StringAssert.DoesNotContain("private void DropNoLongerResident", water);
             StringAssert.DoesNotContain("List<int3> gone", water);
+            int pressure = water.IndexOf("TryEvictOneForArenaPressure", StringComparison.Ordinal);
+            int pressureEnd = water.IndexOf("public void Dispose()", pressure,
+                                            StringComparison.Ordinal);
+            Assert.GreaterOrEqual(pressure, 0);
+            Assert.Greater(pressureEnd, pressure);
+            string pressurePath = water.Substring(pressure, pressureEnd - pressure);
+            StringAssert.Contains("MarkDirty(victim)", pressurePath);
+            StringAssert.DoesNotContain("RemoveWaterChunk(victim)", pressurePath);
         }
 
     }

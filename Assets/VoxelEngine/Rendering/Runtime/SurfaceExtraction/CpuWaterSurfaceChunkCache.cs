@@ -854,7 +854,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 victim = pair.Key;
             }
             if (farthest < 0f) return false;
-            RemoveWaterChunk(victim);
+            if (!_entries.TryGetValue(victim, out Entry entry)) return false;
+
+            // Arena pressure is publication backpressure, not authoritative water eviction.
+            // Keep the discovered brick set + residency record so the chunk is rebuilt later.
+            _entries.Remove(victim);
+            ReleaseEntry(entry);
+            MarkDirty(victim);
             return true;
         }
 
