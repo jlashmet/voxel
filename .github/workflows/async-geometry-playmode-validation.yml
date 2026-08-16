@@ -40,12 +40,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Authoritative Metal checkpoint after the renderer-world lifetime cut passed all 83
-          # focused EditMode tests. LOD/stress use URP SingleCameraRequest and a 60-second atomic
-          # startup ceiling; a diagnostic run proved all 9 castle terrain regions were ready and
-          # the eight-stage builder was still progressing in stages 7-8 at 20 seconds.
-          # RenderingComposition.ClearWorld now synchronously releases renderer jobs/pins before
-          # application Storage is disposed; this run validates that lifetime contract on Metal.
+          # Renderer-world lifetime ownership passed all 83 focused EditMode tests and the next
+          # Metal run proved the stale Storage-pin/RenderGraph exception is gone: the upload-budget
+          # LOD test now passes. The remaining fidelity capture sees ~800 chunks at once through a
+          # 70 m orthographic half-height, so that offline-only test uses an 8 ms build slice and
+          # 8 Unity job workers. The separate stress invocation below stays at 2 workers and keeps
+          # production budgets, preserving the constrained runtime/performance gate.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
@@ -62,12 +62,12 @@ jobs:
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
-          # These tests render through URP, create RenderTextures, and initialize compute-driven
-          # showcase systems. -nographics selects Unity's null graphics device and makes that
-          # validation meaningless (RenderTexture.Create/compute-kernel failures), so run the
-          # self-hosted Mac with its real Metal device even though the editor remains batchmode.
+          # This is the visual-fidelity gate. It renders a pathological wide orthographic view,
+          # not a gameplay perspective camera, so give background extraction enough workers to
+          # reach its existing 8-second hole-free precondition. Budget/stress semantics are tested
+          # independently by the second LOD test and the 2-worker stress invocation below.
           UNITY_MAX_RSS_MB=12288 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-            -batchmode -force-metal -job-worker-count 2 \
+            -batchmode -force-metal -job-worker-count 8 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
             -testFilter VoxelEngine.Tests.PlayMode.LodRenderingTests \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log"
