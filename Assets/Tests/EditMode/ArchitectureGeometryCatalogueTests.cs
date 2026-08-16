@@ -91,6 +91,73 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void KentridgeGeneratedGrammarAuthorsGeometryRolesBeforeCompatibilityRealization()
+        {
+            FeatureCatalogue catalogue = KentridgeGrammarVoxelCatalogue.Build(
+                Seed, BuildSettings(), Allocator.Temp);
+            try
+            {
+                int architecturalRounded = 0;
+                int beveled = 0;
+                int roundedOpenings = 0;
+                int smoothRoofs = 0;
+
+                for (int definitionIndex = 0;
+                     definitionIndex < catalogue.Definitions.Length;
+                     definitionIndex++)
+                {
+                    FeatureDefinition definition = catalogue.Definitions[definitionIndex];
+                    if (!definition.Name.ToString().StartsWith("kentridge-role-"))
+                        continue;
+
+                    int pc = definition.ProgramOffset;
+                    int end = definition.ProgramOffset + definition.ProgramLength;
+                    while (pc < end)
+                    {
+                        ShapeOp op = (ShapeOp)catalogue.Program[pc];
+                        int length = ShapeOps.InstructionLength(op);
+                        Assert.GreaterOrEqual(length, 2, definition.Name.ToString());
+
+                        if (op == ShapeOp.EmitRoundedBox)
+                        {
+                            ushort surface = (ushort)catalogue.Program[pc + 10];
+                            PrimitiveMode mode = (PrimitiveMode)catalogue.Program[pc + 12];
+                            if (surface == SurfaceStyles.ArchitecturalRounded)
+                                architecturalRounded++;
+                            if (surface == SurfaceStyles.Beveled)
+                                beveled++;
+                            if (mode == PrimitiveMode.Carve
+                                && surface == SurfaceStyles.ArchitecturalRounded)
+                                roundedOpenings++;
+                        }
+                        else if (op == ShapeOp.EmitPrism)
+                        {
+                            ushort surface = (ushort)catalogue.Program[pc + 10];
+                            if (surface == SurfaceStyles.Smooth)
+                                smoothRoofs++;
+                        }
+
+                        pc += length;
+                        if (op == ShapeOp.End) break;
+                    }
+                }
+
+                Assert.Greater(architecturalRounded, 0,
+                    "Generated Kentridge shells must author architecture-specific smoothing directly.");
+                Assert.Greater(beveled, 0,
+                    "Generated foundations/details must author their reconstruction policy directly.");
+                Assert.Greater(roundedOpenings, 0,
+                    "Generated door/window cuts must author opening geometry directly.");
+                Assert.Greater(smoothRoofs, 0,
+                    "Generated roof prisms must author roof reconstruction directly.");
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
         public void KentridgeCombinedCatalogueContainsRoundedMassingOpeningsAndExplicitSurfaceStyles()
         {
             FeatureCatalogue catalogue = KentridgeCombinedVoxelCatalogue.Build(
