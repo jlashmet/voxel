@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build-modular-robe:
     runs-on: [self-hosted, macOS]
-    timeout-minutes: 90
+    timeout-minutes: 180
     env:
       PYTORCH_ENABLE_MPS_FALLBACK: '1'
       PYTHONUNBUFFERED: '1'
@@ -39,7 +39,7 @@ jobs:
           echo "BLENDER_BIN=$BLENDER_BIN" >> "$GITHUB_ENV"
 
       - name: Reuse cached Hunyuan multiview backend
-        timeout-minutes: 50
+        timeout-minutes: 120
         shell: bash
         run: |
           set -euo pipefail
