@@ -3,7 +3,16 @@ name: Async geometry EditMode validation
 on:
   push:
     branches: [refactor/async-geometry-pipeline]
-    paths: [.github/workflows/async-geometry-editmode-validation.yml]
+    paths:
+      - .github/workflows/async-geometry-editmode-validation.yml
+      - Assets/VoxelEngine/Rendering/**
+      - Assets/VoxelEngine/Storage/**
+      - Assets/Tests/EditMode/**
+      - Packages/com.mountingforce.worldgen/**
+
+concurrency:
+  group: async-geometry-editmode
+  cancel-in-progress: true
 
 permissions:
   contents: read
