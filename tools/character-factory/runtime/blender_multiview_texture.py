@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import statistics
 
 import bpy
 from mathutils import Vector
@@ -34,28 +35,43 @@ def _load_subject_image(path: Path) -> ImageInfo:
         raise RuntimeError(f"multiview texture source has invalid dimensions: {path}")
 
     pixels = image.pixels[:]
+
+    # Approved turnarounds use a light neutral gray canvas rather than pure white.
+    # Estimate that canvas from the corners in Blender's own color space, then find
+    # character pixels by either color/chroma separation or a meaningful drop in
+    # luminance. This remains stable whether Blender exposes the image as sRGB-like
+    # values or scene-linear floats.
+    sample_radius = max(2, min(width, height) // 64)
+    background_levels: list[float] = []
+    for y0 in (0, height - sample_radius):
+        for x0 in (0, width - sample_radius):
+            for y in range(y0, min(height, y0 + sample_radius)):
+                row = y * width * 4
+                for x in range(x0, min(width, x0 + sample_radius)):
+                    index = row + x * 4
+                    r, g, b, _a = pixels[index : index + 4]
+                    background_levels.append((r + g + b) / 3.0)
+    background = statistics.median(background_levels)
+
     xs: list[int] = []
     ys: list[int] = []
-    # Turnaround inputs use a white background. A generous threshold keeps
-    # antialiased pale fabric while excluding the canvas. Blender's image pixel
-    # array is bottom-up, matching UV V coordinates, so no vertical flip is
-    # needed later.
-    threshold = 0.985
     for y in range(height):
         row = y * width * 4
         for x in range(width):
             index = row + x * 4
             r, g, b, a = pixels[index : index + 4]
-            if a > 0.05 and min(r, g, b) < threshold:
+            mean = (r + g + b) / 3.0
+            chroma = max(r, g, b) - min(r, g, b)
+            if a > 0.05 and (chroma > 0.025 or mean < background - 0.035):
                 xs.append(x)
                 ys.append(y)
 
     if not xs:
-        raise RuntimeError(f"could not find subject against white background: {path}")
+        raise RuntimeError(f"could not find subject against neutral background: {path}")
 
     pad_x = max(2, int(round(width * 0.01)))
     pad_y = max(2, int(round(height * 0.01)))
-    return ImageInfo(
+    info = ImageInfo(
         image=image,
         x0=max(0, min(xs) - pad_x),
         y0=max(0, min(ys) - pad_y),
@@ -64,6 +80,12 @@ def _load_subject_image(path: Path) -> ImageInfo:
         source_width=width,
         source_height=height,
     )
+    print(
+        f"multiview source crop: {path.name} {width}x{height} "
+        f"bbox=({info.x0},{info.y0})-({info.x1},{info.y1}) bg={background:.4f}",
+        flush=True,
+    )
+    return info
 
 
 def _atlas_image(sources: dict[str, ImageInfo], output: Path) -> bpy.types.Image:
