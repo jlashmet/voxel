@@ -9,6 +9,16 @@ namespace VoxelEngine.Structures.Api
         InvalidPlan,
         WriteBudgetExceeded,
         InvalidSpatialPlan,
+        IncompleteSpatialPlan,
+    }
+
+    public enum CastleSpatialBuildReadinessIssue : byte
+    {
+        None = 0,
+        KeepRequiresTerrainResolution,
+        MissingDungeonPlan,
+        InvalidDungeonPlan,
+        DungeonEntranceMismatch,
     }
 
     /// <summary>Pure result of checking whether a castle plan is safe to realize.</summary>
@@ -17,6 +27,7 @@ namespace VoxelEngine.Structures.Api
         public readonly CastleBuildPreflightIssue Issue;
         public readonly CastlePlanIssue PlanIssue;
         public readonly CastleSpatialPlanIssue SpatialPlanIssue;
+        public readonly CastleSpatialBuildReadinessIssue ReadinessIssue;
         public readonly long EstimatedWrites;
         public readonly long WriteBudget;
 
@@ -25,7 +36,13 @@ namespace VoxelEngine.Structures.Api
             CastlePlanIssue planIssue,
             long estimatedWrites,
             long writeBudget)
-            : this(issue, planIssue, CastleSpatialPlanIssue.None, estimatedWrites, writeBudget)
+            : this(
+                issue,
+                planIssue,
+                CastleSpatialPlanIssue.None,
+                CastleSpatialBuildReadinessIssue.None,
+                estimatedWrites,
+                writeBudget)
         {
         }
 
@@ -35,10 +52,28 @@ namespace VoxelEngine.Structures.Api
             CastleSpatialPlanIssue spatialPlanIssue,
             long estimatedWrites,
             long writeBudget)
+            : this(
+                issue,
+                planIssue,
+                spatialPlanIssue,
+                CastleSpatialBuildReadinessIssue.None,
+                estimatedWrites,
+                writeBudget)
+        {
+        }
+
+        public CastleBuildPreflightResult(
+            CastleBuildPreflightIssue issue,
+            CastlePlanIssue planIssue,
+            CastleSpatialPlanIssue spatialPlanIssue,
+            CastleSpatialBuildReadinessIssue readinessIssue,
+            long estimatedWrites,
+            long writeBudget)
         {
             Issue = issue;
             PlanIssue = planIssue;
             SpatialPlanIssue = spatialPlanIssue;
+            ReadinessIssue = readinessIssue;
             EstimatedWrites = estimatedWrites;
             WriteBudget = writeBudget;
         }
@@ -178,6 +213,65 @@ namespace VoxelEngine.Structures.Api
             long estimate = EstimateWrites(in plan, spatialPlan);
             return BudgetResult(estimate, writeBudget);
         }
+
+        /// <summary>
+        /// Admission check used by Runtime. Unlike the general spatial evaluation above, this
+        /// requires site-aware planning completion: the keep must be resolved and the designed
+        /// dungeon graph must be attached, valid, and anchored to the projected trapdoor.
+        /// </summary>
+        public static CastleBuildPreflightResult EvaluateRuntimeReady(
+            in CastlePlan plan,
+            CastleSpatialPlan spatialPlan,
+            long writeBudget)
+        {
+            CastleBuildPreflightResult structural = Evaluate(in plan, spatialPlan, writeBudget);
+            if (!structural.IsValid)
+                return structural;
+
+            if (spatialPlan.KeepRequiresTerrainResolution)
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.KeepRequiresTerrainResolution,
+                    writeBudget);
+            }
+
+            DungeonPlan dungeon = spatialPlan.Dungeon;
+            if (dungeon == null)
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.MissingDungeonPlan,
+                    writeBudget);
+            }
+
+            if (!DungeonPlanValidator.TryValidate(dungeon, out _))
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.InvalidDungeonPlan,
+                    writeBudget);
+            }
+
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(
+                in plan, spatialPlan);
+            if (!dungeon.Entrance.Equals(projection.TrapdoorCentre))
+            {
+                return ReadinessFailure(
+                    CastleSpatialBuildReadinessIssue.DungeonEntranceMismatch,
+                    writeBudget);
+            }
+
+            return structural;
+        }
+
+        private static CastleBuildPreflightResult ReadinessFailure(
+            CastleSpatialBuildReadinessIssue readinessIssue,
+            long writeBudget) =>
+            new CastleBuildPreflightResult(
+                CastleBuildPreflightIssue.IncompleteSpatialPlan,
+                CastlePlanIssue.None,
+                CastleSpatialPlanIssue.None,
+                readinessIssue,
+                0,
+                writeBudget);
 
         private static CastleBuildPreflightResult BudgetResult(long estimate, long writeBudget)
         {
