@@ -126,6 +126,26 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(clips.Length, Is.GreaterThanOrEqualTo(1), $"{path} exposes no animation clip");
         }
 
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Idle.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/CrouchIdle.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Wave.fbx", false)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Shrug.fbx", false)]
+        public void AnimationFile_HasExpectedLoopingContract(string path, bool expectedLoop)
+        {
+            AssetDatabase.ImportAsset(
+                path,
+                ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+
+            var importer = AssetImporter.GetAtPath(path) as ModelImporter;
+            Assert.That(importer, Is.Not.Null, $"Expected a ModelImporter for {path}");
+            Assert.That(importer.clipAnimations.Length, Is.GreaterThanOrEqualTo(1),
+                $"{path} has no explicit clip import configuration");
+            Assert.That(importer.clipAnimations.All(clip => clip.loopTime == expectedLoop), Is.True,
+                $"{path} loopTime does not match expected gameplay semantics ({expectedLoop})");
+        }
+
         private static RocketboxLod GetRendererLod(SkinnedMeshRenderer renderer)
         {
             for (var current = renderer.transform; current != null; current = current.parent)
