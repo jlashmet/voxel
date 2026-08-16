@@ -17,7 +17,9 @@ namespace VoxelEngine.Storage.Runtime
             Region region = _table.LoadRegion(regionCoord);
             return new RegionGenerationWriteView(
                 region.Coord,
-                region.BrickRefs.Reinterpret<int>());
+                region.BrickRefs.Reinterpret<int>(),
+                region.OccupiedBlockWords,
+                region.FullySolidBlockWords);
         }
     }
 }
