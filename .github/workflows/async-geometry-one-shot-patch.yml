@@ -1,0 +1,396 @@
+name: Async geometry one-shot patch
+
+on:
+  push:
+    branches:
+      - refactor/async-geometry-pipeline
+    paths:
+      - .github/workflows/async-geometry-one-shot-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+
+      - name: Apply exact async geometry edits
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs')
+          s = path.read_text()
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              return text.replace(old, new, 1)
+
+          s = replace_once(s,
+          '''        private JobHandle _facetedMergeJobHandle;
+                  private bool _facetedMergeJobScheduled;
+                  private NativeArray<byte> _topologyCellClass;''',
+          '''        private JobHandle _facetedMergeJobHandle;
+                  private bool _facetedMergeJobScheduled;
+                  private JobHandle _transitionJobHandle;
+                  private bool _transitionJobScheduled;
+                  private NativeArray<byte> _topologyCellClass;''',
+          'transition job fields')
+
+          s = replace_once(s,
+          '''        private NativeList<SmoothSurfaceVertex> _transitionVertices;
+                  private NativeList<uint> _transitionIndices;
+                  private NativeArray<uint> _facetedMasks;''',
+          '''        private NativeList<SmoothSurfaceVertex> _transitionVertices;
+                  private NativeList<uint> _transitionIndices;
+                  private int _transitionFace = -1;
+                  private int _transitionSampleCursor;
+                  private NativeArray<uint> _facetedMasks;''',
+          'transition state fields')
+
+          transition_start = s.index('        /// <summary>\n        /// Stitches every face of the in-flight chunk that borders a finer ring.')
+          transition_end = s.index('        private void InitialiseTopologyTables()', transition_start)
+          transition_impl = '''        /// <summary>
+                  /// Advances transition-face generation without ever waiting for an unfinished job.
+                  /// Face snapshots are sliced by the worker deadline, then the Burst transition mesh
+                  /// runs asynchronously. The previous ready chunk remains published until every seam
+                  /// face for the replacement has completed.
+                  /// </summary>
+                  private bool StepTransitionFaces(IRegionReadSource source,
+                                                   in MaterialPaletteView palette,
+                                                   Camera camera, float voxelSize,
+                                                   double deadlineSeconds)
+                  {
+                      if (MinViewDistanceMetres <= 0f || camera == null) return true;
+
+                      if (_transitionJobScheduled)
+                      {
+                          if (!_transitionJobHandle.IsCompleted) return false;
+
+                          // Completion is non-blocking because IsCompleted was observed above. It is
+                          // still required before reading the NativeLists written by the job.
+                          _transitionJobHandle.Complete();
+                          _transitionJobScheduled = false;
+
+                          uint vertexBase = (uint)_vertices.Count;
+                          NativeArray<SmoothSurfaceVertex> vertices = _transitionVertices.AsArray();
+                          for (int i = 0; i < vertices.Length; i++) _vertices.Add(vertices[i]);
+                          NativeArray<uint> indices = _transitionIndices.AsArray();
+                          for (int i = 0; i < indices.Length; i++)
+                              _indices.Add(vertexBase + indices[i]);
+
+                          _build.Cursor = _transitionFace + 1;
+                          _transitionFace = -1;
+                          _transitionSampleCursor = 0;
+                      }
+
+                      Vector3 cameraPosition = camera.transform.position;
+                      while (_build.Cursor < 6)
+                      {
+                          int face = _build.Cursor;
+                          if (!FaceNeedsTransition(_build.Coordinate, face, voxelSize,
+                                                   cameraPosition))
+                          {
+                              _build.Cursor++;
+                              continue;
+                          }
+
+                          if (_transitionFace != face)
+                          {
+                              _transitionFace = face;
+                              _transitionSampleCursor = 0;
+                          }
+
+                          if (!StepTransitionFaceSnapshot(source, in palette, face,
+                                                          deadlineSeconds))
+                              return false;
+
+                          _transitionVertices.Clear();
+                          _transitionIndices.Clear();
+                          var job = new TransitionMeshJob
+                          {
+                              FaceDensity = _faceDensity,
+                              FaceMaterials = _faceMaterials,
+                              FaceSurfaces = _faceSurfaces,
+                              FaceSamplesPerAxis = FaceSamplesPerAxis,
+                              TransitionCellClass = _transitionCellClass,
+                              TransitionGeometryCounts = _transitionGeometryCounts,
+                              TransitionCellIndices = _transitionCellIndices,
+                              TransitionVertexData = _transitionVertexData,
+                              VertexDataStride = _transitionVertexStride,
+                              CellIndexStride = _transitionIndexStride,
+                              Vertices = _transitionVertices,
+                              Indices = _transitionIndices,
+                              ChunkOriginVoxel = _build.Coordinate * VoxelsPerAxis,
+                              CellsPerAxis = CellsPerAxis,
+                              SourceStep = SourceStep,
+                              VoxelSize = voxelSize,
+                              Face = face,
+                          };
+                          _transitionJobHandle = job.Schedule();
+                          _transitionJobScheduled = true;
+                          return false;
+                      }
+
+                      return true;
+                  }
+
+                  /// <summary>
+                  /// Snapshots a transition face at the finer neighbour's sample spacing without
+                  /// monopolising the frame. Region read views are borrowed only inside this call;
+                  /// no borrowed Storage state survives across frames while the snapshot is sliced.
+                  /// </summary>
+                  private bool StepTransitionFaceSnapshot(IRegionReadSource source,
+                                                          in MaterialPaletteView palette, int face,
+                                                          double deadlineSeconds)
+                  {
+                      if (Time.realtimeSinceStartupAsDouble >= deadlineSeconds) return false;
+
+                      int axis = face >> 1;
+                      bool positive = (face & 1) != 0;
+                      int3 uAxis, vAxis;
+                      switch (axis)
+                      {
+                          case 0: uAxis = new int3(0, 1, 0); vAxis = new int3(0, 0, 1); break;
+                          case 1: uAxis = new int3(0, 0, 1); vAxis = new int3(1, 0, 0); break;
+                          default: uAxis = new int3(1, 0, 0); vAxis = new int3(0, 1, 0); break;
+                      }
+
+                      int3 chunkOrigin = _build.Coordinate * VoxelsPerAxis;
+                      int3 faceOrigin = chunkOrigin;
+                      if (positive) faceOrigin[axis] += VoxelsPerAxis;
+
+                      int halfStep = math.max(1, SourceStep / 2);
+                      int mipLevel = VoxelReadGrid.LevelForStride(halfStep);
+                      int sampleCount = FaceSamplesPerAxis * FaceSamplesPerAxis;
+                      RegionSampleCursor cursor = default;
+                      const int SamplesPerDeadlineCheck = 64;
+
+                      while (_transitionSampleCursor < sampleCount)
+                      {
+                          int end = math.min(sampleCount,
+                                             _transitionSampleCursor + SamplesPerDeadlineCheck);
+                          for (; _transitionSampleCursor < end; _transitionSampleCursor++)
+                          {
+                              int index = _transitionSampleCursor;
+                              int u = index % FaceSamplesPerAxis;
+                              int v = index / FaceSamplesPerAxis;
+                              int3 voxel = faceOrigin
+                                         + uAxis * (u * halfStep)
+                                         + vAxis * (v * halfStep);
+
+                              bool occupied = false;
+                              byte material = VoxelGrid.MaterialEmpty;
+                              if (TrySampleWorld(source, ref cursor, voxel, mipLevel,
+                                                 out bool sampled,
+                                                 out byte sampledMaterial))
+                              {
+                                  occupied = sampled;
+                                  material = sampledMaterial;
+                              }
+
+                              _faceDensity[index] = occupied ? 0.5f : -0.5f;
+                              _faceMaterials[index] = material;
+                              _faceSurfaces[index] = occupied
+                                  ? palette.GetDefaultSurfaceStyle(material) : 0u;
+                          }
+
+                          if (_transitionSampleCursor < sampleCount
+                              && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                              return false;
+                      }
+
+                      return true;
+                  }
+
+          '''
+          s = s[:transition_start] + transition_impl + s[transition_end:]
+
+          s = replace_once(s,
+          '''        public int RunningJobCount => _densityJobScheduled || _topologyJobScheduled
+                                             || _facetedMaskJobScheduled ? 1 : 0;''',
+          '''        public int RunningJobCount => _densityJobScheduled || _topologyJobScheduled
+                                             || _facetedMaskJobScheduled || _transitionJobScheduled
+                                              ? 1 : 0;''',
+          'running job metric')
+
+          old_profile_tail = '''                double profileStart = Time.realtimeSinceStartupAsDouble;
+                          bool profilesDone;
+                          using (s_ProfileMarker.Auto()) profilesDone = StepProfileBlocks(voxelSize);
+                          _profileEmitTiming.Add(ElapsedMs(profileStart));
+                          if (profilesDone)
+                          {
+                              AppendTransitionFaces(source, in palette, camera, voxelSize);
+                              FinishBuild(frame);
+                          }'''
+          new_profile_tail = '''                if (_build.Phase == 3)
+                          {
+                              double profileStart = Time.realtimeSinceStartupAsDouble;
+                              bool profilesDone;
+                              using (s_ProfileMarker.Auto())
+                                  profilesDone = StepProfileBlocks(voxelSize);
+                              _profileEmitTiming.Add(ElapsedMs(profileStart));
+                              if (!profilesDone) continue;
+
+                              _build.Phase = 4;
+                              _build.Cursor = 0;
+                              _transitionFace = -1;
+                              _transitionSampleCursor = 0;
+                              continue;
+                          }
+
+                          if (_build.Phase == 4)
+                          {
+                              if (!StepTransitionFaces(source, in palette, camera, voxelSize,
+                                                       deadline))
+                                  break;
+                              FinishBuild(frame);
+                          }'''
+          s = replace_once(s, old_profile_tail, new_profile_tail, 'prepare transition phase')
+
+          s = replace_once(s,
+          '''                _mipSampleOccupancy[index] = occupied ? (byte)1 : (byte)0;
+                          _mipSampleMaterials[index] = material;''',
+          '''                _mipSampleOccupancy[index] = occupied ? (byte)1 : (byte)0;
+                          _mipSampleMaterials[index] = material;
+                          anySolid |= occupied && IsSolidSurfaceMaterial(material);''',
+          'coarse mip solid classification')
+
+          s = replace_once(s,
+          '''            _dirty.Remove(best);
+                      _vertices.Clear();
+                      _indices.Clear();
+                      _build = new BuildState''',
+          '''            _dirty.Remove(best);
+                      _vertices.Clear();
+                      _indices.Clear();
+                      _transitionFace = -1;
+                      _transitionSampleCursor = 0;
+                      _build = new BuildState''',
+          'new build transition reset')
+
+          s = replace_once(s,
+          '            for (int i = 0; i < gone.Count; i++) RemoveChunk(gone[i]);',
+          '            for (int i = 0; i < gone.Count; i++) TryRemoveChunk(gone[i]);',
+          'deferred residency removal')
+
+          remove_start = s.index('        private void RemoveChunk(int3 chunk)')
+          remove_end = s.index('        /// <summary>\n        /// Maps a chunk coordinate in this ring', remove_start)
+          remove_impl = '''        private bool ScheduledJobsComplete()
+                  {
+                      if (_densityJobScheduled && !_densityJobHandle.IsCompleted) return false;
+                      if (_topologyJobScheduled
+                          && !(_topologyCompactJobScheduled
+                              ? _topologyCompactJobHandle.IsCompleted
+                              : _topologyJobHandle.IsCompleted)) return false;
+                      if (_facetedMaskJobScheduled
+                          && !(_facetedMergeJobScheduled
+                              ? _facetedMergeJobHandle.IsCompleted
+                              : _facetedMaskJobHandle.IsCompleted)) return false;
+                      if (_transitionJobScheduled && !_transitionJobHandle.IsCompleted) return false;
+                      return true;
+                  }
+
+                  /// <summary>
+                  /// Removes a no-longer-resident chunk only when doing so cannot wait for worker
+                  /// geometry. If its build is still running, residency pruning defers removal to
+                  /// a later frame instead of converting eviction pressure into a frame barrier.
+                  /// </summary>
+                  private bool TryRemoveChunk(int3 chunk)
+                  {
+                      if (_build.Active && _build.Coordinate.Equals(chunk)
+                          && !ScheduledJobsComplete())
+                          return false;
+
+                      _known.Remove(chunk);
+                      _dirty.Remove(chunk);
+                      _desiredVersions.Remove(chunk);
+                      _emptyVersions.Remove(chunk);
+                      _queuedAtSeconds.Remove(chunk);
+                      if (_entries.TryGetValue(chunk, out Entry entry))
+                      {
+                          entry.Dispose();
+                          _entries.Remove(chunk);
+                      }
+                      if (_build.Active && _build.Coordinate.Equals(chunk))
+                      {
+                          // Every handle was observed complete above, so these Complete calls only
+                          // release job safety dependencies; none can stall the frame.
+                          CompleteJobs();
+                          _build = default;
+                          _vertices.Clear();
+                          _indices.Clear();
+                      }
+                      return true;
+                  }
+
+                  private void CompleteJobs()
+                  {
+                      if (_densityJobScheduled)
+                      {
+                          _densityJobHandle.Complete();
+                          _densityJobScheduled = false;
+                      }
+                      if (_topologyJobScheduled)
+                      {
+                          if (_topologyCompactJobScheduled) _topologyCompactJobHandle.Complete();
+                          else _topologyJobHandle.Complete();
+                          _topologyJobScheduled = false;
+                          _topologyCompactJobScheduled = false;
+                      }
+                      if (_facetedMaskJobScheduled)
+                      {
+                          if (_facetedMergeJobScheduled) _facetedMergeJobHandle.Complete();
+                          else _facetedMaskJobHandle.Complete();
+                          _facetedMaskJobScheduled = false;
+                          _facetedMergeJobScheduled = false;
+                      }
+                      if (_transitionJobScheduled)
+                      {
+                          _transitionJobHandle.Complete();
+                          _transitionJobScheduled = false;
+                      }
+                  }
+
+          '''
+          s = s[:remove_start] + remove_impl + s[remove_end:]
+
+          reset_needle = '''                _build = default;
+                          _vertices.Clear();
+                          _indices.Clear();'''
+          reset_replacement = '''                _build = default;
+                          _vertices.Clear();
+                          _indices.Clear();
+                          _transitionFace = -1;
+                          _transitionSampleCursor = 0;'''
+          reset_count = s.count(reset_needle)
+          if reset_count != 4:
+              raise SystemExit(f'build reset sites: expected 4, found {reset_count}')
+          s = s.replace(reset_needle, reset_replacement)
+
+          if '}.Run();' in s[transition_start:s.index('        private void InitialiseTopologyTables()', transition_start)]:
+              raise SystemExit('synchronous transition .Run() survived patch')
+
+          path.write_text(s)
+          PY
+
+      - name: Commit patched renderer
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No source changes were produced" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs
+          git commit -m "Make transition geometry generation nonblocking"
+          git push origin HEAD:refactor/async-geometry-pipeline
