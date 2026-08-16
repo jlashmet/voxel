@@ -5,36 +5,46 @@ namespace VoxelEngine.Structures.Api
 {
     /// <summary>
     /// Conservative slow-write estimate for CastlePlannedCaveDecorator. Generic cave carving is
-    /// estimated separately by CaveBuildEstimate; this value covers only authored formations that
-    /// use per-voxel cone primitives. Pool, causeway, and light-marker boxes use bulk writes.
+    /// estimated separately by CaveBuildEstimate; this value covers only per-voxel cone primitives.
+    /// Pool, causeway, and light-marker writes stay on bulk paths.
     /// </summary>
     public static class CastleCaveDecorationEstimate
     {
-        public static long Estimate(CavePlan plan)
+        /// <summary>Compatibility wrapper that plans the current deterministic decoration recipe.</summary>
+        public static long Estimate(CavePlan cave)
         {
-            if (plan == null) throw new ArgumentNullException(nameof(plan));
-            if (!CavePlanValidator.TryValidate(plan, out CavePlanIssue issue))
+            if (cave == null) throw new ArgumentNullException(nameof(cave));
+            CastleCaveDecorationPlan decoration = CastleCaveDecorationPlanner.Create(cave);
+            return Estimate(cave, decoration);
+        }
+
+        /// <summary>Estimates the exact supplied decoration semantics without inferring placements.</summary>
+        public static long Estimate(
+            CavePlan cave,
+            CastleCaveDecorationPlan decoration)
+        {
+            if (!CastleCaveDecorationPlanValidator.TryValidate(
+                    cave, decoration, out CastleCaveDecorationPlanIssue issue))
             {
                 throw new ArgumentException(
-                    $"Cannot estimate decoration for invalid cave plan: {issue}.", nameof(plan));
+                    $"Cannot estimate invalid castle cave decoration plan: {issue}.",
+                    nameof(decoration));
             }
 
             long writes = 0;
-            for (int i = 0; i < plan.Chambers.Length; i++)
+            CastleCaveDecorationSpec[] elements = decoration.Elements;
+            for (int i = 0; i < elements.Length; i++)
             {
-                CaveChamberPlan chamber = plan.Chambers[i];
-                int crystalHeight = math.clamp(chamber.Radii.y / 3, 7, 16);
-
-                // Crystal/moss cluster: use filled-cylinder bounds even though VoxelBrush.Cone is
-                // a shell. The deliberate overestimate keeps admission conservative if cone skin
-                // thickness changes without changing the decoration topology.
-                writes += ConeUpperBound(3, crystalHeight);
-                writes += ConeUpperBound(2, math.max(5, crystalHeight - 5));
-                writes += ConeUpperBound(2, math.max(6, crystalHeight - 3));
-
-                int formationCount = i == plan.EntryChamberId ? 5 : 3;
-                int formationHeight = math.clamp(chamber.Radii.y, 7, 27);
-                writes += formationCount * ConeUpperBound(5, formationHeight);
+                CastleCaveDecorationSpec spec = elements[i];
+                switch (spec.Kind)
+                {
+                    case CastleCaveDecorationKind.CrystalSpire:
+                    case CastleCaveDecorationKind.MossSpire:
+                    case CastleCaveDecorationKind.Stalagmite:
+                    case CastleCaveDecorationKind.Stalactite:
+                        writes += ConeUpperBound(spec.Radius, spec.Height);
+                        break;
+                }
             }
 
             return writes;
