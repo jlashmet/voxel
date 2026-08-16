@@ -32,6 +32,7 @@ namespace VoxelEngine.Storage.Runtime
         private fixed byte _flammable[MaxMaterials];
         private fixed ushort _defaultSurfaceStyle[MaxMaterials];
         private fixed uint _allowedCoatings[MaxMaterials];
+        private fixed ushort _placementSurfaceStyle[MaxMaterials];
         private fixed byte _placementCoating[MaxMaterials];
         private fixed byte _registered[MaxMaterials];
 
@@ -49,6 +50,7 @@ namespace VoxelEngine.Storage.Runtime
 
         public void Register(byte index, byte hardness, DestructionClass destructionClass,
                              ushort defaultSurfaceStyle, uint allowedCoatings,
+                             ushort placementSurfaceStyle = SurfaceStyles.MaterialDefault,
                              byte placementCoating = Coatings.None)
         {
             if ((uint)index >= (uint)MaxMaterials)
@@ -62,6 +64,7 @@ namespace VoxelEngine.Storage.Runtime
                              || destructionClass == DestructionClass.Splinter ? (byte)1 : (byte)0;
             _defaultSurfaceStyle[index] = defaultSurfaceStyle;
             _allowedCoatings[index] = allowedCoatings;
+            _placementSurfaceStyle[index] = placementSurfaceStyle;
             _placementCoating[index] = placementCoating;
             _registered[index] = 1;
             Version++;
@@ -73,7 +76,7 @@ namespace VoxelEngine.Storage.Runtime
         {
             Register(definition.MaterialId, definition.Hardness, definition.DestructionClass,
                      definition.DefaultSurfaceStyle, definition.AllowedCoatings,
-                     definition.PlacementCoating);
+                     definition.PlacementSurfaceStyle, definition.PlacementCoating);
             SetFlammable(definition.MaterialId, definition.Flammable);
         }
 
@@ -95,6 +98,10 @@ namespace VoxelEngine.Storage.Runtime
         public ushort GetDefaultSurfaceStyle(byte materialIndex) =>
             IsRegistered(materialIndex)
                 ? _defaultSurfaceStyle[materialIndex] : SurfaceStyles.Smooth;
+
+        public ushort GetPlacementSurfaceStyle(byte materialIndex) =>
+            IsRegistered(materialIndex)
+                ? _placementSurfaceStyle[materialIndex] : SurfaceStyles.MaterialDefault;
 
         public byte GetPlacementCoating(byte materialIndex) =>
             IsRegistered(materialIndex) ? _placementCoating[materialIndex] : Coatings.None;
