@@ -48,6 +48,15 @@ Server/Soak/results/
 # Character factory generated meshes/manifests
 tools/character-factory/build/
 
+# Temporary placeholder Character Factory outputs are derived from the committed
+# Rocketbox FBXs + .characterfactory.json descriptors and regenerate on Unity import.
+/Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab
+/Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_male.prefab.meta
+/Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab
+/Assets/ThirdParty/PlaceholderHumanoids/Models/placeholder_female.prefab.meta
+/Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset
+/Assets/ThirdParty/PlaceholderHumanoids/PlaceholderCharacterParts.asset.meta
+
 # OS
 .DS_Store
 Thumbs.db
