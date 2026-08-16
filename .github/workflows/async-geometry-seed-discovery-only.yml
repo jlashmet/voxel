@@ -1,0 +1,82 @@
+name: Seed startup discovery only
+
+on:
+  push:
+    branches:
+      - refactor/async-geometry-pipeline
+    paths:
+      - .github/workflows/async-geometry-seed-discovery-only.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/async-geometry-pipeline
+          fetch-depth: 0
+      - name: Add bounded startup discovery sweep
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs')
+          s = p.read_text()
+
+          old = '        private NativeArray<int3> _changeRecoveryRegions;\n        private int _changeRecordIndex;\n'
+          new = ('        private NativeArray<int3> _changeRecoveryRegions;\n'
+                 '        // A fresh scheduler must discover already-resident surfaces, but this is not a\n'
+                 '        // mutation signal. Keep startup discovery separate from change-overflow recovery\n'
+                 '        // so current-state enumeration never advances geometry generations.\n'
+                 '        private bool _initialSurfaceDiscoveryPending = true;\n'
+                 '        private int _initialSurfaceDiscoveryCursor;\n'
+                 '        private int _changeRecordIndex;\n')
+          if s.count(old) != 1:
+              raise SystemExit(f'field anchor count={s.count(old)}')
+          s = s.replace(old, new, 1)
+
+          old = ('            double journalStart = Time.realtimeSinceStartupAsDouble;\n'
+                 '            using (s_JournalMarker.Auto())\n'
+                 '                ProcessChangeFeed(storage, journal);\n')
+          new = ('            StepInitialSurfaceDiscovery(storage);\n\n'
+                 '            double journalStart = Time.realtimeSinceStartupAsDouble;\n'
+                 '            using (s_JournalMarker.Auto())\n'
+                 '                ProcessChangeFeed(storage, journal);\n')
+          if s.count(old) != 1:
+              raise SystemExit(f'prepare anchor count={s.count(old)}')
+          s = s.replace(old, new, 1)
+
+          old = '        private void ProcessChangeFeed(IRegionReadSource storage, IVoxelChangeSource journal)\n'
+          new = ('        private void StepInitialSurfaceDiscovery(IRegionReadSource storage)\n'
+                 '        {\n'
+                 '            if (!_initialSurfaceDiscoveryPending) return;\n'
+                 '            bool complete = storage.CopyResidentRegionCoords(\n'
+                 '                ref _initialSurfaceDiscoveryCursor, _changeRecoveryRegions, out int count);\n'
+                 '            for (int i = 0; i < count; i++)\n'
+                 '                _surfaceDiscoveryRegions.Add(_changeRecoveryRegions[i]);\n'
+                 '            if (!complete) return;\n'
+                 '            _initialSurfaceDiscoveryPending = false;\n'
+                 '            _initialSurfaceDiscoveryCursor = 0;\n'
+                 '        }\n\n'
+                 '        private void ProcessChangeFeed(IRegionReadSource storage, IVoxelChangeSource journal)\n')
+          if s.count(old) != 1:
+              raise SystemExit(f'method anchor count={s.count(old)}')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Static guards
+        run: |
+          grep -q '_initialSurfaceDiscoveryPending = true' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q 'StepInitialSurfaceDiscovery(storage);' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q '_surfaceDiscoveryRegions.Add(_changeRecoveryRegions\[i\])' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+          grep -q '_recoveringChangeOverflow = false;' Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs
+      - name: Commit fix
+        run: |
+          rm .github/workflows/async-geometry-seed-discovery-only.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Separate startup surface discovery from invalidation'
+          git push origin HEAD:refactor/async-geometry-pipeline
