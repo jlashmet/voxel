@@ -22,7 +22,7 @@ namespace VoxelEngine.Structures.Api
                 rooms,
                 DungeonRoomPurpose.Entrance,
                 constraints.Entrance + new int3(0, 2, 0),
-                new int3(20, 4, 20));
+                new int3(32, 4, 32));
 
             int previousId = entranceId;
             if (constraints.IncludeArchive)
