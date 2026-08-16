@@ -94,18 +94,24 @@ namespace MountingForce.WorldGen.Voxel
                 material, surfaceStyle, coating, (int)mode);
         }
 
+        /// <summary>
+        /// Emits a roof/massing prism. Unless a treatment is supplied explicitly, roof
+        /// reconstruction comes from the structure geometry profile so roofs participate in the
+        /// same city-independent style policy as walls, openings and details.
+        /// </summary>
         public void Prism(
             int x, int y, int z,
             int sx, int sy, int sz,
             PrismProfile profile,
             byte material,
-            StructureSurfaceTreatment surface = StructureSurfaceTreatment.MaterialDefault)
+            StructureSurfaceTreatment? surface = null)
         {
             if (sx <= 0 || sy <= 0 || sz <= 0) return;
+            StructureSurfaceTreatment treatment = surface ?? _profile.RoofSurface;
             Op(ShapeOp.EmitPrism, x, y, z, sx, sy, sz,
                 (int)profile,
                 material,
-                ArchitectureVoxelSurfaceStyle.Map(surface, SurfaceStyles.MaterialDefault),
+                ArchitectureVoxelSurfaceStyle.Map(treatment, SurfaceStyles.MaterialDefault),
                 Coatings.None,
                 (int)PrimitiveMode.Fill);
         }
