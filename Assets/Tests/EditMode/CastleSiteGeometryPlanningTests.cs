@@ -46,6 +46,21 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(8f, geometry.MeanderAmplitudeA);
             Assert.AreEqual(0.071f, geometry.MeanderFrequencyB);
             Assert.AreEqual(3f, geometry.MeanderAmplitudeB);
+
+            CastleRiverCrossSectionPlan crossSection = geometry.RiverCrossSection;
+            Assert.AreEqual(0.18f, crossSection.BankBlendStart);
+            Assert.AreEqual(1f, crossSection.BankBlendEnd);
+            Assert.AreEqual(32, crossSection.OutsideTerraceDrop);
+            Assert.AreEqual(1, crossSection.InsideTerraceDrop);
+            Assert.AreEqual(0.38f, crossSection.LooseBankThreshold);
+            Assert.AreEqual(0.46f, crossSection.DeepSoilThreshold);
+            Assert.AreEqual(0.56f, crossSection.GrassThreshold);
+            Assert.AreEqual(2, crossSection.ShallowSoilDepth);
+            Assert.AreEqual(5, crossSection.DeepSoilDepth);
+            Assert.AreEqual(10, crossSection.BedDepth);
+            Assert.AreEqual(4, crossSection.BedRise);
+            Assert.AreEqual(20, crossSection.ExistingSurfaceRejectDepth);
+            Assert.AreEqual(8, crossSection.SurfaceClearance);
         }
 
         [Test]
@@ -63,6 +78,12 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("geometry.RiverHalfWidth", site);
             StringAssert.Contains("geometry.RiverDepth", site);
             StringAssert.Contains("geometry.MeanderFrequencyA", site);
+            StringAssert.Contains("geometry.RiverCrossSection", site);
+            StringAssert.Contains("crossSection.BankBlendStart", site);
+            StringAssert.Contains("crossSection.OutsideTerraceDrop", site);
+            StringAssert.Contains("crossSection.DeepSoilThreshold", site);
+            StringAssert.Contains("crossSection.GrassThreshold", site);
+            StringAssert.Contains("crossSection.BedDepth", site);
         }
     }
 }
