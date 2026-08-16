@@ -54,6 +54,33 @@ namespace MountingForce.Game.Composition.CharacterEquipment.Tests
         }
 
         [Test]
+        public void SocketWeapon_AppliesDescriptorLocalTransform()
+        {
+            ModularCharacterAssembler assembler = CreateCharacter(out _, out _, out Transform rightHand);
+            firstPrefab = new GameObject("OffsetStaff");
+            Vector3 position = new Vector3(0.12f, -0.04f, 0.31f);
+            Vector3 euler = new Vector3(8f, 22f, -15f);
+            Vector3 scale = new Vector3(1.1f, 0.9f, 1.05f);
+
+            CharacterPartDefinition definition = new CharacterPartDefinition(
+                "staff.offset",
+                "MainHand",
+                CharacterPartKind.Weapon,
+                CharacterPartMountMode.Socket,
+                firstPrefab,
+                "RightHand",
+                position,
+                euler,
+                scale);
+
+            Assert.That(assembler.TryEquip(definition, out GameObject instance), Is.True);
+            Assert.That(instance.transform.parent, Is.SameAs(rightHand));
+            Assert.That(instance.transform.localPosition, Is.EqualTo(position));
+            Assert.That(Quaternion.Angle(instance.transform.localRotation, Quaternion.Euler(euler)), Is.LessThan(0.001f));
+            Assert.That(instance.transform.localScale, Is.EqualTo(scale));
+        }
+
+        [Test]
         public void Clothing_RebindsEveryBoneToBaseSkeleton_WithoutMutatingBaseRenderer()
         {
             ModularCharacterAssembler assembler = CreateCharacter(out Transform armature, out Transform spine, out _);

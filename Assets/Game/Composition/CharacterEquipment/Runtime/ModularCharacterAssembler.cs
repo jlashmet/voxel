@@ -105,7 +105,7 @@ namespace MountingForce.Game.Composition.CharacterEquipment
                     }
 
                     candidate = Instantiate(definition.Prefab, socket, false);
-                    ResetLocalTransform(candidate.transform);
+                    ApplySocketTransform(candidate.transform, definition);
                     DisableCandidateAnimators(candidate);
                     break;
 
@@ -256,6 +256,15 @@ namespace MountingForce.Game.Composition.CharacterEquipment
             {
                 animators[i].enabled = false;
             }
+        }
+
+        private static void ApplySocketTransform(
+            Transform target,
+            CharacterPartDefinition definition)
+        {
+            target.localPosition = definition.SocketLocalPosition;
+            target.localRotation = Quaternion.Euler(definition.SocketLocalEulerAngles);
+            target.localScale = definition.SocketLocalScale;
         }
 
         private static void ResetLocalTransform(Transform target)

@@ -24,6 +24,9 @@ namespace MountingForce.Game.Composition.CharacterEquipment
         [SerializeField] private CharacterPartMountMode mountMode;
         [SerializeField] private GameObject prefab;
         [SerializeField] private string socket = string.Empty;
+        [SerializeField] private Vector3 socketLocalPosition = Vector3.zero;
+        [SerializeField] private Vector3 socketLocalEulerAngles = Vector3.zero;
+        [SerializeField] private Vector3 socketLocalScale = Vector3.one;
 
         public string PartId => partId;
         public string Slot => slot;
@@ -31,6 +34,9 @@ namespace MountingForce.Game.Composition.CharacterEquipment
         public CharacterPartMountMode MountMode => mountMode;
         public GameObject Prefab => prefab;
         public string Socket => socket;
+        public Vector3 SocketLocalPosition => socketLocalPosition;
+        public Vector3 SocketLocalEulerAngles => socketLocalEulerAngles;
+        public Vector3 SocketLocalScale => socketLocalScale;
 
         public CharacterPartDefinition(
             string slot,
@@ -49,6 +55,29 @@ namespace MountingForce.Game.Composition.CharacterEquipment
             CharacterPartMountMode mountMode,
             GameObject prefab,
             string socket = "")
+            : this(
+                partId,
+                slot,
+                partKind,
+                mountMode,
+                prefab,
+                socket,
+                Vector3.zero,
+                Vector3.zero,
+                Vector3.one)
+        {
+        }
+
+        public CharacterPartDefinition(
+            string partId,
+            string slot,
+            CharacterPartKind partKind,
+            CharacterPartMountMode mountMode,
+            GameObject prefab,
+            string socket,
+            Vector3 socketLocalPosition,
+            Vector3 socketLocalEulerAngles,
+            Vector3 socketLocalScale)
         {
             this.partId = partId ?? string.Empty;
             this.slot = slot ?? string.Empty;
@@ -56,6 +85,9 @@ namespace MountingForce.Game.Composition.CharacterEquipment
             this.mountMode = mountMode;
             this.prefab = prefab;
             this.socket = socket ?? string.Empty;
+            this.socketLocalPosition = socketLocalPosition;
+            this.socketLocalEulerAngles = socketLocalEulerAngles;
+            this.socketLocalScale = socketLocalScale;
         }
     }
 }
