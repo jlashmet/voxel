@@ -48,54 +48,79 @@ namespace VoxelEngine.Showcase
             _castleTrapdoorOpen = false;
             _castleFrontGateOpen = false;
 
-            CastlePlan presentationPlan = _castleSpatialProjection.KeepPlan;
-            BuildCastlePresentationLights(in presentationPlan);
-        }
-
-        private CastleGateGeometry ActiveCastleFrontGateGeometry()
-        {
-            if (_hasCastleSpatialProjection)
-                return _castleSpatialProjection.PrimaryGateGeometry;
-            return CastleGateGeometryResolver.LegacyFront(in _castlePlan);
+            ShowcaseCastleSpatialLayout.BuildPresentationLights(
+                in _castleSpatialProjection,
+                out Vector4[] lights,
+                out Vector4[] colours);
+            CastlePresentationLights = lights;
+            CastlePresentationLightColours = colours;
         }
 
         private Vector3 ActiveCastleFrontGatePosition()
         {
-            float3 point = ActiveCastleFrontGateGeometry().InteractionPointVoxels;
-            return new Vector3(point.x, point.y, point.z) * VoxelSize;
+            if (!_hasCastleSpatialProjection)
+            {
+                CastleGateGeometry legacy = CastleGateGeometryResolver.LegacyFront(in _castlePlan);
+                float3 legacyPoint = legacy.InteractionPointVoxels;
+                return new Vector3(legacyPoint.x, legacyPoint.y, legacyPoint.z) * VoxelSize;
+            }
+
+            return ShowcaseCastleSpatialLayout.PrimaryGateInteractionPosition(
+                in _castleSpatialProjection, VoxelSize);
         }
 
         private void OpenActiveCastleFrontGate()
         {
-            CastleGateGeometry geometry = ActiveCastleFrontGateGeometry();
-            var gateVoxels = new List<FallingVoxel>(
-                geometry.Width * geometry.Height * geometry.Depth);
-
-            for (int d = 0; d < geometry.Depth; d++)
-            for (int w = 0; w < geometry.Width; w++)
-            for (int h = 0; h < geometry.Height; h++)
+            if (!_hasCastleSpatialProjection)
             {
-                if (!geometry.ContainsArchVoxel(w, h)) continue;
+                CastleGateGeometry legacy = CastleGateGeometryResolver.LegacyFront(in _castlePlan);
+                var legacyVoxels = new List<FallingVoxel>(
+                    legacy.Width * legacy.Height * legacy.Depth);
+                for (int d = 0; d < legacy.Depth; d++)
+                for (int w = 0; w < legacy.Width; w++)
+                for (int h = 0; h < legacy.Height; h++)
+                {
+                    if (!legacy.ContainsArchVoxel(w, h)) continue;
+                    legacyVoxels.Add(new FallingVoxel
+                    {
+                        Position = legacy.WorldVoxel(w, h, d),
+                        Material = MatWood,
+                    });
+                }
+                ClearVoxelsBulk(legacyVoxels);
+                return;
+            }
+
+            int3[] voxels = ShowcaseCastleSpatialLayout.PrimaryGateLeafVoxels(
+                in _castleSpatialProjection);
+            var gateVoxels = new List<FallingVoxel>(voxels.Length);
+            for (int i = 0; i < voxels.Length; i++)
+            {
                 gateVoxels.Add(new FallingVoxel
                 {
-                    Position = geometry.WorldVoxel(w, h, d),
+                    Position = voxels[i],
                     Material = MatWood,
                 });
             }
-
             ClearVoxelsBulk(gateVoxels);
         }
 
         private int3 ActiveCastleTrapdoorCentre()
         {
             if (_hasCastleSpatialProjection)
-                return _castleSpatialProjection.TrapdoorCentre;
+                return ShowcaseCastleSpatialLayout.TrapdoorCentre(in _castleSpatialProjection);
             return CastleLayout.TrapdoorCentre(in _castlePlan);
         }
 
         private Vector3 ActiveCastleTrapdoorPosition()
         {
-            int3 centre = ActiveCastleTrapdoorCentre();
+            if (_hasCastleSpatialProjection)
+            {
+                return ShowcaseCastleSpatialLayout.TrapdoorInteractionPosition(
+                    in _castleSpatialProjection, VoxelSize);
+            }
+
+            int3 centre = CastleLayout.TrapdoorCentre(in _castlePlan);
             return ((Vector3)(float3)centre + new Vector3(0.5f, 0.2f, 0.5f)) * VoxelSize;
         }
 
