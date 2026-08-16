@@ -1,6 +1,5 @@
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
-using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures.Runtime
 {
@@ -47,8 +46,8 @@ namespace VoxelEngine.Structures.Runtime
             {
                 int heightVariation = i == 0 ? 58 : i == 1 ? 8 : i == 2 ? 30 : 14;
                 int towerHeight = plan.TowerHeight + heightVariation;
-                Tower(ref brush, in plan, corners[i], plan.TowerRadius,
-                      towerHeight, i >= 2);
+                CastleTowerRealizer.Build(ref brush, in plan, corners[i], plan.TowerRadius,
+                                          towerHeight, i >= 2);
                 if (i < 2)
                     FrontTowerWindows(ref brush, corners[i], plan.TowerRadius,
                                       towerHeight, plan.FloorHeight);
@@ -71,8 +70,8 @@ namespace VoxelEngine.Structures.Runtime
 
             int leftHeight = plan.GateTowerHeight + 38;
             int rightHeight = plan.GateTowerHeight + 12;
-            Tower(ref brush, in plan, left, r, leftHeight, false);
-            Tower(ref brush, in plan, right, r, rightHeight, false);
+            CastleTowerRealizer.Build(ref brush, in plan, left, r, leftHeight, false);
+            CastleTowerRealizer.Build(ref brush, in plan, right, r, rightHeight, false);
             FrontTowerWindows(ref brush, left, r, leftHeight, plan.FloorHeight);
             FrontTowerWindows(ref brush, right, r, rightHeight, plan.FloorHeight);
 
@@ -325,61 +324,6 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
-        private static void Tower(ref VoxelBrush brush, in CastlePlan plan, int3 at, int radius,
-                                  int height, bool roof)
-        {
-            brush.Cylinder(at.x, at.y - 30, at.z, radius + 4, 42, Mat.DarkStone);
-            brush.Cylinder(at.x, at.y, at.z, radius, height, Mat.Stone, radius - 12);
-
-            for (int f = 1; f * plan.FloorHeight < height - 20; f++)
-                brush.Disc(at.x, at.y + f * plan.FloorHeight, at.z, radius - 13, Mat.Wood);
-
-            brush.SpiralStair(at.x, at.y + 2, at.z, radius - 14, height - 24, Mat.Stone);
-
-            for (int y = at.y + plan.FloorHeight; y < at.y + height - 28;
-                 y += plan.FloorHeight)
-            {
-                brush.Cylinder(at.x, y - 2, at.z, radius + 2, 3,
-                               Mat.DarkStone, radius - 1);
-            }
-
-            CarveTowerDoor(ref brush, in plan, at, radius);
-
-            var rng = new Random((uint)(at.x * 8191 + at.z * 131071) | 1u);
-            for (int f = 0; f * plan.FloorHeight < height - 40; f++)
-            {
-                int y = at.y + f * plan.FloorHeight + 18;
-                float phase = rng.NextFloat(0f, 6.28f);
-
-                for (int s = 0; s < 3; s++)
-                {
-                    float a = phase + s * 2.09f;
-                    for (int r = radius - 14; r <= radius; r++)
-                    for (int h = 0; h < 22; h++)
-                    {
-                        int x = at.x + (int)math.round(math.cos(a) * r);
-                        int z = at.z + (int)math.round(math.sin(a) * r);
-                        brush.Set(x, y + h, z, Mat.Empty);
-                    }
-                }
-            }
-
-            int parapetY = at.y + height;
-            brush.Cylinder(at.x, parapetY - 4, at.z, radius + 3, 5,
-                           Mat.DarkStone, radius - 14);
-            brush.Cylinder(at.x, parapetY, at.z, radius + 2, 6,
-                           Mat.Stone, radius - 12);
-            brush.CrenellateRing(at.x, parapetY + 6, at.z, radius + 2, 18, Mat.Stone);
-
-            if (!roof) return;
-
-            brush.Cone(at.x, parapetY + 8, at.z, radius - 4, radius * 2, Mat.Slate);
-            int peakY = parapetY + 8 + radius * 2;
-            brush.Box(new int3(at.x, peakY, at.z), new int3(2, 30, 2), Mat.Wood);
-            brush.Box(new int3(at.x + 2, peakY + 17, at.z), new int3(22, 11, 2), Mat.Cloth);
-            brush.Set(at.x, peakY + 30, at.z, Mat.Gold);
-        }
-
         private static void FrontTowerWindows(ref VoxelBrush brush, int3 at, int radius,
                                               int height, int floorHeight)
         {
@@ -402,28 +346,6 @@ namespace VoxelEngine.Structures.Runtime
                           new int3(width - 6, 2, 3), Mat.DarkStone);
                 brush.Box(new int3(at.x - width / 2 - 4, y - 4, frontZ - 4),
                           new int3(width + 8, 3, 6), Mat.DarkStone);
-            }
-        }
-
-        private static void CarveTowerDoor(ref VoxelBrush brush, in CastlePlan plan,
-                                           int3 at, int radius)
-        {
-            const int width = 14;
-            const int height = 30;
-            int dx = plan.Centre.x - at.x;
-            int dz = plan.Centre.z - at.z;
-
-            if (math.abs(dx) > math.abs(dz))
-            {
-                int minX = dx >= 0 ? at.x + radius - 15 : at.x - radius - 1;
-                brush.Arch(new int3(minX, at.y + 2, at.z - width / 2),
-                           width, height, 16, 0, Mat.Empty);
-            }
-            else
-            {
-                int minZ = dz >= 0 ? at.z + radius - 15 : at.z - radius - 1;
-                brush.Arch(new int3(at.x - width / 2, at.y + 2, minZ),
-                           width, height, 16, 2, Mat.Empty);
             }
         }
     }
