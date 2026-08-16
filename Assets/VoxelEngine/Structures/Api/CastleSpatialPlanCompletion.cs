@@ -102,7 +102,11 @@ namespace VoxelEngine.Structures.Api
             if (spatial.KeepRequiresTerrainResolution)
                 return spatial;
 
-            CastleKeepCirculationPlan circulation = CastleKeepCirculationPlanner.Create(in plan);
+            CastleGatePlacementSpec primaryGate = spatial.PrimaryGate;
+            CastleKeepFace entranceFace = CastleKeepFacadePlanner.FacingPrimaryGate(
+                spatial.KeepCentre, in primaryGate);
+            CastleKeepCirculationPlan circulation = CastleKeepCirculationPlanner.Create(
+                in plan, entranceFace);
             return Copy(
                 spatial,
                 spatial.Towers,
@@ -324,6 +328,15 @@ namespace VoxelEngine.Structures.Api
             {
                 throw new InvalidOperationException(
                     $"Completed castle keep circulation is invalid: {circulationIssue}.");
+            }
+
+            CastleGatePlacementSpec primaryGate = completed.PrimaryGate;
+            CastleKeepFace expectedEntranceFace = CastleKeepFacadePlanner.FacingPrimaryGate(
+                completed.KeepCentre, in primaryGate);
+            if (circulation.EntranceFace != expectedEntranceFace)
+            {
+                throw new InvalidOperationException(
+                    "Completed castle keep entrance does not face the primary approach.");
             }
 
             CastleKeepWindowPlan windows = new CastleKeepWindowPlan(completed.KeepWindows);
