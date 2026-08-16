@@ -2,6 +2,9 @@ name: Vegetation and Ambient-Life Visual Validation
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - vegetation
   pull_request:
     paths:
       - 'Assets/VoxelEngine/Vegetation/**'
