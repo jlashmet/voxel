@@ -35,6 +35,9 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void SpatialKeepUsesPlannedRoomAccentsWithoutSeedShim()
         {
+            string floors = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepFloorRealizer.cs"));
             string keep = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleKeepRealizer.cs"));
@@ -42,10 +45,12 @@ namespace VoxelEngine.Tests.EditMode
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleRoomFurnisher.cs"));
 
-            StringAssert.Contains("CastleRoomFurnisher.FurnishPlanned(", keep);
-            StringAssert.Contains("roomPlan.Accents", keep);
-            StringAssert.DoesNotContain("RoomFurnishingPlanSeed", keep,
+            StringAssert.Contains("CastleRoomFurnisher.FurnishPlanned(", floors);
+            StringAssert.Contains("roomPlan.Accents", floors);
+            StringAssert.DoesNotContain("RoomFurnishingPlanSeed", floors,
                 "Spatial furnishing should consume explicit accents instead of adapting a seed back into Runtime RNG.");
+            StringAssert.Contains("CastleKeepFloorRealizer.Build(", keep,
+                "The compatibility keep coordinator should delegate floor ownership to the extracted realizer.");
 
             StringAssert.Contains("FurnishLegacyAccents", rooms,
                 "Dimension-only compatibility builds must retain their historical RNG recipe.");
