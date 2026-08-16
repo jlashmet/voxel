@@ -22,7 +22,7 @@ namespace VoxelEngine.Tests.EditMode
                 openingCornerRadiusDm: 3,
                 detailCornerRadiusDm: 4,
                 foundationSurface: StructureSurfaceTreatment.Beveled,
-                shellSurface: StructureSurfaceTreatment.Rounded,
+                shellSurface: StructureSurfaceTreatment.ArchitecturalRounded,
                 openingSurface: StructureSurfaceTreatment.Smooth,
                 detailSurface: StructureSurfaceTreatment.Planar,
                 roofSurface: StructureSurfaceTreatment.MasonryJoint);
@@ -32,7 +32,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(3, profile.OpeningCornerRadiusDm);
             Assert.AreEqual(4, profile.DetailCornerRadiusDm);
             Assert.AreEqual(StructureSurfaceTreatment.Beveled, profile.FoundationSurface);
-            Assert.AreEqual(StructureSurfaceTreatment.Rounded, profile.ShellSurface);
+            Assert.AreEqual(StructureSurfaceTreatment.ArchitecturalRounded, profile.ShellSurface);
             Assert.AreEqual(StructureSurfaceTreatment.Smooth, profile.OpeningSurface);
             Assert.AreEqual(StructureSurfaceTreatment.Planar, profile.DetailSurface);
             Assert.AreEqual(StructureSurfaceTreatment.MasonryJoint, profile.RoofSurface);
@@ -43,6 +43,27 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ArchitecturalRoundedSurfaceIsSofterThanGeneralRoundedSurface()
+        {
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            SurfaceStyleReadDefinition rounded = surfaces.Get(SurfaceStyles.Rounded);
+            SurfaceStyleReadDefinition architectural =
+                surfaces.Get(SurfaceStyles.ArchitecturalRounded);
+
+            Assert.AreEqual(SurfaceReconstruction.Rounded, architectural.Reconstruction);
+            Assert.Greater(architectural.Curvature, rounded.Curvature,
+                "Architecture should be able to request stronger reconstruction curvature.");
+
+            SurfaceJoinReadRule roundedJoin = surfaces.GetJoin(
+                rounded.JoinGroup, rounded.JoinGroup);
+            SurfaceJoinReadRule architecturalJoin = surfaces.GetJoin(
+                architectural.JoinGroup, architectural.JoinGroup);
+            Assert.AreEqual(SurfaceContinuity.Smooth, architecturalJoin.Continuity);
+            Assert.Greater(architecturalJoin.BlendWidth, roundedJoin.BlendWidth,
+                "Architecture should have a wider smooth join than the general rounded style.");
+        }
+
+        [Test]
         public void ArchitectureShapeBuilderAppliesSemanticOpeningAndRoofPolicies()
         {
             var profile = new StructureGeometryProfile(
@@ -50,7 +71,7 @@ namespace VoxelEngine.Tests.EditMode
                 shellCornerRadiusDm: 0,
                 openingCornerRadiusDm: 2,
                 detailCornerRadiusDm: 0,
-                openingSurface: StructureSurfaceTreatment.Rounded,
+                openingSurface: StructureSurfaceTreatment.ArchitecturalRounded,
                 roofSurface: StructureSurfaceTreatment.Smooth);
             var builder = new ArchitectureShapeProgramBuilder(profile, voxelsPerDecimetre: 1);
 
@@ -60,7 +81,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.AreEqual(ShapeOp.EmitRoundedBox, (ShapeOp)code[0]);
             Assert.AreEqual(2, code[8], "Opening rounding should come from OpeningCornerRadiusDm.");
-            Assert.AreEqual(SurfaceStyles.Rounded, (ushort)code[10]);
+            Assert.AreEqual(SurfaceStyles.ArchitecturalRounded, (ushort)code[10]);
             Assert.AreEqual(PrimitiveMode.Carve, (PrimitiveMode)code[12]);
 
             int prism = ShapeOps.InstructionLength(ShapeOp.EmitRoundedBox);
@@ -78,7 +99,7 @@ namespace VoxelEngine.Tests.EditMode
             {
                 int roundedFill = 0;
                 int roundedCarve = 0;
-                int roundedSurface = 0;
+                int architecturalRoundedSurface = 0;
                 int beveledSurface = 0;
                 int smoothRoofPrism = 0;
                 int roundedStructureDefinitions = 0;
@@ -109,7 +130,8 @@ namespace VoxelEngine.Tests.EditMode
                             Assert.Greater(radius, 0,
                                 $"{definition.Name} emitted a rounded box with no radius.");
 
-                            if (surface == SurfaceStyles.Rounded) roundedSurface++;
+                            if (surface == SurfaceStyles.ArchitecturalRounded)
+                                architecturalRoundedSurface++;
                             if (surface == SurfaceStyles.Beveled) beveledSurface++;
 
                             if (mode == PrimitiveMode.Carve) roundedCarve++;
@@ -135,8 +157,8 @@ namespace VoxelEngine.Tests.EditMode
                     "Primary/detail structure solids should realise as rounded geometry.");
                 Assert.Greater(roundedCarve, 0,
                     "Door/window openings should consume their independent rounding control.");
-                Assert.Greater(roundedSurface, 0,
-                    "Shell/opening geometry should explicitly request rounded reconstruction.");
+                Assert.Greater(architecturalRoundedSurface, 0,
+                    "Shell/opening geometry should request the architecture-specific smooth reconstruction.");
                 Assert.Greater(beveledSurface, 0,
                     "Foundation/detail geometry should explicitly request beveled reconstruction.");
                 Assert.Greater(smoothRoofPrism, 0,
