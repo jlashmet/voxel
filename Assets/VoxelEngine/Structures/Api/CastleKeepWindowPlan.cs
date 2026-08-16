@@ -15,13 +15,16 @@ namespace VoxelEngine.Structures.Api
         public readonly int Id;
         public readonly int FloorIndex;
         public readonly CastleKeepWindowFace Face;
+        public readonly CastleKeepFace WallFace;
         public readonly int2 LocalOrigin;
         public readonly int BaseYOffset;
         public readonly int Width;
         public readonly int Height;
         public readonly int Depth;
+        public readonly int DepthAxis;
         public readonly bool HasLitGlazing;
 
+        /// <summary>Compatibility constructor for the historical south/front, north/rear layout.</summary>
         public CastleKeepWindowSpec(
             int id,
             int floorIndex,
@@ -32,15 +35,46 @@ namespace VoxelEngine.Structures.Api
             int height,
             int depth,
             bool hasLitGlazing)
+            : this(
+                id,
+                floorIndex,
+                face,
+                face == CastleKeepWindowFace.Front
+                    ? CastleKeepFace.South
+                    : CastleKeepFace.North,
+                localOrigin,
+                baseYOffset,
+                width,
+                height,
+                depth,
+                2,
+                hasLitGlazing)
+        {
+        }
+
+        public CastleKeepWindowSpec(
+            int id,
+            int floorIndex,
+            CastleKeepWindowFace face,
+            CastleKeepFace wallFace,
+            int2 localOrigin,
+            int baseYOffset,
+            int width,
+            int height,
+            int depth,
+            int depthAxis,
+            bool hasLitGlazing)
         {
             Id = id;
             FloorIndex = floorIndex;
             Face = face;
+            WallFace = wallFace;
             LocalOrigin = localOrigin;
             BaseYOffset = baseYOffset;
             Width = width;
             Height = height;
             Depth = depth;
+            DepthAxis = depthAxis;
             HasLitGlazing = hasLitGlazing;
         }
     }
@@ -69,18 +103,22 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Plans the current three-bay front/rear keep aperture pattern. The ground-floor centre front
-    /// bay is omitted for the main entrance, preserving the existing authored keep while moving the
-    /// decision about which windows exist out of Runtime.
+    /// Plans the three-bay keep aperture pattern in a cardinal facade basis. The compatibility
+    /// overload remains south-facing; a face-aware caller can rotate front/rear walls without
+    /// leaving Runtime to infer an aperture orientation.
     /// </summary>
     public static class CastleKeepWindowPlanner
     {
         private const int WindowWidth = 16;
         private const int WindowDepth = 9;
         private const int FloorBottomInset = 12;
-        private const int FrontBackInset = 8;
 
-        public static CastleKeepWindowPlan Create(in CastlePlan plan)
+        public static CastleKeepWindowPlan Create(in CastlePlan plan) =>
+            Create(in plan, CastleKeepFace.South);
+
+        public static CastleKeepWindowPlan Create(
+            in CastlePlan plan,
+            CastleKeepFace frontFace)
         {
             if (plan.KeepHalfX <= 0 || plan.KeepHalfZ <= 0 ||
                 plan.FloorHeight <= 18 || plan.Floors <= 0)
@@ -91,7 +129,6 @@ namespace VoxelEngine.Structures.Api
 
             var windows = new CastleKeepWindowSpec[plan.Floors * 6 - 1];
             int cursor = 0;
-            int width = plan.KeepHalfX * 2;
             for (int floor = 0; floor < plan.Floors; floor++)
             {
                 int height = floor == 1
@@ -101,43 +138,39 @@ namespace VoxelEngine.Structures.Api
 
                 for (int bay = 0; bay < 3; bay++)
                 {
-                    int localX = -plan.KeepHalfX
-                               + width / 4
-                               + bay * width / 4
-                               - WindowWidth / 2;
-
                     bool mainEntrance = floor == 0 && bay == 1;
                     if (!mainEntrance)
                     {
-                        windows[cursor] = new CastleKeepWindowSpec(
+                        windows[cursor] = CreateWindow(
+                            in plan,
                             cursor,
                             floor,
+                            bay,
                             CastleKeepWindowFace.Front,
-                            new int2(localX, -plan.KeepHalfZ),
+                            frontFace,
                             yOffset,
-                            WindowWidth,
                             height,
-                            WindowDepth,
                             true);
                         cursor++;
                     }
 
-                    windows[cursor] = new CastleKeepWindowSpec(
+                    CastleKeepFace rearFace = Opposite(frontFace);
+                    windows[cursor] = CreateWindow(
+                        in plan,
                         cursor,
                         floor,
+                        bay,
                         CastleKeepWindowFace.Rear,
-                        new int2(localX, plan.KeepHalfZ - FrontBackInset),
+                        rearFace,
                         yOffset,
-                        WindowWidth,
                         height,
-                        WindowDepth,
                         false);
                     cursor++;
                 }
             }
 
             var result = new CastleKeepWindowPlan(windows);
-            if (!TryValidate(in plan, windows, out string error))
+            if (!TryValidate(in plan, windows, frontFace, out string error))
                 throw new InvalidOperationException($"Planned castle keep windows are invalid: {error}");
             return result;
         }
@@ -146,12 +179,27 @@ namespace VoxelEngine.Structures.Api
             in CastlePlan plan,
             CastleKeepWindowPlan windows,
             out string error) =>
-            TryValidate(in plan, windows?.SnapshotWindows(), out error);
+            TryValidate(in plan, windows?.SnapshotWindows(), CastleKeepFace.South, out error);
 
-        /// <summary>Validates a completed/snapshotted aperture list without requiring wrapper state.</summary>
+        public static bool TryValidate(
+            in CastlePlan plan,
+            CastleKeepWindowPlan windows,
+            CastleKeepFace frontFace,
+            out string error) =>
+            TryValidate(in plan, windows?.SnapshotWindows(), frontFace, out error);
+
+        /// <summary>Validates a completed/snapshotted historical south-facing aperture list.</summary>
         public static bool TryValidate(
             in CastlePlan plan,
             CastleKeepWindowSpec[] windows,
+            out string error) =>
+            TryValidate(in plan, windows, CastleKeepFace.South, out error);
+
+        /// <summary>Validates a completed/snapshotted aperture list for the supplied front facade.</summary>
+        public static bool TryValidate(
+            in CastlePlan plan,
+            CastleKeepWindowSpec[] windows,
+            CastleKeepFace frontFace,
             out string error)
         {
             if (windows == null)
@@ -181,10 +229,30 @@ namespace VoxelEngine.Structures.Api
                     error = $"window {i} has invalid dimensions or floor";
                     return false;
                 }
-                if (window.LocalOrigin.x < -plan.KeepHalfX ||
-                    window.LocalOrigin.x + window.Width > plan.KeepHalfX)
+
+                CastleKeepFace expectedWall = window.Face == CastleKeepWindowFace.Front
+                    ? frontFace
+                    : Opposite(frontFace);
+                if (window.WallFace != expectedWall)
                 {
-                    error = $"window {i} leaves the keep width";
+                    error = $"window {i} is attached to {window.WallFace} instead of {expectedWall}";
+                    return false;
+                }
+
+                int expectedDepthAxis =
+                    window.WallFace == CastleKeepFace.East ||
+                    window.WallFace == CastleKeepFace.West
+                        ? 0
+                        : 2;
+                if (window.DepthAxis != expectedDepthAxis)
+                {
+                    error = $"window {i} uses the wrong depth axis";
+                    return false;
+                }
+
+                if (!WindowFitsWall(in plan, in window))
+                {
+                    error = $"window {i} is detached from or leaves its keep wall";
                     return false;
                 }
 
@@ -195,31 +263,90 @@ namespace VoxelEngine.Structures.Api
                     error = $"window {i} leaves its assigned floor";
                     return false;
                 }
-
-                switch (window.Face)
-                {
-                    case CastleKeepWindowFace.Front:
-                        if (window.LocalOrigin.y != -plan.KeepHalfZ)
-                        {
-                            error = $"front window {i} is detached from the front wall";
-                            return false;
-                        }
-                        break;
-                    case CastleKeepWindowFace.Rear:
-                        if (window.LocalOrigin.y != plan.KeepHalfZ - FrontBackInset)
-                        {
-                            error = $"rear window {i} is detached from the rear wall";
-                            return false;
-                        }
-                        break;
-                    default:
-                        error = $"window {i} has an unknown face";
-                        return false;
-                }
             }
 
             error = null;
             return true;
+        }
+
+        private static CastleKeepWindowSpec CreateWindow(
+            in CastlePlan plan,
+            int id,
+            int floor,
+            int bay,
+            CastleKeepWindowFace relativeFace,
+            CastleKeepFace wallFace,
+            int yOffset,
+            int height,
+            bool lit)
+        {
+            CastleKeepFacadeFrame frame = CastleKeepFacadeFrame.For(wallFace);
+            int tangentHalf = frame.TangentHalfExtent(in plan);
+            int centreTangent = (bay - 1) * (tangentHalf / 2);
+            int startTangent = centreTangent - WindowWidth / 2;
+            int endTangent = startTangent + WindowWidth - 1;
+
+            int2 faceStart = frame.PointFromFacade(in plan, startTangent, 0);
+            int2 faceEnd = frame.PointFromFacade(in plan, endTangent, 0);
+            int2 innerStart = frame.PointFromFacade(in plan, startTangent, WindowDepth - 1);
+            int2 innerEnd = frame.PointFromFacade(in plan, endTangent, WindowDepth - 1);
+            int2 min = math.min(math.min(faceStart, faceEnd), math.min(innerStart, innerEnd));
+
+            int depthAxis = wallFace == CastleKeepFace.East || wallFace == CastleKeepFace.West
+                ? 0
+                : 2;
+            return new CastleKeepWindowSpec(
+                id,
+                floor,
+                relativeFace,
+                wallFace,
+                min,
+                yOffset,
+                WindowWidth,
+                height,
+                WindowDepth,
+                depthAxis,
+                lit);
+        }
+
+        private static bool WindowFitsWall(
+            in CastlePlan plan,
+            in CastleKeepWindowSpec window)
+        {
+            int minX = window.LocalOrigin.x;
+            int minZ = window.LocalOrigin.y;
+            int maxX = minX + (window.DepthAxis == 0 ? window.Depth : window.Width) - 1;
+            int maxZ = minZ + (window.DepthAxis == 2 ? window.Depth : window.Width) - 1;
+
+            if (minX < -plan.KeepHalfX || maxX > plan.KeepHalfX ||
+                minZ < -plan.KeepHalfZ || maxZ > plan.KeepHalfZ)
+                return false;
+
+            switch (window.WallFace)
+            {
+                case CastleKeepFace.South:
+                    return minZ == -plan.KeepHalfZ;
+                case CastleKeepFace.East:
+                    return maxX == plan.KeepHalfX;
+                case CastleKeepFace.North:
+                    return maxZ == plan.KeepHalfZ;
+                case CastleKeepFace.West:
+                    return minX == -plan.KeepHalfX;
+                default:
+                    return false;
+            }
+        }
+
+        private static CastleKeepFace Opposite(CastleKeepFace face)
+        {
+            switch (face)
+            {
+                case CastleKeepFace.South: return CastleKeepFace.North;
+                case CastleKeepFace.East: return CastleKeepFace.West;
+                case CastleKeepFace.North: return CastleKeepFace.South;
+                case CastleKeepFace.West: return CastleKeepFace.East;
+                default: return CastleKeepFace.North;
+            }
         }
     }
 }
