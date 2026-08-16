@@ -39,10 +39,14 @@ namespace VoxelEngine.Structures.Runtime
                         CarveStair(ref brush, in from, in to, stairMaterial);
                         break;
                     case DungeonConnectionKind.SecretPassage:
-                        CarvePassage(ref brush, in from, in to, 28, 32, floorMaterial);
-                        break;
                     case DungeonConnectionKind.Corridor:
-                        CarvePassage(ref brush, in from, in to, 20, 30, floorMaterial);
+                        CarvePassage(
+                            ref brush,
+                            in from,
+                            in to,
+                            DungeonConnectionGeometry.PassageWidth(connection.Kind),
+                            DungeonConnectionGeometry.PassageHeight(connection.Kind),
+                            floorMaterial);
                         break;
                     default:
                         throw new InvalidOperationException(
@@ -59,8 +63,8 @@ namespace VoxelEngine.Structures.Runtime
             int3 min = RoomMin(in room);
             brush.FillBulk(min, room.Size, Mat.Empty);
             brush.Box(
-                new int3(min.x, min.y - 2, min.z),
-                new int3(room.Size.x, 2, room.Size.z),
+                new int3(min.x, min.y - DungeonConnectionGeometry.FloorThickness, min.z),
+                new int3(room.Size.x, DungeonConnectionGeometry.FloorThickness, room.Size.z),
                 floorMaterial);
         }
 
@@ -110,7 +114,7 @@ namespace VoxelEngine.Structures.Runtime
             int floorY = DungeonConnectionGeometry.RoomFloor(in from);
             int2 a = new int2(from.Centre.x, from.Centre.z);
             int2 b = new int2(to.Centre.x, to.Centre.z);
-            int2 corner = new int2(b.x, a.y);
+            int2 corner = DungeonConnectionGeometry.PassageCorner(in from, in to);
 
             CarveHorizontalLeg(ref brush, a, corner, floorY, width, height, floorMaterial);
             CarveHorizontalLeg(ref brush, corner, b, floorY, width, height, floorMaterial);
@@ -135,8 +139,11 @@ namespace VoxelEngine.Structures.Runtime
                     new int3(length, height, width),
                     Mat.Empty);
                 brush.Box(
-                    new int3(minX, floorY - 2, a.y - half),
-                    new int3(length, 2, width),
+                    new int3(
+                        minX,
+                        floorY - DungeonConnectionGeometry.FloorThickness,
+                        a.y - half),
+                    new int3(length, DungeonConnectionGeometry.FloorThickness, width),
                     floorMaterial);
                 return;
             }
@@ -150,8 +157,11 @@ namespace VoxelEngine.Structures.Runtime
                     new int3(width, height, length),
                     Mat.Empty);
                 brush.Box(
-                    new int3(a.x - half, floorY - 2, minZ),
-                    new int3(width, 2, length),
+                    new int3(
+                        a.x - half,
+                        floorY - DungeonConnectionGeometry.FloorThickness,
+                        minZ),
+                    new int3(width, DungeonConnectionGeometry.FloorThickness, length),
                     floorMaterial);
             }
         }
