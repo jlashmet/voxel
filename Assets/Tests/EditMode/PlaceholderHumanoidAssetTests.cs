@@ -42,9 +42,6 @@ namespace VoxelEngine.Tests.EditMode
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             Assert.That(model, Is.Not.Null, $"Unity could not load placeholder body {path}");
 
-            // Humanoid import can collapse source transform nodes before the persistent FBX
-            // prefab is written. Validate the resulting renderer state and recover Rocketbox
-            // LOD identity from either retained ancestry or the imported mesh name.
             var allSkinnedMeshes = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             Assert.That(allSkinnedMeshes.Length, Is.GreaterThan(0),
                 $"{path} has no skinned mesh renderer");
@@ -86,9 +83,6 @@ namespace VoxelEngine.Tests.EditMode
         [TestCase(FemalePrefabPath, FemaleDescriptorPath)]
         public void PlaceholderDescriptor_GeneratesCharacterFactoryPrefab(string path, string descriptorPath)
         {
-            // Generated Character Factory outputs are intentionally ignored by Git. Force the
-            // committed descriptor through the normal importer here so the contract remains
-            // deterministic even when CI keeps a warm Unity Library after cleaning the workspace.
             AssetDatabase.ImportAsset(
                 descriptorPath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
@@ -138,16 +132,13 @@ namespace VoxelEngine.Tests.EditMode
                 $"{path} contains motion that Unity cannot retarget through a Humanoid Avatar");
         }
 
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Idle.fbx", true, false)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx", true, true)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx", true, true)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/CrouchIdle.fbx", true, false)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Wave.fbx", false, false)]
-        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Shrug.fbx", false, false)]
-        public void AnimationFile_HasExpectedGameplayImportContract(
-            string path,
-            bool expectedLoop,
-            bool expectedHorizontalRootMotion)
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Idle.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Walk.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Run.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/CrouchIdle.fbx", true)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Wave.fbx", false)]
+        [TestCase("Assets/ThirdParty/PlaceholderHumanoids/Animations/Shrug.fbx", false)]
+        public void AnimationFile_HasExpectedGameplayImportContract(string path, bool expectedLoop)
         {
             AssetDatabase.ImportAsset(
                 path,
@@ -165,12 +156,10 @@ namespace VoxelEngine.Tests.EditMode
                 $"{path} loopTime does not match expected gameplay semantics ({expectedLoop})");
             Assert.That(importer.clipAnimations.All(clip => clip.loopPose == expectedLoop), Is.True,
                 $"{path} loopPose does not match expected gameplay semantics ({expectedLoop})");
-            Assert.That(importer.clipAnimations.All(clip =>
-                    clip.lockRootPositionXZ == !expectedHorizontalRootMotion), Is.True,
-                $"{path} horizontal root-motion bake policy does not match expected semantics ({expectedHorizontalRootMotion})");
-            Assert.That(importer.clipAnimations.All(clip =>
-                    clip.keepOriginalPositionXZ == expectedHorizontalRootMotion), Is.True,
-                $"{path} authored XZ root-position policy does not match expected semantics ({expectedHorizontalRootMotion})");
+            Assert.That(importer.clipAnimations.All(clip => clip.lockRootPositionXZ), Is.True,
+                $"{path} must bake horizontal position for controller-driven placeholder movement");
+            Assert.That(importer.clipAnimations.All(clip => !clip.keepOriginalPositionXZ), Is.True,
+                $"{path} must not preserve authored XZ translation for controller-driven placeholder movement");
         }
 
         private static void FlushCharacterFactoryPendingImports()
