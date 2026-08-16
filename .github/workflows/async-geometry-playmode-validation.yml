@@ -40,12 +40,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Renderer-world lifetime ownership passed all 83 focused EditMode tests and the next
-          # Metal run proved the stale Storage-pin/RenderGraph exception is gone: the upload-budget
-          # LOD test now passes. The remaining fidelity capture sees ~800 chunks at once through a
-          # 70 m orthographic half-height, so that offline-only test uses an 8 ms build slice and
-          # 8 Unity job workers. The separate stress invocation below stays at 2 workers and keeps
-          # production budgets, preserving the constrained runtime/performance gate.
+          # Renderer-world lifetime ownership passed all 83 focused EditMode tests, and Metal
+          # proved the stale Storage-pin/RenderGraph exception is gone: the upload-budget LOD test
+          # now passes. The offline fidelity capture uses an 8 ms build slice and 8 Unity workers.
+          # Its orthographic half-height is now 45 m, which still covers the roughly 44-56 m bailey
+          # and <=~86 m sculpted plateau without exposing nearly the whole 192 m-wide near clipmap.
+          # The stress invocation below remains 2 workers with production budgets and is the
+          # constrained runtime/performance authority.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
@@ -62,10 +63,10 @@ jobs:
           rm -rf "$ROOT"
           mkdir -p "$ROOT"
           chmod +x tools/unity-run.sh
-          # This is the visual-fidelity gate. It renders a pathological wide orthographic view,
-          # not a gameplay perspective camera, so give background extraction enough workers to
-          # reach its existing 8-second hole-free precondition. Budget/stress semantics are tested
-          # independently by the second LOD test and the 2-worker stress invocation below.
+          # This is the visual-fidelity gate. Its castle-focused orthographic framing deliberately
+          # gets more offline extraction capacity so the existing 8-second hole-free precondition
+          # measures LOD fidelity rather than CI throughput. Runtime budget semantics are tested by
+          # the second LOD test and the separate 2-worker stress invocation below.
           UNITY_MAX_RSS_MB=12288 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -force-metal -job-worker-count 8 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
