@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MountingForce.WorldGen.Architecture;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
 namespace MountingForce.WorldGen.Voxel
@@ -12,13 +13,23 @@ namespace MountingForce.WorldGen.Voxel
     ///
     /// This pass is deliberately city-independent. The input catalogue still owns semantic
     /// composition (shells, openings, trim, roofs and anchors), while the profile controls how its
-    /// box primitives are realised. It is also a migration bridge for older catalogues whose shape
-    /// programs do not yet tag architectural operations explicitly: once those catalogues emit
-    /// semantic operations directly, they can use the same profile without this material inference.
+    /// box primitives are realised and reconstructed. It is also a migration bridge for older
+    /// catalogues whose shape programs do not yet tag architectural operations explicitly: once
+    /// those catalogues emit semantic operations directly, they can use the same profile without
+    /// this material/dimension inference.
     /// </summary>
     public static class ArchitectureGeometryCatalogue
     {
         private const int MaxLikelyOpeningWidthDm = 20;
+
+        private enum GeometryRole : byte
+        {
+            None,
+            Foundation,
+            Shell,
+            Opening,
+            Detail,
+        }
 
         public static FeatureCatalogue Apply(
             in FeatureCatalogue source,
@@ -37,6 +48,7 @@ namespace MountingForce.WorldGen.Voxel
             byte foundation = settings.Materials.Resolve(theme.Foundation);
             byte wall = settings.Materials.Resolve(theme.Wall);
             byte accent = settings.Materials.Resolve(theme.AccentStone);
+            int foundationHeight = theme.FoundationHeightDm * scale;
 
             var rewritten = new int[source.Definitions.Length][];
             int programLength = 0;
@@ -48,6 +60,7 @@ namespace MountingForce.WorldGen.Voxel
                     in definition,
                     profiles[i],
                     scale,
+                    foundationHeight,
                     foundation,
                     wall,
                     accent);
@@ -107,11 +120,12 @@ namespace MountingForce.WorldGen.Voxel
             in FeatureDefinition definition,
             StructureGeometryProfile profile,
             int scale,
+            int foundationHeight,
             byte foundationMaterial,
             byte wallMaterial,
             byte accentMaterial)
         {
-            if (!profile.HasRoundedGeometry || definition.ProgramLength == 0)
+            if (!profile.RequiresRealization || definition.ProgramLength == 0)
                 return CopyProgram(in source, in definition);
 
             var code = new List<int>(definition.ProgramLength + 32);
@@ -136,19 +150,24 @@ namespace MountingForce.WorldGen.Voxel
                     int sy = source.Program[operand + 4];
                     int sz = source.Program[operand + 5];
                     byte material = (byte)source.Program[operand + 6];
+                    ushort existingSurface = (ushort)source.Program[operand + 7];
                     PrimitiveMode mode = (PrimitiveMode)source.Program[operand + 9];
 
-                    int radiusDm = ResolveRadiusDm(
-                        profile,
+                    GeometryRole role = ResolveRole(
                         scale,
+                        foundationHeight,
                         sx,
+                        sy,
                         sz,
                         material,
                         mode,
                         foundationMaterial,
                         wallMaterial,
                         accentMaterial);
+                    int radiusDm = ResolveRadiusDm(profile, role);
+                    ushort surface = ResolveSurfaceStyle(profile, role, existingSurface);
                     int radius = ClampRadius(radiusDm * scale, sx, sy, sz);
+
                     if (radius > 0)
                     {
                         EmitRoundedBox(
@@ -160,23 +179,32 @@ namespace MountingForce.WorldGen.Voxel
                             sz,
                             radius,
                             material,
+                            surface,
                             mode);
+                        cursor += instructionLength;
+                        continue;
+                    }
+
+                    if (surface != existingSurface)
+                    {
+                        CopyBoxWithSurface(code, source, cursor, instructionLength, surface);
                         cursor += instructionLength;
                         continue;
                     }
                 }
 
-                CopyInstruction(code, source, cursor, instructionLength);
+                CopyInstruction(code, source.Program, cursor, instructionLength);
                 cursor += instructionLength;
             }
 
             return code.ToArray();
         }
 
-        private static int ResolveRadiusDm(
-            StructureGeometryProfile profile,
+        private static GeometryRole ResolveRole(
             int scale,
+            int foundationHeight,
             int sx,
+            int sy,
             int sz,
             byte material,
             PrimitiveMode mode,
@@ -187,52 +215,123 @@ namespace MountingForce.WorldGen.Voxel
             if (mode == PrimitiveMode.Carve)
             {
                 // Generated door/window cuts are thin in at least one horizontal dimension. The
-                // broad shell-interior carve is intentionally left sharp here so this compatibility
-                // pass cannot accidentally shrink usable room corners. A semantic shape builder can
-                // remove this inference entirely once every catalogue emits explicit Opening ops.
+                // broad shell-interior carve is intentionally left untouched so this compatibility
+                // pass cannot shrink usable room corners.
                 int openingLimit = MaxLikelyOpeningWidthDm * scale;
                 return sx <= openingLimit || sz <= openingLimit
-                    ? profile.OpeningCornerRadiusDm
-                    : 0;
+                    ? GeometryRole.Opening
+                    : GeometryRole.None;
             }
 
             if (mode != PrimitiveMode.Fill && mode != PrimitiveMode.FillIfEmpty)
-                return 0;
+                return GeometryRole.None;
 
-            if (material == foundationMaterial)
-                return profile.FoundationCornerRadiusDm;
-            if (material == wallMaterial || material == accentMaterial)
-                return profile.ShellCornerRadiusDm;
+            bool foundation = material == foundationMaterial;
+            bool shell = material == wallMaterial || material == accentMaterial;
 
-            // Timber frames, glass infill, awnings and other small solids are architectural detail.
-            // Radius clamping below naturally prevents over-rounding thin members.
-            return profile.DetailCornerRadiusDm;
+            // Material maps are allowed to alias semantic roles. Kentridge's showcase map, for
+            // example, can map foundation stone and wall masonry to one palette slot. In that case
+            // use the authored foundation height to preserve independent foundation/shell controls.
+            if (foundation && shell)
+                return sy <= math.max(scale, foundationHeight * 2)
+                    ? GeometryRole.Foundation
+                    : GeometryRole.Shell;
+            if (foundation) return GeometryRole.Foundation;
+            if (shell) return GeometryRole.Shell;
+
+            return GeometryRole.Detail;
+        }
+
+        private static int ResolveRadiusDm(
+            StructureGeometryProfile profile,
+            GeometryRole role)
+        {
+            switch (role)
+            {
+                case GeometryRole.Foundation: return profile.FoundationCornerRadiusDm;
+                case GeometryRole.Shell: return profile.ShellCornerRadiusDm;
+                case GeometryRole.Opening: return profile.OpeningCornerRadiusDm;
+                case GeometryRole.Detail: return profile.DetailCornerRadiusDm;
+                default: return 0;
+            }
+        }
+
+        private static ushort ResolveSurfaceStyle(
+            StructureGeometryProfile profile,
+            GeometryRole role,
+            ushort existingSurface)
+        {
+            StructureSurfaceTreatment treatment;
+            switch (role)
+            {
+                case GeometryRole.Foundation:
+                    treatment = profile.FoundationSurface;
+                    break;
+                case GeometryRole.Shell:
+                    treatment = profile.ShellSurface;
+                    break;
+                case GeometryRole.Opening:
+                    treatment = profile.OpeningSurface;
+                    break;
+                case GeometryRole.Detail:
+                    treatment = profile.DetailSurface;
+                    break;
+                default:
+                    return existingSurface;
+            }
+
+            switch (treatment)
+            {
+                case StructureSurfaceTreatment.Smooth: return SurfaceStyles.Smooth;
+                case StructureSurfaceTreatment.Rounded: return SurfaceStyles.Rounded;
+                case StructureSurfaceTreatment.Planar: return SurfaceStyles.Planar;
+                case StructureSurfaceTreatment.Sharp: return SurfaceStyles.Sharp;
+                case StructureSurfaceTreatment.Beveled: return SurfaceStyles.Beveled;
+                case StructureSurfaceTreatment.MasonryJoint: return SurfaceStyles.MasonryJoint;
+                default: return existingSurface;
+            }
         }
 
         private static void EmitRoundedBox(
             List<int> code,
-            NativeArray<int> source,
+            FeatureCatalogue source,
             int operand,
             int sx,
             int sy,
             int sz,
             int radius,
             byte material,
+            ushort surface,
             PrimitiveMode mode)
         {
             code.Add((int)ShapeOp.EmitRoundedBox);
             code.Add(0);
-            code.Add(source[operand + 0]);
-            code.Add(source[operand + 1]);
-            code.Add(source[operand + 2]);
+            code.Add(source.Program[operand + 0]);
+            code.Add(source.Program[operand + 1]);
+            code.Add(source.Program[operand + 2]);
             code.Add(sx);
             code.Add(sy);
             code.Add(sz);
             code.Add(radius);
             code.Add(material);
-            code.Add(source[operand + 7]);
-            code.Add(source[operand + 8]);
+            code.Add(surface);
+            code.Add(source.Program[operand + 8]);
             code.Add((int)mode);
+        }
+
+        private static void CopyBoxWithSurface(
+            List<int> target,
+            FeatureCatalogue source,
+            int cursor,
+            int instructionLength,
+            ushort surface)
+        {
+            int surfaceIndex = cursor + 2 + 7;
+            for (int i = 0; i < instructionLength; i++)
+            {
+                int sourceIndex = cursor + i;
+                target.Add(sourceIndex == surfaceIndex ? surface : source.Program[sourceIndex]);
+            }
         }
 
         private static int[] CopyProgram(
