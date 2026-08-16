@@ -13,6 +13,7 @@
     "Unity.Burst",
     "Unity.Collections",
     "Unity.Mathematics",
+    "Unity.Networking.Transport",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "VoxelEngine.Showcase",
@@ -21,7 +22,8 @@
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Streaming.Runtime",
     "VoxelEngine.Collision.Runtime",
-    "VoxelEngine.Collision.Api"
+    "VoxelEngine.Collision.Api",
+    "VoxelEngine.Characters.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
