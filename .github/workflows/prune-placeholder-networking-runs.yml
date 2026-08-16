@@ -1,0 +1,58 @@
+name: Prune placeholder networking runs
+
+on:
+  push:
+    branches:
+      - feature/temp-placeholder-humanoids
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  prune:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/temp-placeholder-humanoids
+
+      - name: Cancel obsolete Networking CI runs for this branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          KEEP_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPO"
+          runs_url="$api/actions/workflows/networking-ci.yml/runs?branch=feature%2Ftemp-placeholder-humanoids&per_page=100"
+
+          payload="$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$runs_url")"
+
+          printf '%s' "$payload" \
+            | jq -r --arg keep "$KEEP_SHA" '.workflow_runs[] | select(.head_sha != $keep and .status != "completed") | .id' \
+            | while read -r run_id; do
+                [[ -z "$run_id" ]] && continue
+                echo "Cancelling obsolete Networking CI run $run_id"
+                curl -sS -o /dev/null -X POST \
+                  -H "Authorization: Bearer $GH_TOKEN" \
+                  -H "Accept: application/vnd.github+json" \
+                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                  "$api/actions/runs/$run_id/cancel" || true
+              done
+
+      - name: Remove one-shot cleanup workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/prune-placeholder-networking-runs.yml
+          git commit -m "ci: remove networking cleanup workflow"
+          git push origin HEAD:feature/temp-placeholder-humanoids
