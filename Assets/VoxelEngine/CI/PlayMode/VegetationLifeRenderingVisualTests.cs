@@ -10,34 +10,34 @@ namespace VoxelEngine.CI
     /// <summary>
     /// Image-space quality contracts for the lightweight vegetation and ambient-life renderers.
     ///
-    /// These tests are deliberately stronger than "something rendered" checks. A frame must have
-    /// enough visible subject area, colour variety, local edge detail, tonal separation and spatial
-    /// distribution to be considered a reasonable rendering. The checks remain metric-based rather
-    /// than exact-pixel golden comparisons so small shader/platform changes do not make CI brittle.
-    ///
-    /// PNG and metric artefacts are retained for human review. Once an approved art-direction
-    /// baseline exists, a perceptual golden-image comparison can be layered on top of these gates.
+    /// Each test captures the scene once without the subsystem draw and once with it, then measures
+    /// only pixels that actually changed. This keeps the authored sky, clouds, and render-pipeline
+    /// presentation out of the foreground metrics while retaining them in the human-review PNG.
+    /// The result is deliberately stronger than a non-empty screenshot check: subject coverage,
+    /// distribution, palette, tonal variation, and local silhouette/detail must all remain readable.
     /// </summary>
     [NUnit.Framework.Explicit("Visual-quality metrics and artefact capture; run by name in rendering CI.")]
     public sealed class VegetationLifeRenderingVisualTests
     {
         private const int Width = 1280;
         private const int Height = 720;
+        private const float ForegroundDifferenceSquared = 0.0025f;
 
         [UnityTest]
         public IEnumerator VegetationShowcase_RendersReadableDiverseFullFrameComposition()
         {
             string outputPath = ArtifactPath("vegetation_all_kinds.png");
-            var background = new Color(0.055f, 0.070f, 0.095f, 1f);
             GameObject cameraObject = CreateCamera(
                 "CI Vegetation Fidelity Camera",
-                background,
-                new Vector3(0f, 7.2f, -17.5f),
-                new Vector3(0f, 1.7f, 6.2f),
+                new Color(0.055f, 0.070f, 0.095f, 1f),
+                new Vector3(0f, 6.0f, -13.5f),
+                new Vector3(0f, 1.65f, 6.3f),
+                42f,
                 out Camera camera,
                 out RenderTexture target);
             GameObject root = new GameObject("CI Vegetation Fidelity Showcase");
 
+            Texture2D backgroundCapture = null;
             Texture2D capture = null;
             try
             {
@@ -45,25 +45,32 @@ namespace VoxelEngine.CI
                 yield return null;
 
                 RemovePresentationGeometry(root.transform);
+                showcase.Renderer.enabled = false;
                 Assert.That(showcase.InstanceCount, Is.GreaterThan(100),
                     "Quality test must exercise the broad vegetation catalogue, not a tiny sample.");
+
+                camera.Render();
+                backgroundCapture = ReadTarget(target);
 
                 showcase.Renderer.DrawNow();
                 camera.Render();
                 capture = ReadTarget(target);
                 File.WriteAllBytes(outputPath, capture.EncodeToPNG());
 
-                ImageMetrics metrics = Analyse(capture, background);
+                ImageMetrics metrics = Analyse(capture, backgroundCapture);
                 float qualityScore = VegetationQualityScore(metrics);
-                File.WriteAllText(ArtifactPath("vegetation_quality.txt"), metrics.Describe("vegetation", qualityScore));
+                File.WriteAllText(
+                    ArtifactPath("vegetation_quality.txt"),
+                    metrics.Describe("vegetation", qualityScore));
 
                 int imagePixels = Width * Height;
                 float foregroundRatio = metrics.ForegroundPixels / (float)imagePixels;
                 float edgeRatio = metrics.DetailEdgePixels / (float)Mathf.Max(1, metrics.ForegroundPixels);
 
-                // Catastrophic-regression gates: these should never be traded off by a composite score.
                 Assert.That(foregroundRatio, Is.GreaterThan(0.006f),
                     "Vegetation occupies too little of the frame to be visually readable.");
+                Assert.That(foregroundRatio, Is.LessThan(0.40f),
+                    "Foreground classification swallowed the frame instead of isolating vegetation.");
                 Assert.That(metrics.BoundsWidth, Is.GreaterThan(Width * 0.38f),
                     "Vegetation composition collapsed into too narrow a screen-space strip.");
                 Assert.That(metrics.BoundsHeight, Is.GreaterThan(Height * 0.24f),
@@ -73,7 +80,6 @@ namespace VoxelEngine.CI
                 Assert.That(metrics.MaxTileConcentration, Is.LessThan(0.46f),
                     "Too much vegetation collapsed into a single screen region.");
 
-                // Quality gates: catch flat blobs, monochrome output and overly soft/featureless rendering.
                 Assert.That(metrics.HueBucketCount, Is.GreaterThanOrEqualTo(5),
                     "Vegetation palette is too narrow; catalogue variety is not reading in image space.");
                 Assert.That(metrics.QuantizedColorCount, Is.GreaterThanOrEqualTo(10),
@@ -100,13 +106,9 @@ namespace VoxelEngine.CI
             }
             finally
             {
+                if (backgroundCapture != null) Object.DestroyImmediate(backgroundCapture);
                 if (capture != null) Object.DestroyImmediate(capture);
-                if (target != null)
-                {
-                    camera.targetTexture = null;
-                    target.Release();
-                    Object.DestroyImmediate(target);
-                }
+                ReleaseTarget(camera, target);
                 Object.DestroyImmediate(cameraObject);
                 Object.DestroyImmediate(root);
             }
@@ -116,16 +118,17 @@ namespace VoxelEngine.CI
         public IEnumerator AmbientLifeShowcase_RendersDistributedDistinctVisibleAgents()
         {
             string outputPath = ArtifactPath("ambient_life_all_kinds.png");
-            var background = new Color(0.025f, 0.030f, 0.050f, 1f);
             GameObject cameraObject = CreateCamera(
                 "CI Ambient Life Fidelity Camera",
-                background,
-                new Vector3(0f, 5.2f, -11.5f),
-                new Vector3(0f, 1.3f, 7.0f),
+                new Color(0.025f, 0.030f, 0.050f, 1f),
+                new Vector3(0f, 4.8f, -10.0f),
+                new Vector3(0f, 1.45f, 7.0f),
+                44f,
                 out Camera camera,
                 out RenderTexture target);
             GameObject root = new GameObject("CI Ambient Life Fidelity Showcase");
 
+            Texture2D backgroundCapture = null;
             Texture2D capture = null;
             try
             {
@@ -133,22 +136,31 @@ namespace VoxelEngine.CI
                 yield return null;
 
                 RemovePresentationGeometry(root.transform);
+                showcase.Renderer.enabled = false;
                 Assert.That(showcase.ClusterCount, Is.GreaterThanOrEqualTo(12));
                 Assert.That(showcase.AgentCount, Is.GreaterThan(80));
+
+                camera.Render();
+                backgroundCapture = ReadTarget(target);
 
                 showcase.Renderer.DrawNow();
                 camera.Render();
                 capture = ReadTarget(target);
                 File.WriteAllBytes(outputPath, capture.EncodeToPNG());
 
-                ImageMetrics metrics = Analyse(capture, background);
+                ImageMetrics metrics = Analyse(capture, backgroundCapture);
                 float qualityScore = AmbientLifeQualityScore(metrics);
-                File.WriteAllText(ArtifactPath("ambient_life_quality.txt"), metrics.Describe("ambient-life", qualityScore));
+                File.WriteAllText(
+                    ArtifactPath("ambient_life_quality.txt"),
+                    metrics.Describe("ambient-life", qualityScore));
 
+                float foregroundRatio = metrics.ForegroundPixels / (float)(Width * Height);
                 float edgeRatio = metrics.DetailEdgePixels / (float)Mathf.Max(1, metrics.ForegroundPixels);
 
                 Assert.That(metrics.ForegroundPixels, Is.GreaterThan(300),
                     "Ambient-life renderer produced an effectively empty or unreadably sparse frame.");
+                Assert.That(foregroundRatio, Is.LessThan(0.25f),
+                    "Foreground classification swallowed the frame instead of isolating ambient agents.");
                 Assert.That(metrics.HueBucketCount, Is.GreaterThanOrEqualTo(4),
                     "Ambient-life catalogue is not visually distinguishable enough in image space.");
                 Assert.That(metrics.QuantizedColorCount, Is.GreaterThanOrEqualTo(8),
@@ -178,13 +190,9 @@ namespace VoxelEngine.CI
             }
             finally
             {
+                if (backgroundCapture != null) Object.DestroyImmediate(backgroundCapture);
                 if (capture != null) Object.DestroyImmediate(capture);
-                if (target != null)
-                {
-                    camera.targetTexture = null;
-                    target.Release();
-                    Object.DestroyImmediate(target);
-                }
+                ReleaseTarget(camera, target);
                 Object.DestroyImmediate(cameraObject);
                 Object.DestroyImmediate(root);
             }
@@ -192,8 +200,7 @@ namespace VoxelEngine.CI
 
         private static float VegetationQualityScore(ImageMetrics m)
         {
-            int imagePixels = Width * Height;
-            float coverage = m.ForegroundPixels / (float)imagePixels;
+            float coverage = m.ForegroundPixels / (float)(Width * Height);
             float edgeRatio = m.DetailEdgePixels / (float)Mathf.Max(1, m.ForegroundPixels);
 
             float score = 0f;
@@ -243,6 +250,7 @@ namespace VoxelEngine.CI
             Color background,
             Vector3 position,
             Vector3 focus,
+            float fieldOfView,
             out Camera camera,
             out RenderTexture target)
         {
@@ -251,7 +259,7 @@ namespace VoxelEngine.CI
             camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = background;
-            camera.fieldOfView = 48f;
+            camera.fieldOfView = fieldOfView;
             camera.nearClipPlane = 0.05f;
             camera.farClipPlane = 100f;
             camera.allowHDR = false;
@@ -267,6 +275,14 @@ namespace VoxelEngine.CI
             target.Create();
             camera.targetTexture = target;
             return cameraObject;
+        }
+
+        private static void ReleaseTarget(Camera camera, RenderTexture target)
+        {
+            if (target == null) return;
+            if (camera != null) camera.targetTexture = null;
+            target.Release();
+            Object.DestroyImmediate(target);
         }
 
         private static void RemovePresentationGeometry(Transform root)
@@ -288,9 +304,12 @@ namespace VoxelEngine.CI
             return texture;
         }
 
-        private static ImageMetrics Analyse(Texture2D texture, Color background)
+        private static ImageMetrics Analyse(Texture2D texture, Texture2D backgroundTexture)
         {
             Color32[] pixels = texture.GetPixels32();
+            Color32[] backgroundPixels = backgroundTexture.GetPixels32();
+            Assert.That(backgroundPixels.Length, Is.EqualTo(pixels.Length));
+
             bool[] foregroundMask = new bool[pixels.Length];
             int[] tilePixels = new int[8 * 4];
             bool[] colourBins = new bool[4 * 4 * 4];
@@ -316,10 +335,11 @@ namespace VoxelEngine.CI
             for (int i = 0; i < pixels.Length; i++)
             {
                 Color p = pixels[i];
-                float dr = p.r - background.r;
-                float dg = p.g - background.g;
-                float db = p.b - background.b;
-                if (dr * dr + dg * dg + db * db < 0.0064f)
+                Color bg = backgroundPixels[i];
+                float dr = p.r - bg.r;
+                float dg = p.g - bg.g;
+                float db = p.b - bg.b;
+                if (dr * dr + dg * dg + db * db < ForegroundDifferenceSquared)
                     continue;
 
                 foregroundMask[i] = true;
@@ -512,6 +532,7 @@ namespace VoxelEngine.CI
                     $"quality_score={qualityScore:0.00}\n" +
                     $"foreground_pixels={ForegroundPixels}\n" +
                     $"foreground_ratio={foregroundRatio:0.0000}\n" +
+                    $"foreground_delta_threshold_sq={ForegroundDifferenceSquared:0.0000}\n" +
                     $"bounds={BoundsWidth}x{BoundsHeight}\n" +
                     $"occupied_tiles={OccupiedTiles}/32\n" +
                     $"max_tile_concentration={MaxTileConcentration:0.0000}\n" +
