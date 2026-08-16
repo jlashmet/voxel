@@ -29,7 +29,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PipelineOwnsMigratedStagesBeforeLegacyFallback()
+        public void PipelineOwnsEveryCastleRealizationStage()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
@@ -42,8 +42,12 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastleCourtyardRealizer.Build(", pipeline);
             StringAssert.Contains("CastleKeepRealizer.TryStep(", pipeline);
             StringAssert.Contains("CastleKeepAnnexRealizer.Build(", pipeline);
-            StringAssert.Contains("CastleBuilder.StepBuild(ref _legacy)", pipeline,
-                "Dungeon and landscape are intentionally still on the migration fallback.");
+            StringAssert.Contains("CastleDungeonRealizer.Build(", pipeline);
+            StringAssert.Contains("CastleLandscapeRealizer.Build(", pipeline);
+
+            StringAssert.DoesNotContain("CastleBuilder.StepBuild", pipeline);
+            StringAssert.DoesNotContain("CastleBuilder.IncrementalBuild", pipeline);
+            StringAssert.DoesNotContain("CastleBuilder.BeginBuild", pipeline);
         }
 
         [Test]
@@ -74,6 +78,21 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("BuildGreatHallWing", annex);
             StringAssert.Contains("BuildChapelWing", annex);
             StringAssert.Contains("BuildChapelBellTower", annex);
+        }
+
+        [Test]
+        public void DungeonDelegatesNaturalGeometryToCaveRealizer()
+        {
+            string dungeon = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleDungeonRealizer.cs"));
+            string cave = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleCaveRealizer.cs"));
+
+            StringAssert.Contains("CastleCaveRealizer.Build(", dungeon);
+            StringAssert.DoesNotContain("CarveCavernEllipsoid", dungeon);
+            StringAssert.Contains("CarveCavernEllipsoid", cave);
         }
     }
 }
