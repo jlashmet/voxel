@@ -14,9 +14,6 @@ namespace VoxelEngine.Showcase
     /// </summary>
     public sealed partial class ShowcaseWorld
     {
-        private CastleSpatialPlan _pendingCastleSpatialPlan;
-        private CastleSpatialProjection _castleSpatialProjection;
-
         private void PreparePendingCastleSpatialPlan()
         {
             _pendingCastleSpatialPlan = StructuresComposition.PlanCastleSpatial(
