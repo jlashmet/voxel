@@ -45,8 +45,6 @@ namespace VoxelEngine.Tests.PlayMode
             Camera camera = Camera.main;
             Assert.NotNull(camera);
 
-            // Never photograph a partially published castle. This waits through detached worker
-            // authoring, bounded live block publication and the terminal landmark/far-field pass.
             double castleDeadline = Time.realtimeSinceStartupAsDouble + 90.0;
             int castleFrames = 0;
             while ((world.CastleBuildStage < 9 || world.CastleVoxels <= 100_000)
@@ -80,8 +78,6 @@ namespace VoxelEngine.Tests.PlayMode
                 plan.Centre.z * VoxelSize);
             Vector3 lookAt = centre + Vector3.up * 10f;
 
-            // These distances sit well inside, not on, the production scheduler bands:
-            // [0,96), [96,192), [192,288), [288,409.6] metres.
             var bands = new (int step, float distance)[]
             {
                 (1, 48f), (2, 144f), (4, 240f), (8, 340f),
@@ -178,8 +174,6 @@ namespace VoxelEngine.Tests.PlayMode
                         float colourOverlap = HistogramOverlap(reference, signature);
                         float weakestRegion = WeakestRegionalRetention(reference, signature);
 
-                        // All coarse levels must still look like the same castle. These values are
-                        // intentionally much stronger than the former 18% single-view criterion.
                         Assert.GreaterOrEqual(edgeF1, 0.52f,
                             $"LOD {step}, view {view} preserved only {edgeF1:P0} of step-1 "
                           + "architectural edge placement.");
@@ -233,13 +227,6 @@ namespace VoxelEngine.Tests.PlayMode
             return null;
         }
 
-        /// <summary>
-        /// Reads the actual ready entries the production render pass will draw. SourceStep values
-        /// are powers of two, so OR-ing entries whose world bounds contain the castle centre yields
-        /// exactly 1/2/4/8 when one intended ring owns the point, and a different value if a stale
-        /// finer/coarser ring overlaps it. This is diagnostic observation only; it does not drive
-        /// scheduler selection.
-        /// </summary>
         private static int VisibleSourceStepMaskAt(
             VoxelRenderPass pass, Vector3 worldPoint, float voxelSize)
         {
@@ -258,7 +245,7 @@ namespace VoxelEngine.Tests.PlayMode
             foreach (object entry in visible)
             {
                 if (entry == null) continue;
-                Type entryType = entry.GetType();
+                var entryType = entry.GetType();
                 FieldInfo sourceStepField = entryType.GetField(
                     "SourceStep", BindingFlags.Public | BindingFlags.Instance);
                 MethodInfo worldBoundsMethod = entryType.GetMethod(
