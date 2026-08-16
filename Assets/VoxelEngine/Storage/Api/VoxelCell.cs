@@ -56,6 +56,13 @@ namespace VoxelEngine.Storage.Api
         public const ushort MasonryJoint = 5;
         public const ushort Beveled = 6;
         public const ushort Cubic = 7;
+
+        /// <summary>
+        /// Architecture-focused rounded reconstruction. Authored primitives still own the actual
+        /// silhouette radius; this style only requests a softer reconstruction and a wider smooth
+        /// join than the general-purpose Rounded style.
+        /// </summary>
+        public const ushort ArchitecturalRounded = 8;
     }
 
     /// <summary>Stable built-in coating identifiers. Coatings never replace base material.</summary>
