@@ -62,16 +62,16 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SpatialPipelineConsumesPlannedSurfaceAndLandscapeData()
+        public void SpatialPipelineConsumesDedicatedPlannedSiteCourtyardAndLandscapeRealizers()
         {
             string pipeline = File.ReadAllText(Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
                 "CastleBuildPipeline.cs"));
 
             StringAssert.Contains("_sitePlan = spatialPlan.Topology.Site", pipeline);
-            StringAssert.Contains("CastleSiteRealizer.StepPlanned(", pipeline);
+            StringAssert.Contains("CastlePlannedSiteRealizer.Step(", pipeline);
             StringAssert.Contains("in _sitePlan", pipeline);
-            StringAssert.Contains("CastleCourtyardRealizer.BuildPlanned(", pipeline);
+            StringAssert.Contains("CastlePlannedCourtyardRealizer.Build(", pipeline);
             StringAssert.Contains("CastleLandscapePlanSnapshot.CloneValidated", pipeline);
             StringAssert.Contains("CastlePlannedLandscapeRealizer.Build(", pipeline);
             StringAssert.DoesNotContain("CastleSpatialLandscapeRealizer.Build(", pipeline);
@@ -86,7 +86,7 @@ namespace VoxelEngine.Tests.EditMode
             {
                 "CastleBuildPipeline.cs",
                 "CastlePlannedSiteRealizer.cs",
-                "CastlePerimeterRealizer.cs",
+                "CastlePlannedPerimeterRealizer.cs",
                 "CastlePlannedTowerRealizer.cs",
                 "CastleInnerWardTowerRealizer.cs",
                 "CastlePlannedGatehouseRealizer.cs",
@@ -99,6 +99,7 @@ namespace VoxelEngine.Tests.EditMode
                 "CastlePlannedKeepExteriorRealizer.cs",
                 "CastlePlannedKeepAnnexRealizer.cs",
                 "CastlePlannedDungeonRealizer.cs",
+                "CastlePlannedCaveDecorator.cs",
                 "CastlePlannedLandscapeRealizer.cs",
             };
 
