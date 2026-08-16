@@ -40,9 +40,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Discovery-only Metal still produced meta:3609/2 and stale:6039. A newly attached
-          # change journal now baselines at CurrentVersion and performs one bounded current-state
-          # recovery, so retained atomic-world startup edits must no longer churn coarse builds.
+          # Current checkpoint includes source-specific global invalidation telemetry so the
+          # remaining step-4 stale-build churn can be attributed before changing behavior.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
