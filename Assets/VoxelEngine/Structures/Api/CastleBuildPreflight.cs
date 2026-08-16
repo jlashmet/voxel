@@ -35,6 +35,7 @@ namespace VoxelEngine.Structures.Api
         MissingCaveDecorationPlan,
         UnexpectedCaveDecorationPlan,
         InvalidCaveDecorationPlan,
+        MissingSpatialPlan,
     }
 
     /// <summary>Pure result of checking whether a castle plan is safe to realize.</summary>
@@ -189,35 +190,10 @@ namespace VoxelEngine.Structures.Api
             CastleSpatialPlan spatialPlan,
             long writeBudget)
         {
-            if (!CastlePlanValidator.TryValidate(in plan, out CastlePlanIssue planIssue))
+            if (!TryEvaluateSpatialStructure(
+                    in plan, spatialPlan, writeBudget, out CastleBuildPreflightResult failure))
             {
-                return new CastleBuildPreflightResult(
-                    CastleBuildPreflightIssue.InvalidPlan,
-                    planIssue,
-                    CastleSpatialPlanIssue.None,
-                    0,
-                    writeBudget);
-            }
-
-            if (spatialPlan == null)
-            {
-                return new CastleBuildPreflightResult(
-                    CastleBuildPreflightIssue.InvalidSpatialPlan,
-                    CastlePlanIssue.None,
-                    CastleSpatialPlanIssue.MissingOuterWard,
-                    0,
-                    writeBudget);
-            }
-
-            if (!CastleSpatialPlanValidator.TryValidate(
-                    in plan, spatialPlan, out CastleSpatialPlanIssue spatialIssue))
-            {
-                return new CastleBuildPreflightResult(
-                    CastleBuildPreflightIssue.InvalidSpatialPlan,
-                    CastlePlanIssue.None,
-                    spatialIssue,
-                    0,
-                    writeBudget);
+                return failure;
             }
 
             return BudgetResult(EstimateWrites(in plan, spatialPlan), writeBudget);
@@ -228,170 +204,86 @@ namespace VoxelEngine.Structures.Api
             CastleSpatialPlan spatialPlan,
             long writeBudget)
         {
-            CastleBuildPreflightResult structural = Evaluate(in plan, spatialPlan, writeBudget);
-            if (!structural.IsValid)
+            if (!TryEvaluateSpatialStructure(
+                    in plan, spatialPlan, writeBudget, out CastleBuildPreflightResult failure))
             {
-                if (structural.Issue == CastleBuildPreflightIssue.InvalidSpatialPlan)
+                if (TryMapStructuralReadinessFailure(
+                        in failure, out CastleSpatialBuildReadinessIssue mappedReadiness))
                 {
-                    if (structural.SpatialPlanIssue == CastleSpatialPlanIssue.InvalidDungeonPlan)
-                    {
-                        return ReadinessFailure(
-                            CastleSpatialBuildReadinessIssue.InvalidDungeonPlan,
-                            writeBudget);
-                    }
-
-                    if (structural.SpatialPlanIssue == CastleSpatialPlanIssue.DungeonEntranceMismatch)
-                    {
-                        return ReadinessFailure(
-                            CastleSpatialBuildReadinessIssue.DungeonEntranceMismatch,
-                            writeBudget);
-                    }
+                    return ReadinessFailure(mappedReadiness, writeBudget);
                 }
-
-                return structural;
+                return failure;
             }
 
-            if (spatialPlan.KeepRequiresTerrainResolution)
+            if (!CastleSpatialBuildReadiness.TryValidate(
+                    in plan, spatialPlan, out CastleSpatialBuildReadinessIssue readinessIssue))
             {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.KeepRequiresTerrainResolution,
-                    writeBudget);
-            }
-
-            CastleKeepFloorPlan[] keepFloors = spatialPlan.KeepFloors;
-            if (keepFloors == null || keepFloors.Length != plan.Floors)
-            {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.MissingKeepFloorPlan,
-                    writeBudget);
-            }
-
-            for (int i = 0; i < keepFloors.Length; i++)
-            {
-                if (keepFloors[i].FloorIndex != i || !IsValidKeepFloor(in keepFloors[i]))
-                {
-                    return ReadinessFailure(
-                        CastleSpatialBuildReadinessIssue.InvalidKeepFloorPlan,
-                        writeBudget);
-                }
-            }
-
-            CastleKeepCirculationPlan circulation = spatialPlan.KeepCirculation;
-            if (!CastleKeepCirculationPlanner.TryValidate(
-                    in plan, in circulation, out _))
-            {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.InvalidKeepCirculationPlan,
-                    writeBudget);
-            }
-
-            CastleKeepWindowSpec[] keepWindows = spatialPlan.KeepWindows;
-            if (keepWindows == null || keepWindows.Length == 0)
-            {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.MissingKeepWindowPlan,
-                    writeBudget);
-            }
-
-            if (!CastleKeepWindowPlanner.TryValidate(in plan, keepWindows, out _))
-            {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.InvalidKeepWindowPlan,
-                    writeBudget);
-            }
-
-            if (!CastleKeepAnnexBuildReadiness.TryValidate(
-                    in spatialPlan.Topology,
-                    out CastleKeepAnnexBuildReadinessIssue annexIssue))
-            {
-                CastleSpatialBuildReadinessIssue readinessIssue =
-                    annexIssue == CastleKeepAnnexBuildReadinessIssue.MissingPlan
-                        ? CastleSpatialBuildReadinessIssue.MissingKeepAnnexPlan
-                        : CastleSpatialBuildReadinessIssue.InvalidKeepAnnexPlan;
                 return ReadinessFailure(readinessIssue, writeBudget);
             }
 
-            if (spatialPlan.Landscape == null)
-            {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.MissingLandscapePlan,
-                    writeBudget);
-            }
-
-            if (!CastleLandscapePlanValidator.TryValidate(
-                    spatialPlan.Landscape, out _))
-            {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.InvalidLandscapePlan,
-                    writeBudget);
-            }
-
-            DungeonPlan dungeon = spatialPlan.Dungeon;
-            if (dungeon == null)
-            {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.MissingDungeonPlan,
-                    writeBudget);
-            }
-
-            if (!DungeonPlanValidator.TryValidate(dungeon, out _))
-            {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.InvalidDungeonPlan,
-                    writeBudget);
-            }
-
-            CastleSpatialProjection projection = CastleSpatialProjection.Create(
-                in plan, spatialPlan);
-            if (!dungeon.Entrance.Equals(projection.TrapdoorCentre))
-            {
-                return ReadinessFailure(
-                    CastleSpatialBuildReadinessIssue.DungeonEntranceMismatch,
-                    writeBudget);
-            }
-
-            if (!CastleCaveBuildReadiness.TryValidate(
-                    spatialPlan, out CastleCaveBuildReadinessIssue caveIssue))
-            {
-                return ReadinessFailure(MapCaveReadiness(caveIssue), writeBudget);
-            }
-
-            return structural;
+            return BudgetResult(EstimateWrites(in plan, spatialPlan), writeBudget);
         }
 
-        private static CastleSpatialBuildReadinessIssue MapCaveReadiness(
-            CastleCaveBuildReadinessIssue issue)
+        private static bool TryEvaluateSpatialStructure(
+            in CastlePlan plan,
+            CastleSpatialPlan spatialPlan,
+            long writeBudget,
+            out CastleBuildPreflightResult failure)
         {
-            switch (issue)
+            if (!CastlePlanValidator.TryValidate(in plan, out CastlePlanIssue planIssue))
             {
-                case CastleCaveBuildReadinessIssue.MissingCavePlan:
-                    return CastleSpatialBuildReadinessIssue.MissingCavePlan;
-                case CastleCaveBuildReadinessIssue.UnexpectedCavePlan:
-                    return CastleSpatialBuildReadinessIssue.UnexpectedCavePlan;
-                case CastleCaveBuildReadinessIssue.InvalidCavePlan:
-                    return CastleSpatialBuildReadinessIssue.InvalidCavePlan;
-                case CastleCaveBuildReadinessIssue.CaveEntranceMismatch:
-                    return CastleSpatialBuildReadinessIssue.CaveEntranceMismatch;
-                case CastleCaveBuildReadinessIssue.MissingCaveDecorationPlan:
-                    return CastleSpatialBuildReadinessIssue.MissingCaveDecorationPlan;
-                case CastleCaveBuildReadinessIssue.UnexpectedCaveDecorationPlan:
-                    return CastleSpatialBuildReadinessIssue.UnexpectedCaveDecorationPlan;
-                case CastleCaveBuildReadinessIssue.InvalidCaveDecorationPlan:
-                    return CastleSpatialBuildReadinessIssue.InvalidCaveDecorationPlan;
-                default:
-                    return CastleSpatialBuildReadinessIssue.None;
+                failure = new CastleBuildPreflightResult(
+                    CastleBuildPreflightIssue.InvalidPlan,
+                    planIssue,
+                    CastleSpatialPlanIssue.None,
+                    0,
+                    writeBudget);
+                return false;
             }
+
+            if (spatialPlan == null)
+            {
+                failure = new CastleBuildPreflightResult(
+                    CastleBuildPreflightIssue.InvalidSpatialPlan,
+                    CastlePlanIssue.None,
+                    CastleSpatialPlanIssue.MissingOuterWard,
+                    0,
+                    writeBudget);
+                return false;
+            }
+
+            if (!CastleSpatialPlanValidator.TryValidate(
+                    in plan, spatialPlan, out CastleSpatialPlanIssue spatialIssue))
+            {
+                failure = new CastleBuildPreflightResult(
+                    CastleBuildPreflightIssue.InvalidSpatialPlan,
+                    CastlePlanIssue.None,
+                    spatialIssue,
+                    0,
+                    writeBudget);
+                return false;
+            }
+
+            failure = default;
+            return true;
         }
 
-        private static bool IsValidKeepFloor(in CastleKeepFloorPlan floor)
+        private static bool TryMapStructuralReadinessFailure(
+            in CastleBuildPreflightResult failure,
+            out CastleSpatialBuildReadinessIssue readinessIssue)
         {
-            switch (floor.Purpose)
+            readinessIssue = CastleSpatialBuildReadinessIssue.None;
+            if (failure.Issue != CastleBuildPreflightIssue.InvalidSpatialPlan)
+                return false;
+
+            switch (failure.SpatialPlanIssue)
             {
-                case CastleKeepFloorPurpose.GreatHall:
-                case CastleKeepFloorPurpose.Bedchamber:
-                    return !floor.HasPartition;
-                case CastleKeepFloorPurpose.LibraryAndStores:
-                    return floor.HasPartition;
+                case CastleSpatialPlanIssue.InvalidDungeonPlan:
+                    readinessIssue = CastleSpatialBuildReadinessIssue.InvalidDungeonPlan;
+                    return true;
+                case CastleSpatialPlanIssue.DungeonEntranceMismatch:
+                    readinessIssue = CastleSpatialBuildReadinessIssue.DungeonEntranceMismatch;
+                    return true;
                 default:
                     return false;
             }
