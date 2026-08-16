@@ -1,10 +1,9 @@
 {
-  "name": "VoxelEngine.Rendering.Api",
-  "rootNamespace": "VoxelEngine.Rendering.Api",
+  "name": "Game.Composition.Materials",
+  "rootNamespace": "Game.Composition.Materials",
   "references": [
-    "VoxelEngine.Vegetation.Api",
-    "VoxelEngine.AmbientLife.Api",
-    "Unity.Mathematics"
+    "Game.Materials.Runtime",
+    "VoxelEngine.Composition"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

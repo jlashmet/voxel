@@ -8,7 +8,9 @@
     "VoxelEngine.Storage.Runtime",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Structures.Api",
-    "Unity.Collections"
+    "VoxelEngine.Rendering.Api",
+    "Unity.Collections",
+    "Unity.Mathematics"
   ],
   "includePlatforms": [
     "Editor"

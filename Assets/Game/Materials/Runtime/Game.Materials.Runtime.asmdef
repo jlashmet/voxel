@@ -4,7 +4,9 @@
   "references": [
     "Game.Materials.Api",
     "VoxelEngine.Storage.Api",
-    "VoxelEngine.Terrain.Api"
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Rendering.Api",
+    "Unity.Mathematics"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
