@@ -2,9 +2,7 @@
   "name": "MountingForce.CombatPrototype",
   "rootNamespace": "MountingForce.CombatPrototype",
   "references": [],
-  "includePlatforms": [
-    "Editor"
-  ],
+  "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
