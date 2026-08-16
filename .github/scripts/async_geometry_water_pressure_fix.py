@@ -45,5 +45,9 @@ if t.count(needle) != 1:
 t = t.replace(needle, replacement, 1)
 test.write_text(t)
 
-assert 'RemoveWaterChunk(victim);' not in path.read_text()[path.read_text().index('TryEvictOneForArenaPressure'):path.read_text().index('public void Dispose()')]
-assert 'MarkDirty(victim);' in path.read_text()[path.read_text().index('TryEvictOneForArenaPressure'):path.read_text().index('public void Dispose()')]
+rendered = path.read_text()
+pressure_start = rendered.index('TryEvictOneForArenaPressure')
+pressure_end = rendered.index('public void Dispose()', pressure_start)
+pressure_path = rendered[pressure_start:pressure_end]
+assert 'RemoveWaterChunk(victim);' not in pressure_path
+assert 'MarkDirty(victim);' in pressure_path
