@@ -65,7 +65,7 @@ Choosing male versus female remains an authoring/spawn-data decision outside the
 
 The animation FBXs are imported as Unity Humanoid clips and use semantic clip names (`Idle`, `Walk`, `Run`, `CrouchIdle`, `Wave`, `Shrug`). Idle/locomotion clips loop; Wave and Shrug are one-shot clips. They can be retargeted onto either placeholder body and later onto generated Humanoid characters without changing gameplay animation semantics.
 
-Walk/Run use Rocketbox's XY motion-extraction source files and the importer preserves their authored horizontal-position setting. In Unity 6000.5 these imported clips do not report `AnimationClip.hasMotionCurves`, so the package does not promise Unity root motion. Gameplay locomotion stays driven by the character motor/controller. A `PlayableGraph` test drives Walk on both placeholder avatars and verifies an actual retargeted leg-pose change.
+Walk/Run use Rocketbox's XY motion-extraction source files, but the placeholder importer explicitly bakes horizontal displacement into the pose so every starter clip plays in-place. Unity 6000.5 also does not expose usable root-motion curves from these Humanoid imports. Gameplay locomotion therefore stays driven by the character motor/controller. A `PlayableGraph` test drives Walk on both placeholder avatars and verifies an actual retargeted leg-pose change.
 
 No temporary Animator state machine is defined here. Gameplay should consume these through the project's existing Unity Humanoid/Animator seam.
 
