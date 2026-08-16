@@ -40,8 +40,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Current checkpoint includes source-specific global invalidation telemetry so the
-          # remaining step-4 stale-build churn can be attributed before changing behavior.
+          # This checkpoint measures the exact-metadata fanout/fan-in fix on real Metal before
+          # the stress suite is allowed to run on the same runtime source state.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
