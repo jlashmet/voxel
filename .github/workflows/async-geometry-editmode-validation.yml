@@ -39,9 +39,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Guard-refreshed merge checkpoint: compile is clean; 81/82 focused tests passed on the
-          # previous run and the sole stale BrickPool writer-exclusion source assertion is updated.
-          # This run is expected to prove the complete focused EditMode set on one source SHA.
+          # Compile/architecture checkpoint for renderer-world lifetime ownership. The focused
+          # suite includes the explicit teardown-order guard so Storage pins must be released
+          # before an application world clears/disposes its backing BrickPool.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
@@ -61,7 +61,7 @@ jobs:
           UNITY_MAX_RSS_MB=12288 UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -nographics -job-worker-count 2 \
             -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
-            -testFilter "VoxelEngine.Tests.EditMode.ArchitectureBoundaryGuardTests;VoxelEngine.Tests.EditMode.GeometryFrameBudgetTests;VoxelEngine.Tests.EditMode.GeometryPipelineArchitectureTests;VoxelEngine.Tests.EditMode.StorageRenderingReadContractTests;VoxelEngine.Tests.EditMode.SurfaceBlockHlodSummaryTests;VoxelEngine.Tests.EditMode.SurfaceBrickDiscoveryTests;VoxelEngine.Tests.EditMode.SurfaceGeometryArenaTests;VoxelEngine.Tests.EditMode.SurfaceRingBandTests" \
+            -testFilter "VoxelEngine.Tests.EditMode.ArchitectureBoundaryGuardTests;VoxelEngine.Tests.EditMode.GeometryFrameBudgetTests;VoxelEngine.Tests.EditMode.GeometryPipelineArchitectureTests;VoxelEngine.Tests.EditMode.StorageRenderingReadContractTests;VoxelEngine.Tests.EditMode.SurfaceBlockHlodSummaryTests;VoxelEngine.Tests.EditMode.SurfaceBrickDiscoveryTests;VoxelEngine.Tests.EditMode.SurfaceGeometryArenaTests;VoxelEngine.Tests.EditMode.SurfaceRingBandTests;VoxelEngine.Tests.EditMode.VoxelSurfaceArchitectureTests.WorldTeardownReleasesRendererBorrowsBeforeStorageBindingIsCleared" \
             -testResults "$ROOT/results.xml" -logFile "$ROOT/unity.log"
           status=$?
           test -s "$ROOT/results.xml" || { tail -n 200 "$ROOT/unity.log" || true; exit 1; }
