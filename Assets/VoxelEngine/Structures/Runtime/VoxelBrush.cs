@@ -23,6 +23,7 @@ namespace VoxelEngine.Structures.Runtime
         private IRegionReadSource _reads;
         private IRegionMutationStore _mutations;
         private IMaterialAuthoringCatalogue _materials;
+        private IMaterialPlacementCatalogue _placement;
 
         /// <summary>Per-voxel writes — the expensive kind, and what the budget governs.</summary>
         public int VoxelsWritten;
@@ -52,6 +53,7 @@ namespace VoxelEngine.Structures.Runtime
             _reads = reads;
             _mutations = mutations;
             _materials = null;
+            _placement = null;
             VoxelsWritten = 0;
             BricksWritten = 0;
             BulkVoxelsWritten = 0;
@@ -65,6 +67,7 @@ namespace VoxelEngine.Structures.Runtime
             : this(reads, mutations, writeBudget)
         {
             _materials = materials;
+            _placement = materials as IMaterialPlacementCatalogue;
         }
 
         /// <summary>
@@ -87,16 +90,14 @@ namespace VoxelEngine.Structures.Runtime
 
             int3 voxel = new(x, y, z);
             VoxelCell current = ReadCell(voxel);
-            // Moss is an overlay when it lands on an existing structure. This preserves stone's
-            // destruction/collision identity while still allowing legacy free-standing foliage
-            // volumes to be authored into empty space.
-            if (material == Mat.Moss && current.IsSolid)
+            byte placementCoating = PlacementCoating(material);
+            if (placementCoating != Coatings.None && current.IsSolid)
             {
-                Coat(x, y, z, Coatings.Moss);
+                Coat(x, y, z, placementCoating);
                 return;
             }
 
-            ushort style = DefaultStructureStyle(material);
+            ushort style = PlacementSurfaceStyle(material);
             if (!current.IsSolid && style != SurfaceStyles.MaterialDefault)
                 SetStyled(x, y, z, material, style);
             else if (WriteMaterial(voxel, material))
@@ -147,7 +148,7 @@ namespace VoxelEngine.Structures.Runtime
         /// </summary>
         public void FillBulk(int3 min, int3 size, byte material)
         {
-            if (material == Mat.Moss)
+            if (PlacementCoating(material) != Coatings.None)
             {
                 for (int z = 0; z < size.z; z++)
                 for (int y = 0; y < size.y; y++)
@@ -250,7 +251,7 @@ namespace VoxelEngine.Structures.Runtime
             }
             if (_mutations == null) return;
 
-            ushort style = DefaultStructureStyle(material);
+            ushort style = PlacementSurfaceStyle(material);
             var cell = new VoxelCell
             {
                 BaseMaterialId = material,
@@ -322,13 +323,15 @@ namespace VoxelEngine.Structures.Runtime
                  | (localZ << (VoxelReadGrid.BlockEdgeLog2 * 2));
         }
 
-        private static ushort DefaultStructureStyle(byte material)
-        {
-            if (material == Mat.Empty || material == Mat.Sand || material == Mat.Grass
-                || material == Mat.Dirt || material == Mat.Moss || material == Mat.Water)
-                return SurfaceStyles.MaterialDefault;
-            return SurfaceStyles.Planar;
-        }
+        private ushort PlacementSurfaceStyle(byte material) =>
+            _placement != null
+                ? _placement.GetPlacementSurfaceStyle(material)
+                : material == VoxelGrid.MaterialEmpty
+                    ? SurfaceStyles.MaterialDefault
+                    : SurfaceStyles.Planar;
+
+        private byte PlacementCoating(byte material) =>
+            _placement != null ? _placement.GetPlacementCoating(material) : Coatings.None;
 
         public byte Get(int x, int y, int z) =>
             ReadCell(new int3(x, y, z)).BaseMaterialId;
@@ -336,7 +339,7 @@ namespace VoxelEngine.Structures.Runtime
         public byte GetCoating(int x, int y, int z) =>
             ReadCell(new int3(x, y, z)).Surface.CoatingId;
 
-        public bool IsSolid(int x, int y, int z) => Get(x, y, z) != Mat.Empty;
+        public bool IsSolid(int x, int y, int z) => Get(x, y, z) != VoxelGrid.MaterialEmpty;
 
         public void Box(int3 min, int3 size, byte material)
         {
@@ -527,7 +530,7 @@ namespace VoxelEngine.Structures.Runtime
 
                 int x = min.x + (depthAxis == 0 ? d : w);
                 int z = min.z + (depthAxis == 2 ? d : w);
-                if (material == Mat.Empty)
+                if (material == VoxelGrid.MaterialEmpty)
                     Set(x, min.y + h, z, material);
                 else
                     SetStyled(x, min.y + h, z, material, SurfaceStyles.Rounded,
@@ -584,7 +587,7 @@ namespace VoxelEngine.Structures.Runtime
                         int z = cz + (int)math.round(math.sin(angle) * r);
 
                         for (int h = rise; h < headroom; h++)
-                            Set(x, treadY + h, z, Mat.Empty);
+                            Set(x, treadY + h, z, VoxelGrid.MaterialEmpty);
 
                         Set(x, treadY, z, material);
                         Set(x, treadY + 1, z, material);
@@ -594,7 +597,7 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         /// <summary>Carves a volume back to empty.</summary>
-        public void Carve(int3 min, int3 size) => Box(min, size, Mat.Empty);
+        public void Carve(int3 min, int3 size) => Box(min, size, VoxelGrid.MaterialEmpty);
 
         /// <summary>
         /// Weathers a surface by speckling a second material onto exposed faces.
