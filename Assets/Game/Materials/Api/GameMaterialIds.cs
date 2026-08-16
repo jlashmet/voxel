@@ -1,11 +1,11 @@
-namespace VoxelEngine.Structures.Api
+namespace Game.Materials.Api
 {
     /// <summary>
-    /// Legacy compatibility palette retained while semantic material ownership migrates to the game.
-    /// Engine modules must not treat these names as authoritative material definitions. Numeric values
-    /// remain frozen during migration because they participate in existing world/catalogue identity.
+    /// Stable material identity vocabulary owned by this game.
+    /// Numeric values participate in world/catalogue identity and must never be silently reassigned.
+    /// Engine modules consume these values only as opaque material indices.
     /// </summary>
-    public static class Mat
+    public static class GameMaterialIds
     {
         public const byte Empty = 0;
         public const byte Stone = 1;
@@ -30,14 +30,14 @@ namespace VoxelEngine.Structures.Api
         public const byte MasonryLarge = 20;
         public const byte FlowerWhite = 21;
 
-        // Terrain aliases keep authored terrain and structures on the same semantic material rows.
         public const byte TerrainTurf = Grass;
         public const byte TerrainLimestone = MasonryMedium;
         public const byte TerrainEarth = Dirt;
         public const byte TerrainPathStone = MasonrySmall;
 
-        // Transitional aliases: these currently share presentation rows. They must receive distinct
-        // game-owned IDs before their gameplay properties diverge from the aliased material.
+        // Transitional aliases inherited from the current presentation-row sharing scheme.
+        // Before these materials gain divergent gameplay properties, assign distinct stable IDs
+        // and share presentation resources rather than semantic identity.
         public const byte FlowerYellow = Gold;
         public const byte FlowerPink = Cloth;
         public const byte FlowerBlue = Cascade;

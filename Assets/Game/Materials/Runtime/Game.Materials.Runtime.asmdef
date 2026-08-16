@@ -1,0 +1,17 @@
+{
+  "name": "Game.Materials.Runtime",
+  "rootNamespace": "Game.Materials.Runtime",
+  "references": [
+    "Game.Materials.Api",
+    "VoxelEngine.Terrain.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Game.Materials.Tests",
+  "rootNamespace": "Game.Materials.Tests",
+  "references": [
+    "Game.Materials.Api",
+    "Game.Materials.Runtime",
+    "VoxelEngine.Terrain.Api",
+    "VoxelEngine.Structures.Api"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
