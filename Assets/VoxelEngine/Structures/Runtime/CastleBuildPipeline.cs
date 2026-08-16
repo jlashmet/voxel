@@ -13,14 +13,16 @@ namespace VoxelEngine.Structures.Runtime
     {
         private VoxelBrush _brush;
         private CastlePlan _plan;
+        private CastlePlan _spatialKeepPlan;
         private uint _terrainSeed;
         private int _stage;
         private int _keepStage;
         private CastleSiteRealizer.State _site;
 
-        // Spatial planning is consumed incrementally. Only fortification geometry is migrated so
-        // far; courtyard/keep/dungeon stages intentionally continue to use CastlePlan dimensions.
+        // Spatial planning is consumed incrementally. Fortifications and resolved keep/dungeon
+        // placement are migrated; site, courtyard, and landscape stages still use CastlePlan.
         private bool _hasSpatialFortifications;
+        private bool _hasSpatialKeep;
         private int2[] _outerWardVertices;
         private int2[] _innerWardVertices;
         private int2[] _towerCentres;
@@ -40,9 +42,9 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         /// <summary>
-        /// Builds with a precomputed spatial plan for the migrated fortification stages. The
-        /// caller owns planning; Runtime validates and snapshots the supplied geometry before any
-        /// voxel writes so later caller mutation cannot change the in-flight build.
+        /// Builds with a precomputed spatial plan for migrated realization stages. The caller owns
+        /// planning; Runtime validates and snapshots supplied geometry before any voxel writes so
+        /// later caller mutation cannot change the in-flight build.
         /// </summary>
         public CastleBuildPipeline(
             IRegionReadSource reads,
@@ -72,6 +74,9 @@ namespace VoxelEngine.Structures.Runtime
                     $"equivalents against a {preflight.WriteBudget:N0} write budget.");
             }
 
+            _plan = plan;
+            _spatialKeepPlan = plan;
+
             if (spatialPlan != null)
             {
                 if (!CastleSpatialPlanValidator.TryValidate(
@@ -81,10 +86,9 @@ namespace VoxelEngine.Structures.Runtime
                         $"Castle spatial plan is structurally invalid: {spatialIssue}.");
                 }
 
-                SnapshotSpatialFortifications(spatialPlan);
+                SnapshotSpatialPlan(in plan, spatialPlan);
             }
 
-            _plan = plan;
             _terrainSeed = terrainSeed;
             _stage = 1;
             _keepStage = 0;
@@ -149,12 +153,15 @@ namespace VoxelEngine.Structures.Runtime
                     return CompleteStage("courtyard");
 
                 case 6:
+                {
+                    CastlePlan keepPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
+
                     // Preserve the historical seven keep substages so streaming cadence remains
                     // unchanged while the realization responsibilities are now decomposed.
                     if (_keepStage < 6)
                     {
                         string keepStage = $"keep {_keepStage + 1}";
-                        if (!CastleKeepRealizer.TryStep(ref _brush, in _plan, ref _keepStage))
+                        if (!CastleKeepRealizer.TryStep(ref _brush, in keepPlan, ref _keepStage))
                         {
                             throw new InvalidOperationException(
                                 "CastleKeepRealizer refused a migrated keep substage.");
@@ -164,13 +171,17 @@ namespace VoxelEngine.Structures.Runtime
                         return false;
                     }
 
-                    CastleKeepAnnexRealizer.Build(ref _brush, in _plan);
+                    CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan);
                     _keepStage++;
                     return CompleteStage("keep 7");
+                }
 
                 case 7:
-                    CastleDungeonRealizer.Build(ref _brush, in _plan);
+                {
+                    CastlePlan dungeonPlan = _hasSpatialKeep ? _spatialKeepPlan : _plan;
+                    CastleDungeonRealizer.Build(ref _brush, in dungeonPlan);
                     return CompleteStage("dungeon");
+                }
 
                 case 8:
                     CastleLandscapeRealizer.Build(ref _brush, in _plan, _terrainSeed);
@@ -181,7 +192,7 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
-        private void SnapshotSpatialFortifications(CastleSpatialPlan spatialPlan)
+        private void SnapshotSpatialPlan(in CastlePlan plan, CastleSpatialPlan spatialPlan)
         {
             _hasSpatialFortifications = true;
             _outerWardVertices = (int2[])spatialPlan.OuterWardVertices.Clone();
@@ -203,6 +214,13 @@ namespace VoxelEngine.Structures.Runtime
             {
                 if (towers[i].Role == CastleTowerPlacementRole.Corner) continue;
                 _towerCentres[cursor++] = towers[i].Centre;
+            }
+
+            if (!spatialPlan.KeepRequiresTerrainResolution)
+            {
+                _spatialKeepPlan = CastleKeepPlacementAdapter.Place(
+                    in plan, spatialPlan.KeepCentre);
+                _hasSpatialKeep = true;
             }
         }
 

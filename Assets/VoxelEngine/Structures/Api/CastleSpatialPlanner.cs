@@ -17,7 +17,7 @@ namespace VoxelEngine.Structures.Api
         {
             int2[] outer = BuildOuterWard(in dimensions, in topology);
             int2[] inner = topology.Wards == CastleWardPattern.InnerAndOuterWards
-                ? ScaleRing(outer, 0.64f)
+                ? BuildInnerWard(in dimensions, outer)
                 : Array.Empty<int2>();
 
             CastleGatePlacementSpec gate = PlacePrimaryGate(outer);
@@ -130,6 +130,28 @@ namespace VoxelEngine.Structures.Api
             }
 
             return vertices;
+        }
+
+        private static int2[] BuildInnerWard(in CastlePlan dimensions, int2[] outer)
+        {
+            const float minimumScale = 0.64f;
+            const float maximumScale = 0.84f;
+            const int scaleSteps = 10;
+
+            int2[] candidate = Array.Empty<int2>();
+            for (int step = 0; step <= scaleSteps; step++)
+            {
+                float t = step / (float)scaleSteps;
+                float scale = math.lerp(minimumScale, maximumScale, t);
+                candidate = ScaleRing(outer, scale);
+                if (CastlePolygonGeometry.KeepFootprintFits(
+                        in dimensions, int2.zero, candidate))
+                    return candidate;
+            }
+
+            // Validation will reject a castle whose keep cannot fit even at the maximum nested
+            // ward scale. Keeping the cap below 1 preserves a meaningful defensive gap.
+            return candidate;
         }
 
         private static int2[] ScaleRing(int2[] outer, float scale)

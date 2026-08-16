@@ -90,6 +90,7 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("CastlePerimeterRealizer.Walls(", pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Towers(", pipeline);
             StringAssert.Contains("CastlePerimeterRealizer.Gatehouse(", pipeline);
+            StringAssert.Contains("CastleKeepPlacementAdapter.Place(", pipeline);
             StringAssert.DoesNotContain("CastleSpatialPlanner.Create(", pipeline);
             StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", pipeline);
 
@@ -103,6 +104,24 @@ namespace VoxelEngine.Tests.EditMode
                 StringAssert.DoesNotContain("CastleLayoutPlanner.Create(", runtimeSource,
                     $"{Path.GetFileName(file)} must not choose semantic topology during realization.");
             }
+        }
+
+        [Test]
+        public void SpatialKeepPlacementFeedsBothKeepAndDungeonStages()
+        {
+            string pipeline = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleBuildPipeline.cs"));
+            string adapter = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleKeepPlacementAdapter.cs"));
+
+            StringAssert.Contains("CastleKeepPlacementAdapter.Place(", pipeline);
+            StringAssert.Contains("CastleKeepRealizer.TryStep(ref _brush, in keepPlan", pipeline);
+            StringAssert.Contains("CastleKeepAnnexRealizer.Build(ref _brush, in keepPlan)", pipeline);
+            StringAssert.Contains("CastleDungeonRealizer.Build(ref _brush, in dungeonPlan)", pipeline);
+            StringAssert.Contains("LegacyKeepCentreZOffset = 60", adapter);
+            StringAssert.DoesNotContain("CastleSpatialPlanner", adapter);
         }
 
         [Test]

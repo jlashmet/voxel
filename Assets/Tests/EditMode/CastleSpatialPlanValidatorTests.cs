@@ -79,5 +79,39 @@ namespace VoxelEngine.Tests.EditMode
                 CastleSpatialPlanValidator.TryValidate(in dimensions, spatial, out CastleSpatialPlanIssue issue));
             Assert.AreEqual(CastleSpatialPlanIssue.InnerGateDetachedFromPerimeter, issue);
         }
+
+        [Test]
+        public void ValidatorRejectsKeepFootprintThatEscapesOuterWard()
+        {
+            CastlePlan dimensions = CastlePlanner.Create(int3.zero, 41u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(41u);
+            topology.Perimeter = CastlePerimeterKind.Rectangular;
+            topology.Wards = CastleWardPattern.SingleWard;
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
+
+            dimensions.KeepHalfX = dimensions.BaileyHalfX + 1;
+
+            Assert.IsFalse(
+                CastleSpatialPlanValidator.TryValidate(in dimensions, spatial, out CastleSpatialPlanIssue issue));
+            Assert.AreEqual(CastleSpatialPlanIssue.KeepOutsideOuterWard, issue);
+        }
+
+        [Test]
+        public void ValidatorRequiresNestedWardToContainWholeKeep()
+        {
+            CastlePlan dimensions = CastlePlanner.Create(int3.zero, 43u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(43u);
+            topology.Perimeter = CastlePerimeterKind.Rectangular;
+            topology.Wards = CastleWardPattern.InnerAndOuterWards;
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in dimensions, in topology);
+
+            dimensions.KeepHalfX = dimensions.BaileyHalfX * 7 / 10;
+
+            Assert.IsFalse(
+                CastleSpatialPlanValidator.TryValidate(in dimensions, spatial, out CastleSpatialPlanIssue issue));
+            Assert.AreEqual(CastleSpatialPlanIssue.KeepOutsideInnerWard, issue);
+        }
     }
 }
