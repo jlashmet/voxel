@@ -5,6 +5,7 @@
     "Game.Materials.Runtime",
     "Game.Composition.Materials",
     "VoxelEngine.Storage.Api",
+    "VoxelEngine.Composition.Api",
     "VoxelEngine.Composition",
     "VoxelEngine.Terrain.Api",
     "VoxelEngine.Rendering.Api",
