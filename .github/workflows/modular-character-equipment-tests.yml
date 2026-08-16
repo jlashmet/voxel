@@ -10,6 +10,10 @@ on:
       - '.github/workflows/modular-character-equipment-tests.yml'
       - 'ProjectSettings/ProjectVersion.txt'
 
+concurrency:
+  group: modular-character-equipment-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   editmode:
     name: Verify modular equipment runtime
@@ -45,7 +49,7 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform EditMode \
-            -testFilter "MountingForce.Game.Composition.CharacterEquipment.Tests.ModularCharacterAssemblerTests;MountingForce.Game.Composition.CharacterEquipment.Tests.CharacterEquipmentControllerTests" \
+            -testFilter "MountingForce.Game.Composition.CharacterEquipment.Tests.ModularCharacterAssemblerTests;MountingForce.Game.Composition.CharacterEquipment.Tests.CharacterEquipmentControllerTests;MountingForce.Game.Composition.CharacterEquipment.Tests.CharacterFactoryAssetImporterTests" \
             -testResults "$GITHUB_WORKSPACE/Artifacts/CharacterEquipment/results.xml" \
             -logFile "$GITHUB_WORKSPACE/Artifacts/CharacterEquipment/unity.log"
           status=$?
