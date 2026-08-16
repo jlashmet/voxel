@@ -40,13 +40,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Focused EditMode is green 84/84, including renderer-world teardown and the new owned-
-          # dirty admission regression. Surface discovery now queues build work only when TrackKnown
-          # confirms current clipmap ownership; rejected resident-world discoveries can no longer
-          # create _dirty entries outside the ring. Run 38 exposed dirty=42 with known=18 at step 4,
-          # so this Metal run validates that concrete production fix. Visual LOD remains subject/
-          # image-scoped with a 20-second offline ceiling; stress remains 2 workers with production
-          # budgets and is the constrained runtime/performance authority.
+          # Focused EditMode is green 85/85. In addition to owned-dirty admission and renderer-world
+          # teardown, a vanished mixed COW payload now rejects the optimistic exact snapshot and
+          # requeues through the existing bounded pin-release path instead of retrying one cursor
+          # forever. The prior Metal coarse failure ended with three visible holes and three active
+          # jobs for >20 seconds with no upload backlog; this run validates that concrete stall fix.
+          # Visual LOD remains subject/image-scoped; stress remains 2 workers with production budgets.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
