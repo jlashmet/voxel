@@ -14,14 +14,21 @@ namespace VoxelEngine.Storage.Api
     public struct RegionGenerationWriteView
     {
         private NativeArray<int> _encodedBlockRefs;
+        private NativeArray<ulong> _occupiedBlockWords;
+        private NativeArray<ulong> _fullySolidBlockWords;
 
         public int3 RegionCoord { get; }
         public bool IsCreated => _encodedBlockRefs.IsCreated;
 
-        internal RegionGenerationWriteView(int3 regionCoord, NativeArray<int> encodedBlockRefs)
+        internal RegionGenerationWriteView(int3 regionCoord,
+                                           NativeArray<int> encodedBlockRefs,
+                                           NativeArray<ulong> occupiedBlockWords,
+                                           NativeArray<ulong> fullySolidBlockWords)
         {
             RegionCoord = regionCoord;
             _encodedBlockRefs = encodedBlockRefs;
+            _occupiedBlockWords = occupiedBlockWords;
+            _fullySolidBlockWords = fullySolidBlockWords;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -36,6 +43,20 @@ namespace VoxelEngine.Storage.Api
             _encodedBlockRefs[index] = material == VoxelGrid.MaterialEmpty
                 ? -1
                 : -material - 1;
+
+            bool solid = material != VoxelGrid.MaterialEmpty;
+            SetSummaryBit(_occupiedBlockWords, index, solid);
+            SetSummaryBit(_fullySolidBlockWords, index, solid);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void SetSummaryBit(NativeArray<ulong> words, int index, bool value)
+        {
+            if (!words.IsCreated) return;
+            int wordIndex = index >> 6;
+            ulong mask = 1UL << (index & 63);
+            ulong word = words[wordIndex];
+            words[wordIndex] = value ? word | mask : word & ~mask;
         }
     }
 }
