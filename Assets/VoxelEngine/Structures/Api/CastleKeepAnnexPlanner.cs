@@ -1,4 +1,5 @@
 using System;
+using Random = Unity.Mathematics.Random;
 
 namespace VoxelEngine.Structures.Api
 {
@@ -33,23 +34,46 @@ namespace VoxelEngine.Structures.Api
     }
 
     /// <summary>
-    /// Freezes the current keep-annex recipe into explicit planning data. The initial planner is
-    /// intentionally behavior-preserving: every castle receives the Great Hall wing, chapel wing,
-    /// chapel bell tower, and rear timber oriel that Runtime historically built unconditionally.
-    /// Future variation can change these choices without moving policy back into realization.
+    /// Chooses semantic keep annexes before voxel realization. The parameterless/dimension
+    /// overloads retain the historical all-annex recipe for compatibility callers; the seeded
+    /// overload is the production topology planner and uses its own named keep substream so annex
+    /// variation cannot perturb keep placement or any other castle planning decision.
     /// </summary>
     public static class CastleKeepAnnexPlanner
     {
-        /// <summary>
-        /// Current behavior-preserving semantic recipe. This overload is used by topology planning,
-        /// which deliberately runs before dimension/spatial realization.
-        /// </summary>
+        /// <summary>Historical compatibility recipe: every legacy annex is present.</summary>
         public static CastleKeepAnnexPlan Create() =>
             new CastleKeepAnnexPlan(
                 hasGreatHallWing: true,
                 hasChapelWing: true,
                 hasBellTower: true,
                 hasRearOriel: true);
+
+        /// <summary>
+        /// Deterministically chooses a varied annex combination for a semantic castle topology.
+        /// At least one occupied/exterior annex is retained so the keep never degenerates to only
+        /// its core block and roofline. Bell towers remain subordinate to a chapel.
+        /// </summary>
+        public static CastleKeepAnnexPlan Create(uint seed)
+        {
+            var rng = new Random(CastleSeedPartition.Derive(
+                seed, CastleSeedDomain.Keep, 0xA66Eu));
+
+            bool hasGreatHallWing = rng.NextInt(0, 100) < 72;
+            bool hasChapelWing = rng.NextInt(0, 100) < 64;
+            bool hasRearOriel = rng.NextInt(0, 100) < 58;
+
+            // Keep a meaningful secondary volume even on the low-probability all-false draw.
+            if (!hasGreatHallWing && !hasChapelWing && !hasRearOriel)
+                hasGreatHallWing = true;
+
+            bool hasBellTower = hasChapelWing && rng.NextInt(0, 100) < 58;
+            return new CastleKeepAnnexPlan(
+                hasGreatHallWing,
+                hasChapelWing,
+                hasBellTower,
+                hasRearOriel);
+        }
 
         public static CastleKeepAnnexPlan Create(in CastlePlan plan)
         {
