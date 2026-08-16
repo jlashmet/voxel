@@ -192,6 +192,106 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+        [UnityTest, Timeout(900000)]
+        public IEnumerator VisibleEditDuringRunningBuildRejectsStaleGeneration()
+        {
+            yield return LoadShowcaseScene();
+            GetShowcaseContext(out _, out ShowcaseWorld world,
+                               out Camera camera, out CastlePlan plan, out Vector3 centre);
+
+            double oldBuildBudgetMs = VoxelRenderBridge.SolidBuildBudgetMs;
+            var target = new RenderTexture(64, 36, 24, RenderTextureFormat.ARGB32);
+            try
+            {
+                camera.targetTexture = target;
+                camera.transform.position = centre + new Vector3(0f, 18f, -48f);
+                camera.transform.LookAt(centre + Vector3.up * 8f);
+
+                // Start from a fully converged view so the running job below can only be work
+                // caused by this test's first edit, not leftover showcase streaming.
+                bool warmed = false;
+                for (int frame = 0; frame < 240; frame++)
+                {
+                    camera.Render();
+                    yield return null;
+                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    warmed = metrics.VisibleSolidChunks > 0
+                          && metrics.MissingVisibleSolidChunks == 0
+                          && metrics.SolidDirtyChunks == 0
+                          && metrics.RunningSolidJobs == 0
+                          && metrics.SolidPendingUploadBytes == 0;
+                    if (warmed) break;
+                }
+                Assert.True(warmed,
+                    "Could not establish an idle, fully published near-LOD baseline.");
+
+                ulong staleBaseline = VoxelRenderBridge.SurfaceMetrics.RejectedStaleSolidBuilds;
+                // Make snapshot/job admission span frames without changing geometry semantics.
+                // This creates a deterministic window in which a second edit can invalidate the
+                // generation currently being built.
+                VoxelRenderBridge.SolidBuildBudgetMs = 0.05;
+
+                Assert.Greater(ExplodeAtOffset(world, plan, 24, -24), 0,
+                    "First edit did not mutate the visible step-1 chunk.");
+
+                bool injectedSecondEditDuringJob = false;
+                for (int frame = 0; frame < 240; frame++)
+                {
+                    camera.Render();
+                    yield return null;
+                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
+                        "First edit created a visible hole before its replacement was ready.");
+                    if (metrics.RunningSolidJobs <= 0) continue;
+
+                    Assert.Greater(ExplodeAtOffset(world, plan, 28, -18), 0,
+                        "Second edit did not mutate the same visible extraction chunk.");
+                    injectedSecondEditDuringJob = true;
+                    break;
+                }
+                Assert.True(injectedSecondEditDuringJob,
+                    "The first edit never produced an observable in-flight geometry job.");
+
+                bool staleObserved = false;
+                for (int frame = 0; frame < 360; frame++)
+                {
+                    camera.Render();
+                    yield return null;
+                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    Assert.LessOrEqual(metrics.LastFrameSolidUploadedBytes,
+                        metrics.SolidUploadBudgetBytes,
+                        "Stale-build retry exceeded the renderer-wide upload budget.");
+                    if (metrics.RejectedStaleSolidBuilds <= staleBaseline) continue;
+
+                    staleObserved = true;
+                    Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,
+                        "Rejecting stale in-flight work removed the old visible geometry.");
+                    Assert.Greater(metrics.VisibleSolidChunks, 0,
+                        "Rejecting stale in-flight work created a visible geometry hole.");
+                    break;
+                }
+
+                Assert.True(staleObserved,
+                    "A second edit during an in-flight build was not counted as a rejected stale generation.");
+            }
+            finally
+            {
+                VoxelRenderBridge.SolidBuildBudgetMs = oldBuildBudgetMs;
+                camera.targetTexture = null;
+                target.Release();
+                Object.DestroyImmediate(target);
+            }
+        }
+
+        private static int ExplodeAtOffset(ShowcaseWorld world, CastlePlan plan,
+                                           int xOffset, int zOffset)
+        {
+            int x = plan.Centre.x + xOffset;
+            int z = plan.Centre.z + zOffset;
+            int y = world.SurfaceHeight(x, z);
+            return world.Explode(new int3(x, y, z), 2);
+        }
+
         private static IEnumerator LoadShowcaseScene()
         {
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
