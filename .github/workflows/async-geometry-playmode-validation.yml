@@ -41,10 +41,12 @@ jobs:
         run: |
           set -euo pipefail
           # Renderer-world lifetime ownership is green in 83 focused EditMode tests and Metal no
-          # longer reproduces the stale Storage-pin/RenderGraph failure. The visual LOD gate uses a
-          # subject-sized, stable castle capture; a capture is now eligible only when the production
-          # surface pass reports at least one ready voxel draw, preventing sky/horizon edges from
-          # masking a coarse-ring publication failure. Stress remains 2 workers with production budgets.
+          # longer reproduces the stale Storage-pin/RenderGraph failure. The visual LOD fixture is
+          # subject/image-scoped and requires real voxel draws before accepting a stable capture.
+          # Step 4 previously had only three visible chunks missing, four active jobs, an empty
+          # upload queue, and ~7/92 MB arena use at its 8-second ceiling; the offline capture now
+          # allows 20 seconds for those coarse jobs to settle. Stress remains 2 workers with
+          # production budgets and is the constrained runtime/performance authority.
           deadline=$((SECONDS + 6000))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
