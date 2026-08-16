@@ -73,7 +73,7 @@ jobs:
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform PlayMode \
-            -testFilter 'VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests;VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests' \
+            -testFilter 'VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests;VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests;VoxelEngine.Tests.PlayMode.KentridgePlayableRenderingPlayTests' \
             -testResults "$ROOT/results.xml" \
             -logFile "$ROOT/unity.log"
           status=$?
