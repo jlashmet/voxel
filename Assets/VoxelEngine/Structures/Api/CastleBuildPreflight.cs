@@ -7,8 +7,8 @@ namespace VoxelEngine.Structures.Api
     {
         None = 0,
         InvalidPlan,
-        InvalidSpatialPlan,
         WriteBudgetExceeded,
+        InvalidSpatialPlan,
     }
 
     /// <summary>Pure result of checking whether a castle plan is safe to realize.</summary>
@@ -148,11 +148,19 @@ namespace VoxelEngine.Structures.Api
                     writeBudget);
             }
 
-            if (spatialPlan == null || !CastleSpatialPlanValidator.TryValidate(
+            if (spatialPlan == null)
+            {
+                return new CastleBuildPreflightResult(
+                    CastleBuildPreflightIssue.InvalidSpatialPlan,
+                    CastlePlanIssue.None,
+                    CastleSpatialPlanIssue.MissingOuterWard,
+                    0,
+                    writeBudget);
+            }
+
+            if (!CastleSpatialPlanValidator.TryValidate(
                     in plan, spatialPlan, out CastleSpatialPlanIssue spatialIssue))
             {
-                if (spatialPlan == null)
-                    spatialIssue = CastleSpatialPlanIssue.MissingOuterWard;
                 return new CastleBuildPreflightResult(
                     CastleBuildPreflightIssue.InvalidSpatialPlan,
                     CastlePlanIssue.None,
