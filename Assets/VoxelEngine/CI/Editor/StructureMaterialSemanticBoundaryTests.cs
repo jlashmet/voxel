@@ -7,10 +7,8 @@ using UnityEngine;
 namespace VoxelEngine.CI
 {
     /// <summary>
-    /// Keeps the temporary semantic material facade confined to the one legacy content generator
-    /// that has not yet been moved out of VoxelEngine. Reusable structure algorithms must consume
-    /// opaque material indices and generic properties instead of asking whether a material is
-    /// stone, wood, moss, water, and so on.
+    /// Prevents semantic game-material names from leaking back into reusable structure runtime code.
+    /// Structures.Runtime must consume opaque material indices and generic material properties only.
     /// </summary>
     public sealed class StructureMaterialSemanticBoundaryTests
     {
@@ -18,20 +16,16 @@ namespace VoxelEngine.CI
             new(@"\bMat\.[A-Za-z_]\w*", RegexOptions.Compiled);
 
         [Test]
-        public void ReusableStructureRuntime_DoesNotUseSemanticMaterialFacade()
+        public void StructureRuntime_DoesNotUseSemanticMaterialFacade()
         {
             string runtimeRoot = Path.Combine(
                 Application.dataPath, "VoxelEngine", "Structures", "Runtime");
-            string legacyCastle = Path.Combine(runtimeRoot, "CastleBuilder.cs");
             string[] sources = Directory.GetFiles(runtimeRoot, "*.cs", SearchOption.AllDirectories);
             var violations = new List<string>();
 
             for (int i = 0; i < sources.Length; i++)
             {
                 string source = sources[i];
-                if (Path.GetFullPath(source) == Path.GetFullPath(legacyCastle))
-                    continue;
-
                 string contents = File.ReadAllText(source);
                 Match match = SemanticMaterialReference.Match(contents);
                 if (!match.Success) continue;
@@ -42,9 +36,9 @@ namespace VoxelEngine.CI
             }
 
             Assert.That(violations, Is.Empty,
-                "Only the explicitly isolated legacy CastleBuilder may use the transitional Mat " +
-                "facade. Reusable Structures.Runtime code must use opaque material indices and " +
-                "generic material properties instead.\n" + string.Join("\n", violations));
+                "VoxelEngine.Structures.Runtime must not contain semantic game-material references. " +
+                "Use opaque material indices and generic material properties instead.\n" +
+                string.Join("\n", violations));
         }
     }
 }
