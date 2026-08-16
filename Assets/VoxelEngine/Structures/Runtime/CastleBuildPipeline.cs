@@ -348,42 +348,18 @@ namespace VoxelEngine.Structures.Runtime
             _spatialWellCentre = spatialPlan.WellCentre;
             _courtyardBuildings = (CastleCourtyardBuildingSpec[])spatialPlan.CourtyardBuildings.Clone();
             _keepFloorPlans = (CastleKeepFloorPlan[])spatialPlan.KeepFloors.Clone();
-
-            CastleKeepCirculationPlan circulation = spatialPlan.KeepCirculation;
-            if (!CastleKeepCirculationPlanValidator.TryValidate(
-                    in plan, in circulation, out CastleKeepCirculationPlanIssue circulationIssue))
-            {
-                throw new InvalidOperationException(
-                    $"Spatial castle reached Runtime with invalid keep circulation: {circulationIssue}.");
-            }
-            _keepCirculation = circulation;
-
-            CastleKeepWindowSpec[] windows = spatialPlan.KeepWindows;
-            if (!CastleKeepWindowPlanValidator.TryValidate(in plan, windows, out string windowError))
-            {
-                throw new InvalidOperationException(
-                    $"Spatial castle reached Runtime with invalid keep windows: {windowError}.");
-            }
-            _keepWindows = (CastleKeepWindowSpec[])windows.Clone();
+            _keepCirculation = spatialPlan.KeepCirculation;
+            _keepWindows = (CastleKeepWindowSpec[])spatialPlan.KeepWindows.Clone();
 
             CastleTopologyPlan topology = spatialPlan.Topology;
             _wallPlan = topology.Walls;
-            CastleWallPlanValidator.RequireValid(in _wallPlan);
             if (_hasPosternGate)
-            {
                 _posternDoorPlan = topology.PosternDoor;
-                CastleWallDoorPlanValidator.RequireValid(in _posternDoorPlan);
-            }
             if (_hasInnerGate)
-            {
                 _innerWardDoorPlan = topology.InnerWardDoor;
-                CastleWallDoorPlanValidator.RequireValid(in _innerWardDoorPlan);
-            }
             _keepAnnexes = topology.KeepAnnexes;
             _keepTurrets = topology.KeepTurrets.Snapshot();
-            CastleGatehousePlan gatehouse = topology.Gatehouse;
-            CastleGatehousePlanValidator.RequireValid(in gatehouse);
-            _gatehousePlan = gatehouse;
+            _gatehousePlan = topology.Gatehouse;
 
             _spatialDungeonPlan = spatialPlan.Dungeon != null
                 ? DungeonPlanSnapshot.CloneValidated(spatialPlan.Dungeon)
