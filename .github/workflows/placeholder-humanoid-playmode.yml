@@ -1,6 +1,14 @@
 name: Placeholder Humanoid PlayMode
 
 on:
+  push:
+    branches: [feature/temp-placeholder-humanoids]
+    paths:
+      - 'Assets/VoxelEngine/Characters/**'
+      - 'Assets/ThirdParty/PlaceholderHumanoids/**'
+      - 'Assets/Tests/PlayMode/CharacterVisualResolverPlayModeTests.cs'
+      - 'Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef'
+      - '.github/workflows/placeholder-humanoid-playmode.yml'
   pull_request:
     paths:
       - 'Assets/VoxelEngine/Characters/**'
