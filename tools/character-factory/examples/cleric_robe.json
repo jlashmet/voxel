@@ -1,0 +1,26 @@
+{
+  "id": "cleric_robe_01",
+  "assetType": "clothing",
+  "views": {
+    "front": "views/cleric_robe_front.png",
+    "back": "views/cleric_robe_back.png",
+    "left": "views/cleric_robe_left.png",
+    "right": "views/cleric_robe_right.png"
+  },
+  "outputDir": "../build/cleric_robe_01",
+  "generator": {
+    "python": "/path/to/hunyuan-env/bin/python",
+    "device": "auto",
+    "seed": 12345
+  },
+  "rig": {
+    "blender": "/Applications/Blender.app/Contents/MacOS/Blender",
+    "canonicalBody": "/path/to/canonical_female.glb",
+    "bodyObject": "Body",
+    "armatureObject": "Armature",
+    "maxTransferDistance": 0.25
+  },
+  "runtimePart": {
+    "slot": "Torso"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "sunlit_cleric_body_01",
+  "assetType": "character",
+  "views": {
+    "front": "views/cleric_front.png",
+    "back": "views/cleric_back.png",
+    "left": "views/cleric_left.png",
+    "right": "views/cleric_right.png"
+  },
+  "outputDir": "../build/sunlit_cleric_body_01",
+  "generator": {
+    "python": "/path/to/hunyuan-env/bin/python",
+    "device": "auto",
+    "seed": 12345
+  },
+  "rig": {
+    "blender": "/Applications/Blender.app/Contents/MacOS/Blender",
+    "canonicalBody": "/path/to/canonical_female.glb",
+    "bodyObject": "Body",
+    "armatureObject": "Armature",
+    "maxTransferDistance": 0.25
+  }
+}

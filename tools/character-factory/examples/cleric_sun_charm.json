@@ -1,0 +1,24 @@
+{
+  "id": "cleric_sun_charm_01",
+  "assetType": "accessory",
+  "views": {
+    "front": "views/cleric_sun_charm_front.png",
+    "back": "views/cleric_sun_charm_back.png"
+  },
+  "outputDir": "../build/cleric_sun_charm_01",
+  "generator": {
+    "python": "/path/to/hunyuan-env/bin/python",
+    "device": "auto",
+    "seed": 12345
+  },
+  "rigid": {
+    "blender": "/Applications/Blender.app/Contents/MacOS/Blender"
+  },
+  "runtimePart": {
+    "slot": "Accessory",
+    "socketBoneName": "Chest",
+    "socketLocalPosition": [0.0, 0.0, 0.0],
+    "socketLocalEulerAngles": [0.0, 0.0, 0.0],
+    "socketLocalScale": [1.0, 1.0, 1.0]
+  }
+}

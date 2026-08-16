@@ -1,0 +1,19 @@
+{
+  "name": "VoxelEngine.Characters.Editor",
+  "rootNamespace": "VoxelEngine.Characters.Editor",
+  "references": [
+    "VoxelEngine.Characters.Api",
+    "VoxelEngine.Characters.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
