@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Structures.Api;
@@ -79,49 +80,8 @@ namespace VoxelEngine.Showcase
             int3 bellTower = projection.ChapelBellTowerCentre;
             int keepCentreX = projection.KeepCentreWorld.x;
 
-            DungeonRoomPlan archive = FindRoom(dungeon, DungeonRoomPurpose.Archive);
-            DungeonRoomPlan hall = FindRoom(dungeon, DungeonRoomPurpose.GreatHall);
-            DungeonRoomPlan puzzle = FindRoom(dungeon, DungeonRoomPurpose.Puzzle);
-            DungeonRoomPlan treasury = FindRoom(dungeon, DungeonRoomPurpose.Treasury);
-            DungeonRoomPlan cave = FindRoom(dungeon, DungeonRoomPurpose.CaveThreshold);
-            int archiveFloorY = RoomFloorY(in archive);
+            DungeonRoomPlan hall = FindRequiredRoom(dungeon, DungeonRoomPurpose.GreatHall);
             int hallFloorY = RoomFloorY(in hall);
-            int caveFloorY = RoomFloorY(in cave);
-
-            static Vector4 LightAt(int x, int y, int z, float radiusMetres) =>
-                new(x * 0.1f, y * 0.1f, z * 0.1f, radiusMetres);
-
-            lights = new[]
-            {
-                LightAt(keepCentreX - 45, baseY + 26, keepCentreZ - 28, 8.0f),
-                LightAt(keepCentreX + 42, baseY + 26, keepCentreZ + 30, 8.0f),
-                LightAt(keepCentreX, baseY + plan.FloorHeight + 17, keepCentreZ, 8.0f),
-                LightAt(keepCentreX, baseY + plan.FloorHeight * 3 + 17, keepCentreZ, 7.0f),
-                LightAt(wingCentreX, baseY + 17, wingCentreZ, 7.5f),
-                LightAt(wingCentreX, baseY + plan.FloorHeight + 17, wingCentreZ, 7.0f),
-                LightAt(chapelCentreX - 18, baseY + 24, chapelCentreZ, 7.5f),
-                LightAt(chapelCentreX + 22, baseY + 27, chapelCentreZ, 7.5f),
-                LightAt(archive.Centre.x - 55, archiveFloorY + 17, archive.Centre.z, 7.0f),
-                LightAt(archive.Centre.x + 58, archiveFloorY + 17, archive.Centre.z, 7.0f),
-                LightAt(hall.Centre.x - 55, hallFloorY + 18, hall.Centre.z, 8.5f),
-                LightAt(hall.Centre.x + 55, hallFloorY + 18, hall.Centre.z, 8.5f),
-                LightAt(puzzle.Centre.x, RoomFloorY(in puzzle) + 16, puzzle.Centre.z, 8.0f),
-                LightAt(treasury.Centre.x, RoomFloorY(in treasury) + 15, treasury.Centre.z, 8.0f),
-                LightAt(cave.Centre.x - 40, caveFloorY + 9, cave.Centre.z - 15, 11.5f),
-                LightAt(cave.Centre.x + 45, caveFloorY + 11, cave.Centre.z + 24, 11.5f),
-                LightAt(cave.Centre.x + 145, caveFloorY + 12, cave.Centre.z + 25, 10.5f),
-                LightAt(keepCentreX - 52, baseY + plan.FloorHeight + 16,
-                        keepCentreZ + 27, 6.5f),
-                LightAt(keepCentreX, baseY + plan.FloorHeight * 3 + 17,
-                        keepCentreZ - 42, 6.0f),
-                LightAt(keepCentreX, baseY + plan.FloorHeight * 3 + 17,
-                        keepCentreZ + 42, 6.0f),
-                LightAt(bellTower.x, baseY + 17, bellTower.z, 5.5f),
-                LightAt(bellTower.x, baseY + plan.FloorHeight * 2 + 17,
-                        bellTower.z, 5.5f),
-                LightAt(bellTower.x, baseY + plan.FloorHeight * 3 + 17,
-                        bellTower.z, 5.0f),
-            };
 
             var hallWarm = new Vector4(1.00f, 0.38f, 0.10f, 1.85f);
             var upperWarm = new Vector4(1.00f, 0.40f, 0.13f, 1.05f);
@@ -130,16 +90,100 @@ namespace VoxelEngine.Showcase
             var sideRoomWarm = new Vector4(1.00f, 0.34f, 0.09f, 1.05f);
             var caveWarm = new Vector4(1.00f, 0.27f, 0.06f, 2.35f);
             var caveBlue = new Vector4(0.10f, 0.58f, 1.00f, 2.05f);
-            colours = new[]
-            {
-                hallWarm, hallWarm, upperWarm, upperWarm, hallWarm, upperWarm,
-                chapelWarm, chapelWarm,
-                cellarWarm, cellarWarm, cellarWarm, cellarWarm, sideRoomWarm, sideRoomWarm,
-                caveWarm, caveWarm, caveBlue,
-                upperWarm, upperWarm, upperWarm,
-                chapelWarm, upperWarm, upperWarm,
-            };
 
+            static Vector4 LightAt(int x, int y, int z, float radiusMetres) =>
+                new(x * 0.1f, y * 0.1f, z * 0.1f, radiusMetres);
+
+            var lightList = new List<Vector4>(23);
+            var colourList = new List<Vector4>(23);
+
+            void AddLight(int x, int y, int z, float radiusMetres, Vector4 colour)
+            {
+                lightList.Add(LightAt(x, y, z, radiusMetres));
+                colourList.Add(colour);
+            }
+
+            AddLight(keepCentreX - 45, baseY + 26, keepCentreZ - 28, 8.0f, hallWarm);
+            AddLight(keepCentreX + 42, baseY + 26, keepCentreZ + 30, 8.0f, hallWarm);
+            AddLight(keepCentreX, baseY + plan.FloorHeight + 17, keepCentreZ, 8.0f, upperWarm);
+            AddLight(keepCentreX, baseY + plan.FloorHeight * 3 + 17, keepCentreZ, 7.0f, upperWarm);
+            AddLight(wingCentreX, baseY + 17, wingCentreZ, 7.5f, hallWarm);
+            AddLight(wingCentreX, baseY + plan.FloorHeight + 17, wingCentreZ, 7.0f, upperWarm);
+            AddLight(chapelCentreX - 18, baseY + 24, chapelCentreZ, 7.5f, chapelWarm);
+            AddLight(chapelCentreX + 22, baseY + 27, chapelCentreZ, 7.5f, chapelWarm);
+
+            if (TryFindRoom(dungeon, DungeonRoomPurpose.Archive, out DungeonRoomPlan archive))
+            {
+                int archiveFloorY = RoomFloorY(in archive);
+                AddLight(archive.Centre.x - 55, archiveFloorY + 17, archive.Centre.z, 7.0f, cellarWarm);
+                AddLight(archive.Centre.x + 58, archiveFloorY + 17, archive.Centre.z, 7.0f, cellarWarm);
+            }
+
+            AddLight(hall.Centre.x - 55, hallFloorY + 18, hall.Centre.z, 8.5f, cellarWarm);
+            AddLight(hall.Centre.x + 55, hallFloorY + 18, hall.Centre.z, 8.5f, cellarWarm);
+
+            if (TryFindRoom(dungeon, DungeonRoomPurpose.Puzzle, out DungeonRoomPlan puzzle))
+            {
+                AddLight(
+                    puzzle.Centre.x,
+                    RoomFloorY(in puzzle) + 16,
+                    puzzle.Centre.z,
+                    8.0f,
+                    sideRoomWarm);
+            }
+
+            if (TryFindRoom(dungeon, DungeonRoomPurpose.Treasury, out DungeonRoomPlan treasury))
+            {
+                AddLight(
+                    treasury.Centre.x,
+                    RoomFloorY(in treasury) + 15,
+                    treasury.Centre.z,
+                    8.0f,
+                    sideRoomWarm);
+            }
+
+            if (TryFindRoom(dungeon, DungeonRoomPurpose.CaveThreshold, out DungeonRoomPlan cave))
+            {
+                int caveFloorY = RoomFloorY(in cave);
+                AddLight(cave.Centre.x - 40, caveFloorY + 9, cave.Centre.z - 15, 11.5f, caveWarm);
+                AddLight(cave.Centre.x + 45, caveFloorY + 11, cave.Centre.z + 24, 11.5f, caveWarm);
+                AddLight(cave.Centre.x + 145, caveFloorY + 12, cave.Centre.z + 25, 10.5f, caveBlue);
+            }
+
+            AddLight(
+                keepCentreX - 52,
+                baseY + plan.FloorHeight + 16,
+                keepCentreZ + 27,
+                6.5f,
+                upperWarm);
+            AddLight(
+                keepCentreX,
+                baseY + plan.FloorHeight * 3 + 17,
+                keepCentreZ - 42,
+                6.0f,
+                upperWarm);
+            AddLight(
+                keepCentreX,
+                baseY + plan.FloorHeight * 3 + 17,
+                keepCentreZ + 42,
+                6.0f,
+                upperWarm);
+            AddLight(bellTower.x, baseY + 17, bellTower.z, 5.5f, chapelWarm);
+            AddLight(
+                bellTower.x,
+                baseY + plan.FloorHeight * 2 + 17,
+                bellTower.z,
+                5.5f,
+                upperWarm);
+            AddLight(
+                bellTower.x,
+                baseY + plan.FloorHeight * 3 + 17,
+                bellTower.z,
+                5.0f,
+                upperWarm);
+
+            lights = lightList.ToArray();
+            colours = colourList.ToArray();
             if (lights.Length != colours.Length)
             {
                 throw new InvalidOperationException(
@@ -147,13 +191,31 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private static DungeonRoomPlan FindRoom(DungeonPlan plan, DungeonRoomPurpose purpose)
+        private static DungeonRoomPlan FindRequiredRoom(
+            DungeonPlan plan,
+            DungeonRoomPurpose purpose)
         {
-            for (int i = 0; i < plan.Rooms.Length; i++)
-                if (plan.Rooms[i].Purpose == purpose) return plan.Rooms[i];
+            if (TryFindRoom(plan, purpose, out DungeonRoomPlan room))
+                return room;
 
             throw new InvalidOperationException(
                 $"Castle presentation requires dungeon room purpose {purpose}.");
+        }
+
+        private static bool TryFindRoom(
+            DungeonPlan plan,
+            DungeonRoomPurpose purpose,
+            out DungeonRoomPlan room)
+        {
+            for (int i = 0; i < plan.Rooms.Length; i++)
+            {
+                if (plan.Rooms[i].Purpose != purpose) continue;
+                room = plan.Rooms[i];
+                return true;
+            }
+
+            room = default;
+            return false;
         }
 
         private static int RoomFloorY(in DungeonRoomPlan room) =>
