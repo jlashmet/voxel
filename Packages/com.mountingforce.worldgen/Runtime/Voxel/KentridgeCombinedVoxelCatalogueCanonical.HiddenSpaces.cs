@@ -54,13 +54,12 @@ namespace MountingForce.WorldGen.Voxel
                 int parameters = baseCatalogue.Parameters.Length + hiddenCatalogue.Parameters.Length;
                 int anchors = baseCatalogue.Anchors.Length + hiddenCatalogue.Anchors.Length;
                 int slots = baseCatalogue.Slots.Length + hiddenCatalogue.Slots.Length;
-                int programs = KentridgeShapeProgramCompatibility.CanonicalLength(in baseCatalogue)
-                             + KentridgeShapeProgramCompatibility.CanonicalLength(in hiddenCatalogue);
+                int programs = baseCatalogue.Program.Length + hiddenCatalogue.Program.Length;
                 int materials = baseCatalogue.Materials.Length + hiddenCatalogue.Materials.Length;
                 int placements = baseCatalogue.ExplicitPlacements.Length + hiddenCatalogue.ExplicitPlacements.Length;
                 int overrides = baseCatalogue.ParameterOverrides.Length + hiddenCatalogue.ParameterOverrides.Length;
 
-                FeatureCatalogue result = CatalogueLoader.Allocate(
+                FeatureCatalogue result = FeatureCatalogueBuilder.Allocate(
                     definitions,
                     rules,
                     parameters,
@@ -81,7 +80,7 @@ namespace MountingForce.WorldGen.Voxel
                     ref d, ref r, ref p, ref a, ref s,
                     ref code, ref m, ref e, ref o);
 
-                CatalogueLoadResult load = CatalogueLoader.Finalise(ref result);
+                CatalogueLoadResult load = FeatureCatalogueBuilder.Finalise(ref result);
                 if (load != CatalogueLoadResult.Ok)
                 {
                     result.Dispose();

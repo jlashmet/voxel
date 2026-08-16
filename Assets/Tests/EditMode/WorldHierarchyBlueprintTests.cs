@@ -147,7 +147,7 @@ namespace VoxelEngine.Tests.EditMode
                 .ToArray();
             Assert.That(cutsceneBindTargets, Does.Contain(typeof(NpcHandle)));
             Assert.That(cutsceneBindTargets, Does.Contain(typeof(PlayerSlot)));
-            Assert.That(cutsceneBindTargets, Does.Not.Contain(typeof(CutsceneActorTargetSpec)));
+            Assert.That(cutsceneBindTargets, Has.None.EqualTo(typeof(CutsceneActorTargetSpec)));
         }
 
         [Test]
