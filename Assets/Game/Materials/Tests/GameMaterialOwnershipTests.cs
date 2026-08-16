@@ -1,6 +1,7 @@
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
 namespace Game.Materials.Tests
@@ -37,17 +38,36 @@ namespace Game.Materials.Tests
         [Test]
         public void CanonicalCatalogue_CoversEveryStableMaterialId()
         {
+            Assert.That(GameMaterialCatalogue.Count, Is.EqualTo(GameMaterialCatalogue.CanonicalMaterialCount));
             Assert.That(GameMaterialCatalogue.Count, Is.EqualTo(22));
+
             for (byte materialId = 0; materialId < GameMaterialCatalogue.Count; materialId++)
             {
                 Assert.That(GameMaterialCatalogue.IsCanonicalId(materialId), Is.True);
-                Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.Not.EqualTo("unknown"));
-                Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.Not.Empty);
+                ref readonly GameMaterialDefinition definition = ref GameMaterialCatalogue.Get(materialId);
+                Assert.That(definition.Id, Is.EqualTo(materialId));
+                Assert.That(definition.Name, Is.Not.Empty);
+                Assert.That(GameMaterialCatalogue.NameOf(materialId), Is.EqualTo(definition.Name));
             }
 
             byte firstUnknownId = (byte)GameMaterialCatalogue.Count;
             Assert.That(GameMaterialCatalogue.IsCanonicalId(firstUnknownId), Is.False);
             Assert.That(GameMaterialCatalogue.NameOf(firstUnknownId), Is.EqualTo("unknown"));
+        }
+
+        [Test]
+        public void PreviouslyUnregisteredMaterials_NowHaveExplicitPhysicalDefinitions()
+        {
+            ref readonly GameMaterialDefinition cascade = ref GameMaterialCatalogue.Get(GameMaterialIds.Cascade);
+            ref readonly GameMaterialDefinition crystal = ref GameMaterialCatalogue.Get(GameMaterialIds.Crystal);
+            ref readonly GameMaterialDefinition flower = ref GameMaterialCatalogue.Get(GameMaterialIds.FlowerWhite);
+
+            Assert.That(cascade.DestructionClass, Is.EqualTo(DestructionClass.Spreading));
+            Assert.That(cascade.Hardness, Is.GreaterThan(0));
+            Assert.That(crystal.DestructionClass, Is.Not.EqualTo(DestructionClass.None));
+            Assert.That(crystal.Hardness, Is.GreaterThan(0));
+            Assert.That(flower.DestructionClass, Is.Not.EqualTo(DestructionClass.None));
+            Assert.That(flower.Hardness, Is.GreaterThan(0));
         }
 
         [Test]
