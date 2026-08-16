@@ -24,7 +24,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(importer.importAnimation, Is.EqualTo(importsAnimation));
             Assert.That(importer.importCameras, Is.False);
             Assert.That(importer.importLights, Is.False);
-            Assert.That(importer.importMaterials, Is.False);
+            Assert.That(importer.materialImportMode, Is.EqualTo(ModelImporterMaterialImportMode.None));
         }
 
         [TestCase(MalePath)]
