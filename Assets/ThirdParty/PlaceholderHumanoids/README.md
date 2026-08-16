@@ -15,7 +15,7 @@ This folder contains temporary third-party humanoid assets for character/NPC dev
 - `Animations/Wave.fbx` — simple wave emote.
 - `Animations/Shrug.fbx` — simple shrug/interaction emote.
 - `Editor/PlaceholderHumanoidImporter.cs` — imports all placeholder FBXs as Unity Humanoid so clips can retarget between the placeholders and future generated characters.
-- `Licenses/` — upstream license text, exact source paths, and SHA-256 provenance.
+- `Licenses/` — upstream license text, pinned source revision/paths, and SHA-256 provenance.
 
 The committed FBXs and animation files have committed Unity `.meta` files, so they are the stable temporary assets that can safely be referenced across checkouts.
 
@@ -83,6 +83,6 @@ Mixamo downloads require an authenticated Adobe/Mixamo session, so this reposito
 
 ## Source
 
-- Microsoft Rocketbox Avatar Library: `https://github.com/microsoft/Microsoft-Rocketbox`
+- Microsoft Rocketbox Avatar Library, revision `0943055db6ec570bcef9f2c8b41c9e5467c808f9`: `https://github.com/microsoft/Microsoft-Rocketbox`
 
 See `Licenses/THIRD_PARTY_NOTICES.md` for exact upstream paths and licenses.
