@@ -18,15 +18,17 @@ namespace VoxelEngine.Terrain.Runtime
     public static class TerrainGenerator
     {
         private const int BedrockDepth = 40;
-
-        public const byte MaterialStone = 1;
-        public const byte MaterialSand = 3;
-        public const byte MaterialBedrock = 5;
-
         private const int SandBelowHeight = TerrainQuery.BaseHeight;
 
-        /// <summary>Fills every logical 8^3 block in a region through Storage.Api.</summary>
-        public static void Generate(IRegionGenerationStore storage, int3 regionCoord, uint seed)
+        /// <summary>
+        /// Fills every logical 8^3 block in a region through Storage.Api using opaque material
+        /// indices supplied by the caller.
+        /// </summary>
+        public static void Generate(
+            IRegionGenerationStore storage,
+            int3 regionCoord,
+            uint seed,
+            TerrainMaterialSet materials)
         {
             RegionGenerationWriteView writer = storage.AcquireRegion(regionCoord);
 
@@ -50,21 +52,21 @@ namespace VoxelEngine.Terrain.Runtime
                     int blockTopVoxel = originY + ((by + 1) << blockEdgeLog2) - 1;
                     byte material = blockTopVoxel > surfaceVoxel
                         ? VoxelGrid.MaterialEmpty
-                        : MaterialAt(blockTopVoxel, surfaceVoxel);
+                        : MaterialAt(blockTopVoxel, surfaceVoxel, materials);
                     writer.SetUniformBlock(bx, by, bz, material);
                 }
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static byte MaterialAt(int voxelY, int surfaceVoxel)
+        private static byte MaterialAt(int voxelY, int surfaceVoxel, TerrainMaterialSet materials)
         {
-            if (voxelY <= surfaceVoxel - BedrockDepth) return MaterialBedrock;
+            if (voxelY <= surfaceVoxel - BedrockDepth) return materials.Deep;
 
             if (voxelY > surfaceVoxel - VoxelReadGrid.BlockEdge)
-                return surfaceVoxel < SandBelowHeight ? MaterialSand : MaterialStone;
+                return surfaceVoxel < SandBelowHeight ? materials.Surface : materials.Subsurface;
 
-            return MaterialStone;
+            return materials.Subsurface;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

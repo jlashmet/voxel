@@ -3,12 +3,14 @@
   "rootNamespace": "MountingForce.CombatPrototype.Tests.PlayMode",
   "references": [
     "MountingForce.CombatPrototype",
+    "Game.Composition.CombatEnvironment.Runtime",
+    "VoxelEngine.Vegetation.Api",
+    "VoxelEngine.Vegetation.Runtime",
+    "Unity.Mathematics",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner"
   ],
-  "includePlatforms": [
-    "Editor"
-  ],
+  "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": true,

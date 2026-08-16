@@ -103,6 +103,9 @@ namespace VoxelEngine.Rendering.Runtime.AmbientLife
 
         public static AmbientLifeRenderStyle StyleFor(AmbientLifeKind kind)
         {
+            // Keep luminous populations semantically HDR (strength > 1) while preserving the
+            // visually validated headroom. Emission colours are pre-scaled so colour * strength
+            // is identical to the lower-strength headroom tuning used by the animation captures.
             switch (kind)
             {
                 case AmbientLifeKind.Butterfly:
@@ -126,18 +129,18 @@ namespace VoxelEngine.Rendering.Runtime.AmbientLife
                 case AmbientLifeKind.SporeMote:
                     return S(AmbientVisualShape.Spore, C(0.78f, 0.74f, 0.54f), C(0.50f, 0.46f, 0.34f), 0f, 1.5f, 0.055f);
                 case AmbientLifeKind.GlowMoth:
-                    return S(AmbientVisualShape.Butterfly, C(0.45f, 0.66f, 0.86f), C(0.18f, 0.25f, 0.42f), 3.0f, 7f, 0.18f, C(0.30f, 0.72f, 1.00f));
+                    return S(AmbientVisualShape.Butterfly, C(0.45f, 0.66f, 0.86f), C(0.18f, 0.25f, 0.42f), 3.0f, 7f, 0.18f, C(0.080000f, 0.192000f, 0.266667f));
                 case AmbientLifeKind.Wisp:
-                    return S(AmbientVisualShape.Wisp, C(0.35f, 0.70f, 0.85f), C(0.18f, 0.30f, 0.45f), 4.2f, 2.4f, 0.30f, C(0.25f, 0.75f, 1.00f));
+                    return S(AmbientVisualShape.Wisp, C(0.35f, 0.70f, 0.85f), C(0.18f, 0.30f, 0.45f), 4.2f, 2.4f, 0.30f, C(0.044643f, 0.133929f, 0.178571f));
                 case AmbientLifeKind.Emberfly:
-                    return S(AmbientVisualShape.Emberfly, C(0.90f, 0.28f, 0.06f), C(0.40f, 0.07f, 0.02f), 4.0f, 11f, 0.12f, C(1.00f, 0.18f, 0.02f));
+                    return S(AmbientVisualShape.Emberfly, C(0.90f, 0.28f, 0.06f), C(0.40f, 0.07f, 0.02f), 4.0f, 11f, 0.12f, C(0.225000f, 0.040500f, 0.004500f));
                 case AmbientLifeKind.ManaButterfly:
-                    return S(AmbientVisualShape.Butterfly, C(0.48f, 0.34f, 0.94f), C(0.20f, 0.12f, 0.45f), 3.5f, 8f, 0.20f, C(0.56f, 0.35f, 1.00f));
+                    return S(AmbientVisualShape.Butterfly, C(0.48f, 0.34f, 0.94f), C(0.20f, 0.12f, 0.45f), 3.5f, 8f, 0.20f, C(0.136000f, 0.085000f, 0.242857f));
                 case AmbientLifeKind.SeedLight:
-                    return S(AmbientVisualShape.Wisp, C(0.76f, 0.92f, 0.60f), C(0.30f, 0.48f, 0.20f), 3.4f, 1.8f, 0.10f, C(0.55f, 1.00f, 0.42f));
+                    return S(AmbientVisualShape.Wisp, C(0.76f, 0.92f, 0.60f), C(0.30f, 0.48f, 0.20f), 3.4f, 1.8f, 0.10f, C(0.113235f, 0.205882f, 0.086471f));
                 case AmbientLifeKind.Firefly:
                 default:
-                    return S(AmbientVisualShape.Mote, C(0.86f, 0.82f, 0.34f), C(0.30f, 0.28f, 0.08f), 4.5f, 3f, 0.065f, C(0.95f, 1.00f, 0.28f));
+                    return S(AmbientVisualShape.Mote, C(0.86f, 0.82f, 0.34f), C(0.30f, 0.28f, 0.08f), 4.5f, 3f, 0.065f, C(0.116111f, 0.122222f, 0.034222f));
             }
         }
 

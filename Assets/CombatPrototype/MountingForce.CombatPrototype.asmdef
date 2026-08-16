@@ -1,10 +1,10 @@
 {
   "name": "MountingForce.CombatPrototype",
   "rootNamespace": "MountingForce.CombatPrototype",
-  "references": [],
-  "includePlatforms": [
-    "Editor"
+  "references": [
+    "VoxelEngine.Vegetation.Api"
   ],
+  "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
