@@ -107,7 +107,12 @@ namespace VoxelEngine.Tests.PlayMode
 
                     Assert.True(converged,
                         $"LOD step {band.step} did not converge to visible, hole-free geometry "
-                      + $"within {convergenceFrames} frames / 8 seconds.");
+                      + $"within {convergenceFrames} frames / 8 seconds; "
+                      + $"known={metrics.SolidKnownChunks} resident={metrics.SolidResidentChunks} "
+                      + $"dirty={metrics.SolidDirtyChunks} visible={metrics.VisibleSolidChunks} "
+                      + $"missing={metrics.MissingVisibleSolidChunks} jobs={metrics.RunningSolidJobs} "
+                      + $"pendingUpload={metrics.SolidPendingUploadBytes} "
+                      + $"completed={metrics.CompletedSolidBuilds} uploaded={metrics.UploadedGeometryBytes}.");
                     Assert.Greater(metrics.VisibleSolidChunks, 0,
                         $"LOD step {band.step} produced no visible voxel geometry.");
                     Assert.AreEqual(0, metrics.MissingVisibleSolidChunks,

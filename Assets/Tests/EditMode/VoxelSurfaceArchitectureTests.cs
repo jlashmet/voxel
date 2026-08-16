@@ -952,6 +952,28 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void WorldTeardownReleasesRendererBorrowsBeforeStorageBindingIsCleared()
+        {
+            string composition = File.ReadAllText(
+                "Assets/VoxelEngine/Composition/RenderingComposition.cs");
+            int release = composition.IndexOf("VoxelRenderBridge.ReleaseWorldResources();",
+                                              System.StringComparison.Ordinal);
+            int clear = composition.IndexOf("s_hasWorld = false;",
+                                            System.StringComparison.Ordinal);
+            Assert.GreaterOrEqual(release, 0,
+                "world teardown must synchronously release renderer Storage borrows");
+            Assert.Greater(clear, release,
+                "renderer Storage borrows must be released before the world binding is cleared");
+
+            string pass = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/RenderFeature/VoxelRenderPass.cs");
+            StringAssert.Contains("RegisterWorldReleaseHandler(ReleaseWorldResources)", pass);
+            StringAssert.Contains("UnregisterWorldReleaseHandler(ReleaseWorldResources)", pass);
+            StringAssert.Contains("_scheduler.Dispose();", pass,
+                "world release must synchronously drain jobs/pins, not abandon the scheduler");
+        }
+
         private static void AssertCellsEqual(ref RegionTable aTable, in BrickPool aPool,
                                              ref RegionTable bTable, in BrickPool bPool,
                                              int3 min, int3 max)

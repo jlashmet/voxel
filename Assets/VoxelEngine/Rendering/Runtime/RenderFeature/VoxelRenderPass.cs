@@ -56,7 +56,7 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_CameraPosition = Shader.PropertyToID("_CameraPosition");
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
 
-        private readonly VoxelSurfaceScheduler _scheduler = new();
+        private VoxelSurfaceScheduler _scheduler = new();
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
         // render pass; camera motion may change counts but can never resize managed arrays.
         private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
@@ -75,7 +75,12 @@ namespace VoxelEngine.Rendering.Runtime
         public float RenderScale { get; set; } = 1f;
         public float VoxelSize { get; set; } = 0.1f;
         public bool Enabled { get; set; } = true;
-        public VoxelSurfaceMetrics Metrics => _scheduler.Metrics;
+        public VoxelSurfaceMetrics Metrics => _scheduler != null ? _scheduler.Metrics : default;
+
+        public VoxelRenderPass()
+        {
+            VoxelRenderBridge.RegisterWorldReleaseHandler(ReleaseWorldResources);
+        }
 
         public void Setup(Shader surfaceShader = null,
                           Shader waterShader = null,
@@ -364,9 +369,26 @@ namespace VoxelEngine.Rendering.Runtime
             });
         }
 
+        private void ReleaseWorldResources()
+        {
+            if (_scheduler == null) return;
+
+            // Dispose is deliberately synchronous here: world teardown is a lifecycle boundary,
+            // not the frame path. Completing ready/running jobs and releasing every Storage pin
+            // before the application disposes its BrickPool is the ownership contract. Recreate
+            // fixed renderer state immediately so the next world does not allocate on its first
+            // RenderGraph frame.
+            _scheduler.Dispose();
+            _scheduler = new VoxelSurfaceScheduler();
+            Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);
+            Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);
+        }
+
         public void Dispose()
         {
-            _scheduler.Dispose();
+            VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);
+            _scheduler?.Dispose();
+            _scheduler = null;
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);

@@ -86,6 +86,10 @@ namespace VoxelEngine.Composition
         /// <summary>Disconnects the application world from Rendering.Runtime.</summary>
         public static void ClearWorld()
         {
+            // Renderer-derived caches may still own immutable Storage pins. Release them while
+            // the application world is alive; clearing the binding and disposing Storage first
+            // would leave the persistent URP feature holding dead NativeArray safety handles.
+            VoxelRenderBridge.ReleaseWorldResources();
             s_hasWorld = false;
             s_world = default;
             s_terrainSeed = 0;

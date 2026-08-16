@@ -40,6 +40,24 @@ namespace VoxelEngine.Rendering.Runtime
         /// <summary>Versioned changes consumed independently by every derived render domain.</summary>
         public static IVoxelChangeSource Changes;
 
+        // The URP renderer feature outlives individual application worlds. A world owner must be
+        // able to synchronously retire renderer-side jobs/pins before disposing the Storage that
+        // backs them. Keep the callback private to Rendering.Runtime; Composition gets only the
+        // release operation, not scheduler ownership.
+        private static event System.Action s_WorldReleasing;
+
+        internal static void RegisterWorldReleaseHandler(System.Action handler) =>
+            s_WorldReleasing += handler;
+
+        internal static void UnregisterWorldReleaseHandler(System.Action handler) =>
+            s_WorldReleasing -= handler;
+
+        public static void ReleaseWorldResources()
+        {
+            s_WorldReleasing?.Invoke();
+            SurfaceMetrics = default;
+        }
+
         /// <summary>
         /// Read-only diagnostics from the most recent production surface pass. Offline captures,
         /// telemetry and tests may observe convergence; they never drive extraction through this
