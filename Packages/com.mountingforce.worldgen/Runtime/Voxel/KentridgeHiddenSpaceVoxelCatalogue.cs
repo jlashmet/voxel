@@ -72,7 +72,7 @@ namespace MountingForce.WorldGen.Voxel
                 programLength += program.Length;
             }
 
-            FeatureCatalogue catalogue = CatalogueLoader.Allocate(
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: compiled.Length,
                 rules: compiled.Length,
                 parameters: 0,
@@ -140,7 +140,7 @@ namespace MountingForce.WorldGen.Voxel
                 programOffset += item.Program.Length;
             }
 
-            CatalogueLoadResult load = CatalogueLoader.Finalise(ref catalogue);
+            CatalogueLoadResult load = FeatureCatalogueBuilder.Finalise(ref catalogue);
             if (load != CatalogueLoadResult.Ok)
             {
                 catalogue.Dispose();
