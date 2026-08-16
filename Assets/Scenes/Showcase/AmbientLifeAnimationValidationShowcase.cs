@@ -108,23 +108,22 @@ namespace VoxelEngine.Showcase
             {
                 AmbientLifeCluster cluster = _clusters[i];
                 AmbientLifeProfile profile = AmbientLifeCatalogue.Get(cluster.Kind);
-                bool flying = (profile.Traits & AmbientLifeTraits.Flying) != 0;
 
                 GameObject labelObject = new GameObject(cluster.Kind + " Label");
                 labelObject.transform.SetParent(_labelsRoot, false);
-                // Put the caption in the gap below its cell rather than over the swarm itself.
-                // Flying captions stay slightly elevated so they remain associated with the same row.
+                // One consistent caption band per row is easier to scan than labels that move with
+                // species altitude. Z places the caption in the inter-row gap; Y stays aligned.
                 labelObject.transform.position = new Vector3(
                     cluster.PositionMetres.x,
-                    flying ? 0.65f : 0.10f,
+                    0.10f,
                     cluster.PositionMetres.z - 2.35f);
 
                 TextMesh label = labelObject.AddComponent<TextMesh>();
-                label.text = cluster.Kind + "\n" + profile.Movement;
-                label.anchor = TextAnchor.UpperCenter;
+                label.text = cluster.Kind + " / " + profile.Movement;
+                label.anchor = TextAnchor.MiddleCenter;
                 label.alignment = TextAlignment.Center;
                 label.characterSize = 0.045f;
-                label.fontSize = 48;
+                label.fontSize = 64;
                 label.fontStyle = FontStyle.Bold;
                 label.color = new Color(0.96f, 0.98f, 1f, 1f);
             }
@@ -139,9 +138,9 @@ namespace VoxelEngine.Showcase
 
             // This is a species/movement review plate, not a perspective beauty shot. A steeper
             // orthographic view converts the gallery's Z spacing into real screen-space row
-            // separation, leaving a readable caption band between every pair of swarm rows.
+            // separation; the slightly wider frame keeps the first/last rows and caption bands in view.
             camera.orthographic = true;
-            camera.orthographicSize = 6.6f;
+            camera.orthographicSize = 7.6f;
             camera.transform.position = new Vector3(0f, 13.35f, -4.3f);
             camera.transform.LookAt(new Vector3(0f, 1.35f, 8.9f));
         }
