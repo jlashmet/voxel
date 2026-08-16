@@ -9,6 +9,7 @@ on:
       - 'Assets/Scenes/KentridgePlayableSlice.unity'
       - 'Assets/Scenes/KentridgePlayableSlice.unity.meta'
       - 'Assets/Scenes/Kentridge/**'
+      - 'Assets/Tests/EditMode/KentridgeBuildingGrammarTests.cs'
       - 'Assets/Tests/PlayMode/KentridgePlayableScenePlayTests.cs'
       - 'Assets/Tests/PlayMode/KentridgePubExitPlayTests.cs'
       - 'Assets/Tests/PlayMode/KentridgeOpeningVerticalSlicePlayTests.cs'
@@ -50,22 +51,43 @@ jobs:
           fi
           echo "path=${UNITY_PATH}" >> "$GITHUB_OUTPUT"
 
+      - name: Prove generated pub doorway remains carved
+        shell: bash
+        run: |
+          set -uo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/KentridgePlayableSlice"
+          mkdir -p "$ROOT"
+          "${{ steps.unity.outputs.path }}" \
+            -batchmode \
+            -projectPath "$GITHUB_WORKSPACE" \
+            -runTests \
+            -testPlatform EditMode \
+            -testFilter VoxelEngine.Tests.EditMode.KentridgeBuildingGrammarTests.PubDoorwayRemainsCarvedAfterFacadeFraming \
+            -testResults "$ROOT/doorway-ordering-results.xml" \
+            -logFile "$ROOT/doorway-ordering-unity.log"
+          status=$?
+          if [[ -f "$ROOT/doorway-ordering-unity.log" ]]; then
+            cat "$ROOT/doorway-ordering-unity.log"
+          fi
+          exit $status
+
       - name: Run playable Kentridge acceptances
         shell: bash
         run: |
           set -uo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/Artifacts/KentridgePlayableSlice"
+          ROOT="$GITHUB_WORKSPACE/Artifacts/KentridgePlayableSlice"
+          mkdir -p "$ROOT"
           "${{ steps.unity.outputs.path }}" \
             -batchmode \
             -projectPath "$GITHUB_WORKSPACE" \
             -runTests \
             -testPlatform PlayMode \
             -testFilter 'VoxelEngine.Tests.PlayMode.KentridgePubExitPlayTests;VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests' \
-            -testResults "$GITHUB_WORKSPACE/Artifacts/KentridgePlayableSlice/results.xml" \
-            -logFile "$GITHUB_WORKSPACE/Artifacts/KentridgePlayableSlice/unity.log"
+            -testResults "$ROOT/results.xml" \
+            -logFile "$ROOT/unity.log"
           status=$?
-          if [[ -f "$GITHUB_WORKSPACE/Artifacts/KentridgePlayableSlice/unity.log" ]]; then
-            cat "$GITHUB_WORKSPACE/Artifacts/KentridgePlayableSlice/unity.log"
+          if [[ -f "$ROOT/unity.log" ]]; then
+            cat "$ROOT/unity.log"
           fi
           exit $status
 
