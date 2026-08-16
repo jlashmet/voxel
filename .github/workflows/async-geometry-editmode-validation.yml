@@ -39,9 +39,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Surface-summary discovery is admission-only, and a newly attached voxel-change journal
-          # now baselines at CurrentVersion before one bounded resident-state recovery. Together
-          # these contracts prevent static startup history from continuously staling coarse builds.
+          # Exact metadata region jobs now fan out from the shared clear dependency and join
+          # before compaction; this checkpoint protects the fixed-memory non-blocking contract.
           deadline=$((SECONDS + 2400))
           while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
             if (( SECONDS >= deadline )); then
