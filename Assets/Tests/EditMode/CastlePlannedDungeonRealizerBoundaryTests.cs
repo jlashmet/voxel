@@ -28,7 +28,8 @@ namespace VoxelEngine.Tests.EditMode
             int furnish = source.IndexOf("DungeonRoomFurnisher.FurnishAll(ref brush, dungeonPlan)");
             int hatch = source.IndexOf("BuildTrapdoor(ref brush, dungeonPlan.Entrance)");
             int cave = source.IndexOf("CaveRealizer.Build(ref brush, cavePlan)");
-            int decorate = source.IndexOf("CastlePlannedCaveDecorator.Build(ref brush, cavePlan)");
+            int decorate = source.IndexOf(
+                "CastlePlannedCaveDecorator.Build(ref brush, cavePlan, caveDecoration)");
 
             Assert.GreaterOrEqual(carve, 0, "Planned dungeon must realize its room graph.");
             Assert.Greater(furnish, carve,
@@ -40,6 +41,8 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Greater(decorate, cave,
                 "Castle-specific cave dressing must run only after planned cave geometry is carved.");
 
+            StringAssert.Contains("CastleCaveDecorationPlan caveDecoration", source);
+            StringAssert.Contains("CastleCaveDecorationPlanValidator.TryValidate(", source);
             StringAssert.Contains("new int3(half * 2, 2, half * 2)", source,
                 "The planned path must restore the same closed wood hatch footprint used by interaction.");
             StringAssert.Contains("Mat.Wood", source);
@@ -48,6 +51,23 @@ namespace VoxelEngine.Tests.EditMode
                 "Spatial dungeon realization must consume CavePlan instead of falling back to fixed castle cave geometry.");
             StringAssert.DoesNotContain("CastlePlan keepPlan", source,
                 "Planned dungeon/cave realization must not require castle-scale geometry once planning is complete.");
+        }
+
+        [Test]
+        public void PlannedCaveDecoratorInterpretsSpecsWithoutPlanningOrRandomness()
+        {
+            string source = File.ReadAllText(Path.Combine(
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastlePlannedCaveDecorator.cs"));
+
+            StringAssert.Contains("CastleCaveDecorationPlan decoration", source);
+            StringAssert.Contains("decoration.Elements", source);
+            StringAssert.Contains("BuildPlannedElement", source);
+            StringAssert.DoesNotContain("CastleCaveDecorationPlanner.Create", source);
+            StringAssert.DoesNotContain("Random = Unity.Mathematics.Random", source);
+            StringAssert.DoesNotContain("NextFloat(", source);
+            StringAssert.DoesNotContain("NextInt(", source);
+            StringAssert.DoesNotContain("chamberIndex", source);
         }
 
         [Test]
