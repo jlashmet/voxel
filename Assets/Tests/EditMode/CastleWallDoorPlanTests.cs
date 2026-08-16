@@ -64,7 +64,8 @@ namespace VoxelEngine.Tests.EditMode
                 {
                     CastleWallDoorPlan postern = topology.PosternDoor;
                     Assert.IsTrue(CastleWallDoorPlanValidator.TryValidate(
-                        in postern, out CastleWallDoorPlanIssue issue), $"seed {seed}: {issue}");
+                        in postern, out CastleWallDoorPlanIssue posternIssue),
+                        $"seed {seed}: {posternIssue}");
                 }
                 else
                 {
@@ -76,7 +77,8 @@ namespace VoxelEngine.Tests.EditMode
                 {
                     CastleWallDoorPlan inner = topology.InnerWardDoor;
                     Assert.IsTrue(CastleWallDoorPlanValidator.TryValidate(
-                        in inner, out CastleWallDoorPlanIssue issue), $"seed {seed}: {issue}");
+                        in inner, out CastleWallDoorPlanIssue innerIssue),
+                        $"seed {seed}: {innerIssue}");
                 }
                 else
                 {
