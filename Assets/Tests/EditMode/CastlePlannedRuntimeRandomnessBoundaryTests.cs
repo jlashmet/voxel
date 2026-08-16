@@ -29,6 +29,7 @@ namespace VoxelEngine.Tests.EditMode
 
             string[] spatialHelpers =
             {
+                "CastleBuildPipeline.cs",
                 "CastleCourtyardBuildingRealizer.cs",
                 "CastleKeepCirculationRealizer.cs",
                 "CastleWallDoorRealizer.cs",
