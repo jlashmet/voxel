@@ -52,7 +52,7 @@ This checklist is the source of truth for the production Madeline base-character
 - [x] Remove stale generated runtime character prefabs when their staged character descriptor is deleted or moved away.
 - [x] Add Unity EditMode coverage for stale generated-prefab cleanup.
 - [x] Add concurrency cancellation to the modular-equipment validation workflow so future superseding runtime commits do not keep piling up redundant runs.
-- [ ] Pass the latest Unity EditMode catalogue/equipment-controller/importer validation workflow.
+- [x] Pass the latest Unity EditMode catalogue/equipment-controller/importer validation workflow.
 
 ## Visual acceptance
 
@@ -74,7 +74,9 @@ This checklist is the source of truth for the production Madeline base-character
 
 - Madeline run #28 (`31931575922`) proved the repaired reference preprocessing path, then spent the remainder of its 90-minute window downloading the full Hunyuan multiview repository and was cancelled before reconstruction.
 - The Hunyuan bootstrap now downloads only `hunyuan3d-dit-v2-mv-turbo/config.yaml` and `model.fp16.safetensors` into the persistent self-hosted-runner cache.
-- Madeline base-body workflow: run #29 (`31936579943`) from `a4046b503f3edf3644d228168a81fa5f750d74fb`, currently queued for the self-hosted macOS runner.
-- Repaired robe workflow: run #3 (`31936661842`) from `1f8f16596702b8f94458ef0f3ccc5a691d03d6de`, currently using the self-hosted macOS runner in the shared turbo-checkpoint cache-fill step.
-- Latest Unity catalogue/equipment/importer/prefab validation: run #15 (`31937872311`) from `bfa74b5e72080cc8554faf9ed385755441561e2d`, currently queued behind the same self-hosted runner workload. Superseded validation runs are cancelled by the workflow concurrency group.
+- Madeline run #29 (`31936579943`) proved multiview reconstruction, canonical alignment/weight transfer, animation attachment, and four-view body/hair texture projection. It then failed in the face-identity pass because the approved palette PNG has a bad `PLTE` CRC and the projector evaluated front-facing normals in mesh-local rather than canonical world space.
+- Commits `9969a58a` and `f9161e76` repair the face pass by projecting in canonical world space and producing a validated build-local RGB PNG from the authoritative face artwork before Blender loads it.
+- Madeline base-body workflow: run #31 (`31953308607`) from `f9161e762d90f39cccda23b434533dc68bd46314`, currently queued for the self-hosted macOS runner; concurrency cancelled superseded run #30.
+- Repaired robe workflow run #3 (`31936661842`) completed its shared Hunyuan cache setup, then failed immediately in the separate robe/cape isolation step; that garment failure is downstream of the base-character work.
+- Unity catalogue/equipment/importer/prefab validation run #15 (`31937872311`) from `bfa74b5e72080cc8554faf9ed385755441561e2d` passed.
 - Current branch: `feature/character-weapon-asset-pipeline`.
