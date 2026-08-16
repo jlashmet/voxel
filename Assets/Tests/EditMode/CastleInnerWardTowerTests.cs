@@ -51,6 +51,26 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ValidatorRejectsMaterializedInnerTowerDrift()
+        {
+            CastlePlan plan = CastlePlanner.Create(int3.zero, 103u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(103u);
+            topology.Perimeter = CastlePerimeterKind.Rectangular;
+            topology.Wards = CastleWardPattern.InnerAndOuterWards;
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            topology.DesiredTowerCount = 4;
+            topology.HasPosternGate = false;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+
+            spatial.InnerTowers[0].Centre += new int2(1, 0);
+
+            Assert.IsFalse(
+                CastleSpatialPlanValidator.TryValidate(
+                    in plan, spatial, out CastleSpatialPlanIssue issue));
+            Assert.AreEqual(CastleSpatialPlanIssue.InvalidInnerTowerPlacement, issue);
+        }
+
+        [Test]
         public void InnerTowerPolicyUsesSmallerFootprintThanOuterTower()
         {
             CastlePlan plan = CastlePlanner.Create(int3.zero, 113u);
@@ -78,8 +98,9 @@ namespace VoxelEngine.Tests.EditMode
                 root, "Assets", "VoxelEngine", "Structures", "Api",
                 "CastleSpatialPlan.cs"));
 
-            StringAssert.Contains("InnerTowers { get; }", plan);
-            StringAssert.Contains("InnerTowers = CastleInnerWardTowerPlanner.Create", plan);
+            StringAssert.Contains("private readonly CastleTowerPlacementSpec[] _innerTowers;", plan);
+            StringAssert.Contains("public CastleTowerPlacementSpec[] InnerTowers => _innerTowers;", plan);
+            StringAssert.Contains("_innerTowers = CastleInnerWardTowerPlanner.Create(innerWardVertices);", plan);
             StringAssert.Contains("spatialPlan.InnerTowers", pipeline);
             StringAssert.Contains("CastleInnerWardTowerRealizer.BuildAll(", pipeline);
             StringAssert.Contains("_innerTowerCentres", pipeline);
