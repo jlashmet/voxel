@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-using Game.Materials.Api;
+using Game.Materials.Runtime;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -191,14 +191,8 @@ namespace VoxelEngine.Showcase
                 float jitterX = Signed(hash);
                 float jitterZ = Signed(Hash(hash + 17u));
                 float force = math.lerp(2.5f, 7.5f, Unit(Hash(hash + 31u)));
-                float materialScale = chunk.Materials[firstVisibleSource] switch
-                {
-                    GameMaterialIds.Wood => 0.58f,
-                    GameMaterialIds.Cloth => 0.50f,
-                    GameMaterialIds.Grass => 0.38f,
-                    GameMaterialIds.Moss => 0.45f,
-                    _ => 1f,
-                };
+                float materialScale = GameMaterialDebrisPresentation.ImpulseScale(
+                    chunk.Materials[firstVisibleSource]);
                 float massScale = math.clamp(math.rsqrt(math.max(1f, representedSourceVoxels / 8f)),
                                              0.45f, 1f);
                 float impulseScale = materialScale * massScale;
@@ -308,24 +302,8 @@ namespace VoxelEngine.Showcase
 
         private static Vector4 MaterialColour(byte material, byte coating, float scale)
         {
-            Vector4 colour = material switch
-            {
-                GameMaterialIds.Wood => new Vector4(0.43f, 0.25f, 0.12f, scale),
-                GameMaterialIds.Sand => new Vector4(0.72f, 0.64f, 0.42f, scale),
-                GameMaterialIds.Glass => new Vector4(0.52f, 0.78f, 0.88f, scale),
-                GameMaterialIds.Slate => new Vector4(0.20f, 0.24f, 0.30f, scale),
-                GameMaterialIds.Tile => new Vector4(0.42f, 0.18f, 0.12f, scale),
-                GameMaterialIds.Grass => new Vector4(0.25f, 0.46f, 0.15f, scale),
-                GameMaterialIds.Dirt => new Vector4(0.32f, 0.22f, 0.13f, scale),
-                GameMaterialIds.Moss => new Vector4(0.22f, 0.38f, 0.18f, scale),
-                GameMaterialIds.LitWindow => new Vector4(0.18f, 0.20f, 0.19f, scale),
-                GameMaterialIds.Cascade => new Vector4(0.22f, 0.62f, 0.78f, scale),
-                GameMaterialIds.Crystal => new Vector4(0.08f, 0.56f, 0.82f, scale),
-                GameMaterialIds.MasonrySmall => new Vector4(0.65f, 0.56f, 0.41f, scale),
-                GameMaterialIds.MasonryMedium => new Vector4(0.68f, 0.58f, 0.42f, scale),
-                GameMaterialIds.MasonryLarge => new Vector4(0.63f, 0.54f, 0.40f, scale),
-                _ => new Vector4(0.48f, 0.50f, 0.54f, scale),
-            };
+            float4 baseColour = GameMaterialDebrisPresentation.Colour(material, scale);
+            Vector4 colour = new(baseColour.x, baseColour.y, baseColour.z, baseColour.w);
 
             Vector3 overlay = coating switch
             {
