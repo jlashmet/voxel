@@ -10,11 +10,8 @@ cd "$REPO_ROOT"
 BLENDER_BIN="${BLENDER_BIN:-/Applications/Blender.app/Contents/MacOS/Blender}"
 test -x "$BLENDER_BIN"
 
-# The approved binary turnaround images contain all usable scan data but some older
-# git copies have an incomplete JPEG trailer. Do not route them through text/base64
-# transport. Pillow can decode the scan data permissively; we immediately re-encode
-# fresh complete JPEGs and only those validated copies are fed to preprocessing/Hunyuan.
 VIEW_DIR="$SCRIPT_DIR/views"
+PRECLEAN_DIR="$SCRIPT_DIR/views-bodyonly"
 FACE="$SCRIPT_DIR/refs/madeline_face_front.png"
 for name in front back left right; do
   source="$VIEW_DIR/$name.jpg"
@@ -44,10 +41,6 @@ mkdir -p "$OUT/reference/raw" "$OUT/reference/body-only"
 
 export PYTORCH_ENABLE_MPS_FALLBACK="${PYTORCH_ENABLE_MPS_FALLBACK:-1}"
 export PYTHONUNBUFFERED=1
-# The normal Character Factory default strongly morphs generated extents to the
-# generic mannequin. Madeline's approved turnaround deliberately has a shorter,
-# more compact body, so preserve most generated proportions while still nudging
-# the mesh toward the donor for reliable skin-weight transfer.
 export CHARACTER_FACTORY_ALIGNMENT_BLEND="${CHARACTER_FACTORY_ALIGNMENT_BLEND:-0.15}"
 
 printf '%s\n' '[1/9] Decode, re-encode, and validate the approved Madeline turnaround'
@@ -78,6 +71,7 @@ cp "$FACE" "$OUT/reference/madeline_face_front.png"
 printf '%s\n' '[2/9] Remove the temporary modeling base layer from geometry inputs'
 "$HUNYUAN_PY" "$SCRIPT_DIR/prepare_body_texture_views.py" \
   --input-dir "$OUT/reference/raw" \
+  --preclean-dir "$PRECLEAN_DIR" \
   --output-dir "$OUT/reference/body-only" \
   --report "$OUT/body-only-reference-report.json"
 
@@ -87,8 +81,6 @@ BODY_LEFT="$OUT/reference/body-only/left.jpg"
 BODY_RIGHT="$OUT/reference/body-only/right.jpg"
 
 printf '%s\n' '[3/9] Ensure the Hunyuan multiview backend is ready'
-# The bootstrap is idempotent on the self-hosted Mac. Run it when the multiview
-# checkpoint is missing so a fresh machine can reproduce this build.
 MODEL_ROOT="${HY3DGEN_MODELS:-$CACHE_ROOT/models}"
 export HY3DGEN_MODELS="$MODEL_ROOT"
 if [ ! -s "$MODEL_ROOT/tencent/Hunyuan3D-2mv/hunyuan3d-dit-v2-mv-turbo/model.fp16.safetensors" ]; then
