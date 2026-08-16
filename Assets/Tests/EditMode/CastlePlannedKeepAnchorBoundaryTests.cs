@@ -18,7 +18,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void PlannedKeepComponentsUseSharedSpatialProjectionForWorldCentre()
+        public void PlannedKeepComponentsUseSharedSpatialProjectionForWorldBounds()
         {
             string runtime = Path.Combine(
                 RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime");
@@ -27,8 +27,10 @@ namespace VoxelEngine.Tests.EditMode
             string exterior = File.ReadAllText(Path.Combine(
                 runtime, "CastlePlannedKeepExteriorRealizer.cs"));
 
-            StringAssert.Contains("CastleSpatialProjection.ActualKeepCentre(", turrets);
-            StringAssert.Contains("CastleSpatialProjection.ActualKeepCentre(", exterior);
+            StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", turrets);
+            StringAssert.Contains("CastleSpatialProjection.KeepSize(", turrets);
+            StringAssert.Contains("CastleSpatialProjection.KeepMinimum(", exterior);
+            StringAssert.Contains("CastleSpatialProjection.KeepSize(", exterior);
             StringAssert.DoesNotContain("LegacyKeepCentreZOffset", turrets);
             StringAssert.DoesNotContain("LegacyKeepCentreZOffset", exterior);
         }
