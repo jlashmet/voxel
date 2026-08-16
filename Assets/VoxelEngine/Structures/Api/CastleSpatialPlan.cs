@@ -357,7 +357,7 @@ namespace VoxelEngine.Structures.Api
             Towers = towers;
             _innerTowers = innerTowers != null
                 ? (CastleTowerPlacementSpec[])innerTowers.Clone()
-                : CastleInnerWardTowerPlanner.Create(innerWardVertices);
+                : Array.Empty<CastleTowerPlacementSpec>();
             PrimaryGate = primaryGate;
             HasPosternGate = hasPosternGate;
             PosternGate = posternGate;
