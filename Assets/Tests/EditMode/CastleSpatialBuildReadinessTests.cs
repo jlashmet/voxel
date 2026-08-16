@@ -51,6 +51,26 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void GatehouseWithoutFrozenTowerSlitsIsNotRuntimeReady()
+        {
+            CastlePlan plan = CastlePlanner.Create(int3.zero, 105u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(105u);
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            topology.HasGatehousePlan = true;
+            CastleGatehousePlan gatehouse = CastleGatehousePlanner.Create(in plan);
+            gatehouse.LeftTowerSlits = null;
+            topology.Gatehouse = gatehouse;
+
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+            CastleSpatialPlan completed = CastleSpatialPlanCompletion.CompleteResolved(in plan, spatial);
+
+            Assert.IsFalse(
+                CastleSpatialBuildReadiness.TryValidate(
+                    in plan, completed, out CastleSpatialBuildReadinessIssue issue));
+            Assert.AreEqual(CastleSpatialBuildReadinessIssue.InvalidGatehousePlan, issue);
+        }
+
+        [Test]
         public void CompletedSpatialPlanWithoutFrozenKeepTurretsIsNotRuntimeReady()
         {
             CastlePlan plan = CastlePlanner.Create(int3.zero, 104u);
