@@ -30,7 +30,7 @@ namespace VoxelEngine.Structures.Runtime
             switch (stage)
             {
                 case 0:
-                    BuildShell(ref brush, min, size, baseY);
+                    CastleKeepShellRealizer.Build(ref brush, min, size, baseY);
                     break;
 
                 case 1:
@@ -56,18 +56,6 @@ namespace VoxelEngine.Structures.Runtime
 
             stage++;
             return true;
-        }
-
-        private static void BuildShell(ref VoxelBrush brush, int3 min, int3 size, int baseY)
-        {
-            brush.Box(new int3(min.x - 6, baseY - 26, min.z - 6),
-                      new int3(size.x + 12, 30, size.z + 12), Mat.DarkStone);
-            brush.HollowBox(min, size, 8, Mat.Stone, false, false);
-
-            // HollowBox writes only the shell; explicitly clear the occupied volume while
-            // preserving the base floor.
-            brush.FillBulk(new int3(min.x + 8, baseY + 1, min.z + 8),
-                           new int3(size.x - 16, size.y - 1, size.z - 16), Mat.Empty);
         }
 
         private static void BuildCornerTurrets(ref VoxelBrush brush, in CastlePlan plan,
