@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.CI",
   "references": [
     "VoxelEngine.Storage.Runtime",
+    "VoxelEngine.Rendering.Api",
     "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Showcase",
     "Unity.Mathematics",
