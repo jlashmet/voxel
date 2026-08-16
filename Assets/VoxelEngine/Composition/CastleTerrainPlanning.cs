@@ -17,17 +17,22 @@ namespace VoxelEngine.Composition
             uint terrainSeed)
         {
             if (spatial == null) throw new ArgumentNullException(nameof(spatial));
-            if (!spatial.KeepRequiresTerrainResolution)
-                return spatial;
 
-            if (spatial.Topology.KeepPlacement != CastleKeepPlacement.HighestGround)
+            CastleSpatialPlan resolved = spatial;
+            if (spatial.KeepRequiresTerrainResolution)
             {
-                throw new InvalidOperationException(
-                    "Unexpected terrain dependency: only HighestGround keep placement is supported.");
+                if (spatial.Topology.KeepPlacement != CastleKeepPlacement.HighestGround)
+                {
+                    throw new InvalidOperationException(
+                        "Unexpected terrain dependency: only HighestGround keep placement is supported.");
+                }
+
+                int2 chosen = FindHighestGroundKeep(in plan, spatial, terrainSeed);
+                resolved = CastleSpatialPlanner.ResolveHighestGroundKeep(
+                    in plan, spatial, chosen);
             }
 
-            int2 chosen = FindHighestGroundKeep(in plan, spatial, terrainSeed);
-            return CastleSpatialPlanner.ResolveHighestGroundKeep(in plan, spatial, chosen);
+            return CastleSpatialPlanCompletion.AttachCourtyardBuildings(in plan, resolved);
         }
 
         private static int2 FindHighestGroundKeep(
@@ -59,8 +64,6 @@ namespace VoxelEngine.Composition
             int bestSlope = int.MaxValue;
             uint bestTieBreak = 0u;
 
-            // The planner guarantees the ward can contain a central keep, so evaluate the origin
-            // explicitly even if the fixed search stride does not land on it.
             Consider(
                 int2.zero,
                 in plan,
