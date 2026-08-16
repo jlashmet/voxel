@@ -22,7 +22,7 @@ namespace VoxelEngine.Tests.EditMode
         public void CompositionRoutesCastleBuildsThroughIncrementalPipeline()
         {
             string composition = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Composition", "StructuresComposition.cs"));
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "StructuresComposition.Castle.cs"));
 
             StringAssert.Contains("new CastleBuildPipeline(", composition);
             StringAssert.DoesNotContain("CastleBuilder.BeginBuild(", composition);
@@ -32,7 +32,8 @@ namespace VoxelEngine.Tests.EditMode
         public void LegacyCastleBuilderIsOnlyCompatibilityFacade()
         {
             string builder = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime", "CastleBuilder.cs"));
+                RepoRoot, "Assets", "VoxelEngine", "Structures", "Runtime",
+                "CastleBuilderCompatibility.cs"));
 
             StringAssert.Contains("CastlePlanner.Create(centre, seed)", builder);
             StringAssert.Contains("CastleBuildPreflight.EstimateWrites(in plan)", builder);
@@ -77,7 +78,7 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.DoesNotContain("Structures.Runtime", planning);
 
             string composition = File.ReadAllText(Path.Combine(
-                RepoRoot, "Assets", "VoxelEngine", "Composition", "StructuresComposition.cs"));
+                RepoRoot, "Assets", "VoxelEngine", "Composition", "StructuresComposition.Castle.cs"));
             StringAssert.Contains("CastleLayoutPlanner.Create(plan.Seed)", composition);
             StringAssert.Contains("CastleSpatialPlanner.Create(in plan, in topology)", composition);
             StringAssert.Contains("CastleSpatialPlanValidator.TryValidate(", composition);
