@@ -1,5 +1,6 @@
 using System;
 using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Composition;
 using VoxelEngine.Composition.Api;
 using VoxelEngine.Storage.Api;
@@ -12,25 +13,29 @@ namespace VoxelEngine.Showcase
 
         /// <summary>
         /// Composition entry point for application-owned material definitions and role binding.
-        /// The world consumes only opaque indices and generic properties.
+        /// This constructor initializes the world directly: it deliberately does not chain through
+        /// the legacy constructor that still contains the pre-migration hardcoded demo palette.
         /// </summary>
         public ShowcaseWorld(uint seed, int brickPoolCapacity, int loadRadiusRegions,
                              int unloadRadiusRegions, MaterialDefinition[] materialDefinitions,
                              ShowcaseMaterialSet materialRoles)
-            : this(seed, brickPoolCapacity, loadRadiusRegions, unloadRadiusRegions)
         {
             if (materialDefinitions == null)
                 throw new ArgumentNullException(nameof(materialDefinitions));
 
+            Seed = seed;
+            LoadRadiusRegions = math.max(1, loadRadiusRegions);
+            UnloadRadiusRegions = math.max(LoadRadiusRegions + 1, unloadRadiusRegions);
             _materials = materialRoles;
-            _palette.Clear();
+
+            _storage = new VoxelEngineBootstrap.StorageRuntimeLifetime(
+                64, brickPoolCapacity, 4096);
+
             for (int i = 0; i < materialDefinitions.Length; i++)
                 _palette.Register(in materialDefinitions[i]);
             _materialSimulation = _palette.SimulationView;
+            _materialAdjacencyCatalogue = default;
 
-            // Replace the legacy base catalogue before the world becomes observable so active
-            // generation is always driven by the application-owned role binding.
-            if (_catalogue.IsCreated) _catalogue.Dispose();
             _catalogue = ShowcaseCatalogue.Build(seed, in materialRoles, Allocator.Persistent);
         }
 
