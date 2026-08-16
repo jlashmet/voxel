@@ -8,12 +8,15 @@ namespace VoxelEngine.Structures.Api
         InvalidCavePlan,
         CaveEntranceMismatch,
         InvalidDungeonPlan,
+        MissingCaveDecorationPlan,
+        UnexpectedCaveDecorationPlan,
+        InvalidCaveDecorationPlan,
     }
 
     /// <summary>
     /// Pure admission check for the designed-dungeon to natural-cave handoff. General castle and
     /// dungeon validation remains owned by CastleBuildPreflight; this check exists so Runtime can
-    /// require a completed natural-space plan without choosing or repairing cave topology itself.
+    /// require completed natural-space topology and decoration without choosing or repairing it.
     /// </summary>
     public static class CastleCaveBuildReadiness
     {
@@ -23,13 +26,24 @@ namespace VoxelEngine.Structures.Api
         {
             DungeonPlan dungeon = spatial != null ? spatial.Dungeon : null;
             CavePlan cave = spatial != null ? spatial.Cave : null;
+            CastleCaveDecorationPlan decoration = spatial != null ? spatial.CaveDecoration : null;
 
             if (dungeon == null)
             {
-                issue = cave == null
-                    ? CastleCaveBuildReadinessIssue.None
-                    : CastleCaveBuildReadinessIssue.UnexpectedCavePlan;
-                return cave == null;
+                if (cave != null)
+                {
+                    issue = CastleCaveBuildReadinessIssue.UnexpectedCavePlan;
+                    return false;
+                }
+
+                if (decoration != null)
+                {
+                    issue = CastleCaveBuildReadinessIssue.UnexpectedCaveDecorationPlan;
+                    return false;
+                }
+
+                issue = CastleCaveBuildReadinessIssue.None;
+                return true;
             }
 
             if (!DungeonPlanValidator.TryValidate(dungeon, out _))
@@ -40,10 +54,20 @@ namespace VoxelEngine.Structures.Api
 
             if (!dungeon.HasCaveExit)
             {
-                issue = cave == null
-                    ? CastleCaveBuildReadinessIssue.None
-                    : CastleCaveBuildReadinessIssue.UnexpectedCavePlan;
-                return cave == null;
+                if (cave != null)
+                {
+                    issue = CastleCaveBuildReadinessIssue.UnexpectedCavePlan;
+                    return false;
+                }
+
+                if (decoration != null)
+                {
+                    issue = CastleCaveBuildReadinessIssue.UnexpectedCaveDecorationPlan;
+                    return false;
+                }
+
+                issue = CastleCaveBuildReadinessIssue.None;
+                return true;
             }
 
             if (cave == null)
@@ -71,6 +95,19 @@ namespace VoxelEngine.Structures.Api
                         issue = CastleCaveBuildReadinessIssue.InvalidCavePlan;
                         return false;
                 }
+            }
+
+            if (decoration == null)
+            {
+                issue = CastleCaveBuildReadinessIssue.MissingCaveDecorationPlan;
+                return false;
+            }
+
+            if (!CastleCaveDecorationPlanValidator.TryValidate(
+                    cave, decoration, out _))
+            {
+                issue = CastleCaveBuildReadinessIssue.InvalidCaveDecorationPlan;
+                return false;
             }
 
             issue = CastleCaveBuildReadinessIssue.None;
