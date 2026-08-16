@@ -3,7 +3,7 @@ namespace VoxelEngine.Storage.Api
     /// <summary>
     /// Engine-facing, semantic-free description of one material slot.
     /// Games/content own the identity and meaning of MaterialId; Storage only consumes the
-    /// physical/simulation projection needed to build its fixed runtime palette.
+    /// physical/simulation and authoring properties needed to build its fixed runtime palette.
     /// </summary>
     public readonly struct MaterialDefinition
     {
@@ -14,8 +14,16 @@ namespace VoxelEngine.Storage.Api
         public readonly uint AllowedCoatings;
         public readonly bool Flammable;
 
+        /// <summary>
+        /// Optional coating applied when authoring this material onto an existing solid. Zero means
+        /// ordinary replacement. This is a generic placement property; semantic material identity
+        /// remains application-owned.
+        /// </summary>
+        public readonly byte PlacementCoating;
+
         public MaterialDefinition(byte materialId, byte hardness, DestructionClass destructionClass,
-                                  ushort defaultSurfaceStyle, uint allowedCoatings, bool flammable)
+                                  ushort defaultSurfaceStyle, uint allowedCoatings, bool flammable,
+                                  byte placementCoating = Coatings.None)
         {
             MaterialId = materialId;
             Hardness = hardness;
@@ -23,6 +31,7 @@ namespace VoxelEngine.Storage.Api
             DefaultSurfaceStyle = defaultSurfaceStyle;
             AllowedCoatings = allowedCoatings;
             Flammable = flammable;
+            PlacementCoating = placementCoating;
         }
     }
 }
