@@ -1,4 +1,5 @@
 using System;
+using Unity.Collections;
 using VoxelEngine.Composition.Api;
 using VoxelEngine.Storage.Api;
 
@@ -24,8 +25,13 @@ namespace VoxelEngine.Showcase
             _palette.Clear();
             for (int i = 0; i < materialDefinitions.Length; i++)
                 _palette.Register(in materialDefinitions[i]);
-
             _materialSimulation = _palette.SimulationView;
+
+            // The legacy constructor still builds its historical showcase catalogue for temporary
+            // compatibility. Replace it before the world becomes observable so active generation
+            // is always driven by the application-owned role binding.
+            if (_catalogue.IsCreated) _catalogue.Dispose();
+            _catalogue = ShowcaseCatalogue.Build(seed, in materialRoles, Allocator.Persistent);
         }
 
         /// <summary>
@@ -53,6 +59,18 @@ namespace VoxelEngine.Showcase
                 gate: 2,
                 referenceArch: 6,
                 farStructure: 1,
+                worldgenFoundation: 1,
+                worldgenMasonry: 1,
+                worldgenDarkMasonry: 6,
+                worldgenTimber: 2,
+                worldgenGlass: 4,
+                worldgenWarmWindow: 15,
+                worldgenRoofTile: 8,
+                worldgenSlate: 7,
+                worldgenCloth: 9,
+                worldgenMoss: 14,
+                worldgenWater: 11,
+                worldgenRoadSurface: 13,
                 structuralMask: structuralMask);
         }
     }
