@@ -59,7 +59,11 @@ import sys
 
 source = Path(sys.argv[1])
 destination = Path(sys.argv[2])
-data = base64.b64decode(source.read_text(encoding="ascii"), validate=True)
+# Base64 payloads are wrapped across lines in git for manageable diffs. Strip all
+# ASCII whitespace before strict validation; validate=True intentionally still
+# rejects any non-base64 character after wrapping is removed.
+encoded = "".join(source.read_text(encoding="ascii").split())
+data = base64.b64decode(encoded, validate=True)
 if len(data) < 4096 or not data.startswith(b"\xff\xd8") or not data.endswith(b"\xff\xd9"):
     raise SystemExit(f"invalid JPEG payload: {source}")
 destination.write_bytes(data)
