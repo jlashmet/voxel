@@ -61,5 +61,27 @@ namespace VoxelEngine.Tests.EditMode
                 }
             }
         }
+
+        [Test]
+        public void SpatialBoundsRemainConservativeBelowWorldZero()
+        {
+            CastlePlan plan = CastlePlanner.Create(new int3(-180, -140, 95), 131u);
+            CastleTopologyPlan topology = CastleLayoutPlanner.Create(131u);
+            topology.KeepPlacement = CastleKeepPlacement.Central;
+            CastleSpatialPlan spatial = CastleSpatialPlanner.Create(in plan, in topology);
+            CastleSpatialProjection projection = CastleSpatialProjection.Create(in plan, spatial);
+            CastleBuildBounds bounds = CastleBuildBoundsResolver.Resolve(in plan, spatial);
+            int baseY = plan.Centre.y + plan.PlateauHeight;
+
+            var caveFloor = new int3(
+                projection.KeepCentreWorld.x,
+                baseY - 178,
+                projection.KeepCentreWorld.y - 371);
+
+            Assert.Less(bounds.Min.y, 0,
+                "Signed voxel worlds must not clamp castle dependency bounds to Y=0.");
+            Assert.IsTrue(bounds.Contains(caveFloor),
+                "The underground castle envelope must remain valid at negative world Y.");
+        }
     }
 }
