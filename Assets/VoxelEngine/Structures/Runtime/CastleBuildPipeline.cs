@@ -90,9 +90,14 @@ namespace VoxelEngine.Structures.Runtime
                         ref _legacy.Brush, in _legacy.Plan);
                     return CompleteStage("gatehouse");
 
+                case 5:
+                    CastleCourtyardRealizer.Build(
+                        ref _legacy.Brush, in _legacy.Plan);
+                    return CompleteStage("courtyard");
+
                 default:
-                    // Courtyard, keep/interiors, dungeon, and landscape dressing still use the
-                    // legacy implementation. Each extraction removes another case from here.
+                    // Keep/interiors, dungeon, and landscape dressing still use the legacy
+                    // implementation. Each extraction removes another case from here.
                     return CastleBuilder.StepBuild(ref _legacy);
             }
         }
