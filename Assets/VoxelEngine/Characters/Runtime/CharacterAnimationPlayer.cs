@@ -8,8 +8,7 @@ namespace VoxelEngine.Characters.Runtime
     /// Plays arbitrary animation clips directly on a character Animator through Playables.
     /// The driver deliberately owns no clip catalogue, state machine, or placeholder-specific
     /// knowledge so the same runtime seam can drive temporary and generated Humanoid visuals.
-    /// Resolver-driven visual swaps preserve the currently requested clip and retarget it to
-    /// the replacement Animator.
+    /// Resolver-driven visual swaps preserve both the requested clip and its playback time.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class CharacterAnimationPlayer : MonoBehaviour
@@ -23,6 +22,7 @@ namespace VoxelEngine.Characters.Runtime
         private PlayableGraph graph;
         private AnimationClipPlayable currentPlayable;
         private AnimationClip currentClip;
+        private double retainedTime;
         private bool resolverSubscribed;
 
         public Animator Animator => animator;
@@ -33,7 +33,7 @@ namespace VoxelEngine.Characters.Runtime
 
         public double CurrentTime => currentPlayable.IsValid()
             ? currentPlayable.GetTime()
-            : 0d;
+            : retainedTime;
 
         public bool IsPlaying => graph.IsValid() && graph.IsPlaying();
 
@@ -110,14 +110,16 @@ namespace VoxelEngine.Characters.Runtime
 
             Stop();
             currentClip = clip;
-            StartCurrentClip();
+            retainedTime = 0d;
+            StartCurrentClip(retainedTime);
             return true;
         }
 
         public void Stop()
         {
-            DestroyGraph();
+            DestroyGraph(false);
             currentClip = null;
+            retainedTime = 0d;
         }
 
         private void ResolveVisualResolverIfNeeded()
@@ -182,21 +184,22 @@ namespace VoxelEngine.Characters.Runtime
                 return;
             }
 
-            DestroyGraph();
+            DestroyGraph(true);
             animator = value;
 
             if (animator != null && currentClip != null)
             {
-                StartCurrentClip();
+                StartCurrentClip(retainedTime);
             }
         }
 
-        private void StartCurrentClip()
+        private void StartCurrentClip(double startTime)
         {
             graph = PlayableGraph.Create($"{name}: Character Animation");
             graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
 
             currentPlayable = AnimationClipPlayable.Create(graph, currentClip);
+            currentPlayable.SetTime(startTime);
             AnimationPlayableOutput output =
                 AnimationPlayableOutput.Create(graph, "Character Animation", animator);
             output.SetSourcePlayable(currentPlayable);
@@ -204,8 +207,13 @@ namespace VoxelEngine.Characters.Runtime
             graph.Play();
         }
 
-        private void DestroyGraph()
+        private void DestroyGraph(bool preserveTime)
         {
+            if (preserveTime && currentPlayable.IsValid())
+            {
+                retainedTime = currentPlayable.GetTime();
+            }
+
             if (graph.IsValid())
             {
                 graph.Destroy();
