@@ -116,6 +116,7 @@ source-level regression guard are committed. Runtime/PlayMode acceptance remains
   - Instrumentation: stressed `SchedulerPrepareTiming.P99Ms` is asserted against the merge-gate threshold.
 - [ ] Verify zero steady-state managed allocation after warmup.
 - [ ] Verify arena pressure causes backlog/convergence delay rather than frame spikes or visible holes.
+  - Coverage: `AsyncGeometryStressTests.GeometryArenaPressureKeepsPublishedLeaseUntilReplacementConverges` fills a tiny fixed arena, proves the old lease stays live while replacement staging is blocked, then proves convergence after one unrelated lease is reclaimed.
 
 ## Current next slices
 
